@@ -1543,3 +1543,49 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
 
     drop((root, mock_instance));
 }
+
+/// A lockfile-only resolve records the removal of the direct
+/// `@pnpm.e2e/dep-of-pkg-with-1-dep`, as pulling a teammate's lockfile
+/// would; the headless install after it has to notice that the removal
+/// made `@pnpm.e2e/pkg-with-1-dep`'s own copy hoistable.
+#[test]
+fn rehoists_when_an_up_to_date_lockfile_removes_a_direct_dependency() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(&workspace, "hoistPattern:\n  - '*'\n");
+    write_manifest(
+        &workspace,
+        serde_json::json!({
+            "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            "@pnpm.e2e/dep-of-pkg-with-1-dep": "101.0.0",
+        }),
+    );
+    pacquet.with_arg("install").assert().success();
+    let hoisted = workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
+    assert!(
+        fs::symlink_metadata(&hoisted).is_err(),
+        "a direct dependency's name is not privately hoisted",
+    );
+
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    assert!(
+        is_symlink_or_junction(&hoisted).unwrap_or(false),
+        "the transitive copy is hoisted once the direct dependency is gone",
+    );
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(hoisted.join("package.json")).expect("read hoisted package.json"),
+    )
+    .expect("parse hoisted package.json");
+    assert_eq!(manifest["version"], "100.1.0");
+
+    drop((root, mock_instance));
+}
+
+fn pacquet_at(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+}

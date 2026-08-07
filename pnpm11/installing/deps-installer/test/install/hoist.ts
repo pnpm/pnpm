@@ -198,6 +198,35 @@ test('should rehoist after running a general install', async () => {
   project.has('.pnpm/node_modules/debug') // debug hoisted because it is not a direct dep anymore
 })
 
+test('hoists again when an up-to-date lockfile removes a direct dependency', async () => {
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      debug: '3.1.0',
+      express: '4.16.0',
+    },
+  }, testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  project.hasNot('.pnpm/node_modules/debug')
+
+  // The removal is resolved into the lockfile without touching node_modules,
+  // as pulling a teammate's lockfile would. The install after it takes the
+  // headless path and has to notice that removing the direct dependency made
+  // express's own `debug` hoistable.
+  await install({
+    dependencies: {
+      express: '4.16.0',
+    },
+  }, testDefaults({ fastUnpack: false, hoistPattern: '*', lockfileOnly: true }))
+  await install({
+    dependencies: {
+      express: '4.16.0',
+    },
+  }, testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+
+  project.has('.pnpm/node_modules/debug')
+})
+
 test('should not override aliased dependencies', async () => {
   const project = prepareEmpty()
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
