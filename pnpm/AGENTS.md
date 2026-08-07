@@ -189,6 +189,17 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
   integration tests under each crate's `tests/`. Shared pacquet fixtures live
   under `crates/testing-utils/src/fixtures/`; registry package fixtures live
   under `../pnpr/.fixtures/packages/`.
+- `pacquet-cli`'s end-to-end tests are a single Cargo target: each file under
+  `crates/cli/tests/suite/` is a module of `tests/suite/main.rs`. Put a new
+  test file there and declare it in `main.rs`. A file added directly under
+  `crates/cli/tests/` becomes its own binary instead, and every such binary
+  statically links the whole dependency graph — `pnpr` included — so it costs
+  another ~240 MB to link on each change to the crate. `cargo nextest` runs
+  every test in its own process regardless of how many binaries there are.
+  Paths in file-relative macros (`include_str!`, `include_bytes!`) resolve
+  against the containing file, so one written for `tests/` needs an extra
+  `../` under `tests/suite/`. Watch for this when porting a test from a
+  branch that predates the layout.
 - Snapshot tests use `insta`. When an intentional change alters a snapshot,
   review the diff carefully, then accept with `cargo insta review`. Never
   accept snapshot changes blindly.
@@ -275,6 +286,10 @@ cargo nextest run -p pacquet-lockfile <name_substring>
 
 # One integration test file
 cargo nextest run -p pacquet-lockfile --test <file_stem>
+
+# One module of pacquet-cli's suite (the suite is a single target, so the
+# former per-file `--test <file_stem>` is a module filter here)
+cargo nextest run -p pacquet-cli -E 'test(/^<file_stem>::/)'
 ```
 
 Run `just ready` (full suite) before handing the PR off.

@@ -701,6 +701,7 @@ async function assertWantedLockfileUpToDate (
     {
       autoInstallPeers,
       excludeLinksFromLockfile,
+      ignoredOptionalDependencies: config.ignoredOptionalDependencies,
     },
     wantedLockfile.importers[projectId],
     projectManifest

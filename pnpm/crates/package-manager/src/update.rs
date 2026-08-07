@@ -29,7 +29,9 @@ use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pacquet_reporter::{
+    LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
+};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::UpdateDepth;
 use pacquet_resolving_npm_resolver::{
@@ -100,10 +102,12 @@ pub struct Update<'a> {
     /// to dependencies whose current specifier has no recoverable pin; an
     /// existing `^`/`~`/exact range is preserved over this default.
     pub save_exact: bool,
-    /// `--save` (default) / `--no-save`. When `false`, the manifest is
-    /// not persisted: the `--latest` / versioned-selector range rewrites
-    /// still drive resolution (so `pnpm-lock.yaml` updates) but
-    /// `package.json` on disk is left untouched.
+    /// `--save` (default) / `--no-save`. When `false`, `package.json` on
+    /// disk is left untouched, so its specifiers stay authoritative:
+    /// `pnpm-lock.yaml` still updates, but only within the ranges the
+    /// manifest keeps, since the importer entry has to keep satisfying the
+    /// specifier it records. A requested version those ranges exclude is
+    /// skipped, and `--latest` degrades to a compatible bump.
     pub save: bool,
     /// Dependency groups the update considers when choosing which direct
     /// dependencies to match, derived from
@@ -347,6 +351,7 @@ impl Update<'_> {
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
+            persist_policy_excludes: save,
             update_seed_policy: seed_policy,
             auth_override: None,
             resolution_observer,
@@ -472,6 +477,7 @@ impl Update<'_> {
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
+            persist_policy_excludes: save,
             update_seed_policy: UpdateSeedPolicy::ByImporter {
                 policies: prepared.seed_policies,
                 max_depth: UpdateDepth::new(depth),
@@ -628,11 +634,15 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         let ignore_matcher = (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
         let is_ignored =
             |name: &str| ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name));
+        if latest && !save {
+            emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
+        }
         for (name, group, previous) in &direct {
             if is_ignored(name) {
                 continue;
             }
             if latest
+                && save
                 && let Some(specifier) =
                     latest_specifier(&rewrite_ctx, latest_chain, &mut catalog_ctx, name, previous)
                         .await?
@@ -714,19 +724,65 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 );
             }
         } else {
+            if latest && !save {
+                emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
+            }
             for (name, group, previous) in &matched_direct {
-                drop_names.insert(name.clone());
                 // The two sources are exclusive: `--latest` rejects versioned
                 // selectors above, so under it no selector carries a version.
                 let rewrite = if latest {
-                    latest_specifier(&rewrite_ctx, latest_chain, &mut catalog_ctx, name, previous)
+                    // `--latest` reaches past the declared range by design,
+                    // which a manifest that keeps its specifiers can't record.
+                    if save {
+                        latest_specifier(
+                            &rewrite_ctx,
+                            latest_chain,
+                            &mut catalog_ctx,
+                            name,
+                            previous,
+                        )
                         .await?
+                    } else {
+                        None
+                    }
                 } else {
-                    selectors
+                    let requested = selectors
                         .iter()
                         .find(|selector| matcher_one(&selector.pattern).matches(name))
-                        .and_then(|selector| selector.version.clone())
+                        .and_then(|selector| selector.version.clone());
+                    // An update that doesn't save keeps the manifest's
+                    // specifier, and whatever resolution settles on has to
+                    // satisfy it — a frozen install rejects the lockfile
+                    // otherwise.
+                    if !save && let Some(requested) = requested.as_deref() {
+                        match judge_against_kept_range(requested, previous) {
+                            KeptRangeVerdict::Admitted => Some(requested.to_string()),
+                            KeptRangeVerdict::Excluded => {
+                                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                                    level: LogLevel::Warn,
+                                    message: format!(
+                                        r#"Skipping "{name}@{requested}": it doesn't satisfy "{previous}", which the manifest keeps when updating without saving."#,
+                                    ),
+                                    prefix: package_manifest_prefix(rewrite_ctx.manifest),
+                                }));
+                                continue;
+                            }
+                            KeptRangeVerdict::Undecided => {
+                                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                                    level: LogLevel::Warn,
+                                    message: format!(
+                                        r#"Ignoring "{name}@{requested}": the manifest keeps "{previous}" when updating without saving, so "{name}" was updated within that range instead."#,
+                                    ),
+                                    prefix: package_manifest_prefix(rewrite_ctx.manifest),
+                                }));
+                                None
+                            }
+                        }
+                    } else {
+                        requested
+                    }
                 };
+                drop_names.insert(name.clone());
                 if let Some(specifier) = rewrite {
                     rewrites.push((name.clone(), *group, specifier));
                 }
@@ -1056,6 +1112,47 @@ fn workspace_specifier(
 fn pick_workspace_version(versions: &WorkspacePackagesByVersion, range: &str) -> Option<String> {
     let range = if node_semver::Range::parse(range).is_ok() { range } else { "*" };
     resolve_workspace_range(range, &versions.keys().cloned().collect::<Vec<_>>())
+}
+
+/// `--latest` reaches past the declared range by design, which a manifest that
+/// keeps its specifiers can't record, so the update stays inside the range and
+/// says so once per project.
+fn emit_latest_ignored<Reporter: self::Reporter>(manifest: &PackageManifest) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: r#"Ignoring "--latest": the manifest keeps its version ranges when updating without saving, so dependencies were updated within them instead."#.to_string(),
+        prefix: package_manifest_prefix(manifest),
+    }));
+}
+
+/// What an update that doesn't save may do with a requested specifier, given
+/// the specifier the manifest keeps.
+enum KeptRangeVerdict {
+    /// A version the kept range admits: resolution can be pointed at it.
+    Admitted,
+    /// A version the kept range excludes: the dependency is left alone.
+    Excluded,
+    /// Nothing that can be judged before resolution — a range or a dist tag,
+    /// which names a version only once resolution has run, or a kept
+    /// specifier that isn't a semver range. The kept specifier decides.
+    Undecided,
+}
+
+/// Judge a requested specifier against the range the manifest keeps.
+///
+/// Only a concrete version gets a verdict. Matching a version against a range
+/// is exact; deciding whether one *range* is contained by another is not —
+/// implementations disagree around prerelease boundaries — so a range is left
+/// [`Undecided`] rather than guessed at.
+///
+/// [`Undecided`]: KeptRangeVerdict::Undecided
+fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRangeVerdict {
+    let (Ok(requested), Ok(kept)) =
+        (node_semver::Version::parse(requested), node_semver::Range::parse(kept))
+    else {
+        return KeptRangeVerdict::Undecided;
+    };
+    if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
 }
 
 /// Compile a single pattern into a matcher. Used to map a matched direct

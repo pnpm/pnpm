@@ -26,7 +26,7 @@ use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, MergeNamedRegistr
 use pacquet_store_dir::SharedVerifiedFilesCache;
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     path::Path,
     sync::{Arc, atomic::AtomicU8},
 };
@@ -166,6 +166,13 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// stdin. Computed once by the outer install runner from CI and terminal
     /// state, with an explicit override available to deterministic tests.
     pub can_prompt: bool,
+    /// Whether resolution-policy bypasses picked during this resolve may be
+    /// persisted to `pnpm-workspace.yaml` (today: loose-mode
+    /// `minimumReleaseAge` picks appended to `minimumReleaseAgeExclude`).
+    /// `true` for the user-facing resolving commands (`install`, `add`,
+    /// `update` with `--save`, `dedupe`); `false` for embedder-driven
+    /// installs and commands that must not touch the workspace manifest.
+    pub persist_policy_excludes: bool,
     /// A full workspace install versus a partial one (`pacquet add` and the
     /// package installs built on it — `dlx`, global add, the engine install).
     /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
@@ -667,6 +674,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             skip_runtimes,
             dry_run,
             can_prompt,
+            persist_policy_excludes,
             is_full_install,
             update_seed_policy,
             auth_override,
@@ -1001,6 +1009,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             lockfile_dir,
             &workspace_result.merged_tree.policy_violations,
             can_prompt && !dry_run,
+            persist_policy_excludes && !dry_run,
         )
         .await
         .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
@@ -1922,6 +1931,12 @@ fn overrides_match(
         }
         _ => false,
     }
+}
+
+fn ignored_optional_dependencies_match(left: Option<&[String]>, right: Option<&[String]>) -> bool {
+    let left: HashSet<_> = left.unwrap_or_default().iter().collect();
+    let right: HashSet<_> = right.unwrap_or_default().iter().collect();
+    left == right
 }
 
 fn compose_manifest_hooks(

@@ -698,6 +698,11 @@ impl OutdatedArgs {
         let mut isolated_config = config.clone();
         isolated_config.workspace_dir = None;
         isolated_config.shared_workspace_lockfile = false;
+        // A group's lockfile is written unconditionally (`run_group_install`
+        // forces it) because it is where the installed versions are recorded,
+        // so reading it back must not depend on the caller's `lockfile`
+        // setting.
+        isolated_config.lockfile = true;
         let config = Config::leak(isolated_config);
 
         let include = self.dependency_options.include();

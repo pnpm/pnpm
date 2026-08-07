@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolutionVerifier } from '@pnpm/resolving.npm-resolver'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import type { Registries } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
+import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const registries: Registries = {
@@ -74,6 +76,38 @@ test('createNpmResolutionVerifier() still verifies tarball URLs when no age/trus
     { name: 'aged-pkg', version: '1.0.0' }
   )
   expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+})
+
+test('createNpmResolutionVerifier() verifies tarball URLs from cached metadata in offline mode', async () => {
+  const cacheDir = temporaryDirectory()
+  const meta = {
+    name: 'offline-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'offline-pkg',
+        version: '1.0.0',
+        dist: {
+          tarball: 'https://registry.npmjs.org/offline-pkg/-/offline-pkg-1.0.0.tgz',
+          shasum: 'aa',
+        },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  await saveMeta(
+    getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, registries.default, 'offline-pkg'),
+    prepareJsonForDisk(meta, '"cached"')
+  )
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({ cacheDir, offline: true }))
+  const result = await verifier.verify(
+    makeTarballResolution('offline-pkg', '1.0.0'),
+    { name: 'offline-pkg', version: '1.0.0' }
+  )
+
+  expect(result).toStrictEqual({ ok: true })
+  getMockAgent().assertNoPendingInterceptors()
 })
 
 test('createNpmResolutionVerifier() passes package name to auth header lookup', async () => {

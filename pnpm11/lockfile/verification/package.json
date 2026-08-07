@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.matcher": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/installing.context": "workspace:*",

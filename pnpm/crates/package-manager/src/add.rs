@@ -263,6 +263,7 @@ where
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
+            persist_policy_excludes: true,
             // `add` keeps every lockfile pin; the freshly-added range
             // is the only thing that re-resolves. `update`'s bump is a
             // separate operation.
@@ -370,6 +371,7 @@ where
                 node_linker: config.node_linker,
                 lockfile_only,
                 dry_run: false,
+                persist_policy_excludes: true,
                 update_seed_policy: UpdateSeedPolicy::KeepAll,
                 auth_override: None,
                 resolution_observer: None,

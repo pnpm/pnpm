@@ -136,6 +136,7 @@ impl Remove<'_> {
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
+            persist_policy_excludes: false,
             // Removing a dependency must not bump the survivors: keep
             // every remaining lockfile pin in the preferred-versions
             // seed, same as `install` / `add`.
@@ -225,6 +226,7 @@ impl Remove<'_> {
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
+            persist_policy_excludes: false,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,

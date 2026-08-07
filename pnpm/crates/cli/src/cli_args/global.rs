@@ -55,6 +55,12 @@ pub enum GlobalError {
     )]
     NoGlobalBinDir,
 
+    /// The global packages directory could not be resolved (no `PNPM_HOME`
+    /// and no determinable data dir), matching pnpm's `prefix` handler.
+    #[display("The global package directory could not be resolved.")]
+    #[diagnostic(code(ERR_PNPM_MISSING_GLOBAL_PACKAGE_DIR))]
+    MissingGlobalPackageDir,
+
     #[display(r#"Use the "pnpm self-update" command to install or update pnpm"#)]
     #[diagnostic(code(ERR_PNPM_GLOBAL_PNPM_INSTALL))]
     GlobalPnpmInstall,
@@ -175,6 +181,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
 pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
     params: &[String],
+    selected_hashes: Option<&HashSet<String>>,
     latest: bool,
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
@@ -189,7 +196,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         println!("No global packages found");
         return Ok(());
     }
-    let to_update: Vec<GlobalPackageInfo> = if params.is_empty() {
+    let mut to_update: Vec<GlobalPackageInfo> = if params.is_empty() {
         all
     } else {
         let filtered: Vec<GlobalPackageInfo> =
@@ -200,6 +207,9 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         }
         filtered
     };
+    if let Some(selected_hashes) = selected_hashes {
+        to_update.retain(|pkg| selected_hashes.contains(&pkg.hash));
+    }
 
     for pkg in &to_update {
         let selectors: Vec<String> = pkg

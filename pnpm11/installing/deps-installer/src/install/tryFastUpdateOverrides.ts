@@ -18,7 +18,7 @@ import type {
 import { clone, equals } from 'ramda'
 import semver from 'semver'
 
-interface FastOverride {
+export interface FastOverride {
   name: string
   newVersion?: string
   oldVersion?: string
@@ -43,23 +43,44 @@ interface ResolverPolicyOptions {
   trustPolicyIgnoreAfter?: number
 }
 
+export type FastRewriteOptions = ResolverPolicyOptions & {
+  lockfileDir: string
+  lockfileIncludeTarballUrl?: boolean
+  isLockfileUpToDate: (lockfile: LockfileObject) => Promise<boolean>
+  readPackageHook?: ReadPackageHook
+  registries: Registries
+  requestPackage: RequestPackageFunction
+  verifyLockfile?: (lockfile: LockfileObject) => Promise<void>
+}
+
 export async function tryFastUpdateOverrides (
   lockfile: LockfileObject,
-  opts: ResolverPolicyOptions & {
-    lockfileDir: string
-    lockfileIncludeTarballUrl?: boolean
+  opts: FastRewriteOptions & {
     overrides: Record<string, string>
     parsedOverrides: VersionOverride[]
-    isLockfileUpToDate: (lockfile: LockfileObject) => Promise<boolean>
-    readPackageHook?: ReadPackageHook
-    registries: Registries
-    requestPackage: RequestPackageFunction
-    verifyLockfile?: (lockfile: LockfileObject) => Promise<void>
   }
 ): Promise<boolean> {
   const fastOverrides = getFastOverrides(lockfile.overrides ?? {}, opts.overrides, opts.parsedOverrides)
   if (fastOverrides == null) return false
+  return applyFastRewrite(lockfile, fastOverrides, opts, { overrides: opts.overrides })
+}
 
+/**
+ * Move every package named by `fastOverrides` to its new version, rebuilding
+ * the affected package entries from the new version's manifest and redirecting
+ * everything that referenced the old key. `settings` is the setting block that
+ * drove the rewrite, recorded alongside it.
+ *
+ * Returns `false` whenever the move cannot be proven safe from the lockfile
+ * plus the resolved manifests — a locked child the new manifest no longer
+ * admits, or a candidate the freshness check rejects.
+ */
+export async function applyFastRewrite (
+  lockfile: LockfileObject,
+  fastOverrides: FastOverride[],
+  opts: FastRewriteOptions,
+  settings: Partial<LockfileObject>
+): Promise<boolean> {
   const removals = fastOverrides.filter(({ newVersion }) => newVersion == null)
   const peerNames = getPeerNames(lockfile)
   if (removals.some(({ name }) => peerNames.has(name))) return false
@@ -100,13 +121,13 @@ export async function tryFastUpdateOverrides (
     ...lockfile,
     importers,
     packages: pruneUnreachablePackages(importers, packages),
-    overrides: opts.overrides,
+    ...settings,
   }
   if (!await opts.isLockfileUpToDate(updatedLockfile)) return false
   await opts.verifyLockfile?.(updatedLockfile)
   lockfile.importers = updatedLockfile.importers
   lockfile.packages = updatedLockfile.packages
-  lockfile.overrides = updatedLockfile.overrides
+  Object.assign(lockfile, settings)
   return true
 }
 
@@ -240,7 +261,6 @@ async function resolveNewManifests (
   replacements: Map<DepPath, DepPath>,
   opts: ResolverPolicyOptions & {
     lockfileDir: string
-    parsedOverrides: VersionOverride[]
     readPackageHook?: ReadPackageHook
     requestPackage: RequestPackageFunction
   }
@@ -300,7 +320,18 @@ async function resolveNewManifests (
     const manifest = opts.readPackageHook == null
       ? rawManifest
       : await opts.readPackageHook(clone(rawManifest))
-    if (hasPeerDependencies(manifest)) return undefined
+    // pacquet validates after its manifest hook, so a hook that introduces
+    // any of these must send both stacks down the same fallback.
+    if (
+      manifest.name !== name ||
+      manifest.version !== newVersion ||
+      manifest.deprecated != null ||
+      hasInvalidManifestMaps(manifest) ||
+      hasPeerDependencies(manifest) ||
+      manifest.engines?.runtime != null ||
+      manifest.bundledDependencies != null ||
+      manifest.bundleDependencies != null
+    ) return undefined
     return {
       name,
       manifest,

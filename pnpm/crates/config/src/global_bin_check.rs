@@ -48,7 +48,7 @@ pub enum CheckGlobalBinDirError {
 /// `path_env` is the value of `PATH` (the caller reads it so this stays
 /// testable). When `should_allow_write` is set, the directory must also
 /// exist and be writable — pnpm enforces this for every command except
-/// `root`.
+/// `root` and `prefix`, which only print a path.
 pub fn check_global_bin_dir(
     global_bin_dir: &Path,
     path_env: Option<&str>,

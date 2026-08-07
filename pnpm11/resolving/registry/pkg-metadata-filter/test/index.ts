@@ -105,6 +105,35 @@ test('latest fallback does not exceed the original dist-tag target', () => {
   expect(withoutSafeFallback['dist-tags'].latest).toBeUndefined()
 })
 
+test('custom dist-tag fallback does not exceed the original target', () => {
+  const cutoff = new Date('2026-07-25T00:00:00.000Z')
+  const name = 'nightly-fallback'
+  const packageVersion = (version: string) => ({
+    name,
+    version,
+    dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`, shasum: '' },
+  })
+
+  const filtered = filterPkgMetadataByPublishDate({
+    name,
+    versions: {
+      '0.0.29-nightly.20260724.896': packageVersion('0.0.29-nightly.20260724.896'),
+      '0.0.29-nightly.20260725.899': packageVersion('0.0.29-nightly.20260725.899'),
+      '0.1.0-alpha.1': packageVersion('0.1.0-alpha.1'),
+    },
+    'dist-tags': {
+      nightly: '0.0.29-nightly.20260725.899',
+    },
+    time: {
+      '0.0.29-nightly.20260724.896': '2026-07-24T20:37:59.752Z',
+      '0.0.29-nightly.20260725.899': '2026-07-25T04:18:17.590Z',
+      '0.1.0-alpha.1': '2026-02-28T23:12:56.014Z',
+    },
+  }, cutoff)
+
+  expect(filtered['dist-tags'].nightly).toBe('0.0.29-nightly.20260724.896')
+})
+
 test('filtering is memoized per packument and the per-packument policy cache stays bounded', () => {
   const name = 'memoized-pkg'
   const doc = {

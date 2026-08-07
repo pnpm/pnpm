@@ -98,6 +98,11 @@ pub struct InstallOptions {
     pub package_extensions: Option<IndexMap<String, PackageExtensionInput>>,
     /// Patch paths keyed by package selector. Relative paths resolve from `dir`.
     pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// Warn instead of failing with `ERR_PNPM_UNUSED_PATCH` when a
+    /// `patchedDependencies` entry matches no installed package. Lets an
+    /// embedder ship a patch keyed to a version range that only some
+    /// workspaces resolve.
+    pub allow_unused_patches: Option<bool>,
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
@@ -486,6 +491,7 @@ fn run_install_inner(
                 // A peer-issue query resolves without writing anything;
                 // the sink presence suppresses the CLI dry-run report.
                 dry_run: matches!(mode, EngineMode::PeerIssues(_)),
+                persist_policy_excludes: false,
                 update_seed_policy,
                 auth_override: None,
                 resolution_observer: None,
@@ -607,6 +613,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
                 .collect()
         }),
         patched_dependencies: options.patched_dependencies.clone(),
+        allow_unused_patches: options.allow_unused_patches,
         hoist_pattern: options.hoist_pattern.clone(),
         public_hoist_pattern: options.public_hoist_pattern.clone(),
         external_dependencies: options
@@ -982,9 +989,10 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
 fn peer_issues_to_json(
     issues: &pacquet_resolving_deps_resolver::PeerDependencyIssues,
 ) -> serde_json::Value {
-    let parents_json = |parents: &[pacquet_resolving_deps_resolver::ParentPackageRef]| {
+    let parents_json = |parents: &pacquet_resolving_deps_resolver::ParentChain| {
         parents
-            .iter()
+            .to_refs()
+            .into_iter()
             .map(|parent| serde_json::json!({ "name": parent.name, "version": parent.version }))
             .collect::<Vec<_>>()
     };

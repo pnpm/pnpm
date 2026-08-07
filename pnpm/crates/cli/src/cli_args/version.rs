@@ -411,7 +411,11 @@ impl VersionArgs {
                     &confirmed,
                 )?;
             }
-            println!(r#"No pending changes. Record one with "pnpm change"."#);
+            if self.json {
+                println!("[]");
+            } else {
+                println!(r#"No pending changes. Record one with "pnpm change"."#);
+            }
             return Ok(());
         }
         if self.dry_run {
@@ -429,6 +433,14 @@ impl VersionArgs {
             Some(&config.versioning),
             &confirmed,
         )?;
+
+        if self.json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&applied).expect("serialize applied releases"),
+            );
+            return Ok(());
+        }
 
         use std::fmt::Write as _;
         let mut output = String::from("Versions applied:\n");
