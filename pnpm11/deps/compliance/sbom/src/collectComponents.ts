@@ -209,15 +209,9 @@ async function walkStep (
 
       if (!name || !version) return
 
-      // When reading metadata from the store, only describe packages pnpm
-      // would actually install on the current platform. Optional
-      // platform-specific dependencies for other platforms (e.g. native
-      // bindings) are in the lockfile but never fetched, so their metadata
-      // cannot be resolved from the store and they would otherwise be emitted
-      // as components without a license (and without description, author,
-      // etc.). `pnpm licenses` filters these the same way.
-      // https://github.com/pnpm/pnpm/issues/13683
-      if (!opts.lockfileOnly && !packageIsInstallable(pkgSnapshot.id ?? depPath, {
+      // Skip optional packages pnpm would not install on this platform; their
+      // metadata is not in the store. --lockfile-only keeps the full graph.
+      if (!opts.lockfileOnly && packageIsInstallable(pkgSnapshot.id ?? depPath, {
         name,
         version,
         cpu: pkgSnapshot.cpu,
@@ -227,7 +221,7 @@ async function walkStep (
         optional: pkgSnapshot.optional ?? false,
         lockfileDir: opts.lockfileDir,
         supportedArchitectures: opts.supportedArchitectures,
-      })) {
+      }) === false) {
         return
       }
 
