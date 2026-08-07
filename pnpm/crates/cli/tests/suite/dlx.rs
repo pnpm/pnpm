@@ -108,7 +108,7 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
 #[cfg(unix)]
 #[test]
 fn dlx_ignores_an_ambient_workspace_manifest_above_the_cache_dir() {
-    let CommandTempCwd { pacquet, root, workspace, .. } =
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
 
     // `root` is the parent of both the caller's workspace and the
@@ -121,6 +121,24 @@ fn dlx_ignores_an_ambient_workspace_manifest_above_the_cache_dir() {
     assert!(
         workspace.join("touch.txt").exists(),
         "the package's bin should run in the process cwd and write `touch.txt`",
+    );
+    let cached_manifests: Vec<_> = std::fs::read_dir(npmrc_info.cache_dir.join("dlx"))
+        .expect("read the dlx cache dir")
+        .filter_map(Result::ok)
+        .map(|entry| {
+            entry
+                .path()
+                .join("pkg")
+                .join("node_modules")
+                .join("@foo")
+                .join("touch-file-one-bin")
+                .join("package.json")
+        })
+        .filter(|manifest| manifest.exists())
+        .collect();
+    assert!(
+        !cached_manifests.is_empty(),
+        "the package must land in the dlx cache prepare dir, not in an ambient workspace root",
     );
 
     drop(root);

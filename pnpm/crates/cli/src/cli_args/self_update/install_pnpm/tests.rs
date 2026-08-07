@@ -27,6 +27,16 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
     fs::create_dir_all(&global_pkg_dir).expect("create global packages dir");
     fs::write(global_pkg_dir.join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: true\n")
         .expect("write ambient workspace manifest");
+    // The leftovers an unanchored install strands in the global packages
+    // dir: a stray `node_modules` and a lockfile at the adopted workspace
+    // root. A later self-update must succeed with them in place (each
+    // update installs into a fresh slot) and must not touch that lockfile
+    // — it is the env lockfile's home.
+    fs::create_dir_all(global_pkg_dir.join("node_modules").join(".pnpm"))
+        .expect("create leftover node_modules");
+    let leftover_lockfile = "lockfileVersion: '9.0'\n";
+    fs::write(global_pkg_dir.join("pnpm-lock.yaml"), leftover_lockfile)
+        .expect("write leftover lockfile");
     let install_dir = global_pkg_dir.join("engine-slot");
     fs::create_dir_all(&install_dir).expect("create install dir");
 
@@ -53,6 +63,12 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
     assert!(
         manifest.exists(),
         "the installed package must land in the install dir, not in an ambient workspace root",
+    );
+    let ambient_lockfile = fs::read_to_string(global_pkg_dir.join("pnpm-lock.yaml"))
+        .expect("read back the global-dir lockfile");
+    assert_eq!(
+        ambient_lockfile, leftover_lockfile,
+        "the install must write its lockfile into the install dir, not over the global dir's",
     );
 }
 
