@@ -270,6 +270,7 @@ const WORKSPACE_DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const WORKSPACE_HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 const WORKSPACE_HELLO_PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
 const WORKSPACE_PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
+const MISSING_PEERS_PARENT: &str = "@pnpm.e2e/abc-parent-with-missing-peers";
 
 fn configure_workspace(workspace: &Path) {
     let path = workspace.join("pnpm-workspace.yaml");
@@ -416,6 +417,80 @@ fn workspace_install_via_pnpr_resolves_catalog_references() {
     let wanted = read_workspace_lockfile(&workspace);
     assert_eq!(workspace_importer_version(&wanted, "packages/app", WORKSPACE_HELLO), "1.0.0");
     assert!(workspace_has_link(&workspace, "app", WORKSPACE_HELLO));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_capable_pnpr_install_uses_current_resolver_settings_and_frozen_replays_them() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let manifest_path = workspace.join("package.json");
+    let write_manifest = |dependency: &str| {
+        fs::write(
+            &manifest_path,
+            serde_json::json!({ "dependencies": { (dependency): "1.0.0" } }).to_string(),
+        )
+        .expect("write package.json");
+    };
+    write_manifest(WORKSPACE_HELLO);
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+    let resolver_settings = |lockfile: &Lockfile| {
+        let settings = lockfile.settings.as_ref().expect("lockfile settings");
+        (settings.auto_install_peers, settings.dedupe_peers, settings.exclude_links_from_lockfile)
+    };
+
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("PNPM_CONFIG_AUTO_INSTALL_PEERS", "true")
+        .with_env("PNPM_CONFIG_DEDUPE_PEERS", "false")
+        .with_env("PNPM_CONFIG_EXCLUDE_LINKS_FROM_LOCKFILE", "false")
+        .with_args(["install", "--lockfile-only", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let stale = read_workspace_lockfile(&workspace);
+    assert_eq!(resolver_settings(&stale), (true, None, false));
+    write_manifest(MISSING_PEERS_PARENT);
+
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("PNPM_CONFIG_AUTO_INSTALL_PEERS", "false")
+        .with_env("PNPM_CONFIG_DEDUPE_PEERS", "true")
+        .with_env("PNPM_CONFIG_EXCLUDE_LINKS_FROM_LOCKFILE", "true")
+        .with_args([
+            "install",
+            "--no-prefer-frozen-lockfile",
+            "--lockfile-only",
+            "--pnpr-server",
+            &pnpr_url,
+        ])
+        .assert()
+        .success();
+
+    let updated = read_workspace_lockfile(&workspace);
+    assert_eq!(resolver_settings(&updated), (false, Some(true), true));
+    for peer in ["@pnpm.e2e/peer-a", "@pnpm.e2e/peer-b", "@pnpm.e2e/peer-c"] {
+        let snapshots = workspace_snapshot_entries(&updated, peer);
+        assert!(snapshots.is_empty(), "autoInstallPeers=false must omit {peer}, got {snapshots:?}");
+    }
+    assert_eq!(workspace_importer_version(&updated, ".", MISSING_PEERS_PARENT), "1.0.0");
+
+    let before_frozen = fs::read(workspace.join("pnpm-lock.yaml")).expect("read updated lockfile");
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("PNPM_CONFIG_AUTO_INSTALL_PEERS", "false")
+        .with_env("PNPM_CONFIG_DEDUPE_PEERS", "true")
+        .with_env("PNPM_CONFIG_EXCLUDE_LINKS_FROM_LOCKFILE", "true")
+        .with_args(["install", "--frozen-lockfile", "--lockfile-only", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read(workspace.join("pnpm-lock.yaml")).expect("read frozen lockfile"),
+        before_frozen,
+    );
 
     drop((root, mock_instance));
 }

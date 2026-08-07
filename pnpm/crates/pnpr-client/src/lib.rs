@@ -64,6 +64,15 @@ pub struct ResolveOptions {
     /// cannot resolve a `catalog:` specifier in either dependencies or
     /// overrides ([pnpm/pnpm#13232](https://github.com/pnpm/pnpm/issues/13232)).
     pub catalogs: Option<Catalogs>,
+    /// The client's current `autoInstallPeers` value. `None` preserves
+    /// the behavior of clients that predate this field.
+    pub auto_install_peers: Option<bool>,
+    /// The client's current `dedupePeers` value. `None` preserves the
+    /// behavior of clients that predate this field.
+    pub dedupe_peers: Option<bool>,
+    /// The client's current `excludeLinksFromLockfile` value. `None`
+    /// preserves the behavior of clients that predate this field.
+    pub exclude_links_from_lockfile: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target and the resolution-reuse seed.
     pub lockfile: Option<Lockfile>,
@@ -114,6 +123,9 @@ pub struct ResolveProjectsOptions {
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub catalogs: Option<Catalogs>,
+    pub auto_install_peers: Option<bool>,
+    pub dedupe_peers: Option<bool>,
+    pub exclude_links_from_lockfile: Option<bool>,
     pub lockfile: Option<Lockfile>,
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
@@ -143,6 +155,9 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             authorization: opts.authorization,
             overrides: opts.overrides,
             catalogs: opts.catalogs,
+            auto_install_peers: opts.auto_install_peers,
+            dedupe_peers: opts.dedupe_peers,
+            exclude_links_from_lockfile: opts.exclude_links_from_lockfile,
             lockfile: opts.lockfile,
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
@@ -432,7 +447,7 @@ impl PnprClient {
             .map(|project| project.dir.clone())
             .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
             .collect();
-        let request = serde_json::json!({
+        let mut request = serde_json::json!({
             "projects": opts.projects,
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
@@ -450,6 +465,17 @@ impl PnprClient {
             "trustPolicyExclude": opts.trust_policy_exclude,
             "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
         });
+        // `None` represents an old-client omission, not a value. Insert
+        // only `Some` so explicit `false` remains distinct on the wire.
+        if let Some(auto_install_peers) = opts.auto_install_peers {
+            request["autoInstallPeers"] = auto_install_peers.into();
+        }
+        if let Some(dedupe_peers) = opts.dedupe_peers {
+            request["dedupePeers"] = dedupe_peers.into();
+        }
+        if let Some(exclude_links_from_lockfile) = opts.exclude_links_from_lockfile {
+            request["excludeLinksFromLockfile"] = exclude_links_from_lockfile.into();
+        }
 
         let mut post = self.http.post(format!("{}-/pnpr/v0/resolve", self.base_url)).json(&request);
         if let Some(authorization) = opts.authorization.as_deref() {

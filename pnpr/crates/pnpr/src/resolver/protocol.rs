@@ -34,11 +34,11 @@ fn root_dir() -> String {
 
 /// Body of `POST /-/pnpr/v0/resolve`. The registry fields carry the *client's*
 /// resolution configuration so the server resolves against the same
-/// registries the client would, and the policy fields carry the
-/// client's verification policy so the server verifies the input
-/// `lockfile` under it before resolving. Unknown fields (`node_version`,
-/// `os`, `arch`) are accepted and ignored so older/newer clients still
-/// parse.
+/// registries the client would, the resolver settings carry its current
+/// peer/link behavior, and the policy fields carry the client's verification
+/// policy so the server verifies the input `lockfile` under it before
+/// resolving. Unknown fields (`node_version`, `os`, `arch`) are accepted and
+/// ignored so older/newer clients still parse.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolveRequest {
@@ -77,6 +77,18 @@ pub struct ResolveRequest {
     /// and overrides.
     #[serde(default)]
     pub catalogs: Option<Catalogs>,
+    /// The client's current `autoInstallPeers` value. When absent, legacy
+    /// precedence applies.
+    #[serde(default)]
+    pub auto_install_peers: Option<bool>,
+    /// The client's current `dedupePeers` value. When absent, legacy
+    /// precedence applies.
+    #[serde(default)]
+    pub dedupe_peers: Option<bool>,
+    /// The client's current `excludeLinksFromLockfile` value. When absent,
+    /// legacy precedence applies.
+    #[serde(default)]
+    pub exclude_links_from_lockfile: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target (the server verifies it under the
     /// client's policy before resolving) and as the resolution-reuse

@@ -5,6 +5,9 @@ import { expect, test } from '@jest/globals'
 import { type PnprProject, resolveViaPnprServer, type ResolveViaPnprServerOptions } from '@pnpm/pnpr.client'
 
 interface CapturedResolveRequest {
+  autoInstallPeers?: boolean
+  dedupePeers?: boolean
+  excludeLinksFromLockfile?: boolean
   projects: Array<Record<string, unknown>>
 }
 
@@ -46,11 +49,24 @@ test('serializes name and version for every explicit project', async () => {
   expect(request.projects).toEqual(projects)
 })
 
-test('omits absent identity fields instead of serializing null', async () => {
+test('omits absent identity fields and current lockfile resolution settings', async () => {
   const request = await captureResolveRequest({ dependencies: {} })
 
   expect(Object.hasOwn(request.projects[0], 'name')).toBe(false)
   expect(Object.hasOwn(request.projects[0], 'version')).toBe(false)
+  expect(Object.hasOwn(request, 'autoInstallPeers')).toBe(false)
+  expect(Object.hasOwn(request, 'dedupePeers')).toBe(false)
+  expect(Object.hasOwn(request, 'excludeLinksFromLockfile')).toBe(false)
+})
+
+test.each([
+  { autoInstallPeers: true, dedupePeers: false, excludeLinksFromLockfile: false },
+  { autoInstallPeers: false, dedupePeers: true, excludeLinksFromLockfile: false },
+  { autoInstallPeers: false, dedupePeers: false, excludeLinksFromLockfile: true },
+])('serializes current lockfile resolution settings independently', async (settings) => {
+  const request = await captureResolveRequest({ dependencies: {}, ...settings })
+
+  expect(request).toMatchObject(settings)
 })
 
 async function captureResolveRequest (
