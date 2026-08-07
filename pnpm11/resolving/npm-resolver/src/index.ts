@@ -605,6 +605,69 @@ async function resolveNpm (
     }
   }
 
+  // Fast path: skip the registry when the workspace copy is guaranteed to win.
+  //
+  // With `preferWorkspacePackages`, the prefer-workspace gate below fires whenever a local
+  // version satisfies the spec, no matter what the registry returns, so the request is pure
+  // latency: its result is discarded. Repos that declare workspace deps with plain ranges
+  // (`"*"`, `"^1.2.3"`) rather than the `workspace:` protocol pay one round-trip per workspace
+  // package name on every install, and workspace packages that were never published pay a 404
+  // every time, since there is no negative caching.
+  //
+  // Deliberately placed AFTER the store peek above: when the peek is eligible it returns the
+  // package recorded in the lockfile, and that must keep taking precedence. `update` is not
+  // enough to rule the peek out, because `wantedDepIsLocallyAvailable` in the deps resolver
+  // matches tags without `includePrerelease` while `pickMatchingLocalVersionOrNull` below
+  // includes them, so a prerelease-only workspace package can reach here with `update: false`.
+  //
+  // Only taken when the outcome matches the slow path:
+  //   - `preferWorkspacePackages` is set, so the gate below ignores the registry's version.
+  //   - Exactly one workspace copy carries this name. With several copies the exact-match gate
+  //     below can select a different one via `pickedPackage.version`, which needs the registry.
+  //   - The dependency is not injected. Injected packages resolve to a `file:` id, which
+  //     `packageRequester` does not mark `isLocal`, so they keep flowing through the registry
+  //     bookkeeping in `resolveDependency` where the `latest` field below is still read.
+  //   - `trustPolicy` is not 'no-downgrade', which validates registry metadata even when a
+  //     workspace package ultimately wins.
+  //   - `updateChecksums` is off, since that asks the resolver to rewrite cached metadata.
+  //
+  // `update` is otherwise not excluded: it does not change which local version is chosen (this
+  // path and the gate below both match against `spec`), and `wantedDepIsLocallyAvailable` forces
+  // `update` on for precisely the workspace deps this targets, so excluding it would leave the
+  // fast path almost never reachable.
+  //
+  // The `latest` field the gates below attach is not observable through the install pipeline for
+  // the packages this path returns: they are linked rather than injected, so `resolveDependency`
+  // returns them early on `isLocal` before `ctx.outdatedDependencies` is populated. It does
+  // remain absent for direct consumers of this resolver's exported API. Metadata cache warming
+  // is skipped as a side effect, which can leave a later resolution of the same name without a
+  // warm mirror.
+  if (
+    opts.preferWorkspacePackages === true &&
+    workspacePackages != null &&
+    opts.projectDir != null &&
+    opts.trustPolicy !== 'no-downgrade' &&
+    !opts.updateChecksums &&
+    opts.injectWorkspacePackages !== true &&
+    !wantedDependency.injected
+  ) {
+    const workspacePkgsMatchingName = workspacePackages.get(spec.name)
+    if (workspacePkgsMatchingName?.size === 1) {
+      const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
+      if (localVersion != null) {
+        return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec, {
+          wantedDependency,
+          projectDir: opts.projectDir,
+          lockfileDir: opts.lockfileDir,
+          hardLinkLocalPackages: false,
+          saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
+          calcSpecifier: opts.calcSpecifier,
+          rangeSpecStyle: opts.rangeSpecStyle,
+        })
+      }
+    }
+  }
+
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry, { pkgName: spec.name })
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
   try {
