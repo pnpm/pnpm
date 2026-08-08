@@ -8,7 +8,7 @@
 // meta-updater and pnpm's own name-keyed resolution key on); this script
 // rewrites it into the publishable `pnpm` manifest.
 
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 
@@ -24,8 +24,18 @@ const PACKAGE_DIR_PREFIX = "pacquet";
 const NATIVE_BIN_FILE = "pnpm";
 const EXE_WRAPPER_NAME = "@pnpm/exe";
 const EXE_WRAPPER_DIR = "pnpm-exe";
-// Files shared verbatim by both wrappers: the root-level bins + preinstall + README.
-const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js", "README.md"];
+// Files shared verbatim by both wrappers: Corepack shim, root-level bins,
+// preinstall, and README.
+const WRAPPER_FILES = [
+  "bin/pnpm.mjs",
+  "bin/pnpx.mjs",
+  "pnpm",
+  "pn",
+  "pnpx",
+  "pnx",
+  "install.js",
+  "README.md",
+];
 
 const PNPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(PNPM_ROOT, "..");
@@ -120,8 +130,11 @@ function generateExeWrapper() {
 
   // Copy instead of symlinking so the tarball is self-contained for publish.
   for (const file of WRAPPER_FILES) {
-    fs.copyFileSync(resolve(PNPM_ROOT, file), resolve(exeRoot, file));
-    fs.chmodSync(resolve(exeRoot, file), fs.statSync(resolve(PNPM_ROOT, file)).mode);
+    const source = resolve(PNPM_ROOT, file);
+    const target = resolve(exeRoot, file);
+    fs.mkdirSync(dirname(target), { recursive: true });
+    fs.copyFileSync(source, target);
+    fs.chmodSync(target, fs.statSync(source).mode);
   }
 
   // Both wrappers place the native binary next to themselves, so both need

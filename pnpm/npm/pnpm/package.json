@@ -41,6 +41,8 @@
     "node": ">=18.*"
   },
   "files": [
+    "bin/pnpm.mjs",
+    "bin/pnpx.mjs",
     "pnpm",
     "pn",
     "pnpx",
