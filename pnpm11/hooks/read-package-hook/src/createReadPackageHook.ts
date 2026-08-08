@@ -20,6 +20,17 @@ const PACKAGE_EXTENSION_FIELDS: PackageExtensionField[] = [
   'peerDependenciesMeta',
 ]
 
+// Undeclared dependencies that break popular packages under the global
+// virtual store (which, by design, exposes only declared dependencies).
+// These entries are not in `@yarnpkg/extensions` yet; drop an entry once
+// the upstream DB or the package itself declares the dependency.
+// Mirrored in pacquet's `pnpm_compat_package_extensions.json`.
+const pnpmCompatPackageExtensions: Array<[string, PackageExtension]> = [
+  ['@angular/build@*', { dependencies: { tslib: '^2.3.0' } }],
+  ['@nuxt/vite-builder@>=4.0.0 <4.5.0', { dependencies: { unplugin: '^2.3.5' } }],
+  ['@nuxt/vite-builder@>=4.5.0', { dependencies: { unplugin: '^3.3.0' } }],
+]
+
 export function getEffectivePackageExtensions (
   {
     ignoreCompatibilityDb,
@@ -32,6 +43,7 @@ export function getEffectivePackageExtensions (
   const effectivePackageExtensions: Record<string, PackageExtension> = {}
   if (!ignoreCompatibilityDb) {
     mergePackageExtensions(effectivePackageExtensions, compatPackageExtensions)
+    mergePackageExtensions(effectivePackageExtensions, pnpmCompatPackageExtensions)
   }
   if (!isEmpty(packageExtensions ?? {})) {
     mergePackageExtensions(effectivePackageExtensions, Object.entries(packageExtensions!))
