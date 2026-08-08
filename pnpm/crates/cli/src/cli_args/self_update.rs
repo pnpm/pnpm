@@ -284,6 +284,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
         &target_version,
         &target_version,
         false,
+        false,
     ))
     .await?;
     let env = EnvLockfile::read(&env_root)
@@ -294,7 +295,11 @@ async fn handler<Reporter: self::Reporter + 'static>(
                 "Cannot verify the identity of pnpm@{target_version}: its integrity metadata is missing from pnpm-lock.yaml.",
             ),
         })?;
-    Box::pin(verify_engine::verify_pnpm_engine_identity(&env, &target_version, config)).await?;
+    if let Some(warning) =
+        Box::pin(verify_engine::verify_pnpm_engine_identity(&env, &target_version, config)).await?
+    {
+        warn::<Reporter>(&prefix, &warning);
+    }
 
     let result = Box::pin(install_pnpm::install_pnpm::<Reporter>(
         config,
@@ -395,6 +400,7 @@ async fn update_project_pin(
                 &root_dir,
                 &pin_specifier,
                 target_version,
+                false,
                 false,
             ))
             .await?;

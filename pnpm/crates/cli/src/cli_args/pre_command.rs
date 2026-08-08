@@ -105,6 +105,7 @@ pub(crate) async fn execute_plan(
                 &package_manager.specifier,
                 &package_manager.version,
                 false,
+                false,
             )
             .await?;
             Ok(false)
@@ -127,11 +128,25 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 Box::pin(install_pnpm_from_env::<SilentReporter>(config, &env, &version)).await?;
             (version, bin_dir)
         }
-        SwitchSource::Resolve { env_root } => {
+        SwitchSource::Resolve { env_root, force_resync } => {
             let resolved = config_deps::resolve_pnpm_version(config, &spec)
                 .await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
             if resolved.version == PNPM_VERSION {
+                if force_resync {
+                    // No switch to perform, but the recorded entries are
+                    // invalid — heal them now or every later invocation
+                    // re-resolves over the network.
+                    config_deps::sync_package_manager_dependencies(
+                        config,
+                        &env_root,
+                        &spec,
+                        &resolved.version,
+                        false,
+                        true,
+                    )
+                    .await?;
+                }
                 return Ok(false);
             }
             assert_release_is_installable(&resolved.version)?;
@@ -140,6 +155,7 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 &env_root,
                 &spec,
                 &resolved.version,
+                force_resync,
             ))
             .await?;
             (resolved.version, bin_dir)
@@ -560,7 +576,21 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
         && let Some(env) = read_env_lockfile(root_dir)?
         && let Some(version) = locked_package_manager_version(&env, &spec)?
     {
-        return Ok(Some(SwitchTarget { spec, source: SwitchSource::LockedEnv { env, version } }));
+        if assert_package_manager_lockfile_uses_registry_resolutions(&env).is_ok() {
+            return Ok(Some(SwitchTarget {
+                spec,
+                source: SwitchSource::LockedEnv { env, version },
+            }));
+        }
+        // Entries that don't satisfy the bootstrap rules — e.g. resolutions
+        // carrying tarball URLs written by an earlier pnpm — are not an
+        // error: they are discarded and re-resolved afresh through the
+        // trusted bootstrap registries, which yields entries in the accepted
+        // shape.
+        return Ok(Some(SwitchTarget {
+            spec,
+            source: SwitchSource::Resolve { env_root: root_dir.to_path_buf(), force_resync: true },
+        }));
     }
 
     let env_root = if persist_lockfile {
@@ -572,7 +602,7 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
             )
         })?
     };
-    Ok(Some(SwitchTarget { spec, source: SwitchSource::Resolve { env_root } }))
+    Ok(Some(SwitchTarget { spec, source: SwitchSource::Resolve { env_root, force_resync: false } }))
 }
 
 fn locked_package_manager_version(
@@ -594,7 +624,6 @@ fn locked_package_manager_version(
     if !package_manager_dependencies_are_resolved(env, &version) {
         return Ok(None);
     }
-    assert_package_manager_lockfile_uses_registry_resolutions(env)?;
     Ok(Some(version))
 }
 
@@ -813,8 +842,18 @@ pub(crate) struct EnvLockfileSync {
 
 #[derive(Debug)]
 enum SwitchSource {
-    LockedEnv { env: EnvLockfile, version: String },
-    Resolve { env_root: PathBuf },
+    LockedEnv {
+        env: EnvLockfile,
+        version: String,
+    },
+    Resolve {
+        env_root: PathBuf,
+        /// Discard the recorded `packageManagerDependencies` and re-resolve
+        /// them even when they look up to date — set when the recorded
+        /// entries failed the bootstrap validation, so the resync heals the
+        /// env lockfile instead of no-op'ing on the invalid entries.
+        force_resync: bool,
+    },
 }
 
 struct SwitchInput {

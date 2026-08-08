@@ -334,6 +334,112 @@ describe('verifyInstalledPackageSignatures', () => {
     expect(result.failures[0]).toMatchObject({ category: 'absent' })
     expect(result.failures[0].reason).toContain('not published')
   })
+
+  test('verifies via the fallback registry when the package registry serves no signatures', async () => {
+    const key = createSigningKey()
+    mockPackument({ signatures: [] })
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }], registry: SECOND_REGISTRY })
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: SECOND_REGISTRY })
+
+    expect(result).toEqual({ verified: true, failures: [] })
+  })
+
+  test('a fallback signature still fails over a tampered installed integrity', async () => {
+    const key = createSigningKey()
+    mockPackument({ signatures: [] })
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }], registry: SECOND_REGISTRY })
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: 'sha512-tampered-bytes' },
+    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: SECOND_REGISTRY })
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0]).toMatchObject({ category: 'invalid', registry: REGISTRY })
+  })
+
+  test('verifies via the fallback registry when the package registry serves an unusable signature', async () => {
+    const key = createSigningKey()
+    // e.g. a mirror caching a stale signature from a rotated-out key
+    mockPackument({ signatures: [{ keyid: 'SHA256:rotated-out-key', sig: 'stale-signature' }] })
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }], registry: SECOND_REGISTRY })
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: SECOND_REGISTRY })
+
+    expect(result).toEqual({ verified: true, failures: [] })
+  })
+
+  test('reports unreachable when neither the package registry nor the fallback can provide a signature', async () => {
+    const key = createSigningKey()
+    mockPackument({ signatures: [] })
+    // The fallback registry is not mocked, so consulting it fails.
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: SECOND_REGISTRY })
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0]).toMatchObject({ category: 'unreachable', registry: REGISTRY })
+    expect(result.failures[0].reason).toContain(SECOND_REGISTRY)
+  })
+
+  test('reports absent when a reachable fallback registry has no signature either', async () => {
+    const key = createSigningKey()
+    mockPackument({ signatures: [] })
+    getMockAgent().get(SECOND_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(404, {})
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: SECOND_REGISTRY })
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0]).toMatchObject({ category: 'absent' })
+  })
+
+  test('does not consult the fallback when it is the package registry itself', async () => {
+    const key = createSigningKey()
+    mockPackument({ signatures: [] })
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: REGISTRY.replace(/\/$/, '') })
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0]).toMatchObject({ category: 'absent' })
+  })
+
+  test('failures never echo inline registry credentials', async () => {
+    const key = createSigningKey()
+    // Neither registry is mocked, so both lookups fail and the failure quotes
+    // the registries involved.
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: 'https://user:pass@registry.example.test/', version: '1.0.0', integrity: INTEGRITY },
+      // A control character inside the password must not split the
+      // authority and leak either half of the credentials.
+      { name: 'other-pkg', registry: 'https://user:p\rass@registry.example.test/', version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: 'https://user:pass@second-registry.example.test/' })
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0].registry).toBe(REGISTRY)
+    expect(JSON.stringify(result.failures)).not.toContain('user:p')
+  })
+
+  test('reports a non-sha512 integrity pin as uncovered without consulting any registry', async () => {
+    const key = createSigningKey()
+    // No packuments are mocked: the category is decided before any fetch.
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: 'sha1-8bee00286a17c00a13c7e6e6dd9a9b389220ee7f' },
+    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: SECOND_REGISTRY })
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0]).toMatchObject({ category: 'uncovered', registry: REGISTRY })
+  })
 })
 
 function toRegistryKey (key: ReturnType<typeof createSigningKey>) {
@@ -362,11 +468,11 @@ function mockRegistryKey (key: ReturnType<typeof createSigningKey>): void {
     })
 }
 
-function mockPackument (opts: { signatures: unknown, time?: string | null }): void {
+function mockPackument (opts: { signatures: unknown, time?: string | null, registry?: string }): void {
   const time = Object.hasOwn(opts, 'time')
     ? (opts.time == null ? {} : { '1.0.0': opts.time })
     : { '1.0.0': '2023-01-01T00:00:00.000Z' }
-  getMockAgent().get(REGISTRY.replace(/\/$/, ''))
+  getMockAgent().get((opts.registry ?? REGISTRY).replace(/\/$/, ''))
     .intercept({ path: '/signed-pkg', method: 'GET' })
     .reply(200, {
       name: 'signed-pkg',

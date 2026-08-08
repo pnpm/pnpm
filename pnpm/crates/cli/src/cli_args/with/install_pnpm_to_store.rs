@@ -44,11 +44,14 @@ use crate::{
 /// `pnpm` + `@pnpm/exe` closure) is written, under the pnpm home
 /// directory. `spec` is the user's bare specifier (a version, range,
 /// or dist-tag) and `version` the exact version it resolved to.
+/// `force_resync` discards recorded `packageManagerDependencies` and
+/// re-resolves them even when they look up to date.
 pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     env_root: &Path,
     spec: &str,
     version: &str,
+    force_resync: bool,
 ) -> miette::Result<PathBuf> {
     let config = package_manager_engine_config(config)?.leak();
     fs::create_dir_all(env_root).into_diagnostic().wrap_err_with(|| {
@@ -57,9 +60,17 @@ pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     let env = {
         let _lock = package_manager_env_lock::<Reporter>(config).await?;
         // Resolve the package-manager closure into the env lockfile (a no-op
-        // when this spec+version is already recorded there).
-        config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false)
-            .await?;
+        // when this spec+version is already recorded there and a resync is
+        // not forced).
+        config_deps::sync_package_manager_dependencies(
+            config,
+            env_root,
+            spec,
+            version,
+            false,
+            force_resync,
+        )
+        .await?;
         EnvLockfile::read(env_root)
             .map_err(miette::Report::new)
             .wrap_err("read the package-manager env lockfile")?
@@ -124,10 +135,17 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
 
     // Genuine download: verify the engine's registry signature before
     // installing or executing it.
-    verify_pnpm_engine_identity(env, version, config)
+    if let Some(warning) = verify_pnpm_engine_identity(env, version, config)
         .await
         .map_err(miette::Report::new)
-        .wrap_err("verify the pnpm engine identity")?;
+        .wrap_err("verify the pnpm engine identity")?
+    {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: warning,
+            prefix: String::new(),
+        }));
+    }
 
     // Install into a throwaway directory with the global virtual store
     // enabled, so the engine itself materializes in `<store>/links/...`

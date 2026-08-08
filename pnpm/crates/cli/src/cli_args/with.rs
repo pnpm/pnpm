@@ -87,6 +87,7 @@ impl WithArgs {
             &env_root,
             spec,
             &resolved.version,
+            false,
         ))
         .await?;
 
