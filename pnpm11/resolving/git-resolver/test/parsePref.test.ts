@@ -61,6 +61,21 @@ test.each([
   expect(parsed?.fetchSpec).toBe(output)
 })
 
+// An ssh:// URL does not have to carry user info. Every case above writes one,
+// so the no-userinfo shape went unexercised.
+test.each([
+  ['ssh://git.example.com/team/repo.git', 'ssh://git.example.com/team/repo.git'],
+  ['ssh://git.example.com:2222/team/repo.git', 'ssh://git.example.com:2222/team/repo.git'],
+  ['ssh://git.example.com:team/repo.git', 'ssh://git.example.com/team/repo.git'],
+  ['ssh://git.example.com:repo.git', 'ssh://git.example.com/repo.git'],
+  ['git+ssh://git.example.com/team/repo.git', 'ssh://git.example.com/team/repo.git'],
+  ['git+ssh://git.example.com:team/repo.git', 'ssh://git.example.com/team/repo.git'],
+  ['ssh://git.example.com:2222/team/repo.git#v1.0.0', 'ssh://git.example.com:2222/team/repo.git'],
+])('the fetchSpec of %s, which carries no user info, should be %s', async (input, output) => {
+  const parsed = await parseBareSpecifier(input, {})?.()
+  expect(parsed?.fetchSpec).toBe(output)
+})
+
 // Test for https:// URLs ending in .git (issue #10468)
 test.each([
   ['https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git', 'https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git'],
