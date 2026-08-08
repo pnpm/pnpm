@@ -61,6 +61,21 @@ fn correct_url_keeps_numeric_port() {
 }
 
 #[test]
+fn correct_url_keeps_bracketed_ipv6_host() {
+    // The colons inside the brackets belong to the address, so the
+    // authority has no SCP-style separator to rewrite.
+    assert_eq!(correct_url("ssh://[::1]/repo.git"), "ssh://[::1]/repo.git");
+    assert_eq!(
+        correct_url("ssh://[2001:db8::1]/team/repo.git"),
+        "ssh://[2001:db8::1]/team/repo.git",
+    );
+    assert_eq!(correct_url("ssh://[::1]:2222/repo.git"), "ssh://[::1]:2222/repo.git");
+    assert_eq!(correct_url("ssh://git@[::1]/repo.git"), "ssh://git@[::1]/repo.git");
+    // A colon *after* the closing bracket is still the separator.
+    assert_eq!(correct_url("ssh://git@[::1]:team/repo.git"), "ssh://git@[::1]/team/repo.git");
+}
+
+#[test]
 fn finalize_direct_returns_spec_unchanged() {
     let kind = parse_bare_specifier("git+https://example.com/repo.git#abc").expect("direct");
     let spec = kind.finalize();
@@ -172,6 +187,43 @@ fn fetch_spec_for_scp_style_inputs() {
             "input {input}: expected fetch_spec {expected}, got {got}",
             got = spec.fetch_spec,
         );
+    }
+}
+
+// Ported `parsePref.test.ts` no-user-info cases. `correct_url` reads
+// the host from the last `@` and falls back to the whole authority, so
+// these hold here; the TypeScript side was catching up to this file.
+#[test]
+fn fetch_spec_for_inputs_without_user_info() {
+    let cases: &[(&str, &str)] = &[
+        ("ssh://git.example.com/team/repo.git", "ssh://git.example.com/team/repo.git"),
+        ("ssh://git.example.com:2222/team/repo.git", "ssh://git.example.com:2222/team/repo.git"),
+        ("ssh://git.example.com:team/repo.git", "ssh://git.example.com/team/repo.git"),
+        ("ssh://git.example.com:repo.git", "ssh://git.example.com/repo.git"),
+        ("git+ssh://git.example.com/team/repo.git", "ssh://git.example.com/team/repo.git"),
+        ("git+ssh://git.example.com:team/repo.git", "ssh://git.example.com/team/repo.git"),
+    ];
+    for (input, expected) in cases {
+        let kind = parse_bare_specifier(input).expect("parse claims input");
+        let spec = kind.finalize();
+        assert_eq!(spec.fetch_spec, *expected, "input {input}");
+    }
+}
+
+// Ported `parsePref.test.ts` bracketed-IPv6 cases.
+#[test]
+fn fetch_spec_for_bracketed_ipv6_hosts() {
+    let cases: &[(&str, &str)] = &[
+        ("ssh://[::1]/repo.git", "ssh://[::1]/repo.git"),
+        ("ssh://[2001:db8::1]/team/repo.git", "ssh://[2001:db8::1]/team/repo.git"),
+        ("ssh://[::1]:2222/repo.git", "ssh://[::1]:2222/repo.git"),
+        ("ssh://git@[::1]/repo.git", "ssh://git@[::1]/repo.git"),
+        ("ssh://git@[::1]:team/repo.git", "ssh://git@[::1]/team/repo.git"),
+    ];
+    for (input, expected) in cases {
+        let kind = parse_bare_specifier(input).expect("parse claims input");
+        let spec = kind.finalize();
+        assert_eq!(spec.fetch_spec, *expected, "input {input}");
     }
 }
 
