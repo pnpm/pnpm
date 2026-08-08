@@ -354,7 +354,7 @@ async fn find_signature_failure(
     if !component.integrity.starts_with("sha512-") {
         return failure(
             format!(
-                "{label} is pinned by a non-sha512 integrity, which npm registry signatures cannot cover"
+                "{label} is pinned by a non-sha512 integrity, which npm registry signatures cannot cover",
             ),
             FailureCategory::Uncovered,
         );
