@@ -673,7 +673,7 @@ fn context_aware_sh_shim_quotes_hostile_bin_names() {
 #[test]
 fn context_aware_cmd_shim_dispatches_before_the_classic_body() {
     let target = Path::new("/g/pkg/cli.js");
-    let shim = Path::new("/g/bin/tool");
+    let shim = Path::new("/g/bin/tool.cmd");
     let body = generate_cmd_shim(target, shim, None, &[], ShimStyle::ContextAware);
     assert!(
         body.contains("@IF DEFINED PNPM_SHIM_BYPASS GOTO :pnpm_shim_fallback")
@@ -687,7 +687,7 @@ fn context_aware_cmd_shim_dispatches_before_the_classic_body() {
 #[test]
 fn context_aware_pwsh_shim_dispatches_before_the_classic_body() {
     let target = Path::new("/g/pkg/cli.js");
-    let shim = Path::new("/g/bin/tool");
+    let shim = Path::new("/g/bin/tool.ps1");
     let body = generate_pwsh_shim(target, shim, None, &[], ShimStyle::ContextAware);
     assert!(
         body.contains(
@@ -696,4 +696,25 @@ fn context_aware_pwsh_shim_dispatches_before_the_classic_body() {
         "body was:\n{body}",
     );
     assert!(body.contains("exit $LASTEXITCODE"), "body was:\n{body}");
+}
+
+#[test]
+fn context_aware_windows_shims_preserve_bin_name_extensions() {
+    let target = Path::new("/g/pkg/cli.js");
+    let cmd = generate_cmd_shim(
+        target,
+        Path::new("/g/bin/tool.cmd.cmd"),
+        None,
+        &[],
+        ShimStyle::ContextAware,
+    );
+    let pwsh = generate_pwsh_shim(
+        target,
+        Path::new("/g/bin/tool.ps1.ps1"),
+        None,
+        &[],
+        ShimStyle::ContextAware,
+    );
+    assert!(cmd.contains(r#"--shim "tool.cmd""#), "body was:\n{cmd}");
+    assert!(pwsh.contains(r"'--shim' 'tool.ps1'"), "body was:\n{pwsh}");
 }

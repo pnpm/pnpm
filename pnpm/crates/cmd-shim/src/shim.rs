@@ -358,6 +358,11 @@ fn shim_name(shim_path: &Path) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or_default()
 }
 
+fn generated_shim_name<'a>(shim_path: &'a Path, extension: &str) -> &'a str {
+    let name = shim_name(shim_path);
+    name.strip_suffix(extension).unwrap_or(name)
+}
+
 /// Wrap `text` in single quotes for POSIX `sh`, escaping embedded single
 /// quotes. Bin names come from package manifests, so they must not be
 /// able to break out of the generated script.
@@ -401,7 +406,7 @@ pub fn generate_cmd_shim(
     if style == ShimStyle::ContextAware {
         // Guarded jumps keep dispatcher and fallback execution out of a
         // parenthesized block, where cmd expands paths before executing it.
-        let shim_name = shim_name(shim_path);
+        let shim_name = generated_shim_name(shim_path, ".cmd");
         write!(
             cmd,
             "@IF DEFINED PNPM_SHIM_BYPASS GOTO :pnpm_shim_fallback\r\n@IF NOT EXIST \"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" GOTO :pnpm_shim_fallback\r\n@\"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" --shim \"{shim_name}\" \"%~f0\" {quoted_target} -- %*\r\n@EXIT /B\r\n:pnpm_shim_fallback\r\n",
@@ -462,7 +467,7 @@ pub fn generate_pwsh_shim(
     let restore_node_path = has_node_path.then_some("$env:NODE_PATH=$env_node_path");
 
     if style == ShimStyle::ContextAware {
-        let shim_name = shim_name(shim_path);
+        let shim_name = generated_shim_name(shim_path, ".ps1");
         writeln!(pwsh).unwrap();
         writeln!(
             pwsh,
