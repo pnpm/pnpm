@@ -125,6 +125,27 @@ test('ignores a missing default pnpmfile when asynchronous module hooks are regi
   })
 })
 
+test('calculateFingerprint is undefined when no pnpmfile provides it', async () => {
+  const pnpmfile = path.join(import.meta.dirname, '__fixtures__/readPackageNoObject.js')
+  const { hooks } = await requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile] })
+  expect(hooks.calculateFingerprint).toBeUndefined()
+})
+
+test('calculateFingerprint returns the fingerprint provided by a pnpmfile', async () => {
+  const pnpmfile = path.join(import.meta.dirname, '__fixtures__/fingerprintA.js')
+  const { hooks } = await requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile] })
+  expect(await hooks.calculateFingerprint?.()).toBe(JSON.stringify(['fingerprint-a']))
+})
+
+test('calculateFingerprint combines the fingerprints of all pnpmfiles that provide it', async () => {
+  const pnpmfileA = path.join(import.meta.dirname, '__fixtures__/fingerprintA.js')
+  const pnpmfileB = path.join(import.meta.dirname, '__fixtures__/fingerprintB.js')
+  // Passed in reverse order to verify the combined fingerprint is sorted by
+  // file path, not by load order.
+  const { hooks } = await requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfileB, pnpmfileA] })
+  expect(await hooks.calculateFingerprint?.()).toBe(JSON.stringify(['fingerprint-a', 'fingerprint-b']))
+})
+
 test('calculatePnpmfileChecksum resolves to hash string for existing pnpmfile', async () => {
   const pnpmfile = path.join(import.meta.dirname, '__fixtures__/readPackageNoObject.js')
   const { hooks } = await requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile] })

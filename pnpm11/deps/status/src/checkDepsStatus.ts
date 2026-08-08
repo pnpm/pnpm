@@ -254,6 +254,29 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }
   }
 
+  let fingerprint: string | undefined
+  if (opts.hooks?.calculateFingerprint != null || workspaceState.fingerprint != null) {
+    try {
+      fingerprint = await opts.hooks?.calculateFingerprint?.()
+    } catch (error) {
+      // A broken hook must invalidate deterministically (upToDate: false)
+      // rather than fall into the outer catch's upToDate: undefined, which
+      // callers may treat as "unknown" rather than "outdated".
+      return {
+        upToDate: false,
+        issue: `The pnpmfile calculateFingerprint hook failed: ${util.types.isNativeError(error) ? error.message : String(error)}`,
+        workspaceState,
+      }
+    }
+    if (fingerprint !== workspaceState.fingerprint) {
+      return {
+        upToDate: false,
+        issue: 'The fingerprint returned by a pnpmfile has changed',
+        workspaceState,
+      }
+    }
+  }
+
   const lockfileDirs = getWantedLockfileDirs({
     allProjects,
     lockfileDir,
@@ -491,6 +514,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       allProjects,
       workspaceDir,
       pnpmfiles: workspaceState.pnpmfiles,
+      fingerprint,
       settings: opts,
       filteredInstall: workspaceState.filteredInstall,
     })

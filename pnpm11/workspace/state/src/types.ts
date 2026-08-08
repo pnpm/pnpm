@@ -10,6 +10,12 @@ export interface WorkspaceState {
     version?: string
   }>
   pnpmfiles: string[]
+  /**
+   * Fingerprint returned by the pnpmfiles' `calculateFingerprint` hooks at the
+   * time of the last install. May be machine-specific, which is why it lives
+   * here and not in the lockfile.
+   */
+  fingerprint?: string
   filteredInstall: boolean
   configDependencies?: ConfigDependencies
   settings: WorkspaceStateSettings

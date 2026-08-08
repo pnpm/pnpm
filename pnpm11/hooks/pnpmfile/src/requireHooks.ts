@@ -43,6 +43,7 @@ export interface CookedHooks {
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   calculatePnpmfileChecksum?: () => Promise<string>
+  calculateFingerprint?: () => Promise<string>
 }
 
 export interface RequireHooksResult {
@@ -144,6 +145,7 @@ export async function requireHooks (
 
   let importProvider: string | undefined
   const finderProviders: Record<string, string> = {}
+  const fingerprintHooks: Array<{ file: string, hook: Required<Hooks>['calculateFingerprint'] }> = []
 
   // process hooks in order
   for (const { hooks, file, finders } of entries) {
@@ -216,6 +218,23 @@ export async function requireHooks (
       }
       importProvider = file
       cookedHooks.importPackage = fileHooks.importPackage
+    }
+
+    // calculateFingerprint
+    if (fileHooks.calculateFingerprint) {
+      fingerprintHooks.push({ file, hook: fileHooks.calculateFingerprint })
+    }
+  }
+
+  if (fingerprintHooks.length > 0) {
+    // pnpmfiles are loaded concurrently, so the order of `entries` is not
+    // stable; sorting keeps the combined fingerprint deterministic.
+    fingerprintHooks.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0))
+    cookedHooks.calculateFingerprint = async () => {
+      const fingerprints = await Promise.all(fingerprintHooks.map(({ hook }) => hook()))
+      // JSON keeps component boundaries unambiguous regardless of what
+      // characters the hook values contain.
+      return JSON.stringify(fingerprints)
     }
   }
 

@@ -6,6 +6,7 @@ import { type ProjectsList, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, t
 export interface CreateWorkspaceStateOptions {
   allProjects: ProjectsList
   pnpmfiles: string[]
+  fingerprint?: string
   filteredInstall: boolean
   settings: WorkspaceStateSettings
   configDependencies?: ConfigDependencies
@@ -21,6 +22,7 @@ export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): Workspa
     },
   ])),
   pnpmfiles: opts.pnpmfiles,
+  fingerprint: opts.fingerprint,
   settings: pick(WORKSPACE_STATE_SETTING_KEYS, opts.settings),
   filteredInstall: opts.filteredInstall,
   configDependencies: opts.configDependencies,
