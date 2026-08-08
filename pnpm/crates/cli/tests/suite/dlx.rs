@@ -102,6 +102,55 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
     drop(root);
 }
 
+/// The caller project's `patchedDependencies` must not reach the dlx cache
+/// install: pnpm's dlx installs the package unpatched, and the configured
+/// paths are relative to the caller's workspace root, which the dlx install
+/// does not have. Inheriting them failed every dlx invocation from a project
+/// with patches, on a patch file missing under the cache dir.
+#[cfg(unix)]
+#[test]
+fn dlx_ignores_the_caller_projects_patched_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    std::fs::create_dir(workspace.join("patches")).expect("create the caller's patches dir");
+    std::fs::write(
+        workspace.join("patches").join("touch-file-one-bin.patch"),
+        concat!(
+            "diff --git a/cli.js b/cli.js\n",
+            "--- a/cli.js\n",
+            "+++ b/cli.js\n",
+            "@@ -1,4 +1,4 @@\n",
+            " 'use strict'\n",
+            " const fs = require('fs')\n",
+            " \n",
+            "-fs.writeFileSync('touch.txt', 'hello world', 'utf8')\n",
+            "+fs.writeFileSync('patched.txt', 'hello world', 'utf8')\n",
+        ),
+    )
+    .expect("write the caller's patch");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        std::fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str(
+        "patchedDependencies:\n  '@foo/touch-file-one-bin@1.0.0': patches/touch-file-one-bin.patch\n",
+    );
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("add the caller's patch entry");
+
+    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin").assert().success();
+
+    assert!(
+        workspace.join("touch.txt").exists(),
+        "dlx must run the unpatched package, which writes `touch.txt`",
+    );
+    assert!(
+        !workspace.join("patched.txt").exists(),
+        "the caller's patch must not be applied to the dlx install",
+    );
+
+    drop(root);
+}
+
 /// The dlx cache install must stay anchored to its prepare dir even when a
 /// directory above the cache carries a `pnpm-workspace.yaml`. Left
 /// unanchored, the install pipeline walks up from the cache dir, adopts
