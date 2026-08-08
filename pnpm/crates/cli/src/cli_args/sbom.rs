@@ -9,6 +9,9 @@ use indexmap::IndexMap;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
+use pacquet_package_is_installable::{
+    SupportedArchitectures, WantedPlatformRef, inferred_platform, platform_is_supported,
+};
 use pacquet_package_manager::{importer_root_dir, validate_importer_id};
 use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
@@ -129,6 +132,10 @@ struct WalkContext<'a> {
     virtual_store_dir: Option<PathBuf>,
     virtual_store_dir_max_length: usize,
     include_optional_transitive: bool,
+    supported_architectures: Option<&'a SupportedArchitectures>,
+    current_os: &'a str,
+    current_cpu: &'a str,
+    current_libc: &'a str,
 }
 
 struct SbomRelationship {
@@ -442,6 +449,10 @@ fn collect_components(
         virtual_store_dir,
         virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
         include_optional_transitive: include.optional_dependencies,
+        supported_architectures: state.config.supported_architectures.as_ref(),
+        current_os: pacquet_detect_libc::host_platform(),
+        current_cpu: pacquet_detect_libc::host_arch(),
+        current_libc: pacquet_graph_hasher::host_libc(),
     };
 
     let mut components_map: IndexMap<String, SbomComponent> = IndexMap::new();
@@ -637,6 +648,41 @@ fn read_pkg_metadata_from_store(
     }
 }
 
+/// Whether `package` is an optional dependency that cannot be installed on the
+/// current platform (or the configured `supported_architectures`), mirroring
+/// the `pnpm licenses` filter. Such packages are in the lockfile but never
+/// fetched, so their store metadata (including license) cannot be resolved.
+fn platform_incompatible_optional(
+    name: &str,
+    snapshot_optional: bool,
+    package: Option<&PackageMetadata>,
+    supported_architectures: Option<&SupportedArchitectures>,
+    current_os: &str,
+    current_cpu: &str,
+    current_libc: &str,
+) -> bool {
+    if !snapshot_optional {
+        return false;
+    }
+    let Some(package) = package else {
+        return false;
+    };
+    let declared = WantedPlatformRef {
+        os: package.os.as_deref(),
+        cpu: package.cpu.as_deref(),
+        libc: package.libc.as_deref(),
+    };
+    let inferred = (declared.os.is_none() || declared.cpu.is_none() || declared.libc.is_none())
+        .then(|| name.to_string())
+        .and_then(|name| inferred_platform(&name, declared));
+    let wanted = inferred.as_ref().map_or(declared, |platform| WantedPlatformRef {
+        os: platform.os.as_deref(),
+        cpu: platform.cpu.as_deref(),
+        libc: platform.libc.as_deref(),
+    });
+    !platform_is_supported(wanted, supported_architectures, current_os, current_cpu, current_libc)
+}
+
 fn walk_snapshot(
     initial_key: &PkgNameVerPeer,
     initial_parent_purl: &str,
@@ -655,6 +701,25 @@ fn walk_snapshot(
             .and_then(|pkgs| pkgs.get(&key.without_peer()))
             .and_then(|meta| meta.version.clone())
             .unwrap_or_else(|| key.suffix.version().to_string());
+
+        // Skip optional packages pnpm would not install on this platform; their
+        // metadata is not in the virtual store. --lockfile-only keeps the full
+        // platform-independent lockfile graph.
+        if ctx.virtual_store_dir.is_some()
+            && platform_incompatible_optional(
+                &name,
+                ctx.snapshots.is_some_and(|snapshots| {
+                    snapshots.get(&key).is_some_and(|snapshot| snapshot.optional)
+                }),
+                ctx.packages.and_then(|packages| packages.get(&key.without_peer())),
+                ctx.supported_architectures,
+                ctx.current_os,
+                ctx.current_cpu,
+                ctx.current_libc,
+            )
+        {
+            continue;
+        }
 
         let purl = build_purl(&name, &version);
 

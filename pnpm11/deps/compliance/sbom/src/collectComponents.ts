@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
@@ -11,7 +12,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
+import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
@@ -42,6 +43,7 @@ export interface CollectSbomComponentsOptions {
   namedRegistries?: Record<string, string>
   lockfileDir: string
   includedImporterIds?: ProjectId[]
+  supportedArchitectures?: SupportedArchitectures
   lockfileOnly?: boolean
   storeDir?: string
   virtualStoreDirMaxLength?: number
@@ -206,6 +208,22 @@ async function walkStep (
       const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       if (!name || !version) return
+
+      // Skip optional packages pnpm would not install on this platform; their
+      // metadata is not in the store. --lockfile-only keeps the full graph.
+      if (!opts.lockfileOnly && packageIsInstallable(pkgSnapshot.id ?? depPath, {
+        name,
+        version,
+        cpu: pkgSnapshot.cpu,
+        os: pkgSnapshot.os,
+        libc: pkgSnapshot.libc,
+      }, {
+        optional: pkgSnapshot.optional ?? false,
+        lockfileDir: opts.lockfileDir,
+        supportedArchitectures: opts.supportedArchitectures,
+      }) === false) {
+        return
+      }
 
       // Resolve the alias before the purl is built. An unknown alias would
       // otherwise yield an unqualified purl that collides with the same
