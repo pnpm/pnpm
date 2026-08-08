@@ -329,7 +329,7 @@ export async function getConfig (opts: {
     }
     if (ignoredKeys.length > 0) {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
-      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(ignoredKeys)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
@@ -459,7 +459,7 @@ export async function getConfig (opts: {
       }
       const ignoredPnpmFieldKeys = getIgnoredPnpmFieldKeys(pnpmConfig.rootProjectManifest)
       if (ignoredPnpmFieldKeys.length > 0) {
-        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${ignoredPnpmFieldKeys.map(k => `"pnpm.${k}"`).join(', ')}. See https://pnpm.io/settings for the new home of each setting.`)
+        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${quoteAndJoin(ignoredPnpmFieldKeys.map(k => `pnpm.${k}`))}. See https://pnpm.io/settings for the new home of each setting.`)
       }
       const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
       if (wantedPmResult.pm) {
@@ -476,10 +476,19 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
+        // Matched in camelCase so a kebab-case spelling is reported too. The
+        // settings loop drops that spelling either way, but silently.
+        const ignoredKeys = Object.keys(workspaceManifest)
+          .filter((key) => PROJECT_MANIFEST_SKIPPED_SETTINGS.has(camelcase(key, { locale: 'en-US' })))
+        if (ignoredKeys.length > 0) {
+          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndJoin(ignoredKeys)}.`)
+        }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
-          skipSettings: opts.forSelfUpdate ? SELF_UPDATE_SKIPPED_SETTINGS : undefined,
+          skipSettings: opts.forSelfUpdate
+            ? new Set([...PROJECT_MANIFEST_SKIPPED_SETTINGS, ...SELF_UPDATE_SKIPPED_SETTINGS])
+            : PROJECT_MANIFEST_SKIPPED_SETTINGS,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
@@ -1094,6 +1103,49 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'trustPolicyIgnoreAfter',
 ] satisfies Array<keyof Config>)
 
+/**
+ * Settings a project's `pnpm-workspace.yaml` does not contribute.
+ *
+ * Each names a location or a trusted value that is not the project's to
+ * choose. A repository setting one would redirect where pnpm writes — `pnpm
+ * login`'s `auth.ini`, `pnpm setup`'s PATH entry, the bins `pnpm install`
+ * links — or, for the auth group, which credentials it sends and to whom.
+ *
+ * `cacheDir` and `storeDir` are deliberately absent: those name caches a
+ * project may legitimately place, and the Rust `WorkspaceSettings` accepts
+ * both.
+ */
+const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+  // What the machine keeps outside any project.
+  'configDir',
+  'globalBinDir',
+  'globalDir',
+  'globalPkgDir',
+  'npmrcAuthFile',
+  'pnpmHomeDir',
+  'stateDir',
+  'userconfig',
+  // The directories the current command reads and writes in.
+  'bin',
+  'dir',
+  'rootProjectManifestDir',
+  'workspaceDir',
+  // Auth and the bootstrap download routes, which the reader assembles from
+  // the trusted config sources only.
+  'authConfig',
+  'configByUri',
+  'packageManagerNetworkConfig',
+  'packageManagerRegistries',
+] satisfies Array<keyof (Config & ConfigContext)>)
+
+/**
+ * Whether a project's `pnpm-workspace.yaml` would ignore this camelCase key.
+ * See {@link PROJECT_MANIFEST_SKIPPED_SETTINGS}.
+ */
+export function isProjectManifestSkippedSetting (camelKey: string): boolean {
+  return PROJECT_MANIFEST_SKIPPED_SETTINGS.has(camelKey)
+}
+
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
   expandRequestDestinationEnv,
@@ -1105,7 +1157,11 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   configFromCliOpts: Record<string, unknown>
   expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
-  /** Settings this manifest may not contribute. See {@link SELF_UPDATE_SKIPPED_SETTINGS}. */
+  /**
+   * Settings this manifest may not contribute. See
+   * {@link PROJECT_MANIFEST_SKIPPED_SETTINGS} and
+   * {@link SELF_UPDATE_SKIPPED_SETTINGS}.
+   */
   skipSettings?: ReadonlySet<string>
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
@@ -1128,4 +1184,9 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+}
+
+/** Renders keys for a warning that lists the settings it ignored. */
+function quoteAndJoin (keys: string[]): string {
+  return keys.map(key => `"${key}"`).join(', ')
 }

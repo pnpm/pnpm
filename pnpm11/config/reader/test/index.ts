@@ -707,6 +707,168 @@ describe("forSelfUpdate (the project manifest doesn't set self-update's release-
   })
 })
 
+describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and writes", () => {
+  const machineLocations = {
+    bin: '/tmp/attacker-bin',
+    configDir: '/tmp/attacker-config-dir',
+    dir: '/tmp/attacker-dir',
+    globalBinDir: '/tmp/attacker-global-bin-dir',
+    globalDir: '/tmp/attacker-global-dir',
+    globalPkgDir: '/tmp/attacker-global-pkg-dir',
+    npmrcAuthFile: '/tmp/attacker-npmrc',
+    pnpmHomeDir: '/tmp/attacker-home',
+    rootProjectManifestDir: '/tmp/attacker-root',
+    stateDir: '/tmp/attacker-state',
+    userconfig: '/tmp/attacker-userconfig',
+    workspaceDir: '/tmp/attacker-workspace',
+  }
+
+  test('the machine-level directories keep the values the reader resolved', async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+    const real = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    writeYamlFileSync('pnpm-workspace.yaml', machineLocations)
+
+    const { config, context } = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    // `pnpm login` writes the granted token to `<configDir>/auth.ini`, and
+    // `pnpm setup` puts `<pnpmHomeDir>/bin` on the user's PATH. Assertions are
+    // driven off the manifest so that extending the fixture is enough to cover
+    // a new setting.
+    const resolved = { ...config, ...context } as Record<string, unknown>
+    const realResolved = { ...real.config, ...real.context } as Record<string, unknown>
+    for (const [key, attackerValue] of Object.entries(machineLocations)) {
+      expect(resolved[key]).toBe(realResolved[key])
+      expect(resolved[key]).not.toBe(attackerValue)
+    }
+  })
+
+  test('the ignored settings are reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      configDir: '/tmp/attacker-config-dir',
+      nodeLinker: 'hoisted',
+    })
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toContainEqual(expect.stringContaining('"configDir"'))
+    expect(warnings).not.toContainEqual(expect.stringContaining('"nodeLinker"'))
+  })
+
+  test('a kebab-case spelling is reported too', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { 'config-dir': '/tmp/attacker-config-dir' })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.configDir).not.toBe('/tmp/attacker-config-dir')
+    expect(warnings).toContainEqual(expect.stringContaining('"config-dir"'))
+  })
+
+  test('auth and the bootstrap download routes stay out of the manifest', async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+    // These are assembled from the user's own `.npmrc`, so compare against what
+    // the reader resolves without the manifest rather than against a literal.
+    const real = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      authConfig: { '//registry.example.com/:_authToken': 'attacker-token' },
+      configByUri: { 'https://registry.example.com/': { authHeaderValue: 'Bearer attacker-token' } },
+      packageManagerRegistries: { default: 'https://attacker.example.com/' },
+      packageManagerNetworkConfig: { configByUri: {}, strictSsl: !real.config.packageManagerNetworkConfig?.strictSsl },
+    })
+
+    const { config } = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    expect(config.authConfig).toStrictEqual(real.config.authConfig)
+    expect(config.configByUri).toStrictEqual(real.config.configByUri)
+    expect(config.packageManagerRegistries).toStrictEqual(real.config.packageManagerRegistries)
+    expect(config.packageManagerNetworkConfig).toStrictEqual(real.config.packageManagerNetworkConfig)
+  })
+
+  test('the skips still apply when self-update resolves the config', async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+    const real = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      minimumReleaseAge: 4320,
+    })
+
+    const { config } = await getConfig({ cliOptions, packageManager, workspaceDir, forSelfUpdate: true })
+
+    expect(config.configDir).toBe(real.config.configDir)
+    expect(config.pnpmHomeDir).toBe(real.config.pnpmHomeDir)
+    // The two skip sets combine; self-update does not trade one for the other.
+    expect(config.minimumReleaseAge).toBe(1440)
+  })
+
+  test('the command line and the environment still set them', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', machineLocations)
+    fs.mkdirSync('nested')
+
+    const { config } = await getConfig({
+      cliOptions: {
+        dir: path.resolve('nested'),
+        'global-bin-dir': '/tmp/cli-global-bin',
+        'global-dir': '/tmp/cli-global',
+      },
+      env: { ...env, PNPM_CONFIG_STATE_DIR: '/tmp/env-state' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.dir).toBe(fs.realpathSync(path.resolve('nested')))
+    expect(config.globalBinDir).toBe('/tmp/cli-global-bin')
+    expect(config.globalDir).toBe('/tmp/cli-global')
+    expect(config.stateDir).toBe('/tmp/env-state')
+  })
+
+  test('a directory the project does own still comes from the manifest', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'custom_modules',
+      storeDir: '/tmp/project-store',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.modulesDir).toBe('custom_modules')
+    expect(config.storeDir).toBe('/tmp/project-store')
+  })
+})
+
 test('camelCase settings from pnpm-workspace.yaml are read into typed Config properties', async () => {
   prepareEmpty()
 

@@ -998,3 +998,140 @@ test('config set --global no-proxy writes to config.yaml', async () => {
   })
   expect(result.globalRc).toBeUndefined()
 })
+
+test.each([
+  ['config-dir'],
+  ['pnpmHomeDir'],
+  ['state-dir'],
+])('config set refuses %s using the location=project option', async (key) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: undefined,
+    localYaml: { storeDir: '~/store' },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  // The config reader ignores these in a project manifest, so writing one there
+  // would leave the user with a setting that does nothing and a warning on
+  // every command.
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', key, '/tmp/somewhere'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING',
+  })
+
+  expect(readConfigFiles(configDir, tmp)).toEqual(initConfig)
+})
+
+test('config delete removes a skipped key that a project manifest already has', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  writeConfigFiles(configDir, tmp, {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: undefined,
+    localYaml: { configDir: '/tmp/somewhere', storeDir: '~/store' },
+  } satisfies ConfigFilesData)
+
+  // Deleting is how a user clears a manifest that already carries one of these,
+  // so the write-side rejection must not block it.
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['delete', 'config-dir'])
+
+  expect(readConfigFiles(configDir, tmp).localYaml).toEqual({ storeDir: '~/store' })
+})
+
+test('config set --global does not send a machine-level key to the project manifest', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  // The project manifest refuses these too, so the usual "put it in
+  // pnpm-workspace.yaml" hint would send the user in a circle.
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'global',
+    authConfig: {},
+  }), ['set', 'config-dir', '/tmp/somewhere'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY',
+    hint: expect.not.stringContaining('pnpm-workspace.yaml'),
+  })
+})
+
+test('config set does not suggest the camelCase spelling of a key the project manifest refuses', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  // "Try \"pnpmHomeDir\"" would be a dead end: that spelling is refused too.
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', 'pnpm-home-dir', '/tmp/somewhere'])).rejects.toMatchObject({
+    hint: expect.not.stringContaining('pnpmHomeDir'),
+  })
+})
+
+test.each([
+  // Refused in a project manifest, but the global config file takes it.
+  ['state-dir', 'pnpm config set --global state-dir'],
+  ['global_dir', 'pnpm config set --global global-dir'],
+  // No config file takes these, so the hint has to name the route that does.
+  ['config-dir', 'XDG_CONFIG_HOME'],
+  ['dir', 'Pass --dir on the command line'],
+  // Nothing outside pnpm sets this one, so there is no route to name.
+  ['root-project-manifest-dir', 'pnpm resolves this setting per run'],
+  // `userconfig` is writable globally but never read back; point at the key
+  // that actually supplies the user-level .npmrc.
+  ['userconfig', 'pnpm config set --global npmrc-auth-file'],
+])('config set tells the user where %s belongs', async (key, expectedHint) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', key, '/tmp/somewhere'])).rejects.toMatchObject({
+    hint: expect.stringContaining(expectedHint),
+  })
+})
+
+test('config delete clears a hand-written kebab-case key', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), "'config-dir': /tmp/somewhere\nstoreDir: '~/store'\n")
+
+  // The reader reports the spelling the user wrote, so deleting that spelling
+  // has to be the remedy it implies.
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['delete', 'config-dir'])
+
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
+})

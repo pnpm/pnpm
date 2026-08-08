@@ -1,7 +1,7 @@
 import path from 'node:path'
 import util from 'node:util'
 
-import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, types } from '@pnpm/config.reader'
+import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isProjectManifestSkippedSetting, types } from '@pnpm/config.reader'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { parsePropertyPath } from '@pnpm/object.property-path'
@@ -53,13 +53,24 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
         key = validateYamlConfigKey(key)
       }
-      key = validateWorkspaceKey(key)
-      await updateWorkspaceManifest(configDir, {
-        fileName: configFileName,
-        updatedFields: ({
-          [key]: castField(value, kebabCase(key)),
-        }),
-      })
+      const writtenKey = validateWorkspaceKey(key)
+      // `pnpm config delete` arrives here with a null value. Deleting one of
+      // these is the fix for a manifest that already has it, so only writing
+      // is refused.
+      if (value != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
+        throw new ConfigSetNotAProjectSettingError(writtenKey)
+      }
+      const updatedFields: Record<string, unknown> = {
+        [writtenKey]: castField(value, kebabCase(writtenKey)),
+      }
+      // pnpm always writes the normalized spelling, but a hand-edited file may
+      // carry another one — and for a project manifest that is the spelling
+      // the reader names when it reports the setting as ignored. Remove both,
+      // so the remedy the warning implies actually clears the file.
+      if (value == null && key !== writtenKey) {
+        updatedFields[key] = null
+      }
+      await updateWorkspaceManifest(configDir, { fileName: configFileName, updatedFields })
       break
     }
 
@@ -182,7 +193,66 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY', `The key ${JSON.stringify(key)} isn't supported by the workspace manifest`, {
-      hint: `Try ${JSON.stringify(camelCase(key))}`,
+      hint: hintForRefusedKey(key, `Try ${JSON.stringify(camelCase(key))}`),
+    })
+    this.key = key
+  }
+}
+
+/**
+ * The key to name in a suggestion, for settings whose own name would be
+ * accepted by the global config file but never read back from it.
+ *
+ * `userconfig` is one: the reader takes the user-level `.npmrc` from
+ * `npmrcAuthFile`, or from the `--userconfig` flag, and never from the config
+ * file's `userconfig`. Suggesting it would send the user to a command that
+ * succeeds and changes nothing.
+ */
+const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
+  userconfig: 'npmrc-auth-file',
+}
+
+/**
+ * How to set a refused key that no config file accepts, for the ones that are
+ * still settable by another route.
+ *
+ * Without these the fallback below would tell a user that pnpm works `dir` out
+ * for itself, when `--dir` sets it, and that pnpm works `configDir` out for
+ * itself, when `XDG_CONFIG_HOME` moves it.
+ */
+const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
+  dir: 'Pass --dir on the command line instead',
+  configDir: 'pnpm takes it from XDG_CONFIG_HOME, or the platform default',
+}
+
+/**
+ * Where {@link key} can be set, for a key a project manifest refuses.
+ *
+ * Some are still valid in the global config file, some are set another way
+ * entirely, and the rest pnpm resolves per run. Suggesting the project
+ * manifest — the fallback for every other key — would send the user in a
+ * circle.
+ */
+function whereRefusedKeyBelongs (key: string): string {
+  const camelKey = camelCase(key)
+  const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelKey] ?? kebabCase(key)
+  if (isConfigFileKey(kebabKey)) {
+    return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
+  }
+  return NON_CONFIG_FILE_SOURCES[camelKey] ?? 'pnpm resolves this setting per run, so no config file sets it'
+}
+
+/** The suggestion for {@link key}, which falls back when the key is allowed in a project manifest. */
+function hintForRefusedKey (key: string, fallback: string): string {
+  if (!isProjectManifestSkippedSetting(camelCase(key))) return fallback
+  return whereRefusedKeyBelongs(key)
+}
+
+export class ConfigSetNotAProjectSettingError extends PnpmError {
+  readonly key: string
+  constructor (key: string) {
+    super('CONFIG_SET_NOT_A_PROJECT_SETTING', `The key ${JSON.stringify(key)} cannot be set in a project's pnpm-workspace.yaml`, {
+      hint: whereRefusedKeyBelongs(key),
     })
     this.key = key
   }
@@ -221,7 +291,7 @@ export class ConfigSetUnsupportedYamlConfigKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY', `The key ${JSON.stringify(key)} isn't supported by the global config.yaml file`, {
-      hint: 'Try setting them instead to the local pnpm-workspace.yaml file',
+      hint: hintForRefusedKey(key, 'Try setting them instead to the local pnpm-workspace.yaml file'),
     })
     this.key = key
   }
