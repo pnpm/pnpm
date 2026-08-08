@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import { assertProject } from '@pnpm/assert-project'
 import { add, install, prune } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -153,4 +154,118 @@ test('cliOptionsTypes', () => {
   expect(prune.cliOptionsTypes()).toHaveProperty('dev')
   expect(prune.cliOptionsTypes()).toHaveProperty('ignore-scripts')
   expect(prune.cliOptionsTypes()).toHaveProperty('optional')
+})
+
+test('prune --prod in workspace keeps workspace package symlink', async () => {
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  // Set up workspace directory structure manually
+  const rootDir = process.cwd()
+  const appDir = path.join(rootDir, 'apps/app')
+  const libDir = path.join(rootDir, 'packages/lib')
+
+  fs.mkdirSync(appDir, { recursive: true })
+  fs.mkdirSync(libDir, { recursive: true })
+
+  const rootManifest = {
+    name: 'root',
+    private: true,
+  }
+  const libManifest = {
+    name: '@scope/lib',
+    version: '1.0.0',
+    main: 'index.js',
+  }
+  const appManifest = {
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      '@scope/lib': 'workspace:*',
+    },
+    devDependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+
+  fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify(rootManifest, null, 2))
+  fs.writeFileSync(path.join(libDir, 'package.json'), JSON.stringify(libManifest, null, 2))
+  fs.writeFileSync(path.join(libDir, 'index.js'), 'module.exports = "lib"')
+  fs.writeFileSync(path.join(appDir, 'package.json'), JSON.stringify(appManifest, null, 2))
+  fs.writeFileSync(path.join(rootDir, 'pnpm-workspace.yaml'), 'packages:\n  - "apps/*"\n  - "packages/*"')
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allProjects: any[] = [
+    {
+      manifest: rootManifest,
+      rootDir: rootDir,
+      rootDirRealPath: fs.realpathSync(rootDir),
+      writeProjectManifest: async (_manifest: unknown) => {},
+    },
+    {
+      manifest: libManifest,
+      rootDir: libDir,
+      rootDirRealPath: fs.realpathSync(libDir),
+      writeProjectManifest: async (_manifest: unknown) => {},
+    },
+    {
+      manifest: appManifest,
+      rootDir: appDir,
+      rootDirRealPath: fs.realpathSync(appDir),
+      writeProjectManifest: async (_manifest: unknown) => {},
+    },
+  ]
+  const selectedProjectsGraph = {
+    [rootDir]: {
+      dependencies: [],
+      package: allProjects[0],
+    },
+    [libDir]: {
+      dependencies: [],
+      package: allProjects[1],
+    },
+    [appDir]: {
+      dependencies: [],
+      package: allProjects[2],
+    },
+  }
+
+  // Install
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    cacheDir,
+    dir: rootDir,
+    storeDir,
+    workspaceDir: rootDir,
+    lockfileDir: rootDir,
+    selectedProjectsGraph: selectedProjectsGraph as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    recursive: true,
+    confirmModulesPurge: false,
+  })
+
+  // Check that the symlink exists
+  const appProject = assertProject(appDir)
+  appProject.has('@scope/lib')
+  appProject.has('is-positive')
+
+  // Prune
+  await prune.handler({
+    ...DEFAULT_OPTIONS,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    cacheDir,
+    dir: rootDir,
+    storeDir,
+    workspaceDir: rootDir,
+    lockfileDir: rootDir,
+    selectedProjectsGraph: selectedProjectsGraph as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    production: true,
+    dev: false,
+    recursive: true,
+    confirmModulesPurge: false,
+  })
+
+  // Check that devDependencies were pruned, but the workspace symlink remains
+  appProject.has('@scope/lib')
+  appProject.hasNot('is-positive')
 })
