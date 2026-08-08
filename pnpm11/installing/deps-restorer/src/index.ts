@@ -136,6 +136,12 @@ export interface HeadlessOptions {
   ignoreLocalPackages?: boolean
   include: IncludedDependencies
   selectedProjectDirs: string[]
+  /**
+   * The selected projects whose own lifecycle scripts may run. Defaults to
+   * every selected project; an `uninstallSome` mutation materializes for its
+   * project without running its scripts, matching the resolution path.
+   */
+  projectDirsRunningScripts?: string[]
   allProjects: Record<string, Project>
   prunedAt?: string
   hoistedDependencies: HoistedDependencies
@@ -244,6 +250,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   )
   const publicHoistedModulesDir = rootModulesDir
   const selectedProjects = Object.values(pick(opts.selectedProjectDirs, opts.allProjects))
+  const projectsRunningScripts = opts.projectDirsRunningScripts == null
+    ? selectedProjects
+    : Object.values(pick(opts.projectDirsRunningScripts, opts.allProjects))
 
   const scriptsOpts = {
     optional: false,
@@ -607,7 +616,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   opts.pendingBuilds = opts.pendingBuilds
     .filter((id) => wantedLockfile.packages?.[id as DepPath] != null || wantedLockfile.importers[id as ProjectId] != null)
   if (opts.ignoreScripts) {
-    for (const { id, manifest } of selectedProjects) {
+    for (const { id, manifest } of projectsRunningScripts) {
       if (((manifest?.scripts) != null) &&
         (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
           manifest.scripts.install ??
@@ -802,7 +811,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     await opts.verifyLockfile?.()
     await runLifecycleHooksConcurrently(
       ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
-      projectsToBeBuilt,
+      projectsToBeBuilt.filter((project) => projectsRunningScripts.some(({ rootDir }) => rootDir === project.rootDir)),
       opts.childConcurrency ?? 5,
       scriptsOpts
     )

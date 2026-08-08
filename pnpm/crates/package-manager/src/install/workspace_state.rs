@@ -375,7 +375,7 @@ pub(super) fn projects_running_own_scripts<'manifest>(
         materialized_project_manifests,
     } = *inputs;
     let full_install = match mutation {
-        ProjectMutation::NoInstall => return Vec::new(),
+        ProjectMutation::NoInstall | ProjectMutation::UninstallSome => return Vec::new(),
         ProjectMutation::InstallWorkspace => return materialized_project_manifests.to_vec(),
         ProjectMutation::InstallSelected => true,
         ProjectMutation::InstallSome => false,

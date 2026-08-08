@@ -1118,3 +1118,90 @@ fn dropping_a_dependency_from_the_manifest_skips_resolution() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn remove_command_drops_the_dependency_without_resolving() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+                "is-positive": "1.0.0"
+            },
+            "scripts": {
+                "postinstall": r#"node -e "require('fs').writeFileSync('postinstall-ran','')""#
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    fs::remove_file(workspace.join("postinstall-ran"))
+        .expect("the full install ran the project postinstall");
+
+    let dead_registry = dead_registry_url();
+    let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead_npmrc = live_npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    let assert = pacquet_at(&workspace).with_args(["remove", "is-positive"]).assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "removing a dependency needs no resolution",
+    );
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json");
+    assert!(manifest["dependencies"].get("is-positive").is_none(), "the manifest entry is gone");
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    assert!(
+        !wanted
+            .packages
+            .as_ref()
+            .expect("packages")
+            .keys()
+            .any(|key| key.to_string().starts_with("is-positive@")),
+        "the removed package is pruned from the lockfile",
+    );
+    assert!(
+        !workspace.join("node_modules").join("is-positive").exists(),
+        "and unlinked from node_modules",
+    );
+    assert!(
+        manifest["dependencies"].get("@pnpm.e2e/pkg-with-1-dep").is_some(),
+        "the surviving dependency keeps its manifest entry",
+    );
+    assert!(
+        wanted.importers["."].dependencies.as_ref().is_some_and(|dependencies| {
+            dependencies.contains_key(&"@pnpm.e2e/pkg-with-1-dep".parse().expect("alias"))
+        }),
+        "and its importer entry",
+    );
+    assert!(
+        workspace.join("node_modules").join("@pnpm.e2e").join("pkg-with-1-dep").exists(),
+        "and its node_modules link",
+    );
+    assert!(
+        !workspace.join("postinstall-ran").exists(),
+        "a remove runs no project lifecycle script",
+    );
+
+    drop((root, mock_instance));
+}
