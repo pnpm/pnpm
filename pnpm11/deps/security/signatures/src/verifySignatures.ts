@@ -376,7 +376,7 @@ function isPackageSignature (signature: unknown): signature is PackageSignature 
     typeof (signature as PackageSignature).sig === 'string'
 }
 
-function sortIssue (a: SignatureIssue, b: SignatureIssue): number {
+export function sortIssue (a: SignatureIssue, b: SignatureIssue): number {
   return `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`)
 }
 

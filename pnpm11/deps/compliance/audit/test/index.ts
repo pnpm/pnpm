@@ -28,6 +28,32 @@ describe('audit', () => {
     expect(result.request).toEqual({ foo: ['1.0.0'], bar: ['1.0.0'] })
     expect(result.totalDependencies).toBe(2)
     expect(result.devDependencies).toBe(0)
+    expect(result.unresolvable).toEqual([])
+  })
+
+  test('lockfileToAuditRequest() surfaces lockfile entries it cannot resolve instead of silently dropping them', () => {
+    // Simulates a lockfile edited/tampered inconsistently: the importer still
+    // references uuid@13.0.2, but packages: was only updated to uuid@13.99.99,
+    // leaving the importer's reference dangling. https://github.com/pnpm/pnpm/issues/13638
+    const result = lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { uuid: '13.0.2', ms: '2.1.3' },
+          specifiers: { uuid: '^13.0.2', ms: '^2.1.3' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['uuid@13.99.99' as DepPath]: { resolution: { integrity: 'uuid-integrity' } },
+        ['ms@2.1.3' as DepPath]: { resolution: { integrity: 'ms-integrity' } },
+      },
+    }, {})
+
+    // The dangling entry must not just vanish from the request and counts...
+    expect(result.request).toEqual({ ms: ['2.1.3'] })
+    expect(result.totalDependencies).toBe(1)
+    // ...it must be surfaced so a caller can report it as a failure.
+    expect(result.unresolvable).toEqual([{ name: 'uuid', depPath: 'uuid@13.0.2' }])
   })
 
   test('buildAuditPathIndex() records install paths for vulnerable packages', () => {

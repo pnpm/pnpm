@@ -1,7 +1,7 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
-import { type SignaturePackage, type SignatureVerificationResult, verifySignatures } from '@pnpm/deps.security.signatures'
+import { type SignatureIssue, type SignaturePackage, type SignatureVerificationResult, sortIssue, verifySignatures } from '@pnpm/deps.security.signatures'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { table } from '@zkochan/table'
@@ -37,6 +37,22 @@ export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: 
     strictSsl: networkOptions.strictSsl,
     timeout: networkOptions.fetchTimeout,
   })
+
+  // Dependency references the lockfile walk couldn't resolve to a
+  // packages:/snapshots: entry never reached `packages` above, so
+  // verifySignatures never saw them either. There is no registry lookup to
+  // attempt for a reference the lockfile itself can't stand behind -- report
+  // them directly rather than silently shrinking `audited`.
+  if (auditRequest.unresolvable.length > 0) {
+    const unresolvableIssues: SignatureIssue[] = auditRequest.unresolvable.map(({ name, depPath }) => ({
+      name,
+      registry: pickRegistryForPackage(opts.registries, name),
+      version: '',
+      reason: `Lockfile entry "${depPath}" has no corresponding package in the lockfile's packages/snapshots section. The lockfile may be broken or tampered with; try reinstalling with --frozen-lockfile to confirm.`,
+    }))
+    result.audited += unresolvableIssues.length
+    result.invalid = [...result.invalid, ...unresolvableIssues].sort(sortIssue)
+  }
 
   return {
     exitCode: result.invalid.length > 0 || result.missing.length > 0 ? 1 : 0,

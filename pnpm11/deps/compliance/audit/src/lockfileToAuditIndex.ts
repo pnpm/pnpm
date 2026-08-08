@@ -26,6 +26,13 @@ export interface AuditIndexRequest {
   dependencies: number
   devDependencies: number
   optionalDependencies: number
+  // Dependency references the lockfile walk could not resolve to an entry in
+  // packages:/snapshots: (LockfileWalkerStep.missing) -- a broken or tampered
+  // lockfile, not a shape the registry can be asked about. Distinct from
+  // `links`, which the walker also reports and which are legitimately not
+  // audited (local workspace symlinks, not registry packages). Callers must
+  // surface these as failures rather than silently shrinking their counts.
+  unresolvable: Array<{ name: string, depPath: DepPath }>
 }
 
 export interface AuditIndexOptions {
@@ -61,6 +68,12 @@ export function lockfileToAuditRequest (
   let dependencies = 0
   let devDependencies = 0
   let optionalDependencies = 0
+  const unresolvable: Array<{ name: string, depPath: DepPath }> = []
+  const recordUnresolvable = (depPaths: readonly string[]): void => {
+    for (const depPath of depPaths) {
+      unresolvable.push({ name: dp.parse(depPath).name ?? depPath, depPath: depPath as DepPath })
+    }
+  }
 
   const registerOccurrence = (o: { name: string, version: string, devOnly: boolean, optionalOnly: boolean }): void => {
     let versionStates = versionStatesByName[o.name]
@@ -100,6 +113,7 @@ export function lockfileToAuditRequest (
   // untrusted lockfile cannot overflow the call stack.
   const makeVisitor = (graphDepTypes: DepTypes, graphOptionalOnly: Set<DepPath>) => {
     return (rootStep: LockfileWalkerStep): void => {
+      recordUnresolvable(rootStep.missing)
       const stack: Array<{ dependencies: LockfileWalkerStep['dependencies'], next: number }> = [{ dependencies: rootStep.dependencies, next: 0 }]
       while (stack.length > 0) {
         const frame = stack[stack.length - 1]
@@ -117,7 +131,9 @@ export function lockfileToAuditRequest (
             optionalOnly: graphOptionalOnly.has(depPath),
           })
         }
-        stack.push({ dependencies: next().dependencies, next: 0 })
+        const nextStep = next()
+        recordUnresolvable(nextStep.missing)
+        stack.push({ dependencies: nextStep.dependencies, next: 0 })
       }
     }
   }
@@ -136,7 +152,7 @@ export function lockfileToAuditRequest (
     }
   }
 
-  return { request, totalDependencies, dependencies, devDependencies, optionalDependencies }
+  return { request, totalDependencies, dependencies, devDependencies, optionalDependencies, unresolvable }
 }
 
 export function buildAuditPathIndex (
