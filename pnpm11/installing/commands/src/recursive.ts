@@ -31,6 +31,7 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
@@ -59,6 +60,7 @@ import pLimit from 'p-limit'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
+import { mergeResolvedPackageVersions, resolvedPackageVersionsIfCleanup } from './resolvedPackageVersionsIfCleanup.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -95,6 +97,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'tag'
 | 'trustLockfile'
 | 'cleanupUnusedCatalogs'
+| 'cleanupOutdatedMinimumReleaseAgeExcludes'
 | 'packageConfigs'
 | 'updateConfig'
 > & Pick<ConfigContext,
@@ -341,6 +344,7 @@ export async function recursive (
       updatedCatalogs,
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
+      newLockfile,
       resolutionPolicyViolations,
       dryRunResult,
     } = await mutateModules(mutatedImporters, {
@@ -360,6 +364,8 @@ export async function recursive (
       promises.push(updateWorkspaceManifest(opts.workspaceDir, {
         updatedCatalogs,
         cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+        cleanupOutdatedMinimumReleaseAgeExcludes: opts.cleanupOutdatedMinimumReleaseAgeExcludes,
+        resolvedPackageVersions: resolvedPackageVersionsIfCleanup(opts, newLockfile),
         allProjects,
         ...policyUpdates,
       }))
@@ -374,6 +380,13 @@ export async function recursive (
   let updatedCatalogs: Catalogs | undefined
 
   const allIgnoredBuilds = new Set<DepPath>()
+  // Each per-project install resolves its own lockfile; the cleanup pass
+  // treats a name/version as live when any project's lockfile resolved it.
+  // When no install returned a lockfile (e.g. every install was frozen),
+  // `undefined` — not an empty map — must reach the writer, or the cleanup
+  // pass would read "no packages resolved" and prune every exclusion.
+  const allResolvedPackageVersions = new Map<string, Set<string>>()
+  let hasNewLockfile = false
   // Each per-project install returns its own slice of lockfile-resolution
   // violations; accumulate them here so the post-loop persist step can
   // dedup and write a single batch to the workspace manifest.
@@ -426,6 +439,7 @@ export async function recursive (
           updatedCatalogs?: Catalogs
           updatedManifest: ProjectManifest
           ignoredBuilds: IgnoredBuilds | undefined
+          newLockfile?: LockfileObject
           resolutionPolicyViolations?: PolicyViolation[]
         }
 
@@ -446,6 +460,7 @@ export async function recursive (
                 updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
                 updatedManifest: mutationResult.updatedProjects[0].manifest,
                 ignoredBuilds: mutationResult.ignoredBuilds,
+                newLockfile: mutationResult.newLockfile,
                 resolutionPolicyViolations: mutationResult.resolutionPolicyViolations,
               }
             }
@@ -462,6 +477,7 @@ export async function recursive (
           updatedCatalogs: newCatalogsAddition,
           updatedManifest: newManifest,
           ignoredBuilds,
+          newLockfile,
           resolutionPolicyViolations,
         } = await action(
           manifest,
@@ -496,6 +512,10 @@ export async function recursive (
             allIgnoredBuilds.add(depPath)
           }
         }
+        if (opts.cleanupOutdatedMinimumReleaseAgeExcludes && newLockfile != null) {
+          hasNewLockfile = true
+          mergeResolvedPackageVersions(allResolvedPackageVersions, newLockfile)
+        }
         if (resolutionPolicyViolations?.length) {
           for (const violation of resolutionPolicyViolations) {
             allResolutionPolicyViolations.push(violation)
@@ -529,6 +549,8 @@ export async function recursive (
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
       cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+      cleanupOutdatedMinimumReleaseAgeExcludes: opts.cleanupOutdatedMinimumReleaseAgeExcludes,
+      resolvedPackageVersions: hasNewLockfile ? allResolvedPackageVersions : undefined,
       allProjects,
       ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
     })

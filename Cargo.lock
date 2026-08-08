@@ -5314,6 +5314,7 @@ dependencies = [
  "insta",
  "miette 7.6.0",
  "pacquet-catalogs-types",
+ "pacquet-config",
  "pacquet-config-parse-overrides",
  "pacquet-package-manifest",
  "serde",

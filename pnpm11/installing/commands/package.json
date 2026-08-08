@@ -67,6 +67,7 @@
     "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",

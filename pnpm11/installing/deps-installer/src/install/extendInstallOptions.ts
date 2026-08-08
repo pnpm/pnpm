@@ -35,6 +35,7 @@ export interface StrictInstallOptions {
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
   cleanupUnusedCatalogs: boolean
+  cleanupOutdatedMinimumReleaseAgeExcludes: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   frozenStore: boolean
@@ -365,6 +366,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       process.getuid?.() !== 0,
     catalogMode: 'manual',
     cleanupUnusedCatalogs: false,
+    cleanupOutdatedMinimumReleaseAgeExcludes: false,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,

@@ -23,6 +23,8 @@ use pacquet_catalogs_types::Catalogs;
 use pacquet_config_parse_overrides::parse_pkg_and_parent_selector;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 
+pub use pacquet_config::version_policy::ResolvedPackageVersions;
+
 mod edit;
 mod model;
 mod render;
@@ -96,6 +98,14 @@ pub enum UpdateWorkspaceManifestError {
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_INVALID_CONTROL_CHARACTER))]
     InvalidControlCharacter { path: std::path::PathBuf, value: String },
+
+    #[display("Invalid package version policy spec being merged into {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_VERSION_POLICY))]
+    VersionPolicy {
+        path: std::path::PathBuf,
+        #[error(source)]
+        source: pacquet_config::version_policy::VersionPolicyError,
+    },
 }
 
 /// Whether `value` holds a character YAML treats as a line break: a
@@ -129,6 +139,20 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
     /// entries are still referenced. An empty list disables the cleanup
     /// pass, mirroring upstream's `allProjects ?? []` guard.
     pub all_projects: &'a [&'a PackageManifest],
+    /// Run the `cleanupOutdatedMinimumReleaseAgeExcludes` pass: prune
+    /// `minimumReleaseAgeExclude:` entries against the freshly resolved
+    /// versions in [`Self::resolved_package_versions`].
+    pub cleanup_outdated_minimum_release_age_excludes: bool,
+    /// Package name → versions the freshly resolved lockfile records,
+    /// consulted by the `cleanupOutdatedMinimumReleaseAgeExcludes` pass.
+    /// `None` disables the pass, mirroring the [`Self::all_projects`]
+    /// guard of `cleanupUnusedCatalogs`.
+    pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
+    /// Entries to merge into the `minimumReleaseAgeExclude:` block (via
+    /// `pacquet_config::version_policy::merge_package_version_specs`).
+    /// Runs after the cleanup passes, so entries added in the same write
+    /// are never pruned. Upstream's `addedMinimumReleaseAgeExcludes`.
+    pub added_minimum_release_age_excludes: Option<&'a [String]>,
 }
 
 /// Merge `opts.updated_catalogs` into `dir`'s `pnpm-workspace.yaml` and run
@@ -167,6 +191,19 @@ pub fn update_workspace_manifest(
     if opts.cleanup_unused_catalogs && !opts.all_projects.is_empty() {
         let references = collect_catalog_references(opts.all_projects, &manifest);
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
+    }
+    if opts.cleanup_outdated_minimum_release_age_excludes
+        && let Some(resolved) = opts.resolved_package_versions
+    {
+        changed |= edit::remove_outdated_minimum_release_age_excludes(&mut manifest, resolved);
+    }
+    if let Some(added) = opts.added_minimum_release_age_excludes
+        && !added.is_empty()
+    {
+        changed |=
+            edit::add_minimum_release_age_excludes(&mut manifest, added).map_err(|source| {
+                UpdateWorkspaceManifestError::VersionPolicy { path: path.clone(), source }
+            })?;
     }
     if !changed {
         return Ok(());
