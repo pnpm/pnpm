@@ -125,6 +125,100 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
+/// `add -g` writes context-aware shims by default: the generated shim
+/// dispatches through the pnpm binary next to it, so a project-local
+/// version of the same bin wins over the global target, and falls back to
+/// the global target outside any providing project.
+#[cfg(unix)]
+#[test]
+fn global_add_writes_context_aware_shims_that_prefer_local_bins() {
+    use assert_cmd::assert::OutputAssertExt;
+    use std::os::unix::fs::PermissionsExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
+
+    let shim_path = global_bin.join("touch-file-one-bin");
+    let shim = fs::read_to_string(&shim_path).expect("read the generated global shim");
+    assert!(shim.contains("--shim 'touch-file-one-bin'"), "shim should dispatch, was:\n{shim}");
+    assert!(shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
+
+    // Dispatch needs a `pnpm` next to the shim; outside the tests
+    // that is the globally installed pnpm itself.
+    fs::copy(assert_cmd::cargo::cargo_bin("pnpm"), global_bin.join("pnpm"))
+        .expect("place the pnpm binary next to the shims");
+
+    let project = root.path().join("project");
+    let local_bin = project.join("node_modules").join(".bin").join("touch-file-one-bin");
+    fs::create_dir_all(local_bin.parent().unwrap()).unwrap();
+    fs::write(&local_bin, "#!/bin/sh\necho local\n").unwrap();
+    fs::set_permissions(&local_bin, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let output = Command::new(&shim_path)
+        .with_current_dir(&project)
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS", "1")
+        .output()
+        .expect("run the generated shim inside the project");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "local", "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+
+    let outside = root.path().join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    Command::new(&shim_path)
+        .with_current_dir(&outside)
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .assert()
+        .success();
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+/// `globalShims: false` opts back into the plain direct-exec format.
+#[cfg(unix)]
+#[test]
+fn global_shims_setting_off_writes_direct_shims() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).unwrap();
+    fs::write(&yaml_path, format!("{yaml}globalShims: false\n")).unwrap();
+
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
+
+    let shim = fs::read_to_string(pnpm_home.join("bin").join("touch-file-one-bin"))
+        .expect("read the generated global shim");
+    assert!(!shim.contains("--shim"), "shim should exec directly, was:\n{shim}");
+    assert!(!shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// A mutating global command must create a missing global bin directory
 /// instead of failing `ERR_PNPM_PNPM_DIR_NOT_WRITABLE` — pnpm's config
 /// reader runs `mkdir -p` on the bin dir for every `--global` command. A

@@ -17,7 +17,10 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes, remove_bin};
+use pacquet_cmd_shim::{
+    Host as CmdShimHost, PackageBinSource, link_bins_of_packages_context_aware,
+    link_bins_of_packages_with_excludes, remove_bin,
+};
 use pacquet_config::{
     CatalogMode, Config, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
 };
@@ -95,6 +98,24 @@ fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
         .map_err(miette::Report::new)
 }
 
+/// Link `pkgs`' bins into the global bin dir in the shim style selected
+/// by the `globalShims` setting: context-aware dispatch shims by
+/// default, plain direct shims when the user turned the setting off.
+fn link_global_bins(
+    config: &Config,
+    pkgs: &[PackageBinSource],
+    global_bin_dir: &Path,
+    bins_to_skip: &std::collections::HashSet<String>,
+) -> miette::Result<()> {
+    if config.global_shims {
+        link_bins_of_packages_context_aware::<CmdShimHost>(pkgs, global_bin_dir, bins_to_skip)
+    } else {
+        link_bins_of_packages_with_excludes::<CmdShimHost>(pkgs, global_bin_dir, bins_to_skip, &[])
+    }
+    .map_err(miette::Report::new)
+    .wrap_err("link global package bins")
+}
+
 /// `pnpm add -g`. Installs each group, links its bins into the global bin
 /// directory, and records a cache-keyed hash symlink.
 pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
@@ -164,14 +185,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             .into_diagnostic()
             .wrap_err("link the global package install directory")?;
 
-        link_bins_of_packages_with_excludes::<CmdShimHost>(
-            &pkgs,
-            &global_bin_dir,
-            &bins_to_skip,
-            &[],
-        )
-        .map_err(miette::Report::new)
-        .wrap_err("link global package bins")?;
+        link_global_bins(base_config, &pkgs, &global_bin_dir, &bins_to_skip)?;
     }
     Ok(())
 }
@@ -265,14 +279,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             let _ = fs::remove_dir_all(&pkg.install_dir);
         }
 
-        link_bins_of_packages_with_excludes::<CmdShimHost>(
-            &pkgs,
-            &global_bin_dir,
-            &bins_to_skip,
-            &[],
-        )
-        .map_err(miette::Report::new)
-        .wrap_err("link global package bins")?;
+        link_global_bins(base_config, &pkgs, &global_bin_dir, &bins_to_skip)?;
     }
     Ok(())
 }

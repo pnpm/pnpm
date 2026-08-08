@@ -39,7 +39,7 @@ use std::{
 pub use crate::defaults::{
     GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_config_dir,
     default_git_shallow_hosts, default_peers_suffix_max_length, default_pnpm_home_dir,
-    default_registry, default_unsafe_perm, default_virtual_store_dir_max_length,
+    default_registry, default_state_dir, default_unsafe_perm, default_virtual_store_dir_max_length,
     default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
@@ -787,6 +787,14 @@ pub struct Config {
     /// Populated by [`Config::current`]; global add/remove/update require it
     /// (pnpm's `NO_GLOBAL_BIN_DIR` when absent).
     pub global_bin: Option<PathBuf>,
+
+    /// `globalShims`. When `true` (the default), bins linked into the
+    /// global bin dir are written as context-aware shims that prefer a
+    /// project-local version of the same bin over the globally installed
+    /// one. When `false`, global bins exec their global target directly,
+    /// the pre-v12.1 format.
+    #[default = true]
+    pub global_shims: bool,
 
     /// Controls the way packages are imported from the store (if you want to disable symlinks
     /// inside `node_modules`, then you need to change the node-linker setting, not this one).

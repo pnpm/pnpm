@@ -124,6 +124,9 @@ pub struct WorkspaceSettings {
     /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
     /// [`Config::virtual_store_only`].
     pub virtual_store_only: Option<bool>,
+    /// `globalShims` from `pnpm-workspace.yaml` or the global
+    /// `config.yaml`. See [`Config::global_shims`].
+    pub global_shims: Option<bool>,
     /// `enableModulesDir` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_modules_dir`].
     pub enable_modules_dir: Option<bool>,
@@ -1041,7 +1044,7 @@ impl WorkspaceSettings {
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout, user_agent,
             enable_global_virtual_store,
-            virtual_store_only, enable_modules_dir,
+            virtual_store_only, enable_modules_dir, global_shims,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
             resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer, save_exact,

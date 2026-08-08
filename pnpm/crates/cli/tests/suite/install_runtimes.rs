@@ -585,7 +585,7 @@ fn node_archive_name(version: &str, platform: &str, arch: &str) -> String {
     format!("node-v{version}-{platform}-{arch}.{extension}")
 }
 
-fn mock_node_release(server: &mut mockito::Server, version: &str) -> [mockito::Mock; 3] {
+pub(crate) fn mock_node_release(server: &mut mockito::Server, version: &str) -> [mockito::Mock; 3] {
     let archive_name = node_archive_name(version, host_platform(), host_arch());
     let archive = if host_platform() == "win32" {
         let prefix = archive_name.strip_suffix(".zip").unwrap();

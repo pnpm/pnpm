@@ -162,6 +162,25 @@ where
     )
 }
 
+/// Resolve pnpm's machine-local state directory (`XDG_STATE_HOME`
+/// convention). Same seam shape as [`default_config_dir`]; the layout
+/// itself lives in [`pacquet_config_dir::state_dir`], shared with the
+/// TypeScript CLI's `getStateDir`.
+pub fn default_state_dir<Sys>() -> Option<PathBuf>
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    let xdg_state_home = Sys::var("XDG_STATE_HOME");
+    let local_app_data = Sys::var("LOCALAPPDATA");
+    pacquet_config_dir::state_dir(
+        "pnpm",
+        env::consts::OS,
+        xdg_state_home.as_deref(),
+        local_app_data.as_deref(),
+        Sys::home_dir,
+    )
+}
+
 /// Resolve the default packument-cache directory.
 ///
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
