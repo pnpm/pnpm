@@ -1,0 +1,52 @@
+{
+  "name": "get-pnpm",
+  "version": "1.0.0",
+  "description": "Installs pnpm as a standalone executable",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "install",
+    "installer"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/installer",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/installer#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map",
+    "bin"
+  ],
+  "bin": {
+    "get-pnpm": "bin/get-pnpm.js"
+  },
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    "test": "pn compile && pn .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "detect-libc": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "get-pnpm": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

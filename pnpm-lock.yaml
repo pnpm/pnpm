@@ -1021,6 +1021,19 @@ importers:
         specifier: 'catalog:'
         version: 7.8.0
 
+  installer:
+    dependencies:
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.1.2
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      get-pnpm:
+        specifier: workspace:*
+        version: 'link:'
+
   pnpm/npm/napi: {}
 
   pnpm/npm/pnpm:

@@ -15,10 +15,13 @@ import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
 
-// Experimental packages that are versioned independently on the 0.0.x track
-// and should not be normalized to the pnpm major version.
-const EXPERIMENTAL_PKGS = new Set([
+// Packages that are versioned independently of the pnpm major version:
+// experimental packages on the 0.0.x track, and `get-pnpm`, whose version is
+// what `npx get-pnpm` resolves and so must not suggest which pnpm it installs
+// (it installs any of them).
+const INDEPENDENTLY_VERSIONED_PKGS = new Set([
   '@pnpm/pnpr.client',
+  'get-pnpm',
 ])
 
 // The Rust products' npm wrapper packages. Their manifests are release
@@ -109,7 +112,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
         const libMajorVersion = Number(manifest.version!.split('.')[0])
         if (manifest.name !== CLI_PKG_NAME) {
-          if (!semver.prerelease(pnpmVersion) && !EXPERIMENTAL_PKGS.has(manifest.name!) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
+          if (!semver.prerelease(pnpmVersion) && !INDEPENDENTLY_VERSIONED_PKGS.has(manifest.name!) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
             manifest.version = `${smallestAllowedLibVersion}.0.0`
           }
           for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {

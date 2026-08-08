@@ -1,5 +1,6 @@
 packages:
   - .meta-updater
+  - installer
   - pnpm11/__typecheck__
   - pnpm11/__typings__
   - pnpm11/__utils__/*
