@@ -479,7 +479,8 @@ async fn attempt_signature_verification(
 /// forms must compare equal — hosts are case-insensitive and default ports
 /// are implied — or a canonical registry written as e.g.
 /// `https://Registry.NPMJS.org:443/` would be misclassified as a different,
-/// non-canonical one, weakening fail-closed decisions keyed on canonicality.
+/// non-canonical one, weakening fail-closed decisions keyed on whether the
+/// registry is the canonical one.
 fn equal_registries(left: &str, right: &str) -> bool {
     normalize_registry_url(left).eq_ignore_ascii_case(&normalize_registry_url(right))
 }

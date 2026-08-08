@@ -579,7 +579,8 @@ async function attemptSignatureVerification (
  * must compare equal — hosts are case-insensitive and default ports are
  * implied — or a canonical registry written as e.g.
  * `https://Registry.NPMJS.org:443/` would be misclassified as a different,
- * non-canonical one, weakening fail-closed decisions keyed on canonicality.
+ * non-canonical one, weakening fail-closed decisions keyed on whether the
+ * registry is the canonical one.
  */
 export function equalRegistries (a: string, b: string): boolean {
   return normalizeRegistryUrl(a) === normalizeRegistryUrl(b)
