@@ -1,4 +1,7 @@
-use super::{create_hash, create_hash_from_file, create_short_hash, shorten_virtual_store_name};
+use super::{
+    create_hash, create_hash_from_file, create_hex_hash, create_hex_hash_bytes,
+    create_hex_hash_from_file, create_short_hash, shorten_virtual_store_name,
+};
 
 /// Pinned vector against the shell oracle:
 ///
@@ -21,6 +24,16 @@ fn hash_from_file_normalizes_crlf() {
     std::fs::write(&lf, "a\nb\n").unwrap();
     assert_eq!(create_hash_from_file(&crlf).unwrap(), create_hash_from_file(&lf).unwrap());
     assert_eq!(create_hash_from_file(&lf).unwrap(), create_hash("a\nb\n"));
+}
+
+#[test]
+fn hex_hash_accepts_arbitrary_bytes() {
+    assert_eq!(create_hex_hash_bytes(b"pacquet"), create_hex_hash("pacquet"));
+    assert_ne!(create_hex_hash_bytes(&[0xff]), create_hex_hash_bytes(&[0xfe]));
+
+    let file = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(file.path(), b"pacquet").unwrap();
+    assert_eq!(create_hex_hash_from_file(file.path()).unwrap(), create_hex_hash("pacquet"));
 }
 
 /// Pinned vector against the shell oracle:

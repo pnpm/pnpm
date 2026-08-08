@@ -126,7 +126,7 @@ fn global_add_list_remove_round_trip() {
 }
 
 /// `add -g` writes context-aware shims by default: the generated shim
-/// dispatches through the pnpm binary next to it, so a project-local
+/// dispatches through the versioned binary next to it, so a project-local
 /// version of the same bin wins over the global target, and falls back to
 /// the global target outside any providing project.
 #[cfg(unix)]
@@ -153,16 +153,20 @@ fn global_add_writes_context_aware_shims_that_prefer_local_bins() {
     let shim = fs::read_to_string(&shim_path).expect("read the generated global shim");
     assert!(shim.contains("--shim 'touch-file-one-bin'"), "shim should dispatch, was:\n{shim}");
     assert!(shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
+    assert!(global_bin.join(".pnpm-shim-v1").is_file());
 
-    // Dispatch needs a `pnpm` next to the shim; outside the tests
-    // that is the globally installed pnpm itself.
-    fs::copy(assert_cmd::cargo::cargo_bin("pnpm"), global_bin.join("pnpm"))
-        .expect("place the pnpm binary next to the shims");
+    fs::write(global_bin.join("pnpm"), "#!/bin/sh\nexit 64\n").unwrap();
+    fs::set_permissions(global_bin.join("pnpm"), fs::Permissions::from_mode(0o755)).unwrap();
 
     let project = root.path().join("project");
     let local_script =
         project.join("node_modules").join("@foo").join("touch-file-one-bin").join("cli.sh");
     fs::create_dir_all(local_script.parent().unwrap()).unwrap();
+    fs::write(
+        local_script.parent().unwrap().join("package.json"),
+        serde_json::json!({ "name": "@foo/touch-file-one-bin", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
     fs::write(&local_script, "#!/bin/sh\necho local\n").unwrap();
     fs::set_permissions(&local_script, fs::Permissions::from_mode(0o755)).unwrap();
     let local_bin = project.join("node_modules").join(".bin").join("touch-file-one-bin");

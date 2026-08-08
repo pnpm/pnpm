@@ -1,5 +1,5 @@
 //! End-to-end tests for context-aware global shim dispatch
-//! (`pnpm --shim <name> <target> -- <args>`).
+//! (`pnpm --shim <name> <shim> <target> -- <args>`).
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -12,15 +12,21 @@ const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS";
 /// the dispatcher can neither see the developer's global installs nor
 /// their trust registry.
 fn shim_command(root: &TempDir, cwd: &Path, shim_args: &[&str]) -> Command {
-    Command::cargo_bin("pnpm")
+    let mut command = Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(cwd)
         .with_env("PNPM_HOME", root.path().join("pnpm-home"))
         .with_env("XDG_STATE_HOME", root.path().join("state"))
         .with_env("XDG_CONFIG_HOME", root.path().join("config"))
         .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
-        .with_arg("--shim")
-        .with_args(shim_args)
+        .with_arg("--shim");
+    if let Some((name, tail)) = shim_args.split_first() {
+        command = command
+            .with_arg(name)
+            .with_arg(root.path().join("nonexistent-generated-shim"))
+            .with_args(tail);
+    }
+    command
 }
 
 #[cfg(unix)]
@@ -43,11 +49,21 @@ fn prepare_local_and_global_from(
 ) -> (std::path::PathBuf, std::path::PathBuf) {
     let project = root.path().join("project");
     write_script(&project.join("node_modules").join(provider).join("cli.sh"), "local");
+    fs::write(
+        project.join("node_modules").join(provider).join("package.json"),
+        serde_json::json!({ "name": provider, "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
     let bin = project.join("node_modules").join(".bin").join(name);
     fs::create_dir_all(bin.parent().unwrap()).unwrap();
     std::os::unix::fs::symlink(format!("../{provider}/cli.sh"), &bin).unwrap();
     let global_target = root.path().join("global").join("node_modules").join(name).join("cli.sh");
     write_script(&global_target, "global");
+    fs::write(
+        global_target.parent().unwrap().join("package.json"),
+        serde_json::json!({ "name": name, "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
     (project, global_target)
 }
 
@@ -84,35 +100,6 @@ fn untrusted_project_falls_back_to_the_global_target() {
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert_eq!(stdout.trim(), "global");
-}
-
-#[cfg(unix)]
-#[test]
-fn recorded_trust_decision_is_honored() {
-    let root = tempfile::tempdir().unwrap();
-    let (project, global_target) = prepare_local_and_global(&root, "tool");
-    // The dispatcher keys the registry by the path it observes as the
-    // process cwd, which the OS reports symlink-resolved.
-    let project_key = fs::canonicalize(&project).unwrap();
-    let trust_file = root.path().join("state").join("pnpm").join("global-bin-trust.jsonl");
-    fs::create_dir_all(trust_file.parent().unwrap()).unwrap();
-
-    for (allow, expected) in [(true, "local"), (false, "global")] {
-        fs::write(
-            &trust_file,
-            format!(
-                "{}\n",
-                serde_json::json!({ "projectDir": project_key, "allow": allow, "decidedAt": 0 }),
-            ),
-        )
-        .unwrap();
-        let output =
-            shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
-                .assert()
-                .success();
-        let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-        assert_eq!(stdout.trim(), expected, "allow={allow}");
-    }
 }
 
 #[cfg(unix)]
@@ -194,6 +181,11 @@ fn runtime_pin_downloads_node_on_demand() {
     let global_target =
         root.path().join("global").join("node_modules").join("node").join("bin").join("node");
     write_script(&global_target, "global");
+    fs::write(
+        global_target.parent().unwrap().parent().unwrap().join("package.json"),
+        serde_json::json!({ "name": "node", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
 
     shim_command(&root, &project, &["node", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
@@ -243,6 +235,22 @@ fn global_shims_setting_off_disables_dispatch() {
     assert_eq!(stdout.trim(), "global");
 }
 
+#[cfg(unix)]
+#[test]
+fn global_home_setting_off_disables_dispatch() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home).unwrap();
+    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
+    let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .with_env(AUTO_TRUST_ENV, "1")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(stdout.trim(), "global");
+}
+
 /// The `PNPM_CONFIG_GLOBAL_SHIMS` env override wins over the config file.
 #[cfg(unix)]
 #[test]
@@ -258,31 +266,15 @@ fn global_shims_env_override_disables_dispatch() {
     assert_eq!(stdout.trim(), "global");
 }
 
-/// A project whose lockfile was verified by an install on this machine
-/// runs its local bins without any prompt or recorded trust decision.
+/// A lockfile-verification cache record proves dependency resolution integrity,
+/// not authorization to replace a global command. Without an explicit trust
+/// decision, a non-interactive invocation must still use the global target.
 #[cfg(unix)]
 #[test]
-fn locally_verified_lockfile_skips_the_trust_gate() {
+fn verified_lockfile_does_not_skip_the_trust_gate() {
     let root = tempfile::tempdir().unwrap();
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     write_lockfile_verified_record(&root, &project);
-    let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
-        .assert()
-        .success();
-    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-    assert_eq!(stdout.trim(), "local");
-}
-
-/// A verification record that no longer matches the lockfile's stat is
-/// not proof — the dispatcher falls back to the (unanswerable) prompt
-/// and the global target runs.
-#[cfg(unix)]
-#[test]
-fn stale_lockfile_verification_record_does_not_skip_the_trust_gate() {
-    let root = tempfile::tempdir().unwrap();
-    let (project, global_target) = prepare_local_and_global(&root, "tool");
-    write_lockfile_verified_record(&root, &project);
-    fs::write(project.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n# edited\n").unwrap();
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .assert()
         .success();
@@ -329,4 +321,137 @@ fn malformed_shim_invocation_errors() {
     let output = shim_command(&root, &cwd, &["tool"]).assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("malformed --shim invocation"), "stderr was:\n{stderr}");
+}
+
+#[cfg(unix)]
+#[test]
+fn global_fallback_preserves_quoted_shebang_arguments() {
+    use pacquet_cmd_shim::{Host, ShimStyle, generate_sh_shim, search_script_runtime};
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("global-bin");
+    let target = root.path().join("global/node_modules/tool/cli");
+    let interpreter = root.path().join("capture-argv");
+    let shim = global_bin.join("tool");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::create_dir_all(&global_bin).unwrap();
+    fs::write(&interpreter, "#!/bin/sh\nprintf '<%s>\\n' \"$@\"\n").unwrap();
+    fs::set_permissions(&interpreter, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::write(&target, format!("#!{} --label \"value with spaces\"\n", interpreter.display()))
+        .unwrap();
+    let runtime = search_script_runtime::<Host>(&target).unwrap();
+    fs::write(
+        &shim,
+        generate_sh_shim(&target, &shim, runtime.as_ref(), &[], ShimStyle::ContextAware),
+    )
+    .unwrap();
+    fs::set_permissions(&shim, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::hard_link(assert_cmd::cargo::cargo_bin("pnpm"), global_bin.join(".pnpm-shim-v1"))
+        .or_else(|_| {
+            fs::copy(assert_cmd::cargo::cargo_bin("pnpm"), global_bin.join(".pnpm-shim-v1"))
+                .map(|_| ())
+        })
+        .unwrap();
+    let cwd = root.path().join("outside");
+    fs::create_dir_all(&cwd).unwrap();
+
+    let output = Command::new(&shim)
+        .with_current_dir(&cwd)
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .arg("forwarded with spaces")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    let lines: Vec<_> =
+        String::from_utf8_lossy(&output.stdout).lines().map(str::to_string).collect();
+    assert_eq!(lines.first().map(String::as_str), Some("<--label>"));
+    assert_eq!(lines.get(1).map(String::as_str), Some("<value with spaces>"));
+    assert_eq!(lines.last().map(String::as_str), Some("<forwarded with spaces>"));
+}
+
+#[cfg(windows)]
+#[test]
+fn generated_cmd_and_powershell_shims_dispatch_and_fall_back() {
+    use pacquet_cmd_shim::{ShimStyle, generate_cmd_shim, generate_pwsh_shim};
+
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    let outside = root.path().join("outside");
+    let local_package = project.join("node_modules/tool");
+    let local_target = local_package.join("cli.cmd");
+    let local_bin = project.join("node_modules/.bin");
+    let global_package = root.path().join("global/node_modules/tool");
+    let global_target = global_package.join("cli.cmd");
+    let global_bin = root.path().join("global-bin");
+    fs::create_dir_all(&local_package).unwrap();
+    fs::create_dir_all(&local_bin).unwrap();
+    fs::create_dir_all(&global_package).unwrap();
+    fs::create_dir_all(&global_bin).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(local_package.join("package.json"), r#"{"name":"tool"}"#).unwrap();
+    fs::write(global_package.join("package.json"), r#"{"name":"tool"}"#).unwrap();
+    fs::write(&local_target, "@ECHO local:%*\r\n").unwrap();
+    fs::write(&global_target, "@ECHO global:%*\r\n").unwrap();
+    fs::write(local_bin.join("tool"), format!("# cmd-shim-target={}\n", local_target.display()))
+        .unwrap();
+    fs::write(local_bin.join("tool.cmd"), format!("@CALL \"{}\" %*\r\n", local_target.display()))
+        .unwrap();
+    let cmd_shim = global_bin.join("tool.cmd");
+    let pwsh_shim = global_bin.join("tool.ps1");
+    fs::write(
+        &cmd_shim,
+        generate_cmd_shim(&global_target, &cmd_shim, None, &[], ShimStyle::ContextAware),
+    )
+    .unwrap();
+    fs::write(
+        &pwsh_shim,
+        generate_pwsh_shim(&global_target, &pwsh_shim, None, &[], ShimStyle::ContextAware),
+    )
+    .unwrap();
+    fs::hard_link(assert_cmd::cargo::cargo_bin("pnpm"), global_bin.join(".pnpm-shim-v1.exe"))
+        .or_else(|_| {
+            fs::copy(assert_cmd::cargo::cargo_bin("pnpm"), global_bin.join(".pnpm-shim-v1.exe"))
+                .map(|_| ())
+        })
+        .unwrap();
+
+    for (shell, shell_args, shim) in [
+        ("cmd", vec!["/c"], &cmd_shim),
+        ("powershell.exe", vec!["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"], &pwsh_shim),
+    ] {
+        let local = Command::new(shell)
+            .args(&shell_args)
+            .arg(shim)
+            .arg("value with spaces")
+            .current_dir(&project)
+            .env(AUTO_TRUST_ENV, "1")
+            .env("PNPM_HOME", root.path().join("pnpm-home"))
+            .env("XDG_STATE_HOME", root.path().join("state"))
+            .env("XDG_CONFIG_HOME", root.path().join("config"))
+            .output()
+            .unwrap();
+        assert!(local.status.success(), "stderr:\n{}", String::from_utf8_lossy(&local.stderr));
+        let local_stdout = String::from_utf8_lossy(&local.stdout);
+        assert!(local_stdout.contains("local:"));
+        assert!(local_stdout.contains("value with spaces"));
+
+        let global = Command::new(shell)
+            .args(&shell_args)
+            .arg(shim)
+            .arg("value with spaces")
+            .current_dir(&outside)
+            .env("PNPM_HOME", root.path().join("pnpm-home"))
+            .env("XDG_STATE_HOME", root.path().join("state"))
+            .env("XDG_CONFIG_HOME", root.path().join("config"))
+            .output()
+            .unwrap();
+        assert!(global.status.success(), "stderr:\n{}", String::from_utf8_lossy(&global.stderr));
+        let global_stdout = String::from_utf8_lossy(&global.stdout);
+        assert!(global_stdout.contains("global:"));
+        assert!(global_stdout.contains("value with spaces"));
+    }
 }

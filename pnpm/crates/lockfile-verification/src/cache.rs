@@ -284,31 +284,6 @@ fn read_cache(cache_dir: &Path) -> io::Result<CacheIndexes> {
     Ok(CacheIndexes { by_hash, by_path })
 }
 
-/// Whether a verification run **on this machine** covers the lockfile as
-/// it currently sits on disk. Matches by path + stat only (the shortcut
-/// both stacks share), and requires the record to attest the two
-/// unconditional gates — integrity required and tarball-URL binding.
-/// This is deliberately policy-agnostic beyond that: it answers "did a
-/// local install push this exact lockfile through the verification
-/// gate", not "under which trust policy". The global-shim dispatcher
-/// uses it as its installed-from-a-verified-source signal; absence
-/// fails closed there (the dispatcher falls back to prompting).
-#[must_use]
-pub fn lockfile_verified_on_this_machine(cache_dir: &Path, lockfile_path: &Path) -> bool {
-    let Ok(indexes) = read_cache(cache_dir) else {
-        return false;
-    };
-    let Some(stat) = stat_lockfile(lockfile_path) else {
-        return false;
-    };
-    let path_key = lockfile_path.to_string_lossy().to_string();
-    indexes.by_path.get(&path_key).is_some_and(|record| {
-        stat_matches(&stat, &record.lockfile)
-            && record.policy.get("tarballUrlBinding").and_then(JsonValue::as_bool) == Some(true)
-            && record.policy.get("integrityRequired").and_then(JsonValue::as_bool) == Some(true)
-    })
-}
-
 fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
     let metadata = fs::metadata(lockfile_path).ok()?;
     let size = metadata.len();

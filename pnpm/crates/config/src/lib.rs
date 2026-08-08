@@ -792,8 +792,8 @@ pub struct Config {
     /// `globalShims`. When `true` (the default), bins linked into the
     /// global bin dir are written as context-aware shims that prefer a
     /// project-local version of the same bin over the globally installed
-    /// one. When `false`, global bins exec their global target directly,
-    /// the pre-v12.1 format.
+    /// one after an explicit, candidate-bound trust decision. When `false`,
+    /// global bins exec their global target directly.
     #[default = true]
     pub global_shims: bool,
 

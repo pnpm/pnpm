@@ -10,12 +10,10 @@ use std::{
 /// `Direct` shims exec the target straight away — the format of every
 /// project-local `node_modules/.bin` entry. `ContextAware` shims are the
 /// global bin dir's format: before falling back to the direct exec they
-/// route through the `pnpm` binary sitting next to the shim
-/// (`pnpm --shim <name> <target> -- <args>`), whose dispatcher may pick a
-/// project-local version of the same bin over the embedded global target.
-/// When no `pnpm` binary is reachable the context-aware shim degrades to
-/// the direct exec, so a broken or partially-removed pnpm installation
-/// never takes the global bins down with it.
+/// route through a versioned dispatcher sitting next to the shim. The
+/// dispatcher may pick a project-local version of the same bin over the
+/// embedded global target. When the dispatcher is missing, the shim
+/// degrades to the direct exec.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum ShimStyle {
     #[default]
@@ -27,6 +25,11 @@ pub enum ShimStyle {
 /// [`is_context_aware_shim`] can tell the two styles apart without
 /// parsing the body. Lives next to the `cmd-shim-target` trailer.
 const CONTEXT_AWARE_MARKER: &str = "pnpm-shim-style=context-aware";
+
+/// The protocol-versioned executable used by context-aware global shims.
+/// Keeping this separate from `pnpm` lets a v12 shim keep working if the
+/// main executable is replaced by a version that predates `--shim`.
+pub const CONTEXT_AWARE_DISPATCHER_NAME: &str = ".pnpm-shim-v1";
 
 /// Whether an on-disk shim was generated with
 /// [`ShimStyle::ContextAware`]. Used by the idempotency check so a
@@ -282,9 +285,10 @@ pub fn generate_sh_shim(
         // to `$basedir` everywhere except MSYS/WSL, where the pnpm
         // Windows executable needs the Windows spelling.
         let quoted_name = sh_single_quote(shim_name(shim_path));
+        let quoted_shim_win = format!(r#""$basedir_win/{}""#, shim_name(shim_path));
         writeln!(
             sh,
-            "if [ -x \"$basedir/pnpm$exe\" ]; then\n  exec \"$basedir/pnpm$exe\" --shim {quoted_name} {quoted_target_win} -- \"$@\"\nelif command -v pnpm >/dev/null 2>&1; then\n  exec pnpm --shim {quoted_name} {quoted_target_win} -- \"$@\"\nfi",
+            "if [ -z \"$PNPM_SHIM_BYPASS\" ] && [ -x \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" ]; then\n  exec \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" --shim {quoted_name} {quoted_shim_win} {quoted_target_win} -- \"$@\"\nfi",
         )
         .unwrap();
     }
@@ -401,7 +405,7 @@ pub fn generate_cmd_shim(
         let shim_name = shim_name(shim_path);
         write!(
             cmd,
-            "@IF EXIST \"%~dp0\\pnpm.exe\" (\r\n  \"%~dp0\\pnpm.exe\" --shim \"{shim_name}\" {quoted_target} -- %*\r\n  @EXIT /B\r\n)\r\n",
+            "@IF NOT DEFINED PNPM_SHIM_BYPASS IF EXIST \"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" (\r\n  \"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" --shim \"{shim_name}\" \"%~f0\" {quoted_target} -- %*\r\n  @EXIT /B\r\n)\r\n",
         )
         .unwrap();
     }
@@ -461,18 +465,22 @@ pub fn generate_pwsh_shim(
     if style == ShimStyle::ContextAware {
         let shim_name = shim_name(shim_path);
         writeln!(pwsh).unwrap();
-        writeln!(pwsh, r#"if (Test-Path "$basedir/pnpm$exe") {{"#).unwrap();
+        writeln!(
+            pwsh,
+            r#"if (!$env:PNPM_SHIM_BYPASS -and (Test-Path "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe")) {{"#,
+        )
+        .unwrap();
         writeln!(pwsh, "  # Support pipeline input").unwrap();
         writeln!(pwsh, "  if ($MyInvocation.ExpectingInput) {{").unwrap();
         writeln!(
             pwsh,
-            r#"    $input | & "$basedir/pnpm$exe" '--shim' '{shim_name}' {quoted_target} '--' $args"#,
+            r#"    $input | & "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe" '--shim' '{shim_name}' $MyInvocation.MyCommand.Definition {quoted_target} '--' $args"#,
         )
         .unwrap();
         writeln!(pwsh, "  }} else {{").unwrap();
         writeln!(
             pwsh,
-            r#"    & "$basedir/pnpm$exe" '--shim' '{shim_name}' {quoted_target} '--' $args"#,
+            r#"    & "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe" '--shim' '{shim_name}' $MyInvocation.MyCommand.Definition {quoted_target} '--' $args"#,
         )
         .unwrap();
         writeln!(pwsh, "  }}").unwrap();

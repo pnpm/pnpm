@@ -14,6 +14,7 @@ use crate::{
         ignored_builds::get_automatically_ignored_builds,
         rebuild::run_rebuild,
     },
+    shim_dispatch::install_dispatcher,
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -108,6 +109,9 @@ fn link_global_bins(
     bins_to_skip: &std::collections::HashSet<String>,
 ) -> miette::Result<()> {
     if config.global_shims {
+        install_dispatcher(global_bin_dir)
+            .into_diagnostic()
+            .wrap_err("install the global shim dispatcher")?;
         link_bins_of_packages_context_aware::<CmdShimHost>(pkgs, global_bin_dir, bins_to_skip)
     } else {
         link_bins_of_packages_with_excludes::<CmdShimHost>(pkgs, global_bin_dir, bins_to_skip, &[])

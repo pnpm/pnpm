@@ -629,16 +629,16 @@ fn shim_execution_resolves_symlink_chain() {
 }
 
 #[test]
-fn context_aware_sh_shim_dispatches_through_pnpm_then_falls_back() {
+fn context_aware_sh_shim_dispatches_through_versioned_binary_then_falls_back() {
     let target = Path::new("/g/global/v11/x/node_modules/pkg/cli.js");
     let shim = Path::new("/g/bin/tool");
     let runtime = ScriptRuntime { prog: Some("node".to_string()), args: String::new() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], ShimStyle::ContextAware);
     assert!(
-        body.contains(r#"exec "$basedir/pnpm$exe" --shim 'tool' "$basedir_win/../global/v11/x/node_modules/pkg/cli.js" -- "$@""#),
+        body.contains(r#"exec "$basedir/.pnpm-shim-v1$exe" --shim 'tool' "$basedir_win/tool" "$basedir_win/../global/v11/x/node_modules/pkg/cli.js" -- "$@""#),
         "body was:\n{body}",
     );
-    assert!(body.contains("elif command -v pnpm >/dev/null 2>&1; then"), "body was:\n{body}");
+    assert!(body.contains(r#"[ -z "$PNPM_SHIM_BYPASS" ]"#), "body was:\n{body}");
     // The classic interpreter fallback stays below the dispatch block.
     assert!(body.contains(r#""$basedir/node""#), "body was:\n{body}");
     assert!(is_context_aware_shim(&body));
@@ -676,7 +676,8 @@ fn context_aware_cmd_shim_dispatches_before_the_classic_body() {
     let shim = Path::new("/g/bin/tool");
     let body = generate_cmd_shim(target, shim, None, &[], ShimStyle::ContextAware);
     assert!(
-        body.contains(r#"@IF EXIST "%~dp0\pnpm.exe" ("#) && body.contains(r#"--shim "tool""#),
+        body.contains(r#"@IF NOT DEFINED PNPM_SHIM_BYPASS IF EXIST "%~dp0\.pnpm-shim-v1.exe" ("#)
+            && body.contains(r#"--shim "tool" "%~f0""#),
         "body was:\n{body}",
     );
     assert!(body.contains("@EXIT /B\r\n"), "body was:\n{body}");
@@ -688,8 +689,9 @@ fn context_aware_pwsh_shim_dispatches_before_the_classic_body() {
     let shim = Path::new("/g/bin/tool");
     let body = generate_pwsh_shim(target, shim, None, &[], ShimStyle::ContextAware);
     assert!(
-        body.contains(r#"if (Test-Path "$basedir/pnpm$exe") {"#)
-            && body.contains(r"'--shim' 'tool'"),
+        body.contains(
+            r#"if (!$env:PNPM_SHIM_BYPASS -and (Test-Path "$basedir/.pnpm-shim-v1$exe")) {"#,
+        ) && body.contains(r"'--shim' 'tool' $MyInvocation.MyCommand.Definition"),
         "body was:\n{body}",
     );
     assert!(body.contains("exit $LASTEXITCODE"), "body was:\n{body}");
