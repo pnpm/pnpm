@@ -2037,6 +2037,7 @@ async function resolveDependency (
     if (
       ctx.blockExoticSubdeps &&
       options.currentDepth > 0 &&
+      options.parentPkg.resolvedVia !== 'workspace' &&
       pkgResponse.body.resolvedVia != null && // This is already coming from the lockfile, we skip the check in this case for now. Should be fixed later.
       isExoticDep(pkgResponse.body.resolvedVia)
     ) {
