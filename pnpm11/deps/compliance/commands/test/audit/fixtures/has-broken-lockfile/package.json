@@ -1,0 +1,8 @@
+{
+  "name": "has-broken-lockfile",
+  "version": "0.0.0",
+  "dependencies": {
+    "gone-pkg": "9.9.9",
+    "signed-pkg": "1.0.0"
+  }
+}
