@@ -184,7 +184,7 @@ where
 /// Resolve the default packument-cache directory.
 ///
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
-/// as [`default_store_dir`]: unit tests drive every branch without
+/// as `default_store_dir`: unit tests drive every branch without
 /// mutating the process environment. Production callers pass
 /// [`crate::Host`] for `Sys`, which threads `home::home_dir` through
 /// the [`GetHomeDir`] impl.
