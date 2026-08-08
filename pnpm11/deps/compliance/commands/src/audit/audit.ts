@@ -158,7 +158,7 @@ export function help (): string {
 }
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
-  fix?: boolean | 'override' | 'update'
+  fix?: boolean | 'override' | 'update' | 'true'
   ignoreRegistryErrors?: boolean
   interactive?: boolean
   json?: boolean
@@ -247,7 +247,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
   let fixMethod: 'update' | 'override' | undefined
   if (opts.fix === 'update' || opts.fix === 'override') {
     fixMethod = opts.fix
-  } else if (opts.fix === true || (opts.interactive && !opts.fix)) {
+  } else if (opts.fix === true || opts.fix === 'true' || (opts.interactive && !opts.fix)) {
     fixMethod = DEFAULT_FIX_METHOD
   } else if (!opts.fix) {
     fixMethod = undefined

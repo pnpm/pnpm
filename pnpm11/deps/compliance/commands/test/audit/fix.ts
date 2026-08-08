@@ -53,7 +53,30 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(axiosExclude).toContain('0.21.2')
 })
 
-test('no overrides are added if no vulnerabilities are found', async () => {
+test('audit --fix without value (string "true") works like boolean true', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    minimumReleaseAge: 1440,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: 'true',
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toMatch(/Run "pnpm install"/)
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+})
+
+  test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
