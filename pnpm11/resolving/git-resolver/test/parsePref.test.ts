@@ -76,6 +76,17 @@ test.each([
   expect(parsed?.fetchSpec).toBe(output)
 })
 
+// The host is read from the last `@`, so an authority holding more than one
+// still splits at the separator rather than inside the user info.
+test.each([
+  ['ssh://user@a@b.example.com/repo.git', 'ssh://user%40a@b.example.com/repo.git'],
+  ['ssh://user:p@ss@example.com:repo.git', 'ssh://user:p%40ss@example.com/repo.git'],
+  ['ssh://user:p@ss@example.com:22/repo.git', 'ssh://user:p%40ss@example.com:22/repo.git'],
+])('the fetchSpec of %s, whose authority holds more than one @, should be %s', async (input, output) => {
+  const parsed = await parseBareSpecifier(input, {})?.()
+  expect(parsed?.fetchSpec).toBe(output)
+})
+
 // Test for https:// URLs ending in .git (issue #10468)
 test.each([
   ['https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git', 'https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git'],
