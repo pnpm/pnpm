@@ -160,15 +160,20 @@ fn global_add_writes_context_aware_shims_that_prefer_local_bins() {
         .expect("place the pnpm binary next to the shims");
 
     let project = root.path().join("project");
+    let local_script =
+        project.join("node_modules").join("@foo").join("touch-file-one-bin").join("cli.sh");
+    fs::create_dir_all(local_script.parent().unwrap()).unwrap();
+    fs::write(&local_script, "#!/bin/sh\necho local\n").unwrap();
+    fs::set_permissions(&local_script, fs::Permissions::from_mode(0o755)).unwrap();
     let local_bin = project.join("node_modules").join(".bin").join("touch-file-one-bin");
     fs::create_dir_all(local_bin.parent().unwrap()).unwrap();
-    fs::write(&local_bin, "#!/bin/sh\necho local\n").unwrap();
-    fs::set_permissions(&local_bin, fs::Permissions::from_mode(0o755)).unwrap();
+    std::os::unix::fs::symlink("../@foo/touch-file-one-bin/cli.sh", &local_bin).unwrap();
 
     let output = Command::new(&shim_path)
         .with_current_dir(&project)
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
         .with_env("PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS", "1")
         .output()
         .expect("run the generated shim inside the project");
@@ -181,6 +186,7 @@ fn global_add_writes_context_aware_shims_that_prefer_local_bins() {
         .with_current_dir(&outside)
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
         .assert()
         .success();
 

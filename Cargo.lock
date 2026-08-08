@@ -4025,6 +4025,7 @@ dependencies = [
  "pacquet-graph-hasher",
  "pacquet-hooks",
  "pacquet-lockfile",
+ "pacquet-lockfile-verification",
  "pacquet-modules-yaml",
  "pacquet-network",
  "pacquet-network-web-auth",

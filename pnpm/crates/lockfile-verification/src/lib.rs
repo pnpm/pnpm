@@ -28,8 +28,8 @@ mod verify_lockfile_resolutions;
 
 pub use cache::{
     CACHE_FILE_NAME, COMPACT_TRIGGER_BYTES, CacheLockfile, CacheLookupResult, CachePrecomputed,
-    CacheRecord, LockfileStat, MAX_CACHE_ENTRIES, record_verification,
-    try_lockfile_verification_cache,
+    CacheRecord, LockfileStat, MAX_CACHE_ENTRIES, lockfile_verified_on_this_machine,
+    record_verification, try_lockfile_verification_cache,
 };
 pub use errors::{RenderedViolation, VerifyError};
 pub use hash_lockfile::hash_lockfile;

@@ -188,6 +188,7 @@ where
 /// mutating the process environment. Production callers pass
 /// [`crate::Host`] for `Sys`, which threads `home::home_dir` through
 /// the [`GetHomeDir`] impl.
+#[must_use]
 pub fn default_cache_dir<Sys>() -> PathBuf
 where
     Sys: EnvVar + GetHomeDir,

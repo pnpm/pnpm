@@ -17,6 +17,8 @@ fn shim_command(root: &TempDir, cwd: &Path, shim_args: &[&str]) -> Command {
         .with_current_dir(cwd)
         .with_env("PNPM_HOME", root.path().join("pnpm-home"))
         .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
         .with_arg("--shim")
         .with_args(shim_args)
 }
@@ -29,18 +31,32 @@ fn write_script(path: &Path, output: &str) {
     fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
 }
 
-/// A project dir with `node_modules/.bin/<name>` printing `local`, plus a
-/// global target printing `global`. Returns `(project_dir, global_target)`.
+/// A project dir whose `node_modules/.bin/<name>` links to a script
+/// provided by the package `provider` (printing `local`), plus a global
+/// target provided by a package named `name` (printing `global`).
+/// Returns `(project_dir, global_target)`.
+#[cfg(unix)]
+fn prepare_local_and_global_from(
+    root: &TempDir,
+    name: &str,
+    provider: &str,
+) -> (std::path::PathBuf, std::path::PathBuf) {
+    let project = root.path().join("project");
+    write_script(&project.join("node_modules").join(provider).join("cli.sh"), "local");
+    let bin = project.join("node_modules").join(".bin").join(name);
+    fs::create_dir_all(bin.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(format!("../{provider}/cli.sh"), &bin).unwrap();
+    let global_target = root.path().join("global").join("node_modules").join(name).join("cli.sh");
+    write_script(&global_target, "global");
+    (project, global_target)
+}
+
 #[cfg(unix)]
 fn prepare_local_and_global(
     root: &TempDir,
     name: &str,
 ) -> (std::path::PathBuf, std::path::PathBuf) {
-    let project = root.path().join("project");
-    write_script(&project.join("node_modules").join(".bin").join(name), "local");
-    let global_target = root.path().join("global-target");
-    write_script(&global_target, "global");
-    (project, global_target)
+    prepare_local_and_global_from(root, name, name)
 }
 
 #[cfg(unix)]
@@ -116,17 +132,12 @@ fn bypass_env_skips_the_project_bin() {
 #[cfg(unix)]
 #[test]
 fn shim_args_reach_the_target() {
+    use std::os::unix::fs::PermissionsExt;
     let root = tempfile::tempdir().unwrap();
-    let project = root.path().join("project");
-    let bin = project.join("node_modules").join(".bin").join("tool");
-    fs::create_dir_all(bin.parent().unwrap()).unwrap();
-    fs::write(&bin, "#!/bin/sh\necho \"$@\"\n").unwrap();
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
-    }
-    let global_target = root.path().join("global-target");
-    write_script(&global_target, "global");
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    let script = project.join("node_modules").join("tool").join("cli.sh");
+    fs::write(&script, "#!/bin/sh\necho \"$@\"\n").unwrap();
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
     let output = shim_command(
         &root,
         &project,
@@ -180,7 +191,8 @@ fn runtime_pin_downloads_node_on_demand() {
         .to_string(),
     )
     .unwrap();
-    let global_target = root.path().join("global-node");
+    let global_target =
+        root.path().join("global").join("node_modules").join("node").join("bin").join("node");
     write_script(&global_target, "global");
 
     shim_command(&root, &project, &["node", global_target.to_str().unwrap(), "--"])
@@ -196,6 +208,117 @@ fn runtime_pin_downloads_node_on_demand() {
         .flatten()
         .any(|entry| entry.path().join("pkg").join("node_modules").join("node").is_dir());
     assert!(materialized_node, "the pinned node should be materialized under {dlx_cache:?}");
+}
+
+/// A same-named bin provided by a *different* package must not shadow
+/// the global one, trusted or not.
+#[cfg(unix)]
+#[test]
+fn lookalike_package_does_not_shadow_the_global_bin() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global_from(&root, "tool", "evil-pkg");
+    let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .with_env(AUTO_TRUST_ENV, "1")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(stdout.trim(), "global");
+}
+
+/// `globalShims: false` in the global config.yaml disables dispatch
+/// immediately — no relinking required.
+#[cfg(unix)]
+#[test]
+fn global_shims_setting_off_disables_dispatch() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
+    let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .with_env(AUTO_TRUST_ENV, "1")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(stdout.trim(), "global");
+}
+
+/// The `PNPM_CONFIG_GLOBAL_SHIMS` env override wins over the config file.
+#[cfg(unix)]
+#[test]
+fn global_shims_env_override_disables_dispatch() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(stdout.trim(), "global");
+}
+
+/// A project whose lockfile was verified by an install on this machine
+/// runs its local bins without any prompt or recorded trust decision.
+#[cfg(unix)]
+#[test]
+fn locally_verified_lockfile_skips_the_trust_gate() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    write_lockfile_verified_record(&root, &project);
+    let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(stdout.trim(), "local");
+}
+
+/// A verification record that no longer matches the lockfile's stat is
+/// not proof — the dispatcher falls back to the (unanswerable) prompt
+/// and the global target runs.
+#[cfg(unix)]
+#[test]
+fn stale_lockfile_verification_record_does_not_skip_the_trust_gate() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    write_lockfile_verified_record(&root, &project);
+    fs::write(project.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n# edited\n").unwrap();
+    let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(stdout.trim(), "global");
+}
+
+/// Write a lockfile into `project` plus a matching machine-local
+/// verification record, the way an install's verification gate would.
+#[cfg(unix)]
+fn write_lockfile_verified_record(root: &TempDir, project: &Path) {
+    use std::os::unix::fs::MetadataExt;
+    let lockfile = project.join("pnpm-lock.yaml");
+    fs::write(&lockfile, "lockfileVersion: '9.0'\n").unwrap();
+    let metadata = fs::metadata(&lockfile).unwrap();
+    let mtime_ns = metadata
+        .modified()
+        .unwrap()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+        .to_string();
+    let record = serde_json::json!({
+        "lockfile": {
+            "hash": "0000",
+            "path": fs::canonicalize(&lockfile).unwrap(),
+            "size": metadata.len(),
+            "mtimeNs": mtime_ns,
+            "inode": metadata.ino().to_string(),
+        },
+        "verifiedAt": "2026-01-01T00:00:00.000Z",
+        "policy": { "tarballUrlBinding": true, "integrityRequired": true },
+    });
+    let cache_dir = root.path().join("cache-home").join("pnpm");
+    fs::create_dir_all(&cache_dir).unwrap();
+    fs::write(cache_dir.join("lockfile-verified.jsonl"), format!("{record}\n")).unwrap();
 }
 
 #[test]

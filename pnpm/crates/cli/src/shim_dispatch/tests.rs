@@ -156,3 +156,71 @@ fn trust_registry_tolerates_corrupt_lines() {
     fs::write(&trust_file, "not json\n{\"projectDir\":\"/a\",\"allow\":true}\n").unwrap();
     assert_eq!(read_trust_decision(&trust_file, "/a"), Some(true));
 }
+
+#[test]
+fn provider_package_is_derived_from_the_last_node_modules_segment() {
+    use super::provider_package_of_path;
+    assert_eq!(
+        provider_package_of_path(Path::new("/g/node_modules/tool/cli.js")).as_deref(),
+        Some("tool"),
+    );
+    assert_eq!(
+        provider_package_of_path(Path::new("/g/node_modules/@scope/tool/bin/cli.js")).as_deref(),
+        Some("@scope/tool"),
+    );
+    assert_eq!(
+        provider_package_of_path(Path::new(
+            "/p/node_modules/.pnpm/node@runtime+22/node_modules/node/bin/node",
+        ))
+        .as_deref(),
+        Some("node"),
+    );
+    assert_eq!(provider_package_of_path(Path::new("/no/modules/here")), None);
+    assert_eq!(provider_package_of_path(Path::new("/ends/in/node_modules")), None);
+}
+
+#[test]
+fn shim_target_trailer_round_trips() {
+    use super::read_shim_target;
+    let root = tempfile::tempdir().unwrap();
+    let script = root.path().join("tool");
+    fs::write(
+        &script,
+        "#!/bin/sh\nexec something\n# pnpm-shim-style=context-aware\n# cmd-shim-target=/g/node_modules/tool/cli.js\n",
+    )
+    .unwrap();
+    assert_eq!(read_shim_target(&script), Some("/g/node_modules/tool/cli.js".into()));
+    fs::write(&script, "#!/bin/sh\nexec something\n").unwrap();
+    assert_eq!(read_shim_target(&script), None);
+}
+
+#[cfg(unix)]
+#[test]
+fn local_bin_provider_resolves_symlinks_and_trailers() {
+    use super::local_bin_provider;
+    let root = tempfile::tempdir().unwrap();
+    let modules = root.path().join("node_modules");
+    let bin_dir = modules.join(".bin");
+    fs::create_dir_all(modules.join("tool")).unwrap();
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::write(modules.join("tool").join("cli.js"), "").unwrap();
+
+    let linked = bin_dir.join("linked");
+    std::os::unix::fs::symlink("../tool/cli.js", &linked).unwrap();
+    assert_eq!(local_bin_provider(&linked, "linked").as_deref(), Some("tool"));
+
+    let scripted = bin_dir.join("scripted");
+    fs::write(
+        &scripted,
+        format!(
+            "#!/bin/sh\nexec x\n# cmd-shim-target={}\n",
+            modules.join("tool").join("cli.js").display(),
+        ),
+    )
+    .unwrap();
+    assert_eq!(local_bin_provider(&scripted, "scripted").as_deref(), Some("tool"));
+
+    let bare = bin_dir.join("bare");
+    fs::write(&bare, "#!/bin/sh\n").unwrap();
+    assert_eq!(local_bin_provider(&bare, "bare"), None);
+}

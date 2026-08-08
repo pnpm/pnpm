@@ -31,6 +31,7 @@ pacquet-global                            = { workspace = true }
 pacquet-graph-hasher                      = { workspace = true }
 pacquet-hooks                             = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
+pacquet-lockfile-verification             = { workspace = true }
 pacquet-modules-yaml                      = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-network-web-auth                  = { workspace = true }

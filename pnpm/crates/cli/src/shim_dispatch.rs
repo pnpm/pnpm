@@ -11,15 +11,23 @@
 //! standing in.
 //!
 //! Running a project's binaries just because the user typed a command
-//! inside its directory is a trust decision, so the first use of a
-//! project's bins asks `Do you trust this project?` on the terminal and
-//! persists the answer (either way) in a machine-local registry —
-//! deliberately outside the project, so a cloned repository cannot ship
-//! its own approval. Without a terminal the dispatcher falls back to the
-//! global target.
+//! inside its directory is a trust decision, gated twice. First, the
+//! candidate must be provided by the same-named package as the global
+//! bin — the switch only ever substitutes a different version of what
+//! the user already installed globally. Second, the project must either
+//! carry a lockfile this machine's own install gate verified (see
+//! `lockfile_verified_on_this_machine`), or be approved on the terminal
+//! (`Do you trust this project?`), with answers persisted in a
+//! machine-local registry — both signals deliberately live outside the
+//! project, so a cloned repository cannot ship its own approval.
+//! Without a terminal the dispatcher falls back to the global target.
 
-use pacquet_config::{Host, default_pnpm_home_dir, default_state_dir};
+use pacquet_config::{
+    Host, WorkspaceSettings, default_cache_dir, default_config_dir, default_pnpm_home_dir,
+    default_state_dir,
+};
 use pacquet_fs::lexical_normalize;
+use pacquet_lockfile_verification::lockfile_verified_on_this_machine;
 use pacquet_package_manifest::is_runtime_alias;
 use serde_json::{Value, json};
 use std::{
@@ -65,12 +73,15 @@ fn dispatch(rest: &[OsString]) -> i32 {
         );
         return 1;
     };
-    if bypass_requested() {
+    if bypass_requested() || !global_shims_enabled() {
         return run_global_target(global_target, args);
     }
-    let candidate = std::env::current_dir().ok().and_then(|cwd| find_candidate(&cwd, name));
+    let candidate = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| find_candidate(&cwd, name))
+        .filter(|candidate| candidate_matches_global_provider(candidate, global_target, name));
     match candidate {
-        Some(candidate) if is_trusted(candidate.project_dir(), name) => match candidate {
+        Some(candidate) if is_trusted(&candidate, name) => match candidate {
             Candidate::LocalBin { bin, .. } => exec_program(&bin, args),
             Candidate::RuntimePin { version_spec, .. } => {
                 run_runtime_via_dlx(name, &version_spec, args)
@@ -136,6 +147,98 @@ fn parse_shim_argv(rest: &[OsString]) -> Option<(&str, &Path, &[OsString])> {
 fn bypass_requested() -> bool {
     std::env::var(BYPASS_ENV)
         .is_ok_and(|value| !value.is_empty() && value != "0" && value != "false")
+}
+
+/// The `globalShims` setting at dispatch time, so turning it off takes
+/// effect immediately instead of waiting for the next global install to
+/// relink the shims. Read from the env override and the global
+/// `config.yaml` only — the sources a project cannot influence.
+fn global_shims_enabled() -> bool {
+    for env_name in ["PNPM_CONFIG_GLOBAL_SHIMS", "pnpm_config_global_shims"] {
+        if let Ok(value) = std::env::var(env_name)
+            && !value.is_empty()
+            && let Ok(enabled) = serde_json::from_str::<bool>(&value)
+        {
+            return enabled;
+        }
+    }
+    default_config_dir::<Host>()
+        .and_then(|config_dir| WorkspaceSettings::load_global(&config_dir).ok().flatten())
+        .and_then(|settings| settings.global_shims)
+        .unwrap_or(true)
+}
+
+/// The context switch only ever substitutes a different version of the
+/// same package the user installed globally: the local candidate must be
+/// provided by the same-named package as the embedded global target.
+/// A project shipping a same-named bin from a *different* package (a
+/// lookalike `tsc` from `evil-pkg`) fails the match and the global
+/// version runs.
+fn candidate_matches_global_provider(
+    candidate: &Candidate,
+    global_target: &Path,
+    name: &str,
+) -> bool {
+    let Some(global_provider) = provider_package_of_path(global_target) else {
+        return false;
+    };
+    match candidate {
+        Candidate::LocalBin { bin, .. } => {
+            local_bin_provider(bin, name).as_deref() == Some(global_provider.as_str())
+        }
+        // A runtime pin entry already carries the runtime's name, so the
+        // match reduces to "the global bin is that runtime's own binary".
+        Candidate::RuntimePin { .. } => global_provider == name,
+    }
+}
+
+/// The package a path under some `node_modules` belongs to: the one or
+/// two (`@scope/name`) components after the last `node_modules` segment.
+fn provider_package_of_path(path: &Path) -> Option<String> {
+    let normalized = lexical_normalize(path);
+    let components: Vec<&str> = normalized
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(part) => part.to_str(),
+            _ => None,
+        })
+        .collect();
+    let modules_index = components.iter().rposition(|part| *part == "node_modules")?;
+    let first = components.get(modules_index + 1)?;
+    if first.starts_with('@') {
+        let second = components.get(modules_index + 2)?;
+        Some(format!("{first}/{second}"))
+    } else {
+        Some((*first).to_string())
+    }
+}
+
+/// The package providing a `node_modules/.bin` entry. A symlinked bin
+/// (the runtime binaries) resolves through its link target; a cmd-shim
+/// script is attributed via the `# cmd-shim-target=` trailer of its
+/// extensionless flavor (`name`, not `name.cmd` — only the sh flavor
+/// carries the trailer). `None` — e.g. a Windows `node.exe` hardlink —
+/// counts as no match.
+fn local_bin_provider(bin: &Path, name: &str) -> Option<String> {
+    let metadata = std::fs::symlink_metadata(bin).ok()?;
+    let target = if metadata.file_type().is_symlink() {
+        std::fs::read_link(bin).ok()?
+    } else {
+        read_shim_target(&bin.parent()?.join(name))?
+    };
+    let resolved = if target.is_absolute() { target } else { bin.parent()?.join(target) };
+    provider_package_of_path(&resolved)
+}
+
+/// The target recorded in a cmd-shim script's trailing
+/// `# cmd-shim-target=` marker.
+fn read_shim_target(script: &Path) -> Option<PathBuf> {
+    let content = std::fs::read_to_string(script).ok()?;
+    content
+        .lines()
+        .rev()
+        .find_map(|line| line.strip_prefix("# cmd-shim-target="))
+        .map(PathBuf::from)
 }
 
 /// A project-provided replacement for the invoked global bin.
@@ -224,8 +327,19 @@ fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<String> {
     None
 }
 
-fn is_trusted(project_dir: &Path, name: &str) -> bool {
+fn is_trusted(candidate: &Candidate, name: &str) -> bool {
     if std::env::var(AUTO_TRUST_ENV).as_deref() == Ok("1") {
+        return true;
+    }
+    let project_dir = candidate.project_dir();
+    // An installed bin from a lockfile that this machine's own install
+    // gate verified needs no prompt: the user (or a tool they ran)
+    // already installed these exact dependencies here through pnpm's
+    // integrity + tarball-URL binding checks. The cache record lives
+    // outside the repository, so a cloned project cannot ship one. The
+    // download-on-demand path stays behind the prompt — its mirror
+    // configuration is repo-controlled.
+    if matches!(candidate, Candidate::LocalBin { .. }) && lockfile_verified_locally(project_dir) {
         return true;
     }
     let project_key = lexical_normalize(project_dir).display().to_string();
@@ -244,6 +358,13 @@ fn is_trusted(project_dir: &Path, name: &str) -> bool {
         let _ = append_trust_decision(trust_file, &project_key, allow);
     }
     allow
+}
+
+/// Whether this machine's install gate verified the project's lockfile
+/// as it currently sits on disk.
+fn lockfile_verified_locally(project_dir: &Path) -> bool {
+    let cache_dir = default_cache_dir::<Host>();
+    lockfile_verified_on_this_machine(&cache_dir, &project_dir.join("pnpm-lock.yaml"))
 }
 
 /// The recorded decision for `project_key`, last record wins.
