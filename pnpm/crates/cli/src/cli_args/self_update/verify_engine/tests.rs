@@ -163,6 +163,7 @@ fn tolerable_without_signature_requires_a_soft_category_and_a_non_canonical_regi
         "https://registry.npmjs.org",
         "https://Registry.NPMJS.org:443/",
         "https://registry.npmjs.org:443",
+        "https://user:pass@registry.npmjs.org/",
     ] {
         assert!(
             !failure(FailureCategory::Unreachable, canonical).tolerable_without_signature(),

@@ -414,6 +414,19 @@ describe('verifyInstalledPackageSignatures', () => {
     expect(result.failures[0]).toMatchObject({ category: 'absent' })
   })
 
+  test('failures never echo inline registry credentials', async () => {
+    const key = createSigningKey()
+    // Neither registry is mocked, so both lookups fail and the failure quotes
+    // the registries involved.
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: 'https://user:pass@registry.example.test/', version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: 'https://user:pass@second-registry.example.test/' })
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0].registry).toBe(REGISTRY)
+    expect(JSON.stringify(result.failures)).not.toContain('user:pass')
+  })
+
   test('reports a non-sha512 integrity pin as uncovered without consulting any registry', async () => {
     const key = createSigningKey()
     // No packuments are mocked: the category is decided before any fetch.

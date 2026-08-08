@@ -69,8 +69,13 @@ describe('verifyPnpmEngineIdentity', () => {
   })
 
   test('recognizes URL-equivalent spellings of the canonical registry and still fails closed', async () => {
-    const opts = { ...optsTrusting(createSigningKey()), registries: { default: 'https://Registry.NPMJS.org:443/' } }
-    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
+    // Case, an explicit default port, and inline credentials are all
+    // URL-equivalent to the canonical registry and must not unlock the
+    // warn-and-proceed path.
+    await Promise.all(['https://Registry.NPMJS.org:443/', 'https://user:pass@registry.npmjs.org/'].map(async (canonical) => {
+      const opts = { ...optsTrusting(createSigningKey()), registries: { default: canonical } }
+      await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
+    }))
   })
 
   test('warns and proceeds when a user-configured registry is unreachable and no signature is obtainable', async () => {

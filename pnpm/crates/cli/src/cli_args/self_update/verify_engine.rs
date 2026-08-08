@@ -343,7 +343,7 @@ async fn find_signature_failure(
             reason,
             category,
             label: label.clone(),
-            registry: component.registry.clone(),
+            registry: redact_url_credentials(&component.registry),
         })
     };
 
@@ -400,8 +400,10 @@ async fn find_signature_failure(
     // observed, the signature was simply unobtainable.
     failure(
         format!(
-            "{}; the fallback registry ({fallback_registry}) could not be consulted either: {}",
-            primary.0, secondary.0,
+            "{}; the fallback registry ({}) could not be consulted either: {}",
+            primary.0,
+            redact_url_credentials(fallback_registry),
+            secondary.0,
         ),
         FailureCategory::Unreachable,
     )
@@ -419,11 +421,14 @@ async fn attempt_signature_verification(
     config: &Config,
 ) -> Option<(String, FailureCategory)> {
     let label = format!("{}@{}", component.name, component.version);
+    // Registry URLs may carry inline `user:pass@` credentials, and the
+    // reasons built here end up in error messages and warnings.
+    let display_registry = redact_url_credentials(registry);
     let packument = match fetch_packument(component, registry, client, retry_opts, config).await {
         Ok(Some(packument)) => packument,
         Ok(None) => {
             return Some((
-                format!("{} is not published on {registry}", component.name),
+                format!("{} is not published on {display_registry}", component.name),
                 FailureCategory::Absent,
             ));
         }
@@ -431,7 +436,10 @@ async fn attempt_signature_verification(
     };
 
     let Some(version) = packument.versions.get(&component.version) else {
-        return Some((format!("{label} was not found on {registry}"), FailureCategory::Absent));
+        return Some((
+            format!("{label} was not found on {display_registry}"),
+            FailureCategory::Absent,
+        ));
     };
     let raw_signatures = version.dist.as_ref().and_then(|dist| dist.signatures.as_ref());
     let parsed_signatures = match raw_signatures {
@@ -459,7 +467,7 @@ async fn attempt_signature_verification(
     };
     if parsed_signatures.is_empty() {
         return Some((
-            format!("{label} has no registry signature on {registry}"),
+            format!("{label} has no registry signature on {display_registry}"),
             FailureCategory::Absent,
         ));
     }
@@ -480,13 +488,15 @@ async fn attempt_signature_verification(
 /// are implied — or a canonical registry written as e.g.
 /// `https://Registry.NPMJS.org:443/` would be misclassified as a different,
 /// non-canonical one, weakening fail-closed decisions keyed on whether the
-/// registry is the canonical one.
+/// registry is the canonical one. Inline `user:pass@` credentials are auth
+/// material, not identity, so they are stripped before comparing for the
+/// same reason.
 fn equal_registries(left: &str, right: &str) -> bool {
     normalize_registry_url(left).eq_ignore_ascii_case(&normalize_registry_url(right))
 }
 
 fn normalize_registry_url(registry: &str) -> String {
-    let with_slash = with_trailing_slash(registry);
+    let with_slash = redact_url_credentials(&with_trailing_slash(registry));
     // URL normalization lowercases the host and drops a default port.
     url::Url::parse(&with_slash).map(String::from).unwrap_or(with_slash)
 }

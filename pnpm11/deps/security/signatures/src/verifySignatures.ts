@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import url from 'node:url'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlCredentials } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import pLimit from 'p-limit'
@@ -422,7 +422,11 @@ export type SignatureFailureCategory = 'invalid' | 'absent' | 'unreachable' | 'u
 export interface InstalledSignatureFailure {
   name: string
   version: string
-  /** The registry the package was installed from (see {@link InstalledPackageToVerify.registry}). */
+  /**
+   * The registry the package was installed from (see
+   * {@link InstalledPackageToVerify.registry}), with inline `user:pass@`
+   * credentials stripped so the failure is safe to print or log.
+   */
   registry: string
   reason: string
   category: SignatureFailureCategory
@@ -482,7 +486,7 @@ export async function verifyInstalledPackageSignatures (
   await Promise.all(packages.map((pkg) => limit(async () => {
     const failure = await findSignatureFailure(pkg, ctx)
     if (failure != null) {
-      failures.push({ name: pkg.name, version: pkg.version, registry: pkg.registry, ...failure })
+      failures.push({ name: pkg.name, version: pkg.version, registry: redactUrlCredentials(pkg.registry), ...failure })
     }
   })))
 
@@ -535,7 +539,7 @@ async function findSignatureFailure (
   // none) and the fallback could not be consulted — nothing suspicious was
   // observed, the signature was simply unobtainable.
   return {
-    reason: `${primary.reason}; the fallback registry (${fallbackRegistry}) could not be consulted either: ${secondary.reason}`,
+    reason: `${primary.reason}; the fallback registry (${redactUrlCredentials(fallbackRegistry)}) could not be consulted either: ${secondary.reason}`,
     category: 'unreachable',
   }
 }
@@ -549,16 +553,20 @@ async function attemptSignatureVerification (
   registry: string,
   ctx: SignatureVerificationContext
 ): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
+  // Registry URLs may carry inline `user:pass@` credentials, and the reasons
+  // built here end up in error messages and warnings.
+  const displayRegistry = redactUrlCredentials(registry)
   let packument: Packument | undefined
   try {
     packument = await getPackument({ ...pkg, registry }, ctx.getAuthHeader, ctx.opts, ctx.packumentCache)
   } catch (err: unknown) {
-    return { reason: util.types.isNativeError(err) ? err.message : String(err), category: 'unreachable' }
+    // The fetch error may echo the request URL, credentials included.
+    return { reason: redactUrlCredentials(util.types.isNativeError(err) ? err.message : String(err)), category: 'unreachable' }
   }
-  if (!packument) return { reason: `${pkg.name} is not published on ${registry}`, category: 'absent' }
+  if (!packument) return { reason: `${pkg.name} is not published on ${displayRegistry}`, category: 'absent' }
 
   const version = packument.versions?.[pkg.version]
-  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${registry}`, category: 'absent' }
+  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${displayRegistry}`, category: 'absent' }
 
   const rawSignatures = version.dist?.signatures
   if (rawSignatures != null && !Array.isArray(rawSignatures)) {
@@ -569,7 +577,7 @@ async function attemptSignatureVerification (
     return { reason: `malformed registry signatures metadata for ${pkg.name}@${pkg.version}`, category: 'absent' }
   }
   if (signatures.length === 0) {
-    return { reason: `${pkg.name}@${pkg.version} has no registry signature on ${registry}`, category: 'absent' }
+    return { reason: `${pkg.name}@${pkg.version} has no registry signature on ${displayRegistry}`, category: 'absent' }
   }
 
   // The message is built from the installed integrity, so a signature only
@@ -587,14 +595,16 @@ async function attemptSignatureVerification (
  * implied — or a canonical registry written as e.g.
  * `https://Registry.NPMJS.org:443/` would be misclassified as a different,
  * non-canonical one, weakening fail-closed decisions keyed on whether the
- * registry is the canonical one.
+ * registry is the canonical one. Inline `user:pass@` credentials are auth
+ * material, not identity, so they are stripped before comparing for the same
+ * reason.
  */
 export function equalRegistries (a: string, b: string): boolean {
   return normalizeRegistryUrl(a) === normalizeRegistryUrl(b)
 }
 
 function normalizeRegistryUrl (registry: string): string {
-  const withSlash = registry.endsWith('/') ? registry : `${registry}/`
+  const withSlash = redactUrlCredentials(registry.endsWith('/') ? registry : `${registry}/`)
   try {
     // URL normalization lowercases the host and drops a default port.
     return new url.URL(withSlash).toString().toLowerCase()
