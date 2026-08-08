@@ -185,6 +185,15 @@ fn try_windows_node_dispatch(argv: &[OsString]) -> Option<i32> {
             return Some(1);
         }
     };
+    // A target file pointing back at the dispatcher would recurse forever
+    // through the no-candidate fallback.
+    if same_file::is_same_file(&global_target, &executable).unwrap_or(false) {
+        eprintln!(
+            "pnpm: the global Node.js target at {} points back at the dispatcher",
+            target_file.display(),
+        );
+        return Some(1);
+    }
     Some(dispatch_target("node", None, &global_target, &argv[1..], global_shims_mode()))
 }
 
@@ -194,9 +203,14 @@ fn try_windows_node_dispatch(argv: &[OsString]) -> Option<i32> {
 /// either from a whitespace-split string. A concurrently removed shim falls
 /// back to executing the embedded target directly.
 fn run_global_fallback(shim_path: Option<&Path>, target: &Path, args: &[OsString]) -> i32 {
-    if let Some(shim_path) = shim_path.filter(|path| path.is_file()) {
-        return exec_program_with_bypass(shim_path, args);
+    if let Some(shim_path) = shim_path.filter(|path| path.is_file())
+        && let Ok(code) = try_exec_with_bypass(shim_path, args)
+    {
+        return code;
     }
+    // Re-entry can fail where the host cannot execute the shim itself —
+    // an extensionless sh script under MSYS, a permissions hiccup. The
+    // embedded target is still runnable directly.
     exec_program(target, args)
 }
 
@@ -219,8 +233,10 @@ fn bypass_requested() -> bool {
 
 /// The `globalShims` setting at dispatch time, so turning it off takes
 /// effect immediately instead of waiting for the next global install to
-/// relink the shims. Read from the env override and the global
-/// `config.yaml` only — the sources a project cannot influence.
+/// relink the shims. Read from the env override, the pnpm home's own
+/// `pnpm-workspace.yaml`, and the global `config.yaml` — never from a
+/// discovered ancestor, so neither a project nor an unrelated workspace
+/// above the pnpm home can influence dispatch.
 fn global_shims_mode() -> GlobalShims {
     for env_name in ["PNPM_CONFIG_GLOBAL_SHIMS", "pnpm_config_global_shims"] {
         if let Ok(value) = std::env::var(env_name)
@@ -240,8 +256,8 @@ fn global_shims_mode() -> GlobalShims {
         .and_then(|config_dir| WorkspaceSettings::load_global(&config_dir).ok().flatten())
         .and_then(|settings| settings.global_shims);
     default_pnpm_home_dir::<Host>()
-        .and_then(|home| WorkspaceSettings::find_and_load(&home).ok().flatten())
-        .and_then(|(_, settings)| settings.global_shims)
+        .and_then(|home| WorkspaceSettings::load_at(&home).ok().flatten())
+        .and_then(|settings| settings.global_shims)
         .or(global_config)
         .unwrap_or_default()
 }
@@ -759,12 +775,13 @@ fn exec_program(program: &Path, args: &[OsString]) -> i32 {
     if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
 }
 
+/// Attempt to run `program` with the bypass guard set, replacing the
+/// process where the platform allows. `Err` means the program could not
+/// be started at all, so the caller may fall back to another target.
 #[cfg(unix)]
-fn exec_program_with_bypass(program: &Path, args: &[OsString]) -> i32 {
+fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::io::Error> {
     use std::os::unix::process::CommandExt as _;
-    let error = Command::new(program).args(args).env(BYPASS_ENV, "1").exec();
-    eprintln!("pnpm: failed to exec {}: {error}", program.display());
-    if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
+    Err(Command::new(program).args(args).env(BYPASS_ENV, "1").exec())
 }
 
 #[cfg(windows)]
@@ -789,8 +806,9 @@ fn exec_program(program: &Path, args: &[OsString]) -> i32 {
     }
 }
 
+/// See the Unix flavor for the contract.
 #[cfg(windows)]
-fn exec_program_with_bypass(program: &Path, args: &[OsString]) -> i32 {
+fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::io::Error> {
     let extension = program.extension().and_then(|ext| ext.to_str()).unwrap_or_default();
     let mut command =
         if extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat") {
@@ -804,13 +822,7 @@ fn exec_program_with_bypass(program: &Path, args: &[OsString]) -> i32 {
         } else {
             Command::new(program)
         };
-    match command.args(args).env(BYPASS_ENV, "1").status() {
-        Ok(status) => status.code().unwrap_or(1),
-        Err(error) => {
-            eprintln!("pnpm: failed to run {}: {error}", program.display());
-            if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
-        }
-    }
+    command.args(args).env(BYPASS_ENV, "1").status().map(|status| status.code().unwrap_or(1))
 }
 
 #[cfg(test)]

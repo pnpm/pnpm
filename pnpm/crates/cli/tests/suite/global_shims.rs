@@ -335,6 +335,62 @@ fn write_lockfile_verified_record(root: &TempDir, project: &Path) {
     fs::write(cache_dir.join("lockfile-verified.jsonl"), format!("{record}\n")).unwrap();
 }
 
+/// A `pnpm-workspace.yaml` in an ancestor of the pnpm home must not
+/// influence dispatch — only `<home>/pnpm-workspace.yaml` itself may.
+#[cfg(unix)]
+#[test]
+fn ancestors_of_the_pnpm_home_cannot_set_the_mode() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    // `PNPM_HOME` points at `<root>/pnpm-home`; its parent tries to
+    // enable `all`. Without env or home-yaml mode, `auto` must apply,
+    // under which an ordinary tool never switches.
+    fs::write(root.path().join("pnpm-workspace.yaml"), "globalShims: all\n").unwrap();
+    fs::create_dir_all(root.path().join("pnpm-home")).unwrap();
+    let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .with_env(AUTO_TRUST_ENV, "1")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(stdout.trim(), "global");
+}
+
+/// A fallback shim path the host cannot execute degrades to the embedded
+/// target instead of failing the invocation.
+#[cfg(unix)]
+#[test]
+fn unexecutable_fallback_shim_degrades_to_the_target() {
+    let root = tempfile::tempdir().unwrap();
+    let cwd = root.path().join("plain");
+    fs::create_dir_all(&cwd).unwrap();
+    let target = root.path().join("global").join("node_modules").join("tool").join("cli.sh");
+    write_script(&target, "global");
+    let broken_shim = root.path().join("broken-shim");
+    fs::write(&broken_shim, "#!/bin/sh\necho never\n").unwrap();
+    // Not executable: re-entry must fail and the target must run. Built
+    // without `shim_command` because that helper injects its own
+    // (nonexistent) shim path after the name.
+    let output = Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&cwd)
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "off")
+        .with_args([
+            "--shim",
+            "tool",
+            broken_shim.to_str().unwrap(),
+            target.to_str().unwrap(),
+            "--",
+        ])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(stdout.trim(), "global");
+}
+
 #[test]
 fn malformed_shim_invocation_errors() {
     let root = tempfile::tempdir().unwrap();
