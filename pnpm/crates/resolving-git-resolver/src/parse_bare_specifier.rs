@@ -155,13 +155,9 @@ fn correct_url(input: &str) -> String {
     });
     let host_has_colon = after_host.contains(':');
     if host_has_colon && !port_pattern_present {
-        let auth_parts: Vec<&str> = auth.split(':').collect();
         let protocol = "ssh";
-        // `auth_parts[..-1] join ':' + '/' + auth_parts[-1]`
-        let new_auth = if auth_parts.len() >= 2 {
-            let last = auth_parts[auth_parts.len() - 1];
-            let rest = auth_parts[..auth_parts.len() - 1].join(":");
-            format!("{rest}/{last}")
+        let new_auth = if let Some(separator) = auth.rfind(':') {
+            format!("{}/{}", &auth[..separator], &auth[separator + 1..])
         } else {
             auth.to_string()
         };

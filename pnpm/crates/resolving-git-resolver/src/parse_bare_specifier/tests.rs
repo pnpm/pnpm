@@ -190,9 +190,6 @@ fn fetch_spec_for_scp_style_inputs() {
     }
 }
 
-// Ported `parsePref.test.ts` no-user-info cases. `correct_url` reads
-// the host from the last `@` and falls back to the whole authority, so
-// these hold here; the TypeScript side was catching up to this file.
 #[test]
 fn fetch_spec_for_inputs_without_user_info() {
     let cases: &[(&str, &str)] = &[
@@ -210,7 +207,6 @@ fn fetch_spec_for_inputs_without_user_info() {
     }
 }
 
-// Ported `parsePref.test.ts` bracketed-IPv6 cases.
 #[test]
 fn fetch_spec_for_bracketed_ipv6_hosts() {
     let cases: &[(&str, &str)] = &[
@@ -227,7 +223,6 @@ fn fetch_spec_for_bracketed_ipv6_hosts() {
     }
 }
 
-// Ported `parsePref.test.ts` path-extraction cases.
 #[test]
 fn path_extracted_from_scp_style_inputs() {
     let cases: &[(&str, Option<&str>)] = &[
