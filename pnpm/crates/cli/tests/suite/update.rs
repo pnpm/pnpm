@@ -1058,7 +1058,7 @@ fn update_latest_default_catalog_preserves_reference() {
 #[test]
 fn update_strict_catalog_range_mismatch_errors() {
     let (root, workspace, anchor) = setup();
-    set_strict_catalog(&workspace, &[(DEP, "^100.0.0")]);
+    set_strict_catalog(&workspace, &[(DEP, "^100.1.0")]);
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
 
     let output = pacquet(&workspace, ["update", "--lockfile-only", &format!("{DEP}@100.0.0")])
