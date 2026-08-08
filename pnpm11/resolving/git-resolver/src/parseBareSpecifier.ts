@@ -206,7 +206,8 @@ function correctUrl (gitUrl: string): string {
       _gitUrl = _gitUrl.slice(0, hashIndex)
     }
     const [auth, ...pathname] = _gitUrl.slice(6).split('/')
-    const [, host] = auth.split('@')
+    const userInfoEnd = auth.lastIndexOf('@')
+    const host = userInfoEnd === -1 ? auth : auth.slice(userInfoEnd + 1)
     if (host.includes(':') && !/:\d+$/.test(host)) {
       const authArr = auth.split(':')
       const protocol = gitUrl.split('://')[0]
