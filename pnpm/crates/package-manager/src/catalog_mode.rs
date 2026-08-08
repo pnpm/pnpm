@@ -187,11 +187,6 @@ pub(crate) fn decide_catalog_outcome(
     }
 }
 
-/// Returns true if the version `lhs` matches the specifier `rhs`.
-///
-/// Matches when either:
-/// - Both are valid semver versions and are equal.
-/// - `lhs` is a valid semver version that satisfies `rhs` as a semver range.
 fn versions_equal(lhs: &str, rhs: &str) -> bool {
     if let Ok(lhs_version) = Version::parse(lhs) {
         if let Ok(rhs_version) = Version::parse(rhs) {
