@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
@@ -83,12 +82,30 @@ export function diffDir (oldIndex: InodeMap, newIndex: InodeMap): DirDiff {
 export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string, targetDir: string): Promise<void> {
   async function addRecursive (sourcePath: string, targetPath: string, value: Value): Promise<void> {
     if (value === DIR) {
-      await fs.promises.mkdir(targetPath, { recursive: true })
+      await retryOverBlockingInode(targetPath, async () => fs.promises.mkdir(targetPath, { recursive: true }))
     } else if (typeof value === 'number') {
       fs.mkdirSync(path.dirname(targetPath), { recursive: true })
-      await fs.promises.link(sourcePath, targetPath)
+      await retryOverBlockingInode(targetPath, async () => fs.promises.link(sourcePath, targetPath))
     } else {
       const _: never = value // static type guard
+    }
+  }
+
+  /**
+   * The target may hold an inode that {@link extendFilesMap} skips — a FIFO, a
+   * socket, a device. The diff cannot see it, so it is never scheduled for
+   * removal, and adding over it fails with `EEXIST`. Clear that path and retry
+   * once instead of aborting the sync partway through.
+   */
+  async function retryOverBlockingInode (targetPath: string, add: () => Promise<unknown>): Promise<void> {
+    try {
+      await add()
+    } catch (error) {
+      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EEXIST')) {
+        throw error
+      }
+      await removeRecursive(targetPath)
+      await add()
     }
   }
 
@@ -102,11 +119,20 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     }
   }
 
-  const adding = Promise.all(optimizedDirPatch.added.map(async item => {
-    const sourcePath = path.join(sourceDir, item.path)
-    const targetPath = path.join(targetDir, item.path)
-    await addRecursive(sourcePath, targetPath, item.newValue)
-  }))
+  // Directories are created before the files they hold, shallowest first, so
+  // that clearing a blocking inode can only ever hit an empty directory: were
+  // a directory cleared concurrently with its files, a removal that lands late
+  // would take out files a sibling had already linked.
+  const adding = (async () => {
+    for (const item of optimizedDirPatch.added) {
+      if (item.newValue !== DIR) continue
+      await addRecursive(path.join(sourceDir, item.path), path.join(targetDir, item.path), item.newValue) // eslint-disable-line no-await-in-loop
+    }
+    await Promise.all(optimizedDirPatch.added.map(async item => {
+      if (item.newValue === DIR) return
+      await addRecursive(path.join(sourceDir, item.path), path.join(targetDir, item.path), item.newValue)
+    }))
+  })()
 
   const removing = Promise.all(optimizedDirPatch.removed.map(async item => {
     const targetPath = path.join(targetDir, item.path)
@@ -156,9 +182,12 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
       addInodeAndAncestors(relativePath, stats.ino)
     } else if (stats.isDirectory()) {
       addInodeAndAncestors(relativePath, DIR)
-    } else {
-      throw new PnpmError('UNSUPPORTED_INODE_TYPE', `Filesystem inode at ${realPath} is neither a file, a directory, or a symbolic link`)
     }
+    // Anything else — a FIFO, a socket, a device — cannot be hardlinked into
+    // the injected copy, so it is left out of the map. The diff then treats
+    // that path as absent on whichever side skipped it: an entry the target
+    // holds where the source skips is removed, and one the target skips is
+    // left alone until the source has something to put there.
   }))
 
   return result

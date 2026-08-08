@@ -9771,6 +9771,12 @@ importers:
       '@pnpm/workspace.injected-deps-syncer':
         specifier: workspace:*
         version: 'link:'
+      '@types/is-windows':
+        specifier: 'catalog:'
+        version: 1.0.2
+      is-windows:
+        specifier: 'catalog:'
+        version: 1.0.2
 
   pnpm11/workspace/project-manifest-reader:
     dependencies:
