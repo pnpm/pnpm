@@ -72,6 +72,20 @@ fn strict_errors_when_the_catalog_entry_is_a_range() {
 }
 
 #[test]
+fn strict_allows_a_version_satisfying_a_range_catalog_entry() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "2.1.0")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
+        "a version satisfying the range catalog entry is allowed",
+    );
+}
+
+#[test]
 fn strict_errors_when_the_wanted_specifier_is_a_range() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
     let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.0.0"))

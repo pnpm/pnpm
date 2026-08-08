@@ -12,7 +12,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use node_semver::Version;
+use node_semver::{Range, Version};
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
 use pacquet_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
@@ -187,14 +187,23 @@ pub(crate) fn decide_catalog_outcome(
     }
 }
 
-/// Equal only when **both** specifiers are concrete semver versions that
-/// compare equal. A range (e.g. `^2.0.0`) fails [`Version::parse`], so it
-/// never reaches the comparison — the Rust analogue of pnpm guarding
-/// `semver.eq` with `semver.valid`
-/// ([pnpm#11706](https://github.com/pnpm/pnpm/pull/11706)). Passing a
-/// range to an exact-version comparison is the bug that fix prevents.
+/// Returns true if the version `lhs` matches the specifier `rhs`.
+///
+/// Matches when either:
+/// - Both are valid semver versions and are equal.
+/// - `lhs` is a valid semver version that satisfies `rhs` as a semver range.
 fn versions_equal(lhs: &str, rhs: &str) -> bool {
-    matches!((Version::parse(lhs), Version::parse(rhs)), (Ok(left), Ok(right)) if left == right)
+    if let Ok(lhs_version) = Version::parse(lhs) {
+        if let Ok(rhs_version) = Version::parse(rhs) {
+            lhs_version == rhs_version
+        } else if let Ok(rhs_range) = Range::parse(rhs) {
+            rhs_range.satisfies(&lhs_version)
+        } else {
+            false
+        }
+    } else {
+        false
+    }
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`
