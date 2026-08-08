@@ -325,7 +325,13 @@ async function buildDependency<T extends string> (
         // There is no need to build the same package in every location.
         // We just copy the built package to every location where it is present.
         const currentHoistedLocation = path.relative(opts.lockfileDir, depNode.dir)
+        // The destinations are resolved here, on the main thread, on purpose.
+        // hardLinkDir() runs on a worker thread and the cwd is process-wide:
+        // applyPatchToDir() switches the cwd to the package it patches, so a worker
+        // resolving a relative path inside that window would resolve it against
+        // the wrong directory.
         const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== currentHoistedLocation)
+          .map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
         await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
       }
     }
