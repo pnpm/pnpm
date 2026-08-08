@@ -61,8 +61,7 @@ test.each([
   expect(parsed?.fetchSpec).toBe(output)
 })
 
-// An ssh:// URL does not have to carry user info. Every case above writes one,
-// so the no-userinfo shape went unexercised.
+// Every case above writes user info, so the shape without it went unexercised.
 test.each([
   ['ssh://git.example.com/team/repo.git', 'ssh://git.example.com/team/repo.git'],
   ['ssh://git.example.com:2222/team/repo.git', 'ssh://git.example.com:2222/team/repo.git'],
@@ -83,6 +82,19 @@ test.each([
   ['ssh://user:p@ss@example.com:repo.git', 'ssh://user:p%40ss@example.com/repo.git'],
   ['ssh://user:p@ss@example.com:22/repo.git', 'ssh://user:p%40ss@example.com:22/repo.git'],
 ])('the fetchSpec of %s, whose authority holds more than one @, should be %s', async (input, output) => {
+  const parsed = await parseBareSpecifier(input, {})?.()
+  expect(parsed?.fetchSpec).toBe(output)
+})
+
+// The colons of a bracketed IPv6 host belong to the address, not to a port or
+// to an SCP-style separator.
+test.each([
+  ['ssh://[::1]/repo.git', 'ssh://[::1]/repo.git'],
+  ['ssh://[2001:db8::1]/team/repo.git', 'ssh://[2001:db8::1]/team/repo.git'],
+  ['ssh://[::1]:2222/repo.git', 'ssh://[::1]:2222/repo.git'],
+  ['ssh://git@[::1]/repo.git', 'ssh://git@[::1]/repo.git'],
+  ['ssh://git@[::1]:team/repo.git', 'ssh://git@[::1]/team/repo.git'],
+])('the fetchSpec of %s, which holds a bracketed IPv6 host, should be %s', async (input, output) => {
   const parsed = await parseBareSpecifier(input, {})?.()
   expect(parsed?.fetchSpec).toBe(output)
 })
