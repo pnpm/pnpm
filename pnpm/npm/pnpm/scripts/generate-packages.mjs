@@ -24,8 +24,6 @@ const PACKAGE_DIR_PREFIX = "pacquet";
 const NATIVE_BIN_FILE = "pnpm";
 const EXE_WRAPPER_NAME = "@pnpm/exe";
 const EXE_WRAPPER_DIR = "pnpm-exe";
-// Files shared verbatim by both wrappers: Corepack shim, root-level bins,
-// preinstall, and README.
 const WRAPPER_FILES = [
   "bin/pnpm.mjs",
   "bin/pnpx.mjs",

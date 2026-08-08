@@ -47,7 +47,11 @@ export function resolveNativeBinary ({ candidates = getBinCandidates(), requireR
   for (const target of candidates) {
     try {
       return requireResolve(target)
-    } catch {}
+    } catch (err) {
+      if (err?.code !== 'MODULE_NOT_FOUND') {
+        throw err
+      }
+    }
   }
   return null
 }
