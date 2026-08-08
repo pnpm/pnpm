@@ -87,9 +87,20 @@ test('registry tarball URLs are dropped from package-manager resolutions; file:,
   const resolutionOf = (depPath: string) =>
     (result.packages as Record<string, { resolution: unknown }>)[depPath].resolution
   expect(resolutionOf('pnpm@12.0.0')).toEqual({ integrity: 'sha512-pnpm' })
-  expect(resolutionOf('git-hosted-dep@1.0.0')).toMatchObject({ tarball: expect.any(String), gitHosted: true })
-  expect(resolutionOf('local-dep@1.0.0')).toMatchObject({ tarball: 'file:../local-dep.tgz' })
-  expect(resolutionOf('subdir-dep@1.0.0')).toMatchObject({ tarball: expect.any(String), path: '/packages/a' })
+  expect(resolutionOf('git-hosted-dep@1.0.0')).toEqual({
+    integrity: 'sha512-git',
+    tarball: 'https://codeload.github.com/org/repo/tar.gz/abc',
+    gitHosted: true,
+  })
+  expect(resolutionOf('local-dep@1.0.0')).toEqual({
+    integrity: 'sha512-local',
+    tarball: 'file:../local-dep.tgz',
+  })
+  expect(resolutionOf('subdir-dep@1.0.0')).toEqual({
+    integrity: 'sha512-subdir',
+    tarball: 'https://codeload.github.com/org/mono/tar.gz/def',
+    path: '/packages/a',
+  })
 })
 
 function envLockfile (packageManagerDependencies: Record<string, string>): EnvLockfile {
