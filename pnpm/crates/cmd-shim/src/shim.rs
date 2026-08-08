@@ -399,13 +399,12 @@ pub fn generate_cmd_shim(
     }
 
     if style == ShimStyle::ContextAware {
-        // `@EXIT /B` without a code re-raises the dispatcher's exit code
-        // (a literal `%ERRORLEVEL%` inside the parenthesized block would
-        // expand at parse time, before the dispatcher ran).
+        // Guarded jumps keep dispatcher and fallback execution out of a
+        // parenthesized block, where cmd expands paths before executing it.
         let shim_name = shim_name(shim_path);
         write!(
             cmd,
-            "@IF NOT DEFINED PNPM_SHIM_BYPASS IF EXIST \"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" (\r\n  \"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" --shim \"{shim_name}\" \"%~f0\" {quoted_target} -- %*\r\n  @EXIT /B\r\n)\r\n",
+            "@IF DEFINED PNPM_SHIM_BYPASS GOTO :pnpm_shim_fallback\r\n@IF NOT EXIST \"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" GOTO :pnpm_shim_fallback\r\n@\"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" --shim \"{shim_name}\" \"%~f0\" {quoted_target} -- %*\r\n@EXIT /B\r\n:pnpm_shim_fallback\r\n",
         )
         .unwrap();
     }

@@ -676,11 +676,12 @@ fn context_aware_cmd_shim_dispatches_before_the_classic_body() {
     let shim = Path::new("/g/bin/tool");
     let body = generate_cmd_shim(target, shim, None, &[], ShimStyle::ContextAware);
     assert!(
-        body.contains(r#"@IF NOT DEFINED PNPM_SHIM_BYPASS IF EXIST "%~dp0\.pnpm-shim-v1.exe" ("#)
+        body.contains("@IF DEFINED PNPM_SHIM_BYPASS GOTO :pnpm_shim_fallback")
+            && body.contains(r#"@IF NOT EXIST "%~dp0\.pnpm-shim-v1.exe" GOTO :pnpm_shim_fallback"#)
             && body.contains(r#"--shim "tool" "%~f0""#),
         "body was:\n{body}",
     );
-    assert!(body.contains("@EXIT /B\r\n"), "body was:\n{body}");
+    assert!(body.contains("@EXIT /B\r\n:pnpm_shim_fallback\r\n"), "body was:\n{body}");
 }
 
 #[test]
