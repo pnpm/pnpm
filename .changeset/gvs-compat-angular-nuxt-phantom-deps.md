@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Added compatibility `packageExtensions` for `@angular/build` (undeclared `tslib`) and `@nuxt/vite-builder@>=4` (undeclared `unplugin`), so `ng build` and `nuxt build` work under the global virtual store, where undeclared dependencies are not resolvable by design.
+`ng build` and `nuxt build` now work under the global virtual store: pnpm's built-in compatibility extensions add the `tslib` dependency that `@angular/build` uses without declaring and the `unplugin` dependency that `@nuxt/vite-builder` v4 uses without declaring.

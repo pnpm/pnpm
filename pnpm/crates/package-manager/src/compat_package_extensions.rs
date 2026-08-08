@@ -3,11 +3,8 @@ use indexmap::IndexMap;
 use pacquet_config::{PackageExtension, PeerDependencyMeta};
 use std::{collections::BTreeMap, sync::LazyLock};
 
-// `pnpm_compat_package_extensions.json` holds undeclared dependencies that
-// break popular packages under the global virtual store (which, by design,
-// exposes only declared dependencies). Its entries are not in
-// `@yarnpkg/extensions` yet; drop an entry once the upstream DB or the
-// package itself declares the dependency. Mirrored in the TypeScript CLI's
+// `pnpm_compat_package_extensions.json` holds pnpm-specific entries not in
+// `@yarnpkg/extensions` yet; keep it identical to the TypeScript CLI's
 // `pnpmCompatPackageExtensions`.
 static COMPAT_PACKAGE_EXTENSIONS: LazyLock<IndexMap<String, PackageExtension>> =
     LazyLock::new(|| {
@@ -17,7 +14,9 @@ static COMPAT_PACKAGE_EXTENSIONS: LazyLock<IndexMap<String, PackageExtension>> =
             (include_str!("pnpm_compat_package_extensions.json"), "pnpm"),
         ] {
             let entries: Vec<(String, PackageExtension)> = serde_json::from_str(source)
-                .unwrap_or_else(|error| panic!("{name} compatibility DB JSON is valid: {error}"));
+                .unwrap_or_else(|error| {
+                    panic!("failed to parse {name} compatibility DB JSON: {error}")
+                });
             for (selector, extension) in entries {
                 merge_package_extension_entry(&mut extensions, selector, extension);
             }

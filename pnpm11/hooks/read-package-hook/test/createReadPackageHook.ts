@@ -57,6 +57,11 @@ test('getEffectivePackageExtensions() includes the pnpm-specific compatibility e
       tslib: '^2.3.0',
     },
   })
+  expect(extensions?.['@nuxt/vite-builder@>=4.0.0 <4.5.0']).toStrictEqual({
+    dependencies: {
+      unplugin: '^2.3.5',
+    },
+  })
   expect(extensions?.['@nuxt/vite-builder@>=4.5.0']).toStrictEqual({
     dependencies: {
       unplugin: '^3.3.0',
