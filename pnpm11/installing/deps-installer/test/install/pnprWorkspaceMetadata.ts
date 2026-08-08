@@ -152,6 +152,9 @@ test("pnpr forwards the client's whole verification policy, not just the age cut
     trustPolicyExclude: ['legacy-pkg'],
     trustPolicyIgnoreAfter: 43200,
     trustLockfile: true,
+    autoInstallPeers: false,
+    dedupePeers: true,
+    excludeLinksFromLockfile: false,
   })
 
   await install(manifest, options)
@@ -164,6 +167,9 @@ test("pnpr forwards the client's whole verification policy, not just the age cut
     trustPolicyExclude: ['legacy-pkg'],
     trustPolicyIgnoreAfter: 43200,
     trustLockfile: true,
+    autoInstallPeers: false,
+    dedupePeers: true,
+    excludeLinksFromLockfile: false,
   }))
 })
 
