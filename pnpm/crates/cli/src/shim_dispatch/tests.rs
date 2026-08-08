@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use super::validate_candidate;
 use super::{
     Candidate, MAX_HASHED_BIN_SIZE, append_trust_decision, find_candidate, install_dispatcher_from,
     is_automatic_runtime, local_bin_identity, local_bin_path, managed_runtime_bin,
@@ -282,6 +284,37 @@ fn dispatcher_install_replaces_a_stale_file() {
     install_dispatcher_from(&source, &destination).unwrap();
 
     assert_eq!(fs::read_to_string(destination).unwrap(), "current dispatcher");
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_cmd_shim_candidate_matches_the_global_provider() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    let local_package = project.join("node_modules/tool");
+    let local_target = local_package.join("cli.cmd");
+    let local_bin = project.join("node_modules/.bin");
+    let global_package = root.path().join("global/node_modules/tool");
+    let global_target = global_package.join("cli.cmd");
+    fs::create_dir_all(&local_package).unwrap();
+    fs::create_dir_all(&local_bin).unwrap();
+    fs::create_dir_all(&global_package).unwrap();
+    fs::write(local_package.join("package.json"), r#"{"name":"tool"}"#).unwrap();
+    fs::write(global_package.join("package.json"), r#"{"name":"tool"}"#).unwrap();
+    fs::write(&local_target, "@ECHO local:%*\r\n").unwrap();
+    fs::write(&global_target, "@ECHO global:%*\r\n").unwrap();
+    fs::write(local_bin.join("tool"), format!("# cmd-shim-target={}\n", local_target.display()))
+        .unwrap();
+    fs::write(local_bin.join("tool.cmd"), format!("@CALL \"{}\" %*\r\n", local_target.display()))
+        .unwrap();
+
+    assert_eq!(provider_of_target(&global_target).unwrap().name, "tool");
+    let candidate = find_candidate(&project, "tool", GlobalShims::All).unwrap();
+    let Candidate::LocalBin { bin, .. } = &candidate else {
+        panic!("expected a local bin candidate");
+    };
+    assert_eq!(local_bin_identity(bin, "tool").unwrap().provider.name, "tool");
+    assert!(validate_candidate(candidate, &global_target, "tool").is_some());
 }
 
 #[test]

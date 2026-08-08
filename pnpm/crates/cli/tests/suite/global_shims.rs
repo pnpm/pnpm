@@ -459,8 +459,12 @@ fn generated_cmd_and_powershell_shims_dispatch_and_fall_back() {
             .unwrap();
         assert!(local.status.success(), "stderr:\n{}", String::from_utf8_lossy(&local.stderr));
         let local_stdout = String::from_utf8_lossy(&local.stdout);
-        assert!(local_stdout.contains("local:"));
-        assert!(local_stdout.contains("value with spaces"));
+        assert!(
+            local_stdout.contains("local:"),
+            "{shell} stdout:\n{local_stdout}\nstderr:\n{}",
+            String::from_utf8_lossy(&local.stderr),
+        );
+        assert!(local_stdout.contains("value with spaces"), "{shell} stdout:\n{local_stdout}");
 
         let global = Command::new(shell)
             .args(&shell_args)
