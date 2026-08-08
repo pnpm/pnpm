@@ -1,6 +1,7 @@
 import path from 'node:path'
 import util from 'node:util'
 
+import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import {
   deprecationLogger,
@@ -766,20 +767,29 @@ async function resolveDependenciesOfImporterDependency (
   // The catalog protocol is only usable in importers (i.e. packages in the
   // workspace. Replacing catalog protocol while resolving importers here before
   // resolving dependencies of packages outside of the workspace/monorepo.
-  const catalogLookup = matchCatalogResolveResult(ctx.catalogResolver(extendedWantedDep.wantedDependency), {
+  const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
+  const originalPrevSpecifier = (extendedWantedDep.wantedDependency as WantedDependency & { prevSpecifier?: string }).prevSpecifier
+  const catalogSpecifier = originalPrevSpecifier != null &&
+    parseCatalogProtocol(originalPrevSpecifier) != null &&
+    isExplicitDistTagSpecifier(originalBareSpecifier)
+    ? originalPrevSpecifier
+    : originalBareSpecifier
+  const catalogLookup = matchCatalogResolveResult(ctx.catalogResolver({
+    ...extendedWantedDep.wantedDependency,
+    bareSpecifier: catalogSpecifier,
+  }), {
     found: (result) => result.resolution,
     unused: () => undefined,
     misconfiguration: (result) => {
       throw result.error
     },
   })
-  const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
 
   // The lockfile from a previous installation may have already resolved this
   // cataloged dependency. Reuse the exact version in the lockfile catalog
   // snapshot to ensure all projects using the same cataloged dependency get the
   // same version.
-  if (catalogLookup != null) {
+  if (catalogLookup != null && originalBareSpecifier === catalogSpecifier) {
     extendedWantedDep.wantedDependency.bareSpecifier = catalogLookup.specifier
     extendedWantedDep.preferredVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
   }
@@ -802,7 +812,7 @@ async function resolveDependenciesOfImporterDependency (
   if (result.resolveDependencyResult != null && catalogLookup != null) {
     result.resolveDependencyResult.catalogLookup = {
       ...catalogLookup,
-      userSpecifiedBareSpecifier: originalBareSpecifier,
+      userSpecifiedBareSpecifier: catalogSpecifier,
     }
   }
 
@@ -824,6 +834,10 @@ function filterMissingPeersFromPkgAddresses (
       return false
     }, pkgAddress.missingPeers ?? {}),
   }))
+}
+
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 function getPublishedByDate (pkgAddresses: PkgAddress[], timeFromLockfile: Record<string, string> = {}): { publishedBy: Date, newTime: Record<string, string> } {

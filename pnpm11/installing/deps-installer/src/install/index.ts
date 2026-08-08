@@ -1068,6 +1068,12 @@ export async function mutateModules (
           // Promoting it into a catalog rewrites the entry to `catalog:`, which
           // breaks that round-trip and strands it in `devDependencies`.
           if (wantedDep.bareSpecifier?.startsWith('runtime:')) continue
+          if (
+            wantedDep.prevSpecifier != null &&
+            parseCatalogProtocol(wantedDep.prevSpecifier) != null &&
+            wantedDep.bareSpecifier !== wantedDep.prevSpecifier &&
+            isExplicitDistTagSpecifier(wantedDep.bareSpecifier)
+          ) continue
           const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
           const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
@@ -1510,6 +1516,10 @@ function getPerDepCatalogName (
     }
   }
   return globalSaveCatalogName ?? 'default'
+}
+
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 export async function addDependenciesToPackage (
