@@ -1,7 +1,3 @@
-// `assert_cmd::prelude::*` (for `.assert()`) is only used by the Unix-
-// gated dlx happy-path test below; gating the import avoids an
-// `unused_imports` error on Windows under clippy's `-D warnings`.
-#[cfg(unix)]
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
@@ -102,13 +98,10 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
     drop(root);
 }
 
-/// The caller project's `patchedDependencies` must not reach the dlx cache
-/// install: pnpm's dlx installs the package unpatched, and the configured
-/// paths are relative to the caller's workspace root, which the dlx install
-/// does not have. Inheriting them failed every dlx invocation from a project
-/// with patches, on a patch file missing under the cache dir.
-#[cfg(unix)]
+/// pnpm's dlx installs the package unpatched, and the caller's patch paths
+/// are relative to a workspace root the cache install does not have.
 #[test]
+#[cfg_attr(not(unix), ignore = "dlx bin execution is only exercised on Unix")]
 fn dlx_ignores_the_caller_projects_patched_dependencies() {
     let CommandTempCwd { pacquet, root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
