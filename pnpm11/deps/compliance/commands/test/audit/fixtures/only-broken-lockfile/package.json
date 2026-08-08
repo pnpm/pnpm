@@ -1,0 +1,7 @@
+{
+  "name": "only-broken-lockfile",
+  "version": "0.0.0",
+  "dependencies": {
+    "gone-pkg": "9.9.9"
+  }
+}

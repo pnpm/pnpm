@@ -56,6 +56,57 @@ describe('audit', () => {
     expect(result.unresolvable).toEqual([{ name: 'uuid', depPath: 'uuid@13.0.2' }])
   })
 
+  test('lockfileToAuditRequest() surfaces unresolvable references nested below the importer level', () => {
+    // The dangling reference sits inside a resolved package's dependencies
+    // (the walker's nested `step.missing`), not directly on the importer.
+    const result = lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['foo@1.0.0' as DepPath]: {
+          dependencies: { gone: '9.9.9' },
+          resolution: { integrity: 'foo-integrity' },
+        },
+      },
+    }, {})
+
+    expect(result.request).toEqual({ foo: ['1.0.0'] })
+    expect(result.totalDependencies).toBe(1)
+    expect(result.unresolvable).toEqual([{ name: 'gone', depPath: 'gone@9.9.9' }])
+  })
+
+  test('lockfileToAuditRequest() reports an unresolvable reference once when both the main and env lockfiles contain it', () => {
+    const result = lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { gone: '9.9.9' },
+          specifiers: { gone: '^9.9.9' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {},
+    }, {
+      envLockfile: {
+        lockfileVersion: LOCKFILE_VERSION,
+        importers: {
+          '.': {
+            configDependencies: {},
+            packageManagerDependencies: { gone: { specifier: '^9.9.9', version: '9.9.9' } },
+          },
+        },
+        packages: {},
+        snapshots: {},
+      },
+    })
+
+    expect(result.unresolvable).toEqual([{ name: 'gone', depPath: 'gone@9.9.9' }])
+  })
+
   test('buildAuditPathIndex() records install paths for vulnerable packages', () => {
     const lockfile = {
       importers: {

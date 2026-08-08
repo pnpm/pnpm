@@ -1,7 +1,7 @@
 ---
-"@pnpm/deps.compliance.audit": patch
+"@pnpm/deps.compliance.audit": minor
 "@pnpm/deps.compliance.commands": patch
-"@pnpm/deps.security.signatures": patch
+"@pnpm/deps.security.signatures": minor
 "pnpm": patch
 ---
 

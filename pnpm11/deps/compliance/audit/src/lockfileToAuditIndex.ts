@@ -30,8 +30,15 @@ export interface AuditIndexRequest {
   // packages:/snapshots: (LockfileWalkerStep.missing) -- a broken or tampered
   // lockfile, not a shape the registry can be asked about. Distinct from
   // `links`, which the walker also reports and which are legitimately not
-  // audited (local workspace symlinks, not registry packages). Callers must
-  // surface these as failures rather than silently shrinking their counts.
+  // audited (local workspace symlinks, not registry packages). De-duplicated
+  // across the main and env lockfile walks.
+  //
+  // Consumed by the signature audit, which reports each entry as an invalid
+  // issue. The bulk vulnerability audit intentionally does not consume it:
+  // its output is the registry's advisory report (advisories + counts), a
+  // shape with no slot for lockfile-integrity failures, and inventing one
+  // would break consumers of the `--json` report format. Signature auditing
+  // is where lockfile-integrity failures belong.
   unresolvable: Array<{ name: string, depPath: DepPath }>
 }
 
@@ -69,8 +76,15 @@ export function lockfileToAuditRequest (
   let devDependencies = 0
   let optionalDependencies = 0
   const unresolvable: Array<{ name: string, depPath: DepPath }> = []
+  // Shared across every walk below: the walker de-duplicates within one
+  // lockfile graph, but the main and env lockfiles are walked separately, so
+  // the same broken depPath referenced by both would otherwise be reported
+  // (and counted by callers) twice.
+  const seenUnresolvable = new Set<string>()
   const recordUnresolvable = (depPaths: readonly string[]): void => {
     for (const depPath of depPaths) {
+      if (seenUnresolvable.has(depPath)) continue
+      seenUnresolvable.add(depPath)
       unresolvable.push({ name: dp.parse(depPath).name ?? depPath, depPath: depPath as DepPath })
     }
   }
