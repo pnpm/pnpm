@@ -16,7 +16,7 @@ use std::{
 /// When no `pnpm` binary is reachable the context-aware shim degrades to
 /// the direct exec, so a broken or partially-removed pnpm installation
 /// never takes the global bins down with it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum ShimStyle {
     #[default]
     Direct,
@@ -461,18 +461,18 @@ pub fn generate_pwsh_shim(
     if style == ShimStyle::ContextAware {
         let shim_name = shim_name(shim_path);
         writeln!(pwsh).unwrap();
-        writeln!(pwsh, "if (Test-Path \"$basedir/pnpm$exe\") {{").unwrap();
+        writeln!(pwsh, r#"if (Test-Path "$basedir/pnpm$exe") {{"#).unwrap();
         writeln!(pwsh, "  # Support pipeline input").unwrap();
         writeln!(pwsh, "  if ($MyInvocation.ExpectingInput) {{").unwrap();
         writeln!(
             pwsh,
-            "    $input | & \"$basedir/pnpm$exe\" '--shim' '{shim_name}' {quoted_target} '--' $args"
+            r#"    $input | & "$basedir/pnpm$exe" '--shim' '{shim_name}' {quoted_target} '--' $args"#,
         )
         .unwrap();
         writeln!(pwsh, "  }} else {{").unwrap();
         writeln!(
             pwsh,
-            "    & \"$basedir/pnpm$exe\" '--shim' '{shim_name}' {quoted_target} '--' $args"
+            r#"    & "$basedir/pnpm$exe" '--shim' '{shim_name}' {quoted_target} '--' $args"#,
         )
         .unwrap();
         writeln!(pwsh, "  }}").unwrap();

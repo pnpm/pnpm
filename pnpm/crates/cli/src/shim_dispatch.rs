@@ -61,7 +61,7 @@ pub(crate) fn try_dispatch(argv: &[OsString]) -> Option<i32> {
 fn dispatch(rest: &[OsString]) -> i32 {
     let Some((name, global_target, args)) = parse_shim_argv(rest) else {
         eprintln!(
-            "pnpm: malformed --shim invocation. Usage: pnpm --shim <name> <target> -- [args...]"
+            "pnpm: malformed --shim invocation. Usage: pnpm --shim <name> <target> -- [args...]",
         );
         return 1;
     };
