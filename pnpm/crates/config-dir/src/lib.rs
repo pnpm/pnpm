@@ -34,5 +34,29 @@ pub fn config_dir(
     })
 }
 
+/// Resolve the machine-local state directory for `app_name`, mirroring
+/// pnpm's `getStateDir`: `$XDG_STATE_HOME/<app>`, else
+/// `~/.local/state/<app>` on non-Windows, else
+/// `%LOCALAPPDATA%\<app>-state`, else `~/.<app>-state`. Same
+/// environment-seam shape as [`config_dir`].
+pub fn state_dir(
+    app_name: &str,
+    os: &str,
+    xdg_state_home: Option<&str>,
+    local_app_data: Option<&str>,
+    home: impl FnOnce() -> Option<PathBuf>,
+) -> Option<PathBuf> {
+    if let Some(xdg_state_home) = xdg_state_home {
+        return Some(Path::new(xdg_state_home).join(app_name));
+    }
+    if os != "windows" {
+        return Some(home()?.join(".local").join("state").join(app_name));
+    }
+    if let Some(local_app_data) = local_app_data {
+        return Some(Path::new(local_app_data).join(format!("{app_name}-state")));
+    }
+    Some(home()?.join(format!(".{app_name}-state")))
+}
+
 #[cfg(test)]
 mod tests;

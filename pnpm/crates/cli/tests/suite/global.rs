@@ -125,6 +125,142 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
+/// `globalShims: all` writes context-aware shims: the generated shim
+/// dispatches through the versioned binary next to it, so a project-local
+/// version of the same bin wins over the global target, and falls back to
+/// the global target outside any providing project.
+#[cfg(unix)]
+#[test]
+fn global_shims_all_prefers_local_bins() {
+    use assert_cmd::assert::OutputAssertExt;
+    use std::os::unix::fs::PermissionsExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).unwrap();
+    fs::write(&yaml_path, format!("{yaml}globalShims: all\n")).unwrap();
+
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
+
+    let shim_path = global_bin.join("touch-file-one-bin");
+    let shim = fs::read_to_string(&shim_path).expect("read the generated global shim");
+    assert!(shim.contains("--shim 'touch-file-one-bin'"), "shim should dispatch, was:\n{shim}");
+    assert!(shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
+    assert!(global_bin.join(".pnpm-shim-v1").is_file());
+
+    fs::write(global_bin.join("pnpm"), "#!/bin/sh\nexit 64\n").unwrap();
+    fs::set_permissions(global_bin.join("pnpm"), fs::Permissions::from_mode(0o755)).unwrap();
+
+    let project = root.path().join("project");
+    let local_script =
+        project.join("node_modules").join("@foo").join("touch-file-one-bin").join("cli.sh");
+    fs::create_dir_all(local_script.parent().unwrap()).unwrap();
+    fs::write(
+        local_script.parent().unwrap().join("package.json"),
+        serde_json::json!({ "name": "@foo/touch-file-one-bin", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+    fs::write(&local_script, "#!/bin/sh\necho local\n").unwrap();
+    fs::set_permissions(&local_script, fs::Permissions::from_mode(0o755)).unwrap();
+    let local_bin = project.join("node_modules").join(".bin").join("touch-file-one-bin");
+    fs::create_dir_all(local_bin.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink("../@foo/touch-file-one-bin/cli.sh", &local_bin).unwrap();
+
+    let output = Command::new(&shim_path)
+        .with_current_dir(&project)
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_env("PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS", "1")
+        .output()
+        .expect("run the generated shim inside the project");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "local", "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+
+    let outside = root.path().join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    Command::new(&shim_path)
+        .with_current_dir(&outside)
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .assert()
+        .success();
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+/// Ordinary packages use the plain direct-exec format in `auto` mode.
+#[cfg(unix)]
+#[test]
+fn global_shims_auto_writes_direct_shims_for_ordinary_packages() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
+
+    let shim = fs::read_to_string(pnpm_home.join("bin").join("touch-file-one-bin"))
+        .expect("read the generated global shim");
+    assert!(!shim.contains("--shim"), "shim should exec directly, was:\n{shim}");
+    assert!(!shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn global_shims_auto_writes_context_aware_shims_for_node_runtime() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).unwrap();
+    fs::write(&yaml_path, format!("{yaml}nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()))
+        .unwrap();
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["runtime", "set", "node", version, "--global"])
+        .assert()
+        .success();
+
+    let global_bin = pnpm_home.join("bin");
+    let shim = fs::read_to_string(global_bin.join("node")).expect("read the Node.js global shim");
+    assert!(shim.contains("--shim 'node'"), "shim should dispatch, was:\n{shim}");
+    assert!(shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
+    assert!(global_bin.join(".pnpm-shim-v1").is_file());
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// A mutating global command must create a missing global bin directory
 /// instead of failing `ERR_PNPM_PNPM_DIR_NOT_WRITABLE` — pnpm's config
 /// reader runs `mkdir -p` on the bin dir for every `--global` command. A

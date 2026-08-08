@@ -2,12 +2,14 @@ mod boolean_negations;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod executable_link;
 mod flag_relocation;
 mod github_actions;
 mod job_control;
 mod leading_separator;
 mod parse_boundary;
 mod renamed_options;
+mod shim_dispatch;
 mod shorthands;
 mod state;
 mod with_current;
@@ -58,6 +60,16 @@ fn run_cli() -> miette::Result<()> {
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let argv_with_alias = argv_with_alias_subcommand();
+    // Context-aware global shims invoke the versioned dispatcher with
+    // `--shim <name> <shim> <target> -- <args>` on every bare invocation,
+    // so this runs before any argv rewriting or clap machinery below.
+    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv_with_alias) {
+        #[expect(
+            clippy::exit,
+            reason = "the shim dispatcher propagates the dispatched command's exit status"
+        )]
+        std::process::exit(exit_code);
+    }
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with

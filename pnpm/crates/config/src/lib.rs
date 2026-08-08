@@ -37,17 +37,18 @@ use std::{
 };
 
 pub use crate::defaults::{
-    GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_config_dir,
-    default_git_shallow_hosts, default_peers_suffix_max_length, default_pnpm_home_dir,
-    default_registry, default_unsafe_perm, default_virtual_store_dir_max_length,
-    default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
+    GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_cache_dir,
+    default_config_dir, default_git_shallow_hosts, default_peers_suffix_max_length,
+    default_pnpm_home_dir, default_registry, default_state_dir, default_unsafe_perm,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, is_unsafe_perm_posix,
+    resolve_child_concurrency,
 };
 use crate::defaults::{
-    default_cache_dir, default_child_concurrency, default_enable_global_virtual_store,
-    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
-    default_fetch_retry_mintimeout, default_fetch_timeout, default_hoist_pattern,
-    default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
-    default_store_dir, default_user_agent, default_virtual_store_dir,
+    default_child_concurrency, default_enable_global_virtual_store, default_fetch_retries,
+    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
+    default_fetch_timeout, default_hoist_pattern, default_modules_cache_max_age,
+    default_modules_dir, default_public_hoist_pattern, default_store_dir, default_user_agent,
+    default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
@@ -119,6 +120,22 @@ pub enum TrustPolicy {
     #[default]
     Off,
     NoDowngrade,
+}
+
+/// Which globally installed commands use project-aware shims.
+///
+/// `auto` is the secure default: only runtimes whose downloaded artifacts
+/// pnpm authenticates against publisher-controlled keys may switch without
+/// prompting. `all` additionally enables candidate-bound, interactive
+/// switching for ordinary package bins. `off` writes and dispatches only
+/// direct global shims.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GlobalShims {
+    Off,
+    #[default]
+    Auto,
+    All,
 }
 
 /// What to do when the project's `packageManager` /
@@ -787,6 +804,12 @@ pub struct Config {
     /// Populated by [`Config::current`]; global add/remove/update require it
     /// (pnpm's `NO_GLOBAL_BIN_DIR` when absent).
     pub global_bin: Option<PathBuf>,
+
+    /// `globalShims`. `auto` (the default) enables automatic switching only
+    /// for authenticated managed runtimes. `all` also enables prompted,
+    /// candidate-bound switching for ordinary package bins. `off` always
+    /// executes the globally installed target directly.
+    pub global_shims: GlobalShims,
 
     /// Controls the way packages are imported from the store (if you want to disable symlinks
     /// inside `node_modules`, then you need to change the node-linker setting, not this one).

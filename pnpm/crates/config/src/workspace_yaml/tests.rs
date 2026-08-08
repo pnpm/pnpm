@@ -1,7 +1,8 @@
 use super::{AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
-    AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker,
-    NodePackageMapType, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    AuditLevel, CatalogMode, Config, GlobalShims, HoistingLimits, LinkWorkspacePackages,
+    NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath, TrustPolicy,
+    api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
@@ -34,6 +35,21 @@ packages:
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
     assert_eq!(settings.node_experimental_package_map, Some(true));
     assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
+}
+
+#[test]
+fn parses_global_shim_modes() {
+    assert_eq!(Config::default().global_shims, GlobalShims::Auto);
+    for (value, expected) in
+        [("off", GlobalShims::Off), ("auto", GlobalShims::Auto), ("all", GlobalShims::All)]
+    {
+        let settings: WorkspaceSettings =
+            serde_saphyr::from_str(&format!("globalShims: {value}\n")).unwrap();
+        assert_eq!(settings.global_shims, Some(expected));
+        let mut config = Config::default();
+        settings.apply_to(&mut config, Path::new("/irrelevant"));
+        assert_eq!(config.global_shims, expected);
+    }
 }
 
 #[test]
