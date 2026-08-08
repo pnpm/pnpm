@@ -441,6 +441,27 @@ fn generated_cmd_and_powershell_shims_dispatch_and_fall_back() {
         })
         .unwrap();
 
+    let direct = Command::cargo_bin("pnpm")
+        .unwrap()
+        .args(["--shim", "tool"])
+        .arg(&cmd_shim)
+        .arg(&global_target)
+        .args(["--", "value with spaces"])
+        .current_dir(&project)
+        .env(AUTO_TRUST_ENV, "1")
+        .env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+        .env("PNPM_HOME", root.path().join("pnpm-home"))
+        .env("XDG_STATE_HOME", root.path().join("state"))
+        .env("XDG_CONFIG_HOME", root.path().join("config"))
+        .output()
+        .unwrap();
+    let direct_stdout = String::from_utf8_lossy(&direct.stdout);
+    assert!(
+        direct.status.success() && direct_stdout.contains("local:"),
+        "direct stdout:\n{direct_stdout}\nstderr:\n{}",
+        String::from_utf8_lossy(&direct.stderr),
+    );
+
     for (shell, shell_args, shim) in [
         ("cmd", vec!["/c"], &cmd_shim),
         ("powershell.exe", vec!["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"], &pwsh_shim),
