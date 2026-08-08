@@ -1534,6 +1534,42 @@ describe('add', () => {
     ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_CATALOG_VERSION_MISMATCH' }))
   })
 
+  test('wanted version satisfying catalog range does not error with catalogMode: strict', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@2.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {
+            'is-positive': '^2.0.0',
+          },
+        },
+        catalogMode: 'strict',
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    })
+    expect(readLockfile()).toMatchObject({
+      importers: { project1: { dependencies: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } } },
+      packages: { 'is-positive@2.0.0': expect.any(Object) },
+    })
+  })
+
   test('adding mismatched version with catalogMode: prefer will warn and use direct', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
