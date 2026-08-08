@@ -756,6 +756,57 @@ mod block_exotic_subdeps {
         .expect("exotic subdep must pass when disabled");
         assert!(tree.packages.contains_key("say-hi@1.0.0"));
     }
+
+    #[tokio::test]
+    async fn allows_exotic_dep_under_workspace_dep() {
+        let mut table = HashMap::default();
+        let mut workspace_dep_res = fake_result(
+            "workspace-dep",
+            "1.0.0",
+            serde_json::json!({
+                "name": "workspace-dep",
+                "version": "1.0.0",
+                "dependencies": { "say-hi": "github:zkochan/hi" }
+            }),
+        );
+        workspace_dep_res.resolved_via = "workspace".to_string();
+        table.insert(
+            ("workspace-dep".to_string(), "workspace:^1.0.0".to_string()),
+            workspace_dep_res,
+        );
+        table.insert(
+            ("say-hi".to_string(), "github:zkochan/hi".to_string()),
+            git_result(
+                "say-hi",
+                "1.0.0",
+                serde_json::json!({ "name": "say-hi", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "workspace-dep": "workspace:^1.0.0" }));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions {
+                    block_exotic_subdeps: true,
+                    ..ResolveOptions::default()
+                },
+                patched_dependencies: None,
+                manifest_hook: None,
+                overrides_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+                auto_install_peers: false,
+            },
+        )
+        .await
+        .expect("exotic dep under workspace dep must pass");
+        assert!(tree.packages.contains_key("say-hi@1.0.0"));
+    }
 }
 
 mod peers {

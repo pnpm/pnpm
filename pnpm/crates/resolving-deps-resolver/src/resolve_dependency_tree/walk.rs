@@ -90,6 +90,7 @@ where
         base_overlay.clone(),
         None,
         parent_pkg_aliases,
+        false,
     )
     .await?
     {
@@ -184,6 +185,7 @@ pub(super) async fn resolve_node_seed<Chain>(
     pick_overlay: Option<Arc<PreferredVersionsOverlay>>,
     parent_dir: Option<&Path>,
     parent_pkg_aliases: &Arc<ParentPkgAliases>,
+    parent_is_workspace: bool,
 ) -> Result<NodeSeed, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -365,6 +367,7 @@ where
 
     if ctx.base_opts.block_exotic_subdeps
         && depth > 0
+        && !parent_is_workspace
         && is_exotic_resolved_via(&result.resolved_via)
     {
         return Err(ResolveDependencyTreeError::ExoticSubdep {
@@ -656,6 +659,7 @@ where
             .get(&ctx.importer_id)
             .map(Arc::clone);
         let declaring_dir = declaring_manifest_dir(ctx, &result);
+        let parent_is_workspace = result.resolved_via == "workspace";
         let child_seeds = child_specs
             .iter()
             .map(|(child_name, child_range, child_optional)| {
@@ -702,6 +706,7 @@ where
                         pick_overlay,
                         declaring_dir.as_deref(),
                         parent_pkg_aliases,
+                        parent_is_workspace,
                     )
                     .await?;
                     warm_children_resolutions(ctx, resolver, &seed).await;

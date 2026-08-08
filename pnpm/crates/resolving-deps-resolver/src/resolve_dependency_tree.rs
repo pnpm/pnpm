@@ -562,6 +562,7 @@ where
                     base_overlay,
                     None,
                     parent_pkg_aliases,
+                    false,
                 )
                 .await?;
                 warm_children_resolutions(ctx, resolver, &seed).await;
