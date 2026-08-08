@@ -201,7 +201,11 @@ function correctUrl (gitUrl: string): string {
     const [auth, ...pathname] = _gitUrl.slice(6).split('/')
     const userInfoEnd = auth.lastIndexOf('@')
     const host = userInfoEnd === -1 ? auth : auth.slice(userInfoEnd + 1)
-    if (host.includes(':') && !/:\d+$/.test(host)) {
+    // A bracketed IPv6 literal carries colons of its own, so only what comes
+    // after the closing bracket can hold the SCP-style separator or a port.
+    const bracketEnd = host.startsWith('[') ? host.indexOf(']') : -1
+    const afterHost = bracketEnd === -1 ? host : host.slice(bracketEnd + 1)
+    if (afterHost.includes(':') && !/:\d+$/.test(afterHost)) {
       const authArr = auth.split(':')
       const protocol = gitUrl.split('://')[0]
       gitUrl = `${protocol}://${authArr.slice(0, -1).join(':') + '/' + authArr[authArr.length - 1]}${pathname.length ? '/' + pathname.join('/') : ''}${hash}`
