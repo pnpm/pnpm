@@ -2903,6 +2903,12 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../../network/fetch
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../../object/key-sorting

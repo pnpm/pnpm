@@ -5,6 +5,7 @@ import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import semver from 'semver'
 
 import type { AuditOptions } from './audit.js'
+import { createPublishTimesFetcher } from './publishTimes.js'
 
 export interface FixResult {
   vulnOverrides: Record<string, string>
@@ -15,7 +16,12 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreGhsas)
   const vulnOverrides = createOverrides(fixableAdvisories)
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
-  const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(fixableAdvisories) : []
+  const addedAgeExcludes = opts.minimumReleaseAge
+    ? await createMinimumReleaseAgeExcludes(fixableAdvisories, {
+      getPublishTimes: createPublishTimesFetcher(opts),
+      minimumReleaseAge: opts.minimumReleaseAge,
+    })
+    : []
   await writeSettings({
     updatedOverrides: vulnOverrides,
     addedMinimumReleaseAgeExcludes: addedAgeExcludes.length > 0 ? addedAgeExcludes : undefined,
@@ -56,14 +62,43 @@ export function caretRangeForPatched (patchedRange: string): string {
   return min ? `^${min.version}` : patchedRange
 }
 
-export function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): string[] {
-  const specs: string[] = []
-  for (const advisory of advisories) {
+export interface CreateMinimumReleaseAgeExcludesOptions {
+  /**
+   * Publish-time lookup (the packument's `time` map) per package name.
+   * `undefined` means the publish times are unknown.
+   */
+  getPublishTimes: (pkgName: string) => Promise<Record<string, string> | undefined>
+  /**
+   * In minutes, same unit as the `minimumReleaseAge` setting.
+   */
+  minimumReleaseAge: number
+  now?: number
+}
+
+/**
+ * The `minimumReleaseAgeExclude` entries needed to keep the age gate from
+ * blocking the patched versions: one entry per fixable advisory whose minimum
+ * patched version is younger than the cutoff. A version published at or
+ * before the cutoff doesn't need a bypass, and a version whose publish time
+ * is unknown keeps its entry so a genuinely fresh fix stays installable.
+ */
+export async function createMinimumReleaseAgeExcludes (
+  advisories: AuditAdvisory[],
+  opts: CreateMinimumReleaseAgeExcludesOptions
+): Promise<string[]> {
+  const cutoff = (opts.now ?? Date.now()) - opts.minimumReleaseAge * 60 * 1000
+  const specs = await Promise.all(advisories.map(async (advisory): Promise<string | undefined> => {
     const patchedVersions = advisory.patched_versions
-    if (!patchedVersions) continue
+    if (!patchedVersions) return undefined
     const minVersion = semver.minVersion(patchedVersions)
-    if (!minVersion) continue
-    specs.push(`${advisory.module_name}@${minVersion.version}`)
-  }
-  return mergePackageVersionSpecs(specs)
+    if (!minVersion) return undefined
+    const spec = `${advisory.module_name}@${minVersion.version}`
+    const publishTime: unknown = (await opts.getPublishTimes(advisory.module_name))?.[minVersion.version]
+    // The time map comes from an untrusted registry response: only a string
+    // can carry a real timestamp; anything else is treated as unknown.
+    if (typeof publishTime !== 'string') return spec
+    const publishedAt = new Date(publishTime).getTime()
+    return Number.isNaN(publishedAt) || publishedAt > cutoff ? spec : undefined
+  }))
+  return mergePackageVersionSpecs(specs.filter((spec): spec is string => spec != null))
 }
