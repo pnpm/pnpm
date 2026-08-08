@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import url from 'node:url'
 import util from 'node:util'
 
-import { PnpmError, redactUrlCredentials } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import pLimit from 'p-limit'
@@ -425,7 +425,7 @@ export interface InstalledSignatureFailure {
   /**
    * The registry the package was installed from (see
    * {@link InstalledPackageToVerify.registry}), with inline `user:pass@`
-   * credentials stripped so the failure is safe to print or log.
+   * credentials and control characters stripped so the failure is safe to print or log.
    */
   registry: string
   reason: string
@@ -486,7 +486,7 @@ export async function verifyInstalledPackageSignatures (
   await Promise.all(packages.map((pkg) => limit(async () => {
     const failure = await findSignatureFailure(pkg, ctx)
     if (failure != null) {
-      failures.push({ name: pkg.name, version: pkg.version, registry: redactUrlCredentials(pkg.registry), ...failure })
+      failures.push({ name: pkg.name, version: pkg.version, registry: redactAndSanitize(pkg.registry), ...failure })
     }
   })))
 
@@ -539,7 +539,7 @@ async function findSignatureFailure (
   // none) and the fallback could not be consulted — nothing suspicious was
   // observed, the signature was simply unobtainable.
   return {
-    reason: `${primary.reason}; the fallback registry (${redactUrlCredentials(fallbackRegistry)}) could not be consulted either: ${secondary.reason}`,
+    reason: `${primary.reason}; the fallback registry (${redactAndSanitize(fallbackRegistry)}) could not be consulted either: ${secondary.reason}`,
     category: 'unreachable',
   }
 }
@@ -555,13 +555,13 @@ async function attemptSignatureVerification (
 ): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
   // Registry URLs may carry inline `user:pass@` credentials, and the reasons
   // built here end up in error messages and warnings.
-  const displayRegistry = redactUrlCredentials(registry)
+  const displayRegistry = redactAndSanitize(registry)
   let packument: Packument | undefined
   try {
     packument = await getPackument({ ...pkg, registry }, ctx.getAuthHeader, ctx.opts, ctx.packumentCache)
   } catch (err: unknown) {
     // The fetch error may echo the request URL, credentials included.
-    return { reason: redactUrlCredentials(util.types.isNativeError(err) ? err.message : String(err)), category: 'unreachable' }
+    return { reason: redactAndSanitize(util.types.isNativeError(err) ? err.message : String(err)), category: 'unreachable' }
   }
   if (!packument) return { reason: `${pkg.name} is not published on ${displayRegistry}`, category: 'absent' }
 
@@ -604,7 +604,7 @@ export function equalRegistries (a: string, b: string): boolean {
 }
 
 function normalizeRegistryUrl (registry: string): string {
-  const withSlash = redactUrlCredentials(registry.endsWith('/') ? registry : `${registry}/`)
+  const withSlash = redactAndSanitize(registry.endsWith('/') ? registry : `${registry}/`)
   try {
     // URL normalization lowercases the host and drops a default port.
     return new url.URL(withSlash).toString().toLowerCase()

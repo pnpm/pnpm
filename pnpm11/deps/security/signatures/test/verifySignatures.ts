@@ -420,11 +420,14 @@ describe('verifyInstalledPackageSignatures', () => {
     // the registries involved.
     const result = await verifyInstalledPackageSignatures([
       { name: 'signed-pkg', registry: 'https://user:pass@registry.example.test/', version: '1.0.0', integrity: INTEGRITY },
+      // A control character inside the password must not split the
+      // authority and leak either half of the credentials.
+      { name: 'other-pkg', registry: 'https://user:p\rass@registry.example.test/', version: '1.0.0', integrity: INTEGRITY },
     ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: 'https://user:pass@second-registry.example.test/' })
 
     expect(result.verified).toBe(false)
     expect(result.failures[0].registry).toBe(REGISTRY)
-    expect(JSON.stringify(result.failures)).not.toContain('user:pass')
+    expect(JSON.stringify(result.failures)).not.toContain('user:p')
   })
 
   test('reports a non-sha512 integrity pin as uncovered without consulting any registry', async () => {

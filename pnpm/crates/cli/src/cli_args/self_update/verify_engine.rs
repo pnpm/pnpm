@@ -23,7 +23,7 @@ use pacquet_config::Config;
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef, SpecifierAndResolution};
 use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_package_name, redact_url_credentials,
+    NetworkSettings, RetryOpts, ThrottledClient, encode_package_name, redact_and_sanitize,
     send_with_retry,
 };
 use serde::Deserialize;
@@ -343,7 +343,7 @@ async fn find_signature_failure(
             reason,
             category,
             label: label.clone(),
-            registry: redact_url_credentials(&component.registry),
+            registry: redact_and_sanitize(&component.registry),
         })
     };
 
@@ -402,7 +402,7 @@ async fn find_signature_failure(
         format!(
             "{}; the fallback registry ({}) could not be consulted either: {}",
             primary.0,
-            redact_url_credentials(fallback_registry),
+            redact_and_sanitize(fallback_registry),
             secondary.0,
         ),
         FailureCategory::Unreachable,
@@ -423,7 +423,7 @@ async fn attempt_signature_verification(
     let label = format!("{}@{}", component.name, component.version);
     // Registry URLs may carry inline `user:pass@` credentials, and the
     // reasons built here end up in error messages and warnings.
-    let display_registry = redact_url_credentials(registry);
+    let display_registry = redact_and_sanitize(registry);
     let packument = match fetch_packument(component, registry, client, retry_opts, config).await {
         Ok(Some(packument)) => packument,
         Ok(None) => {
@@ -496,7 +496,7 @@ fn equal_registries(left: &str, right: &str) -> bool {
 }
 
 fn normalize_registry_url(registry: &str) -> String {
-    let with_slash = redact_url_credentials(&with_trailing_slash(registry));
+    let with_slash = redact_and_sanitize(&with_trailing_slash(registry));
     // URL normalization lowercases the host and drops a default port.
     url::Url::parse(&with_slash).map(String::from).unwrap_or(with_slash)
 }
@@ -593,7 +593,7 @@ async fn fetch_packument(
 ) -> Result<Option<Packument>, String> {
     let registry_url = with_trailing_slash(registry);
     let packument_url = format!("{registry_url}{}", encode_package_name(&component.name));
-    let display_url = redact_url_credentials(&packument_url);
+    let display_url = redact_and_sanitize(&packument_url);
     // Resolve auth against the request URL *and* the package name so a
     // `@scope:registry`-scoped token applies (plain `for_url` skips the
     // scope lookup, breaking bootstrap registries that require it).
@@ -610,7 +610,7 @@ async fn fetch_packument(
         request
     })
     .await
-    .map_err(|source| format!("{display_url}: {}", redact_url_credentials(&source.to_string())))?;
+    .map_err(|source| format!("{display_url}: {}", redact_and_sanitize(&source.to_string())))?;
 
     let status = response.status().as_u16();
     if status == 404 {
@@ -632,7 +632,7 @@ async fn fetch_packument(
     let mut body_bytes = Vec::new();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|source| {
-            format!("{display_url}: {}", redact_url_credentials(&source.to_string()))
+            format!("{display_url}: {}", redact_and_sanitize(&source.to_string()))
         })?;
         if (body_bytes.len() + chunk.len()) as u64 > MAX_PACKUMENT_BYTES {
             return Err(format!("{display_url} returned an oversized packument"));
