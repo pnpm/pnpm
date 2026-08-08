@@ -82,10 +82,24 @@ fn trusted_project_local_bin_wins() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert_eq!(stdout.trim(), "local");
+}
+
+#[cfg(unix)]
+#[test]
+fn ordinary_project_bins_do_not_switch_in_auto_mode() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .with_env(AUTO_TRUST_ENV, "1")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(stdout.trim(), "global");
 }
 
 #[cfg(unix)]
@@ -96,6 +110,7 @@ fn untrusted_project_falls_back_to_the_global_target() {
     // No recorded decision and no terminal to ask on: the global target
     // must run.
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -109,6 +124,7 @@ fn bypass_env_skips_the_project_bin() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
         .with_env("PNPM_SHIM_BYPASS", "1")
         .assert()
         .success();
@@ -131,6 +147,7 @@ fn shim_args_reach_the_target() {
         &["tool", global_target.to_str().unwrap(), "--", "--flag", "value with spaces"],
     )
     .with_env(AUTO_TRUST_ENV, "1")
+    .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
     .assert()
     .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -147,9 +164,8 @@ fn missing_global_target_reports_not_found() {
     assert_eq!(output.get_output().status.code(), Some(127));
 }
 
-/// A project that pins node in `devEngines.runtime` but has no
-/// `node_modules` gets the pinned version fetched on demand (through the
-/// dlx machinery) instead of the global target.
+/// A project that pins Node.js gets the pinned version fetched into the
+/// global virtual store instead of using the project `.bin` or global target.
 #[cfg(unix)]
 #[test]
 fn runtime_pin_downloads_node_on_demand() {
@@ -170,6 +186,7 @@ fn runtime_pin_downloads_node_on_demand() {
         ),
     )
     .unwrap();
+    write_script(&project.join("node_modules/.bin/node"), "compromised-local-bin");
     fs::write(
         project.join("package.json"),
         serde_json::json!({
@@ -189,17 +206,20 @@ fn runtime_pin_downloads_node_on_demand() {
 
     shim_command(&root, &project, &["node", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
         .assert()
         .success();
-    // The only source of a node binary in this test is the mocked
-    // release server, so a materialized dlx slot proves the pinned
-    // version was fetched and run (the fixture binary exits 0).
-    let dlx_cache = root.path().join("cache").join("dlx");
-    let materialized_node = fs::read_dir(&dlx_cache)
-        .expect("the dlx cache should exist")
+    let environments = root.path().join("state/pnpm/global-shim-runtimes");
+    let package_dir = fs::read_dir(&environments)
+        .expect("the runtime environment should exist")
         .flatten()
-        .any(|entry| entry.path().join("pkg").join("node_modules").join("node").is_dir());
-    assert!(materialized_node, "the pinned node should be materialized under {dlx_cache:?}");
+        .map(|entry| entry.path().join("node_modules/node"))
+        .find(|path| path.exists())
+        .expect("the runtime environment should link Node.js");
+    let package_dir = fs::canonicalize(package_dir).unwrap();
+    let global_store = fs::canonicalize(root.path().join("store/v11/links")).unwrap();
+    assert!(package_dir.starts_with(global_store));
+    assert!(!root.path().join("cache/dlx").exists());
 }
 
 /// A same-named bin provided by a *different* package must not shadow
@@ -211,13 +231,14 @@ fn lookalike_package_does_not_shadow_the_global_bin() {
     let (project, global_target) = prepare_local_and_global_from(&root, "tool", "evil-pkg");
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert_eq!(stdout.trim(), "global");
 }
 
-/// `globalShims: false` in the global config.yaml disables dispatch
+/// `globalShims: off` in the global config.yaml disables dispatch
 /// immediately — no relinking required.
 #[cfg(unix)]
 #[test]
@@ -226,7 +247,7 @@ fn global_shims_setting_off_disables_dispatch() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
-    fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims: off\n").unwrap();
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
         .assert()
@@ -242,7 +263,7 @@ fn global_home_setting_off_disables_dispatch() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(&pnpm_home).unwrap();
-    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
+    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: off\n").unwrap();
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
         .assert()
@@ -259,7 +280,7 @@ fn global_shims_env_override_disables_dispatch() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "off")
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -276,6 +297,7 @@ fn verified_lockfile_does_not_skip_the_trust_gate() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     write_lockfile_verified_record(&root, &project);
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -429,6 +451,7 @@ fn generated_cmd_and_powershell_shims_dispatch_and_fall_back() {
             .arg("value with spaces")
             .current_dir(&project)
             .env(AUTO_TRUST_ENV, "1")
+            .env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
             .env("PNPM_HOME", root.path().join("pnpm-home"))
             .env("XDG_STATE_HOME", root.path().join("state"))
             .env("XDG_CONFIG_HOME", root.path().join("config"))
@@ -454,4 +477,35 @@ fn generated_cmd_and_powershell_shims_dispatch_and_fall_back() {
         assert!(global_stdout.contains("global:"));
         assert!(global_stdout.contains("value with spaces"));
     }
+}
+
+#[cfg(windows)]
+#[test]
+fn native_node_dispatcher_preserves_the_global_executable_fallback() {
+    use std::os::windows::ffi::OsStrExt as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("global-bin");
+    let outside = root.path().join("outside");
+    fs::create_dir_all(&global_bin).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    fs::copy(Command::cargo_bin("pnpm").unwrap().get_program(), global_bin.join("node.exe"))
+        .unwrap();
+
+    let global_target = std::env::var_os("ComSpec").expect("ComSpec should identify cmd.exe");
+    let encoded = global_target.encode_wide().flat_map(u16::to_le_bytes).collect::<Vec<_>>();
+    fs::write(global_bin.join(".pnpm-shim-v1-node-target"), encoded).unwrap();
+
+    let output = Command::new(global_bin.join("node.exe"))
+        .args(["/d", "/c", "echo native-fallback"])
+        .current_dir(outside)
+        .env("PNPM_CONFIG_GLOBAL_SHIMS", "auto")
+        .env("PNPM_HOME", root.path().join("pnpm-home"))
+        .env("XDG_STATE_HOME", root.path().join("state"))
+        .env("XDG_CONFIG_HOME", root.path().join("config"))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("native-fallback"));
 }

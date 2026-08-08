@@ -538,9 +538,11 @@ where
     // A context-aware `node` is the exception on Unix: the whole point of
     // the global bin dir's shims is that bare `node` can defer to a
     // project-local version, which a symlink cannot do, so the global
-    // `node` gets a dispatch shim like every other bin. Windows keeps the
-    // hardlink even in context-aware mode: replacing `node.exe` with a
-    // script would break every tool that spawns `node` without a shell.
+    // `node` gets a dispatch shim like every other bin. This low-level linker
+    // keeps the Windows hardlink because replacing `node.exe` with a script
+    // would break tools that spawn it without a shell; the global CLI linker
+    // subsequently replaces it with the native dispatcher after recording
+    // the original executable as its fallback target.
     if is_node_bin_name(shim_path)
         && (style == ShimStyle::Direct || cfg!(windows))
         && link_node_bin(target_path, shim_path)?

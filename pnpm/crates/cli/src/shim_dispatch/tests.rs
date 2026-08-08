@@ -1,9 +1,10 @@
 use super::{
     Candidate, MAX_HASHED_BIN_SIZE, append_trust_decision, find_candidate, install_dispatcher_from,
-    local_bin_identity, local_bin_path, manifest_runtime_pin, package_dir_of_target,
-    parse_shim_argv, provider_of_target, read_shim_target_from_content, read_trust_decision,
-    small_file_hash, try_dispatch,
+    is_automatic_runtime, local_bin_identity, local_bin_path, managed_runtime_bin,
+    manifest_runtime_pin, package_dir_of_target, parse_shim_argv, provider_of_target,
+    read_shim_target_from_content, read_trust_decision, small_file_hash, try_dispatch,
 };
+use pacquet_config::GlobalShims;
 use std::{ffi::OsString, fs, path::Path};
 
 fn strings(items: &[&str]) -> Vec<OsString> {
@@ -53,7 +54,7 @@ fn finds_the_nearest_local_bin_walking_up() {
     fs::create_dir_all(&bin_dir).unwrap();
     fs::write(bin_dir.join("tsc"), "#!/bin/sh\n").unwrap();
 
-    let candidate = find_candidate(&nested, "tsc").unwrap();
+    let candidate = find_candidate(&nested, "tsc", GlobalShims::All).unwrap();
     let Candidate::LocalBin { project_dir, bin, .. } = candidate else {
         panic!("expected a local bin candidate");
     };
@@ -66,7 +67,17 @@ fn no_candidate_without_a_bin_or_pin() {
     let root = tempfile::tempdir().unwrap();
     let dir = root.path().join("plain");
     fs::create_dir_all(&dir).unwrap();
-    assert!(find_candidate(&dir, "tsc").is_none());
+    assert!(find_candidate(&dir, "tsc", GlobalShims::All).is_none());
+}
+
+#[test]
+fn auto_mode_does_not_consider_ordinary_local_bins() {
+    let root = tempfile::tempdir().unwrap();
+    let bin_dir = root.path().join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::write(bin_dir.join("tsc"), "#!/bin/sh\n").unwrap();
+
+    assert!(find_candidate(root.path(), "tsc", GlobalShims::Auto).is_none());
 }
 
 #[test]
@@ -137,12 +148,64 @@ fn runtime_pin_candidate_found_walking_up() {
     )
     .unwrap();
 
-    let candidate = find_candidate(&nested, "node").unwrap();
+    let candidate = find_candidate(&nested, "node", GlobalShims::Auto).unwrap();
     let Candidate::RuntimePin { project_dir, version_spec, .. } = candidate else {
         panic!("expected a runtime pin candidate");
     };
     assert_eq!(project_dir, project);
     assert_eq!(version_spec, "22.0.0");
+}
+
+#[test]
+fn runtime_candidates_never_use_project_bin_entries() {
+    let root = tempfile::tempdir().unwrap();
+    let bin_dir = root.path().join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::write(bin_dir.join("node"), "compromised").unwrap();
+
+    assert!(find_candidate(root.path(), "node", GlobalShims::All).is_none());
+}
+
+#[test]
+fn auto_mode_only_accepts_signed_node_release_channel() {
+    assert!(is_automatic_runtime("node", "22.11.0"));
+    assert!(is_automatic_runtime("node", "22"));
+    assert!(!is_automatic_runtime("node", "rc/24"));
+    assert!(!is_automatic_runtime("node", "24.0.0-rc.4"));
+    assert!(!is_automatic_runtime("deno", "2.0.0"));
+    assert!(!is_automatic_runtime("bun", "1.2.0"));
+}
+
+#[cfg(unix)]
+#[test]
+fn managed_runtime_must_resolve_inside_the_global_store() {
+    let root = tempfile::tempdir().unwrap();
+    let store = root.path().join("store/links");
+    let package = store.join("node/22/slot/node_modules/node");
+    let environment_modules = root.path().join("state/environment/node_modules");
+    fs::create_dir_all(package.join("bin")).unwrap();
+    fs::create_dir_all(&environment_modules).unwrap();
+    fs::write(package.join("package.json"), r#"{"name":"node","bin":{"node":"bin/node"}}"#)
+        .unwrap();
+    fs::write(package.join("bin/node"), "runtime").unwrap();
+    std::os::unix::fs::symlink(&package, environment_modules.join("node")).unwrap();
+
+    assert_eq!(
+        managed_runtime_bin(root.path().join("state/environment").as_path(), "node", &store),
+        Some(fs::canonicalize(package.join("bin/node")).unwrap()),
+    );
+
+    fs::remove_file(environment_modules.join("node")).unwrap();
+    let outside = root.path().join("outside/node");
+    fs::create_dir_all(outside.join("bin")).unwrap();
+    fs::write(outside.join("package.json"), r#"{"name":"node","bin":{"node":"bin/node"}}"#)
+        .unwrap();
+    fs::write(outside.join("bin/node"), "runtime").unwrap();
+    std::os::unix::fs::symlink(outside, environment_modules.join("node")).unwrap();
+    assert_eq!(
+        managed_runtime_bin(root.path().join("state/environment").as_path(), "node", &store),
+        None,
+    );
 }
 
 #[test]

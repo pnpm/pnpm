@@ -12,9 +12,9 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    TrustPolicy, VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
+    AuditLevel, CatalogMode, GlobalShims, HoistingLimits, NodeLinker, NodePackageMapType,
+    PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol,
+    ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -147,7 +147,7 @@ impl WorkspaceSettings {
         json_field!(symlink, "SYMLINK");
         string_field!(virtual_store_dir, "VIRTUAL_STORE_DIR");
         json_field!(enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");
-        json_field!(global_shims, "GLOBAL_SHIMS");
+        enum_field!(global_shims, "GLOBAL_SHIMS", GlobalShims);
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
         enum_field!(package_import_method, "PACKAGE_IMPORT_METHOD", PackageImportMethod);
         json_field!(modules_cache_max_age, "MODULES_CACHE_MAX_AGE");

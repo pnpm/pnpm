@@ -126,7 +126,7 @@ pub struct WorkspaceSettings {
     pub virtual_store_only: Option<bool>,
     /// `globalShims` from `pnpm-workspace.yaml` or the global
     /// `config.yaml`. See [`Config::global_shims`].
-    pub global_shims: Option<bool>,
+    pub global_shims: Option<crate::GlobalShims>,
     /// `enableModulesDir` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_modules_dir`].
     pub enable_modules_dir: Option<bool>,

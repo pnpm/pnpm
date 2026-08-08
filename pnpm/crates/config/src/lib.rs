@@ -122,6 +122,22 @@ pub enum TrustPolicy {
     NoDowngrade,
 }
 
+/// Which globally installed commands use project-aware shims.
+///
+/// `auto` is the secure default: only runtimes whose downloaded artifacts
+/// pnpm authenticates against publisher-controlled keys may switch without
+/// prompting. `all` additionally enables candidate-bound, interactive
+/// switching for ordinary package bins. `off` writes and dispatches only
+/// direct global shims.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GlobalShims {
+    Off,
+    #[default]
+    Auto,
+    All,
+}
+
 /// What to do when the project's `packageManager` /
 /// `devEngines.packageManager` field doesn't match the running pnpm.
 ///
@@ -789,13 +805,11 @@ pub struct Config {
     /// (pnpm's `NO_GLOBAL_BIN_DIR` when absent).
     pub global_bin: Option<PathBuf>,
 
-    /// `globalShims`. When `true` (the default), bins linked into the
-    /// global bin dir are written as context-aware shims that prefer a
-    /// project-local version of the same bin over the globally installed
-    /// one after an explicit, candidate-bound trust decision. When `false`,
-    /// global bins exec their global target directly.
-    #[default = true]
-    pub global_shims: bool,
+    /// `globalShims`. `auto` (the default) enables automatic switching only
+    /// for authenticated managed runtimes. `all` also enables prompted,
+    /// candidate-bound switching for ordinary package bins. `off` always
+    /// executes the globally installed target directly.
+    pub global_shims: GlobalShims,
 
     /// Controls the way packages are imported from the store (if you want to disable symlinks
     /// inside `node_modules`, then you need to change the node-linker setting, not this one).

@@ -1,18 +1,17 @@
 //! The dispatcher behind context-aware global shims.
 //!
-//! Every bin pnpm links into the global bin dir invokes the adjacent
+//! Selected bins pnpm links into the global bin dir invoke the adjacent
 //! protocol-versioned executable with
 //! `--shim <name> <shim> <global-target> -- <args...>` (see
-//! `pacquet_cmd_shim::ShimStyle`). The dispatcher walks up from the
-//! current directory looking for a project that provides the same bin —
-//! either an installed `node_modules/.bin/<name>` entry or, for the
-//! managed runtimes, a `devEngines.runtime` / `engines.runtime` version
-//! pin — and runs the project's version instead of the global target, so
-//! bare `node` (or `tsc`, `eslint`, ...) follows the project the user is
-//! standing in.
+//! `pacquet_cmd_shim::ShimStyle`). In the default `auto` mode only an
+//! authenticated Node runtime is context-aware: the dispatcher reads the
+//! project's `devEngines.runtime` / `engines.runtime` pin, materializes the
+//! publisher-signature-verified release in pnpm's global virtual store, and
+//! executes it directly. It never resolves a runtime through the project's
+//! `node_modules/.bin` directory.
 //!
-//! Running a project's binaries just because the user typed a command
-//! inside its directory is a trust decision, gated twice. First, the
+//! `globalShims: all` also permits ordinary package bins to switch. That is
+//! a trust decision, gated twice. First, the
 //! candidate must resolve through its aliases to a package whose manifest
 //! name matches the global provider. Second, the exact candidate must be
 //! approved on the terminal (`Do you trust this project?`). Answers are
@@ -21,19 +20,27 @@
 //! or replacement bin cannot inherit an earlier approval.
 //! Without a terminal the dispatcher falls back to the global target.
 
+use crate::{State, cli_args::add::add_package};
+use miette::{Context, IntoDiagnostic};
 use pacquet_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pacquet_config::{
-    Host, WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
+    Config, GlobalShims, Host, WorkspaceSettings, default_config_dir, default_pnpm_home_dir,
+    default_state_dir,
 };
 use pacquet_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
-use pacquet_fs::lexical_normalize;
-use pacquet_package_manifest::is_runtime_alias;
+use pacquet_engine_runtime_node_resolver::parse_node_specifier;
+use pacquet_fs::{DirLock, lexical_normalize};
+use pacquet_package_manifest::{DependencyGroup, is_runtime_alias};
+use pacquet_registry::RangeSpecStyle;
+use pacquet_reporter::SilentReporter;
 use serde_json::{Value, json};
 use std::{
     ffi::OsString,
+    fs,
     io::IsTerminal,
     path::{Path, PathBuf},
     process::Command,
+    time::Duration,
 };
 
 /// Environment variable that short-circuits the dispatcher to the global
@@ -50,6 +57,9 @@ const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS";
 /// "decidedAt": <ms since epoch>}`. Corrupt or interleaved lines are ignored,
 /// so a concurrent append can only make the dispatcher ask again.
 const TRUST_FILE_NAME: &str = "global-bin-trust.jsonl";
+const RUNTIME_ENVS_DIR_NAME: &str = "global-shim-runtimes";
+#[cfg(windows)]
+const WINDOWS_NODE_TARGET_FILE_NAME: &str = ".pnpm-shim-v1-node-target";
 const MAX_HASHED_BIN_SIZE: u64 = 1024 * 1024;
 
 pub(crate) fn install_dispatcher(global_bin_dir: &Path) -> std::io::Result<()> {
@@ -66,16 +76,41 @@ fn install_dispatcher_from(source: &Path, destination: &Path) -> std::io::Result
     crate::executable_link::replace_executable(source, destination)
 }
 
+#[cfg(windows)]
+pub(crate) fn install_windows_node_dispatcher(
+    global_bin_dir: &Path,
+    global_target: &Path,
+) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt as _;
+
+    let dispatcher = global_bin_dir.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}.exe"));
+    let node_exe = global_bin_dir.join("node.exe");
+    let target_file = global_bin_dir.join(WINDOWS_NODE_TARGET_FILE_NAME);
+    let staged_target =
+        global_bin_dir.join(format!(".{WINDOWS_NODE_TARGET_FILE_NAME}.{}.tmp", std::process::id()));
+    let encoded =
+        global_target.as_os_str().encode_wide().flat_map(u16::to_le_bytes).collect::<Vec<_>>();
+    fs::write(&staged_target, encoded)?;
+    let publish_target = crate::executable_link::replace_executable(&staged_target, &target_file);
+    let _ = fs::remove_file(&staged_target);
+    publish_target?;
+    crate::executable_link::replace_executable(&dispatcher, &node_exe)
+}
+
 /// Intercept a `pnpm --shim ...` invocation. `None` means argv is not a
 /// shim dispatch and the regular CLI should proceed; `Some(code)` means
 /// the dispatch ran (or failed) and the process must exit with `code`.
 /// On Unix a successful dispatch never returns at all — the target is
 /// `exec`ed in place.
 pub(crate) fn try_dispatch(argv: &[OsString]) -> Option<i32> {
-    if argv.get(1).and_then(|arg| arg.to_str()) != Some("--shim") {
-        return None;
+    if argv.get(1).and_then(|arg| arg.to_str()) == Some("--shim") {
+        return Some(dispatch(&argv[2..]));
     }
-    Some(dispatch(&argv[2..]))
+    #[cfg(windows)]
+    if let Some(result) = try_windows_node_dispatch(argv) {
+        return Some(result);
+    }
+    None
 }
 
 fn dispatch(rest: &[OsString]) -> i32 {
@@ -85,22 +120,72 @@ fn dispatch(rest: &[OsString]) -> i32 {
         );
         return 1;
     };
-    if bypass_requested() || !global_shims_enabled() {
+    let mode = global_shims_mode();
+    dispatch_target(name, Some(shim_path), global_target, args, mode)
+}
+
+fn dispatch_target(
+    name: &str,
+    shim_path: Option<&Path>,
+    global_target: &Path,
+    args: &[OsString],
+    mode: GlobalShims,
+) -> i32 {
+    if bypass_requested() || mode == GlobalShims::Off {
         return run_global_fallback(shim_path, global_target, args);
     }
     let candidate = std::env::current_dir()
         .ok()
-        .and_then(|cwd| find_candidate(&cwd, name))
+        .and_then(|cwd| find_candidate(&cwd, name, mode))
         .and_then(|candidate| validate_candidate(candidate, global_target, name));
     match candidate {
-        Some(candidate) if is_trusted(&candidate, name) => match candidate {
-            Candidate::LocalBin { bin, .. } => exec_program(&bin, args),
-            Candidate::RuntimePin { version_spec, .. } => {
-                run_runtime_via_dlx(name, &version_spec, args)
+        Some(Candidate::RuntimePin { project_dir, version_spec, .. })
+            if is_automatic_runtime(name, &version_spec) =>
+        {
+            run_runtime_from_store(name, &version_spec, &project_dir, args)
+        }
+        Some(candidate) if mode == GlobalShims::All && is_trusted(&candidate, name) => {
+            match candidate {
+                Candidate::LocalBin { bin, .. } => exec_program(&bin, args),
+                Candidate::RuntimePin { project_dir, version_spec, .. } => {
+                    run_runtime_from_store(name, &version_spec, &project_dir, args)
+                }
             }
-        },
+        }
         _ => run_global_fallback(shim_path, global_target, args),
     }
+}
+
+#[cfg(windows)]
+fn try_windows_node_dispatch(argv: &[OsString]) -> Option<i32> {
+    use std::os::windows::ffi::OsStringExt as _;
+
+    let executable = std::env::current_exe().ok()?;
+    if !executable
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("node.exe"))
+    {
+        return None;
+    }
+    let target_file = executable.parent()?.join(WINDOWS_NODE_TARGET_FILE_NAME);
+    let global_target = match fs::read(&target_file).ok().and_then(|bytes| {
+        let mut chunks = bytes.chunks_exact(2);
+        let path = OsString::from_wide(
+            &chunks
+                .by_ref()
+                .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+                .collect::<Vec<_>>(),
+        );
+        chunks.remainder().is_empty().then(|| PathBuf::from(path))
+    }) {
+        Some(target) => target,
+        None => {
+            eprintln!("pnpm: cannot read the global Node.js target at {}", target_file.display());
+            return Some(1);
+        }
+    };
+    Some(dispatch_target("node", None, &global_target, &argv[1..], global_shims_mode()))
 }
 
 /// Re-enter the generated shim with dispatch disabled so its original
@@ -108,8 +193,8 @@ fn dispatch(rest: &[OsString]) -> i32 {
 /// shebang-argument parsing and interpreter lookup instead of reconstructing
 /// either from a whitespace-split string. A concurrently removed shim falls
 /// back to executing the embedded target directly.
-fn run_global_fallback(shim_path: &Path, target: &Path, args: &[OsString]) -> i32 {
-    if shim_path.is_file() {
+fn run_global_fallback(shim_path: Option<&Path>, target: &Path, args: &[OsString]) -> i32 {
+    if let Some(shim_path) = shim_path.filter(|path| path.is_file()) {
         return exec_program_with_bypass(shim_path, args);
     }
     exec_program(target, args)
@@ -136,13 +221,19 @@ fn bypass_requested() -> bool {
 /// effect immediately instead of waiting for the next global install to
 /// relink the shims. Read from the env override and the global
 /// `config.yaml` only — the sources a project cannot influence.
-fn global_shims_enabled() -> bool {
+fn global_shims_mode() -> GlobalShims {
     for env_name in ["PNPM_CONFIG_GLOBAL_SHIMS", "pnpm_config_global_shims"] {
         if let Ok(value) = std::env::var(env_name)
             && !value.is_empty()
-            && let Ok(enabled) = serde_json::from_str::<bool>(&value)
         {
-            return enabled;
+            if let Ok(mode) = serde_json::from_str::<GlobalShims>(&value) {
+                return mode;
+            }
+            if let Ok(quoted) = serde_json::to_string(&value)
+                && let Ok(mode) = serde_json::from_str::<GlobalShims>(&quoted)
+            {
+                return mode;
+            }
         }
     }
     let global_config = default_config_dir::<Host>()
@@ -152,7 +243,7 @@ fn global_shims_enabled() -> bool {
         .and_then(|home| WorkspaceSettings::find_and_load(&home).ok().flatten())
         .and_then(|(_, settings)| settings.global_shims)
         .or(global_config)
-        .unwrap_or(true)
+        .unwrap_or_default()
 }
 
 /// The context switch only ever substitutes a different version of the
@@ -343,35 +434,49 @@ impl Candidate {
     }
 }
 
-/// Walk up from `cwd` to the nearest directory providing `name`. An
-/// installed `.bin` entry and a manifest runtime pin are looked for at
-/// every level so the nearest provider of either kind wins; within one
-/// directory the installed bin wins over the pin. Directories inside the
-/// pnpm home are skipped — pnpm's own global installs are not projects.
-fn find_candidate(cwd: &Path, name: &str) -> Option<Candidate> {
+/// Walk up from `cwd` to the nearest directory providing `name`. Runtime
+/// shims only consider manifest pins and never inspect `.bin`; ordinary
+/// package bins are considered only in the explicit `all` mode. Directories
+/// inside the pnpm home are skipped because global installs are not projects.
+fn find_candidate(cwd: &Path, name: &str, mode: GlobalShims) -> Option<Candidate> {
     let pnpm_home = default_pnpm_home_dir::<Host>();
     let runtime = is_runtime_alias(name);
     for dir in cwd.ancestors() {
         if pnpm_home.as_deref().is_some_and(|home| dir.starts_with(home)) {
             continue;
         }
-        if let Some(bin) = local_bin_path(dir, name) {
+        if runtime && let Some((version_spec, manifest_hash)) = manifest_runtime_pin(dir, name) {
+            return (mode == GlobalShims::All || is_automatic_runtime(name, &version_spec)).then(
+                || Candidate::RuntimePin {
+                    project_dir: dir.to_path_buf(),
+                    version_spec,
+                    manifest_hash,
+                    identity: String::new(),
+                },
+            );
+        }
+        if !runtime
+            && mode == GlobalShims::All
+            && let Some(bin) = local_bin_path(dir, name)
+        {
             return Some(Candidate::LocalBin {
                 project_dir: dir.to_path_buf(),
                 bin,
                 identity: String::new(),
             });
         }
-        if runtime && let Some((version_spec, manifest_hash)) = manifest_runtime_pin(dir, name) {
-            return Some(Candidate::RuntimePin {
-                project_dir: dir.to_path_buf(),
-                version_spec,
-                manifest_hash,
-                identity: String::new(),
-            });
-        }
     }
     None
+}
+
+/// Stable Node releases are authenticated by the Node.js release-team keys
+/// before the resolver admits their archive. Other Node channels and the
+/// Deno/Bun resolvers currently rely on checksums alone, so they stay behind
+/// the explicit `all` opt-in.
+fn is_automatic_runtime(name: &str, version_spec: &str) -> bool {
+    name == "node"
+        && parse_node_specifier(version_spec)
+            .is_ok_and(|specifier| specifier.release_channel == "release")
 }
 
 /// The runnable `node_modules/.bin` entry for `name` under `dir`, if any.
@@ -497,28 +602,150 @@ fn prompt_for_trust(project_key: &str, name: &str) -> Option<bool> {
     dialoguer::Confirm::new().with_prompt(prompt).default(false).interact().ok()
 }
 
-/// Materialize the pinned runtime through `pnpm dlx <name>@runtime:<spec>`
-/// and run it with `args`. dlx already solves everything this needs —
-/// resolving the version, fetching into the store, caching the
-/// materialized slot, and forwarding stdio and the exit code.
-fn run_runtime_via_dlx(name: &str, version_spec: &str, args: &[OsString]) -> i32 {
-    let Ok(own_exe) = std::env::current_exe() else {
-        eprintln!("pnpm: cannot locate the pnpm binary to fetch {name}@{version_spec}");
-        return 1;
-    };
-    let status = Command::new(own_exe)
-        .arg("dlx")
-        .arg(format!("{name}@runtime:{version_spec}"))
-        .args(args)
-        .env(BYPASS_ENV, "1")
-        .status();
-    match status {
-        Ok(status) => status.code().unwrap_or(1),
+fn run_runtime_from_store(
+    name: &str,
+    version_spec: &str,
+    project_dir: &Path,
+    args: &[OsString],
+) -> i32 {
+    let result = crate::block_on_runtime(
+        "pacquet-global-shim-runtime",
+        materialize_runtime(name.to_string(), version_spec.to_string(), project_dir.to_path_buf()),
+    );
+    match result {
+        Ok(bin) => exec_program(&bin, args),
         Err(error) => {
-            eprintln!("pnpm: failed to run {name}@runtime:{version_spec} via dlx: {error}");
+            eprintln!("pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}");
             1
         }
     }
+}
+
+/// Materialize a runtime into the configured global virtual store and return
+/// its real executable. The small environment under pnpm's state directory
+/// contains only the lockfile and symlinks required to address the GVS slot;
+/// project `node_modules` is never consulted.
+async fn materialize_runtime(
+    name: String,
+    version_spec: String,
+    project_dir: PathBuf,
+) -> miette::Result<PathBuf> {
+    let config = Config::default()
+        .current::<Host>(&project_dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load configuration for the managed runtime")?;
+    let state_dir = default_state_dir::<Host>()
+        .ok_or_else(|| miette::miette!("the pnpm state directory could not be resolved"))?;
+    let global_virtual_store_dir = config.store_dir.links();
+    let key = create_hex_hash(&format!(
+        "runtime\0{name}\0{version_spec}\0{}",
+        global_virtual_store_dir.display(),
+    ));
+    let environments_dir = state_dir.join(RUNTIME_ENVS_DIR_NAME);
+    fs::create_dir_all(&environments_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("create {}", environments_dir.display()))?;
+    let environment_dir = environments_dir.join(&key);
+    if let Some(bin) = managed_runtime_bin(&environment_dir, &name, &global_virtual_store_dir) {
+        return Ok(bin);
+    }
+
+    const WAIT: Duration = Duration::from_mins(5);
+    const ABANDONED_AFTER: Duration = Duration::from_mins(30);
+    let lock_path = environments_dir.join(format!("{key}.lock"));
+    let _lock = DirLock::acquire(lock_path.clone(), WAIT, ABANDONED_AFTER)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("lock the managed runtime at {}", lock_path.display()))?;
+    if let Some(bin) = managed_runtime_bin(&environment_dir, &name, &global_virtual_store_dir) {
+        return Ok(bin);
+    }
+
+    remove_dir_if_not_symlink(&environment_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("reset {}", environment_dir.display()))?;
+    fs::create_dir_all(&environment_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("create {}", environment_dir.display()))?;
+
+    let mut install_config = config;
+    install_config.modules_dir = environment_dir.join("node_modules");
+    install_config.virtual_store_dir = environment_dir.join("node_modules").join(".pnpm");
+    install_config.enable_global_virtual_store = true;
+    install_config.global_virtual_store_dir = global_virtual_store_dir;
+    install_config.workspace_dir = Some(environment_dir.clone());
+    install_config.lockfile = true;
+    install_config.frozen_lockfile = Some(false);
+    install_config.prefer_frozen_lockfile = false;
+    install_config.ignore_scripts = true;
+    install_config.dangerously_allow_all_builds = false;
+    install_config.strict_dep_builds = false;
+    install_config.allow_builds.clear();
+    install_config.overrides = None;
+    install_config.package_extensions = None;
+    install_config.catalogs = None;
+    install_config.patched_dependencies = None;
+    let install_config = Config::leak(install_config);
+    let state = State::init(environment_dir.join("package.json"), install_config, false)
+        .wrap_err("initialize the managed runtime environment")?;
+    add_package::<SilentReporter, _>(
+        state,
+        &format!("{name}@runtime:{version_spec}"),
+        RangeSpecStyle::Patch,
+        None,
+        false,
+        install_config.supported_architectures.clone(),
+        [DependencyGroup::Prod],
+    )
+    .await
+    .wrap_err("install the managed runtime into the global virtual store")?;
+
+    let global_virtual_store_dir_display = install_config.global_virtual_store_dir.display();
+    managed_runtime_bin(&environment_dir, &name, &install_config.global_virtual_store_dir).ok_or_else(
+        || {
+            miette::miette!(
+                "the installed {name} executable is not in the global virtual store at {global_virtual_store_dir_display}"
+            )
+        },
+    )
+}
+
+fn managed_runtime_bin(
+    environment_dir: &Path,
+    name: &str,
+    global_virtual_store_dir: &Path,
+) -> Option<PathBuf> {
+    let package_dir = dunce::canonicalize(environment_dir.join("node_modules").join(name)).ok()?;
+    let store_dir = dunce::canonicalize(global_virtual_store_dir).ok()?;
+    if !package_dir.starts_with(&store_dir) {
+        return None;
+    }
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(package_dir.join("package.json")).ok()?).ok()?;
+    if manifest.get("name").and_then(Value::as_str) != Some(name) {
+        return None;
+    }
+    let bin_path = match manifest.get("bin")? {
+        Value::String(path) => path.as_str(),
+        Value::Object(bins) => bins.get(name)?.as_str()?,
+        _ => return None,
+    };
+    let bin = dunce::canonicalize(package_dir.join(bin_path)).ok()?;
+    (bin.starts_with(&package_dir) && bin.is_file()).then_some(bin)
+}
+
+fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "managed runtime environment must not be a symbolic link",
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    }
+    fs::remove_dir_all(path)
 }
 
 /// Run `program` with `args`, replacing this process where the platform
