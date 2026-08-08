@@ -470,12 +470,17 @@ export async function verifyInstalledPackageSignatures (
   getAuthHeader: GetAuthHeader,
   opts: VerifyInstalledSignaturesOptions
 ): Promise<InstalledSignatureVerificationResult> {
-  const packumentCache = new Map<string, Promise<Packument | undefined>>()
+  const ctx: SignatureVerificationContext = {
+    trustedKeys,
+    getAuthHeader,
+    opts,
+    packumentCache: new Map(),
+  }
   const limit = pLimit(opts.networkConcurrency ?? 16)
 
   const failures: InstalledSignatureFailure[] = []
   await Promise.all(packages.map((pkg) => limit(async () => {
-    const failure = await findSignatureFailure(pkg, trustedKeys, getAuthHeader, opts, packumentCache)
+    const failure = await findSignatureFailure(pkg, ctx)
     if (failure != null) {
       failures.push({ name: pkg.name, version: pkg.version, registry: pkg.registry, ...failure })
     }
@@ -485,12 +490,17 @@ export async function verifyInstalledPackageSignatures (
   return { verified: failures.length === 0, failures }
 }
 
+/** State shared by every verification of one installed-package batch. */
+interface SignatureVerificationContext {
+  trustedKeys: RegistryKey[]
+  getAuthHeader: GetAuthHeader
+  opts: VerifyInstalledSignaturesOptions
+  packumentCache: Map<string, Promise<Packument | undefined>>
+}
+
 async function findSignatureFailure (
   pkg: InstalledPackageToVerify,
-  trustedKeys: RegistryKey[],
-  getAuthHeader: GetAuthHeader,
-  opts: VerifyInstalledSignaturesOptions,
-  packumentCache: Map<string, Promise<Packument | undefined>>
+  ctx: SignatureVerificationContext
 ): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
   // npm registry signatures sign `name@version:integrity` with the sha512
   // integrity the registry published. An installed integrity in any other form
@@ -504,13 +514,13 @@ async function findSignatureFailure (
     }
   }
 
-  const primary = await attemptSignatureVerification(pkg, pkg.registry, trustedKeys, getAuthHeader, opts, packumentCache)
+  const primary = await attemptSignatureVerification(pkg, pkg.registry, ctx)
   if (primary == null) return undefined
 
-  const { fallbackRegistry } = opts
+  const { fallbackRegistry } = ctx.opts
   if (fallbackRegistry == null || equalRegistries(pkg.registry, fallbackRegistry)) return primary
 
-  const secondary = await attemptSignatureVerification(pkg, fallbackRegistry, trustedKeys, getAuthHeader, opts, packumentCache)
+  const secondary = await attemptSignatureVerification(pkg, fallbackRegistry, ctx)
   // A genuine signature validating over the installed integrity proves the
   // installed bytes regardless of which registry the primary attempt hit or
   // what it answered (e.g. a mirror serving stale signatures from a rotated
@@ -537,14 +547,11 @@ async function findSignatureFailure (
 async function attemptSignatureVerification (
   pkg: InstalledPackageToVerify,
   registry: string,
-  trustedKeys: RegistryKey[],
-  getAuthHeader: GetAuthHeader,
-  opts: VerifySignaturesOptions,
-  packumentCache: Map<string, Promise<Packument | undefined>>
+  ctx: SignatureVerificationContext
 ): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
   let packument: Packument | undefined
   try {
-    packument = await getPackument({ ...pkg, registry }, getAuthHeader, opts, packumentCache)
+    packument = await getPackument({ ...pkg, registry }, ctx.getAuthHeader, ctx.opts, ctx.packumentCache)
   } catch (err: unknown) {
     return { reason: util.types.isNativeError(err) ? err.message : String(err), category: 'unreachable' }
   }
@@ -569,7 +576,7 @@ async function attemptSignatureVerification (
   // validates when the installed bytes match what the registry signed.
   const issue = verifyPackageSignatures(
     { ...pkg, integrity: pkg.integrity, publishedAt: packument.time?.[pkg.version], signatures },
-    trustedKeys
+    ctx.trustedKeys
   )
   return issue == null ? undefined : { reason: issue.reason ?? 'invalid registry signature', category: 'invalid' }
 }
