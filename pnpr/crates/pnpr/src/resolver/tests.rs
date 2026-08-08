@@ -1,3 +1,4 @@
+use axum::http::StatusCode;
 use pacquet_config::Config as PacquetConfig;
 use pacquet_lockfile::Lockfile;
 use pacquet_resolving_resolver_base::{
@@ -14,7 +15,7 @@ use std::{
 use super::{
     MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution,
     protocol::{ResolveRequest, ResolveRequestProject},
-    resolution_cache_key, store_resolution,
+    reject_inline_url_auth, reject_off_allowlist_fetches, resolution_cache_key, store_resolution,
 };
 use crate::{
     config::{Config as RegistryConfig, PublicRoute, UpstreamConfig},
@@ -182,6 +183,39 @@ fn resolution_cache_key_normalizes_single_project_requests() {
     assert_eq!(
         resolution_cache_key(&config(), &top_level),
         resolution_cache_key(&config(), &projects),
+    );
+}
+
+#[test]
+fn resolution_cache_key_changes_with_catalogs() {
+    let request = |version: &str| {
+        serde_json::from_value::<ResolveRequest>(serde_json::json!({
+            "catalogs": { "default": { "foo": version } }
+        }))
+        .expect("resolve request parses")
+    };
+    let config = config();
+
+    assert_ne!(
+        resolution_cache_key(&config, &request("^1.0.0")),
+        resolution_cache_key(&config, &request("^2.0.0")),
+    );
+}
+
+#[test]
+fn resolution_cache_key_normalizes_catalog_json_order() {
+    let first = serde_json::from_str::<ResolveRequest>(
+        r#"{"catalogs":{"tools":{"typescript":"^6","eslint":"^10"},"default":{"react":"^19"}}}"#,
+    )
+    .expect("first request parses");
+    let reordered = serde_json::from_str::<ResolveRequest>(
+        r#"{"catalogs":{"default":{"react":"^19"},"tools":{"eslint":"^10","typescript":"^6"}}}"#,
+    )
+    .expect("reordered request parses");
+
+    assert_eq!(
+        resolution_cache_key(&config(), &first),
+        resolution_cache_key(&config(), &reordered),
     );
 }
 
@@ -601,7 +635,6 @@ fn lockfile_with_tarball(tarball: &str) -> Lockfile {
 
 #[test]
 fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
-    use super::reject_off_allowlist_fetches;
     let context = RouteContext::from_config(&registry_config());
 
     // The built-in npm registry is allowlisted.
@@ -691,9 +724,34 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
 }
 
 #[test]
-fn reject_inline_url_auth_scans_input_lockfile_tarballs() {
-    use super::reject_inline_url_auth;
+fn reject_off_allowlist_fetches_scans_catalogs() {
+    let context = RouteContext::from_config(&registry_config());
+    let default_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "default": { "foo": "https://169.254.169.254/foo.tgz" } }
+    }))
+    .expect("default catalog request parses");
+    let named_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "internal": { "foo": "git+ssh://169.254.169.254/repo.git" } }
+    }))
+    .expect("named catalog request parses");
+    let clean_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "default": { "foo": "^1.0.0" } }
+    }))
+    .expect("clean catalog request parses");
 
+    let default_response = reject_off_allowlist_fetches(&default_catalog, &context)
+        .expect("default catalog URL is rejected");
+    assert_eq!(default_response.status(), StatusCode::FORBIDDEN);
+
+    let named_response = reject_off_allowlist_fetches(&named_catalog, &context)
+        .expect("named catalog URL is rejected");
+    assert_eq!(named_response.status(), StatusCode::FORBIDDEN);
+
+    assert!(reject_off_allowlist_fetches(&clean_catalog, &context).is_none());
+}
+
+#[test]
+fn reject_inline_url_auth_scans_input_lockfile_tarballs() {
     // A lockfile tarball carrying inline `user:pass@host` credentials is
     // rejected before any fetch, so it can't reach the verify/frozen paths or
     // be echoed back.
@@ -713,6 +771,33 @@ fn reject_inline_url_auth_scans_input_lockfile_tarballs() {
         ..ResolveRequest::default()
     };
     assert!(reject_inline_url_auth(&clean).is_none());
+}
+
+#[test]
+fn reject_inline_url_auth_scans_catalogs() {
+    let dirty_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": {
+            "default": { "foo": "https://user:pass@registry.example.test/foo.tgz" }
+        }
+    }))
+    .expect("dirty catalog request parses");
+    let clean_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "default": { "foo": "https://registry.example.test/foo.tgz" } }
+    }))
+    .expect("clean catalog request parses");
+    let ssh_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "default": { "foo": "git+ssh://git@github.com/org/repo.git" } }
+    }))
+    .expect("ssh catalog request parses");
+
+    let response =
+        reject_inline_url_auth(&dirty_catalog).expect("inline catalog credentials are rejected");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    assert!(reject_inline_url_auth(&clean_catalog).is_none());
+    // A bare ssh login username is not an inline credential (the off-allowlist
+    // gate still decides whether the host may be fetched at all).
+    assert!(reject_inline_url_auth(&ssh_catalog).is_none());
 }
 
 #[test]
