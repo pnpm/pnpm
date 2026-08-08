@@ -273,6 +273,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "minimum-release-age-ignore-missing-time",
     "minimum-release-age-strict",
     "network-concurrency",
+    "node-download-mirrors",
     "node-experimental-package-map",
     "node-package-map-type",
     "noproxy",
