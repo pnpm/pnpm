@@ -84,6 +84,7 @@ export async function resolvePackageManagerIntegrities (
   }
 
   const lockfile = await resolveWantedPnpmPackages(pnpmVersion, opts)
+  stripRegistryTarballUrls(lockfile)
 
   if (lockfile.packages) {
     // Build packageManagerDependencies from the resolved lockfile importers
@@ -112,6 +113,34 @@ export async function resolvePackageManagerIntegrities (
     }
   }
   return envLockfile
+}
+
+/**
+ * Rewrites registry tarball resolutions to integrity-only form, dropping
+ * tarball URLs that a registry advertises on a host other than its own —
+ * load-balanced proxies and Artifactory-style mirrors do this, see
+ * https://github.com/pnpm/pnpm/issues/13619. The package-manager bootstrap
+ * never fetches a URL recorded in the lockfile: the download URL is always
+ * derived from the trusted bootstrap registries at install time, so a
+ * repository-provided entry cannot steer the download. Dropping the URL here
+ * keeps freshly resolved entries in exactly the integrity-only shape the
+ * bootstrap validation accepts.
+ */
+function stripRegistryTarballUrls (lockfile: LockfileObject): void {
+  for (const pkg of Object.values(lockfile.packages ?? {})) {
+    const resolution = pkg.resolution
+    if (
+      resolution == null ||
+      !('integrity' in resolution) || !resolution.integrity ||
+      !('tarball' in resolution) || typeof resolution.tarball !== 'string' ||
+      resolution.tarball.startsWith('file:') ||
+      ('gitHosted' in resolution && resolution.gitHosted === true) ||
+      ('path' in resolution && resolution.path != null)
+    ) {
+      continue
+    }
+    pkg.resolution = { integrity: resolution.integrity }
+  }
 }
 
 /**

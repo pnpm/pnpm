@@ -412,12 +412,18 @@ export interface InstalledPackageToVerify {
  * - `unreachable`: the trust root could not be consulted (registry advertised no
  *   signing keys, or the network request failed) — typically transient/offline,
  *   not evidence of tampering.
+ * - `uncovered`: the installed integrity is not a sha512 hash (e.g. a sha1 pin
+ *   from a registry that only publishes `shasum`), so no npm registry signature
+ *   can ever validate over it — verification is impossible by construction,
+ *   not evidence of tampering.
  */
-export type SignatureFailureCategory = 'invalid' | 'absent' | 'unreachable'
+export type SignatureFailureCategory = 'invalid' | 'absent' | 'unreachable' | 'uncovered'
 
 export interface InstalledSignatureFailure {
   name: string
   version: string
+  /** The registry the package was installed from (see {@link InstalledPackageToVerify.registry}). */
+  registry: string
   reason: string
   category: SignatureFailureCategory
 }
@@ -445,11 +451,24 @@ export interface InstalledSignatureVerificationResult {
  * A package counts as a failure when the package is unsigned/unpublished, or
  * when a signature is present but does not validate over the installed bytes.
  */
+export interface VerifyInstalledSignaturesOptions extends VerifySignaturesOptions {
+  /**
+   * A registry to consult for signature metadata when a package's own registry
+   * cannot provide a verifiable signature (its packument omits `dist.signatures`,
+   * as private mirrors commonly do, or carries only a stale/broken one).
+   * Signatures are verified against the caller's trusted keys over the installed
+   * integrity, so where the signature bytes come from does not affect what they
+   * prove — a package passes only when some genuine signature validates over the
+   * bytes actually installed. See https://github.com/pnpm/pnpm/issues/13147.
+   */
+  fallbackRegistry?: string
+}
+
 export async function verifyInstalledPackageSignatures (
   packages: InstalledPackageToVerify[],
   trustedKeys: RegistryKey[],
   getAuthHeader: GetAuthHeader,
-  opts: VerifySignaturesOptions
+  opts: VerifyInstalledSignaturesOptions
 ): Promise<InstalledSignatureVerificationResult> {
   const packumentCache = new Map<string, Promise<Packument | undefined>>()
   const limit = pLimit(opts.networkConcurrency ?? 16)
@@ -458,7 +477,7 @@ export async function verifyInstalledPackageSignatures (
   await Promise.all(packages.map((pkg) => limit(async () => {
     const failure = await findSignatureFailure(pkg, trustedKeys, getAuthHeader, opts, packumentCache)
     if (failure != null) {
-      failures.push({ name: pkg.name, version: pkg.version, ...failure })
+      failures.push({ name: pkg.name, version: pkg.version, registry: pkg.registry, ...failure })
     }
   })))
 
@@ -470,19 +489,69 @@ async function findSignatureFailure (
   pkg: InstalledPackageToVerify,
   trustedKeys: RegistryKey[],
   getAuthHeader: GetAuthHeader,
+  opts: VerifyInstalledSignaturesOptions,
+  packumentCache: Map<string, Promise<Packument | undefined>>
+): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
+  // npm registry signatures sign `name@version:integrity` with the sha512
+  // integrity the registry published. An installed integrity in any other form
+  // (a sha1 pin converted from `shasum` by a registry that publishes no
+  // `integrity`) can never validate against a genuine signature, so verifying
+  // it would misreport an authentic release as tampered with.
+  if (!pkg.integrity.startsWith('sha512-')) {
+    return {
+      reason: `${pkg.name}@${pkg.version} is pinned by a non-sha512 integrity, which npm registry signatures cannot cover`,
+      category: 'uncovered',
+    }
+  }
+
+  const primary = await attemptSignatureVerification(pkg, pkg.registry, trustedKeys, getAuthHeader, opts, packumentCache)
+  if (primary == null) return undefined
+
+  const { fallbackRegistry } = opts
+  if (fallbackRegistry == null || equalRegistries(pkg.registry, fallbackRegistry)) return primary
+
+  const secondary = await attemptSignatureVerification(pkg, fallbackRegistry, trustedKeys, getAuthHeader, opts, packumentCache)
+  // A genuine signature validating over the installed integrity proves the
+  // installed bytes regardless of which registry the primary attempt hit or
+  // what it answered (e.g. a mirror serving stale signatures from a rotated
+  // key), so a fallback pass is a pass.
+  if (secondary == null) return undefined
+
+  // A well-formed signature that fails to validate is a tamper signal from
+  // either source; surface it over the softer categories.
+  if (primary.category === 'invalid') return primary
+  if (secondary.category !== 'unreachable') return secondary
+  // The primary registry had no usable signature (a mirror commonly serves
+  // none) and the fallback could not be consulted — nothing suspicious was
+  // observed, the signature was simply unobtainable.
+  return {
+    reason: `${primary.reason}; the fallback registry (${fallbackRegistry}) could not be consulted either: ${secondary.reason}`,
+    category: 'unreachable',
+  }
+}
+
+/**
+ * Verifies `pkg`'s installed integrity against the signatures the packument on
+ * `registry` carries. Returns `undefined` on success, otherwise the failure.
+ */
+async function attemptSignatureVerification (
+  pkg: InstalledPackageToVerify,
+  registry: string,
+  trustedKeys: RegistryKey[],
+  getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions,
   packumentCache: Map<string, Promise<Packument | undefined>>
 ): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
   let packument: Packument | undefined
   try {
-    packument = await getPackument(pkg, getAuthHeader, opts, packumentCache)
+    packument = await getPackument({ ...pkg, registry }, getAuthHeader, opts, packumentCache)
   } catch (err: unknown) {
     return { reason: util.types.isNativeError(err) ? err.message : String(err), category: 'unreachable' }
   }
-  if (!packument) return { reason: `${pkg.name} is not published on ${pkg.registry}`, category: 'absent' }
+  if (!packument) return { reason: `${pkg.name} is not published on ${registry}`, category: 'absent' }
 
   const version = packument.versions?.[pkg.version]
-  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${pkg.registry}`, category: 'absent' }
+  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${registry}`, category: 'absent' }
 
   const rawSignatures = version.dist?.signatures
   if (rawSignatures != null && !Array.isArray(rawSignatures)) {
@@ -493,7 +562,7 @@ async function findSignatureFailure (
     return { reason: `malformed registry signatures metadata for ${pkg.name}@${pkg.version}`, category: 'absent' }
   }
   if (signatures.length === 0) {
-    return { reason: `${pkg.name}@${pkg.version} has no registry signature`, category: 'absent' }
+    return { reason: `${pkg.name}@${pkg.version} has no registry signature on ${registry}`, category: 'absent' }
   }
 
   // The message is built from the installed integrity, so a signature only
@@ -503,4 +572,12 @@ async function findSignatureFailure (
     trustedKeys
   )
   return issue == null ? undefined : { reason: issue.reason ?? 'invalid registry signature', category: 'invalid' }
+}
+
+function equalRegistries (a: string, b: string): boolean {
+  return normalizeRegistryUrl(a) === normalizeRegistryUrl(b)
+}
+
+function normalizeRegistryUrl (registry: string): string {
+  return (registry.endsWith('/') ? registry : `${registry}/`).toLowerCase()
 }

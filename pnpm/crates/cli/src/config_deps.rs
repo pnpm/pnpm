@@ -53,20 +53,28 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
 
 /// Resolve the package-manager engine dependencies into the env lockfile's
 /// `packageManagerDependencies` block before the wanted lockfile is
-/// loaded.
+/// loaded. `force_resync` discards recorded entries and re-resolves them
+/// even when they look up to date.
 pub async fn sync_package_manager_dependencies(
     config: &Config,
     root_dir: &Path,
     wanted_specifier: &str,
     pnpm_version: &str,
     frozen_lockfile: bool,
+    force_resync: bool,
 ) -> Result<()> {
     let context = EnvInstallerContext::for_package_manager(config)?;
     let options = context.options(root_dir, frozen_lockfile);
-    resolve_package_manager_integrities(wanted_specifier, pnpm_version, &context.resolver, &options)
-        .await
-        .map_err(miette::Report::new)
-        .wrap_err("resolve package manager dependencies")
+    resolve_package_manager_integrities(
+        wanted_specifier,
+        pnpm_version,
+        &context.resolver,
+        &options,
+        force_resync,
+    )
+    .await
+    .map_err(miette::Report::new)
+    .wrap_err("resolve package manager dependencies")
 }
 
 /// The version `pnpm self-update` resolved a specifier to, plus whether

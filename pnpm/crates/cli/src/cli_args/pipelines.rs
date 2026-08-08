@@ -215,6 +215,7 @@ impl InstallPipeline {
                 &pm.specifier,
                 &pm.version,
                 frozen_lockfile,
+                false,
             )
             .await?;
         }
@@ -299,6 +300,7 @@ impl AddPipeline {
                 &config_root,
                 &pm.specifier,
                 &pm.version,
+                false,
                 false,
             )
             .await?;
@@ -389,6 +391,7 @@ impl UpdatePipeline {
                 &config_root,
                 &pm.specifier,
                 &pm.version,
+                false,
                 false,
             )
             .await?;
@@ -492,6 +495,7 @@ impl RemovePipeline {
                 &pm.specifier,
                 &pm.version,
                 false,
+                false,
             )
             .await?;
         }
@@ -563,6 +567,7 @@ impl DeployPipeline {
                 &config_root,
                 &pm.specifier,
                 &pm.version,
+                false,
                 false,
             )
             .await?;
@@ -718,6 +723,7 @@ impl DedupePipeline {
                 &pm.specifier,
                 &pm.version,
                 false,
+                false,
             )
             .await?;
         }
@@ -755,6 +761,7 @@ impl PrunePipeline {
                 &config_root,
                 &pm.specifier,
                 &pm.version,
+                false,
                 false,
             )
             .await?;
