@@ -475,8 +475,19 @@ async fn attempt_signature_verification(
     }
 }
 
+/// Whether two registry URLs address the same registry. URL-equivalent
+/// forms must compare equal — hosts are case-insensitive and default ports
+/// are implied — or a canonical registry written as e.g.
+/// `https://Registry.NPMJS.org:443/` would be misclassified as a different,
+/// non-canonical one, weakening fail-closed decisions keyed on canonicality.
 fn equal_registries(left: &str, right: &str) -> bool {
-    with_trailing_slash(left).eq_ignore_ascii_case(&with_trailing_slash(right))
+    normalize_registry_url(left).eq_ignore_ascii_case(&normalize_registry_url(right))
+}
+
+fn normalize_registry_url(registry: &str) -> String {
+    let with_slash = with_trailing_slash(registry);
+    // URL normalization lowercases the host and drops a default port.
+    url::Url::parse(&with_slash).map(String::from).unwrap_or(with_slash)
 }
 
 /// `true` as soon as one signature validates against a trusted, unexpired

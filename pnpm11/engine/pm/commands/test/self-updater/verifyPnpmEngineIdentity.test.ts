@@ -68,6 +68,11 @@ describe('verifyPnpmEngineIdentity', () => {
     await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
   })
 
+  test('recognizes URL-equivalent spellings of the canonical registry and still fails closed', async () => {
+    const opts = { ...optsTrusting(createSigningKey()), registries: { default: 'https://Registry.NPMJS.org:443/' } }
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
+  })
+
   test('warns and proceeds when a user-configured registry is unreachable and no signature is obtainable', async () => {
     // No intercept registered and net connect disabled: neither the configured
     // registry nor the canonical fallback can provide a signature. The

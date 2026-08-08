@@ -157,10 +157,19 @@ fn tolerable_without_signature_requires_a_soft_category_and_a_non_canonical_regi
     assert!(!failure(FailureCategory::Absent, mirror).tolerable_without_signature());
     assert!(!failure(FailureCategory::Invalid, mirror).tolerable_without_signature());
     // The canonical registry always provides signatures for genuine
-    // releases, so nothing is tolerated there.
-    let canonical = "https://registry.npmjs.org";
-    assert!(!failure(FailureCategory::Unreachable, canonical).tolerable_without_signature());
-    assert!(!failure(FailureCategory::Uncovered, canonical).tolerable_without_signature());
+    // releases, so nothing is tolerated there — under any URL-equivalent
+    // spelling of it.
+    for canonical in [
+        "https://registry.npmjs.org",
+        "https://Registry.NPMJS.org:443/",
+        "https://registry.npmjs.org:443",
+    ] {
+        assert!(
+            !failure(FailureCategory::Unreachable, canonical).tolerable_without_signature(),
+            "{canonical} must count as canonical",
+        );
+        assert!(!failure(FailureCategory::Uncovered, canonical).tolerable_without_signature());
+    }
 }
 
 fn no_retry() -> RetryOpts {

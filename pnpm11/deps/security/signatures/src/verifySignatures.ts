@@ -574,10 +574,23 @@ async function attemptSignatureVerification (
   return issue == null ? undefined : { reason: issue.reason ?? 'invalid registry signature', category: 'invalid' }
 }
 
-function equalRegistries (a: string, b: string): boolean {
+/**
+ * Whether two registry URLs address the same registry. URL-equivalent forms
+ * must compare equal — hosts are case-insensitive and default ports are
+ * implied — or a canonical registry written as e.g.
+ * `https://Registry.NPMJS.org:443/` would be misclassified as a different,
+ * non-canonical one, weakening fail-closed decisions keyed on canonicality.
+ */
+export function equalRegistries (a: string, b: string): boolean {
   return normalizeRegistryUrl(a) === normalizeRegistryUrl(b)
 }
 
 function normalizeRegistryUrl (registry: string): string {
-  return (registry.endsWith('/') ? registry : `${registry}/`).toLowerCase()
+  const withSlash = registry.endsWith('/') ? registry : `${registry}/`
+  try {
+    // URL normalization lowercases the host and drops a default port.
+    return new url.URL(withSlash).toString().toLowerCase()
+  } catch {
+    return withSlash.toLowerCase()
+  }
 }

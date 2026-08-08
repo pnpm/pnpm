@@ -1,5 +1,6 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import {
+  equalRegistries,
   getNpmSigningKeys,
   type InstalledPackageToVerify,
   type InstalledSignatureFailure,
@@ -134,7 +135,7 @@ export async function verifyPnpmEngineIdentity (
  */
 function isTolerableWithoutSignature (failure: InstalledSignatureFailure): boolean {
   return (failure.category === 'unreachable' || failure.category === 'uncovered') &&
-    failure.registry.replace(/\/$/, '') !== CANONICAL_NPM_REGISTRY.replace(/\/$/, '')
+    !equalRegistries(failure.registry, CANONICAL_NPM_REGISTRY)
 }
 
 function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Registries): InstalledPackageToVerify[] {
