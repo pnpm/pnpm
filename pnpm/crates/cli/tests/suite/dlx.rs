@@ -1,7 +1,3 @@
-// `assert_cmd::prelude::*` (for `.assert()`) is only used by the Unix-
-// gated dlx happy-path test below; gating the import avoids an
-// `unused_imports` error on Windows under clippy's `-D warnings`.
-#[cfg(unix)]
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
@@ -97,6 +93,52 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
     assert!(
         workspace.join("touch.txt").exists(),
         "the package's bin should run in the process cwd and write `touch.txt`",
+    );
+
+    drop(root);
+}
+
+/// pnpm's dlx installs the package unpatched, and the caller's patch paths
+/// are relative to a workspace root the cache install does not have.
+#[test]
+#[cfg_attr(not(unix), ignore = "dlx bin execution is only exercised on Unix")]
+fn dlx_ignores_the_caller_projects_patched_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    std::fs::create_dir(workspace.join("patches")).expect("create the caller's patches dir");
+    std::fs::write(
+        workspace.join("patches").join("touch-file-one-bin.patch"),
+        concat!(
+            "diff --git a/cli.js b/cli.js\n",
+            "--- a/cli.js\n",
+            "+++ b/cli.js\n",
+            "@@ -1,4 +1,4 @@\n",
+            " 'use strict'\n",
+            " const fs = require('fs')\n",
+            " \n",
+            "-fs.writeFileSync('touch.txt', 'hello world', 'utf8')\n",
+            "+fs.writeFileSync('patched.txt', 'hello world', 'utf8')\n",
+        ),
+    )
+    .expect("write the caller's patch");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        std::fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str(
+        "patchedDependencies:\n  '@foo/touch-file-one-bin@1.0.0': patches/touch-file-one-bin.patch\n",
+    );
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("add the caller's patch entry");
+
+    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin").assert().success();
+
+    assert!(
+        workspace.join("touch.txt").exists(),
+        "dlx must run the unpatched package, which writes `touch.txt`",
+    );
+    assert!(
+        !workspace.join("patched.txt").exists(),
+        "the caller's patch must not be applied to the dlx install",
     );
 
     drop(root);
