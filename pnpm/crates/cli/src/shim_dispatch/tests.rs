@@ -6,6 +6,7 @@ use super::{
     manifest_runtime_pin, package_dir_of_target, parse_shim_argv, provider_of_target,
     read_shim_target_from_content, read_trust_decision, small_file_hash, try_dispatch,
 };
+use pacquet_config::ShimPolicy;
 use std::{ffi::OsString, fs, path::Path};
 
 fn strings(items: &[&str]) -> Vec<OsString> {
@@ -416,4 +417,18 @@ fn provider_identity_supports_workspace_packages() {
     let provider = provider_of_target(&modules.join("tool/cli.js")).unwrap();
     assert_eq!(provider.name, "tool");
     assert_eq!(provider.package_dir, fs::canonicalize(workspace_package).unwrap());
+}
+
+#[test]
+fn runtime_promptless_policy_matrix() {
+    use super::runtime_runs_promptless;
+    // Auto defers to artifact authentication: stable release yes, rc no.
+    assert!(runtime_runs_promptless(ShimPolicy::Auto, "node", "22.11.0"));
+    assert!(!runtime_runs_promptless(ShimPolicy::Auto, "node", "24.0.0-rc.4"));
+    assert!(!runtime_runs_promptless(ShimPolicy::Auto, "deno", "2.0.0"));
+    // Trusted always may; Prompt and Off never.
+    assert!(runtime_runs_promptless(ShimPolicy::Trusted, "deno", "2.0.0"));
+    assert!(runtime_runs_promptless(ShimPolicy::Trusted, "node", "24.0.0-rc.4"));
+    assert!(!runtime_runs_promptless(ShimPolicy::Prompt, "node", "22.11.0"));
+    assert!(!runtime_runs_promptless(ShimPolicy::Off, "node", "22.11.0"));
 }

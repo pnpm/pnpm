@@ -3,7 +3,7 @@
 //! Selected bins pnpm links into the global bin dir invoke the adjacent
 //! protocol-versioned executable with
 //! `--shim <name> <shim> <global-target> -- <args...>` (see
-//! `pacquet_cmd_shim::ShimStyle`). The `globalShims` record decides which
+//! `pacquet_cmd_shim::ShimStyle`). The `contextAwareGlobalShims` record decides which
 //! providing packages are eligible; the managed runtimes are enabled by
 //! default. For a runtime pin, the dispatcher reads the project's
 //! `devEngines.runtime` / `engines.runtime`, materializes the release in
@@ -25,8 +25,8 @@ use crate::{State, cli_args::add::add_package};
 use miette::{Context, IntoDiagnostic};
 use pacquet_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pacquet_config::{
-    Config, GlobalShims, GlobalShimsSetting, Host, WorkspaceSettings, default_config_dir,
-    default_pnpm_home_dir, default_state_dir,
+    Config, ContextAwareGlobalShims, ContextAwareGlobalShimsSetting, Host, ShimPolicy,
+    WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
 };
 use pacquet_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
 use pacquet_engine_runtime_node_resolver::parse_node_specifier;
@@ -121,7 +121,7 @@ fn dispatch(rest: &[OsString]) -> i32 {
         );
         return 1;
     };
-    let shims = global_shims_setting();
+    let shims = context_aware_shims_setting();
     dispatch_target(name, Some(shim_path), global_target, args, &shims)
 }
 
@@ -130,7 +130,7 @@ fn dispatch_target(
     shim_path: Option<&Path>,
     global_target: &Path,
     args: &[OsString],
-    shims: &GlobalShims,
+    shims: &ContextAwareGlobalShims,
 ) -> i32 {
     if bypass_requested() || shims.dispatches_nothing() {
         return run_global_fallback(shim_path, global_target, args);
@@ -138,8 +138,11 @@ fn dispatch_target(
     // Eligibility is keyed by the global bin's providing package, so an
     // entry for `typescript` covers its `tsc` bin. Identity comes from
     // the provider manifest, which also anchors the candidate match.
-    let provider =
-        provider_of_target(global_target).filter(|provider| shims.is_enabled(&provider.name));
+    let provider = provider_of_target(global_target);
+    let policy = provider.as_ref().map_or(ShimPolicy::Off, |provider| shims.policy(&provider.name));
+    if policy == ShimPolicy::Off {
+        return run_global_fallback(shim_path, global_target, args);
+    }
     let candidate = provider.as_ref().and_then(|provider| {
         std::env::current_dir()
             .ok()
@@ -148,17 +151,30 @@ fn dispatch_target(
     });
     match candidate {
         Some(Candidate::RuntimePin { project_dir, version_spec, .. })
-            if is_automatic_runtime(name, &version_spec) =>
+            if runtime_runs_promptless(policy, name, &version_spec) =>
         {
             run_runtime_from_store(name, &version_spec, &project_dir, args)
         }
-        Some(candidate) if is_trusted(&candidate, name) => match candidate {
-            Candidate::LocalBin { bin, .. } => exec_program(&bin, args),
-            Candidate::RuntimePin { project_dir, version_spec, .. } => {
-                run_runtime_from_store(name, &version_spec, &project_dir, args)
+        Some(candidate) if policy == ShimPolicy::Trusted || is_trusted(&candidate, name) => {
+            match candidate {
+                Candidate::LocalBin { bin, .. } => exec_program(&bin, args),
+                Candidate::RuntimePin { project_dir, version_spec, .. } => {
+                    run_runtime_from_store(name, &version_spec, &project_dir, args)
+                }
             }
-        },
+        }
         _ => run_global_fallback(shim_path, global_target, args),
+    }
+}
+
+/// Whether a runtime pin may run without the trust gate. `Trusted` always
+/// may; `Auto` only when the artifact is authenticated
+/// ([`is_automatic_runtime`]); `Prompt` never.
+fn runtime_runs_promptless(policy: ShimPolicy, name: &str, version_spec: &str) -> bool {
+    match policy {
+        ShimPolicy::Trusted => true,
+        ShimPolicy::Auto => is_automatic_runtime(name, version_spec),
+        ShimPolicy::Off | ShimPolicy::Prompt => false,
     }
 }
 
@@ -200,7 +216,7 @@ fn try_windows_node_dispatch(argv: &[OsString]) -> Option<i32> {
         );
         return Some(1);
     }
-    Some(dispatch_target("node", None, &global_target, &argv[1..], &global_shims_setting()))
+    Some(dispatch_target("node", None, &global_target, &argv[1..], &context_aware_shims_setting()))
 }
 
 /// Re-enter the generated shim with dispatch disabled so its original
@@ -237,30 +253,32 @@ fn bypass_requested() -> bool {
         .is_ok_and(|value| !value.is_empty() && value != "0" && value != "false")
 }
 
-/// The `globalShims` setting at dispatch time, so config edits take
-/// effect immediately instead of waiting for the next global install to
+/// The `contextAwareGlobalShims` setting at dispatch time, so config
+/// edits take effect immediately instead of waiting for the next global install to
 /// relink the shims. Layers merge key-wise over the built-in defaults in
 /// the order global `config.yaml`, the pnpm home's own
 /// `pnpm-workspace.yaml`, then the env override — only sources a project
 /// cannot influence, and never a discovered ancestor of the pnpm home.
-fn global_shims_setting() -> GlobalShims {
-    let mut shims = GlobalShims::default();
+fn context_aware_shims_setting() -> ContextAwareGlobalShims {
+    let mut shims = ContextAwareGlobalShims::default();
     if let Some(layer) = default_config_dir::<Host>()
         .and_then(|config_dir| WorkspaceSettings::load_global(&config_dir).ok().flatten())
-        .and_then(|settings| settings.global_shims)
+        .and_then(|settings| settings.context_aware_global_shims)
     {
         shims.apply(&layer);
     }
     if let Some(layer) = default_pnpm_home_dir::<Host>()
         .and_then(|home| WorkspaceSettings::load_at(&home).ok().flatten())
-        .and_then(|settings| settings.global_shims)
+        .and_then(|settings| settings.context_aware_global_shims)
     {
         shims.apply(&layer);
     }
-    for env_name in ["PNPM_CONFIG_GLOBAL_SHIMS", "pnpm_config_global_shims"] {
+    for env_name in
+        ["PNPM_CONFIG_CONTEXT_AWARE_GLOBAL_SHIMS", "pnpm_config_context_aware_global_shims"]
+    {
         if let Ok(value) = std::env::var(env_name)
             && !value.is_empty()
-            && let Ok(layer) = serde_json::from_str::<GlobalShimsSetting>(&value)
+            && let Ok(layer) = serde_json::from_str::<ContextAwareGlobalShimsSetting>(&value)
         {
             shims.apply(&layer);
             break;

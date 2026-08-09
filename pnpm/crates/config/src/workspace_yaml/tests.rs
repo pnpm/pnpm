@@ -1,8 +1,8 @@
 use super::{AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
-    AuditLevel, CatalogMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
-    LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
-    TrustPolicy, api::EnvVar,
+    AuditLevel, CatalogMode, Config, ContextAwareGlobalShims, ContextAwareGlobalShimsSetting,
+    HoistingLimits, LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode,
+    ScriptsPrependNodePath, ShimPolicy, TrustPolicy, api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
@@ -38,8 +38,8 @@ packages:
 }
 
 #[test]
-fn global_shims_defaults_enable_the_managed_runtimes() {
-    let shims = Config::default().global_shims;
+fn context_aware_global_shims_defaults_enable_the_managed_runtimes() {
+    let shims = Config::default().context_aware_global_shims;
     for name in ["node", "deno", "bun"] {
         assert!(shims.is_enabled(name), "{name} should be enabled by default");
     }
@@ -48,35 +48,64 @@ fn global_shims_defaults_enable_the_managed_runtimes() {
 }
 
 #[test]
-fn global_shims_record_merges_over_the_defaults() {
+fn context_aware_global_shims_record_merges_over_the_defaults() {
     let settings: WorkspaceSettings =
-        serde_saphyr::from_str("globalShims: {bun: false, typescript: true}\n").unwrap();
-    assert!(matches!(settings.global_shims, Some(GlobalShimsSetting::Entries(_))));
+        serde_saphyr::from_str("contextAwareGlobalShims: {bun: false, typescript: true}\n")
+            .unwrap();
+    assert!(matches!(
+        settings.context_aware_global_shims,
+        Some(ContextAwareGlobalShimsSetting::Entries(_))
+    ));
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert!(config.global_shims.is_enabled("node"), "untouched defaults must survive");
-    assert!(!config.global_shims.is_enabled("bun"), "one default can be switched off");
-    assert!(config.global_shims.is_enabled("typescript"));
+    assert!(
+        config.context_aware_global_shims.is_enabled("node"),
+        "untouched defaults must survive",
+    );
+    assert!(
+        !config.context_aware_global_shims.is_enabled("bun"),
+        "one default can be switched off",
+    );
+    assert!(config.context_aware_global_shims.is_enabled("typescript"));
 }
 
 #[test]
-fn global_shims_scalar_shorthands_reset_the_record() {
-    let settings: WorkspaceSettings = serde_saphyr::from_str("globalShims: false\n").unwrap();
+fn context_aware_global_shims_scalar_shorthands_reset_the_record() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("contextAwareGlobalShims: false\n").unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert!(config.global_shims.dispatches_nothing());
+    assert!(config.context_aware_global_shims.dispatches_nothing());
 
-    let settings: WorkspaceSettings = serde_saphyr::from_str("globalShims: true\n").unwrap();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("contextAwareGlobalShims: true\n").unwrap();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.global_shims, GlobalShims::default());
+    assert_eq!(config.context_aware_global_shims, ContextAwareGlobalShims::default());
 }
 
 #[test]
-fn global_shims_later_layers_win_per_key() {
-    let mut shims = GlobalShims::default();
-    shims.apply(&serde_saphyr::from_str::<GlobalShimsSetting>("{node: false}").unwrap());
+fn context_aware_global_shims_named_policies_parse() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("contextAwareGlobalShims: {node: prompt, deno: trusted}\n").unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let shims = config.context_aware_global_shims;
+    assert_eq!(shims.policy("node"), ShimPolicy::Prompt);
+    assert_eq!(shims.policy("deno"), ShimPolicy::Trusted);
+    assert_eq!(shims.policy("bun"), ShimPolicy::Auto, "untouched default keeps auto");
+    assert_eq!(shims.policy("typescript"), ShimPolicy::Off);
+    assert!(shims.is_enabled("node"), "prompt still counts as enabled");
+}
+
+#[test]
+fn context_aware_global_shims_later_layers_win_per_key() {
+    let mut shims = ContextAwareGlobalShims::default();
     shims
-        .apply(&serde_saphyr::from_str::<GlobalShimsSetting>("{node: true, deno: false}").unwrap());
+        .apply(&serde_saphyr::from_str::<ContextAwareGlobalShimsSetting>("{node: false}").unwrap());
+    shims.apply(
+        &serde_saphyr::from_str::<ContextAwareGlobalShimsSetting>("{node: true, deno: false}")
+            .unwrap(),
+    );
     assert!(shims.is_enabled("node"));
     assert!(!shims.is_enabled("deno"));
     assert!(shims.is_enabled("bun"));
