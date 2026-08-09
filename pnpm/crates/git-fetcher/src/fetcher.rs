@@ -275,7 +275,7 @@ fn download_repo<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
         message: format!(
-            "Failed to fetch \"{}\" over SSH, so it was fetched from \"{https_repo}\" instead. Re-resolve this dependency to record the HTTPS URL in the lockfile.",
+            r#"Failed to fetch "{}" over SSH, so it was fetched from "{https_repo}" instead. Re-resolve this dependency to record the HTTPS URL in the lockfile."#,
             opts.repo,
         ),
         prefix: String::new(),
