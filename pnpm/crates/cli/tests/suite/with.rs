@@ -2,8 +2,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use pacquet_testing_utils::command_env::CommandTestExt;
+use pacquet_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use std::{
     fs,
     path::Path,
