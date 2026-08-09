@@ -298,13 +298,14 @@ fn windows_cmd_shim_candidate_matches_the_global_provider() {
     fs::write(local_bin.join("tool.cmd"), format!("@CALL \"{}\" %*\r\n", local_target.display()))
         .unwrap();
 
-    assert_eq!(provider_of_target(&global_target).unwrap().name, "tool");
+    let global_provider = provider_of_target(&global_target).unwrap();
+    assert_eq!(global_provider.name, "tool");
     let candidate = find_candidate(&project, "tool").unwrap();
     let Candidate::LocalBin { bin, .. } = &candidate else {
         panic!("expected a local bin candidate");
     };
     assert_eq!(local_bin_identity(bin, "tool").unwrap().provider.name, "tool");
-    assert!(validate_candidate(candidate, &global_target, "tool").is_some());
+    assert!(validate_candidate(candidate, &global_provider, "tool").is_some());
 }
 
 #[test]
