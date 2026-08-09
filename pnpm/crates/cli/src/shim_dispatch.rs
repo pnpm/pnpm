@@ -121,16 +121,16 @@ fn dispatch_target(
             .and_then(|candidate| validate_candidate(candidate, provider, name))
     });
     match candidate {
-        Some(Candidate::RuntimePin { project_dir, version_spec, .. })
+        Some(Candidate::RuntimePin { version_spec, .. })
             if runtime_runs_promptless(policy, name, &version_spec) =>
         {
-            run_runtime_from_store(name, &version_spec, &project_dir, args)
+            run_runtime_from_store(name, &version_spec, args)
         }
         Some(candidate) if policy == ShimPolicy::Always || is_trusted(&candidate, name) => {
             match candidate {
                 Candidate::LocalBin { bin, .. } => exec_program(&bin, args),
-                Candidate::RuntimePin { project_dir, version_spec, .. } => {
-                    run_runtime_from_store(name, &version_spec, &project_dir, args)
+                Candidate::RuntimePin { version_spec, .. } => {
+                    run_runtime_from_store(name, &version_spec, args)
                 }
             }
         }
@@ -378,15 +378,10 @@ fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
     None
 }
 
-fn run_runtime_from_store(
-    name: &str,
-    version_spec: &str,
-    project_dir: &Path,
-    args: &[OsString],
-) -> i32 {
+fn run_runtime_from_store(name: &str, version_spec: &str, args: &[OsString]) -> i32 {
     let result = crate::block_on_runtime(
         "pacquet-global-shim-runtime",
-        materialize_runtime(name.to_string(), version_spec.to_string(), project_dir.to_path_buf()),
+        materialize_runtime(name.to_string(), version_spec.to_string()),
     );
     match result {
         Ok(bin) => exec_program(&bin, args),

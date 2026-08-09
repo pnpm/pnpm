@@ -83,9 +83,7 @@ pub(super) fn hardened_install_config(
 pub(super) async fn materialize_runtime(
     name: String,
     version_spec: String,
-    project_dir: PathBuf,
 ) -> miette::Result<PathBuf> {
-    let _ = project_dir;
     let state_dir = default_state_dir::<Host>()
         .ok_or_else(|| miette::miette!("the pnpm state directory could not be resolved"))?;
     let environments_dir = state_dir.join(RUNTIME_ENVS_DIR_NAME);
