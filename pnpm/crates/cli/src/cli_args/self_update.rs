@@ -303,7 +303,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
     ))
     .await?;
 
-    link_into_global_bin(config, &result.install_dir, result.package_name)?;
+    link_into_global_bin(config, &result, &target_version)?;
 
     if result.already_existed {
         return Ok(Some(format!(
@@ -501,24 +501,41 @@ fn read_project_pinned_pnpm_version(lockfile_dir: &Path, spec: Option<&str>) -> 
 /// see it).
 fn link_into_global_bin(
     config: &Config,
-    install_dir: &Path,
-    package_name: &str,
+    installed: &install_pnpm::InstallPnpmResult,
+    version: &str,
 ) -> miette::Result<()> {
     let global_bin = config.global_bin.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
 
-    let pkgs = read_installed_packages(install_dir);
+    refresh_global_shim_dispatcher(&global_bin, installed, version)?;
+
+    let pkgs = read_installed_packages(&installed.install_dir);
     link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin, &HashSet::new(), &[])
         .map_err(miette::Report::new)
         .wrap_err("link the updated pnpm bins")?;
 
-    let aliases = vec![package_name.to_string()];
+    let aliases = vec![installed.package_name.to_string()];
     let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));
     let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
-    force_symlink_dir(install_dir, &hash_link)
+    force_symlink_dir(&installed.install_dir, &hash_link)
         .into_diagnostic()
         .wrap_err("link the global pnpm install directory")?;
     Ok(())
+}
+
+fn refresh_global_shim_dispatcher(
+    global_bin: &Path,
+    installed: &install_pnpm::InstallPnpmResult,
+    version: &str,
+) -> miette::Result<()> {
+    if !node_semver::Version::parse(version).is_ok_and(|version| version.major >= 12) {
+        return Ok(());
+    }
+    let executable =
+        install_pnpm::pnpm_executable_path(&installed.install_dir, installed.package_name);
+    crate::shim_dispatch::refresh_existing_dispatcher(&executable, global_bin)
+        .into_diagnostic()
+        .wrap_err("refresh the global shim dispatcher")
 }
 
 /// Build the registry map (`{ default, ...scoped }`) hashed into the

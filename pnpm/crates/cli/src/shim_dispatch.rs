@@ -58,16 +58,48 @@ const BYPASS_ENV: &str = "PNPM_SHIM_BYPASS";
 
 pub(crate) fn install_dispatcher(global_bin_dir: &Path) -> std::io::Result<()> {
     let source = std::env::current_exe()?;
+    install_dispatcher_from(&source, &dispatcher_path(global_bin_dir))
+}
+
+/// Replace an installed v1 dispatcher with `source`, leaving a missing
+/// dispatcher absent. Self-update uses this to publish fixes from the newly
+/// installed engine without enabling context-aware shims for users who do not
+/// already have any. On Windows, a `node.exe` still linked to the old
+/// dispatcher is refreshed with it.
+pub(crate) fn refresh_existing_dispatcher(
+    source: &Path,
+    global_bin_dir: &Path,
+) -> std::io::Result<()> {
+    let destination = dispatcher_path(global_bin_dir);
+    match std::fs::symlink_metadata(&destination) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    }
+    #[cfg(windows)]
+    let node_dispatcher = {
+        let node = global_bin_dir.join("node.exe");
+        same_file::is_same_file(&destination, &node).unwrap_or(false).then_some(node)
+    };
+    install_dispatcher_from(source, &destination)?;
+    #[cfg(windows)]
+    if let Some(node_dispatcher) = node_dispatcher {
+        install_dispatcher_from(source, &node_dispatcher)?;
+    }
+    Ok(())
+}
+
+fn install_dispatcher_from(source: &Path, destination: &Path) -> std::io::Result<()> {
+    crate::executable_link::replace_executable(source, destination)
+}
+
+fn dispatcher_path(global_bin_dir: &Path) -> PathBuf {
     let file_name = if cfg!(windows) {
         format!("{CONTEXT_AWARE_DISPATCHER_NAME}.exe")
     } else {
         CONTEXT_AWARE_DISPATCHER_NAME.to_string()
     };
-    install_dispatcher_from(&source, &global_bin_dir.join(file_name))
-}
-
-fn install_dispatcher_from(source: &Path, destination: &Path) -> std::io::Result<()> {
-    crate::executable_link::replace_executable(source, destination)
+    global_bin_dir.join(file_name)
 }
 
 /// Intercept a `pnpm --shim ...` invocation. `None` means argv is not a

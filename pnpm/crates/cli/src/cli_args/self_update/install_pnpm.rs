@@ -119,11 +119,7 @@ pub(super) fn assert_pnpm_runs(
     package_name: &str,
     version: &str,
 ) -> miette::Result<()> {
-    let executable = package_dir(install_dir, package_name).join(if host_platform() == "win32" {
-        "pnpm.exe"
-    } else {
-        "pnpm"
-    });
+    let executable = pnpm_executable_path(install_dir, package_name);
     // pnpm prints its version only after loading config and switching versions,
     // so probing from the caller's directory answers with their pin rather than
     // the release under test.
@@ -154,6 +150,15 @@ pub(super) fn assert_pnpm_runs(
         executable: executable.display().to_string(),
     }
     .into())
+}
+
+/// The native pnpm executable linked into an installed engine wrapper.
+pub(super) fn pnpm_executable_path(install_dir: &Path, package_name: &str) -> PathBuf {
+    package_dir(install_dir, package_name).join(if host_platform() == "win32" {
+        "pnpm.exe"
+    } else {
+        "pnpm"
+    })
 }
 
 /// The installed wrapper's recorded version, or `None` when the install is
