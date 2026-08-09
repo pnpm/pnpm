@@ -31,8 +31,7 @@ pub(crate) fn replace_executable(src: &Path, dest: &Path) -> std::io::Result<()>
         #[cfg(unix)]
         let src_is_executable = {
             use std::os::unix::fs::PermissionsExt as _;
-            fs::metadata(src)
-                .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 == 0o111)
+            fs::metadata(src).is_ok_and(|metadata| metadata.permissions().mode() & 0o111 == 0o111)
         };
         #[cfg(not(unix))]
         let src_is_executable = true;
