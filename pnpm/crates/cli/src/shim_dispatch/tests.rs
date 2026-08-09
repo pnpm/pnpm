@@ -6,8 +6,8 @@ use super::{
         MAX_HASHED_BIN_SIZE, local_bin_identity, package_dir_of_target, provider_of_target,
         read_shim_target_from_content, small_file_hash,
     },
-    install_dispatcher_from, is_automatic_runtime, local_bin_path, manifest_runtime_pin,
-    parse_shim_argv,
+    install_dispatcher_from, is_automatic_runtime, local_bin_path, local_bin_unchanged,
+    manifest_runtime_pin, parse_shim_argv,
     runtime_env::managed_runtime_bin,
     trust::{append_trust_decision, read_trust_decision},
     try_dispatch,
@@ -363,6 +363,45 @@ fn local_bin_identity_rejects_an_oversized_executed_flavor() {
     fs::write(&cmd_flavor, vec![b'x'; MAX_HASHED_BIN_SIZE as usize + 1]).unwrap();
 
     assert!(local_bin_identity(&cmd_flavor, "tool").is_none());
+}
+
+/// The window between the trust prompt and execution must not accept a
+/// swapped bin: revalidation compares the live fingerprint against the
+/// one the decision was made for.
+#[test]
+fn revalidation_rejects_a_bin_swapped_after_approval() {
+    let root = tempfile::tempdir().unwrap();
+    let modules = root.path().join("node_modules");
+    let bin_dir = modules.join(".bin");
+    fs::create_dir_all(modules.join("tool")).unwrap();
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::write(modules.join("tool").join("cli.js"), "").unwrap();
+    fs::write(modules.join("tool").join("package.json"), r#"{"name":"tool","version":"1.0.0"}"#)
+        .unwrap();
+    let bin = bin_dir.join("tool");
+    fs::write(
+        &bin,
+        format!(
+            "#!/bin/sh\nexec x\n# cmd-shim-target={}\n",
+            modules.join("tool").join("cli.js").display(),
+        ),
+    )
+    .unwrap();
+
+    let approved = local_bin_identity(&bin, "tool").unwrap().fingerprint;
+    assert!(local_bin_unchanged(&bin, "tool", &approved));
+
+    fs::write(
+        &bin,
+        format!(
+            "#!/bin/sh\nexec swapped\n# cmd-shim-target={}\n",
+            modules.join("tool").join("cli.js").display(),
+        ),
+    )
+    .unwrap();
+    assert!(!local_bin_unchanged(&bin, "tool", &approved));
+    fs::remove_file(&bin).unwrap();
+    assert!(!local_bin_unchanged(&bin, "tool", &approved));
 }
 
 #[test]

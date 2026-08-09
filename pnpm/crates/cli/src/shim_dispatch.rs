@@ -161,7 +161,18 @@ fn dispatch_target(
         }
         Some(candidate) if policy == ShimPolicy::Always || is_trusted(&candidate, name) => {
             match candidate {
-                Candidate::LocalBin { bin, .. } => exec_program(&bin, args),
+                Candidate::LocalBin { bin, identity, .. } => {
+                    // The trust prompt leaves a human-scale window between
+                    // fingerprinting and execution; revalidate so the
+                    // approved bytes are the ones that run. The remaining
+                    // race is process-scale and needs an attacker already
+                    // executing code as the user — outside this gate's
+                    // threat model, since a hostile repository is static.
+                    if !local_bin_unchanged(&bin, name, &identity) {
+                        return run_global_fallback(shim_path, global_target, args);
+                    }
+                    exec_program(&bin, args)
+                }
                 Candidate::RuntimePin { version_spec, .. } => {
                     run_runtime_from_store(name, &version_spec, args)
                 }
@@ -169,6 +180,12 @@ fn dispatch_target(
         }
         _ => run_global_fallback(shim_path, global_target, args),
     }
+}
+
+/// Whether the bin still carries the fingerprint the trust decision was
+/// made against.
+fn local_bin_unchanged(bin: &Path, name: &str, approved_identity: &str) -> bool {
+    local_bin_identity(bin, name).is_some_and(|current| current.fingerprint == approved_identity)
 }
 
 /// Whether a runtime pin may run without the trust gate.
