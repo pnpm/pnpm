@@ -133,10 +133,9 @@ fn install_from_a_git_repo() {
     drop((root, npmrc_info));
 }
 
-/// A git resolution that records an `integrity` — lockfiles in the wild
-/// carry one — loads, and survives a re-resolving install unchanged.
-/// Dropping the key would churn the lockfile against what pnpm wrote,
-/// which keeps it. See <https://github.com/pnpm/pnpm/issues/13042>.
+/// pnpm's own git fetcher computes no integrity, yet lockfiles in the
+/// wild record one, and pnpm hands it back untouched.
+/// See <https://github.com/pnpm/pnpm/issues/13042>.
 #[test]
 fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
     const INTEGRITY: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
