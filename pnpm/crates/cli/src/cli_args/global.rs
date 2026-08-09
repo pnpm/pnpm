@@ -14,10 +14,14 @@ use crate::{
         ignored_builds::get_automatically_ignored_builds,
         rebuild::run_rebuild,
     },
+    shim_dispatch::install_dispatcher,
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes, remove_bin};
+use pacquet_cmd_shim::{
+    Host as CmdShimHost, PackageBinSource, link_bins_of_packages_context_aware,
+    link_bins_of_packages_with_excludes, remove_bin,
+};
 use pacquet_config::{
     CatalogMode, Config, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
 };
@@ -25,7 +29,7 @@ use pacquet_fs::{force_symlink_dir, is_subdir, lexical_normalize};
 use pacquet_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
     create_global_cache_key, create_install_dir, find_global_package, get_hash_link,
-    get_installed_bin_names, read_direct_dependency_aliases, read_installed_packages,
+    get_installed_bin_names, read_direct_dependencies, read_installed_packages,
     scan_global_packages,
 };
 use pacquet_package_is_installable::SupportedArchitectures;
@@ -95,6 +99,85 @@ fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
         .map_err(miette::Report::new)
 }
 
+/// Link `pkgs`' bins into the global bin dir in the shim style selected
+/// by the `globalShims` record: bins of an enabled providing package get
+/// context-aware shims, everything else gets direct shims. The runtime
+/// names only count when actually installed through the `runtime:`
+/// protocol, so an npm package that happens to be called `node` is not
+/// elevated.
+fn link_global_bins(
+    config: &Config,
+    pkgs: &[PackageBinSource],
+    dependencies: &[(String, String)],
+    global_bin_dir: &Path,
+    bins_to_skip: &std::collections::HashSet<String>,
+) -> miette::Result<()> {
+    let (direct, context_aware): (Vec<_>, Vec<_>) = pkgs.iter().cloned().partition(|pkg| {
+        let name = pkg.manifest.get("name").and_then(serde_json::Value::as_str);
+        !name.is_some_and(|name| {
+            config.global_shims.is_enabled(name)
+                && (!pacquet_package_manifest::is_runtime_alias(name)
+                    || dependencies
+                        .iter()
+                        .any(|(alias, spec)| alias == name && spec.starts_with("runtime:")))
+        })
+    });
+    if !direct.is_empty() {
+        link_bins_of_packages_with_excludes::<CmdShimHost>(
+            &direct,
+            global_bin_dir,
+            bins_to_skip,
+            &[],
+        )
+        .map_err(miette::Report::new)
+        .wrap_err("link direct global package bins")?;
+    }
+    if !context_aware.is_empty() {
+        install_dispatcher(global_bin_dir)
+            .into_diagnostic()
+            .wrap_err("install the global shim dispatcher")?;
+        link_bins_of_packages_context_aware::<CmdShimHost>(
+            &context_aware,
+            global_bin_dir,
+            bins_to_skip,
+        )
+        .map_err(miette::Report::new)
+        .wrap_err("link context-aware global package bins")?;
+        #[cfg(windows)]
+        install_windows_node_dispatcher(&context_aware, global_bin_dir, bins_to_skip)?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn install_windows_node_dispatcher(
+    packages: &[PackageBinSource],
+    global_bin_dir: &Path,
+    bins_to_skip: &HashSet<String>,
+) -> miette::Result<()> {
+    if bins_to_skip.contains("node") {
+        return Ok(());
+    }
+    let target = packages.iter().find_map(|pkg| {
+        if pkg.manifest.get("name").and_then(serde_json::Value::as_str) != Some("node") {
+            return None;
+        }
+        pacquet_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
+            &pkg.manifest,
+            &pkg.location,
+        )
+        .into_iter()
+        .find(|command| command.name == "node")
+        .map(|command| command.path)
+    });
+    if let Some(target) = target {
+        crate::shim_dispatch::install_windows_node_dispatcher(global_bin_dir, &target)
+            .into_diagnostic()
+            .wrap_err("install the Windows Node.js dispatcher")?;
+    }
+    Ok(())
+}
+
 /// `pnpm add -g`. Installs each group, links its bins into the global bin
 /// directory, and records a cache-keyed hash symlink.
 pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
@@ -131,7 +214,8 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         .await?;
 
         let pkgs = read_installed_packages(&install_dir);
-        let aliases = read_direct_dependency_aliases(&install_dir);
+        let dependencies = read_direct_dependencies(&install_dir);
+        let aliases = dependencies.iter().map(|(alias, _)| alias.clone()).collect::<Vec<_>>();
         let aliases_to_replace = replacement_aliases(&aliases);
 
         let bins_to_skip = match check_global_bin_conflicts(
@@ -164,14 +248,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             .into_diagnostic()
             .wrap_err("link the global package install directory")?;
 
-        link_bins_of_packages_with_excludes::<CmdShimHost>(
-            &pkgs,
-            &global_bin_dir,
-            &bins_to_skip,
-            &[],
-        )
-        .map_err(miette::Report::new)
-        .wrap_err("link global package bins")?;
+        link_global_bins(base_config, &pkgs, &dependencies, &global_bin_dir, &bins_to_skip)?;
     }
     Ok(())
 }
@@ -231,6 +308,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         let _ = config;
 
         let pkgs = read_installed_packages(&install_dir);
+        let dependencies = read_direct_dependencies(&install_dir);
         let bins_to_skip = match check_global_bin_conflicts(
             &global_pkg_dir,
             &global_bin_dir,
@@ -265,14 +343,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             let _ = fs::remove_dir_all(&pkg.install_dir);
         }
 
-        link_bins_of_packages_with_excludes::<CmdShimHost>(
-            &pkgs,
-            &global_bin_dir,
-            &bins_to_skip,
-            &[],
-        )
-        .map_err(miette::Report::new)
-        .wrap_err("link global package bins")?;
+        link_global_bins(base_config, &pkgs, &dependencies, &global_bin_dir, &bins_to_skip)?;
     }
     Ok(())
 }

@@ -6,7 +6,7 @@
 //! preinstall, which is skipped because the engine is installed with scripts
 //! disabled), and the caller links the bins + hash symlink.
 
-use crate::{State, cli_args::add::add_package};
+use crate::{State, cli_args::add::add_package, executable_link::replace_executable};
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, PackageManagerBootstrap};
 use pacquet_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
@@ -119,11 +119,7 @@ pub(super) fn assert_pnpm_runs(
     package_name: &str,
     version: &str,
 ) -> miette::Result<()> {
-    let executable = package_dir(install_dir, package_name).join(if host_platform() == "win32" {
-        "pnpm.exe"
-    } else {
-        "pnpm"
-    });
+    let executable = pnpm_executable_path(install_dir, package_name);
     // pnpm prints its version only after loading config and switching versions,
     // so probing from the caller's directory answers with their pin rather than
     // the release under test.
@@ -154,6 +150,15 @@ pub(super) fn assert_pnpm_runs(
         executable: executable.display().to_string(),
     }
     .into())
+}
+
+/// The native pnpm executable linked into an installed engine wrapper.
+pub(super) fn pnpm_executable_path(install_dir: &Path, package_name: &str) -> PathBuf {
+    package_dir(install_dir, package_name).join(if host_platform() == "win32" {
+        "pnpm.exe"
+    } else {
+        "pnpm"
+    })
 }
 
 /// The installed wrapper's recorded version, or `None` when the install is
@@ -414,7 +419,7 @@ pub(crate) fn link_exe_platform_binary(
     let native_source_root = native_source_trust_root(&install_real_dir, wrapper_pkg_name);
     let src = validate_native_binary_source(&src, &native_source_root)?;
     let dest = wrapper_real_dir.join(executable);
-    force_link(&src, &dest)
+    replace_executable(&src, &dest)
         .into_diagnostic()
         .wrap_err("link the native pnpm binary into the wrapper")?;
 
@@ -424,7 +429,7 @@ pub(crate) fn link_exe_platform_binary(
         // target under MSYS2 / Git Bash. The native binary detects which
         // name it was launched as and prepends `dlx` for pnpx / pnx.
         for alias in ["pn", "pnpx", "pnx"] {
-            force_link(&src, &wrapper_real_dir.join(format!("{alias}.exe")))
+            replace_executable(&src, &wrapper_real_dir.join(format!("{alias}.exe")))
                 .into_diagnostic()
                 .wrap_err_with(|| format!("link the {alias} alias into the wrapper"))?;
         }
@@ -495,68 +500,6 @@ pub(crate) fn package_dir(install_dir: &Path, package_name: &str) -> PathBuf {
         package_dir.push(segment);
     }
     package_dir
-}
-
-/// Hard-link `src` to `dest`, replacing any existing file. Marks the
-/// result executable on Unix (a copy/link can lose the bit).
-fn force_link(src: &Path, dest: &Path) -> std::io::Result<()> {
-    // The engine's global-virtual-store slot is shared by every process
-    // on the host, and each of them re-links the native binary on its way
-    // through. Unlinking a `dest` that is already the wanted inode would
-    // pull the executable out from under a concurrent process running it,
-    // so the already-linked case is left alone, and a `dest` that must
-    // actually change is replaced by a rename rather than an unlink —
-    // a rename swaps the dirent and leaves a running process on the inode
-    // it opened.
-    if same_file::is_same_file(src, dest).unwrap_or(false) {
-        return Ok(());
-    }
-    let file_name = dest.file_name().unwrap_or(dest.as_os_str()).to_string_lossy().into_owned();
-    let staged = dest.with_file_name(format!(".{file_name}.{}.pacquet-tmp", std::process::id()));
-    match fs::remove_file(&staged) {
-        Ok(()) => {}
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-        Err(err) => return Err(err),
-    }
-    fs::hard_link(src, &staged)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Err(err) = fs::set_permissions(&staged, fs::Permissions::from_mode(0o755)) {
-            let _ = fs::remove_file(&staged);
-            return Err(err);
-        }
-    }
-    swap_into_place(&staged, dest).inspect_err(|_| {
-        let _ = fs::remove_file(&staged);
-    })
-}
-
-/// `rename` `staged` over `dest`, retrying briefly.
-///
-/// Replacing a file another process has open fails on Windows with a
-/// sharing violation, and this destination is an executable several pnpm
-/// processes reach at once — plus whatever an antivirus or search
-/// indexer holds open behind them. Those handles are released in
-/// milliseconds, so a short retry turns a spurious install failure into
-/// a pause. A destination that stays busy still surfaces its error.
-fn swap_into_place(staged: &Path, dest: &Path) -> std::io::Result<()> {
-    /// Ten tries backing off linearly, ~1.1s of sleep in total: long
-    /// enough to outlast a scanner's handle, short enough not to stall a
-    /// command whose destination is genuinely blocked.
-    const ATTEMPTS: usize = 10;
-    const BACKOFF: std::time::Duration = std::time::Duration::from_millis(25);
-
-    for attempt in 1..ATTEMPTS {
-        match fs::rename(staged, dest) {
-            Ok(()) => return Ok(()),
-            // A missing staged file is not contention — nothing will
-            // change on a retry, so fail now with the real error.
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Err(err),
-            Err(_) => std::thread::sleep(BACKOFF * u32::try_from(attempt).unwrap_or(1)),
-        }
-    }
-    fs::rename(staged, dest)
 }
 
 /// Point the Windows wrapper's `bin` field at the `.exe` variants (the

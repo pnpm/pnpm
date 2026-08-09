@@ -162,13 +162,33 @@ where
     )
 }
 
+/// Resolve pnpm's machine-local state directory (`XDG_STATE_HOME`
+/// convention). Same seam shape as [`default_config_dir`]; the layout
+/// itself lives in [`pacquet_config_dir::state_dir`], shared with the
+/// TypeScript CLI's `getStateDir`.
+pub fn default_state_dir<Sys>() -> Option<PathBuf>
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    let xdg_state_home = Sys::var("XDG_STATE_HOME");
+    let local_app_data = Sys::var("LOCALAPPDATA");
+    pacquet_config_dir::state_dir(
+        "pnpm",
+        env::consts::OS,
+        xdg_state_home.as_deref(),
+        local_app_data.as_deref(),
+        Sys::home_dir,
+    )
+}
+
 /// Resolve the default packument-cache directory.
 ///
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
-/// as [`default_store_dir`]: unit tests drive every branch without
+/// as `default_store_dir`: unit tests drive every branch without
 /// mutating the process environment. Production callers pass
 /// [`crate::Host`] for `Sys`, which threads `home::home_dir` through
 /// the [`GetHomeDir`] impl.
+#[must_use]
 pub fn default_cache_dir<Sys>() -> PathBuf
 where
     Sys: EnvVar + GetHomeDir,
