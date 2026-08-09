@@ -100,7 +100,7 @@ fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
 }
 
 /// Link `pkgs`' bins into the global bin dir in the shim style selected
-/// by the `contextAwareGlobalShims` record: bins of an enabled providing package get
+/// by the `globalShims` record: bins of an enabled providing package get
 /// context-aware shims, everything else gets direct shims. The runtime
 /// names only count when actually installed through the `runtime:`
 /// protocol, so an npm package that happens to be called `node` is not
@@ -115,7 +115,7 @@ fn link_global_bins(
     let (direct, context_aware): (Vec<_>, Vec<_>) = pkgs.iter().cloned().partition(|pkg| {
         let name = pkg.manifest.get("name").and_then(serde_json::Value::as_str);
         !name.is_some_and(|name| {
-            config.context_aware_global_shims.is_enabled(name)
+            config.global_shims.is_enabled(name)
                 && (!pacquet_package_manifest::is_runtime_alias(name)
                     || dependencies
                         .iter()

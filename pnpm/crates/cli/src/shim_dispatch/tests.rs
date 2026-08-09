@@ -426,9 +426,9 @@ fn runtime_promptless_policy_matrix() {
     assert!(runtime_runs_promptless(ShimPolicy::Auto, "node", "22.11.0"));
     assert!(!runtime_runs_promptless(ShimPolicy::Auto, "node", "24.0.0-rc.4"));
     assert!(!runtime_runs_promptless(ShimPolicy::Auto, "deno", "2.0.0"));
-    // Trusted always may; Prompt and Off never.
-    assert!(runtime_runs_promptless(ShimPolicy::Trusted, "deno", "2.0.0"));
-    assert!(runtime_runs_promptless(ShimPolicy::Trusted, "node", "24.0.0-rc.4"));
+    // Always always may; Prompt and Off never.
+    assert!(runtime_runs_promptless(ShimPolicy::Always, "deno", "2.0.0"));
+    assert!(runtime_runs_promptless(ShimPolicy::Always, "node", "24.0.0-rc.4"));
     assert!(!runtime_runs_promptless(ShimPolicy::Prompt, "node", "22.11.0"));
     assert!(!runtime_runs_promptless(ShimPolicy::Off, "node", "22.11.0"));
 }

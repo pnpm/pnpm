@@ -33,7 +33,7 @@ pub const CONTEXT_AWARE_DISPATCHER_NAME: &str = ".pnpm-shim-v1";
 
 /// Whether an on-disk shim was generated with
 /// [`ShimStyle::ContextAware`]. Used by the idempotency check so a
-/// style change (e.g. the `contextAwareGlobalShims` setting being toggled, or a
+/// style change (e.g. the `globalShims` setting being toggled, or a
 /// pre-context-aware pnpm having written the shim) forces a rewrite
 /// even though the target is unchanged.
 #[must_use]

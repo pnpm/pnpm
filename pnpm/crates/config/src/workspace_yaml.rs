@@ -124,11 +124,11 @@ pub struct WorkspaceSettings {
     /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
     /// [`Config::virtual_store_only`].
     pub virtual_store_only: Option<bool>,
-    /// `contextAwareGlobalShims` from `pnpm-workspace.yaml` or the global
+    /// `globalShims` from `pnpm-workspace.yaml` or the global
     /// `config.yaml`. One layer of the record; merged key-wise into
-    /// [`Config::context_aware_global_shims`] rather than assigned
-    /// wholesale. See [`crate::ContextAwareGlobalShims`].
-    pub context_aware_global_shims: Option<crate::ContextAwareGlobalShimsSetting>,
+    /// [`Config::global_shims`] rather than assigned
+    /// wholesale. See [`crate::GlobalShims`].
+    pub global_shims: Option<crate::GlobalShimsSetting>,
     /// `enableModulesDir` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_modules_dir`].
     pub enable_modules_dir: Option<bool>,
@@ -1053,10 +1053,10 @@ impl WorkspaceSettings {
             allow_unused_patches,
         }
 
-        // `contextAwareGlobalShims` merges key-wise instead of replacing,
+        // `globalShims` merges key-wise instead of replacing,
         // so a layer can flip one package without restating the defaults.
-        if let Some(context_aware_global_shims) = self.context_aware_global_shims {
-            config.context_aware_global_shims.apply(&context_aware_global_shims);
+        if let Some(global_shims) = self.global_shims {
+            config.global_shims.apply(&global_shims);
         }
 
         // The `update` section supersedes the deprecated `updateConfig`.

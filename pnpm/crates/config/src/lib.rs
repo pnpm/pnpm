@@ -122,26 +122,26 @@ pub enum TrustPolicy {
     NoDowngrade,
 }
 
-/// The resolved per-package policy in `contextAwareGlobalShims`.
+/// The resolved per-package policy in `globalShims`.
 ///
 /// `Auto` (the record value `true`) defers to artifact authentication:
 /// publisher-signature-verified candidates run without prompting, all
 /// others go through the candidate-bound trust prompt. `Prompt` always
-/// asks, even for authenticated candidates. `Trusted` never asks — the
-/// user pre-answered the prompt in machine-local configuration, which a
-/// project cannot write to. `Off` (the record value `false`) disables
-/// the package's context-aware shim entirely.
+/// asks, even for authenticated candidates. `Always` always switches
+/// without asking — the user pre-answered the prompt in machine-local
+/// configuration, which a project cannot write to. `Off` (the record
+/// value `false`) disables the package's context-aware shim entirely.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum ShimPolicy {
     #[default]
     Off,
     Auto,
     Prompt,
-    Trusted,
+    Always,
 }
 
-/// One value of the `contextAwareGlobalShims` record: `true` / `false`,
-/// or a named policy (`"prompt"`, `"trusted"`). See [`ShimPolicy`] for
+/// One value of the `globalShims` record: `true` / `false`,
+/// or a named policy (`"prompt"`, `"always"`). See [`ShimPolicy`] for
 /// the semantics each maps to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -154,7 +154,7 @@ pub enum ShimPolicyValue {
 #[serde(rename_all = "kebab-case")]
 pub enum NamedShimPolicy {
     Prompt,
-    Trusted,
+    Always,
 }
 
 impl ShimPolicyValue {
@@ -163,28 +163,28 @@ impl ShimPolicyValue {
             ShimPolicyValue::Toggle(false) => ShimPolicy::Off,
             ShimPolicyValue::Toggle(true) => ShimPolicy::Auto,
             ShimPolicyValue::Named(NamedShimPolicy::Prompt) => ShimPolicy::Prompt,
-            ShimPolicyValue::Named(NamedShimPolicy::Trusted) => ShimPolicy::Trusted,
+            ShimPolicyValue::Named(NamedShimPolicy::Always) => ShimPolicy::Always,
         }
     }
 }
 
-/// One configuration layer of the `contextAwareGlobalShims` setting:
+/// One configuration layer of the `globalShims` setting:
 /// either a record of package names to policy values, or a scalar
-/// shorthand. Layers fold into the resolved [`ContextAwareGlobalShims`]
-/// via [`ContextAwareGlobalShims::apply`].
+/// shorthand. Layers fold into the resolved [`GlobalShims`]
+/// via [`GlobalShims::apply`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum ContextAwareGlobalShimsSetting {
-    /// `contextAwareGlobalShims: false` disables every context-aware
+pub enum GlobalShimsSetting {
+    /// `globalShims: false` disables every context-aware
     /// shim; `true` resets to the built-in defaults.
     Toggle(bool),
-    /// `contextAwareGlobalShims: { <package>: <policy> }` merges
+    /// `globalShims: { <package>: <policy> }` merges
     /// key-wise over the defaults and lower layers, so one `bun: false`
     /// entry disables a single default without restating the rest.
     Entries(std::collections::HashMap<String, ShimPolicyValue>),
 }
 
-/// The resolved `contextAwareGlobalShims` setting: which globally
+/// The resolved `globalShims` setting: which globally
 /// installed packages get context-aware shims and under which trust
 /// policy, keyed by the providing package's manifest name (so an entry
 /// for `typescript` covers its `tsc` bin).
@@ -192,11 +192,11 @@ pub enum ContextAwareGlobalShimsSetting {
 /// The built-in default enables the managed runtimes — `node`, `deno`,
 /// and `bun` — with the [`ShimPolicy::Auto`] policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContextAwareGlobalShims {
+pub struct GlobalShims {
     entries: std::collections::HashMap<String, ShimPolicy>,
 }
 
-impl Default for ContextAwareGlobalShims {
+impl Default for GlobalShims {
     fn default() -> Self {
         Self {
             entries: ["node", "deno", "bun"]
@@ -207,15 +207,15 @@ impl Default for ContextAwareGlobalShims {
     }
 }
 
-impl ContextAwareGlobalShims {
+impl GlobalShims {
     /// Fold one configuration layer into the resolved setting. Records
     /// merge key-wise; the scalar shorthands replace the accumulated
     /// state (`false` → nothing dispatches, `true` → the defaults).
-    pub fn apply(&mut self, layer: &ContextAwareGlobalShimsSetting) {
+    pub fn apply(&mut self, layer: &GlobalShimsSetting) {
         match layer {
-            ContextAwareGlobalShimsSetting::Toggle(false) => self.entries.clear(),
-            ContextAwareGlobalShimsSetting::Toggle(true) => *self = Self::default(),
-            ContextAwareGlobalShimsSetting::Entries(entries) => {
+            GlobalShimsSetting::Toggle(false) => self.entries.clear(),
+            GlobalShimsSetting::Toggle(true) => *self = Self::default(),
+            GlobalShimsSetting::Entries(entries) => {
                 for (name, value) in entries {
                     self.entries.insert(name.clone(), value.resolve());
                 }
@@ -908,13 +908,13 @@ pub struct Config {
     /// (pnpm's `NO_GLOBAL_BIN_DIR` when absent).
     pub global_bin: Option<PathBuf>,
 
-    /// `contextAwareGlobalShims`, resolved: which globally installed
+    /// `globalShims`, resolved: which globally installed
     /// packages get context-aware shims and under which trust policy,
     /// keyed by package name and merged key-wise across the
     /// configuration layers over the built-in
     /// `{ node: true, deno: true, bun: true }`. See
-    /// [`ContextAwareGlobalShims`].
-    pub context_aware_global_shims: ContextAwareGlobalShims,
+    /// [`GlobalShims`].
+    pub global_shims: GlobalShims,
 
     /// Controls the way packages are imported from the store (if you want to disable symlinks
     /// inside `node_modules`, then you need to change the node-linker setting, not this one).
