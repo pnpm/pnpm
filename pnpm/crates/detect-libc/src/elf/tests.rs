@@ -1,5 +1,46 @@
-use super::{classify_interpreter, elf_interpreter};
+use super::{
+    MAX_INTERPRETER_SIZE, MAX_PROGRAM_HEADERS_SIZE, classify_interpreter, decode_interpreter,
+    elf_layout, interpreter_location, read_elf_interpreter,
+};
 use crate::Implementation;
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
+
+struct CountingReader {
+    inner: Cursor<Vec<u8>>,
+    bytes_read: usize,
+}
+
+impl Read for CountingReader {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        let read = self.inner.read(buffer)?;
+        self.bytes_read += read;
+        Ok(read)
+    }
+}
+
+impl Seek for CountingReader {
+    fn seek(&mut self, position: SeekFrom) -> io::Result<u64> {
+        self.inner.seek(position)
+    }
+}
+
+fn elf_interpreter(elf: &[u8]) -> Option<&str> {
+    let layout = elf_layout(elf)?;
+    let phoff: usize = layout.phoff.try_into().ok()?;
+    let table_size = layout.phentsize.checked_mul(layout.phnum)?;
+    if table_size > MAX_PROGRAM_HEADERS_SIZE {
+        return None;
+    }
+    let table_end = phoff.checked_add(table_size)?;
+    let program_headers = elf.get(phoff..table_end)?;
+    let (offset, size) = interpreter_location(program_headers, layout.phentsize)?;
+    if size > MAX_INTERPRETER_SIZE {
+        return None;
+    }
+    let offset: usize = offset.try_into().ok()?;
+    let end = offset.checked_add(size)?;
+    decode_interpreter(elf.get(offset..end)?)
+}
 
 fn build_elf_with_interp(interp: &[u8]) -> Vec<u8> {
     let phoff: u64 = 64;
@@ -122,6 +163,16 @@ fn musl_pt_interp() {
     let interp = b"/lib/ld-musl-x86_64.so.1\0";
     let elf = build_elf_with_interp(interp);
     assert_eq!(elf_interpreter(&elf), Some("/lib/ld-musl-x86_64.so.1"));
+}
+
+#[test]
+fn bounded_reader_finds_the_interpreter_without_loading_the_whole_executable() {
+    let mut elf = build_elf_with_interp(b"/lib64/ld-linux-x86-64.so.2\0");
+    elf.resize(1024 * 1024, 0);
+    let mut reader = CountingReader { inner: Cursor::new(elf), bytes_read: 0 };
+
+    assert_eq!(read_elf_interpreter(&mut reader).as_deref(), Some("/lib64/ld-linux-x86-64.so.2"));
+    assert!(reader.bytes_read < 4096);
 }
 
 #[test]

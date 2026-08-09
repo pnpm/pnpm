@@ -44,7 +44,7 @@ mod trust;
 mod windows;
 
 use identity::{Provider, local_bin_identity, provider_of_target};
-use runtime_env::materialize_runtime;
+use runtime_env::{cached_runtime_bin, materialize_runtime};
 use trust::is_trusted;
 #[cfg(windows)]
 pub(crate) use windows::install_windows_node_dispatcher;
@@ -451,6 +451,9 @@ fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
 }
 
 fn run_runtime_from_store(name: &str, version_spec: &str, args: &[OsString]) -> i32 {
+    if let Some(bin) = cached_runtime_bin(name, version_spec) {
+        return exec_program(&bin, args);
+    }
     let result = crate::block_on_runtime(
         "pacquet-global-shim-runtime",
         materialize_runtime(name.to_string(), version_spec.to_string()),
