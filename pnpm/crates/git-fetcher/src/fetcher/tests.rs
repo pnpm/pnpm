@@ -1273,24 +1273,24 @@ fn is_safe_repo_arg_rejects_option_shaped_values() {
 #[test]
 fn ssh_repo_url_to_https_rewrites_only_ssh_references() {
     assert_eq!(
-        ssh_repo_url_to_https("git@github.com:logux/client.git").as_deref(),
-        Some("https://github.com/logux/client.git"),
+        ssh_repo_url_to_https("git@github.com:acme/widget.git").as_deref(),
+        Some("https://github.com/acme/widget.git"),
     );
     assert_eq!(
-        ssh_repo_url_to_https("ssh://git@github.com/logux/client.git").as_deref(),
-        Some("https://github.com/logux/client.git"),
+        ssh_repo_url_to_https("ssh://git@github.com/acme/widget.git").as_deref(),
+        Some("https://github.com/acme/widget.git"),
     );
     assert_eq!(
-        ssh_repo_url_to_https("git+ssh://git@github.com/logux/client.git").as_deref(),
-        Some("https://github.com/logux/client.git"),
+        ssh_repo_url_to_https("git+ssh://git@github.com/acme/widget.git").as_deref(),
+        Some("https://github.com/acme/widget.git"),
     );
     assert_eq!(
         ssh_repo_url_to_https("ssh://git@gitlab.example.com:2222/org/repo.git").as_deref(),
         Some("https://gitlab.example.com/org/repo.git"),
     );
 
-    assert_eq!(ssh_repo_url_to_https("https://github.com/logux/client.git"), None);
-    assert_eq!(ssh_repo_url_to_https("git://github.com/logux/client.git"), None);
+    assert_eq!(ssh_repo_url_to_https("https://github.com/acme/widget.git"), None);
+    assert_eq!(ssh_repo_url_to_https("git://github.com/acme/widget.git"), None);
     assert_eq!(ssh_repo_url_to_https("file:///home/zoltan/src/repo"), None);
     assert_eq!(ssh_repo_url_to_https("ssh://git@github.com"), None);
     assert_eq!(ssh_repo_url_to_https(r"C:\src\repo"), None);
