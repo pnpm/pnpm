@@ -3,15 +3,16 @@
 //! Selected bins pnpm links into the global bin dir invoke the adjacent
 //! protocol-versioned executable with
 //! `--shim <name> <shim> <global-target> -- <args...>` (see
-//! `pacquet_cmd_shim::ShimStyle`). In the default `auto` mode only an
-//! authenticated Node runtime is context-aware: the dispatcher reads the
-//! project's `devEngines.runtime` / `engines.runtime` pin, materializes the
-//! publisher-signature-verified release in pnpm's global virtual store, and
-//! executes it directly. It never resolves a runtime through the project's
-//! `node_modules/.bin` directory.
+//! `pacquet_cmd_shim::ShimStyle`). The `globalShims` record decides which
+//! providing packages are eligible; the managed runtimes are enabled by
+//! default. For a runtime pin, the dispatcher reads the project's
+//! `devEngines.runtime` / `engines.runtime`, materializes the release in
+//! pnpm's global virtual store, and executes it directly — never through
+//! the project's `node_modules/.bin`. A publisher-signature-verified
+//! stable Node release runs without prompting.
 //!
-//! `globalShims: all` also permits ordinary package bins to switch. That is
-//! a trust decision, gated twice. First, the
+//! Everything else eligible — ordinary package bins, unsigned runtime
+//! channels — is a trust decision, gated twice. First, the
 //! candidate must resolve through its aliases to a package whose manifest
 //! name matches the global provider. Second, the exact candidate must be
 //! approved on the terminal (`Do you trust this project?`). Answers are
@@ -24,8 +25,8 @@ use crate::{State, cli_args::add::add_package};
 use miette::{Context, IntoDiagnostic};
 use pacquet_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pacquet_config::{
-    Config, GlobalShims, Host, WorkspaceSettings, default_config_dir, default_pnpm_home_dir,
-    default_state_dir,
+    Config, GlobalShims, GlobalShimsSetting, Host, WorkspaceSettings, default_config_dir,
+    default_pnpm_home_dir, default_state_dir,
 };
 use pacquet_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
 use pacquet_engine_runtime_node_resolver::parse_node_specifier;
@@ -120,8 +121,8 @@ fn dispatch(rest: &[OsString]) -> i32 {
         );
         return 1;
     };
-    let mode = global_shims_mode();
-    dispatch_target(name, Some(shim_path), global_target, args, mode)
+    let shims = global_shims_setting();
+    dispatch_target(name, Some(shim_path), global_target, args, &shims)
 }
 
 fn dispatch_target(
@@ -129,29 +130,34 @@ fn dispatch_target(
     shim_path: Option<&Path>,
     global_target: &Path,
     args: &[OsString],
-    mode: GlobalShims,
+    shims: &GlobalShims,
 ) -> i32 {
-    if bypass_requested() || mode == GlobalShims::Off {
+    if bypass_requested() || shims.dispatches_nothing() {
         return run_global_fallback(shim_path, global_target, args);
     }
-    let candidate = std::env::current_dir()
-        .ok()
-        .and_then(|cwd| find_candidate(&cwd, name, mode))
-        .and_then(|candidate| validate_candidate(candidate, global_target, name));
+    // Eligibility is keyed by the global bin's providing package, so an
+    // entry for `typescript` covers its `tsc` bin. Identity comes from
+    // the provider manifest, which also anchors the candidate match.
+    let provider =
+        provider_of_target(global_target).filter(|provider| shims.is_enabled(&provider.name));
+    let candidate = provider.as_ref().and_then(|provider| {
+        std::env::current_dir()
+            .ok()
+            .and_then(|cwd| find_candidate(&cwd, name))
+            .and_then(|candidate| validate_candidate(candidate, provider, name))
+    });
     match candidate {
         Some(Candidate::RuntimePin { project_dir, version_spec, .. })
             if is_automatic_runtime(name, &version_spec) =>
         {
             run_runtime_from_store(name, &version_spec, &project_dir, args)
         }
-        Some(candidate) if mode == GlobalShims::All && is_trusted(&candidate, name) => {
-            match candidate {
-                Candidate::LocalBin { bin, .. } => exec_program(&bin, args),
-                Candidate::RuntimePin { project_dir, version_spec, .. } => {
-                    run_runtime_from_store(name, &version_spec, &project_dir, args)
-                }
+        Some(candidate) if is_trusted(&candidate, name) => match candidate {
+            Candidate::LocalBin { bin, .. } => exec_program(&bin, args),
+            Candidate::RuntimePin { project_dir, version_spec, .. } => {
+                run_runtime_from_store(name, &version_spec, &project_dir, args)
             }
-        }
+        },
         _ => run_global_fallback(shim_path, global_target, args),
     }
 }
@@ -194,7 +200,7 @@ fn try_windows_node_dispatch(argv: &[OsString]) -> Option<i32> {
         );
         return Some(1);
     }
-    Some(dispatch_target("node", None, &global_target, &argv[1..], global_shims_mode()))
+    Some(dispatch_target("node", None, &global_target, &argv[1..], &global_shims_setting()))
 }
 
 /// Re-enter the generated shim with dispatch disabled so its original
@@ -231,35 +237,36 @@ fn bypass_requested() -> bool {
         .is_ok_and(|value| !value.is_empty() && value != "0" && value != "false")
 }
 
-/// The `globalShims` setting at dispatch time, so turning it off takes
+/// The `globalShims` setting at dispatch time, so config edits take
 /// effect immediately instead of waiting for the next global install to
-/// relink the shims. Read from the env override, the pnpm home's own
-/// `pnpm-workspace.yaml`, and the global `config.yaml` — never from a
-/// discovered ancestor, so neither a project nor an unrelated workspace
-/// above the pnpm home can influence dispatch.
-fn global_shims_mode() -> GlobalShims {
+/// relink the shims. Layers merge key-wise over the built-in defaults in
+/// the order global `config.yaml`, the pnpm home's own
+/// `pnpm-workspace.yaml`, then the env override — only sources a project
+/// cannot influence, and never a discovered ancestor of the pnpm home.
+fn global_shims_setting() -> GlobalShims {
+    let mut shims = GlobalShims::default();
+    if let Some(layer) = default_config_dir::<Host>()
+        .and_then(|config_dir| WorkspaceSettings::load_global(&config_dir).ok().flatten())
+        .and_then(|settings| settings.global_shims)
+    {
+        shims.apply(&layer);
+    }
+    if let Some(layer) = default_pnpm_home_dir::<Host>()
+        .and_then(|home| WorkspaceSettings::load_at(&home).ok().flatten())
+        .and_then(|settings| settings.global_shims)
+    {
+        shims.apply(&layer);
+    }
     for env_name in ["PNPM_CONFIG_GLOBAL_SHIMS", "pnpm_config_global_shims"] {
         if let Ok(value) = std::env::var(env_name)
             && !value.is_empty()
+            && let Ok(layer) = serde_json::from_str::<GlobalShimsSetting>(&value)
         {
-            if let Ok(mode) = serde_json::from_str::<GlobalShims>(&value) {
-                return mode;
-            }
-            if let Ok(quoted) = serde_json::to_string(&value)
-                && let Ok(mode) = serde_json::from_str::<GlobalShims>(&quoted)
-            {
-                return mode;
-            }
+            shims.apply(&layer);
+            break;
         }
     }
-    let global_config = default_config_dir::<Host>()
-        .and_then(|config_dir| WorkspaceSettings::load_global(&config_dir).ok().flatten())
-        .and_then(|settings| settings.global_shims);
-    default_pnpm_home_dir::<Host>()
-        .and_then(|home| WorkspaceSettings::load_at(&home).ok().flatten())
-        .and_then(|settings| settings.global_shims)
-        .or(global_config)
-        .unwrap_or_default()
+    shims
 }
 
 /// The context switch only ever substitutes a different version of the
@@ -268,8 +275,11 @@ fn global_shims_mode() -> GlobalShims {
 /// A project shipping a same-named bin from a *different* package (a
 /// lookalike `tsc` from `evil-pkg`) fails the match and the global
 /// version runs.
-fn validate_candidate(candidate: Candidate, global_target: &Path, name: &str) -> Option<Candidate> {
-    let global_provider = provider_of_target(global_target)?;
+fn validate_candidate(
+    candidate: Candidate,
+    global_provider: &Provider,
+    name: &str,
+) -> Option<Candidate> {
     match candidate {
         Candidate::LocalBin { project_dir, bin, .. } => {
             let local = local_bin_identity(&bin, name)?;
@@ -452,9 +462,9 @@ impl Candidate {
 
 /// Walk up from `cwd` to the nearest directory providing `name`. Runtime
 /// shims only consider manifest pins and never inspect `.bin`; ordinary
-/// package bins are considered only in the explicit `all` mode. Directories
-/// inside the pnpm home are skipped because global installs are not projects.
-fn find_candidate(cwd: &Path, name: &str, mode: GlobalShims) -> Option<Candidate> {
+/// package bins resolve through `node_modules/.bin`. Directories inside
+/// the pnpm home are skipped because global installs are not projects.
+fn find_candidate(cwd: &Path, name: &str) -> Option<Candidate> {
     let pnpm_home = default_pnpm_home_dir::<Host>();
     let runtime = is_runtime_alias(name);
     for dir in cwd.ancestors() {
@@ -462,19 +472,14 @@ fn find_candidate(cwd: &Path, name: &str, mode: GlobalShims) -> Option<Candidate
             continue;
         }
         if runtime && let Some((version_spec, manifest_hash)) = manifest_runtime_pin(dir, name) {
-            return (mode == GlobalShims::All || is_automatic_runtime(name, &version_spec)).then(
-                || Candidate::RuntimePin {
-                    project_dir: dir.to_path_buf(),
-                    version_spec,
-                    manifest_hash,
-                    identity: String::new(),
-                },
-            );
+            return Some(Candidate::RuntimePin {
+                project_dir: dir.to_path_buf(),
+                version_spec,
+                manifest_hash,
+                identity: String::new(),
+            });
         }
-        if !runtime
-            && mode == GlobalShims::All
-            && let Some(bin) = local_bin_path(dir, name)
-        {
+        if !runtime && let Some(bin) = local_bin_path(dir, name) {
             return Some(Candidate::LocalBin {
                 project_dir: dir.to_path_buf(),
                 bin,

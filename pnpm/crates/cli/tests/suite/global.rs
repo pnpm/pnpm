@@ -125,7 +125,7 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
-/// `globalShims: all` writes context-aware shims: the generated shim
+/// A `globalShims` entry for the package writes context-aware shims: the
 /// dispatches through the versioned binary next to it, so a project-local
 /// version of the same bin wins over the global target, and falls back to
 /// the global target outside any providing project.
@@ -143,7 +143,8 @@ fn global_shims_all_prefers_local_bins() {
     prepare_global_home(&pnpm_home, &npmrc_info);
     let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path).unwrap();
-    fs::write(&yaml_path, format!("{yaml}globalShims: all\n")).unwrap();
+    fs::write(&yaml_path, format!("{yaml}globalShims: {{'@foo/touch-file-one-bin': true}}\n"))
+        .unwrap();
 
     global_command(&workspace, &pnpm_home)
         .with_arg("add")

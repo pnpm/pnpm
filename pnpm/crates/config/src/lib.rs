@@ -122,20 +122,72 @@ pub enum TrustPolicy {
     NoDowngrade,
 }
 
-/// Which globally installed commands use project-aware shims.
+/// One configuration layer of the `globalShims` setting: either a record
+/// of package names to booleans, or a scalar shorthand. Layers fold into
+/// the resolved [`GlobalShims`] via [`GlobalShims::apply`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GlobalShimsSetting {
+    /// `globalShims: false` disables every shim; `true` resets to the
+    /// built-in defaults.
+    Toggle(bool),
+    /// `globalShims: { <package>: <bool> }` merges key-wise over the
+    /// defaults and lower layers, so one `bun: false` entry disables a
+    /// single default without restating the rest.
+    Entries(std::collections::HashMap<String, bool>),
+}
+
+/// The resolved `globalShims` setting: which globally installed packages
+/// get context-aware shims, keyed by the providing package's manifest
+/// name (so an entry for `typescript` covers its `tsc` bin).
 ///
-/// `auto` is the secure default: only runtimes whose downloaded artifacts
-/// pnpm authenticates against publisher-controlled keys may switch without
-/// prompting. `all` additionally enables candidate-bound, interactive
-/// switching for ordinary package bins. `off` writes and dispatches only
-/// direct global shims.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum GlobalShims {
-    Off,
-    #[default]
-    Auto,
-    All,
+/// The built-in default enables the managed runtimes — `node`, `deno`,
+/// and `bun`. Whether a switched candidate runs without prompting is
+/// decided by artifact authentication, not by this setting: it grants
+/// eligibility only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalShims {
+    entries: std::collections::HashMap<String, bool>,
+}
+
+impl Default for GlobalShims {
+    fn default() -> Self {
+        Self {
+            entries: ["node", "deno", "bun"]
+                .into_iter()
+                .map(|name| (name.to_string(), true))
+                .collect(),
+        }
+    }
+}
+
+impl GlobalShims {
+    /// Fold one configuration layer into the resolved setting. Records
+    /// merge key-wise; the scalar shorthands replace the accumulated
+    /// state (`false` → nothing dispatches, `true` → the defaults).
+    pub fn apply(&mut self, layer: &GlobalShimsSetting) {
+        match layer {
+            GlobalShimsSetting::Toggle(false) => self.entries.clear(),
+            GlobalShimsSetting::Toggle(true) => *self = Self::default(),
+            GlobalShimsSetting::Entries(entries) => {
+                for (name, enabled) in entries {
+                    self.entries.insert(name.clone(), *enabled);
+                }
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn is_enabled(&self, package_name: &str) -> bool {
+        self.entries.get(package_name).copied().unwrap_or(false)
+    }
+
+    /// Whether no package is eligible at all — the dispatcher's cheap
+    /// early exit.
+    #[must_use]
+    pub fn dispatches_nothing(&self) -> bool {
+        self.entries.values().all(|enabled| !enabled)
+    }
 }
 
 /// What to do when the project's `packageManager` /
@@ -805,10 +857,10 @@ pub struct Config {
     /// (pnpm's `NO_GLOBAL_BIN_DIR` when absent).
     pub global_bin: Option<PathBuf>,
 
-    /// `globalShims`. `auto` (the default) enables automatic switching only
-    /// for authenticated managed runtimes. `all` also enables prompted,
-    /// candidate-bound switching for ordinary package bins. `off` always
-    /// executes the globally installed target directly.
+    /// `globalShims`, resolved: which globally installed packages get
+    /// context-aware shims, keyed by package name and merged key-wise
+    /// across the configuration layers over the built-in
+    /// `{ node: true, deno: true, bun: true }`. See [`GlobalShims`].
     pub global_shims: GlobalShims,
 
     /// Controls the way packages are imported from the store (if you want to disable symlinks

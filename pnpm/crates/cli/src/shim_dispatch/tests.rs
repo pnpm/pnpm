@@ -6,7 +6,6 @@ use super::{
     manifest_runtime_pin, package_dir_of_target, parse_shim_argv, provider_of_target,
     read_shim_target_from_content, read_trust_decision, small_file_hash, try_dispatch,
 };
-use pacquet_config::GlobalShims;
 use std::{ffi::OsString, fs, path::Path};
 
 fn strings(items: &[&str]) -> Vec<OsString> {
@@ -56,7 +55,7 @@ fn finds_the_nearest_local_bin_walking_up() {
     fs::create_dir_all(&bin_dir).unwrap();
     fs::write(bin_dir.join("tsc"), "#!/bin/sh\n").unwrap();
 
-    let candidate = find_candidate(&nested, "tsc", GlobalShims::All).unwrap();
+    let candidate = find_candidate(&nested, "tsc").unwrap();
     let Candidate::LocalBin { project_dir, bin, .. } = candidate else {
         panic!("expected a local bin candidate");
     };
@@ -69,17 +68,7 @@ fn no_candidate_without_a_bin_or_pin() {
     let root = tempfile::tempdir().unwrap();
     let dir = root.path().join("plain");
     fs::create_dir_all(&dir).unwrap();
-    assert!(find_candidate(&dir, "tsc", GlobalShims::All).is_none());
-}
-
-#[test]
-fn auto_mode_does_not_consider_ordinary_local_bins() {
-    let root = tempfile::tempdir().unwrap();
-    let bin_dir = root.path().join("node_modules").join(".bin");
-    fs::create_dir_all(&bin_dir).unwrap();
-    fs::write(bin_dir.join("tsc"), "#!/bin/sh\n").unwrap();
-
-    assert!(find_candidate(root.path(), "tsc", GlobalShims::Auto).is_none());
+    assert!(find_candidate(&dir, "tsc").is_none());
 }
 
 #[test]
@@ -150,7 +139,7 @@ fn runtime_pin_candidate_found_walking_up() {
     )
     .unwrap();
 
-    let candidate = find_candidate(&nested, "node", GlobalShims::Auto).unwrap();
+    let candidate = find_candidate(&nested, "node").unwrap();
     let Candidate::RuntimePin { project_dir, version_spec, .. } = candidate else {
         panic!("expected a runtime pin candidate");
     };
@@ -165,7 +154,7 @@ fn runtime_candidates_never_use_project_bin_entries() {
     fs::create_dir_all(&bin_dir).unwrap();
     fs::write(bin_dir.join("node"), "compromised").unwrap();
 
-    assert!(find_candidate(root.path(), "node", GlobalShims::All).is_none());
+    assert!(find_candidate(root.path(), "node").is_none());
 }
 
 #[test]
@@ -309,7 +298,7 @@ fn windows_cmd_shim_candidate_matches_the_global_provider() {
         .unwrap();
 
     assert_eq!(provider_of_target(&global_target).unwrap().name, "tool");
-    let candidate = find_candidate(&project, "tool", GlobalShims::All).unwrap();
+    let candidate = find_candidate(&project, "tool").unwrap();
     let Candidate::LocalBin { bin, .. } = &candidate else {
         panic!("expected a local bin candidate");
     };

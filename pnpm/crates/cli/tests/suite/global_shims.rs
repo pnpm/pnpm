@@ -82,7 +82,7 @@ fn trusted_project_local_bin_wins() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -91,7 +91,7 @@ fn trusted_project_local_bin_wins() {
 
 #[cfg(unix)]
 #[test]
-fn ordinary_project_bins_do_not_switch_in_auto_mode() {
+fn unlisted_packages_do_not_switch_by_default() {
     let root = tempfile::tempdir().unwrap();
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
@@ -110,7 +110,7 @@ fn untrusted_project_falls_back_to_the_global_target() {
     // No recorded decision and no terminal to ask on: the global target
     // must run.
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -124,7 +124,7 @@ fn bypass_env_skips_the_project_bin() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .with_env("PNPM_SHIM_BYPASS", "1")
         .assert()
         .success();
@@ -147,7 +147,7 @@ fn shim_args_reach_the_target() {
         &["tool", global_target.to_str().unwrap(), "--", "--flag", "value with spaces"],
     )
     .with_env(AUTO_TRUST_ENV, "1")
-    .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+    .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
     .assert()
     .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -206,7 +206,7 @@ fn runtime_pin_downloads_node_on_demand() {
 
     shim_command(&root, &project, &["node", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .assert()
         .success();
     let environments = root.path().join("state/pnpm/global-shim-runtimes");
@@ -231,14 +231,14 @@ fn lookalike_package_does_not_shadow_the_global_bin() {
     let (project, global_target) = prepare_local_and_global_from(&root, "tool", "evil-pkg");
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert_eq!(stdout.trim(), "global");
 }
 
-/// `globalShims: off` in the global config.yaml disables dispatch
+/// `globalShims: false` in the global config.yaml disables dispatch
 /// immediately — no relinking required.
 #[cfg(unix)]
 #[test]
@@ -247,7 +247,7 @@ fn global_shims_setting_off_disables_dispatch() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
-    fs::write(config_dir.join("config.yaml"), "globalShims: off\n").unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
         .assert()
@@ -263,7 +263,7 @@ fn global_home_setting_off_disables_dispatch() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(&pnpm_home).unwrap();
-    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: off\n").unwrap();
+    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
         .assert()
@@ -280,7 +280,7 @@ fn global_shims_env_override_disables_dispatch() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "off")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false")
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -297,7 +297,7 @@ fn verified_lockfile_does_not_skip_the_trust_gate() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     write_lockfile_verified_record(&root, &project);
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -345,7 +345,7 @@ fn ancestors_of_the_pnpm_home_cannot_set_the_mode() {
     // `PNPM_HOME` points at `<root>/pnpm-home`; its parent tries to
     // enable `all`. Without env or home-yaml mode, `auto` must apply,
     // under which an ordinary tool never switches.
-    fs::write(root.path().join("pnpm-workspace.yaml"), "globalShims: all\n").unwrap();
+    fs::write(root.path().join("pnpm-workspace.yaml"), "globalShims: {tool: true}\n").unwrap();
     fs::create_dir_all(root.path().join("pnpm-home")).unwrap();
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
         .with_env(AUTO_TRUST_ENV, "1")
@@ -377,7 +377,7 @@ fn unexecutable_fallback_shim_degrades_to_the_target() {
         .with_env("XDG_STATE_HOME", root.path().join("state"))
         .with_env("XDG_CONFIG_HOME", root.path().join("config"))
         .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "off")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false")
         .with_args([
             "--shim",
             "tool",
@@ -505,7 +505,7 @@ fn generated_cmd_and_powershell_shims_dispatch_and_fall_back() {
         .args(["--", "value with spaces"])
         .current_dir(&project)
         .env(AUTO_TRUST_ENV, "1")
-        .env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+        .env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .env("PNPM_HOME", root.path().join("pnpm-home"))
         .env("XDG_STATE_HOME", root.path().join("state"))
         .env("XDG_CONFIG_HOME", root.path().join("config"))
@@ -528,7 +528,7 @@ fn generated_cmd_and_powershell_shims_dispatch_and_fall_back() {
             .arg("value with spaces")
             .current_dir(&project)
             .env(AUTO_TRUST_ENV, "1")
-            .env("PNPM_CONFIG_GLOBAL_SHIMS", "all")
+            .env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
             .env("PNPM_HOME", root.path().join("pnpm-home"))
             .env("XDG_STATE_HOME", root.path().join("state"))
             .env("XDG_CONFIG_HOME", root.path().join("config"))
@@ -580,7 +580,7 @@ fn native_node_dispatcher_preserves_the_global_executable_fallback() {
     let output = Command::new(global_bin.join("node.exe"))
         .args(["/d", "/c", "echo native-fallback"])
         .current_dir(outside)
-        .env("PNPM_CONFIG_GLOBAL_SHIMS", "auto")
+        .env("PNPM_CONFIG_GLOBAL_SHIMS", "true")
         .env("PNPM_HOME", root.path().join("pnpm-home"))
         .env("XDG_STATE_HOME", root.path().join("state"))
         .env("XDG_CONFIG_HOME", root.path().join("config"))

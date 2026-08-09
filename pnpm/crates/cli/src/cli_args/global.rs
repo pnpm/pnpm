@@ -23,7 +23,7 @@ use pacquet_cmd_shim::{
     link_bins_of_packages_with_excludes, remove_bin,
 };
 use pacquet_config::{
-    CatalogMode, Config, GlobalShims, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
+    CatalogMode, Config, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
 };
 use pacquet_fs::{force_symlink_dir, is_subdir, lexical_normalize};
 use pacquet_global::{
@@ -100,8 +100,11 @@ fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
 }
 
 /// Link `pkgs`' bins into the global bin dir in the shim style selected
-/// by the `globalShims` setting. The default `auto` mode only dispatches a
-/// globally installed Node runtime; ordinary packages get direct shims.
+/// by the `globalShims` record: bins of an enabled providing package get
+/// context-aware shims, everything else gets direct shims. The runtime
+/// names only count when actually installed through the `runtime:`
+/// protocol, so an npm package that happens to be called `node` is not
+/// elevated.
 fn link_global_bins(
     config: &Config,
     pkgs: &[PackageBinSource],
@@ -109,19 +112,16 @@ fn link_global_bins(
     global_bin_dir: &Path,
     bins_to_skip: &std::collections::HashSet<String>,
 ) -> miette::Result<()> {
-    let (direct, context_aware): (Vec<_>, Vec<_>) = match config.global_shims {
-        GlobalShims::Off => (pkgs.to_vec(), Vec::new()),
-        GlobalShims::All => (Vec::new(), pkgs.to_vec()),
-        GlobalShims::Auto => pkgs.iter().cloned().partition(|pkg| {
-            let name = pkg.manifest.get("name").and_then(serde_json::Value::as_str);
-            !name.is_some_and(|name| {
-                name == "node"
-                    && dependencies
+    let (direct, context_aware): (Vec<_>, Vec<_>) = pkgs.iter().cloned().partition(|pkg| {
+        let name = pkg.manifest.get("name").and_then(serde_json::Value::as_str);
+        !name.is_some_and(|name| {
+            config.global_shims.is_enabled(name)
+                && (!pacquet_package_manifest::is_runtime_alias(name)
+                    || dependencies
                         .iter()
-                        .any(|(alias, spec)| alias == name && spec.starts_with("runtime:"))
-            })
-        }),
-    };
+                        .any(|(alias, spec)| alias == name && spec.starts_with("runtime:")))
+        })
+    });
     if !direct.is_empty() {
         link_bins_of_packages_with_excludes::<CmdShimHost>(
             &direct,

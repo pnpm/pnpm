@@ -125,8 +125,10 @@ pub struct WorkspaceSettings {
     /// [`Config::virtual_store_only`].
     pub virtual_store_only: Option<bool>,
     /// `globalShims` from `pnpm-workspace.yaml` or the global
-    /// `config.yaml`. See [`Config::global_shims`].
-    pub global_shims: Option<crate::GlobalShims>,
+    /// `config.yaml`. One layer of the record; merged key-wise into
+    /// [`Config::global_shims`] rather than assigned wholesale. See
+    /// [`crate::GlobalShims`].
+    pub global_shims: Option<crate::GlobalShimsSetting>,
     /// `enableModulesDir` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_modules_dir`].
     pub enable_modules_dir: Option<bool>,
@@ -1041,7 +1043,7 @@ impl WorkspaceSettings {
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout, user_agent,
             enable_global_virtual_store,
-            virtual_store_only, enable_modules_dir, global_shims,
+            virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
             resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer, save_exact,
@@ -1049,6 +1051,12 @@ impl WorkspaceSettings {
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
             allow_unused_patches,
+        }
+
+        // `globalShims` merges key-wise instead of replacing, so a layer
+        // can flip one package without restating the defaults.
+        if let Some(global_shims) = self.global_shims {
+            config.global_shims.apply(&global_shims);
         }
 
         // The `update` section supersedes the deprecated `updateConfig`.
