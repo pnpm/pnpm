@@ -556,26 +556,20 @@ fn run(command: Command, root: &Path, args: &[&str]) -> Output {
     command.env("PNPM_HOME", root.join("pnpm-home"));
     command.env("HOME", root);
     command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
-    // Clear the inherited settings the checks read, without disturbing the
-    // ones a test set on purpose. Windows matches environment names
-    // case-insensitively, so an explicit `pnpm_config_pm_on_fail` must also
-    // suppress the removal of `PNPM_CONFIG_PM_ON_FAIL`.
+    // These checks run `exec node`, which resolves `node` from `PATH`. A
+    // context-aware global shim there would honour the deliberately
+    // unsatisfiable `devEngines.runtime` pin these fixtures declare and
+    // fail to fetch it, instead of running the node the test expects.
+    command.env("PNPM_SHIM_BYPASS", "1");
+    // The pnpm and npm settings these checks read are already gone:
+    // `CommandTempCwd::init` strips the inherited ones, and an explicit
+    // `env` on the command overrides that removal. `COREPACK_ROOT` is not
+    // one of them, so clear it here — unless a test set it on purpose.
+    // Windows matches environment names case-insensitively, so does this.
     let explicitly_set =
         command.get_envs().map(|(name, _)| name.to_string_lossy().into_owned()).collect::<Vec<_>>();
-    for name in [
-        "pnpm_config_pm_on_fail",
-        "PNPM_CONFIG_PM_ON_FAIL",
-        "pnpm_config_runtime_on_fail",
-        "PNPM_CONFIG_RUNTIME_ON_FAIL",
-        "npm_config_manage_package_manager_versions",
-        "NPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS",
-        "pnpm_config_manage_package_manager_versions",
-        "PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS",
-        "COREPACK_ROOT",
-    ] {
-        if !explicitly_set.iter().any(|set_name| set_name.eq_ignore_ascii_case(name)) {
-            command.env_remove(name);
-        }
+    if !explicitly_set.iter().any(|name| name.eq_ignore_ascii_case("COREPACK_ROOT")) {
+        command.env_remove("COREPACK_ROOT");
     }
     let output = command.args(args).output().expect("run pacquet");
     dbg!(&output);
