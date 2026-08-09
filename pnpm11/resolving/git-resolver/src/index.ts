@@ -4,10 +4,11 @@ import type { GitResolution, LatestInfo, LatestQuery, PkgResolutionId, ResolveOp
 import semver from 'semver'
 
 import { createGitHostedPkgId } from './createGitHostedPkgId.js'
+import { normalizeGitRepoUrl, sshRepoUrlToHttps } from './gitRepoUrl.js'
 import { lsRemote } from './lsRemote.js'
 import { type HostedPackageSpec, parseBareSpecifier } from './parseBareSpecifier.js'
 
-export { createGitHostedPkgId }
+export { createGitHostedPkgId, normalizeGitRepoUrl, sshRepoUrlToHttps }
 
 export type { HostedPackageSpec }
 

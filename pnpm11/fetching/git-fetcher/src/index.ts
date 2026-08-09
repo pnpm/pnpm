@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import { URL } from 'node:url'
 import util from 'node:util'
@@ -8,7 +9,7 @@ import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
-import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
+import { createGitHostedPkgId, sshRepoUrlToHttps } from '@pnpm/resolving.git-resolver'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import { rimraf } from '@zkochan/rimraf'
@@ -31,13 +32,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${resolution.commit}" for repository "${resolution.repo}". Expected a 40-character hexadecimal SHA.`)
     }
     const tempLocation = await cafs.tempDir()
-    if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
-      await execGit(['init'], { cwd: tempLocation })
-      await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
-      await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
-    } else {
-      await execGit(['clone', resolution.repo, tempLocation])
-    }
+    await downloadRepo(resolution.repo, resolution.commit, tempLocation)
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
     const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
     if (receivedCommit.trim() !== resolution.commit) {
@@ -76,6 +71,39 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       readManifest: opts.readManifest,
       pkg: opts.pkg,
     })
+  }
+
+  async function downloadRepo (repo: string, commit: string, dest: string): Promise<void> {
+    try {
+      await cloneOrFetch(repo, commit, dest)
+      return
+    } catch (err: unknown) {
+      const httpsRepo = sshRepoUrlToHttps(repo)
+      if (httpsRepo == null) throw err
+      // A lockfile may record an SSH URL for a dependency whose specifier never
+      // asked for SSH, which makes the lockfile unusable wherever no SSH key is
+      // configured (CI runners, most commonly). The commit is pinned and
+      // verified after checkout either way, so the same repository is retried
+      // over HTTPS before the install is failed.
+      await rimraf(dest)
+      await fs.mkdir(dest, { recursive: true })
+      try {
+        await cloneOrFetch(httpsRepo, commit, dest)
+      } catch {
+        throw err
+      }
+      globalWarn(`Failed to fetch "${repo}" over SSH, so it was fetched from "${httpsRepo}" instead. Re-resolve this dependency to record the HTTPS URL in the lockfile.`)
+    }
+  }
+
+  async function cloneOrFetch (repo: string, commit: string, dest: string): Promise<void> {
+    if (allowedHosts.size > 0 && shouldUseShallow(repo, allowedHosts)) {
+      await execGit(['init'], { cwd: dest })
+      await execGit(['remote', 'add', 'origin', repo], { cwd: dest })
+      await execGit(['fetch', '--depth', '1', 'origin', commit], { cwd: dest })
+    } else {
+      await execGit(['clone', repo, dest])
+    }
   }
 
   return {

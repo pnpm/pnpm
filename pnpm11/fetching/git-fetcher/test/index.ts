@@ -347,3 +347,62 @@ test('fetch only the included files', async () => {
     'package.json',
   ])
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/13743: a lockfile that records an
+// SSH URL is unusable on a machine without SSH keys, even when the repository
+// is public. `GIT_SSH_COMMAND=false` makes every SSH transport fail the way a
+// keyless CI runner does.
+test('falls back to HTTPS when the SSH transport of a git dependency fails', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  const { filesMap, manifest } = await withoutSsh(async () => fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'git@github.com:kevva/is-positive.git',
+      type: 'git',
+    },
+    {
+      readManifest: true,
+      filesIndexFile: path.join(storeDir, 'index.json'),
+    }
+  ))
+  expect(manifest?.name).toBe('is-positive')
+  expect(filesMap.has('package.json')).toBeTruthy()
+  const clonedFrom = jest.mocked(execa).mock.calls
+    .filter(([, args]) => (args as string[])?.includes('clone'))
+    .map(([, args]) => (args as string[])[(args as string[]).indexOf('clone') + 1])
+  expect(clonedFrom).toStrictEqual(['git@github.com:kevva/is-positive.git', 'https://github.com/kevva/is-positive.git'])
+  expect(jest.mocked(globalWarn).mock.calls[0][0]).toContain('Failed to fetch "git@github.com:kevva/is-positive.git" over SSH')
+})
+
+test('reports the SSH failure when the HTTPS fallback fails too', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  await expect(withoutSsh(async () => fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'git@github.com:pnpm-e2e/this-repository-does-not-exist.git',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+    }
+  ))).rejects.toThrow('git@github.com:pnpm-e2e/this-repository-does-not-exist.git')
+  expect(jest.mocked(globalWarn)).not.toHaveBeenCalled()
+})
+
+async function withoutSsh<T> (fn: () => Promise<T>): Promise<T> {
+  const original = process.env.GIT_SSH_COMMAND
+  process.env.GIT_SSH_COMMAND = 'false'
+  try {
+    return await fn()
+  } finally {
+    if (original == null) {
+      delete process.env.GIT_SSH_COMMAND
+    } else {
+      process.env.GIT_SSH_COMMAND = original
+    }
+  }
+}

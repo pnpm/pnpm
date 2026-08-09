@@ -201,7 +201,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 // the only source of the name. A `Git` resolution
                 // carries no integrity — it is anchored by its commit —
                 // so the manifest is all there is to read.
-                let manifest = read_git_manifest(GitManifestQuery {
+                let manifest = read_git_manifest::<SilentReporter>(GitManifestQuery {
                     repo: &git.repo,
                     commit: &git.commit,
                     path: git.path.as_deref(),

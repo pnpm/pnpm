@@ -19,7 +19,7 @@ use crate::{
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_fs_packlist::packlist;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
 use serde_json::Value;
 use std::{
@@ -104,7 +104,7 @@ impl GitFetcher<'_> {
     fn run_sync<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
-        checkout_commit(&CheckoutOptions {
+        checkout_commit::<Reporter>(&CheckoutOptions {
             repo: self.repo,
             commit: self.commit,
             git_shallow_hosts: self.git_shallow_hosts,
@@ -205,6 +205,7 @@ fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError 
 /// True iff `commit` is exactly a 40-character hexadecimal git SHA,
 /// validated before the value reaches `git`.
 /// Inputs for [`checkout_commit`].
+#[derive(Clone, Copy)]
 pub struct CheckoutOptions<'a> {
     pub repo: &'a str,
     pub commit: &'a str,
@@ -222,8 +223,10 @@ pub struct CheckoutOptions<'a> {
 /// Shared by the install pass's [`GitFetcher`] and the resolve pass's
 /// [`read_git_manifest`], which need the same working tree for
 /// different reasons.
-pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError> {
-    let &CheckoutOptions { repo, commit, git_shallow_hosts, git_bin, dest } = opts;
+pub fn checkout_commit<Reporter: self::Reporter>(
+    opts: &CheckoutOptions<'_>,
+) -> Result<(), GitFetcherError> {
+    let &CheckoutOptions { repo, commit, git_bin, dest, .. } = opts;
     if !is_valid_commit_hash(commit) {
         return Err(GitFetcherError::InvalidCommit {
             commit: commit.to_string(),
@@ -235,15 +238,7 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
     }
 
     let git_bin = git_bin.unwrap_or_else(|| Path::new("git"));
-    // `--` keeps the repository positional out of git's option parser,
-    // belt and braces with the `is_safe_repo_arg` check above.
-    if should_use_shallow(repo, git_shallow_hosts) {
-        exec_git_with(git_bin, &["init"], Some(dest))?;
-        exec_git_with(git_bin, &["remote", "add", "origin", "--", repo], Some(dest))?;
-        exec_git_with(git_bin, &["fetch", "--depth", "1", "origin", commit], Some(dest))?;
-    } else {
-        exec_git_with(git_bin, &["clone", "--", repo, &dest.to_string_lossy()], None)?;
-    }
+    download_repo::<Reporter>(git_bin, opts)?;
 
     exec_git_with(git_bin, &["checkout", commit], Some(dest))?;
     let received = exec_git_with(git_bin, &["rev-parse", "HEAD"], Some(dest))?;
@@ -255,6 +250,86 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
         });
     }
     Ok(())
+}
+
+/// Materialize `opts.repo` into `opts.dest`, retrying over HTTPS when an SSH
+/// transport fails.
+///
+/// A lockfile may record an SSH URL for a dependency whose specifier never
+/// asked for SSH, which makes the lockfile unusable wherever no SSH key is
+/// configured — CI runners, most commonly. The commit is pinned and verified
+/// by [`checkout_commit`] either way, so the same repository is retried over
+/// HTTPS before the install is failed. The SSH failure is the one reported
+/// when HTTPS cannot reach the repository either.
+fn download_repo<Reporter: self::Reporter>(
+    git_bin: &Path,
+    opts: &CheckoutOptions<'_>,
+) -> Result<(), GitFetcherError> {
+    let Err(ssh_error) = clone_or_fetch(git_bin, opts) else { return Ok(()) };
+    let Some(https_repo) = ssh_repo_url_to_https(opts.repo) else { return Err(ssh_error) };
+    fs::remove_dir_all(opts.dest).map_err(GitFetcherError::Io)?;
+    fs::create_dir_all(opts.dest).map_err(GitFetcherError::Io)?;
+    if clone_or_fetch(git_bin, &CheckoutOptions { repo: &https_repo, ..*opts }).is_err() {
+        return Err(ssh_error);
+    }
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: format!(
+            "Failed to fetch \"{}\" over SSH, so it was fetched from \"{https_repo}\" instead. Re-resolve this dependency to record the HTTPS URL in the lockfile.",
+            opts.repo,
+        ),
+        prefix: String::new(),
+    }));
+    Ok(())
+}
+
+fn clone_or_fetch(git_bin: &Path, opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError> {
+    let &CheckoutOptions { repo, commit, git_shallow_hosts, dest, .. } = opts;
+    // `--` keeps the repository positional out of git's option parser,
+    // belt and braces with the `is_safe_repo_arg` check in `checkout_commit`.
+    if should_use_shallow(repo, git_shallow_hosts) {
+        exec_git_with(git_bin, &["init"], Some(dest))?;
+        exec_git_with(git_bin, &["remote", "add", "origin", "--", repo], Some(dest))?;
+        exec_git_with(git_bin, &["fetch", "--depth", "1", "origin", commit], Some(dest))?;
+    } else {
+        exec_git_with(git_bin, &["clone", "--", repo, &dest.to_string_lossy()], None)?;
+    }
+    Ok(())
+}
+
+/// The HTTPS equivalent of an SSH git repository reference, or `None` when
+/// `repo` is not one.
+///
+/// The SSH user and port are dropped: neither carries over to HTTPS, where the
+/// host serves git over 443 and credentials come from git's credential helpers.
+fn ssh_repo_url_to_https(repo: &str) -> Option<String> {
+    let (host, path) = split_ssh_repo_url(repo)?;
+    let path = path.trim_start_matches('/');
+    if host.is_empty() || path.is_empty() {
+        return None;
+    }
+    Some(format!("https://{host}/{path}"))
+}
+
+/// Split an SSH git repository reference into its host and repo-rooted path.
+///
+/// Covers the URL form (`[git+]ssh://[user@]host[:port]/path`) and the
+/// scp-style shorthand (`[user@]host:path`) that carries no scheme. The `user@`
+/// is mandatory in the shorthand, which is also what keeps a Windows drive path
+/// (`C:\repo`) from being read as a host.
+fn split_ssh_repo_url(repo: &str) -> Option<(&str, &str)> {
+    if let Some(rest) = repo.strip_prefix("ssh://").or_else(|| repo.strip_prefix("git+ssh://")) {
+        let (authority, path) = rest.split_once('/')?;
+        let host = authority.rsplit_once('@').map_or(authority, |(_user, host)| host);
+        let host = host.split_once(':').map_or(host, |(host, _port)| host);
+        return Some((host, path));
+    }
+    if repo.contains("://") {
+        return None;
+    }
+    let (authority, path) = repo.split_once(':')?;
+    let (_user, host) = authority.rsplit_once('@')?;
+    Some((host, path))
 }
 
 /// Inputs for [`read_git_manifest`].
@@ -283,12 +358,12 @@ pub struct GitManifestQuery<'a> {
 ///
 /// Only the manifest is read: `prepare` / `prepublish` and the packlist
 /// stay in the install pass, so no package script runs here.
-pub async fn read_git_manifest(
+pub async fn read_git_manifest<Reporter: self::Reporter>(
     query: GitManifestQuery<'_>,
 ) -> Result<Option<Value>, GitFetcherError> {
     tokio::task::block_in_place(|| {
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
-        checkout_commit(&CheckoutOptions {
+        checkout_commit::<Reporter>(&CheckoutOptions {
             repo: query.repo,
             commit: query.commit,
             git_shallow_hosts: query.git_shallow_hosts,

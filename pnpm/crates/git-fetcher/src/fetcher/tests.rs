@@ -1,6 +1,6 @@
 use super::{
     GitFetcher, GitManifestQuery, exec_git_with, extract_host, is_safe_repo_arg,
-    is_valid_commit_hash, read_git_manifest, should_use_shallow,
+    is_valid_commit_hash, read_git_manifest, should_use_shallow, ssh_repo_url_to_https,
 };
 use crate::{
     error::{GitFetcherError, PreparePackageError},
@@ -8,10 +8,14 @@ use crate::{
 };
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
+#[cfg(unix)]
+use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pacquet_store_dir::StoreDir;
 #[cfg(unix)]
 use pacquet_testing_utils::env_guard::EnvGuard;
 use serde_json::Value;
+#[cfg(unix)]
+use std::sync::Mutex;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -849,6 +853,13 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
 /// --depth 1 origin`, `checkout`, `rev-parse HEAD`) and the
 /// non-shallow `clone`. Each is logged before exit-zero, so both
 /// branches of `should_use_shallow` exercise the same shim.
+///
+/// The invocations the shim fails are a transport over SSH — standing in
+/// for the keyless machine that [`ssh_fallback_refetches_over_https`] is
+/// about — and any reference to `unreachable.invalid`, which
+/// [`ssh_failure_is_reported_when_https_fallback_fails_too`] uses to fail
+/// the HTTPS retry as well. No other test passes either, so the rules
+/// cost them nothing.
 #[cfg(unix)]
 fn write_git_shim(dir: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
@@ -865,6 +876,22 @@ set -eu
 # field. Quoting `"$@"` and `"$PACQUET_GIT_SHIM_LOG"` keeps
 # whitespace/metachars in arg values from being re-tokenized.
 { printf '%s\t' "$@"; printf '\n'; } >> "$PACQUET_GIT_SHIM_LOG"
+# An absolute path is the checkout destination, never a remote, and is
+# skipped before the remote patterns so a temp dir holding `@` and `:`
+# can't be mistaken for an scp-style reference.
+for arg in "$@"; do
+    case "$arg" in
+        /*) ;;
+        ssh://*|git+ssh://*|*@*:*)
+            printf 'ssh: connect to host port 22: Connection refused\n' >&2
+            exit 128
+            ;;
+        *unreachable.invalid*)
+            printf 'fatal: repository not found\n' >&2
+            exit 128
+            ;;
+    esac
+done
 # `rev-parse HEAD` is the only invocation whose stdout the fetcher
 # actually inspects (to compare against the resolution commit).
 if [ "$1" = rev-parse ] && [ "$2" = HEAD ]; then
@@ -1100,7 +1127,7 @@ async fn read_git_manifest_reads_the_name_from_the_checkout() {
     let (bare, commit) = make_bare_repo(tmp.path());
     let repo = format!("file://{}", bare.to_string_lossy());
 
-    let manifest = read_git_manifest(GitManifestQuery {
+    let manifest = read_git_manifest::<SilentReporter>(GitManifestQuery {
         repo: &repo,
         commit: &commit,
         path: None,
@@ -1123,7 +1150,7 @@ async fn read_git_manifest_reads_a_repo_rooted_sub_directory() {
     let (bare, commit) = make_bare_repo_with_sub_package(tmp.path());
     let repo = format!("file://{}", bare.to_string_lossy());
 
-    let manifest = read_git_manifest(GitManifestQuery {
+    let manifest = read_git_manifest::<SilentReporter>(GitManifestQuery {
         repo: &repo,
         commit: &commit,
         path: Some("/packages/foo"),
@@ -1145,7 +1172,7 @@ async fn read_git_manifest_returns_none_for_a_directory_without_a_manifest() {
     let (bare, commit) = make_bare_repo_with_sub_package(tmp.path());
     let repo = format!("file://{}", bare.to_string_lossy());
 
-    let manifest = read_git_manifest(GitManifestQuery {
+    let manifest = read_git_manifest::<SilentReporter>(GitManifestQuery {
         repo: &repo,
         commit: &commit,
         path: Some("/packages/no-manifest"),
@@ -1166,7 +1193,7 @@ async fn read_git_manifest_rejects_a_non_sha_commit() {
     let (bare, _) = make_bare_repo(tmp.path());
     let repo = format!("file://{}", bare.to_string_lossy());
 
-    let err = read_git_manifest(GitManifestQuery {
+    let err = read_git_manifest::<SilentReporter>(GitManifestQuery {
         repo: &repo,
         commit: "--upload-pack=touch /tmp/pwned",
         path: None,
@@ -1192,7 +1219,7 @@ async fn read_git_manifest_rejects_a_sub_directory_escape() {
     fs::write(tmp.path().join("package.json"), r#"{"name":"outside","version":"9.9.9"}"#).unwrap();
 
     for escape in ["/../..", "../..", "/../"] {
-        let err = read_git_manifest(GitManifestQuery {
+        let err = read_git_manifest::<SilentReporter>(GitManifestQuery {
             repo: &repo,
             commit: &commit,
             path: Some(escape),
@@ -1217,7 +1244,7 @@ async fn read_git_manifest_rejects_an_option_shaped_repo() {
     let marker = tmp.path().join("pwned.txt");
     let payload = format!("--upload-pack=touch {}", marker.to_string_lossy());
 
-    let err = read_git_manifest(GitManifestQuery {
+    let err = read_git_manifest::<SilentReporter>(GitManifestQuery {
         repo: &payload,
         commit: "0123456789abcdef0123456789abcdef01234567",
         path: None,
@@ -1241,4 +1268,141 @@ fn is_safe_repo_arg_rejects_option_shaped_values() {
     assert!(!is_safe_repo_arg("-oProxyCommand=curl evil.example"));
     assert!(!is_safe_repo_arg(""));
     assert!(!is_safe_repo_arg("https://example.com/\0/x"));
+}
+
+#[test]
+fn ssh_repo_url_to_https_rewrites_only_ssh_references() {
+    assert_eq!(
+        ssh_repo_url_to_https("git@github.com:logux/client.git").as_deref(),
+        Some("https://github.com/logux/client.git"),
+    );
+    assert_eq!(
+        ssh_repo_url_to_https("ssh://git@github.com/logux/client.git").as_deref(),
+        Some("https://github.com/logux/client.git"),
+    );
+    assert_eq!(
+        ssh_repo_url_to_https("git+ssh://git@github.com/logux/client.git").as_deref(),
+        Some("https://github.com/logux/client.git"),
+    );
+    assert_eq!(
+        ssh_repo_url_to_https("ssh://git@gitlab.example.com:2222/org/repo.git").as_deref(),
+        Some("https://gitlab.example.com/org/repo.git"),
+    );
+
+    assert_eq!(ssh_repo_url_to_https("https://github.com/logux/client.git"), None);
+    assert_eq!(ssh_repo_url_to_https("git://github.com/logux/client.git"), None);
+    assert_eq!(ssh_repo_url_to_https("file:///home/zoltan/src/repo"), None);
+    assert_eq!(ssh_repo_url_to_https("ssh://git@github.com"), None);
+    assert_eq!(ssh_repo_url_to_https(r"C:\src\repo"), None);
+}
+
+/// A lockfile that records an SSH URL for a public repository is unusable
+/// on a machine without SSH keys. Covers
+/// <https://github.com/pnpm/pnpm/issues/13743>.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn ssh_fallback_refetches_over_https() {
+    static WARNINGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    WARNINGS.lock().unwrap().clear();
+    struct WarningRecorder;
+    impl Reporter for WarningRecorder {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Pnpm(PnpmLog { level: LogLevel::Warn, message, .. }) = event {
+                WARNINGS.lock().unwrap().push(message.clone());
+            }
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let log_path = tmp.path().join("git-invocations.log");
+    let fake_commit = "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493";
+    let shim_path = write_git_shim(&tmp.path().join("shim"));
+
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+
+    let env = EnvGuard::snapshot(["PACQUET_GIT_SHIM_LOG", "PACQUET_GIT_SHIM_FAKE_COMMIT"]);
+    env.set("PACQUET_GIT_SHIM_LOG", &log_path);
+    env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", fake_commit);
+
+    ssh_repo_fetcher("git@test.invalid:x/y.git", fake_commit, &store_dir, &shim_path)
+        .run::<WarningRecorder>()
+        .await
+        .expect("the HTTPS retry must carry the fetch");
+
+    let cloned_from: Vec<String> = parse_shim_log(&log_path)
+        .iter()
+        .filter(|args| args.first().map(String::as_str) == Some("clone"))
+        .map(|args| args[2].clone())
+        .collect();
+    assert_eq!(
+        cloned_from,
+        ["git@test.invalid:x/y.git", "https://test.invalid/x/y.git"],
+        "SSH must be tried first, and only then the HTTPS rewrite",
+    );
+
+    let warnings = WARNINGS.lock().unwrap();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("git@test.invalid:x/y.git"), "{warnings:?}");
+    assert!(warnings[0].contains("https://test.invalid/x/y.git"), "{warnings:?}");
+}
+
+/// The SSH failure is the actionable one, so it is what surfaces when the
+/// HTTPS retry cannot reach the repository either.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn ssh_failure_is_reported_when_https_fallback_fails_too() {
+    let tmp = tempdir().unwrap();
+    let log_path = tmp.path().join("git-invocations.log");
+    let fake_commit = "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493";
+    let shim_path = write_git_shim(&tmp.path().join("shim"));
+
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+
+    let env = EnvGuard::snapshot(["PACQUET_GIT_SHIM_LOG", "PACQUET_GIT_SHIM_FAKE_COMMIT"]);
+    env.set("PACQUET_GIT_SHIM_LOG", &log_path);
+    env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", fake_commit);
+
+    let err =
+        ssh_repo_fetcher("git@unreachable.invalid:x/y.git", fake_commit, &store_dir, &shim_path)
+            .run::<SilentReporter>()
+            .await
+            .expect_err("neither transport can reach the repository");
+
+    let GitFetcherError::GitExec { stderr, .. } = &err else {
+        panic!("expected a git failure; got {err:?}");
+    };
+    assert!(stderr.contains("Connection refused"), "{stderr:?}");
+}
+
+/// A fetcher over `repo` with no shallow hosts configured, so it takes the
+/// `git clone` branch the SSH fallback tests spy on.
+#[cfg(unix)]
+fn ssh_repo_fetcher<'a>(
+    repo: &'a str,
+    commit: &'a str,
+    store_dir: &'a StoreDir,
+    git_bin: &'a Path,
+) -> GitFetcher<'a> {
+    GitFetcher {
+        repo,
+        commit,
+        path: None,
+        git_shallow_hosts: &[],
+        allow_build: deny_all_builds(),
+        ignore_scripts: false,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        store_dir,
+        package_id: "x@1.0.0",
+        requester: "/test",
+        store_index_writer: None,
+        files_index_file: "x@1.0.0\tbuilt",
+        git_bin: Some(git_bin),
+    }
 }
