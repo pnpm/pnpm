@@ -743,6 +743,12 @@ async fn materialize_runtime(
     install_config.ignore_scripts = true;
     install_config.dangerously_allow_all_builds = false;
     install_config.strict_dep_builds = false;
+    // The dispatched runtime executes on this host, so cross-target
+    // architecture overrides never apply here — and honoring a
+    // `supportedArchitectures.libc: [musl]` override on a glibc host
+    // would select an unofficial-builds artifact that the promptless
+    // policy's host-libc check did not account for.
+    install_config.supported_architectures = None;
     install_config.allow_builds.clear();
     install_config.overrides = None;
     install_config.package_extensions = None;
