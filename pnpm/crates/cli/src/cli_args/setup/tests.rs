@@ -3,8 +3,9 @@
 //! shell config, so it is exercised on a real host rather than here.
 
 use super::{
-    ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PathExtenderReport,
-    create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
+    ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
+    PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
+    standalone_manifest,
 };
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
@@ -45,6 +46,19 @@ fn windows_report_omits_the_source_hint() {
     assert_eq!(
         render_setup_output(&report),
         "Next configuration changes were made:\nPNPM_HOME=C:\\pnpm\n\nSetup complete. Open a new terminal to start using pnpm.",
+    );
+}
+
+#[test]
+fn standalone_manifest_declares_the_module_type() {
+    assert_eq!(
+        standalone_manifest("pnpm.exe"),
+        serde_json::json!({
+            "name": "@pnpm/exe",
+            "version": PNPM_VERSION,
+            "type": "module",
+            "bin": { "pnpm": "pnpm.exe", "pn": "pnpm.exe" },
+        }),
     );
 }
 
