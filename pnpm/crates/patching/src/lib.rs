@@ -16,6 +16,8 @@
 //!    and `patch` are ruled out for cross-platform reasons).
 //! 4. [`verify_patches`] for the `ERR_PNPM_UNUSED_PATCH` diagnostic
 //!    when configured patches don't match any installed dep.
+//! 5. [`prepare_pkg_files_for_diff`] and [`diff_folders`] for creating
+//!    the filtered package diff written by `pnpm patch-commit`.
 //!
 //! pnpm v11 reads `patchedDependencies` from `pnpm-workspace.yaml`,
 //! not from `package.json`'s `pnpm` field. [`resolve_and_group`]
@@ -25,6 +27,7 @@
 //! from `pnpm-lock.yaml`'s top-level `patchedDependencies` field).
 
 mod apply;
+mod commit;
 mod get_patch_info;
 mod group;
 mod hash;
@@ -34,6 +37,7 @@ mod types;
 mod verify;
 
 pub use apply::{PatchApplyError, apply_patch_to_dir};
+pub use commit::*;
 pub use get_patch_info::{PatchKeyConflictError, get_patch_info};
 pub use group::{PatchInput, PatchNonSemverRangeError, group_patched_dependencies};
 pub use hash::{CalcPatchHashError, calc_patch_hashes, create_hex_hash_from_file};

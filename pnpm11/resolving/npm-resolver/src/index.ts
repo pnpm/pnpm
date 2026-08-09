@@ -67,7 +67,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { applyPublishedByPolicy, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -362,7 +362,10 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  * The baseline for "held back" is the pick with only the non-pin selectors
  * applied — `range`/`tag` selectors such as the `pnpm audit --fix`
  * vulnerability penalties steer the baseline too, so the warning never
- * recommends a version those selectors avoid.
+ * recommends a version those selectors avoid. The baseline also honors the
+ * `publishedBy` maturity cutoff the actual pick applied: a version blocked
+ * by `minimumReleaseAge` is not an update the manifests held back, and
+ * recommending an override for it would defeat the age gate.
  *
  * The recommended override is scoped to the declared range being resolved
  * (`name@<range>`), so applying it can never violate any consumer's range:
@@ -371,7 +374,7 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  */
 function warnOnceOnHeldBackUpdate (
   ctx: Pick<ResolveFromNpmContext, 'warnedHeldBackUpdates'>,
-  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions'>,
+  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions' | 'publishedBy' | 'publishedByExclude'>,
   spec: RegistryPackageSpec,
   meta: PackageMeta,
   pickedVersion: string
@@ -386,8 +389,14 @@ function warnOnceOnHeldBackUpdate (
     nonPinSelectors ??= Object.create(null) as VersionSelectors
     nonPinSelectors[selector] = value
   }
+  // `needsFullMetadata` is not this caller's problem: the pick already
+  // succeeded on this metadata, which for an abbreviated packument means
+  // every version cleared the cutoff, so `meta` is the filtered view.
+  const baselineMeta = opts.publishedBy != null
+    ? applyPublishedByPolicy(meta, opts.publishedBy, opts.publishedByExclude).meta
+    : meta
   const preferred = pickVersionByVersionRange({
-    meta,
+    meta: baselineMeta,
     versionRange: spec.fetchSpec,
     preferredVersionSelectors: nonPinSelectors,
   })

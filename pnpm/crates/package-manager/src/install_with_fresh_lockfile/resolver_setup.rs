@@ -55,53 +55,9 @@ pub(super) async fn open_store_index_handles(
     config: &Config,
     store_dir: &'static StoreDir,
 ) -> StoreIndexHandles {
-    let open_store_index = if config.frozen_store {
-        StoreIndex::shared_immutable_in
-    } else {
-        StoreIndex::shared_readonly_in
-    };
-    let index = match tokio::task::spawn_blocking(move || open_store_index(store_dir)).await {
-        Ok(index) => index,
-        Err(error) => {
-            tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "store-index open task failed; continuing without a shared cache index",
-            );
-            None
-        }
-    };
-    let (writer, writer_task) = if config.frozen_store {
-        StoreIndexWriter::spawn_disabled()
-    } else {
-        StoreIndexWriter::spawn(store_dir)
-    };
+    let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
+    let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
     StoreIndexHandles { index, writer, writer_task }
-}
-
-/// Wait for the writer's final batch flush after the last handle has
-/// been dropped. Errors are downgraded to `warn!` (see
-/// `create_virtual_store.rs`): the install is complete and a missed
-/// cache write just forces a re-fetch on the next install.
-///
-/// `outcome` is appended to the log line to name the path that drained.
-pub(super) async fn drain_store_index_writer(
-    writer_task: tokio::task::JoinHandle<Result<(), pacquet_store_dir::StoreIndexError>>,
-    outcome: &str,
-) {
-    match writer_task.await {
-        Ok(Ok(())) => {}
-        Ok(Err(error)) => tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "store-index writer task returned an error{}", outcome,
-        ),
-        Err(error) => tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "store-index writer task panicked{}", outcome,
-        ),
-    }
 }
 
 pub(super) struct Registries {

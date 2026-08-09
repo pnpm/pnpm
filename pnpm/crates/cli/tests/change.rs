@@ -75,6 +75,11 @@ fn first_release_probe_debuts_an_unpublished_version_verbatim() {
         "Initial release.",
         "@pnpm.e2e/foo",
     ]));
+    // The dry run previews the same debut: a preview that skipped the probe
+    // would announce a bump to 999.1.0 the real run never applies.
+    let preview = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r", "--dry-run"]));
+    assert!(preview.contains("@pnpm.e2e/foo: 999.0.0 → 999.0.0"), "unexpected: {preview}");
+
     let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
     assert!(applied.contains("@pnpm.e2e/foo: 999.0.0 → 999.0.0"), "unexpected: {applied}");
     assert_eq!(manifest_version(&workspace, "foo"), "999.0.0");

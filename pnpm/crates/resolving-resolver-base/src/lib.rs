@@ -21,6 +21,7 @@ mod errors;
 mod peer_range;
 mod publish_time;
 mod resolve;
+mod semver_range;
 mod verifier;
 
 pub use errors::{NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions};
@@ -35,6 +36,7 @@ pub use resolve::{
     VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
     WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
 };
+pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use verifier::{
     ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };

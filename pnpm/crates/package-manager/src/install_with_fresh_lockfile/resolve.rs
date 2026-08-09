@@ -258,6 +258,10 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
 
     let reusable_settings_lockfile = wanted_lockfile.filter(|lockfile| {
         lockfile.package_extensions_checksum.as_deref() == package_extensions_checksum
+            && super::ignored_optional_dependencies_match(
+                lockfile.ignored_optional_dependencies.as_deref(),
+                config.ignored_optional_dependencies.as_deref(),
+            )
     });
     let override_settings_match = reusable_settings_lockfile.is_some_and(|lockfile| {
         super::overrides_match(lockfile.overrides.as_ref(), resolved_overrides)

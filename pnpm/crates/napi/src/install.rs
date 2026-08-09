@@ -90,6 +90,19 @@ pub struct InstallOptions {
     pub prefer_offline: Option<bool>,
     pub offline: Option<bool>,
     pub virtual_store_dir_max_length: Option<u32>,
+    /// Whether to use the shared global virtual store for dependency slots.
+    pub enable_global_virtual_store: Option<bool>,
+    /// Overrides the global virtual store directory.
+    pub global_virtual_store_dir: Option<String>,
+    /// Manifest fields to add to packages selected by name or version range.
+    pub package_extensions: Option<IndexMap<String, PackageExtensionInput>>,
+    /// Patch paths keyed by package selector. Relative paths resolve from `dir`.
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// Warn instead of failing with `ERR_PNPM_UNUSED_PATCH` when a
+    /// `patchedDependencies` entry matches no installed package. Lets an
+    /// embedder ship a patch keyed to a version range that only some
+    /// workspaces resolve.
+    pub allow_unused_patches: Option<bool>,
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
@@ -169,6 +182,21 @@ pub struct NetworkConfigInput {
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
     pub user_agent: Option<String>,
+}
+
+/// Manifest fields to add to a matching package.
+#[napi(object)]
+pub struct PackageExtensionInput {
+    pub dependencies: Option<HashMap<String, String>>,
+    pub optional_dependencies: Option<HashMap<String, String>>,
+    pub peer_dependencies: Option<HashMap<String, String>>,
+    pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMetaInput>>,
+}
+
+/// Metadata for a peer dependency.
+#[napi(object)]
+pub struct PeerDependencyMetaInput {
+    pub optional: Option<bool>,
 }
 
 /// `peerDependencyRules` input. Mirrors `PeerDependencyRules` in `index.d.ts`.
@@ -549,6 +577,43 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
             .as_deref()
             .and_then(parse_import_method),
         virtual_store_dir_max_length: options.virtual_store_dir_max_length.map(u64::from),
+        enable_global_virtual_store: options.enable_global_virtual_store,
+        global_virtual_store_dir: options.global_virtual_store_dir.as_ref().map(PathBuf::from),
+        package_extensions: options.package_extensions.as_ref().map(|extensions| {
+            extensions
+                .iter()
+                .map(|(selector, extension)| {
+                    let to_sorted = |map: &Option<HashMap<String, String>>| {
+                        map.as_ref()
+                            .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                    };
+                    (
+                        selector.clone(),
+                        pacquet_config::PackageExtension {
+                            dependencies: to_sorted(&extension.dependencies),
+                            optional_dependencies: to_sorted(&extension.optional_dependencies),
+                            peer_dependencies: to_sorted(&extension.peer_dependencies),
+                            peer_dependencies_meta: extension.peer_dependencies_meta.as_ref().map(
+                                |meta| {
+                                    meta.iter()
+                                        .map(|(name, entry)| {
+                                            (
+                                                name.clone(),
+                                                pacquet_config::PeerDependencyMeta {
+                                                    optional: entry.optional,
+                                                },
+                                            )
+                                        })
+                                        .collect()
+                                },
+                            ),
+                        },
+                    )
+                })
+                .collect()
+        }),
+        patched_dependencies: options.patched_dependencies.clone(),
+        allow_unused_patches: options.allow_unused_patches,
         hoist_pattern: options.hoist_pattern.clone(),
         public_hoist_pattern: options.public_hoist_pattern.clone(),
         external_dependencies: options

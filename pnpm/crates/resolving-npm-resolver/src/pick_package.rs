@@ -65,7 +65,8 @@ use crate::{
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
-        get_pkg_mirror_path, load_meta_async, save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
+        get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed, save_meta_ndjson,
+        scoped_meta_dir,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
@@ -631,10 +632,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 meta,
             )
             .await?;
-            let meta = upgrade.meta;
+            let mut meta = upgrade.meta;
             if upgrade.upgraded && !opts.dry_run {
-                if let Some(path) = pkg_mirror.as_deref() {
-                    persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
+                if let Some(reloaded) = pkg_mirror.as_deref().and_then(|path| {
+                    persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata)
+                }) {
+                    meta = Arc::new(reloaded);
                 }
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
             }
@@ -725,12 +728,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         meta,
     )
     .await?;
-    let meta = upgrade.meta;
+    let mut meta = upgrade.meta;
     if upgrade.upgraded
         && !opts.dry_run
-        && let Some(path) = pkg_mirror.as_deref()
+        && let Some(reloaded) = pkg_mirror
+            .as_deref()
+            .and_then(|path| persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata))
     {
-        persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
+        meta = Arc::new(reloaded);
     }
 
     // Worth flagging: a dry-run is meant to gate the on-disk save, but
@@ -789,12 +794,14 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         cached.meta,
     )
     .await?;
-    let meta = upgrade.meta;
+    let mut meta = upgrade.meta;
     // The upgrade fetch (re)validated the packument against the registry.
     let registry_verified = cached.registry_verified || upgrade.upgraded;
     if upgrade.upgraded && !opts.dry_run {
-        if let Some(path) = pkg_mirror {
-            persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
+        if let Some(reloaded) = pkg_mirror
+            .and_then(|path| persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata))
+        {
+            meta = Arc::new(reloaded);
         }
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
@@ -1284,10 +1291,20 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
 
 /// Write the upgraded full metadata back to `pkg_mirror` (which
 /// points at the abbreviated cache because the picker is in
-/// abbreviated mode). Fire-and-forget: a write failure logs at debug
-/// and the install proceeds — the next install simply re-triggers
-/// the upgrade fetch.
-fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package, filter_metadata: bool) {
+/// abbreviated mode). A write failure logs at debug and the install
+/// proceeds — the next install simply re-triggers the upgrade fetch.
+///
+/// On a successful indexed save, returns the just-persisted mirror
+/// reloaded in its file-backed form so the caller can cache *it*
+/// instead of the response-body-backed document — upgraded packuments
+/// are the largest documents an install handles, and caching the
+/// in-memory form kept every full body resident for the rest of the
+/// resolution.
+fn persist_upgraded_to_mirror(
+    pkg_mirror: &Path,
+    meta: &Package,
+    filter_metadata: bool,
+) -> Option<Package> {
     let save_result = if filter_metadata {
         let meta_for_cache = match clear_meta(meta) {
             Ok(meta_for_cache) => meta_for_cache,
@@ -1298,20 +1315,25 @@ fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package, filter_metadata
                     path = %pkg_mirror.display(),
                     "could not filter upgraded mirror metadata",
                 );
-                return;
+                return None;
             }
         };
         save_meta_ndjson(pkg_mirror, &meta_for_cache, meta.etag.as_deref())
     } else {
         save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref())
     };
-    if let Err(error) = save_result {
-        tracing::debug!(
-            target: "pacquet_resolving_npm_resolver::pick_package",
-            ?error,
-            path = %pkg_mirror.display(),
-            "could not write upgraded meta to mirror; skipping persist",
-        );
+    match save_result {
+        Ok(()) if !filter_metadata => load_meta(pkg_mirror),
+        Ok(()) => None,
+        Err(error) => {
+            tracing::debug!(
+                target: "pacquet_resolving_npm_resolver::pick_package",
+                ?error,
+                path = %pkg_mirror.display(),
+                "could not write upgraded meta to mirror; skipping persist",
+            );
+            None
+        }
     }
 }
 

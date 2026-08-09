@@ -2,7 +2,7 @@
 //! ls-remote runner into a single [`Resolver`] the dispatcher can
 //! compose into the default-resolver chain.
 
-use std::sync::Arc;
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use pacquet_git_fetcher::{GitManifestQuery, read_git_manifest};
 use pacquet_lockfile::{GitResolution, LockfileResolution, TarballResolution};
@@ -18,9 +18,31 @@ use pacquet_tarball::{FetchTarballForResolution, RetryOpts};
 use crate::{
     create_git_hosted_pkg_id::create_git_hosted_pkg_id,
     hosted_git::HostedOpts,
-    parse_bare_specifier::{GitProbe, HostedPackageSpec, parse_bare_specifier},
+    parse_bare_specifier::{HostedPackageSpec, parse_bare_specifier},
     resolve_ref::{GitCommandRunner, resolve_ref},
 };
+
+/// Boxed-future return type used by [`GitProbe`]. Same shape as the
+/// rest of pacquet's async traits (see `ResolveFuture`).
+pub type ProbeFuture<'a> = Pin<Box<dyn Future<Output = bool> + Send + 'a>>;
+
+/// Capability seam for the one network check resolution performs: an
+/// anonymous HTTP HEAD of a host's archive URL.
+///
+/// The host-archive (tarball) shape is recorded only when this probe
+/// proves the exact URL to be recorded anonymously fetchable, so a
+/// recorded archive URL is valid by construction. On probe failure the
+/// resolution falls back to `type: git` over the canonical HTTPS URL,
+/// which every machine with access to the repo can fetch — a false
+/// negative (private repo, host throttling past the retries) costs
+/// archive speed on one dependency, never correctness.
+pub trait GitProbe: Send + Sync {
+    /// `true` when an anonymous HTTP HEAD of `url` returned 2xx.
+    /// Implementations retry transient failures (429/5xx/network
+    /// errors) so host throttling is not mistaken for a private
+    /// repository.
+    fn anonymous_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a>;
+}
 
 /// Store/network handles [`GitResolver`] needs to read a git dep's
 /// identity out of the package itself during resolution.
@@ -34,10 +56,11 @@ use crate::{
 ///
 /// Two shapes, by resolution:
 ///
-/// - a git *host* (`github:` / `gitlab:` / `bitbucket:`) serves an
-///   archive, which is downloaded and hashed;
-/// - any other repo (ssh, self-hosted, `file:`) has no archive
-///   endpoint, so a throwaway checkout is the cheapest read.
+/// - a git *host*'s anonymously fetchable archive (see [`GitProbe`])
+///   is downloaded and hashed;
+/// - any other repo (unknown host, private hosted repo, `file:`) has
+///   no usable archive endpoint, so a throwaway checkout is the
+///   cheapest read.
 ///
 /// Either way this stops at the manifest: `prepare` / `prepublish` and
 /// packlist filtering stay in the install pass, so no package script
@@ -117,10 +140,14 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(bare) = wanted_dependency.bare_specifier.as_deref() else { return Ok(None) };
         let Some(partial) = parse_bare_specifier(bare) else { return Ok(None) };
-        let spec = partial.finalize(self.probe.as_ref()).await;
-        let mut result =
-            build_resolve_result(spec, self.runner.as_ref(), wanted_dependency.alias.as_deref())
-                .await?;
+        let spec = partial.finalize();
+        let mut result = build_resolve_result(
+            spec,
+            self.probe.as_ref(),
+            self.runner.as_ref(),
+            wanted_dependency.alias.as_deref(),
+        )
+        .await?;
         self.read_package_metadata(&mut result).await?;
         Ok(Some(result))
     }
@@ -210,8 +237,9 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
     }
 }
 
-async fn build_resolve_result<Runner: GitCommandRunner + ?Sized>(
+async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner + ?Sized>(
     spec: HostedPackageSpec,
+    probe: &Probe,
     runner: &Runner,
     alias: Option<&str>,
 ) -> Result<ResolveResult, ResolveError> {
@@ -224,7 +252,7 @@ async fn build_resolve_result<Runner: GitCommandRunner + ?Sized>(
             .await
             .map_err(|err| Box::new(err) as ResolveError)?;
 
-    let resolution = pick_resolution(&spec, &commit);
+    let resolution = pick_resolution(&spec, probe, &commit).await;
 
     let id_string = match &resolution {
         LockfileResolution::Tarball(t) => {
@@ -255,14 +283,19 @@ async fn build_resolve_result<Runner: GitCommandRunner + ?Sized>(
     })
 }
 
-/// Pick between a tarball and a git resolution.
-fn pick_resolution(spec: &HostedPackageSpec, commit: &str) -> LockfileResolution {
-    if let Some(hosted) = spec.hosted.as_ref()
-        && !is_ssh(&spec.fetch_spec)
-    {
+/// Pick between a tarball and a git resolution — see [`GitProbe`] for
+/// the rule and its fail-safe direction.
+async fn pick_resolution<Probe: GitProbe + ?Sized>(
+    spec: &HostedPackageSpec,
+    probe: &Probe,
+    commit: &str,
+) -> LockfileResolution {
+    if let Some(hosted) = spec.hosted.as_ref() {
         let mut hosted = hosted.clone();
         hosted.committish = Some(commit.to_string());
-        if let Some(tarball) = hosted.tarball(HostedOpts::default()) {
+        if let Some(tarball) = hosted.tarball(HostedOpts::default())
+            && probe.anonymous_head_ok(&tarball).await
+        {
             return LockfileResolution::Tarball(TarballResolution {
                 tarball,
                 integrity: None,
@@ -276,10 +309,6 @@ fn pick_resolution(spec: &HostedPackageSpec, commit: &str) -> LockfileResolution
         commit: commit.to_string(),
         path: spec.path.clone(),
     })
-}
-
-fn is_ssh(spec: &str) -> bool {
-    spec.starts_with("git+ssh://") || spec.starts_with("git@")
 }
 
 #[cfg(test)]

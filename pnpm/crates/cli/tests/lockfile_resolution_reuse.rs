@@ -12,6 +12,10 @@ use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, net::TcpListener, path::Path, process::Command};
 
+const IS_POSITIVE_PATCH: &str = include_str!(
+    "../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
+);
+
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
@@ -309,6 +313,136 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
 }
 
 #[test]
+fn adding_and_removing_an_ignored_optional_dependency_uses_the_safe_path() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let manifest_path = workspace.join("package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-good-optional": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}ignoredOptionalDependencies:\n  - is-positive\n"),
+    )
+    .expect("add ignored optional dependency");
+    let dead_registry = dead_registry_url();
+    let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead_npmrc = live_npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+    );
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let current = pacquet_lockfile::Lockfile::load_current_from_virtual_store_dir(
+        &workspace.join("node_modules/.pnpm"),
+    )
+    .expect("load current lockfile")
+    .expect("current lockfile");
+    let parent_key = "@pnpm.e2e/pkg-with-good-optional@1.0.0".parse().expect("parent package key");
+    let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
+    let removed_name = "is-positive".parse().expect("removed package name");
+    for lockfile in [&wanted, &current] {
+        assert_eq!(
+            lockfile.ignored_optional_dependencies.as_deref(),
+            Some(["is-positive".to_string()].as_slice()),
+        );
+        assert!(
+            lockfile
+                .snapshots
+                .as_ref()
+                .and_then(|snapshots| snapshots.get(&parent_key))
+                .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
+                .is_none_or(|dependencies| !dependencies.contains_key(&removed_name)),
+        );
+        assert!(
+            lockfile
+                .snapshots
+                .as_ref()
+                .is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
+        );
+        assert!(
+            lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&removed_key)),
+        );
+    }
+    assert!(
+        !workspace
+            .join(
+                "node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive",
+            )
+            .exists(),
+    );
+
+    fs::write(&npmrc_path, live_npmrc).expect("restore live registry");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        workspace_yaml.replace("ignoredOptionalDependencies:\n  - is-positive\n", ""),
+    )
+    .expect("remove ignored optional dependency");
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        !String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+    );
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let parent_key = "@pnpm.e2e/pkg-with-good-optional@1.0.0".parse().expect("parent package key");
+    let restored_key = "is-positive@1.0.0".parse().expect("restored package key");
+    let restored_name = "is-positive".parse().expect("restored package name");
+    assert!(
+        wanted
+            .snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(&parent_key))
+            .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
+            .is_some_and(|dependencies| dependencies.contains_key(&restored_name)),
+    );
+    assert!(
+        wanted.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(&restored_key)),
+    );
+    assert!(
+        workspace
+            .join(
+                "node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive",
+            )
+            .exists(),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -586,4 +720,331 @@ fn reinstalling_an_unchanged_manifest_keeps_the_lockfile_byte_identical() {
     );
 
     drop(project);
+}
+
+#[test]
+fn peer_setting_change_on_a_peerless_lockfile_skips_resolution() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}trustLockfile: true\nfetchRetries: 0\nfetchTimeout: 1000\n"),
+    )
+    .expect("enable trusted lockfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}dedupePeers: true\n"))
+        .expect("turn dedupePeers on");
+    let dead_registry = dead_registry_url();
+    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let npmrc = npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+    );
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    assert_eq!(
+        wanted.settings.expect("recorded settings").dedupe_peers,
+        Some(true),
+        "the changed setting must be recorded without resolving",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn peer_setting_change_falls_back_when_the_lockfile_records_peers() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/has-optional-peer-with-peer": "^1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}trustLockfile: true\nfetchRetries: 0\nfetchTimeout: 1000\n"),
+    )
+    .expect("enable trusted lockfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}dedupePeers: true\n"))
+        .expect("turn dedupePeers on");
+
+    // Unlike the peerless sibling above, this install has to resolve, so it
+    // keeps the mocked registry reachable: pointing it at a dead one would
+    // only assert that the resolve happened to be satisfiable offline.
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        !String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "a peer setting change over a peer-suffixed graph must go through resolution",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn an_unused_patch_is_recorded_without_resolution_and_a_used_one_is_not() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "is-positive": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches").join("is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
+        .expect("write the patch fixture");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}trustLockfile: true\nallowUnusedPatches: true\n"),
+    )
+    .expect("enable trusted lockfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(!installed_is_positive(&workspace).contains("// patched"));
+
+    let dead_registry = dead_registry_url();
+    let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead_npmrc = live_npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    // A key naming a package no importer depends on cannot rekey anything.
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}patchedDependencies:\n  absent-package@1.0.0: patches/is-positive@1.0.0.patch\n",
+        ),
+    )
+    .expect("patch a package the lockfile does not record");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "a patch matching no locked package must not trigger resolution",
+    );
+    assert_eq!(
+        patched_dependency_keys(&workspace),
+        vec!["absent-package@1.0.0".to_string()],
+        "the new patchedDependencies entry is still recorded",
+    );
+
+    // Patching a locked package renames its snapshot, which the rewrite
+    // does without asking the registry anything — the tarball it patches
+    // is already in the store.
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        workspace_yaml.replace(
+            "  absent-package@1.0.0: patches/is-positive@1.0.0.patch\n",
+            "  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
+        ),
+    )
+    .expect("patch a locked package");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "patching a locked package only renames its snapshot, so no resolution is needed",
+    );
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    assert!(
+        wanted
+            .snapshots
+            .as_ref()
+            .expect("snapshots")
+            .keys()
+            .any(|key| key.to_string().starts_with("is-positive@1.0.0(patch_hash=")),
+        "the patched package's snapshot key carries the patch hash",
+    );
+    assert!(
+        installed_is_positive(&workspace).contains("// patched"),
+        "the rewrite still materializes the patched package",
+    );
+
+    // Dropping the patch renames the snapshot back and restores the
+    // unpatched package, again without resolving.
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        workspace_yaml.replace(
+            "patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
+            "",
+        ),
+    )
+    .expect("drop the patch");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "dropping a patch renames the snapshot back without resolving",
+    );
+    assert!(
+        !installed_is_positive(&workspace).contains("// patched"),
+        "the unpatched package is materialized again",
+    );
+
+    drop((root, mock_instance));
+}
+
+fn installed_is_positive(workspace: &Path) -> String {
+    fs::read_to_string(workspace.join("node_modules").join("is-positive").join("index.js"))
+        .expect("read the installed is-positive")
+}
+
+fn patched_dependency_keys(workspace: &Path) -> Vec<String> {
+    pacquet_lockfile::Lockfile::load_wanted_from_dir(workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile")
+        .patched_dependencies
+        .map(|map| map.keys().cloned().collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn patching_a_package_with_an_install_script_rebuilds_it() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/install-script-example": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}trustLockfile: true\nstrictDepBuilds: false\nallowBuilds:\n  '@pnpm.e2e/install-script-example': true\n",
+        ),
+    )
+    .expect("allow the install script");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    assert_eq!(generated_by_install(&workspace), "module.exports = function () {}\n");
+
+    fs::write(
+        workspace.join("patches").join("install-script-example.patch"),
+        concat!(
+            "diff --git a/create.js b/create.js\n",
+            "--- a/create.js\n",
+            "+++ b/create.js\n",
+            "@@ -1,4 +1,4 @@\n",
+            " 'use strict'\n",
+            " const fs = require('fs')\n",
+            " \n",
+            "-fs.writeFileSync(process.argv[2] + '.js', 'module.exports = function () {}\\n', 'utf8')\n",
+            "+fs.writeFileSync(process.argv[2] + '.js', 'patched\\n', 'utf8')\n",
+        ),
+    )
+    .expect("write the patch");
+    let dead_registry = dead_registry_url();
+    let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead_npmrc = live_npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}patchedDependencies:\n  '@pnpm.e2e/install-script-example@1.0.0': patches/install-script-example.patch\n",
+        ),
+    )
+    .expect("patch the package");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "the rekey needs no resolution",
+    );
+    assert_eq!(
+        generated_by_install(&workspace),
+        "patched\n",
+        "the install script reran against the patched sources",
+    );
+
+    drop((root, mock_instance));
+}
+
+fn generated_by_install(workspace: &Path) -> String {
+    fs::read_to_string(
+        workspace
+            .join("node_modules")
+            .join("@pnpm.e2e")
+            .join("install-script-example")
+            .join("generated-by-install.js"),
+    )
+    .expect("read the file the install script generates")
 }

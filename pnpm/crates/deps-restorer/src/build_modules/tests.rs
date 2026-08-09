@@ -1,6 +1,7 @@
 use super::{
-    AllowBuildPolicy, BuildModules, allow_build_key_from_ignored_build, is_contained_descendant,
-    parse_name_version_from_key,
+    BuildModules,
+    allow_build_policy::{AllowBuildPolicy, allow_build_key_from_ignored_build},
+    slots::{is_contained_descendant, parse_name_version_from_key},
 };
 // Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
 // unconditionally would be an unused import on Windows.

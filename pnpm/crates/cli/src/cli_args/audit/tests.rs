@@ -1,13 +1,20 @@
 use super::{
-    AuditAdvisory, AuditFinding, AuditMetadata, AuditPathIndex, AuditReport,
-    AuditVulnerabilityCounts, BTreeMap, Config, ConfigAuditLevel, Cwe, HashMap, Include,
-    InstalledPackages, MAX_PATHS_PER_FINDING, PackageVersionGuard, PackageVersionGuardDecision,
-    PathInfo, Range, RawBulkAdvisory, SnapshotDepRef, VulnerabilityGuard, build_audit_path_index,
-    bulk_response_to_audit_report, caret_range_for_patched, classify_for_update, create_overrides,
-    filter_advisories_for_fix, filter_ignored_advisories, format_fix_with_update_output,
-    lockfile_to_audit_request, minimum_release_age_excludes, normalize_ghsa_id,
-    redact_url_userinfo, render_json_report, render_text_report, report_fixed_remaining,
-    sanitize_control_chars, satisfies_safe,
+    BTreeMap, Config, ConfigAuditLevel, HashMap, MAX_PATHS_PER_FINDING, PackageVersionGuard,
+    PackageVersionGuardDecision, Range, SnapshotDepRef, filter_ignored_advisories,
+    fix::{
+        InstalledPackages, VulnerabilityGuard, classify_for_update, create_overrides,
+        filter_advisories_for_fix, format_fix_with_update_output, minimum_release_age_excludes,
+        report_fixed_remaining,
+    },
+    paths::{AuditPathIndex, PathInfo, build_audit_path_index},
+    render::{render_json_report, render_text_report},
+    report::{
+        AuditAdvisory, AuditFinding, AuditMetadata, AuditReport, AuditVulnerabilityCounts, Cwe,
+        RawBulkAdvisory, bulk_response_to_audit_report, normalize_ghsa_id, redact_url_userinfo,
+        sanitize_control_chars,
+    },
+    request::{Include, lockfile_to_audit_request},
+    version_ranges::{caret_range_for_patched, satisfies_safe},
 };
 use pacquet_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
 use std::{collections::HashSet, fmt::Write as _};

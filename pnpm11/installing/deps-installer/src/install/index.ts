@@ -63,8 +63,10 @@ import {
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import {
   calcPatchHashes,
+  type ChangedField,
+  type ChangedSettingsField,
   createOverridesMapFromParsed,
-  getOutdatedLockfileSetting,
+  getOutdatedLockfileSettings,
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
@@ -108,9 +110,12 @@ import {
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
+import { tryFastUpdateIgnoredOptionalDependencies } from './tryFastUpdateIgnoredOptionalDependencies.js'
 import { hasChangedProjectSpecifiers, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
 import { tryFastUpdateOverrides } from './tryFastUpdateOverrides.js'
+import { tryFastUpdatePatchedDependencies } from './tryFastUpdatePatchedDependencies.js'
+import { tryFastUpdateSettings } from './tryFastUpdateSettings.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
@@ -668,38 +673,48 @@ export async function mutateModules (
     const patchGroups = patchGroupInput ? groupPatchedDependencies(patchGroupInput) : undefined
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
-    let outdatedLockfileSettingName = null as ReturnType<typeof getOutdatedLockfileSetting>
+    let changedLockfileSettings: ChangedField[] = []
     const overridesMap = createOverridesMapFromParsed(opts.parsedOverrides)
-    const lockfileSettings = {
+    const wantedLockfileSettings = {
       autoInstallPeers: opts.autoInstallPeers,
-      catalogs: opts.catalogs,
       dedupePeers: opts.dedupePeers || undefined,
-      injectWorkspacePackages: opts.injectWorkspacePackages,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
+      injectWorkspacePackages: opts.injectWorkspacePackages,
+    }
+    const lockfileSettings = {
+      ...wantedLockfileSettings,
+      catalogs: opts.catalogs,
       ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
       packageExtensionsChecksum,
       patchedDependencies,
       pnpmfileChecksum,
     }
     if (!opts.ignorePackageManifest) {
-      outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
+      changedLockfileSettings = getOutdatedLockfileSettings(ctx.wantedLockfile, {
         ...lockfileSettings,
         overrides: overridesMap,
       })
-      if (frozenLockfile && outdatedLockfileSettingName != null) {
-        throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
+      if (frozenLockfile && changedLockfileSettings.length > 0) {
+        throw new LockfileConfigMismatchError(changedLockfileSettings[0])
       }
     }
+    let outdatedLockfileSettingName: ChangedField | null = changedLockfileSettings[0] ?? null
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let didFastUpdateOverrides = false
     const contextProjects = Object.values(ctx.projects)
     const hasChangedSpecifiers = outdatedLockfileSettingName == null &&
       hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects)
+    const changedSettingsFields = changedLockfileSettings.filter(isSettingsField)
+    const onlyLockfileSettingsChanged = changedLockfileSettings.length > 0 &&
+      changedLockfileSettings.length === changedSettingsFields.length
     const canTryFastUpdateLockfile =
       (outdatedLockfileSettingName === 'catalogs' ||
+        outdatedLockfileSettingName === 'ignoredOptionalDependencies' ||
         outdatedLockfileSettingName === 'overrides' ||
+        outdatedLockfileSettingName === 'patchedDependencies' ||
+        onlyLockfileSettingsChanged ||
         hasChangedSpecifiers) &&
       !frozenLockfile &&
       installsOnly &&
@@ -728,21 +743,12 @@ export async function mutateModules (
       await verifyLockfilePromise
       const overridesUseCatalogs = Object.values(opts.overrides)
         .some((specifier) => parseCatalogProtocol(specifier) != null)
-      const lockfileCatalogs = ctx.wantedLockfile.catalogs == null
-        ? {}
-        : Object.fromEntries(Object.entries(ctx.wantedLockfile.catalogs).map(([catalogName, catalog]) => [
-          catalogName,
-          Object.fromEntries(Object.entries(catalog).map(([alias, entry]) => [alias, entry.specifier])),
-        ]))
-      const onlyChangedSetting = getOutdatedLockfileSetting(ctx.wantedLockfile, {
-        ...lockfileSettings,
-        catalogs: changedSetting === 'catalogs' ? lockfileCatalogs : opts.catalogs,
-        overrides: changedSetting === 'overrides' ? ctx.wantedLockfile.overrides : overridesMap,
-      }) == null
+      const onlyChangedSetting = onlyLockfileSettingsChanged || changedLockfileSettings.length <= 1
       const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(Object.values(ctx.projects), {
         catalogs: opts.catalogs,
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
         linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
         wantedLockfile: lockfile,
         workspacePackages: ctx.workspacePackages,
@@ -753,10 +759,27 @@ export async function mutateModules (
         (changedSetting === 'catalogs' || !overridesUseCatalogs) &&
         await tryFastUpdateLockfile(ctx.wantedLockfile, {
           update: async (candidate) => {
+            if (onlyLockfileSettingsChanged) {
+              return tryFastUpdateSettings(candidate, {
+                changedSettings: changedSettingsFields,
+                projects: contextProjects,
+                settings: wantedLockfileSettings,
+                workspacePackages: ctx.workspacePackages,
+              })
+            }
             if (changedSetting === 'catalogs') {
               return tryFastUpdateCatalogs(candidate, {
                 catalogs: opts.catalogs,
                 overrides: opts.overrides,
+              })
+            }
+            if (changedSetting === 'ignoredOptionalDependencies') {
+              return tryFastUpdateIgnoredOptionalDependencies(candidate, opts.ignoredOptionalDependencies)
+            }
+            if (changedSetting === 'patchedDependencies') {
+              return tryFastUpdatePatchedDependencies(candidate, {
+                patchedDependencies,
+                allowUnusedPatches: opts.allowUnusedPatches,
               })
             }
             if (changedSetting == null) {
@@ -798,26 +821,14 @@ export async function mutateModules (
       opts.forceFullResolution ||
       forceResolutionFromHook
     if (needsFullResolution) {
-      ctx.wantedLockfile.settings = {
-        autoInstallPeers: opts.autoInstallPeers,
-        dedupePeers: opts.dedupePeers || undefined,
-        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-        peersSuffixMaxLength: opts.peersSuffixMaxLength,
-        injectWorkspacePackages: opts.injectWorkspacePackages,
-      }
+      ctx.wantedLockfile.settings = { ...wantedLockfileSettings }
       ctx.wantedLockfile.overrides = overridesMap
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
       ctx.wantedLockfile.ignoredOptionalDependencies = opts.ignoredOptionalDependencies
       ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum
       ctx.wantedLockfile.patchedDependencies = patchedDependencies
     } else if (!frozenLockfile) {
-      ctx.wantedLockfile.settings = {
-        autoInstallPeers: opts.autoInstallPeers,
-        dedupePeers: opts.dedupePeers || undefined,
-        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-        peersSuffixMaxLength: opts.peersSuffixMaxLength,
-        injectWorkspacePackages: opts.injectWorkspacePackages,
-      }
+      ctx.wantedLockfile.settings = { ...wantedLockfileSettings }
     }
 
     const frozenInstallResult = await tryFrozenInstall({
@@ -960,9 +971,14 @@ export async function mutateModules (
     | 'dependencySelectors'
     | 'targetDependenciesField'
     | 'update'
+    | 'updateToLatest'
     >
 
     async function installSome (project: InstallSomeProject) {
+      // The manifest keeps its specifiers, so they stay authoritative: whatever resolution settles
+      // on has to satisfy them, or the lockfile importer entry contradicts itself and the next
+      // frozen install rejects it.
+      const readonlyManifest = project.update === true && !project.updatePackageManifest
       const currentBareSpecifiers = opts.ignoreCurrentSpecifiers
         ? {}
         : getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
@@ -977,7 +993,7 @@ export async function mutateModules (
         }
         preferredSpecs = getAllUniqueSpecs(manifests)
       }
-      const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
+      const { wantedDependencies: wantedDeps, outsideKeptRange, supersededByKeptRange } = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
         currentBareSpecifiers,
         defaultTag: opts.tag,
@@ -990,7 +1006,31 @@ export async function mutateModules (
         saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
+        readonlyManifest,
       })
+
+      for (const { alias, requested, kept } of outsideKeptRange) {
+        logger.warn({
+          message: `Skipping "${alias}@${requested}": it doesn't satisfy "${kept}", which the manifest keeps when updating without saving.`,
+          prefix: project.rootDir,
+        })
+      }
+      for (const { alias, requested, kept } of supersededByKeptRange) {
+        logger.warn({
+          message: `Ignoring "${alias}@${requested}": the manifest keeps "${kept}" when updating without saving, so "${alias}" was updated within that range instead.`,
+          prefix: project.rootDir,
+        })
+      }
+      // `--latest` reaches past the declared range by design, which a manifest that keeps its
+      // specifiers can't record. Degrade to an in-range update rather than write an entry the
+      // next frozen install would reject.
+      const updateToLatest = project.updateToLatest === true && !readonlyManifest
+      if (project.updateToLatest === true && readonlyManifest) {
+        logger.warn({
+          message: 'Ignoring "--latest": the manifest keeps its version ranges when updating without saving, so dependencies were updated within them instead.',
+          prefix: project.rootDir,
+        })
+      }
 
       if (opts.catalogMode !== 'manual') {
         for (const wantedDep of wantedDeps) {
@@ -1032,6 +1072,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
+        updateToLatest,
         wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true })),
       } as ImporterToUpdate)
     }
@@ -1134,6 +1175,7 @@ export async function mutateModules (
           catalogs: opts.catalogs,
           autoInstallPeers: opts.autoInstallPeers,
           excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+          ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: ctx.workspacePackages,
@@ -1172,6 +1214,7 @@ Note that in CI environments, this setting is enabled by default.`,
       const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
       })
       for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
         const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)
@@ -2638,6 +2681,10 @@ function mergeInstallSelectors (manifest: ProjectManifest, mutation: InstallSome
     }
   }
   return manifest
+}
+
+function isSettingsField (changedField: ChangedField): changedField is ChangedSettingsField {
+  return changedField.startsWith('settings.')
 }
 
 function guessDepField (alias: string, manifest: ProjectManifest): DependenciesField | undefined {

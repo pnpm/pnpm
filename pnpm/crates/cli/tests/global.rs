@@ -517,6 +517,133 @@ fn global_list_empty() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn global_interactive_update_empty() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "-i"])
+        .output()
+        .expect("run interactive global update");
+
+    assert!(
+        output.status.success(),
+        "interactive global update should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains("not supported yet"),
+        "interactive global update should use the selection path",
+    );
+
+    drop(root);
+}
+
+/// A global group records its installed versions in its own lockfile, which
+/// the install writes whatever the caller configured, so reading those
+/// versions back must survive `lockfile=false`.
+#[cfg(unix)]
+#[test]
+fn global_commands_read_group_lockfiles_when_the_lockfile_setting_is_off() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::write(
+        pnpm_home.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\nlockfile: false\n",
+            npmrc_info.store_dir.display(),
+            npmrc_info.cache_dir.display(),
+        ),
+    )
+    .expect("disable the lockfile setting");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/pkg-with-1-dep@100.0.0"])
+        .assert()
+        .success();
+
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    let links = symlink_entries(&global_pkg_dir);
+    let install_dir = fs::canonicalize(&links[0]).expect("resolve global install-group link");
+    assert!(
+        install_dir.join("pnpm-lock.yaml").is_file(),
+        "a global install writes its group lockfile even with lockfile=false",
+    );
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["outdated", "-g", "--format", "json"])
+        .output()
+        .expect("run outdated -g");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let report: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|err| panic!("parse outdated -g JSON: {err}; stdout: {stdout}"));
+    assert_eq!(report["@pnpm.e2e/pkg-with-1-dep"]["current"], "100.0.0");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "-i", "--latest"])
+        .output()
+        .expect("run interactive global update");
+
+    // Reaching the prompt is the proof that the group's versions were read.
+    // The test has no TTY, so `dialoguer` cannot render it and the command
+    // fails with that specific error; an unread group would instead exit 0
+    // after printing that everything is up to date.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("interactive update selection failed"),
+        "the outdated group must reach the prompt; stdout: {}; stderr: {stderr}",
+        String::from_utf8_lossy(&output.stdout),
+    );
+
+    drop((root, npmrc_info));
+}
+
+/// The params of `update -g -i` select whole groups, exactly as they do
+/// without `-i`, so a name no group holds stops before the prompt.
+#[cfg(unix)]
+#[test]
+fn global_interactive_update_without_a_matching_group() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "-i", "@pnpm.e2e/multi-version-a"])
+        .output()
+        .expect("run interactive global update");
+
+    assert!(
+        output.status.success(),
+        "interactive global update should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("No matching global packages found"),
+        "expected the no-match message, got: {stdout}",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`.
 #[test]
 fn global_add_pnpm_is_rejected() {

@@ -35,27 +35,20 @@ export function pickPackageFromMeta (
   spec: RegistryPackageSpec
 ): PackageInRegistry | null {
   if (publishedBy) {
-    const excludeResult = publishedByExclude?.(meta.name) ?? false
-    if (excludeResult !== true) {
-      if (meta.time != null) {
-        // Full metadata with per-version timestamps: filter normally
+    const view = applyPublishedByPolicy(meta, publishedBy, publishedByExclude)
+    meta = view.meta
+    if (view.needsFullMetadata) {
+      const modifiedDate = parseModifiedDate(meta.modified)
+      if (modifiedDate == null || modifiedDate > publishedBy) {
+        // The package was modified after the cutoff (or carries no usable
+        // `modified`), so which of its versions are mature is unknowable
+        // from abbreviated metadata. The error tells the caller to refetch.
         assertMetaHasTime(meta)
-        const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
-        meta = filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions)
-      } else {
-        const modifiedDate = parseModifiedDate(meta.modified)
-        if (modifiedDate == null || modifiedDate > publishedBy) {
-          // Abbreviated metadata without per-version timestamps, and the package
-          // was recently modified (or has no/invalid modified field). We cannot determine
-          // which individual versions are mature enough — need full metadata.
-          assertMetaHasTime(meta)
-        }
-        // else: meta.modified <= publishedBy — every version was published at or
-        // before the cutoff (modified is an upper bound on per-version time), so
-        // they all pass the per-version `<=` maturity filter and no filtering is
-        // needed. Inclusive at the boundary on purpose so this branch matches the
-        // per-version filter in `filterPkgMetadataByPublishDate`.
       }
+      // else: `modified` is an upper bound on every per-version timestamp, so
+      // `modified <= publishedBy` means they all pass the maturity filter and
+      // nothing would be dropped. Inclusive at the boundary on purpose, to
+      // match the per-version `<=` in `filterPkgMetadataByPublishDate`.
     }
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
@@ -108,6 +101,45 @@ export function pickPackageFromMeta (
       `Received malformed metadata for "${spec.name}"`,
       { hint: 'This might mean that the package was unpublished from the registry', cause: err }
     )
+  }
+}
+
+export interface PublishedByView {
+  /** The metadata the cutoff leaves visible. `meta` itself when nothing is filtered out. */
+  meta: PackageMeta
+  /**
+   * The cutoff could not be applied: the metadata is abbreviated, so there
+   * are no per-version timestamps to filter on. Whether that is fatal is the
+   * caller's call — the pick needs full metadata to honor the cutoff, while a
+   * caller reasoning about a pick that already succeeded knows the versions
+   * cleared the cutoff some other way.
+   */
+  needsFullMetadata: boolean
+}
+
+/**
+ * Narrows `meta` to the versions the `publishedBy` cutoff admits, honoring
+ * `publishedByExclude`: a package the policy excludes wholesale keeps its
+ * unfiltered metadata, and versions the policy names explicitly stay in
+ * regardless of their age.
+ *
+ * Every consumer of the cutoff goes through here so they agree on what the
+ * policy admits — a baseline that filters differently from the pick would
+ * misreport why a version was chosen.
+ */
+export function applyPublishedByPolicy (
+  meta: PackageMeta,
+  publishedBy: Date,
+  publishedByExclude?: PackageVersionPolicy
+): PublishedByView {
+  const excludeResult = publishedByExclude?.(meta.name) ?? false
+  if (excludeResult === true) return { meta, needsFullMetadata: false }
+  if (meta.time == null) return { meta, needsFullMetadata: true }
+  assertMetaHasTime(meta)
+  const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
+  return {
+    meta: filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions),
+    needsFullMetadata: false,
   }
 }
 

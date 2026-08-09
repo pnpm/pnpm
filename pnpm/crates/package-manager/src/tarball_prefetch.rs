@@ -328,19 +328,7 @@ impl TarballPrefetcher {
     /// missing index row only costs the next install a re-download.
     pub async fn shutdown(self) {
         drop(self.store_index_writer);
-        match self.writer_task.await {
-            Ok(Ok(())) => {}
-            Ok(Err(error)) => tracing::warn!(
-                target: "pacquet::pnpr",
-                ?error,
-                "store-index writer task returned an error; some rows may not be persisted",
-            ),
-            Err(error) => tracing::warn!(
-                target: "pacquet::pnpr",
-                ?error,
-                "store-index writer task panicked; some rows may not be persisted",
-            ),
-        }
+        StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted").await;
     }
 }
 

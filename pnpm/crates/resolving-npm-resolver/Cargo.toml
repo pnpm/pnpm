@@ -27,6 +27,7 @@ dashmap     = { workspace = true }
 derive_more = { workspace = true }
 httpdate    = { workspace = true }
 indexmap    = { workspace = true }
+libc        = { workspace = true }
 miette      = { workspace = true }
 node-semver = { workspace = true }
 pipe-trait  = { workspace = true }

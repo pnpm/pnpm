@@ -58,6 +58,7 @@
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
+    "@pnpm/global.packages": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/installing.dedupe.check": "workspace:*",
