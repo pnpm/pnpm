@@ -74,13 +74,13 @@ fn global_shims_scalar_shorthands_reset_the_record() {
 #[test]
 fn global_shims_named_policies_parse() {
     let settings: WorkspaceSettings =
-        serde_saphyr::from_str("globalShims: {node: prompt, deno: always}\n").unwrap();
+        serde_saphyr::from_str("globalShims: {node: prompt, deno: always, bun: auto}\n").unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     let shims = config.global_shims;
     assert_eq!(shims.policy("node"), ShimPolicy::Prompt);
     assert_eq!(shims.policy("deno"), ShimPolicy::Always);
-    assert_eq!(shims.policy("bun"), ShimPolicy::Auto, "untouched default keeps auto");
+    assert_eq!(shims.policy("bun"), ShimPolicy::Auto, "explicit auto equals the true shorthand");
     assert_eq!(shims.policy("typescript"), ShimPolicy::Off);
     assert!(shims.is_enabled("node"), "prompt still counts as enabled");
 }

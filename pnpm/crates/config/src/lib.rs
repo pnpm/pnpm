@@ -124,7 +124,8 @@ pub enum TrustPolicy {
 
 /// The resolved per-package policy in `globalShims`.
 ///
-/// `Auto` (the record value `true`) defers to artifact authentication:
+/// `Auto` (the record value `"auto"`, or its shorthand `true`) defers
+/// to artifact authentication:
 /// publisher-signature-verified candidates run without prompting, all
 /// others go through the candidate-bound trust prompt. `Prompt` always
 /// asks, even for authenticated candidates. `Always` always switches
@@ -140,9 +141,10 @@ pub enum ShimPolicy {
     Always,
 }
 
-/// One value of the `globalShims` record: `true` / `false`,
-/// or a named policy (`"prompt"`, `"always"`). See [`ShimPolicy`] for
-/// the semantics each maps to.
+/// One value of the `globalShims` record: a named policy (`"auto"`,
+/// `"prompt"`, `"always"`) or the boolean shorthands (`true` ≡
+/// `"auto"`, `false` ≡ disabled). See [`ShimPolicy`] for the semantics
+/// each maps to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ShimPolicyValue {
@@ -153,6 +155,7 @@ pub enum ShimPolicyValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NamedShimPolicy {
+    Auto,
     Prompt,
     Always,
 }
@@ -161,7 +164,9 @@ impl ShimPolicyValue {
     fn resolve(self) -> ShimPolicy {
         match self {
             ShimPolicyValue::Toggle(false) => ShimPolicy::Off,
-            ShimPolicyValue::Toggle(true) => ShimPolicy::Auto,
+            ShimPolicyValue::Toggle(true) | ShimPolicyValue::Named(NamedShimPolicy::Auto) => {
+                ShimPolicy::Auto
+            }
             ShimPolicyValue::Named(NamedShimPolicy::Prompt) => ShimPolicy::Prompt,
             ShimPolicyValue::Named(NamedShimPolicy::Always) => ShimPolicy::Always,
         }
