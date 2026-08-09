@@ -5,11 +5,37 @@ use super::{dispatch_target, global_shims_setting};
 use pacquet_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use std::{
     ffi::OsString,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
 
 const WINDOWS_NODE_TARGET_FILE_NAME: &str = ".pnpm-shim-v1-node-target";
+
+pub(super) fn system_powershell_path() -> io::Result<PathBuf> {
+    use std::os::windows::ffi::OsStringExt as _;
+    use windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW;
+
+    let mut buffer = vec![0u16; 260];
+    loop {
+        let buffer_len = u32::try_from(buffer.len()).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidInput, "Windows system directory path is too long")
+        })?;
+        // SAFETY: `buffer` is writable for `buffer.len()` UTF-16 code units.
+        let length = unsafe { GetSystemDirectoryW(buffer.as_mut_ptr(), buffer_len) };
+        if length == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let length = length as usize;
+        if length < buffer.len() {
+            buffer.truncate(length);
+            return Ok(PathBuf::from(OsString::from_wide(&buffer))
+                .join("WindowsPowerShell")
+                .join("v1.0")
+                .join("powershell.exe"));
+        }
+        buffer.resize(length + 1, 0);
+    }
+}
 
 pub(crate) fn install_windows_node_dispatcher(
     global_bin_dir: &Path,

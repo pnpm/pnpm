@@ -345,6 +345,27 @@ fn local_bin_fingerprint_binds_the_executed_flavor() {
 }
 
 #[test]
+fn local_bin_identity_rejects_an_oversized_executed_flavor() {
+    let root = tempfile::tempdir().unwrap();
+    let modules = root.path().join("node_modules");
+    let bin_dir = modules.join(".bin");
+    let package = modules.join("tool");
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("cli.js"), "").unwrap();
+    fs::write(package.join("package.json"), r#"{"name":"tool","version":"1.0.0"}"#).unwrap();
+    fs::write(
+        bin_dir.join("tool"),
+        format!("# cmd-shim-target={}\n", package.join("cli.js").display()),
+    )
+    .unwrap();
+    let cmd_flavor = bin_dir.join("tool.cmd");
+    fs::write(&cmd_flavor, vec![b'x'; MAX_HASHED_BIN_SIZE as usize + 1]).unwrap();
+
+    assert!(local_bin_identity(&cmd_flavor, "tool").is_none());
+}
+
+#[test]
 fn small_bin_hash_is_content_bound_and_bounded() {
     let file = tempfile::NamedTempFile::new().unwrap();
     fs::write(file.path(), b"aaaa").unwrap();

@@ -52,8 +52,12 @@ pub(super) fn local_bin_identity(bin: &Path, name: &str) -> Option<LocalBinIdent
         // The executed flavor can differ from the trailer-carrying sh
         // flavor (`tool.cmd` vs `tool` on Windows), so the fingerprint
         // binds both: replacing either file invalidates an approval.
-        let executed_hash =
-            if script == bin { String::new() } else { create_hex_hash_from_file(bin).ok()? };
+        let executed_hash = if script == bin {
+            String::new()
+        } else {
+            let executed_len = std::fs::metadata(bin).ok()?.len();
+            small_file_hash(bin, executed_len)?
+        };
         (target, create_hex_hash(&format!("script\0{content}\0{executed_hash}")))
     };
     let resolved = if target.is_absolute() { target } else { bin.parent()?.join(target) };

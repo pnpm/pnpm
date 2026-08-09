@@ -300,6 +300,47 @@ fn global_shims_env_override_disables_dispatch() {
     assert_eq!(stdout.trim(), "global");
 }
 
+#[cfg(unix)]
+#[test]
+fn malformed_trusted_settings_disable_dispatch() {
+    for source in ["global config", "pnpm home", "environment"] {
+        let root = tempfile::tempdir().unwrap();
+        let (project, global_target) = prepare_local_and_global(&root, "tool");
+        let config_dir = root.path().join("config").join("pnpm");
+        let pnpm_home = root.path().join("pnpm-home");
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::create_dir_all(&pnpm_home).unwrap();
+
+        let mut command =
+            shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])
+                .with_env(AUTO_TRUST_ENV, "1");
+        match source {
+            "global config" => {
+                fs::write(config_dir.join("config.yaml"), "globalShims: [\n").unwrap();
+                command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#);
+            }
+            "pnpm home" => {
+                fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: [\n").unwrap();
+                command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#);
+            }
+            "environment" => {
+                fs::write(config_dir.join("config.yaml"), "globalShims: {tool: true}\n").unwrap();
+                command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", "[");
+            }
+            _ => unreachable!(),
+        }
+
+        let output = command.assert().success();
+        let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+        assert_eq!(stdout.trim(), "global", "source: {source}");
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        assert!(
+            stderr.contains("project-aware global shims are disabled"),
+            "source: {source}\nstderr:\n{stderr}",
+        );
+    }
+}
+
 /// A lockfile-verification cache record proves dependency resolution integrity,
 /// not authorization to replace a global command. Without an explicit trust
 /// decision, a non-interactive invocation must still use the global target.
@@ -586,6 +627,40 @@ fn generated_cmd_and_powershell_shims_dispatch_and_fall_back() {
         assert!(global_stdout.contains("global:"));
         assert!(global_stdout.contains("value with spaces"));
     }
+
+    let fake_bin = root.path().join("fake-bin");
+    fs::create_dir_all(&fake_bin).unwrap();
+    fs::copy(
+        std::env::var_os("ComSpec").expect("ComSpec should identify cmd.exe"),
+        fake_bin.join("powershell.exe"),
+    )
+    .unwrap();
+    let inherited_path = std::env::var_os("PATH").unwrap_or_default();
+    let path = std::env::join_paths(
+        std::iter::once(fake_bin).chain(std::env::split_paths(&inherited_path)),
+    )
+    .unwrap();
+    let system_powershell = Path::new(
+        &std::env::var_os("SystemRoot").expect("SystemRoot should identify the Windows directory"),
+    )
+    .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+    let global = Command::new(system_powershell)
+        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+        .arg(&pwsh_shim)
+        .arg("path-hijack-check")
+        .current_dir(&outside)
+        .env("PATH", path)
+        .env("PNPM_HOME", root.path().join("pnpm-home"))
+        .env("XDG_STATE_HOME", root.path().join("state"))
+        .env("XDG_CONFIG_HOME", root.path().join("config"))
+        .output()
+        .unwrap();
+    let global_stdout = String::from_utf8_lossy(&global.stdout);
+    assert!(
+        global.status.success() && global_stdout.contains("global:path-hijack-check"),
+        "stdout:\n{global_stdout}\nstderr:\n{}",
+        String::from_utf8_lossy(&global.stderr),
+    );
 }
 
 #[cfg(windows)]

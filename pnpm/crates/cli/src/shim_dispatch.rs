@@ -21,10 +21,11 @@
 //! or replacement bin cannot inherit an earlier approval.
 //! Without a terminal the dispatcher falls back to the global target.
 
+use derive_more::Display;
 use pacquet_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pacquet_config::{
-    GlobalShims, GlobalShimsSetting, Host, ShimPolicy, WorkspaceSettings, default_config_dir,
-    default_pnpm_home_dir,
+    GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy, WorkspaceSettings,
+    default_config_dir, default_pnpm_home_dir,
 };
 use pacquet_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pacquet_engine_runtime_node_resolver::parse_node_specifier;
@@ -190,33 +191,55 @@ fn bypass_requested() -> bool {
 /// is only as trustworthy as the environment itself; tools like direnv
 /// can scope it per directory.)
 fn global_shims_setting() -> GlobalShims {
-    let mut shims = GlobalShims::default();
-    if let Some(layer) = default_config_dir::<Host>()
-        .and_then(|config_dir| WorkspaceSettings::load_global(&config_dir).ok().flatten())
-        .and_then(|settings| settings.global_shims)
-    {
-        shims.apply(&layer);
+    match load_global_shims_setting() {
+        Ok(shims) => shims,
+        Err(error) => {
+            eprintln!(
+                "pnpm: project-aware global shims are disabled because trusted configuration could not be loaded: {error}",
+            );
+            let mut shims = GlobalShims::default();
+            shims.apply(&GlobalShimsSetting::Toggle(false));
+            shims
+        }
     }
-    if let Some(layer) = default_pnpm_home_dir::<Host>()
-        .and_then(|home| WorkspaceSettings::load_at(&home).ok().flatten())
-        .and_then(|settings| settings.global_shims)
-    {
-        shims.apply(&layer);
+}
+
+#[derive(Debug, Display)]
+enum LoadGlobalShimsSettingError {
+    #[display("{_0}")]
+    Workspace(LoadWorkspaceYamlError),
+    #[display("malformed {env_name} value {value:?}: {source}")]
+    Environment { env_name: &'static str, value: String, source: serde_json::Error },
+}
+
+fn load_global_shims_setting() -> Result<GlobalShims, LoadGlobalShimsSettingError> {
+    let mut shims = GlobalShims::default();
+    if let Some(config_dir) = default_config_dir::<Host>() {
+        let settings = WorkspaceSettings::load_global(&config_dir)
+            .map_err(LoadGlobalShimsSettingError::Workspace)?;
+        if let Some(layer) = settings.and_then(|settings| settings.global_shims) {
+            shims.apply(&layer);
+        }
+    }
+    if let Some(home) = default_pnpm_home_dir::<Host>() {
+        let settings =
+            WorkspaceSettings::load_at(&home).map_err(LoadGlobalShimsSettingError::Workspace)?;
+        if let Some(layer) = settings.and_then(|settings| settings.global_shims) {
+            shims.apply(&layer);
+        }
     }
     for env_name in ["PNPM_CONFIG_GLOBAL_SHIMS", "pnpm_config_global_shims"] {
         if let Ok(value) = std::env::var(env_name)
             && !value.is_empty()
         {
-            match serde_json::from_str::<GlobalShimsSetting>(&value) {
-                Ok(layer) => shims.apply(&layer),
-                Err(error) => {
-                    eprintln!("pnpm: ignoring malformed {env_name} value {value:?}: {error}");
-                }
-            }
+            let layer = serde_json::from_str::<GlobalShimsSetting>(&value).map_err(|source| {
+                LoadGlobalShimsSettingError::Environment { env_name, value, source }
+            })?;
+            shims.apply(&layer);
             break;
         }
     }
-    shims
+    Ok(shims)
 }
 
 /// The context switch only ever substitutes a different version of the
@@ -434,7 +457,7 @@ fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::i
     // directly.
     let extension = program.extension().and_then(|ext| ext.to_str()).unwrap_or_default();
     let mut command = if extension.eq_ignore_ascii_case("ps1") {
-        let mut command = Command::new("powershell.exe");
+        let mut command = Command::new(windows::system_powershell_path()?);
         command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]).arg(program);
         command
     } else {
