@@ -740,9 +740,8 @@ fn context_aware_windows_shims_preserve_bin_name_extensions() {
     assert!(pwsh.contains(r"'--shim' 'tool.ps1'"), "body was:\n{pwsh}");
 }
 
-/// A caller must be able to tell "the target died on a signal" from "the
-/// target exited with a code". Only holds if the shim `exec`s the target:
-/// a shell that waits on it converts a signal death into exit code 128+N.
+/// A waiting shell would surface the death as exit code 128+N, which the
+/// caller cannot tell from an ordinary exit.
 #[cfg(unix)]
 #[test]
 fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
