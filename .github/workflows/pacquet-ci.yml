@@ -128,7 +128,7 @@ jobs:
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
         with:
           install: false
 
