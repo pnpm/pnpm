@@ -126,7 +126,7 @@ fn global_add_list_remove_round_trip() {
 }
 
 /// A `globalShims` entry for the package writes context-aware shims: the
-/// dispatches through the versioned binary next to it, so a project-local
+/// generated shim dispatches through the versioned binary next to it, so a project-local
 /// version of the same bin wins over the global target, and falls back to
 /// the global target outside any providing project.
 #[cfg(unix)]

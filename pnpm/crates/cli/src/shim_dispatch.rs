@@ -253,12 +253,14 @@ fn bypass_requested() -> bool {
         .is_ok_and(|value| !value.is_empty() && value != "0" && value != "false")
 }
 
-/// The `globalShims` setting at dispatch time, so config
-/// edits take effect immediately instead of waiting for the next global install to
+/// The `globalShims` setting at dispatch time, so config edits take
+/// effect immediately instead of waiting for the next global install to
 /// relink the shims. Layers merge key-wise over the built-in defaults in
 /// the order global `config.yaml`, the pnpm home's own
-/// `pnpm-workspace.yaml`, then the env override — only sources a project
-/// cannot influence, and never a discovered ancestor of the pnpm home.
+/// `pnpm-workspace.yaml`, then the env override — never a project file
+/// and never a discovered ancestor of the pnpm home. (The env override
+/// is only as trustworthy as the environment itself; tools like direnv
+/// can scope it per directory.)
 fn global_shims_setting() -> GlobalShims {
     let mut shims = GlobalShims::default();
     if let Some(layer) = default_config_dir::<Host>()
@@ -276,9 +278,13 @@ fn global_shims_setting() -> GlobalShims {
     for env_name in ["PNPM_CONFIG_GLOBAL_SHIMS", "pnpm_config_global_shims"] {
         if let Ok(value) = std::env::var(env_name)
             && !value.is_empty()
-            && let Ok(layer) = serde_json::from_str::<GlobalShimsSetting>(&value)
         {
-            shims.apply(&layer);
+            match serde_json::from_str::<GlobalShimsSetting>(&value) {
+                Ok(layer) => shims.apply(&layer),
+                Err(error) => {
+                    eprintln!("pnpm: ignoring malformed {env_name} value {value:?}: {error}");
+                }
+            }
             break;
         }
     }
@@ -511,9 +517,13 @@ fn find_candidate(cwd: &Path, name: &str) -> Option<Candidate> {
 /// Deno/Bun resolvers currently rely on checksums alone, so they stay behind
 /// the explicit `all` opt-in.
 fn is_automatic_runtime(name: &str, version_spec: &str) -> bool {
+    // On musl hosts the matching assets come from unofficial-builds
+    // without signature verification, so a stable pin is not
+    // publisher-authenticated there and stays behind the trust gate.
     name == "node"
         && parse_node_specifier(version_spec)
             .is_ok_and(|specifier| specifier.release_channel == "release")
+        && pacquet_detect_libc::detect() != Some(pacquet_detect_libc::Implementation::Musl)
 }
 
 /// The runnable `node_modules/.bin` entry for `name` under `dir`, if any.
@@ -561,7 +571,10 @@ fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
 }
 
 fn is_trusted(candidate: &Candidate, name: &str) -> bool {
-    if std::env::var(AUTO_TRUST_ENV).as_deref() == Ok("1") {
+    // Debug builds only: the e2e suite spawns real (debug) binaries, and
+    // a release binary must not carry an environment backdoor around the
+    // trust gate.
+    if cfg!(debug_assertions) && std::env::var(AUTO_TRUST_ENV).as_deref() == Ok("1") {
         return true;
     }
     let project_dir = candidate.project_dir();
@@ -667,21 +680,35 @@ async fn materialize_runtime(
     version_spec: String,
     project_dir: PathBuf,
 ) -> miette::Result<PathBuf> {
-    let config = Config::default()
-        .current::<Host>(&project_dir)
-        .map_err(miette::Report::new)
-        .wrap_err("load configuration for the managed runtime")?;
+    let _ = project_dir;
     let state_dir = default_state_dir::<Host>()
         .ok_or_else(|| miette::miette!("the pnpm state directory could not be resolved"))?;
+    let environments_dir = state_dir.join(RUNTIME_ENVS_DIR_NAME);
+    fs::create_dir_all(&environments_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("create {}", environments_dir.display()))?;
+    // The runtime's store, mirrors, and registry selection must not be
+    // project-controllable: a repository that redirects `storeDir` could
+    // pre-seed a poisoned global-virtual-store slot for the executable
+    // this dispatch is about to run. Anchor the configuration inside
+    // pnpm's own state dir — the seeded empty workspace manifest stops
+    // ancestor discovery, so only the global config.yaml, user files, and
+    // the environment contribute.
+    let workspace_manifest = environments_dir.join("pnpm-workspace.yaml");
+    if !workspace_manifest.is_file() {
+        fs::write(&workspace_manifest, "{}\n")
+            .into_diagnostic()
+            .wrap_err_with(|| format!("seed {}", workspace_manifest.display()))?;
+    }
+    let config = Config::default()
+        .current::<Host>(&environments_dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load configuration for the managed runtime")?;
     let global_virtual_store_dir = config.store_dir.links();
     let key = create_hex_hash(&format!(
         "runtime\0{name}\0{version_spec}\0{}",
         global_virtual_store_dir.display(),
     ));
-    let environments_dir = state_dir.join(RUNTIME_ENVS_DIR_NAME);
-    fs::create_dir_all(&environments_dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("create {}", environments_dir.display()))?;
     let environment_dir = environments_dir.join(&key);
     if let Some(bin) = managed_runtime_bin(&environment_dir, &name, &global_virtual_store_dir) {
         return Ok(bin);
@@ -807,18 +834,11 @@ fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::i
 
 #[cfg(windows)]
 fn exec_program(program: &Path, args: &[OsString]) -> i32 {
-    // `.cmd`/`.bat` targets are scripts for the command interpreter,
-    // not executables — route them through `cmd /c`.
-    let extension = program.extension().and_then(|ext| ext.to_str()).unwrap_or_default();
-    let mut command =
-        if extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat") {
-            let mut command = Command::new("cmd");
-            command.arg("/c").arg(program);
-            command
-        } else {
-            Command::new(program)
-        };
-    match command.args(args).status() {
+    // `.cmd`/`.bat` targets go to `Command::new` directly: the standard
+    // library spawns them through `cmd.exe` itself with the
+    // CVE-2024-24576 argument escaping, and rejects arguments it cannot
+    // pass safely — a hand-rolled `cmd /c` would reintroduce that bug.
+    match Command::new(program).args(args).status() {
         Ok(status) => status.code().unwrap_or(1),
         Err(error) => {
             eprintln!("pnpm: failed to run {}: {error}", program.display());
@@ -830,19 +850,16 @@ fn exec_program(program: &Path, args: &[OsString]) -> i32 {
 /// See the Unix flavor for the contract.
 #[cfg(windows)]
 fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::io::Error> {
+    // See `exec_program` for why `.cmd`/`.bat` go to `Command::new`
+    // directly.
     let extension = program.extension().and_then(|ext| ext.to_str()).unwrap_or_default();
-    let mut command =
-        if extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat") {
-            let mut command = Command::new("cmd");
-            command.arg("/c").arg(program);
-            command
-        } else if extension.eq_ignore_ascii_case("ps1") {
-            let mut command = Command::new("powershell.exe");
-            command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]).arg(program);
-            command
-        } else {
-            Command::new(program)
-        };
+    let mut command = if extension.eq_ignore_ascii_case("ps1") {
+        let mut command = Command::new("powershell.exe");
+        command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]).arg(program);
+        command
+    } else {
+        Command::new(program)
+    };
     command.args(args).env(BYPASS_ENV, "1").status().map(|status| status.code().unwrap_or(1))
 }
 

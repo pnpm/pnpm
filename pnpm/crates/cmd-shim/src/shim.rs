@@ -363,6 +363,20 @@ fn generated_shim_name<'a>(shim_path: &'a Path, extension: &str) -> &'a str {
     name.strip_suffix(extension).unwrap_or(name)
 }
 
+/// Wrap `text` in single quotes for PowerShell, doubling embedded single
+/// quotes. Bin names come from package manifests, so they must not be
+/// able to break out of the generated script.
+fn pwsh_single_quote(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "''"))
+}
+
+/// Escape `text` for interpolation into a double-quoted `cmd` argument:
+/// `%` would otherwise expand as a variable reference. (`"` cannot occur
+/// in a Windows file name.)
+fn cmd_escape(text: &str) -> String {
+    text.replace('%', "%%")
+}
+
 /// Wrap `text` in single quotes for POSIX `sh`, escaping embedded single
 /// quotes. Bin names come from package manifests, so they must not be
 /// able to break out of the generated script.
@@ -406,7 +420,7 @@ pub fn generate_cmd_shim(
     if style == ShimStyle::ContextAware {
         // Guarded jumps keep dispatcher and fallback execution out of a
         // parenthesized block, where cmd expands paths before executing it.
-        let shim_name = generated_shim_name(shim_path, ".cmd");
+        let shim_name = cmd_escape(generated_shim_name(shim_path, ".cmd"));
         write!(
             cmd,
             "@IF DEFINED PNPM_SHIM_BYPASS GOTO :pnpm_shim_fallback\r\n@IF NOT EXIST \"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" GOTO :pnpm_shim_fallback\r\n@\"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" --shim \"{shim_name}\" \"%~f0\" {quoted_target} -- %*\r\n@EXIT /B\r\n:pnpm_shim_fallback\r\n",
@@ -467,7 +481,7 @@ pub fn generate_pwsh_shim(
     let restore_node_path = has_node_path.then_some("$env:NODE_PATH=$env_node_path");
 
     if style == ShimStyle::ContextAware {
-        let shim_name = generated_shim_name(shim_path, ".ps1");
+        let shim_name = pwsh_single_quote(generated_shim_name(shim_path, ".ps1"));
         writeln!(pwsh).unwrap();
         writeln!(
             pwsh,
@@ -478,13 +492,13 @@ pub fn generate_pwsh_shim(
         writeln!(pwsh, "  if ($MyInvocation.ExpectingInput) {{").unwrap();
         writeln!(
             pwsh,
-            r#"    $input | & "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe" '--shim' '{shim_name}' $MyInvocation.MyCommand.Definition {quoted_target} '--' $args"#,
+            r#"    $input | & "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe" '--shim' {shim_name} $MyInvocation.MyCommand.Definition {quoted_target} '--' $args"#,
         )
         .unwrap();
         writeln!(pwsh, "  }} else {{").unwrap();
         writeln!(
             pwsh,
-            r#"    & "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe" '--shim' '{shim_name}' $MyInvocation.MyCommand.Definition {quoted_target} '--' $args"#,
+            r#"    & "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe" '--shim' {shim_name} $MyInvocation.MyCommand.Definition {quoted_target} '--' $args"#,
         )
         .unwrap();
         writeln!(pwsh, "  }}").unwrap();

@@ -174,15 +174,28 @@ fn runtime_pin_downloads_node_on_demand() {
     let version = "24.0.0-rc.4";
     let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
 
-    let project = root.path().join("project");
-    fs::create_dir_all(&project).unwrap();
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
     fs::write(
-        project.join("pnpm-workspace.yaml"),
+        config_dir.join("config.yaml"),
         format!(
-            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\nnodeDownloadMirrors:\n  rc: '{}/'\n",
+            "storeDir: {}\ncacheDir: {}\nnodeDownloadMirrors:\n  rc: '{}/'\n",
             root.path().join("store").display(),
             root.path().join("cache").display(),
             server.url(),
+        ),
+    )
+    .unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    // The project's own configuration must not reach the runtime install:
+    // a repo-controlled store or mirror could feed the dispatcher a
+    // poisoned artifact. Both entries here would fail the test if honored.
+    fs::write(
+        project.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: {}\nnodeDownloadMirrors:\n  rc: 'http://127.0.0.1:1/'\n",
+            root.path().join("evil-store").display(),
         ),
     )
     .unwrap();
@@ -343,8 +356,8 @@ fn ancestors_of_the_pnpm_home_cannot_set_the_mode() {
     let root = tempfile::tempdir().unwrap();
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     // `PNPM_HOME` points at `<root>/pnpm-home`; its parent tries to
-    // enable `all`. Without env or home-yaml mode, `auto` must apply,
-    // under which an ordinary tool never switches.
+    // enable dispatch for `tool`. Without env or home-yaml entries the
+    // defaults must apply, under which an ordinary tool never switches.
     fs::write(root.path().join("pnpm-workspace.yaml"), "globalShims: {tool: true}\n").unwrap();
     fs::create_dir_all(root.path().join("pnpm-home")).unwrap();
     let output = shim_command(&root, &project, &["tool", global_target.to_str().unwrap(), "--"])

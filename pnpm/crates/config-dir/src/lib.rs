@@ -46,13 +46,16 @@ pub fn state_dir(
     local_app_data: Option<&str>,
     home: impl FnOnce() -> Option<PathBuf>,
 ) -> Option<PathBuf> {
-    if let Some(xdg_state_home) = xdg_state_home {
+    // Empty or relative env values are treated as unset: resolving them
+    // would place mutable machine state under whatever the invocation's
+    // working directory happens to be.
+    if let Some(xdg_state_home) = xdg_state_home.filter(|value| Path::new(value).is_absolute()) {
         return Some(Path::new(xdg_state_home).join(app_name));
     }
     if os != "windows" {
         return Some(home()?.join(".local").join("state").join(app_name));
     }
-    if let Some(local_app_data) = local_app_data {
+    if let Some(local_app_data) = local_app_data.filter(|value| Path::new(value).is_absolute()) {
         return Some(Path::new(local_app_data).join(format!("{app_name}-state")));
     }
     Some(home()?.join(format!(".{app_name}-state")))

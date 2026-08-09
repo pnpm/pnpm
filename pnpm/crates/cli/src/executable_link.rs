@@ -1,4 +1,8 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs, io,
+    path::Path,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 /// Publish `src` at `dest` without pulling an executable out from under a
 /// concurrent process. A hard link avoids copying on the common same-filesystem
@@ -7,24 +11,30 @@ pub(crate) fn replace_executable(src: &Path, dest: &Path) -> std::io::Result<()>
     if same_file::is_same_file(src, dest).unwrap_or(false) {
         return Ok(());
     }
+    // Process id alone is not unique enough: bin linking runs on rayon,
+    // so two in-process publishes of the same destination must not share
+    // a staging path.
+    static STAGED_SEQ: AtomicU64 = AtomicU64::new(0);
     let file_name = dest.file_name().unwrap_or(dest.as_os_str()).to_string_lossy().into_owned();
-    let staged = dest.with_file_name(format!(".{file_name}.{}.pacquet-tmp", std::process::id()));
-    match fs::remove_file(&staged) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
-    }
+    let staged = dest.with_file_name(format!(
+        ".{file_name}.{}.{}.pacquet-tmp",
+        std::process::id(),
+        STAGED_SEQ.fetch_add(1, Ordering::Relaxed),
+    ));
     let publish = || {
         if fs::hard_link(src, &staged).is_err() {
             let mut source = fs::File::open(src)?;
             let mut output = fs::OpenOptions::new().write(true).create_new(true).open(&staged)?;
             io::copy(&mut source, &mut output)?;
             output.sync_all()?;
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt as _;
-            fs::set_permissions(&staged, fs::Permissions::from_mode(0o755))?;
+            // Only the fresh copy gets its mode set: the staged hard link
+            // shares its inode with `src`, so a chmod there would mutate
+            // the source — the running executable, or a store entry.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt as _;
+                fs::set_permissions(&staged, fs::Permissions::from_mode(0o755))?;
+            }
         }
         swap_into_place(&staged, dest)
     };

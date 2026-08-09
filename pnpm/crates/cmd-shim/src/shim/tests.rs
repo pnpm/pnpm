@@ -685,6 +685,27 @@ fn context_aware_cmd_shim_dispatches_before_the_classic_body() {
 }
 
 #[test]
+fn context_aware_cmd_and_pwsh_shims_escape_hostile_bin_names() {
+    let body = generate_pwsh_shim(
+        Path::new("/g/pkg/cli.js"),
+        Path::new("/g/bin/to'ol"),
+        None,
+        &[],
+        ShimStyle::ContextAware,
+    );
+    assert!(body.contains("'--shim' 'to''ol'"), "body was:\n{body}");
+
+    let body = generate_cmd_shim(
+        Path::new("/g/pkg/cli.js"),
+        Path::new("/g/bin/to%ol"),
+        None,
+        &[],
+        ShimStyle::ContextAware,
+    );
+    assert!(body.contains(r#"--shim "to%%ol""#), "body was:\n{body}");
+}
+
+#[test]
 fn context_aware_pwsh_shim_dispatches_before_the_classic_body() {
     let target = Path::new("/g/pkg/cli.js");
     let shim = Path::new("/g/bin/tool.ps1");
