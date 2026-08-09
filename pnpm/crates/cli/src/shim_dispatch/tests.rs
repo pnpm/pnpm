@@ -314,6 +314,36 @@ fn windows_cmd_shim_candidate_matches_the_global_provider() {
     assert!(validate_candidate(candidate, &global_provider, "tool").is_some());
 }
 
+/// The Windows dispatch flavor (`tool.cmd`) and the trailer-carrying sh
+/// flavor (`tool`) are different files; the fingerprint must change when
+/// either does.
+#[test]
+fn local_bin_fingerprint_binds_the_executed_flavor() {
+    let root = tempfile::tempdir().unwrap();
+    let modules = root.path().join("node_modules");
+    let bin_dir = modules.join(".bin");
+    fs::create_dir_all(modules.join("tool")).unwrap();
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::write(modules.join("tool").join("cli.js"), "").unwrap();
+    fs::write(modules.join("tool").join("package.json"), r#"{"name":"tool","version":"1.0.0"}"#)
+        .unwrap();
+    fs::write(
+        bin_dir.join("tool"),
+        format!(
+            "#!/bin/sh\nexec x\n# cmd-shim-target={}\n",
+            modules.join("tool").join("cli.js").display(),
+        ),
+    )
+    .unwrap();
+    let cmd_flavor = bin_dir.join("tool.cmd");
+    fs::write(&cmd_flavor, "@ECHO original\r\n").unwrap();
+
+    let before = local_bin_identity(&cmd_flavor, "tool").unwrap().fingerprint;
+    fs::write(&cmd_flavor, "@ECHO replaced\r\n").unwrap();
+    let after = local_bin_identity(&cmd_flavor, "tool").unwrap().fingerprint;
+    assert_ne!(before, after, "replacing the executed flavor must invalidate the approval");
+}
+
 #[test]
 fn small_bin_hash_is_content_bound_and_bounded() {
     let file = tempfile::NamedTempFile::new().unwrap();
