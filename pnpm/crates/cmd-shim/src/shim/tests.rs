@@ -635,7 +635,7 @@ fn context_aware_sh_shim_dispatches_through_versioned_binary_then_falls_back() {
     let runtime = ScriptRuntime { prog: Some("node".to_string()), args: String::new() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], ShimStyle::ContextAware);
     assert!(
-        body.contains(r#"exec "$basedir/.pnpm-shim-v1$exe" --shim 'tool' "$basedir_win/tool" "$basedir_win/../global/v11/x/node_modules/pkg/cli.js" -- "$@""#),
+        body.contains(r#"exec "$basedir/.pnpm-shim-v1$exe" --shim 'tool' "$basedir_win/"'tool' "$basedir_win/../global/v11/x/node_modules/pkg/cli.js" -- "$@""#),
         "body was:\n{body}",
     );
     assert!(body.contains(r#"[ -z "$PNPM_SHIM_BYPASS" ]"#), "body was:\n{body}");

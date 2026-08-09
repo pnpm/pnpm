@@ -285,7 +285,11 @@ pub fn generate_sh_shim(
         // to `$basedir` everywhere except MSYS/WSL, where the pnpm
         // Windows executable needs the Windows spelling.
         let quoted_name = sh_single_quote(shim_name(shim_path));
-        let quoted_shim_win = format!(r#""$basedir_win/{}""#, shim_name(shim_path));
+        // Adjacent quoting: the `$basedir_win` expansion stays inside
+        // double quotes while the manifest-controlled file name is
+        // single-quoted, so it can never be command-substituted.
+        let quoted_shim_win =
+            format!(r#""$basedir_win/"{}"#, sh_single_quote(shim_name(shim_path)));
         writeln!(
             sh,
             "if [ -z \"$PNPM_SHIM_BYPASS\" ] && [ -x \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" ]; then\n  exec \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" --shim {quoted_name} {quoted_shim_win} {quoted_target_win} -- \"$@\"\nfi",

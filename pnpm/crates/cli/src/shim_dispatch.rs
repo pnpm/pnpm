@@ -530,8 +530,12 @@ fn is_automatic_runtime(name: &str, version_spec: &str) -> bool {
 /// A broken symlink does not count — `is_file` follows links.
 fn local_bin_path(dir: &Path, name: &str) -> Option<PathBuf> {
     let bin_dir = dir.join("node_modules").join(".bin");
+    // No `.exe` candidate: project `.bin` dirs never legitimately carry
+    // one, and provider identity is derived from the extensionless
+    // sibling script — a planted `.exe` would execute while a benign
+    // script passed validation.
     let candidates: Vec<String> = if cfg!(windows) {
-        vec![format!("{name}.exe"), format!("{name}.cmd"), name.to_string()]
+        vec![format!("{name}.cmd"), name.to_string()]
     } else {
         vec![name.to_string()]
     };
