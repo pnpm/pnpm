@@ -64,6 +64,15 @@ pub struct DirectoryResolution {
 pub struct GitResolution {
     pub repo: String,
     pub commit: String,
+    /// Hash recorded on the entry by whatever wrote it. pnpm's built-in
+    /// git fetcher computes none, but a custom fetcher's is written
+    /// through to the resolution, and lockfiles in the wild carry one.
+    /// Neither stack checks a git checkout against it — the `commit`
+    /// pins the content, and the store key is git-hosted rather than
+    /// integrity-addressed — so pacquet keeps it only to hand it back
+    /// unchanged on the next write.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub integrity: Option<Integrity>,
     /// Sub-directory inside the cloned tree to package. The git fetcher
     /// uses it so the build runs inside the sub-directory rather than the
     /// repo root.
@@ -311,7 +320,9 @@ impl LockfileResolution {
             LockfileResolution::Tarball(resolution) => resolution.integrity.as_ref(),
             LockfileResolution::Registry(resolution) => Some(&resolution.integrity),
             LockfileResolution::Binary(resolution) => Some(&resolution.integrity),
-            // Directory / Git resolutions have no integrity.
+            // Directory resolutions have no integrity, and a git
+            // resolution's recorded one is round-trip baggage rather
+            // than a checkable hash (see [`GitResolution::integrity`]).
             // Variations is a meta-shape — the integrity lives on the
             // picked variant's inner resolution, so callers must
             // resolve through `pick_variant` first. Custom resolutions

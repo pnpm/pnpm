@@ -25,6 +25,7 @@ use pacquet_lockfile::{Lockfile, LockfileResolution};
 use pacquet_testing_utils::{bin::CommandTempCwd, git_repo::GitRepoFixture};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
+use ssri::Integrity;
 
 use _utils::{
     append_workspace_yaml_key, assert_success, importer_specifier, importer_version,
@@ -128,6 +129,40 @@ fn install_from_a_git_repo() {
     // ref in the importer, not `is-negative@git+...` — byte-for-byte what
     // pnpm 11 writes.
     assert_eq!(importer_version(&lockfile, ".", "is-negative"), repo.git_url_at(&commit));
+
+    drop((root, npmrc_info));
+}
+
+/// A git resolution that records an `integrity` — lockfiles in the wild
+/// carry one — loads, and survives a re-resolving install unchanged.
+/// Dropping the key would churn the lockfile against what pnpm wrote,
+/// which keeps it. See <https://github.com/pnpm/pnpm/issues/13042>.
+#[test]
+fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
+    const INTEGRITY: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
+
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let (repo, commit) = simple_repo(root.path(), "is-negative", "1.0.0");
+    write_dependencies(&workspace, &[("is-negative", &repo.git_url_at(&commit))]);
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let written = fs::read_to_string(&lockfile_path).expect("read lockfile");
+    let with_integrity = written.replace(", repo: ", &format!(", integrity: {INTEGRITY}, repo: "));
+    assert_ne!(with_integrity, written, "the git resolution must have a `repo` key to edit");
+    fs::write(&lockfile_path, &with_integrity).expect("write lockfile");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pnpm_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(workspace.join("node_modules/is-negative/package.json").exists());
+
+    pnpm_at(&workspace).with_args(["install", "--no-prefer-frozen-lockfile"]).assert().success();
+    let lockfile = read_lockfile(&lockfile_path);
+    let resolution = git_resolution(&lockfile, "is-negative");
+    assert_eq!(resolution.commit, commit);
+    assert_eq!(resolution.integrity.as_ref().map(Integrity::to_string).as_deref(), Some(INTEGRITY));
 
     drop((root, npmrc_info));
 }

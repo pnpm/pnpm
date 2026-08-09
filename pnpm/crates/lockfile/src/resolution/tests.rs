@@ -373,6 +373,7 @@ fn deserialize_git_resolution() {
     let expected = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
+        integrity: None,
         path: None,
     });
     assert_eq!(received, expected);
@@ -390,9 +391,30 @@ fn deserialize_git_resolution_with_path() {
     let expected = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
+        integrity: None,
         path: Some("packages/sub".to_string()),
     });
     assert_eq!(received, expected);
+}
+
+#[test]
+fn deserialize_git_resolution_with_integrity() {
+    let yaml = text_block! {
+        "type: git"
+        "repo: https://github.com/ksxnodemodules/ts-pipe-compose.git"
+        "commit: e63c09e460269b0c535e4c34debf69bb91d57b22"
+        "integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
+    };
+    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    dbg!(&received);
+    let expected = LockfileResolution::Git(GitResolution {
+        repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
+        commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
+        integrity: integrity("sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==").into(),
+        path: None,
+    });
+    assert_eq!(received, expected);
+    assert!(received.integrity().is_none());
 }
 
 #[test]
@@ -400,6 +422,7 @@ fn serialize_git_resolution() {
     let resolution = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
+        integrity: None,
         path: None,
     });
     let received = render_resolution(&resolution);
@@ -413,11 +436,26 @@ fn serialize_git_resolution_with_path() {
     let resolution = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
+        integrity: None,
         path: Some("packages/sub".to_string()),
     });
     let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
     let expected = "resolution: {commit: e63c09e460269b0c535e4c34debf69bb91d57b22, path: packages/sub, repo: https://github.com/ksxnodemodules/ts-pipe-compose.git, type: git}";
+    assert_eq!(received, expected);
+}
+
+#[test]
+fn serialize_git_resolution_with_integrity() {
+    let resolution = LockfileResolution::Git(GitResolution {
+        repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
+        commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
+        integrity: integrity("sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==").into(),
+        path: None,
+    });
+    let received = render_resolution(&resolution);
+    eprintln!("RECEIVED:\n{received}");
+    let expected = "resolution: {commit: e63c09e460269b0c535e4c34debf69bb91d57b22, integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==, repo: https://github.com/ksxnodemodules/ts-pipe-compose.git, type: git}";
     assert_eq!(received, expected);
 }
 

@@ -934,6 +934,7 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
         resolution: LockfileResolution::Git(GitResolution {
             repo: "ssh://git@example.com/org/is-negative.git".to_string(),
             commit: "0123456789012345678901234567890123456789".to_string(),
+            integrity: None,
             path: None,
         }),
         resolved_via: "git-repository".to_string(),
