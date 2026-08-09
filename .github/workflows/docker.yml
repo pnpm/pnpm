@@ -22,6 +22,8 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      # `gh attestation verify` reads the release attestations through the API.
+      attestations: read
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/pnpm
     steps:
@@ -92,9 +94,14 @@ jobs:
             name="${pair#*:}"
             asset="$workdir/pnpm-linux-${name}.tar.gz"
             curl -fsSL --retry 3 --retry-delay 2 -o "$asset" "${base}/pnpm-linux-${name}.tar.gz"
+            # Pins the signing identity down to the tag, so an asset from a
+            # different release cannot pass on its own valid attestation.
+            # `--cert-identity` is an exact match on the certificate subject;
+            # `--signer-workflow` documents a path only, and a ref appended to
+            # it would be silently dropped if that ever stopped matching.
             gh attestation verify "$asset" \
               --repo "${GITHUB_REPOSITORY}" \
-              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml"
+              --cert-identity "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/v${VERSION}"
             sha="$(sha256sum "$asset" | awk '{print $1}')"
             echo "sha_${key}=${sha}" >> "$GITHUB_OUTPUT"
           done
