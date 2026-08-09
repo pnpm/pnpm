@@ -22,14 +22,25 @@ pub(crate) fn replace_executable(src: &Path, dest: &Path) -> std::io::Result<()>
         STAGED_SEQ.fetch_add(1, Ordering::Relaxed),
     ));
     let publish = || {
-        if fs::hard_link(src, &staged).is_err() {
+        // A hard link shares the source's inode, so it is only usable
+        // when the source already carries the executable bits — a chmod
+        // through the link would mutate the source (the running
+        // executable, or a store entry, possibly in a read-only store).
+        // A non-executable source is copied instead, and only the fresh
+        // copy gets its mode set.
+        #[cfg(unix)]
+        let src_is_executable = {
+            use std::os::unix::fs::PermissionsExt as _;
+            fs::metadata(src)
+                .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 == 0o111)
+        };
+        #[cfg(not(unix))]
+        let src_is_executable = true;
+        if !(src_is_executable && fs::hard_link(src, &staged).is_ok()) {
             let mut source = fs::File::open(src)?;
             let mut output = fs::OpenOptions::new().write(true).create_new(true).open(&staged)?;
             io::copy(&mut source, &mut output)?;
             output.sync_all()?;
-            // Only the fresh copy gets its mode set: the staged hard link
-            // shares its inode with `src`, so a chmod there would mutate
-            // the source — the running executable, or a store entry.
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt as _;
