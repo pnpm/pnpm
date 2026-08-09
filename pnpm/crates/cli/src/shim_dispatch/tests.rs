@@ -1,10 +1,16 @@
 #[cfg(windows)]
 use super::validate_candidate;
 use super::{
-    Candidate, MAX_HASHED_BIN_SIZE, append_trust_decision, find_candidate, install_dispatcher_from,
-    is_automatic_runtime, local_bin_identity, local_bin_path, managed_runtime_bin,
-    manifest_runtime_pin, package_dir_of_target, parse_shim_argv, provider_of_target,
-    read_shim_target_from_content, read_trust_decision, small_file_hash, try_dispatch,
+    Candidate, find_candidate,
+    identity::{
+        MAX_HASHED_BIN_SIZE, local_bin_identity, package_dir_of_target, provider_of_target,
+        read_shim_target_from_content, small_file_hash,
+    },
+    install_dispatcher_from, is_automatic_runtime, local_bin_path, manifest_runtime_pin,
+    parse_shim_argv,
+    runtime_env::managed_runtime_bin,
+    trust::{append_trust_decision, read_trust_decision},
+    try_dispatch,
 };
 use pacquet_config::ShimPolicy;
 use std::{ffi::OsString, fs, path::Path};
