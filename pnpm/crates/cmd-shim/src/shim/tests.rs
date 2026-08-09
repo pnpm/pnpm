@@ -151,7 +151,7 @@ fn generate_sh_shim_emits_direct_exec_when_no_runtime() {
     let shim = Path::new("/proj/node_modules/.bin/cli");
     let body = generate_sh_shim(target, shim, None, &[], ShimStyle::Direct);
     assert!(
-        body.contains("\"$basedir/../foo/bin/cli\"  \"$@\"\nexit $?\n"),
+        body.contains("exec \"$basedir/../foo/bin/cli\"  \"$@\"\nexit $?\n"),
         "no-runtime arm must exec the target directly, body:\n{body}",
     );
     assert!(body.ends_with("# cmd-shim-target=/proj/node_modules/foo/bin/cli\n"));
@@ -164,7 +164,7 @@ fn generate_sh_shim_threads_args_when_prog_is_none() {
     let runtime = ScriptRuntime { prog: None, args: "--flag".to_string() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], ShimStyle::Direct);
     assert!(
-        body.contains("\"$basedir/../cli\" --flag \"$@\"\nexit $?\n"),
+        body.contains("exec \"$basedir/../cli\" --flag \"$@\"\nexit $?\n"),
         "args must be threaded into the no-prog arm, body:\n{body}",
     );
 }
@@ -738,4 +738,37 @@ fn context_aware_windows_shims_preserve_bin_name_extensions() {
     );
     assert!(cmd.contains(r#"--shim "tool.cmd""#), "body was:\n{cmd}");
     assert!(pwsh.contains(r"'--shim' 'tool.ps1'"), "body was:\n{pwsh}");
+}
+
+/// A caller must be able to tell "the target died on a signal" from "the
+/// target exited with a code". Only holds if the shim `exec`s the target:
+/// a shell that waits on it converts a signal death into exit code 128+N.
+#[cfg(unix)]
+#[test]
+fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
+    use std::{
+        os::unix::{fs::PermissionsExt, process::ExitStatusExt},
+        process::Command,
+    };
+
+    // A real executable, so the shim takes the no-interpreter arm the way
+    // a managed runtime binary does. A script would carry a shebang and be
+    // launched through its interpreter instead.
+    let dir = tempfile::tempdir().expect("create a temporary directory");
+    let target = dir.path().join("target");
+    std::fs::copy("/bin/sh", &target).expect("copy /bin/sh");
+
+    let shim = dir.path().join("shim");
+    let body = generate_sh_shim(&target, &shim, None, &[], ShimStyle::Direct);
+    std::fs::write(&shim, body).expect("write the shim");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755))
+        .expect("make the shim executable");
+
+    let status = Command::new(&shim)
+        .args(["-c", "kill -9 $$"])
+        .status()
+        .expect("run the target through the shim");
+
+    assert_eq!(status.signal(), Some(9), "the shim swallowed the signal, reporting {status:?}");
+    assert_eq!(status.code(), None);
 }

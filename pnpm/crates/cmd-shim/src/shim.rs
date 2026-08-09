@@ -338,11 +338,14 @@ pub fn generate_sh_shim(
                 sh.push_str(&exec_block(args));
             }
         }
-        // Emit `exit $?` on this branch for parity with non-execve
-        // POSIX shells.
+        // `exec` so the target replaces the shell: a shell that waits on
+        // the target instead reports a signal death as exit code 128+N,
+        // and the caller can no longer tell the two apart. The trailing
+        // `exit $?` is unreachable after it, and is emitted only because
+        // upstream emits it — the two stacks' shims stay byte-identical.
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
-            writeln!(sh, "{quoted_target} {args} \"$@\"\nexit $?").unwrap();
+            writeln!(sh, "exec {quoted_target} {args} \"$@\"\nexit $?").unwrap();
         }
     }
 
