@@ -7,6 +7,7 @@ use command_extra::CommandExtra;
 #[cfg(unix)]
 use pacquet_testing_utils::bin::AddMockedRegistry;
 use pacquet_testing_utils::bin::CommandTempCwd;
+use pacquet_testing_utils::command_env::CommandTestExt;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -49,6 +50,7 @@ fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
         .with_current_dir(workspace)
         .with_env("PNPM_HOME", pnpm_home)
         .with_env("PATH", path)
+        .without_ambient_pnpm_config()
 }
 
 #[cfg(unix)]

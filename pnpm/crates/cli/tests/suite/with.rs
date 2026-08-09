@@ -3,6 +3,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pacquet_testing_utils::command_env::CommandTestExt;
 use std::{
     fs,
     path::Path,
@@ -188,13 +189,12 @@ fn with_current_requires_a_command() {
     drop(root);
 }
 
-fn test_command(mut command: Command, root: &Path) -> Command {
+fn test_command(command: Command, root: &Path) -> Command {
+    let mut command = command.without_ambient_pnpm_config();
     command.env("PNPM_HOME", root.join("pnpm-home"));
     command.env("HOME", root);
     command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
     command.env_remove("COREPACK_ROOT");
-    command.env_remove("pnpm_config_pm_on_fail");
-    command.env_remove("PNPM_CONFIG_PM_ON_FAIL");
     command
 }
 

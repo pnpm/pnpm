@@ -5,6 +5,7 @@ use pacquet_modules_yaml::{Host as ModulesHost, Modules, read_modules_manifest};
 use pacquet_store_dir::{CafsFileInfo, StoreDir, StoreIndex};
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
     fs::is_symlink_or_junction,
 };
 use pacquet_workspace_state::WorkspaceState;
@@ -24,7 +25,10 @@ use tempfile::TempDir;
 /// its first `.assert()`).
 #[must_use]
 pub fn pacquet_in(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
 }
 
 /// Strip whitespace and box-drawing glyphs out of a miette report so a

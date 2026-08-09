@@ -3,6 +3,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_testing_utils::command_env::CommandTestExt;
 use std::{fs, path::Path, process::Command};
 use tempfile::TempDir;
 
@@ -14,6 +15,7 @@ const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS";
 fn shim_command(root: &TempDir, cwd: &Path, shim_args: &[&str]) -> Command {
     let mut command = Command::cargo_bin("pnpm")
         .unwrap()
+        .without_ambient_pnpm_config()
         .with_current_dir(cwd)
         .with_env("PNPM_HOME", root.path().join("pnpm-home"))
         .with_env("XDG_STATE_HOME", root.path().join("state"))
