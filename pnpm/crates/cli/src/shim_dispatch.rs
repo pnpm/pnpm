@@ -167,9 +167,7 @@ fn dispatch_target(
     }
 }
 
-/// Whether a runtime pin may run without the trust gate. `Always` always
-/// may; `Auto` only when the artifact is authenticated
-/// ([`is_automatic_runtime`]); `Prompt` never.
+/// Whether a runtime pin may run without the trust gate.
 fn runtime_runs_promptless(policy: ShimPolicy, name: &str, version_spec: &str) -> bool {
     match policy {
         ShimPolicy::Always => true,
@@ -236,8 +234,8 @@ fn run_global_fallback(shim_path: Option<&Path>, target: &Path, args: &[OsString
     exec_program(target, args)
 }
 
-/// Split the machine-generated tail of a `--shim` invocation:
-/// `<name> <shim> <target> -- [args...]`.
+/// Split the machine-generated tail of a `--shim` invocation (format in
+/// the module docs).
 fn parse_shim_argv(rest: &[OsString]) -> Option<(&str, &Path, &Path, &[OsString])> {
     let [name, shim, target, separator, args @ ..] = rest else {
         return None;

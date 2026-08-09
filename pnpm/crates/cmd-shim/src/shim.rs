@@ -368,8 +368,7 @@ fn generated_shim_name<'a>(shim_path: &'a Path, extension: &str) -> &'a str {
 }
 
 /// Wrap `text` in single quotes for PowerShell, doubling embedded single
-/// quotes. Bin names come from package manifests, so they must not be
-/// able to break out of the generated script.
+/// quotes. Same threat model as [`sh_single_quote`].
 fn pwsh_single_quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', "''"))
 }
