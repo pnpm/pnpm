@@ -107,7 +107,7 @@ function evaluateVersionPolicy (rules: VersionPolicyRule[], pkgName: string): bo
       continue
     }
     if (exactVersions.length === 0) {
-      return matchedVersions ?? true
+      return true
     }
     if (matchedVersions == null) {
       matchedVersions = []

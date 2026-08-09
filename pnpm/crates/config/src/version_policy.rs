@@ -193,10 +193,7 @@ impl PackageVersionPolicy {
     /// Evaluate the policy against a package name, merging the exact
     /// versions of all matching `name@version[...]` rules.
     ///
-    /// A bare-name or wildcard rule matches every version, but never
-    /// widens exact versions already accumulated from earlier rules: a
-    /// wildcard listed after an exact-version rule does not silently
-    /// turn the exclusion into every version of the package.
+    /// A bare-name or wildcard rule matches every version.
     #[must_use]
     pub fn matches(&self, pkg_name: &str) -> PolicyMatch {
         let mut merged: Option<(Vec<String>, HashSet<String>)> = None;
@@ -205,10 +202,7 @@ impl PackageVersionPolicy {
                 continue;
             }
             if rule.exact_versions.is_empty() {
-                return match merged {
-                    Some((versions, _)) => PolicyMatch::ExactVersions(versions),
-                    None => PolicyMatch::AnyVersion,
-                };
+                return PolicyMatch::AnyVersion;
             }
             let (acc, seen) = merged.get_or_insert_with(|| (Vec::new(), HashSet::new()));
             for version in &rule.exact_versions {
