@@ -686,3 +686,116 @@ test('lockfile verifier respects trust-policy-exclude on a downgraded lockfile e
     '--trust-policy-exclude=@pnpm/e2e.test-provenance',
   ], { expectSuccess: true })
 })
+
+test('lockfile verifier respects trustPolicyExclude from pnpm-workspace.yaml on a downgraded lockfile entry', () => {
+  prepare()
+  execPnpmSync(
+    ['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'],
+    { expectSuccess: true }
+  )
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['@pnpm/e2e.test-provenance@0.0.5'],
+  })
+
+  execPnpmSync([
+    'install',
+    '--lockfile-only',
+  ], { expectSuccess: true })
+})
+
+test('lockfile verifier respects trustPolicyExclude from pnpm-workspace.yaml on a transitive downgraded lockfile entry', () => {
+  prepare()
+  execPnpmSync(
+    ['add', '@pnpm.e2e/has-untrusted-optional-dep@1.0.0', '--trust-policy=off'],
+    { expectSuccess: true }
+  )
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['@pnpm/e2e.test-provenance@0.0.5'],
+  })
+
+  execPnpmSync([
+    'install',
+    '--lockfile-only',
+  ], { expectSuccess: true })
+})
+
+test('lockfile verifier fails on a transitive downgraded lockfile entry when trustPolicyExclude does not match', () => {
+  prepare()
+  execPnpmSync(
+    ['add', '@pnpm.e2e/has-untrusted-optional-dep@1.0.0', '--trust-policy=off'],
+    { expectSuccess: true }
+  )
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['other-package'],
+  })
+
+  const result = execPnpmSync([
+    'install',
+    '--lockfile-only',
+  ])
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('ERR_PNPM_TRUST_DOWNGRADE')
+})
+
+test('lockfile verifier respects trustPolicyExclude from pnpm-workspace.yaml when package key has a leading slash', () => {
+  prepare()
+  execPnpmSync(
+    ['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'],
+    { expectSuccess: true }
+  )
+
+  const lockfile = readYamlFileSync<Record<string, unknown>>('pnpm-lock.yaml')
+  const oldKey = '@pnpm/e2e.test-provenance@0.0.5'
+  const newKey = '/@pnpm/e2e.test-provenance@0.0.5'
+  const packages = lockfile.packages as Record<string, unknown> | undefined
+  if (packages?.[oldKey]) {
+    packages[newKey] = packages[oldKey]
+    delete packages[oldKey]
+  }
+  const snapshots = lockfile.snapshots as Record<string, unknown> | undefined
+  if (snapshots?.[oldKey]) {
+    snapshots[newKey] = snapshots[oldKey]
+    delete snapshots[oldKey]
+  }
+  const importers = lockfile.importers as Record<string, Record<string, Record<string, Record<string, string>>>> | undefined
+  if (importers?.['.']?.dependencies?.['@pnpm/e2e.test-provenance']) {
+    importers['.'].dependencies['@pnpm/e2e.test-provenance'].version = newKey
+  }
+  writeYamlFileSync('pnpm-lock.yaml', lockfile)
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['@pnpm/e2e.test-provenance@0.0.5'],
+  })
+
+  execPnpmSync([
+    'install',
+    '--lockfile-only',
+  ], { expectSuccess: true })
+})
+
+test('lockfile verifier respects trustPolicyExclude from pnpm-workspace.yaml when configured as a single string', () => {
+  prepare()
+  execPnpmSync(
+    ['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'],
+    { expectSuccess: true }
+  )
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: '@pnpm/e2e.test-provenance@0.0.5',
+  })
+
+  execPnpmSync([
+    'install',
+    '--lockfile-only',
+  ], { expectSuccess: true })
+})
+
+

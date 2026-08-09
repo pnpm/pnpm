@@ -48,6 +48,11 @@ pub enum ParsePkgNameSuffixError<ParseSuffixError> {
 impl<Suffix: FromStr> FromStr for PkgNameSuffix<Suffix> {
     type Err = ParsePkgNameSuffixError<Suffix::Err>;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let value = if value.starts_with('/') && !value.starts_with("//") {
+            &value[1..]
+        } else {
+            value
+        };
         // The parsing code of PkgName is insufficient for this, so the code have to be duplicated for now.
         // TODO: use parser combinator pattern to enable code reuse
         let (name, suffix) = match value.split_first_char() {

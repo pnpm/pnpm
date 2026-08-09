@@ -187,12 +187,15 @@ export function parse (dependencyPath: string): DependencyPath {
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
-  const sepIndex = dependencyPath.indexOf('@', 1)
+  const cleanDependencyPath = dependencyPath.startsWith('/') && !dependencyPath.startsWith('//')
+    ? dependencyPath.substring(1)
+    : dependencyPath
+  const sepIndex = cleanDependencyPath.indexOf('@', 1)
   if (sepIndex === -1) {
     return {}
   }
-  const name = dependencyPath.substring(0, sepIndex)
-  let version = dependencyPath.substring(sepIndex + 1)
+  const name = cleanDependencyPath.substring(0, sepIndex)
+  let version = cleanDependencyPath.substring(sepIndex + 1)
   if (version) {
     let peerDepGraphHash: string | undefined
     let patchHash: string | undefined

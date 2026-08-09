@@ -33,7 +33,13 @@ impl PkgName {
     where
         Input: Into<String> + AsRef<str>,
     {
-        match input.as_ref().split_first_char() {
+        let input_ref = input.as_ref();
+        let input_ref = if input_ref.starts_with('/') && !input_ref.starts_with("//") {
+            &input_ref[1..]
+        } else {
+            input_ref
+        };
+        match input_ref.split_first_char() {
             Some(('@', rest)) => {
                 let (scope, bare) = rest.split_once('/').ok_or(ParsePkgNameError::MissingName)?;
                 let scope = scope.to_string().pipe(Some);
@@ -42,7 +48,7 @@ impl PkgName {
             }
             Some(_) => {
                 let scope = None;
-                let bare = input.into();
+                let bare = input_ref.to_string();
                 Ok(PkgName { scope, bare })
             }
             None => Err(ParsePkgNameError::EmptyName),
