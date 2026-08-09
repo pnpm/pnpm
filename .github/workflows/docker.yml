@@ -71,18 +71,31 @@ jobs:
           fi
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
+      # The digests handed to the image build have to mean more than "this is
+      # what we just downloaded" — the Dockerfile checks the asset against them,
+      # so a digest taken from an unverified download only proves the same bytes
+      # arrived twice. Each asset is verified against its build attestation
+      # first: sigstore-signed, recorded in a public transparency log, and tied
+      # to the release workflow running at the signed tag.
       - name: Compute pnpm tarball checksums
         id: checksums
         env:
           VERSION: ${{ steps.meta.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
           base="https://github.com/pnpm/pnpm/releases/download/v${VERSION}"
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
           for pair in amd64:x64 arm64:arm64; do
             key="${pair%:*}"
             name="${pair#*:}"
-            sha="$(curl -fsSL --retry 3 --retry-delay 2 "${base}/pnpm-linux-${name}.tar.gz" \
-                   | sha256sum | awk '{print $1}')"
+            asset="$workdir/pnpm-linux-${name}.tar.gz"
+            curl -fsSL --retry 3 --retry-delay 2 -o "$asset" "${base}/pnpm-linux-${name}.tar.gz"
+            gh attestation verify "$asset" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml"
+            sha="$(sha256sum "$asset" | awk '{print $1}')"
             echo "sha_${key}=${sha}" >> "$GITHUB_OUTPUT"
           done
 
