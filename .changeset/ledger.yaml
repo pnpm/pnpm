@@ -1848,6 +1848,10 @@ pacquet@12.0.0-rc.2:
     - pm-bootstrap-nonderivable-tarball-registries
     - pm-signature-fallback-registry
     - setup-writes-module-type
+pacquet@12.0.0-rc.3:
+  dir: pnpm/npm/pnpm
+  intents:
+    - shim-exec-preserves-signals
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
