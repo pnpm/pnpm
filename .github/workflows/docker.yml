@@ -23,6 +23,8 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      # `gh attestation verify` reads the release attestations through the API.
+      attestations: read
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/pnpm
     steps:
@@ -80,9 +82,14 @@ jobs:
           verified_sha() {
             asset="$workdir/$1"
             curl -fsSL --retry 3 --retry-delay 2 -o "$asset" "${base}/$1" &&
+            # Pins the signing identity down to the tag, so an asset from a
+            # different release cannot pass on its own valid attestation.
+            # `--cert-identity` is an exact match on the certificate subject;
+            # `--signer-workflow` documents a path only, and a ref appended to
+            # it would be silently dropped if that ever stopped matching.
             gh attestation verify "$asset" \
               --repo "${GITHUB_REPOSITORY}" \
-              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" >&2 &&
+              --cert-identity "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/v${VERSION}" >&2 &&
             sha256sum "$asset" | awk '{print $1}'
           }
           for pair in amd64:x64 arm64:arm64; do
