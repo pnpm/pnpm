@@ -869,7 +869,13 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
         workspaceDir: process.cwd(),
       }))
     } finally {
-      process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      // Assigning `undefined` would store the string "undefined", leaving every
+      // later test in this file resolving configDir under `undefined/pnpm`.
+      if (previousXdgConfigHome == null) {
+        delete process.env.XDG_CONFIG_HOME
+      } else {
+        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      }
     }
 
     const aboutConfigDir = warnings.filter((warning) => warning.includes('"configDir"'))

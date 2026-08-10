@@ -1209,6 +1209,10 @@ const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
   configDir: 'pnpm takes it from XDG_CONFIG_HOME, or the platform default',
   pnpmHomeDir: 'pnpm takes it from PNPM_HOME, which pnpm setup sets',
   userConfig: "pnpm reads it from the user's .npmrc",
+  // Both are derived from a key the global config file does take, so name that
+  // one rather than claiming nothing sets them.
+  bin: 'Set it for the machine instead: pnpm config set --global global-bin-dir',
+  globalPkgDir: 'Set it for the machine instead: pnpm config set --global global-dir',
 }
 
 /**
