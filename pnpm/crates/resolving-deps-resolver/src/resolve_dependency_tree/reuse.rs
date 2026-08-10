@@ -18,7 +18,7 @@ use crate::{
     lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
     node_id::NodeId,
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{AncestorIds, DirectDep, PeerDep, ResolvedPackage},
+    resolved_tree::{DirectDep, PeerDep, ResolvedPackage},
 };
 
 use super::{
@@ -30,7 +30,7 @@ use super::{
     walk::{node_alias, parent_ids_contain_sequence, resolve_node},
     workspace_ctx::{
         DirectDepVersions, RecordedChildrenContext, claim_children_owner, insert_tree_node,
-        is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        is_current_children_owner, lazy_children, make_non_owner_nodes_lazy, record_children,
         remember_node_parent_ids,
     },
 };
@@ -603,7 +603,7 @@ where
     let next_ancestors = Arc::new(next_ancestors);
     let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids, HashSet::default());
 
-    let children = if children_owner.owns_children {
+    let (children, others_stale) = if children_owner.owns_children {
         let child_results = child_refs
             .iter()
             .map(|(child_alias, child_key)| {
@@ -650,7 +650,7 @@ where
                 });
                 realized.insert(dep.alias, dep.node_id);
             }
-            let published = record_children(
+            let recording = record_children(
                 ctx,
                 &id,
                 &children_owner.owner,
@@ -661,28 +661,18 @@ where
                     update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
                 },
             );
-            if published {
-                crate::resolved_tree::TreeChildren::Realized(realized)
-            } else {
-                crate::resolved_tree::TreeChildren::Lazy {
-                    parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
-                }
-            }
+            recording.into_children(realized, ancestor_ids)
         } else {
-            crate::resolved_tree::TreeChildren::Lazy {
-                parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
-            }
+            (lazy_children(ancestor_ids), false)
         }
     } else {
-        crate::resolved_tree::TreeChildren::Lazy {
-            parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
-        }
+        (lazy_children(ancestor_ids), false)
     };
 
     remember_node_parent_ids(ctx, &node_id, Arc::clone(ancestor_ids));
     insert_tree_node(ctx, node_id.clone(), &id, children, depth);
     if children_owner.owns_children
-        && !children_owner.children_context_unchanged
+        && (others_stale || !children_owner.children_context_unchanged)
         && is_current_children_owner(ctx, &id, &children_owner.owner)
     {
         make_non_owner_nodes_lazy(ctx, &id, &node_id);

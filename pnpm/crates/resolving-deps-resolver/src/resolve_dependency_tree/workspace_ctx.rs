@@ -1215,8 +1215,11 @@ pub(super) struct ChildrenOwnerClaim {
     /// A winning claim displaced an owner whose shadowed-dependency set
     /// equals this occurrence's, so the other occurrences' realized
     /// children — including a subtree reused from the prior lockfile —
-    /// stay valid and the winner skips the lazy-flip (and the
-    /// engine-invalidating rewrite signal) it would otherwise broadcast.
+    /// stay valid *as far as the claim can tell*, and the winner skips
+    /// the lazy-flip (and the engine-invalidating rewrite signal) it
+    /// would otherwise broadcast. The walk it then runs can still land
+    /// on different edges, which
+    /// [`ChildrenRecording::PublishedOverStale`] reports instead.
     ///
     /// This is a narrower question than whether the *recorded* children
     /// can be reused instead of walked; that one is
@@ -1287,31 +1290,92 @@ pub(super) fn recorded_children_match(
         .is_some_and(|recorded| recorded.context.produces_same_children_as(context))
 }
 
+/// What [`fn@record_children`] did with a walk's child edges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ChildrenRecording {
+    /// This walk's ownership lapsed before it could publish, so the
+    /// standing owner's children stand. Its node stays lazy and expands
+    /// from whatever that owner recorded.
+    Declined,
+    /// Published, and the realized children every other occurrence node
+    /// holds still stand.
+    Published,
+    /// Published over edges the other occurrence nodes realized, whose
+    /// children are now stale.
+    PublishedOverStale,
+}
+
+impl ChildrenRecording {
+    /// The children to hang on the recording walk's own node, plus
+    /// whether the recording staled the children the package's other
+    /// occurrence nodes realized — the flag that gates
+    /// [`fn@make_non_owner_nodes_lazy`].
+    pub(super) fn into_children(
+        self,
+        realized: BTreeMap<String, NodeId>,
+        parent_ids: &Arc<Vec<String>>,
+    ) -> (crate::resolved_tree::TreeChildren, bool) {
+        match self {
+            ChildrenRecording::Declined => (lazy_children(parent_ids), false),
+            ChildrenRecording::Published => {
+                (crate::resolved_tree::TreeChildren::Realized(realized), false)
+            }
+            ChildrenRecording::PublishedOverStale => {
+                (crate::resolved_tree::TreeChildren::Realized(realized), true)
+            }
+        }
+    }
+}
+
+/// Children a node expands from the standing owner's recording, under
+/// its own `parent_ids` cycle break.
+pub(super) fn lazy_children(parent_ids: &Arc<Vec<String>>) -> crate::resolved_tree::TreeChildren {
+    crate::resolved_tree::TreeChildren::Lazy {
+        parent_ids: AncestorIds::from(Arc::clone(parent_ids)),
+    }
+}
+
 /// Publish a package's children together with the context that
-/// produced them, and report whether they were published.
+/// produced them, and report what that did.
 ///
-/// The ownership check happens under the same lock as the write: a
-/// claim that landed while this walk ran has its own children to
-/// publish, and an older walk finishing afterwards would otherwise
-/// overwrite them. A walk whose ownership lapsed keeps its node lazy
-/// and expands from whatever the standing owner recorded.
+/// The ownership check and the comparison against the standing
+/// recording happen under the same lock as the write: a claim that
+/// landed while this walk ran has its own children to publish, and an
+/// older walk finishing afterwards would otherwise overwrite them.
 pub(super) fn record_children(
     ctx: &TreeCtx,
     pkg_id: &str,
     owner: &ChildrenOwner,
     edges: Vec<crate::resolved_tree::ChildEdge>,
     context: RecordedChildrenContext,
-) -> bool {
-    {
+) -> ChildrenRecording {
+    let recording = {
         let owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
         if owners.get(pkg_id).is_none_or(|entry| entry.owner != *owner) {
-            return false;
+            return ChildrenRecording::Declined;
         }
-        lock_recoverable(&ctx.workspace.children_by_id)
-            .insert(pkg_id.to_string(), RecordedChildren { edges: Arc::new(edges), context });
-    }
+        let mut children = lock_recoverable(&ctx.workspace.children_by_id);
+        let recording = match children.get(pkg_id) {
+            // Nothing recorded yet, so no occurrence node can hold
+            // realized children of this package to stale.
+            None => ChildrenRecording::Published,
+            Some(recorded) if *recorded.edges == edges => ChildrenRecording::Published,
+            // A recording the prior lockfile pinned outlives a fresh
+            // walk's different answer: the occurrences that reused the
+            // subtree keep it realized rather than re-resolving its open
+            // ranges, which is the churn the reuse existed to avoid.
+            Some(recorded)
+                if recorded.context.prior_key.is_some() && context.prior_key.is_none() =>
+            {
+                ChildrenRecording::Published
+            }
+            Some(_) => ChildrenRecording::PublishedOverStale,
+        };
+        children.insert(pkg_id.to_string(), RecordedChildren { edges: Arc::new(edges), context });
+        recording
+    };
     ctx.workspace.record_children_by_id_write(pkg_id);
-    true
+    recording
 }
 
 /// Seed the peer-walker's `parentPkgs` filter with the names a
@@ -1402,7 +1466,13 @@ pub(super) fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_
     let mut tree = lock_recoverable(&ctx.workspace.dependencies_tree);
     let mut rewritten = Vec::new();
     for (node_id, parent_ids) in parent_ids_by_node {
-        if let Some(node) = tree.get_mut(&node_id) {
+        // An occurrence already reading the owner's children needs no
+        // rewrite — and must not report one, since the signal makes the
+        // discovery engine rebuild from scratch. In a peer-heavy graph
+        // most occurrences of a package are already lazy.
+        if let Some(node) = tree.get_mut(&node_id)
+            && !matches!(node.children, crate::resolved_tree::TreeChildren::Lazy { .. })
+        {
             node.children = crate::resolved_tree::TreeChildren::Lazy {
                 parent_ids: AncestorIds::from(parent_ids),
             };
