@@ -51,15 +51,20 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   switch (configFileName) {
     case GLOBAL_CONFIG_YAML_FILENAME:
     case WORKSPACE_MANIFEST_FILENAME: {
-      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
+      // `castField` is what decides a removal: `pnpm config delete` arrives
+      // with a null value, and `pnpm config set <key> null` casts to one. Both
+      // are how a file that already carries one of these gets fixed, so the
+      // result of the cast — not the raw parameter — gates every refusal
+      // below. The key only selects a type here, and normalising it does not
+      // change that.
+      const castValue = castField(value, kebabCase(key))
+      const isRemovingRefusedSetting = castValue == null && isProjectManifestSkippedSetting(camelCase(key))
+      // The reader warns about these in the global config file too, so a
+      // removal has to be able to clear what it named there as well.
+      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME && !isRemovingRefusedSetting) {
         key = validateYamlConfigKey(key)
       }
       const writtenKey = validateWorkspaceKey(key)
-      // `castField` is what decides a removal: `pnpm config delete` arrives
-      // with a null value, and `pnpm config set <key> null` casts to one. Both
-      // are how a manifest that already carries one of these gets fixed, so
-      // the result of the cast — not the raw parameter — gates the refusal.
-      const castValue = castField(value, kebabCase(writtenKey))
       if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
         throw new ConfigSetNotAProjectSettingError(writtenKey)
       }

@@ -1194,6 +1194,24 @@ test.each([
   expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBe(false)
 })
 
+/** The reader warns about these in the global config file too, so a delete has to reach them there. */
+test('config delete clears a refused setting from the global config.yaml', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(configDir, 'config.yaml'), "configDir: /tmp/somewhere\nstoreDir: '~/store'\n")
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['delete', 'config-dir'])
+
+  expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toEqual({ storeDir: '~/store' })
+})
+
 /** `set <key> null` is a removal, so it must clear the key rather than be refused. */
 test('config set config-dir null clears it instead of being refused', async () => {
   const tmp = tempDir()
