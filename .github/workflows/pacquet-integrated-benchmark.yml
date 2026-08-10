@@ -55,7 +55,6 @@ concurrency:
 # the base-repo privilege context via `workflow_run`.
 permissions:
   contents: read
-  checks: write
 
 jobs:
   benchmark:
@@ -111,6 +110,10 @@ jobs:
       PNPR_LATENCY_MS: 50
       REGISTRY_LATENCY_MS: 50
       REGISTRY_BANDWIDTH_MBPS: 200
+      # The longer scenarios have stayed within this same-run HEAD/main
+      # boundary across the control runs that exposed the short-scenario
+      # noise. Short CPU/disk scenarios remain reported but non-blocking.
+      PACQUET_STABLE_SCENARIO_MAX_RATIO: 1.2
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -461,9 +464,9 @@ jobs:
             echo
             echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
             echo
-            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
+            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm. Bencher records pacquet@HEAD and pnpr@HEAD; the blocking regression check compares pacquet@HEAD with pacquet@main in the longer scenarios.'
             echo
-            echo 'The tables below show mean ± σ; Bencher thresholds on the **minimum** latency, which is far less perturbed by shared-runner contention (noise only adds time).'
+            echo 'The tables below show mean ± σ. Bencher records the **minimum** latency to reduce shared-runner contention, but its cross-run alerts are observational because the short scenarios can still move by more than the alert boundary.'
             echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store'
             echo
@@ -570,18 +573,15 @@ jobs:
         # contributes only `pacquet@HEAD`.
         #
         # We report each scenario's *minimum* latency as the metric value, so
-        # Bencher's threshold tracks the min rather than the mean. On a shared
-        # CI runner, contention only ever *adds* time, so the minimum is the run
-        # least perturbed by a noisy neighbour and the truest signal of a real
-        # code regression — the mean drifts run-to-run with whatever else the
-        # machine is doing (the latency-free offline scenario is pure CPU/disk
-        # and swung ~30% between runs, tripping a spurious alert on a control
-        # run whose HEAD and main binaries were byte-identical). Because the
-        # minimum only needs one uncontended run, hyperfine's default sampling
-        # suffices for regular scenarios. The peer-heavy case is noisier and
-        # fixes its own count instead. The human-readable
-        # comment still reports mean ± σ; only the alerting signal moves to the
-        # min.
+        # Bencher records the min rather than the mean. On a shared CI runner,
+        # contention only ever *adds* time, so the minimum is less perturbed by
+        # a noisy neighbour. It does not eliminate cross-run noise: the short
+        # CPU/disk scenarios have breached the alert boundary on changes that
+        # cannot execute in the measured path. Bencher therefore keeps every
+        # scenario as an observational trend, while the separate blocking gate
+        # compares HEAD with main in the same run and only for the longer,
+        # empirically stable scenarios. The human-readable comment still
+        # reports mean ± σ.
         #
         # BMF rather than the `shell_hyperfine` adapter with a doctored `mean`:
         # this reports the min honestly as the value instead of relabelling it.
@@ -654,6 +654,47 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Check stable benchmark scenarios
+        id: stable_scenarios
+        if: github.ref_name != 'main'
+        continue-on-error: true
+        shell: bash
+        run: |
+          failed=0
+          check_scenario() {
+            local report=$1 scenario=$2
+            local head_min main_min regression_percent
+            head_min=$(jq -er 'first(.results[] | select(.command == "pacquet@HEAD")).min' "$report")
+            main_min=$(jq -er 'first(.results[] | select(.command == "pacquet@main")).min' "$report")
+            if jq -en \
+              --argjson head "$head_min" \
+              --argjson main "$main_min" \
+              --argjson max "$PACQUET_STABLE_SCENARIO_MAX_RATIO" \
+              '$head <= $main * $max' > /dev/null; then
+              return
+            fi
+            regression_percent=$(jq -nr \
+              --argjson head "$head_min" \
+              --argjson main "$main_min" \
+              '(($head / $main - 1) * 10000 | round) / 100')
+            echo "::error title=Pacquet benchmark regression::$scenario: pacquet@HEAD minimum ${head_min}s is ${regression_percent}% slower than pacquet@main ${main_min}s"
+            failed=1
+          }
+
+          check_scenario \
+            bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json \
+            'fresh restore, cold cache + cold store'
+          check_scenario \
+            bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json \
+            'fresh install, cold cache + cold store'
+          check_scenario \
+            bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.json \
+            'fresh install, cold cache + hot store'
+          check_scenario \
+            bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json \
+            'fresh restore, cold cache + cold store + cold pnpr'
+          exit "$failed"
+
       - name: Install Bencher CLI
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85 # v0.6.11
@@ -666,7 +707,6 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REF_NAME: ${{ github.ref_name }}
         shell: bash
         run: |
@@ -677,10 +717,10 @@ jobs:
           # One run is one benchmark, two testbeds: `pacquet` (direct
           # install, all scenarios) and `pnpr` (accelerated path, hot
           # scenarios). Upload each from its own bencher-results file.
-          # `--start-point-clone-thresholds` so the forked branch inherits
-          # the threshold configured on main; `--err` so the workflow fails
-          # when a sample breaches the upper boundary. Main pushes skip
-          # both — by then the regression has already landed.
+          # `--start-point-clone-thresholds` lets Bencher continue surfacing
+          # cross-run alerts. They are observational: the blocking gate above
+          # uses the same-run comparison for the stable scenarios. Main pushes
+          # skip the branch setup because they establish the baseline.
           upload() {
             local testbed=$1 file=$2
             if [ ! -f "$file" ]; then
@@ -692,7 +732,6 @@ jobs:
               --testbed "$testbed"
               --adapter json
               --file "$file"
-              --github-actions "$GITHUB_TOKEN"
             )
             if [ "$REF_NAME" = "main" ]; then
               args+=(--branch main)
@@ -702,13 +741,19 @@ jobs:
                 --start-point main
                 --start-point-reset
                 --start-point-clone-thresholds
-                --err
               )
             fi
             bencher run "${args[@]}"
           }
           upload pacquet bench-work-env/bencher-results.json
           upload pnpr bench-work-env/bencher-results-pnpr.json
+
+      - name: Re-raise the stable-scenario gate
+        if: always() && steps.stable_scenarios.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::error::A stable pacquet benchmark scenario regressed by more than 20%; see the check step for measurements."
+          exit 1
 
       - name: Re-raise the peer-heavy gate
         # Deferred from the peer-heavy step so its cross-engine assertion
