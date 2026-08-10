@@ -1,5 +1,62 @@
-use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
+use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer};
 use std::collections::{HashSet, VecDeque};
+
+/// What the fast-update handlers did to the dependency graph, so the
+/// maintenance that keeps the lockfile consistent — pruning, the
+/// peer-suffix safety check, catalog entry pruning, and the `optional`
+/// flag recompute — runs once over the combined result instead of once
+/// per handler.
+#[derive(Default)]
+pub(crate) struct GraphEdits {
+    /// Aliases whose importer or snapshot edges were severed.
+    pub(crate) dropped: HashSet<PkgName>,
+    /// Whether an edge into or out of `optionalDependencies` moved, which
+    /// changes the reachability-derived `optional` flags for a subtree.
+    pub(crate) moved_across_optional: bool,
+}
+
+/// Settle the graph after every handler has run: drop what nothing
+/// reaches any more, refuse the update when a surviving peer suffix
+/// embeds a dropped package (its key would need a rewrite, not a prune),
+/// drop catalog entries with no referent left, and recompute the
+/// `optional` flags. `false` leaves the caller on the full-resolution
+/// path.
+pub(crate) fn finish_graph_edits(candidate: &mut Lockfile, edits: &GraphEdits) -> bool {
+    if !edits.dropped.is_empty() {
+        prune_unreachable_packages(candidate);
+        if !peer_suffixes_are_independent_of(candidate, &edits.dropped) {
+            return false;
+        }
+        prune_unreferenced_catalog_entries(candidate);
+    }
+    if !edits.dropped.is_empty() || edits.moved_across_optional {
+        recompute_optional_flags(candidate);
+    }
+    true
+}
+
+/// Whether no surviving snapshot resolves a peer through one of `dropped`.
+///
+/// A dropped package that some snapshot reaches as a peer is embedded in
+/// that snapshot's key, so removing it would rekey the dependent rather
+/// than only prune. A peer suffix pnpm shortened into a hash cannot be
+/// read to rule that out.
+fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &HashSet<PkgName>) -> bool {
+    let Some(snapshots) = lockfile.snapshots.as_ref() else {
+        return true;
+    };
+    let dropped_needles: Vec<String> = dropped.iter().map(|name| format!("{name}@")).collect();
+    snapshots.keys().all(|key| {
+        let peers = key.suffix.peer();
+        peers.is_empty()
+            || (peers
+                .trim_start_matches('(')
+                .trim_end_matches(')')
+                .split(")(")
+                .all(|segment| segment.contains('@'))
+                && !dropped_needles.iter().any(|needle| peers.contains(needle.as_str())))
+    })
+}
 
 pub(crate) fn prune_unreachable_packages(lockfile: &mut Lockfile) {
     let reachable = {

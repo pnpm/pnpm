@@ -15,42 +15,22 @@ pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
 }
 
 /// Rewrite the loaded lockfile in place of a full resolution for the
-/// drift the lockfile itself proves is safe to absorb: a compatible
-/// direct-dependency range change, an addition to
-/// `ignoredOptionalDependencies`, a `patchedDependencies` change that
-/// matches no locked package, or a setting change that cannot affect
-/// the recorded graph. The candidate only replaces the loaded
-/// lockfile once it passes every freshness gate, so a handler that
-/// rewrites too much falls back to the resolver instead of committing.
-///
-/// Each handler rewrites the same loaded lockfile, so their candidates
-/// cannot be composed: when more than one fires, the resolver takes
-/// over rather than committing a candidate that drops another's rewrite.
+/// drift the lockfile itself proves is safe to absorb — see
+/// [`crate::fast_update_compose::try_compose_fast_updates`] for the
+/// handlers and their composition order. The candidate only replaces
+/// the loaded lockfile once it passes every freshness gate, so a
+/// handler that rewrites too much falls back to the resolver instead
+/// of committing.
 pub(super) async fn try_fast_update_lockfile(
     opts: FastUpdateLockfileOptions<'_, '_>,
 ) -> Option<Lockfile> {
     let lockfile = opts.lockfile?;
-    let mut candidates = [
-        crate::fast_update_importers::try_fast_update_importers(lockfile, opts.manifests),
-        crate::fast_update_ignored_optional_dependencies::try_fast_update_ignored_optional_dependencies(
-            lockfile,
-            opts.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
-        ),
-        crate::fast_update_settings::try_fast_update_settings(
-            lockfile,
-            &crate::fast_update_settings::lockfile_settings_from_config(opts.config),
-            opts.project_manifests,
-        ),
-        crate::fast_update_patched_dependencies::try_fast_update_patched_dependencies(
-            lockfile,
-            opts.config,
-        ),
-    ]
-    .into_iter()
-    .flatten();
-    let (Some(candidate), None) = (candidates.next(), candidates.next()) else {
-        return None;
-    };
+    let candidate = crate::fast_update_compose::try_compose_fast_updates(
+        lockfile,
+        opts.manifests,
+        opts.project_manifests,
+        opts.config,
+    )?;
     check_lockfile_freshness(
         &candidate,
         opts.manifests,

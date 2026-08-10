@@ -1,11 +1,18 @@
+use crate::{fast_update_compose::Drift, fast_update_lockfile::GraphEdits};
 use pacquet_config::matcher::create_matcher;
 use pacquet_lockfile::{Lockfile, PkgName};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-pub(crate) fn try_fast_update_ignored_optional_dependencies(
+/// Whether `ignoredOptionalDependencies` drifted from what the lockfile
+/// records, and whether the drift is a pure widening this rewrite can
+/// absorb. Anything else — a dropped pattern, a new exclusion, a
+/// previous configuration that ignores by default — is
+/// [`Drift::Resolve`], because only a resolution can bring packages
+/// back.
+pub(crate) fn detect_ignored_optional_drift(
     lockfile: &Lockfile,
     ignored_optional_dependencies: &[String],
-) -> Option<Lockfile> {
+) -> Drift<()> {
     let previous: BTreeSet<_> = lockfile
         .ignored_optional_dependencies
         .as_deref()
@@ -14,19 +21,27 @@ pub(crate) fn try_fast_update_ignored_optional_dependencies(
         .cloned()
         .collect();
     let current: BTreeSet<_> = ignored_optional_dependencies.iter().cloned().collect();
+    if previous == current {
+        return Drift::Clean;
+    }
     let added_exclusion = current.difference(&previous).any(|pattern| pattern.starts_with('!'));
     let previous_ignores_by_default =
         !previous.is_empty() && previous.iter().all(|pattern| pattern.starts_with('!'));
-    if previous == current
-        || !previous.is_subset(&current)
-        || added_exclusion
-        || previous_ignores_by_default
-    {
-        return None;
+    if !previous.is_subset(&current) || added_exclusion || previous_ignores_by_default {
+        return Drift::Resolve;
     }
+    Drift::Absorb(())
+}
 
+/// Remove every optional dependency the widened pattern list now
+/// ignores, from importers and snapshots alike, recording the removed
+/// aliases in `edits` for the shared epilogue.
+pub(crate) fn apply_ignored_optional_update(
+    candidate: &mut Lockfile,
+    ignored_optional_dependencies: &[String],
+    edits: &mut GraphEdits,
+) {
     let matcher = create_matcher(ignored_optional_dependencies);
-    let mut candidate = lockfile.clone();
     for importer in candidate.importers.values_mut() {
         let removed = remove_ignored_optional_dependencies(
             &mut importer.optional_dependencies,
@@ -35,23 +50,24 @@ pub(crate) fn try_fast_update_ignored_optional_dependencies(
         );
         if let Some(specifiers) = importer.specifiers.as_mut() {
             let removed_specifiers: HashSet<_> =
-                removed.into_iter().map(|name| name.to_string()).collect();
+                removed.iter().map(std::string::ToString::to_string).collect();
             specifiers.retain(|name, _| !removed_specifiers.contains(name));
         }
+        edits.dropped.extend(removed);
     }
     if let Some(snapshots) = candidate.snapshots.as_mut() {
         for snapshot in snapshots.values_mut() {
-            remove_ignored_optional_dependencies(
+            edits.dropped.extend(remove_ignored_optional_dependencies(
                 &mut snapshot.optional_dependencies,
                 &mut snapshot.dependencies,
                 &matcher,
-            );
+            ));
         }
     }
-    candidate.ignored_optional_dependencies = Some(current.into_iter().collect());
-    crate::fast_update_lockfile::prune_unreachable_packages(&mut candidate);
-    crate::fast_update_lockfile::prune_unreferenced_catalog_entries(&mut candidate);
-    Some(candidate)
+    let mut recorded: Vec<_> = ignored_optional_dependencies.to_vec();
+    recorded.sort();
+    recorded.dedup();
+    candidate.ignored_optional_dependencies = Some(recorded);
 }
 
 fn remove_ignored_optional_dependencies<OptionalValue, DependencyValue>(

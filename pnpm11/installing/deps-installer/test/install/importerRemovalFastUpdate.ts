@@ -6,9 +6,10 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type { DepPath, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { clone } from 'ramda'
 
+import { tryComposeFastUpdates } from '../../src/install/tryComposeFastUpdates.js'
 import {
   hasChangedProjectSpecifiers,
-  tryFastUpdateImporters,
+  type Project,
 } from '../../src/install/tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from '../../src/install/tryFastUpdateLockfile.js'
 import { testDefaults } from '../utils/index.js'
@@ -271,3 +272,7 @@ test('removing the last catalog referent drops the catalogs section from the loc
     '@pnpm.e2e/pkg-with-1-dep': { specifier: '100.0.0', version: '100.0.0' },
   })
 })
+/** The composed pipeline restricted to manifest drift. */
+function tryFastUpdateImporters (lockfile: LockfileObject, projects: Project[]): boolean {
+  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects })
+}

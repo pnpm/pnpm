@@ -5,10 +5,11 @@ import { prepareEmpty } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { DepPath, ProjectId, ProjectManifest } from '@pnpm/types'
 
-import { tryFastUpdateIgnoredOptionalDependencies } from '../../src/install/tryFastUpdateIgnoredOptionalDependencies.js'
+import { tryComposeFastUpdates } from '../../src/install/tryComposeFastUpdates.js'
 import {
   testDefaults,
 } from '../utils/index.js'
+
 
 test('ignoredOptionalDependencies causes listed optional dependencies to be skipped', async () => {
   const project = prepareEmpty()
@@ -219,4 +220,15 @@ function trackRequestedPackages (storeController: StoreController): string[] {
     return requestPackage(wantedDependency, requestOptions)
   }
   return requestedPackages
+}
+/** The composed pipeline restricted to `ignoredOptionalDependencies` drift. */
+function tryFastUpdateIgnoredOptionalDependencies (
+  lockfile: LockfileObject,
+  ignoredOptionalDependencies: string[]
+): boolean {
+  return tryComposeFastUpdates(lockfile, {
+    drift: { ignoredOptionalDependencies: true },
+    projects: [],
+    ignoredOptionalDependencies,
+  })
 }

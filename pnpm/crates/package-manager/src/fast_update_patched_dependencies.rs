@@ -1,3 +1,4 @@
+use crate::fast_update_compose::Drift;
 use pacquet_config::Config;
 use pacquet_deps_path::{index_of_dep_path_suffix, remove_suffix};
 use pacquet_lockfile::{
@@ -12,9 +13,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 /// Where a package's snapshot key moves to when its patch changes.
 type Rekeys = HashMap<PackageKey, PackageKey>;
 
-/// Absorb a changed `patchedDependencies` without resolving the
-/// dependency graph.
-///
 /// Resolution never reads a patch: it appends the patch file's hash to
 /// an already-resolved package id, so the set of packages and versions
 /// is the same either way. Only the affected packages' `snapshots:`
@@ -22,39 +20,64 @@ type Rekeys = HashMap<PackageKey, PackageKey>;
 /// the loaded lockfile rather than a re-resolve. `packages:` is keyed
 /// without the patch hash, so it stays as it is.
 ///
-/// `None` — nothing changed, a patched package is reachable as a peer,
-/// or the new configuration leaves a patch unused while
-/// `allowUnusedPatches` is off — leaves the caller on the
-/// full-resolution path, which is where `ERR_PNPM_UNUSED_PATCH` is
-/// raised.
-///
-/// A patch file that cannot be read or hashed also falls back, so the
-/// resolver reports it rather than this path swallowing the error.
-pub(crate) fn try_fast_update_patched_dependencies(
-    lockfile: &Lockfile,
-    config: &Config,
-) -> Option<Lockfile> {
+/// The plan holds the configured patches [`apply_patched_update`] moves
+/// the lockfile to: the hashes to record and their resolver-shaped
+/// grouping.
+pub(crate) struct PatchedPlan {
+    current: BTreeMap<String, String>,
+    groups: PatchGroupRecord,
+}
+
+/// Whether `patchedDependencies` drifted from what the lockfile
+/// records. [`Drift::Resolve`] when a patch file cannot be read or
+/// hashed, or a key's version segment parses as neither a version nor a
+/// range — the resolver reports those.
+pub(crate) fn detect_patched_drift(lockfile: &Lockfile, config: &Config) -> Drift<PatchedPlan> {
     let empty = BTreeMap::new();
-    let hashes = config.patched_dependency_hashes().ok()?;
+    let Ok(hashes) = config.patched_dependency_hashes() else {
+        return Drift::Resolve;
+    };
     let recorded = lockfile.patched_dependencies.as_ref().unwrap_or(&empty);
     let current = hashes.as_ref().unwrap_or(&empty);
     if recorded == current {
-        return None;
+        return Drift::Clean;
     }
+    match groups_from_hashes(current) {
+        Some(groups) => Drift::Absorb(PatchedPlan { current: current.clone(), groups }),
+        None => Drift::Resolve,
+    }
+}
 
-    let groups = groups_from_hashes(current)?;
-    if !config.allow_unused_patches {
-        let applied = applied_patch_keys(lockfile, &groups)?;
-        if all_patch_keys(&groups).any(|key| !applied.contains(key)) {
-            return None;
+/// Rekey the affected snapshots to the configured patches and record
+/// the new hashes.
+///
+/// Runs after removals have been applied and pruned, so the unused-patch
+/// guard and the rekey plan see the packages a full resolution would see
+/// — a patch whose only referent was just removed falls back exactly
+/// like the resolver raising `ERR_PNPM_UNUSED_PATCH` would.
+///
+/// `false` — a patched package reachable as a peer, an opaque peer
+/// suffix, or a patch left unused while `allowUnusedPatches` is off —
+/// leaves the caller on the full-resolution path.
+pub(crate) fn apply_patched_update(
+    candidate: &mut Lockfile,
+    plan: &PatchedPlan,
+    allow_unused_patches: bool,
+) -> bool {
+    if !allow_unused_patches {
+        let Some(applied) = applied_patch_keys(candidate, &plan.groups) else {
+            return false;
+        };
+        if all_patch_keys(&plan.groups).any(|key| !applied.contains(key)) {
+            return false;
         }
     }
-
-    let rekeys = plan_rekeys(lockfile, &groups)?;
-    let mut candidate = lockfile.clone();
-    apply_rekeys(&mut candidate, &rekeys);
-    candidate.patched_dependencies = (!current.is_empty()).then(|| current.clone());
-    Some(candidate)
+    let Some(rekeys) = plan_rekeys(candidate, &plan.groups) else {
+        return false;
+    };
+    apply_rekeys(candidate, &rekeys);
+    candidate.patched_dependencies = (!plan.current.is_empty()).then(|| plan.current.clone());
+    true
 }
 
 /// Where every snapshot key moves to once `groups` is the configured
