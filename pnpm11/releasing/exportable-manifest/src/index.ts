@@ -147,7 +147,7 @@ async function makePublishDependencies (
     async (depSpec: string, depName: string) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
     dependencies
   )
-  return publishDependencies
+  return Object.fromEntries(Object.keys(dependencies).map((depName) => [depName, publishDependencies[depName]]))
 }
 
 async function readAndCheckManifest (depName: string, dependencyDir: string): Promise<ProjectManifest> {
