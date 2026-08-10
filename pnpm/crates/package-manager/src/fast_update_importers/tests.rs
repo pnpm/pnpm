@@ -668,3 +668,106 @@ fn rejects_a_dependency_the_lockfile_does_not_record() {
         "an added dependency needs the resolver",
     );
 }
+
+/// Two importers hold different versions of `foo`; the registry also has
+/// a higher 1.3.0 that nothing locks.
+const WITH_TWO_LOCKED_VERSIONS: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: 1.0.0
+        version: 1.0.0
+  pkg-a:
+    dependencies:
+      foo:
+        specifier: 1.2.0
+        version: 1.2.0
+packages:
+  foo@1.0.0:
+    resolution:
+      integrity: sha512-foo-1
+  foo@1.2.0:
+    resolution:
+      integrity: sha512-foo-2
+snapshots:
+  foo@1.0.0: {}
+  foo@1.2.0: {}
+";
+
+#[test]
+fn moves_a_widened_range_to_the_higher_version_another_importer_locks() {
+    let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.1.0" } }));
+    let other = manifest_from(json!({ "dependencies": { "foo": "1.2.0" } }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_TWO_LOCKED_VERSIONS),
+        &[(".".to_string(), &manifest), ("pkg-a".to_string(), &other)],
+    )
+    .expect("the version is already in the lockfile, so nothing needs resolving");
+
+    let alias: PkgName = "foo".parse().expect("alias");
+    let recorded = &updated.importers["."].dependencies.as_ref().expect("dependencies")[&alias];
+    assert_eq!(
+        (recorded.specifier.as_str(), recorded.version.to_string().as_str()),
+        ("^1.1.0", "1.2.0"),
+    );
+    let mut packages: Vec<_> =
+        updated.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    packages.sort();
+    assert_eq!(
+        packages,
+        vec!["foo@1.2.0".to_string()],
+        "the version it left is unreachable and goes",
+    );
+}
+
+#[test]
+fn moves_to_a_higher_locked_version_even_when_the_locked_one_still_satisfies() {
+    let manifest = manifest_from(json!({ "dependencies": { "foo": ">=1.0.0" } }));
+    let other = manifest_from(json!({ "dependencies": { "foo": "1.2.0" } }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_TWO_LOCKED_VERSIONS),
+        &[(".".to_string(), &manifest), ("pkg-a".to_string(), &other)],
+    )
+    .expect("resolution would dedupe onto the higher locked version");
+
+    let alias: PkgName = "foo".parse().expect("alias");
+    assert_eq!(
+        updated.importers["."].dependencies.as_ref().expect("dependencies")[&alias]
+            .version
+            .to_string(),
+        "1.2.0",
+    );
+}
+
+#[test]
+fn rejects_a_range_no_locked_version_satisfies() {
+    let manifest = manifest_from(json!({ "dependencies": { "foo": "^2.0.0" } }));
+    let other = manifest_from(json!({ "dependencies": { "foo": "1.2.0" } }));
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_TWO_LOCKED_VERSIONS),
+            &[(".".to_string(), &manifest), ("pkg-a".to_string(), &other)],
+        )
+        .is_none(),
+        "only the resolver can fetch a version the lockfile does not hold",
+    );
+}
+
+#[test]
+fn rejects_a_higher_version_that_exists_only_under_a_named_registry() {
+    let mut subject = parsed_lockfile(WITH_TWO_LOCKED_VERSIONS);
+    let packages = subject.packages.as_mut().expect("packages");
+    let higher = packages.remove(&"foo@1.2.0".parse().expect("package key")).expect("foo@1.2.0");
+    packages.insert("foo@work:1.2.0".parse().expect("package key"), higher);
+    let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.1.0" } }));
+
+    assert!(
+        try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_none(),
+        "a registry-qualified key's semver only pins a version inside that registry",
+    );
+}
