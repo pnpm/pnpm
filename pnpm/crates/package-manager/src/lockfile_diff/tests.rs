@@ -90,6 +90,7 @@ fn lockfile(root: ProjectSnapshot, snapshots: &[(&str, SnapshotEntry)]) -> Lockf
         importers: HashMap::from([(".".to_string(), root)]),
         packages: None,
         snapshots: Some(snapshots.iter().map(|(id, entry)| (key(id), entry.clone())).collect()),
+        time: None,
     }
 }
 

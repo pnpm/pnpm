@@ -306,6 +306,7 @@ fn importer_scoped_update_lockfile(
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 
@@ -742,7 +743,7 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0", "b": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
-    resolve_workspace(
+    let result = resolve_workspace(
         &resolver,
         &importers,
         &[DependencyGroup::Prod],
@@ -764,6 +765,86 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
         (false, Some(expected_cutoff)),
         "subdep picks highest, constrained to newest-direct + 1h",
     );
+    assert_eq!(
+        result.time,
+        recorded_time(&[
+            ("a@1.0.0", "2024-03-01T10:00:00.000Z"),
+            ("b@1.0.0", "2024-05-20T08:00:00.000Z"),
+        ]),
+        "the direct deps' publish dates are handed to the lockfile's `time:` section",
+    );
+}
+
+/// Against a registry whose abbreviated metadata omits publish times,
+/// the dates the lockfile already recorded are what the cutoff is
+/// derived from — otherwise a re-resolve would compute a different
+/// cutoff and could pick different subdependency versions.
+#[tokio::test]
+async fn time_based_cutoff_falls_back_to_the_lockfiles_recorded_time() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("a".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "a",
+            "1.0.0",
+            None,
+            serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": { "sub": "^2.0.0" } }),
+        ),
+    );
+    table.insert(
+        ("sub".to_string(), "^2.0.0".to_string()),
+        fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+
+    let mut opts = workspace_opts(true, true);
+    opts.wanted_lockfile =
+        Some(Arc::new(lockfile_recording_time(&[("a@1.0.0", "2024-05-20T08:00:00.000Z")])));
+
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(tmp.path().to_path_buf(), None)
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(
+        resolver.opts_for("sub"),
+        (false, Some(Utc.with_ymd_and_hms(2024, 5, 20, 9, 0, 0).unwrap())),
+        "the recorded publish date stands in for the missing one",
+    );
+    assert_eq!(
+        result.time,
+        recorded_time(&[("a@1.0.0", "2024-05-20T08:00:00.000Z")]),
+        "a recorded date is carried forward, not dropped",
+    );
+}
+
+fn recorded_time(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
+    entries
+        .iter()
+        .map(|(pkg_id, published_at)| ((*pkg_id).to_string(), (*published_at).to_string()))
+        .collect()
+}
+
+fn lockfile_recording_time(entries: &[(&str, &str)]) -> pacquet_lockfile::Lockfile {
+    use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion};
+
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: std::collections::HashMap::new(),
+        packages: None,
+        snapshots: None,
+        time: Some(recorded_time(entries)),
+    }
 }
 
 #[tokio::test]
@@ -978,6 +1059,7 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
             pacquet_lockfile::PkgNameVerPeer::from_str("shared@1.0.0(opt@25.0.0)").unwrap(),
             pacquet_lockfile::SnapshotEntry::default(),
         )])),
+        time: None,
     }));
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
@@ -1568,6 +1650,7 @@ fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
         importers: std::collections::HashMap::new(),
         packages: Some(std::collections::HashMap::from([(key, metadata)])),
         snapshots: None,
+        time: None,
     }
 }
 
@@ -1999,6 +2082,7 @@ fn reuse_graph_lockfile(
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 
@@ -3076,6 +3160,7 @@ fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 

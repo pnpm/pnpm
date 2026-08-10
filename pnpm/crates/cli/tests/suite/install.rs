@@ -1500,6 +1500,44 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
     drop((root, mock_instance));
 }
 
+/// Dropping `time:` would lose the publish dates a re-resolve falls back
+/// on when the registry's abbreviated metadata carries none, changing the
+/// cutoff every subdependency is resolved under.
+#[test]
+fn time_based_install_records_and_preserves_the_lockfile_time_section() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    existing.push_str("resolutionMode: time-based\nminimumReleaseAge: 0\n");
+    fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let recorded =
+        read_lockfile(&lockfile_path).time.expect("a time-based install records `time:`");
+    assert_eq!(
+        recorded.keys().collect::<Vec<_>>(),
+        ["@pnpm.e2e/foo@100.0.0"],
+        "only the direct dependency's publish date is recorded: {recorded:?}",
+    );
+
+    new_pacquet_command(&workspace).with_arg("install").assert().success();
+
+    assert_eq!(read_lockfile(&lockfile_path).time.as_ref(), Some(&recorded));
+
+    drop((root, mock_instance));
+}
+
 /// `@pnpm.e2e/abc-parent-with-ab@1.0.0` transitively peer-depends on
 /// `@pnpm.e2e/peer-c` (through its `@pnpm.e2e/abc` dependency). A diamond
 /// reaches it in two compatible peer contexts: the root supplies

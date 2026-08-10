@@ -139,6 +139,11 @@ pub struct GraphToLockfileOptions<'a> {
     /// update targets the named dependency in the importer that declares
     /// it while leaving untouched importers' `link:` entries intact.
     pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// The lockfile's `time:` section: the prior lockfile's recorded
+    /// publish dates with this run's freshly resolved ones layered over
+    /// them. Empty on a first install that did not resolve `time-based`.
+    /// Saving prunes it to the importers' direct dependencies.
+    pub time: BTreeMap<String, String>,
 }
 
 /// Error returned while converting a resolver graph into a lockfile.
@@ -211,6 +216,7 @@ pub fn dependencies_graph_to_lockfile(
         previous_importers,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
+        time,
     } = opts;
 
     let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
@@ -272,6 +278,7 @@ pub fn dependencies_graph_to_lockfile(
         importers,
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
+        time: (!time.is_empty()).then_some(time),
     })
 }
 

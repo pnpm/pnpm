@@ -49,6 +49,7 @@ fn empty_test_lockfile() -> Lockfile {
         importers: std::collections::HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 
