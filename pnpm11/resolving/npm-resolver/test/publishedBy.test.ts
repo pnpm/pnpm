@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
@@ -275,6 +276,54 @@ test('re-fetch full metadata when per-version publish times are incomplete', asy
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@2.0.0')
+})
+
+test('does not repeat a 304 full-metadata upgrade for an incomplete time map', async () => {
+  const partialTimeMeta = {
+    ...isPositiveAbbreviatedMeta,
+    time: {
+      '3.0.0': isPositiveMeta.time['3.0.0'],
+      '3.1.0': isPositiveMeta.time['3.1.0'],
+    },
+    modified: isPositiveMeta.time.modified,
+  }
+
+  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, partialTimeMeta, { headers: { etag: '"partial-time"' } })
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"partial-time"' },
+  }).reply(304, '')
+
+  const metaCache = new Map<string, PackageMeta>()
+  const { clearCache, resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+    ignoreMissingTimeField: true,
+    metaCache,
+  })
+  const wantedDependency = { alias: 'is-positive', bareSpecifier: '^3.0.0' }
+
+  // Seed the install-scoped cache with an incomplete time map, then make two
+  // release-age picks. The first gets a 304 while trying to upgrade it; the
+  // second must reuse that outcome instead of repeating the registry request.
+  await resolveFromNpm(wantedDependency, {})
+  const first = await resolveFromNpm(wantedDependency, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+  // Drop the request memo without clearing the caller-owned packument cache.
+  // This proves the packument itself records the 304 outcome.
+  clearCache()
+  const second = await resolveFromNpm(wantedDependency, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+
+  expect(first!.id).toBe('is-positive@3.1.0')
+  expect(second!.id).toBe('is-positive@3.1.0')
+  getMockAgent().assertNoPendingInterceptors()
 })
 
 test('ignoreMissingTimeField=true skips maturity check when full metadata has no time field', async () => {

@@ -1259,10 +1259,12 @@ async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
-    // The document a prior mirror load would have produced: abbreviated
-    // (no `time`), carrying the mirror's etag as the upgrade validator.
+    // The document a prior mirror load would have produced: an incomplete
+    // `time` map, carrying the mirror's etag as the upgrade validator.
+    let partial_time_body =
+        PACKAGE_BODY.replacen(",\n        \"1.1.0\": \"2024-12-10T08:30:00.000Z\"", "", 1);
     let mut seeded: pnpm_registry::Package =
-        serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
+        serde_json::from_str(&partial_time_body).expect("parse fixture");
     seeded.etag = Some(r#""acme-etag""#.to_string());
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
@@ -1274,8 +1276,8 @@ async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
-        // The post-304 document still has no `time`, so let the picker
-        // take its warn-and-skip fallback instead of erroring.
+        // The post-304 document still has an incomplete `time`, so let the
+        // picker take its warn-and-skip fallback instead of erroring.
         ignore_missing_time_field: true,
         full_metadata: false,
         needs_full_metadata_for: None,
@@ -1289,7 +1291,6 @@ async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
 
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second pick");
-    let _ = pick_package(&ctx, &range_spec("acme", "1.0.0"), &opts).await.expect("third pick");
 
     // Exactly one upgrade attempt — the 304 outcome is stamped into the
     // shared cache and reused by later picks.

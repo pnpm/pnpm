@@ -209,6 +209,14 @@ function pickMatchingVersionFinal (
 const unverifiedDiskPackuments = new WeakSet<PackageMeta>()
 
 /**
+ * Packuments whose release-age full-metadata upgrade returned 304 during this
+ * install. The marker is deliberately identity-based and in-memory only: later
+ * picks can skip the same round trip, while a future install still gets a
+ * chance to retrieve a fuller document from the registry.
+ */
+const releaseAgeUpgradeCheckedPackuments = new WeakSet<PackageMeta>()
+
+/**
  * Promote a packument parsed from the on-disk mirror into the in-memory
  * cache, so repeat resolutions of the same package (common across a large
  * dependency graph) don't re-read and re-parse the mirror. The entry is
@@ -585,6 +593,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     ctx.offline === true ||
     !opts.publishedBy ||
     hasAllVersionPublishTimes(meta) ||
+    releaseAgeUpgradeCheckedPackuments.has(meta) ||
     opts.publishedByExclude?.(spec.name) === true
   ) {
     return { meta }
@@ -615,6 +624,9 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   if (fullFetchResult.notModified) {
     // Upgrade fetch came back 304: keep the abbreviated meta. The downstream
     // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
+    // Remember this registry-validated outcome on the packument itself so
+    // another pick in this install does not repeat the full-metadata request.
+    releaseAgeUpgradeCheckedPackuments.add(meta)
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
