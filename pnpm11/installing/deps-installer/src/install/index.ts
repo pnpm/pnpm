@@ -769,11 +769,11 @@ export async function mutateModules (
       !opts.force &&
       !opts.forceFullResolution &&
       !forceResolutionFromHook &&
-      // A pnpmfile's `readPackage` needs no gate here: `getContext` applies
-      // it to every project manifest, so detection and the handlers compare
-      // hooked manifests against the hooked state the lockfile records, and
-      // a changed pnpmfile surfaces as `pnpmfileChecksum` drift, which is
-      // not composable.
+      // A pnpmfile's `readPackage` hook is safe here — `getContext` applies
+      // it to every project manifest and a changed pnpmfile surfaces as
+      // `pnpmfileChecksum` drift. A programmatic hook has no checksum
+      // proving it unchanged, so it keeps forcing the resolver.
+      (!opts.hooks.readPackage?.length || opts.hooks.calculatePnpmfileChecksum != null) &&
       !opts.hooks.preResolution?.length &&
       !opts.hooks.afterAllResolved?.length &&
       opts.hooks.customResolvers == null &&

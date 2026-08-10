@@ -26,9 +26,9 @@ test('a remove with an unchanged pnpmfile skips resolution', async () => {
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ hooks: { readPackage: [readPackage] } }))
+  }, testDefaults({ hooks: { readPackage: [readPackage], calculatePnpmfileChecksum } }))
 
-  const options = testDefaults({ hooks: { readPackage: [readPackage] } })
+  const options = testDefaults({ hooks: { readPackage: [readPackage], calculatePnpmfileChecksum } })
   const requestedPackages = trackRequestedPackages(options.storeController)
   await mutateModulesInSingleProject({
     dependencyNames: ['is-positive'],
@@ -67,10 +67,10 @@ test('a remove keeps the specifiers a project-rewriting pnpmfile recorded', asyn
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ hooks: { readPackage: [readPackage] } }))
+  }, testDefaults({ hooks: { readPackage: [readPackage], calculatePnpmfileChecksum } }))
   expect(project.readLockfile().importers['.'].dependencies!['is-positive'].specifier).toBe('1.0.0')
 
-  const options = testDefaults({ hooks: { readPackage: [readPackage] } })
+  const options = testDefaults({ hooks: { readPackage: [readPackage], calculatePnpmfileChecksum } })
   const requestedPackages = trackRequestedPackages(options.storeController)
   await mutateModulesInSingleProject({
     dependencyNames: ['@pnpm.e2e/pkg-with-1-dep'],
@@ -84,6 +84,41 @@ test('a remove keeps the specifiers a project-rewriting pnpmfile recorded', asyn
   expect(lockfile.importers['.'].dependencies!['is-positive'].specifier).toBe('1.0.0')
   expect(Object.keys(lockfile.packages).some((depPath) => depPath.startsWith('@pnpm.e2e/pkg-with-1-dep@'))).toBe(false)
 })
+
+test('a programmatic hook without a pnpmfile checksum still resolves', async () => {
+  prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      'is-positive': '1.0.0',
+    },
+  }
+  const readPackage = (pkg: PackageManifest) => pkg
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ hooks: { readPackage: [readPackage] } }))
+
+  const options = testDefaults({ hooks: { readPackage: [readPackage] } })
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-positive'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages).not.toStrictEqual([])
+})
+
+/**
+ * Marks the hooks as coming from a pnpmfile whose content is stable across
+ * the installs of one test, the way `requireHooks` tracks real pnpmfiles.
+ */
+async function calculatePnpmfileChecksum (): Promise<string> {
+  return 'test-pnpmfile-checksum'
+}
 
 function trackRequestedPackages (storeController: StoreController): string[] {
   const requestedPackages: string[] = []
