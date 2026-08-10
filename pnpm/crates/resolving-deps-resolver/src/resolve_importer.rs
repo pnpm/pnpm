@@ -498,7 +498,6 @@ impl ImporterHoistState {
             initial_wanted,
             importer_id,
             &ParentPkgAliases::root(parent_pkg_aliases.clone()),
-            false,
         )
         .await?;
         ctx.workspace().set_direct_locked_peer_names(&direct, &locked_peer_names_by_alias);
@@ -790,7 +789,6 @@ impl ImporterHoistState {
                 new_wanted,
                 &self.importer_id,
                 &ParentPkgAliases::root(self.parent_pkg_aliases.clone()),
-                true,
             )
             .await?;
             self.direct.extend(new_direct);
@@ -868,7 +866,6 @@ impl ImporterHoistState {
             new_wanted,
             &self.importer_id,
             &ParentPkgAliases::root(self.parent_pkg_aliases.clone()),
-            true,
         )
         .await?;
         self.hoisted_optional_peer_node_ids

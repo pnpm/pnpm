@@ -375,7 +375,6 @@ where
         wanted,
         pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
         &parent_pkg_aliases,
-        false,
     )
     .await?;
     Ok(ctx.into_resolved_tree(direct))
@@ -511,7 +510,6 @@ pub async fn extend_tree<Chain>(
     wanted: Vec<WantedSpec>,
     importer_id: &str,
     parent_pkg_aliases: &Arc<ParentPkgAliases>,
-    is_hoisted_peer: bool,
 ) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -577,9 +575,7 @@ where
     let direct_versions = level_versions(ctx, &seeds);
     // Recorded only now the level barrier has passed, so the subtree walk
     // sees the resolved direct-dep versions.
-    if !is_hoisted_peer {
-        record_direct_dep_versions(ctx, importer_id, &direct_versions);
-    }
+    record_direct_dep_versions(ctx, importer_id, &direct_versions);
     let children_overlay = PreferredVersionsOverlay::layer(
         ctx.base_opts.preferred_versions_overlay.clone(),
         direct_versions,

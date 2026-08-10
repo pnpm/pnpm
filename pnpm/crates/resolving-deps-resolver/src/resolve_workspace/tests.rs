@@ -460,6 +460,10 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
             result.merged_tree.children_by_id.get("parent@1.0.0").expect("parent children");
         assert_eq!(parent_children.len(), 1);
         assert_eq!(parent_children[0].pkg_id, "pkg@100.1.0");
+        // Recording the winner's children is not enough on its own: the
+        // occurrence that ran first realized the ones it resolved, and
+        // only the handover makes it re-read them.
+        assert_eq!(graph_versions_of(&result, "pkg"), ["100.1.0"], "order {order:?}");
     }
 }
 

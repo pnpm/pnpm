@@ -21,7 +21,7 @@ use crate::{
     lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
     node_id::NodeId,
     parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
-    resolved_tree::{AncestorIds, DirectDep, ResolvedPackage},
+    resolved_tree::{DirectDep, ResolvedPackage},
 };
 
 use super::{
@@ -43,8 +43,9 @@ use super::{
     },
     workspace_ctx::{
         ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, WantedKey, claim_children_owner,
-        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
-        recorded_children_match, register_peer_dep_names, remember_node_parent_ids,
+        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
+        record_children, recorded_children_match, register_peer_dep_names,
+        remember_node_parent_ids,
     },
 };
 
@@ -564,18 +565,13 @@ where
         prior_key: prior_key.clone(),
         update_active: !matches!(ctx.update_reuse_scope(), super::UpdateReuseScope::All),
     };
-    let (children, children_changed) = if is_link {
+    let (children, others_stale) = if is_link {
         // Linked nodes don't walk their manifest's deps — see the
         // `is_link` comment block above. They get an empty `Realized`
         // map: a linked node has no children of its own here.
         (crate::resolved_tree::TreeChildren::Realized(BTreeMap::new()), false)
     } else if !children_owner.owns_children {
-        (
-            crate::resolved_tree::TreeChildren::Lazy {
-                parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
-            },
-            false,
-        )
+        (lazy_children(&parent_ancestors), false)
     } else if !resolves_children_through_catalogs(&result)
         && recorded_children_match(ctx, &id, &children_context())
     {
@@ -586,12 +582,7 @@ where
         // occurrence nodes per race — enough, down a peer-carrying
         // chain, to expand exponentially with its depth
         // (https://github.com/pnpm/pnpm/issues/13574).
-        (
-            crate::resolved_tree::TreeChildren::Lazy {
-                parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
-            },
-            false,
-        )
+        (lazy_children(&parent_ancestors), false)
     } else {
         // Look up cached children specs first; only walk the manifest on
         // a miss. The cache value is held by `Arc` so revisits clone the
@@ -648,28 +639,9 @@ where
         // still-satisfied subtree is reused rather than re-resolved.
         // Re-resolving those children would re-pick open ranges (`*`)
         // at their newest versions and churn the lockfile.
-        let is_direct_dep_in_manifest = depth == 0 && {
-            let direct_versions = lock_recoverable(&ctx.workspace.direct_dep_versions);
-            direct_versions
-                .get(&ctx.importer_id)
-                .is_some_and(|importer_deps| importer_deps.contains_key(&alias))
-        };
-        use std::str::FromStr;
         let prior_children_snapshot = prior_key
             .as_ref()
             .filter(|key| landed_on_prior_entry(key, &id))
-            .cloned()
-            .or_else(|| {
-                if !is_direct_dep_in_manifest {
-                    let key = PkgNameVerPeer::from_str(&id).ok()?;
-                    let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
-                    lockfile.snapshots.as_ref()?.contains_key(&key).then_some(key)
-                } else {
-                    None
-                }
-            });
-        let prior_children_snapshot = prior_children_snapshot
-            .as_ref()
             .and_then(|key| ctx.workspace.wanted_lockfile.as_ref()?.snapshots.as_ref()?.get(key));
         // Phase 1: resolve every child package before any grandchild
         // walk starts, so the level's resolved versions can feed the
@@ -777,27 +749,10 @@ where
                 });
                 realized.insert(dep.alias, dep.node_id);
             }
-            let children_changed = {
-                let current = lock_recoverable(&ctx.workspace.children_by_id);
-                current.get(&id).map_or(true, |prior| prior.edges.as_ref() != &by_id)
-            };
-            if record_children(ctx, &id, &children_owner.owner, by_id, children_context()) {
-                (crate::resolved_tree::TreeChildren::Realized(realized), children_changed)
-            } else {
-                (
-                    crate::resolved_tree::TreeChildren::Lazy {
-                        parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
-                    },
-                    false,
-                )
-            }
+            record_children(ctx, &id, &children_owner.owner, by_id, children_context())
+                .into_children(realized, &parent_ancestors)
         } else {
-            (
-                crate::resolved_tree::TreeChildren::Lazy {
-                    parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
-                },
-                false,
-            )
+            (lazy_children(&parent_ancestors), false)
         }
     };
 
@@ -813,7 +768,7 @@ where
     remember_node_parent_ids(ctx, &node_id, parent_ancestors);
     insert_tree_node(ctx, node_id.clone(), &id, children, node_depth);
     if children_owner.owns_children
-        && (children_changed || !children_owner.children_context_unchanged)
+        && (others_stale || !children_owner.children_context_unchanged)
         && is_current_children_owner(ctx, &id, &children_owner.owner)
     {
         make_non_owner_nodes_lazy(ctx, &id, &node_id);
