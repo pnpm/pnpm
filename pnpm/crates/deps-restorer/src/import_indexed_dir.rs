@@ -5,6 +5,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::PackageImportMethod;
+use pacquet_fs::DirLock;
 use pacquet_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
@@ -12,8 +13,11 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU8, AtomicU64, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+const SHARED_IMPORT_LOCK_WAIT: Duration = Duration::from_mins(5);
+const SHARED_IMPORT_LOCK_ABANDONED_AFTER: Duration = Duration::from_mins(30);
 
 /// Options for [`import_indexed_dir`].
 ///
@@ -99,6 +103,14 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
+    #[display("failed to lock shared package target {path:?}: {error}")]
+    LockSharedTarget {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+    #[display("timed out waiting to lock shared package target {path:?}")]
+    LockSharedTargetTimeout { path: PathBuf },
 }
 
 /// Materialize an indexed package's files into `dir_path`, the way
@@ -123,6 +135,12 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
+    let _shared_import_lock = if opts.safe_to_skip && opts.force {
+        Some(acquire_shared_import_lock(dir_path)?)
+    } else {
+        None
+    };
+
     let existing_kind = match fs::symlink_metadata(dir_path) {
         Ok(meta) => Some(meta.file_type()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
@@ -177,6 +195,21 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             opts.safe_to_skip,
         )
         .inspect(|()| unquarantine()),
+    }
+}
+
+fn acquire_shared_import_lock(dir_path: &Path) -> Result<DirLock, ImportIndexedDirError> {
+    let parent = dir_path.parent().unwrap_or_else(|| Path::new("."));
+    let name = dir_path.file_name().and_then(|name| name.to_str()).unwrap_or("package");
+    let path = parent.join(format!(".{name}_pacquet-import.lock"));
+    match DirLock::acquire(
+        path.clone(),
+        SHARED_IMPORT_LOCK_WAIT,
+        SHARED_IMPORT_LOCK_ABANDONED_AFTER,
+    ) {
+        Ok(Some(lock)) => Ok(lock),
+        Ok(None) => Err(ImportIndexedDirError::LockSharedTargetTimeout { path }),
+        Err(error) => Err(ImportIndexedDirError::LockSharedTarget { path, error }),
     }
 }
 
