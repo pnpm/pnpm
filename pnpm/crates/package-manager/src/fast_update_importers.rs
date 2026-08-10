@@ -63,9 +63,9 @@ pub(crate) fn apply_importers_update(
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
 ) -> bool {
-    let packages = candidate.packages.clone().unwrap_or_default();
+    let Lockfile { packages, importers, .. } = candidate;
     for (importer_id, manifest_dependencies) in &plan.manifest_dependencies {
-        let Some(importer) = candidate.importers.get_mut(importer_id.as_str()) else {
+        let Some(importer) = importers.get_mut(importer_id.as_str()) else {
             return false;
         };
         for (alias, (specifier, target)) in manifest_dependencies {
@@ -83,15 +83,14 @@ pub(crate) fn apply_importers_update(
                 let Some(version) = ver_peer.version_semver() else {
                     return false;
                 };
-                let Some(wanted) = highest_locked_version_satisfying(&packages, alias, &range)
+                let Some(wanted) =
+                    highest_locked_version_satisfying(packages.as_ref(), alias, &range)
                 else {
                     return false;
                 };
                 if wanted != *version {
-                    // The alias moves to a version the lockfile already
-                    // holds, so its subtree is already recorded. The one it
-                    // leaves may now be unreachable, which the shared
-                    // epilogue prunes.
+                    // Safe without resolving because the target version is
+                    // already in the lockfile, subtree and all.
                     if ver_peer.peer() != "" {
                         return false;
                     }
@@ -126,12 +125,12 @@ pub(crate) fn apply_importers_update(
 /// new version), or when a candidate exists under several peer-suffixed
 /// keys, where picking one of them would be a guess.
 fn highest_locked_version_satisfying(
-    packages: &HashMap<PackageKey, pacquet_lockfile::PackageMetadata>,
+    packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
     alias: &PkgName,
     range: &Range,
 ) -> Option<Version> {
     let mut highest: Option<Version> = None;
-    for key in packages.keys() {
+    for key in packages?.keys() {
         if &key.name != alias {
             continue;
         }

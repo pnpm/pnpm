@@ -757,3 +757,17 @@ fn rejects_a_range_no_locked_version_satisfies() {
         "only the resolver can fetch a version the lockfile does not hold",
     );
 }
+
+#[test]
+fn rejects_a_higher_version_that_exists_only_under_a_named_registry() {
+    let mut subject = parsed_lockfile(WITH_TWO_LOCKED_VERSIONS);
+    let packages = subject.packages.as_mut().expect("packages");
+    let higher = packages.remove(&"foo@1.2.0".parse().expect("package key")).expect("foo@1.2.0");
+    packages.insert("foo@work:1.2.0".parse().expect("package key"), higher);
+    let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.1.0" } }));
+
+    assert!(
+        try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_none(),
+        "a registry-qualified key's semver only pins a version inside that registry",
+    );
+}

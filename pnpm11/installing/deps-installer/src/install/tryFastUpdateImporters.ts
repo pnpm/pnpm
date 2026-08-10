@@ -55,9 +55,8 @@ export function tryFastUpdateImporters (
         const wanted = highestLockedVersionSatisfying(lockfile, alias, specifier)
         if (wanted == null) return false
         if (wanted !== version) {
-          // The alias moves to a version the lockfile already holds, so its
-          // subtree is already recorded. The old one may now be unreachable,
-          // which the shared epilogue prunes.
+          // Safe without resolving because the target version is already in
+          // the lockfile, subtree and all.
           if (reference !== version) return false
           importer[recordedIn!]![alias] = wanted
           edits.dropped.add(alias)
@@ -107,8 +106,10 @@ export function tryFastUpdateImporters (
  * widened range as much as for one the locked version cannot satisfy at all.
  *
  * `null` when nothing present satisfies (only the resolver can fetch a new
- * version), or when a candidate exists under several peer-suffixed keys,
- * where picking one of them would be a guess.
+ * version), or when the alias appears under a key this cannot turn back
+ * into a plain importer reference: a peer-suffixed one, where picking a
+ * variant would be a guess, or a registry-qualified one, whose semver only
+ * pins a version within its named registry.
  */
 function highestLockedVersionSatisfying (
   lockfile: LockfileObject,
@@ -117,9 +118,10 @@ function highestLockedVersionSatisfying (
 ): string | null {
   const versions = new Set<string>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
-    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, snapshot)
-    if (name !== alias || nonSemverVersion != null) continue
-    if (dp.parseDepPath(depPath).peerDepGraphHash !== '') return null
+    const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (name !== alias) continue
+    if (nonSemverVersion != null) continue
+    if (registryName != null || dp.parseDepPath(depPath).peerDepGraphHash !== '') return null
     if (semver.valid(version) != null && semver.satisfies(version, specifier)) {
       versions.add(version)
     }

@@ -4,11 +4,13 @@ import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { mutateModules } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject as LockfileTypesObject } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { ProjectId, ProjectRootDir } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
+import { tryComposeFastUpdates } from '../../src/install/tryComposeFastUpdates.js'
 import { testDefaults } from '../utils/index.js'
 
 test('a widened range moves to the higher version another importer already locks', async () => {
@@ -111,4 +113,49 @@ function trackRequestedPackages (storeController: StoreController): string[] {
     return requestPackage(wantedDependency, requestOptions)
   }
   return requestedPackages
+}
+
+test('a higher version that exists only under a named registry falls back', () => {
+  // A registry-qualified key's semver only pins a version inside that named
+  // registry, so it cannot become a plain importer reference.
+  const subject = lockfileWithHigherVersionKeyedAs('@pnpm.e2e/foo@work:1.2.0' as DepPath)
+
+  expect(tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    projects: [{
+      id: '.' as ProjectId,
+      manifest: { dependencies: { '@pnpm.e2e/foo': '^1.1.0' } } as ProjectManifest,
+    }],
+  })).toBe(false)
+})
+
+test('a higher version under a plain key is reused', () => {
+  const subject = lockfileWithHigherVersionKeyedAs('@pnpm.e2e/foo@1.2.0' as DepPath)
+
+  expect(tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    projects: [{
+      id: '.' as ProjectId,
+      manifest: { dependencies: { '@pnpm.e2e/foo': '^1.1.0' } } as ProjectManifest,
+    }],
+  })).toBe(true)
+  expect(subject.importers['.' as ProjectId].dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '1.2.0',
+  })
+})
+
+function lockfileWithHigherVersionKeyedAs (higher: DepPath): LockfileTypesObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { '@pnpm.e2e/foo': '1.0.0' },
+        dependencies: { '@pnpm.e2e/foo': '1.0.0' },
+      },
+    },
+    packages: {
+      ['@pnpm.e2e/foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-foo-1' } },
+      [higher]: { resolution: { integrity: 'sha512-foo-2' } },
+    },
+  }
 }
