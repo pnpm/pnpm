@@ -194,12 +194,9 @@ function getFastOverrides (
 /**
  * The version an override moves its target to.
  *
- * An exact value names it outright. A range names whichever version
- * resolution would settle on, which is the highest already-locked one that
- * satisfies it: `preferredVersions` makes the resolver reuse a version the
- * graph already holds rather than the highest published. `null` when the
- * range matches nothing locked, since only the resolver can fetch a version
- * that is not there.
+ * A range names the highest already-locked version satisfying it, because
+ * `preferredVersions` makes the resolver reuse a version the graph already
+ * holds rather than the highest published.
  */
 function overriddenVersion (
   lockfile: LockfileObject,

@@ -173,12 +173,9 @@ fn build_rewrite_plan(
 
 /// The version an override moves its target to.
 ///
-/// An exact value names it outright. A range names whichever version
-/// resolution would settle on, which is the highest already-locked one
-/// that satisfies it: `preferredVersions` makes the resolver reuse a
-/// version the graph already holds rather than the highest published.
-/// `None` when the range matches nothing locked, since only the resolver
-/// can fetch a version that is not there.
+/// A range names the highest already-locked version satisfying it,
+/// because `preferredVersions` makes the resolver reuse a version the
+/// graph already holds rather than the highest published.
 fn overridden_version(lockfile: &Lockfile, name: &PkgName, value: &str) -> Option<Version> {
     if let Ok(version) = Version::parse(value) {
         return Some(version);

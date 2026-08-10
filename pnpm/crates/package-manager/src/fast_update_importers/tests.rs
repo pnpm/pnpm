@@ -1,4 +1,4 @@
-use pacquet_lockfile::{Lockfile, PkgName};
+use pacquet_lockfile::{Lockfile, PackageKey, PkgName};
 use pacquet_package_manifest::PackageManifest;
 use serde_json::json;
 use std::path::PathBuf;
@@ -1125,5 +1125,19 @@ fn rejects_a_range_move_a_peer_suffix_names_the_version_it_moves_off() {
     assert!(
         try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_none(),
         "baz resolved the peer to the version the importer moves off, so its key would change",
+    );
+}
+
+#[test]
+fn rejects_a_range_when_the_alias_also_has_a_named_registry_key() {
+    let mut subject = parsed_lockfile(WITH_TWO_LOCKED_VERSIONS);
+    let packages = subject.packages.as_mut().expect("packages");
+    let extra = packages[&"foo@1.2.0".parse::<PackageKey>().expect("package key")].clone();
+    packages.insert("foo@work:1.4.0".parse().expect("package key"), extra);
+    let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.1.0" } }));
+
+    assert!(
+        try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_none(),
+        "the alias spans two registries, so a plain reference cannot say which is meant",
     );
 }
