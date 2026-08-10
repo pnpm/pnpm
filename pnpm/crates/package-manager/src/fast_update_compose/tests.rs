@@ -4,7 +4,10 @@ use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manifest::PackageManifest;
 use serde_json::{Value, json};
-use std::{fs, path::Path, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tempfile::TempDir;
 
 /// `foo` and `bar` are prod dependencies (`bar` reaching `child`), and
