@@ -934,6 +934,28 @@ snapshots:
   baz@4.0.0(qux@5.0.0(foo@1.1.0)): {}
 ";
 
+/// `foo` is a workspace sibling `baz` resolves as a peer. A link has no
+/// `name@version` for a suffix segment to be compared against — the
+/// segment carries the filename-safe form of the link path instead.
+const WITH_PEER_ON_REMOVABLE_LINK: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: 'workspace:*'
+        version: link:packages/foo
+      baz:
+        specifier: ^4.0.0
+        version: 4.0.0(foo@packages+foo)
+packages:
+  baz@4.0.0:
+    resolution:
+      integrity: sha512-baz
+snapshots:
+  baz@4.0.0(foo@packages+foo): {}
+";
+
 fn sorted_snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
     let mut keys: Vec<_> =
         lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
@@ -998,6 +1020,20 @@ fn rejects_dropping_a_dependency_a_nested_peer_suffix_segment_names() {
         )
         .is_none(),
         "the peers of a peer are as much a part of baz's key as the top-level ones",
+    );
+}
+
+#[test]
+fn rejects_dropping_a_linked_dependency_a_surviving_peer_suffix_names() {
+    let manifest = manifest_from(json!({ "dependencies": { "baz": "^4.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_PEER_ON_REMOVABLE_LINK),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "nothing pins the link to a version, so every suffix naming it stays suspect",
     );
 }
 

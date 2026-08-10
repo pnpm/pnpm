@@ -107,6 +107,20 @@ test('dropping a dependency a nested peer suffix segment names falls back', () =
   expect(tryFastUpdateImporters(subject, [project({ qux: '^5.0.0', baz: '^4.0.0' })])).toBe(false)
 })
 
+test('dropping a linked dependency a surviving peer suffix names falls back', () => {
+  const subject = lockfile()
+  subject.importers['.' as ProjectId].specifiers.foo = 'workspace:*'
+  subject.importers['.' as ProjectId].dependencies!.foo = 'link:packages/foo'
+  subject.importers['.' as ProjectId].specifiers.baz = '^4.0.0'
+  subject.importers['.' as ProjectId].dependencies!.baz = '4.0.0(foo@packages+foo)'
+  delete subject.packages!['foo@1.1.0' as DepPath]
+  subject.packages!['baz@4.0.0(foo@packages+foo)' as DepPath] = {
+    resolution: { integrity: 'sha512-baz' },
+  }
+
+  expect(tryFastUpdateImporters(subject, [project({ bar: '^2.0.0', baz: '^4.0.0' })])).toBe(false)
+})
+
 test('dropping a dependency when a surviving peer suffix is hashed falls back', () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].dependencies!.baz = '4.0.0(sha256-abcdef)'
