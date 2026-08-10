@@ -287,7 +287,7 @@ fn injected_peer_suffixed_workspace_dep_stays_file_after_remove() {
 /// The pnpm/pnpm#10433 guard preserves an untargeted workspace dep's
 /// prior `link:`, but it only compensates for the dedupe pass not
 /// running on every re-resolution path — with that pass off the recorded
-/// entry is stale.
+/// entry is stale. Regression test for pnpm/pnpm#13754.
 #[test]
 fn newly_injected_workspace_dep_with_dedupe_off_replaces_recorded_link() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

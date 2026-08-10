@@ -106,6 +106,7 @@ test('deploy without existing lockfile', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/13754
 test('legacy deploy injects workspace dependencies that the shared lockfile links', async () => {
   preparePackages([
     {
