@@ -152,7 +152,7 @@ fn request_contains_closed_graph_over_installed_keys() {
     assert_eq!(request["protocol"], 1);
     assert_eq!(
         request["gcRootDir"].as_str().expect("gcRootDir string"),
-        Path::new("/workspace").join("node_modules").join(".pnpm-nix").to_string_lossy()
+        Path::new("/workspace").join("node_modules").join(".pnpm-nix").to_string_lossy(),
     );
     let nodes = request["nodes"].as_object().expect("nodes object");
     assert_eq!(nodes.len(), 2);
@@ -196,7 +196,7 @@ fn tarball_and_registry_resolutions_carry_tarball_and_integrity() {
     dbg!(&request);
     assert_eq!(
         request["nodes"]["foo@1.0.0"]["tarball"],
-        "https://registry.example/foo/-/foo-1.0.0.tgz"
+        "https://registry.example/foo/-/foo-1.0.0.tgz",
     );
     assert_eq!(request["nodes"]["foo@1.0.0"]["integrity"], INTEGRITY);
     // Registry resolutions have their tarball URL derived from the
@@ -222,7 +222,7 @@ fn directory_resolutions_are_sent_as_absolute_paths() {
     let node = &request["nodes"]["local-pkg@file:local-pkg"];
     assert_eq!(
         node["directory"].as_str().expect("directory string"),
-        Path::new("/workspace").join("local-pkg").to_string_lossy()
+        pacquet_fs::lexical_normalize(&Path::new("/workspace").join("local-pkg")).to_string_lossy(),
     );
     assert!(node.get("tarball").is_none());
     // `file:` depPaths carry no semver, so no version is sent.
@@ -268,7 +268,7 @@ fn git_resolutions_that_need_prepare_are_rejected() {
     eprintln!("MESSAGE:\n{message}\n");
     assert!(matches!(error, PackageProviderError::GitPrepareUnsupported { .. }));
     assert!(
-        message.contains("git dependencies that need to be built (prepare) are not supported yet")
+        message.contains("git dependencies that need to be built (prepare) are not supported yet"),
     );
 }
 
@@ -289,7 +289,7 @@ fn unsupported_resolutions_are_rejected() {
     eprintln!("MESSAGE:\n{message}\n");
     assert_eq!(
         message,
-        "The package provider does not support the resolution of foo@https://example.com/foo.tgz (tarball without integrity)"
+        "The package provider does not support the resolution of foo@https://example.com/foo.tgz (tarball without integrity)",
     );
 
     let binary = Fixture::new().with(
@@ -321,7 +321,7 @@ fn depending_on_a_different_version_of_itself_is_rejected() {
     assert!(matches!(error, PackageProviderError::SelfDependency { .. }));
     assert_eq!(
         message,
-        "The package provider cannot install foo@1.0.0, which depends on a different version of itself"
+        "The package provider cannot install foo@1.0.0, which depends on a different version of itself",
     );
 }
 
@@ -368,7 +368,7 @@ fn patch_with_hash_only_is_rejected() {
     assert!(matches!(error, PackageProviderError::PatchWithoutFile { .. }));
     assert_eq!(
         message,
-        "The package provider needs the patch file of foo@1.0.0, but only its hash is known"
+        "The package provider needs the patch file of foo@1.0.0, but only its hash is known",
     );
 }
 
@@ -414,7 +414,7 @@ fn response_protocol_must_match() {
     eprintln!("MESSAGE:\n{message}\n");
     assert_eq!(
         message,
-        r#"The package provider at "/provider" returned an unsupported response (protocol 2)"#
+        r#"The package provider at "/provider" returned an unsupported response (protocol 2)"#,
     );
 
     let error = parse_provider_response("/provider", br#"{"paths":{}}"#)
@@ -423,7 +423,7 @@ fn response_protocol_must_match() {
     eprintln!("MESSAGE:\n{message}\n");
     assert_eq!(
         message,
-        r#"The package provider at "/provider" returned an unsupported response (protocol missing)"#
+        r#"The package provider at "/provider" returned an unsupported response (protocol missing)"#,
     );
 
     let error = parse_provider_response("/provider", br#"{"protocol":1}"#)
@@ -445,7 +445,7 @@ fn skipping_a_non_optional_package_is_rejected() {
     eprintln!("MESSAGE:\n{message}\n");
     assert_eq!(
         message,
-        "The package provider skipped foo@1.0.0, which is not an optional dependency"
+        "The package provider skipped foo@1.0.0, which is not an optional dependency",
     );
 
     let error = validate_provider_response(&bundle, response(&[], &["ghost@9.9.9"]))
