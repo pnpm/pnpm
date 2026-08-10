@@ -1215,6 +1215,27 @@ test.each([
   expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBe(false)
 })
 
+/**
+ * The global config file's warning names every key it does not accept, not
+ * only the refused settings, so a delete has to reach all of them.
+ */
+test('config delete clears a key the global config file never accepted', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(configDir, 'config.yaml'), "autoInstallPeers: true\nstoreDir: '~/store'\n")
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['delete', 'auto-install-peers'])
+
+  expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toEqual({ storeDir: '~/store' })
+})
+
 /** The reader warns about these in the global config file too, so a delete has to reach them there. */
 test('config delete clears a refused setting from the global config.yaml', async () => {
   const tmp = tempDir()
