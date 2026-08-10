@@ -12,6 +12,9 @@
 //! per-project symlink — is covered by
 //! [`dedupe_off_by_default_keeps_shared_workspace_link`].
 
+use crate::_utils;
+
+use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
@@ -416,6 +419,85 @@ fn dedupes_only_overlapping_direct_deps() {
     drop((root, mock_instance));
 }
 
+/// The dedupe decision must not depend on install history: two
+/// incremental installs land on the layout a clean install of the same
+/// manifests produces (pnpm/pnpm#13775).
+#[test]
+fn removes_a_project_link_the_root_starts_providing() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let root_manifest_path = workspace.join("package.json");
+    let write_root_manifest = |dependencies: serde_json::Value| {
+        fs::write(
+            &root_manifest_path,
+            serde_json::json!({
+                "name": "ws-root",
+                "version": "0.0.0",
+                "private": true,
+                "dependencies": dependencies,
+            })
+            .to_string(),
+        )
+        .expect("write root package.json");
+    };
+    // `Path::exists` follows the link, so a leftover whose target the
+    // install also pruned would read as absent — stat the entry itself.
+    let assert_absent = |path: &Path, what: &str| match fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Ok(metadata) => panic!("{what} survived at {path:?} ({:?})", metadata.file_type()),
+        Err(error) => panic!("stat {path:?}: {error}"),
+    };
+
+    write_root_manifest(serde_json::json!({}));
+
+    append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+    append_workspace_yaml_key(&workspace, "dedupeDirectDeps", true);
+
+    fs::create_dir_all(workspace.join("packages/dup")).expect("mkdir packages/dup");
+    fs::write(
+        workspace.join("packages/dup/package.json"),
+        serde_json::json!({
+            "name": "@scope/dup",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/dup/package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let dup_link = workspace.join("packages/dup/node_modules/@pnpm.e2e/hello-world-js-bin");
+    let dup_link_linked = is_symlink_or_junction(&dup_link).expect("query dup symlink");
+    eprintln!("dup_link={dup_link:?} linked={dup_link_linked}");
+    assert!(dup_link_linked, "project direct-dep symlink missing before the root declares it");
+    let dup_bin = workspace.join("packages/dup/node_modules/.bin/hello-world-js-bin");
+    assert!(dup_bin.exists(), "project bin shim missing at {dup_bin:?} before dedupe");
+
+    write_root_manifest(serde_json::json!({ "@pnpm.e2e/hello-world-js-bin": "1.0.0" }));
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let root_link = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
+    let root_link_linked = is_symlink_or_junction(&root_link).expect("query root symlink");
+    eprintln!("root_link={root_link:?} linked={root_link_linked}");
+    assert!(root_link_linked, "root node_modules direct-dep symlink missing");
+    assert_absent(&dup_link, "the project link the root made redundant");
+    assert_absent(&dup_bin, "the deduped dep's bin shim");
+
+    // Dropping the root's declaration hands the dep back to the project.
+    write_root_manifest(serde_json::json!({}));
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let dup_link_relinked = is_symlink_or_junction(&dup_link).expect("query relinked dup symlink");
+    eprintln!("dup_link={dup_link:?} linked={dup_link_relinked}");
+    assert!(dup_link_relinked, "project direct-dep symlink not restored at {dup_link:?}");
+    assert!(dup_bin.exists(), "project bin shim not restored at {dup_bin:?}");
+
+    drop((root, mock_instance));
+}
+
 /// Two `link:` deps that resolve to the same physical directory via
 /// different relative paths must still dedupe. Pnpm's dedupe runs
 /// `path.relative` on stored symlink targets — which Node normalises
@@ -667,6 +749,76 @@ fn dedupe_under_shamefully_hoist() {
     assert!(
         !project_foo_exists,
         "transitive `foo` should only appear at root via hoist, not under project",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `link:` payloads are stored relative to their own importer, so two
+/// importers can spell the same string while resolving to different
+/// directories. The prune's version-string dedupe fires on the pair
+/// anyway; the relink behind it is what keeps the importer pointing at
+/// its own target.
+#[test]
+fn relative_link_payloads_survive_the_dedupe_prune() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "ws-root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { "x": "link:vendor/x" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+    append_workspace_yaml_key(&workspace, "dedupeDirectDeps", true);
+
+    fs::create_dir_all(workspace.join("vendor/x")).expect("mkdir vendor/x");
+    fs::write(
+        workspace.join("vendor/x/package.json"),
+        serde_json::json!({ "name": "@scope/root-x", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write vendor/x/package.json");
+
+    fs::create_dir_all(workspace.join("packages/app/vendor/x")).expect("mkdir app vendor/x");
+    fs::write(
+        workspace.join("packages/app/vendor/x/package.json"),
+        serde_json::json!({ "name": "@scope/app-x", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write app vendor/x/package.json");
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({
+            "name": "@scope/app",
+            "version": "1.0.0",
+            "dependencies": { "x": "link:vendor/x" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+
+    pacquet.with_arg("install").assert().success();
+    // The second install is the one that prunes: only then does a
+    // current lockfile record the importer's link.
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let app_link = workspace.join("packages/app/node_modules/x");
+    let app_link_linked = is_symlink_or_junction(&app_link).expect("query app symlink");
+    eprintln!("app_link={app_link:?} linked={app_link_linked}");
+    assert!(app_link_linked, "app's link must survive at {app_link:?}");
+    let linked_manifest =
+        fs::read_to_string(app_link.join("package.json")).expect("read the linked manifest");
+    eprintln!("linked_manifest={linked_manifest}");
+    assert!(
+        linked_manifest.contains("@scope/app-x"),
+        "app's `link:vendor/x` must resolve to its own vendor/x, not the root's",
     );
 
     drop((root, mock_instance));
