@@ -129,6 +129,7 @@ pub fn build_resolution_verifiers(
         auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
         cache_dir: Some(config.cache_dir.clone()),
         meta_cache,
+        offline: config.offline,
         retry_opts: retry_opts_from_config(config),
         now: None,
         observed_dist_stats,

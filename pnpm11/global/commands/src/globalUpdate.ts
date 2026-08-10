@@ -33,6 +33,7 @@ export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   rootProjectManifest?: unknown
   handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
   updateResolutionPolicyManifest?: (violations: readonly ResolutionPolicyViolation[], dir: string) => Promise<void>
+  selectedPackageHashes?: Set<string>
 }
 
 export async function handleGlobalUpdate (
@@ -53,13 +54,17 @@ export async function handleGlobalUpdate (
   let packagesToUpdate: GlobalPackageInfo[]
   if (params.length > 0) {
     packagesToUpdate = allPackages.filter((pkg) =>
-      params.some((p) => p in pkg.dependencies)
+      params.some((p) => Object.hasOwn(pkg.dependencies, p))
     )
     if (packagesToUpdate.length === 0) {
       return 'No matching global packages found'
     }
   } else {
     packagesToUpdate = allPackages
+  }
+  const selectedPackageHashes = opts.selectedPackageHashes
+  if (selectedPackageHashes) {
+    packagesToUpdate = packagesToUpdate.filter(({ hash }) => selectedPackageHashes.has(hash))
   }
 
   // Update each package group sequentially to avoid overwhelming the system

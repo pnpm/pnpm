@@ -217,6 +217,7 @@ pub async fn resolve(
         node_linker: NodeLinker::Isolated,
         lockfile_only: true,
         dry_run: false,
+        persist_policy_excludes: false,
         update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
         // Resolve as the caller (forwarded credentials) without baking
         // per-user auth into the interned `&'static Config`.

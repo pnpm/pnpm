@@ -26,6 +26,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use miette::Diagnostic as _;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
@@ -133,6 +134,9 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// unit tests don't have a resolver running alongside, in which
     /// case the verifier falls back to its own fetch chain.
     pub meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    /// When true, verifier metadata lookups must use the local mirror
+    /// only and never reach the registry or attestation endpoint.
+    pub offline: bool,
     /// Retry budget for the verifier's metadata and attestation
     /// fetches. Sourced from the same `fetch-retries` config the
     /// resolver and tarball paths use.
@@ -174,6 +178,7 @@ pub struct NpmResolutionVerifier {
     auth_headers: Arc<AuthHeaders>,
     cache_dir: Option<PathBuf>,
     meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    offline: bool,
     retry_opts: RetryOpts,
     now: Option<DateTime<Utc>>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
@@ -189,6 +194,7 @@ impl std::fmt::Debug for NpmResolutionVerifier {
             .field("ignore_missing_time_field", &self.ignore_missing_time_field)
             .field("trust_policy", &self.trust_policy)
             .field("trust_policy_ignore_after", &self.trust_policy_ignore_after)
+            .field("offline", &self.offline)
             .field("sorted_min_age_excludes", &self.sorted_min_age_excludes)
             .field("sorted_trust_excludes", &self.sorted_trust_excludes)
             .field("policy_snapshot", &self.policy_snapshot)
@@ -256,6 +262,7 @@ pub fn create_npm_resolution_verifier(
         auth_headers: opts.auth_headers,
         cache_dir: opts.cache_dir,
         meta_cache: opts.meta_cache,
+        offline: opts.offline,
         retry_opts: opts.retry_opts,
         now: opts.now,
         policy_snapshot,
@@ -739,6 +746,7 @@ impl NpmResolutionVerifier {
                     cache_dir: self.cache_dir.as_deref(),
                     full_metadata: false,
                     filter_metadata: false,
+                    offline: self.offline,
                     retry_opts: self.retry_opts,
                 };
                 // Carry a fetch failure (auth/network/5xx) as the `Err` value
@@ -748,7 +756,7 @@ impl NpmResolutionVerifier {
                 // it reports a 403 as a tampering-style mismatch.
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
                     Ok(meta) => Ok(project_abbreviated_meta(&meta)),
-                    Err(error) => Err(redact_url_credentials(&error.to_string())),
+                    Err(error) => Err(render_fetch_metadata_error(&error)),
                 }
             })
             .await;
@@ -826,6 +834,9 @@ impl NpmResolutionVerifier {
         name: &PkgName,
         version: &str,
     ) -> Result<Option<String>, String> {
+        if self.offline {
+            return Ok(None);
+        }
         let opts = FetchAttestationOptions {
             registry,
             http_client: &self.http_client,
@@ -917,11 +928,21 @@ impl NpmResolutionVerifier {
             // both of which the abbreviated form drops. Always full.
             full_metadata: true,
             filter_metadata: false,
+            offline: self.offline,
             retry_opts: self.retry_opts,
         };
         fetch_full_metadata_cached(&name.to_string(), &opts)
             .await
-            .map_err(|err| redact_url_credentials(&err.to_string()))
+            .map_err(|error| render_fetch_metadata_error(&error))
+    }
+}
+
+fn render_fetch_metadata_error(error: &crate::FetchMetadataError) -> String {
+    let code = error.code().map(|code| code.to_string());
+    let message = redact_url_credentials(&error.to_string());
+    match code {
+        Some(code) => format!("{code}: {message}"),
+        None => message,
     }
 }
 

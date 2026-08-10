@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# cspell:ignore ECONNRESET
+
 set -euo pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -10,6 +12,10 @@ mkdir "$fake_bin"
 
 cat > "$fake_bin/npm" <<'EOF'
 #!/usr/bin/env bash
+if [ "$4" != '--registry' ] || [ "$5" != 'https://registry.npmjs.org/' ]; then
+  echo "unexpected registry arguments: $*" >&2
+  exit 1
+fi
 case "$2" in
   published)
     echo 1.0.0

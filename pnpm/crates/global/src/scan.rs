@@ -143,8 +143,16 @@ pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
 /// is read, so it is included alongside regular dependencies.
 #[must_use]
 pub fn read_direct_dependency_aliases(install_dir: &Path) -> Vec<String> {
+    read_direct_dependencies(install_dir).into_iter().map(|(alias, _)| alias).collect()
+}
+
+/// The validated `(alias, spec)` pairs of an install directory's direct
+/// dependencies. Runtime dependencies retain their `runtime:` protocol so
+/// callers can distinguish them from same-named registry packages.
+#[must_use]
+pub fn read_direct_dependencies(install_dir: &Path) -> Vec<(String, String)> {
     let Some(manifest) = read_package_json(install_dir) else { return Vec::new() };
-    dependencies_of(&manifest).into_iter().map(|(alias, _)| alias).collect()
+    dependencies_of(&manifest)
 }
 
 /// Remove install directories under `global_dir` that no hash symlink

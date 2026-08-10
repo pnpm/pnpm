@@ -2,6 +2,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 pub mod bin;
+pub mod command_env;
 pub mod env_guard;
 pub mod fixtures;
 pub mod fs;

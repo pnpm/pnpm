@@ -66,6 +66,22 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    git push origin "${tags[@]}"
    ```
 
+6. After the workflow finishes, approve the staged npm packages. The TypeScript
+   pnpm release stages `@pnpm/exe` and then `pnpm`. The Rust pnpm release
+   stages its native packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
+   `pnpm`. Copy the stage IDs from the completed job's summary and approve each
+   one from a maintainer's machine. Approve all packages in each dependency
+   layer before moving to the next layer, leaving `pnpm` until last:
+
+   ```bash
+   pnpm stage approve <stage-id>
+   ```
+
+   Approval requires interactive 2FA. The npm trusted publishers for `pnpm`,
+   `@pnpm/exe`, `@pnpm/napi`, and their platform packages must allow staged
+   publishing only, so CI can stage a release but cannot approve or publish it
+   directly.
+
 ## Reruns and partial releases
 
 `release.yml`'s plan job asks npm whether each product's *gate* package is
@@ -110,6 +126,12 @@ npm and cannot be republished at the same version — read the failed run's logs
 to see how far it got. If the fix has to change something already published,
 the release needs a new version rather than a retry.
 
+If a run stopped after staging a package but before it became public, first
+approve or reject that pending stage from a maintainer's machine. CI cannot
+inspect or remove it with its stage-only OIDC permission, and trying to stage
+the same package version again will fail. The stage ID remains available in
+the stopped run's log and job summary.
+
 Moving a tag is only safe while the release is still failing. Once a release
 has completed and been announced, the tag is what downstream packagers verify
 and pin, so it must never be moved.
@@ -135,6 +157,8 @@ root: anyone whose key lands there can cut a release.
 
 A maintainer cutting releases needs a PGP key configured for git and registered
 with GitHub:
+
+<!-- cspell:ignore signingkey -->
 
 ```bash
 git config --global user.signingkey <fingerprint>

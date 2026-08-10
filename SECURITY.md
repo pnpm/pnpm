@@ -49,6 +49,28 @@ In particular:
   CI jobs, restrict write access to trusted identities via filesystem
   permissions.
 
+- **Running pnpm inside a repository means trusting that repository.** This is
+  not limited to `pnpm run`, `pnpm exec`, and `pnpm dlx`, which execute whatever
+  the repository specifies. A plain `pnpm install` also runs the project's own
+  `preinstall`, `install`, `postinstall`, and `prepare` scripts by default;
+  `--ignore-scripts` is what suppresses them. The build approval prompt
+  (`onlyBuiltDependencies` / `allowBuilds`) gates **dependencies'** build
+  scripts, not the scripts of the project you are installing.
+
+  A report therefore does not describe a privilege escalation merely because an
+  untrusted repository can influence what pnpm executes — in that starting
+  position, code execution is already available to the attacker by design.
+
+- **Some restrictions are hardening, not boundaries.** Environment variable
+  expansion in repository-controlled configuration is suppressed for request
+  destinations (`registry`, `proxy`, `pnprServer`) and for auth values. That
+  narrows silent credential exfiltration — the case that survives
+  `--ignore-scripts`, and the case where a one-line config diff draws less
+  review than a new `postinstall` script would. It is deliberately not a
+  general-purpose sandbox, and a setting outside its coverage is not a
+  vulnerability on that basis alone. What matters is what the gap grants an
+  attacker beyond what the repository could already do without it.
+
 The following are examples of reports we consider **out of scope**:
 
 - Tampering with store, lockfile, `node_modules`, or config files that the
@@ -56,7 +78,15 @@ The following are examples of reports we consider **out of scope**:
 - Bypassing store integrity checks given pre-existing write access to the store.
 - Attacks that require the user to run pnpm with a maliciously crafted local
   project or environment that they did not obtain from a trusted source.
+- Repository-controlled configuration that changes what `pnpm run`, `pnpm exec`,
+  or `pnpm dlx` executes, since those commands run repository-controlled code by
+  definition.
+- Behavior that matches npm and Yarn and that we would have to diverge from the
+  ecosystem to change. Report it upstream first; if they treat it as a
+  vulnerability, we will follow.
 
 If you believe a report falls outside these assumptions — for example, a way to
 bypass a trust boundary that pnpm *does* enforce — please include the exact
-privilege the attacker starts with and how pnpm escalates it.
+privilege the attacker starts with and how pnpm escalates it. When the report is
+about a hardening measure that does not cover some setting, state what the
+attacker gains from that gap beyond what they could already do without it.

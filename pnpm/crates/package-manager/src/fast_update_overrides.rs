@@ -11,21 +11,21 @@ use pacquet_resolving_deps_resolver::ManifestHook;
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     sync::Arc,
 };
 
-struct FastOverride {
-    name: PkgName,
-    new_version: Option<Version>,
-    old_version: Option<Version>,
-    parent: Option<PackageSelector>,
+pub(crate) struct FastOverride {
+    pub name: PkgName,
+    pub new_version: Option<Version>,
+    pub old_version: Option<Version>,
+    pub parent: Option<PackageSelector>,
 }
 
-struct RewritePlan {
-    overrides: Vec<FastOverride>,
-    peer_names: HashSet<PkgName>,
-    replacements: HashMap<PackageKey, PackageKey>,
+pub(crate) struct RewritePlan {
+    pub overrides: Vec<FastOverride>,
+    pub peer_names: HashSet<PkgName>,
+    pub replacements: HashMap<PackageKey, PackageKey>,
 }
 
 struct ResolvedOverride {
@@ -34,9 +34,16 @@ struct ResolvedOverride {
 }
 
 pub(crate) struct FastOverrideOptions<'a> {
-    pub lockfile: &'a Lockfile,
+    pub context: RewriteContext<'a>,
     pub parsed_overrides: &'a [VersionOverride],
     pub resolved_overrides: &'a IndexMap<String, String>,
+}
+
+/// What a rewrite needs regardless of which setting drove it: the
+/// lockfile being rewritten, and the resolver that fetches the manifest
+/// of every version the rewrite introduces.
+pub(crate) struct RewriteContext<'a> {
+    pub lockfile: &'a Lockfile,
     pub resolver: &'a dyn Resolver,
     pub resolve_options: &'a ResolveOptions,
     pub manifest_hook: Option<&'a ManifestHook>,
@@ -45,7 +52,26 @@ pub(crate) struct FastOverrideOptions<'a> {
 }
 
 pub(crate) async fn try_fast_update_overrides(opts: FastOverrideOptions<'_>) -> Option<Lockfile> {
-    let plan = build_rewrite_plan(opts.lockfile, opts.parsed_overrides, opts.resolved_overrides)?;
+    let plan =
+        build_rewrite_plan(opts.context.lockfile, opts.parsed_overrides, opts.resolved_overrides)?;
+    let mut updated = apply_rewrite_plan(&opts.context, &plan).await?;
+    updated.overrides = Some(opts.resolved_overrides.clone());
+    Some(updated)
+}
+
+/// Move every package named by `plan` to its new version, rebuilding the
+/// affected `packages:` and `snapshots:` entries from the new version's
+/// manifest and redirecting everything that referenced the old key.
+///
+/// `None` whenever the move cannot be proven safe from the lockfile plus
+/// the resolved manifests — a locked child that the new version's
+/// manifest no longer admits, a registry result that does not match what
+/// was asked for, or an entry the rewrite would have to overwrite with
+/// something different.
+pub(crate) async fn apply_rewrite_plan(
+    context: &RewriteContext<'_>,
+    plan: &RewritePlan,
+) -> Option<Lockfile> {
     let resolutions = join_all(
         plan.overrides
             .iter()
@@ -56,16 +82,16 @@ pub(crate) async fn try_fast_update_overrides(opts: FastOverrideOptions<'_>) -> 
                         .iter()
                         .any(|(old, new)| old != new && old.name == override_entry.name)
             })
-            .map(|override_entry| resolve_override(&opts, override_entry)),
+            .map(|override_entry| resolve_override(context, override_entry)),
     )
     .await;
     let resolved: HashMap<_, _> =
         resolutions.into_iter().collect::<Option<Vec<_>>>()?.into_iter().collect();
-    rewrite_lockfile(&opts, &plan, &resolved)
+    rewrite_lockfile(context, plan, &resolved)
 }
 
 async fn resolve_override(
-    opts: &FastOverrideOptions<'_>,
+    context: &RewriteContext<'_>,
     override_entry: &FastOverride,
 ) -> Option<(PkgName, ResolvedOverride)> {
     let name = override_entry.name.to_string();
@@ -75,9 +101,9 @@ async fn resolve_override(
         bare_specifier: Some(version.clone()),
         ..WantedDependency::default()
     };
-    let result = opts.resolver.resolve(&wanted, opts.resolve_options).await.ok()??;
+    let result = context.resolver.resolve(&wanted, context.resolve_options).await.ok()??;
     let manifest = result.manifest.as_ref().map(Arc::clone)?;
-    let manifest = match opts.manifest_hook {
+    let manifest = match context.manifest_hook {
         Some(hook) => hook(manifest),
         None => manifest,
     };
@@ -122,9 +148,6 @@ fn build_rewrite_plan(
             return None;
         }
         let name = PkgName::parse(&parsed.target_pkg.name).ok()?;
-        if overrides.iter().any(|entry: &FastOverride| entry.name == name) {
-            return None;
-        }
         let new_version =
             if removes_dependency { None } else { Some(Version::parse(new_value).ok()?) };
         overrides.push(FastOverride {
@@ -142,6 +165,30 @@ fn build_rewrite_plan(
         return None;
     }
 
+    build_replacement_plan(lockfile, overrides)
+}
+
+/// Work out which locked packages each entry of `overrides` moves, and
+/// refuse the ones a rewrite cannot express: a package carrying a peer
+/// suffix or a registry qualifier, one that is patched, optional, or has
+/// its own peer dependencies, and any key that something outside
+/// `overrides` also reaches.
+pub(crate) fn build_replacement_plan(
+    lockfile: &Lockfile,
+    overrides: Vec<FastOverride>,
+) -> Option<RewritePlan> {
+    // Two entries naming one package would each claim its key, and only
+    // one of them could win.
+    // Two entries naming one package would each claim its key, and only one
+    // of them could win. Both callers reject that earlier for their own
+    // reasons; this keeps the plan itself from expressing it.
+    if overrides
+        .iter()
+        .enumerate()
+        .any(|(index, entry)| overrides[..index].iter().any(|other| other.name == entry.name))
+    {
+        return None;
+    }
     let peer_names = get_peer_names(lockfile);
     if overrides
         .iter()
@@ -291,19 +338,19 @@ fn is_safe_registry_result(
 }
 
 fn rewrite_lockfile(
-    opts: &FastOverrideOptions<'_>,
+    context: &RewriteContext<'_>,
     plan: &RewritePlan,
     resolved: &HashMap<PkgName, ResolvedOverride>,
 ) -> Option<Lockfile> {
-    let mut updated = opts.lockfile.clone();
+    let mut updated = context.lockfile.clone();
     for importer in updated.importers.values_mut() {
         rewrite_importer_dependencies(&mut importer.dependencies, plan);
         rewrite_importer_dependencies(&mut importer.dev_dependencies, plan);
         rewrite_importer_dependencies(&mut importer.optional_dependencies, plan);
     }
-    let original_snapshots = opts.lockfile.snapshots.as_ref()?;
+    let original_snapshots = context.lockfile.snapshots.as_ref()?;
     let mut snapshots = original_snapshots.clone();
-    let mut packages = opts.lockfile.packages.clone()?;
+    let mut packages = context.lockfile.packages.clone()?;
     for (key, snapshot) in &mut snapshots {
         rewrite_snapshot_dependencies(&mut snapshot.dependencies, plan, Some(key));
         rewrite_snapshot_dependencies(&mut snapshot.optional_dependencies, plan, Some(key));
@@ -318,7 +365,7 @@ fn rewrite_lockfile(
             effective_dependencies(&replacement.manifest)?,
             old_snapshot.dependencies.as_ref(),
             original_snapshots,
-            opts.lockfile.packages.as_ref()?,
+            context.lockfile.packages.as_ref()?,
             plan,
             new_key,
         )?;
@@ -326,7 +373,7 @@ fn rewrite_lockfile(
             manifest_dependency_map(&replacement.manifest, "optionalDependencies")?,
             old_snapshot.optional_dependencies.as_ref(),
             original_snapshots,
-            opts.lockfile.packages.as_ref()?,
+            context.lockfile.packages.as_ref()?,
             plan,
             new_key,
         )?;
@@ -344,8 +391,8 @@ fn rewrite_lockfile(
             replacement.resolution.to_lockfile_form(
                 &old_key.name.to_string(),
                 &new_key.suffix.version().to_string(),
-                &pick_registry_for_package(opts.registries, &old_key.name.to_string(), None),
-                opts.lockfile_include_tarball_url,
+                &pick_registry_for_package(context.registries, &old_key.name.to_string(), None),
+                context.lockfile_include_tarball_url,
             ),
         );
         if let Some(existing) = packages.get(&metadata_key)
@@ -357,8 +404,7 @@ fn rewrite_lockfile(
     }
     updated.snapshots = Some(snapshots);
     updated.packages = Some(packages);
-    updated.overrides = Some(opts.resolved_overrides.clone());
-    prune_unreachable_packages(&mut updated);
+    crate::fast_update_lockfile::prune_unreachable_packages(&mut updated);
     Some(updated)
 }
 
@@ -424,62 +470,6 @@ fn should_remove_dependency(
             }),
         }
     })
-}
-
-fn prune_unreachable_packages(lockfile: &mut Lockfile) {
-    let reachable = {
-        let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
-        let mut reachable = HashSet::new();
-        let mut queue = VecDeque::new();
-        for importer in lockfile.importers.values() {
-            for dependencies in [
-                importer.dependencies.as_ref(),
-                importer.dev_dependencies.as_ref(),
-                importer.optional_dependencies.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                for (alias, spec) in dependencies {
-                    if let Some(key) = spec.version.resolved_key(alias) {
-                        queue.push_back(key);
-                    }
-                }
-            }
-        }
-        while let Some(key) = queue.pop_front() {
-            if !reachable.insert(key.clone()) {
-                continue;
-            }
-            let Some(snapshot) = snapshots.get(&key) else { continue };
-            for dependencies in
-                [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
-                    .into_iter()
-                    .flatten()
-            {
-                for (alias, dep_ref) in dependencies {
-                    if let Some(key) = dep_ref.resolve(alias) {
-                        queue.push_back(key);
-                    }
-                }
-            }
-        }
-        reachable
-    };
-    let reachable_metadata: HashSet<_> =
-        reachable.iter().map(PkgNameVerPeer::without_peer).collect();
-    if let Some(snapshots) = lockfile.snapshots.as_mut() {
-        snapshots.retain(|key, _| reachable.contains(key));
-        if snapshots.is_empty() {
-            lockfile.snapshots = None;
-        }
-    }
-    if let Some(packages) = lockfile.packages.as_mut() {
-        packages.retain(|key, _| reachable_metadata.contains(key));
-        if packages.is_empty() {
-            lockfile.packages = None;
-        }
-    }
 }
 
 fn validate_dependencies(

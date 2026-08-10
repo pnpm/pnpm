@@ -66,6 +66,7 @@ impl FetchArgs {
             node_linker: fetch_config.node_linker,
             lockfile_only: false,
             dry_run: false,
+            persist_policy_excludes: false,
             update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,

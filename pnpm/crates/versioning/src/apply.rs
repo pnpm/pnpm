@@ -4,6 +4,8 @@ use std::{
     path::Path,
 };
 
+use serde::Serialize;
+
 use crate::{
     changelog::{compose_changelog_section, prepend_changelog_section},
     error::VersioningError,
@@ -14,7 +16,8 @@ use crate::{
     settings::{ChangelogStorage, VersioningSettings, changelog_storage},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppliedRelease {
     pub name: String,
     pub current_version: String,

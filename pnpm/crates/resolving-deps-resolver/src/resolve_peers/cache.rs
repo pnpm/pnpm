@@ -7,7 +7,7 @@ use crate::{
     dependencies_graph::MissingPeer,
     node_id::NodeId,
     resolve_peers::{
-        context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain, pkg_name_version},
+        context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain},
         walker::{MissingPeerInfo, NodeOutput, SubtreeMissingByPkg, Walker},
     },
     resolved_tree::{AncestorIds, ChildEdge, DependenciesTreeNode, TreeChildren},
@@ -375,8 +375,7 @@ impl Walker<'_> {
 
         if !output.missing_peers.is_empty() {
             let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.clone();
-            let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id.clone());
-            let pkg_name = pkg_name_version(&self.tree.packages[&pkg_id].result).0;
+            let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id);
             for (peer_name, info) in output.missing_peers.iter() {
                 if self.missing_issue_suppressed(&chain_with_self, peer_name) {
                     continue;
@@ -387,7 +386,7 @@ impl Walker<'_> {
                         wanted_range: get_peer_version_range(&info.range),
                         raw_range: info.range.clone(),
                         optional: info.optional,
-                        parents: self.issue_parents(parent_chain_names, &pkg_name),
+                        parents: self.issue_parents(parent_chain_names),
                     },
                     &chain_with_self,
                 );

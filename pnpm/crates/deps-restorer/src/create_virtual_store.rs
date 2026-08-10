@@ -873,6 +873,76 @@ struct SlotLink<'a> {
     removed_aliases: &'a [PkgName],
 }
 
+/// One unique slot directory and every [`SlotLink`] that resolved to
+/// it. Under the global virtual store, hash-equal peer variants share
+/// a slot path, and `stage_and_swap` in
+/// [`fn@crate::import_indexed_dir`] assumes an exclusive owner per
+/// directory — so the link pass runs one task per group, with the
+/// `removed_aliases` of every member unioned for cleanup.
+struct SlotDirGroup<'a> {
+    representative: &'a SlotLink<'a>,
+    /// Kept so each warm variant still emits its own progress line.
+    duplicates: Vec<&'a SlotLink<'a>>,
+    /// `None` until a duplicate contributes an alias the
+    /// representative lacks.
+    merged_removed_aliases: Option<Vec<PkgName>>,
+}
+
+impl SlotDirGroup<'_> {
+    fn removed_aliases(&self) -> &[PkgName] {
+        self.merged_removed_aliases.as_deref().unwrap_or(self.representative.removed_aliases)
+    }
+}
+
+/// Group `slots` by [`crate::VirtualStoreLayout::slot_dir`], preserving
+/// first-occurrence order.
+fn group_slots_by_dir<'a>(
+    slots: &'a [SlotLink<'a>],
+    layout: &crate::VirtualStoreLayout,
+) -> Vec<SlotDirGroup<'a>> {
+    if !layout.enable_global_virtual_store() {
+        // Project-local slot names embed the peer-suffixed key: every
+        // group is a singleton, so skip the path construction.
+        return slots
+            .iter()
+            .map(|slot| SlotDirGroup {
+                representative: slot,
+                duplicates: Vec::new(),
+                merged_removed_aliases: None,
+            })
+            .collect();
+    }
+    let mut index_by_dir: HashMap<PathBuf, usize> = HashMap::with_capacity(slots.len());
+    let mut groups: Vec<SlotDirGroup<'a>> = Vec::with_capacity(slots.len());
+    for slot in slots {
+        match index_by_dir.entry(layout.slot_dir(slot.snapshot_key)) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(groups.len());
+                groups.push(SlotDirGroup {
+                    representative: slot,
+                    duplicates: Vec::new(),
+                    merged_removed_aliases: None,
+                });
+            }
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                let group = &mut groups[*entry.get()];
+                group.duplicates.push(slot);
+                if !slot.removed_aliases.is_empty() {
+                    let merged = group
+                        .merged_removed_aliases
+                        .get_or_insert_with(|| group.representative.removed_aliases.to_vec());
+                    for alias in slot.removed_aliases {
+                        if !merged.contains(alias) {
+                            merged.push(alias.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    groups
+}
+
 #[derive(Clone, Copy)]
 struct LinkSlotsParallel<'a> {
     batch: &'static str,
@@ -911,15 +981,19 @@ fn link_slots_parallel<Reporter: self::Reporter>(
     } = opts;
 
     let phase_start = std::time::Instant::now();
+    let groups = group_slots_by_dir(slots, layout);
     let link_work = || {
-        slots.par_iter().try_for_each(|slot| {
+        groups.par_iter().try_for_each(|group| {
+            let slot = group.representative;
             let package_id = slot.snapshot_key.pkg_id();
-            if let Some(cache_key) = slot.warm_cache_key {
-                emit_warm_snapshot_progress::<Reporter>(
-                    &package_id,
-                    requester,
-                    progress_reported.contains(cache_key),
-                );
+            for reported in std::iter::once(slot).chain(group.duplicates.iter().copied()) {
+                if let Some(cache_key) = reported.warm_cache_key {
+                    emit_warm_snapshot_progress::<Reporter>(
+                        &reported.snapshot_key.pkg_id(),
+                        requester,
+                        progress_reported.contains(cache_key),
+                    );
+                }
             }
 
             crate::CreateVirtualDirBySnapshot {
@@ -935,7 +1009,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 include_optional_dependencies,
                 symlink,
                 skipped,
-                removed_aliases: slot.removed_aliases,
+                removed_aliases: group.removed_aliases(),
                 needs_build_marker_source: slot.needs_build_marker_source,
                 #[cfg(test)]
                 link_concurrency_probe,
@@ -966,6 +1040,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
         phase = "link_slots",
         batch,
         slots = slots.len(),
+        unique_dirs = groups.len(),
         elapsed_ms = phase_start.elapsed().as_millis() as u64,
         "phase complete",
     );

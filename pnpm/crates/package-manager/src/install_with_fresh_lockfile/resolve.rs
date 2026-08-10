@@ -224,8 +224,9 @@ pub(super) struct ReuseSeedInputs<'a> {
 /// back to withholding.
 pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<Arc<Lockfile>> {
     use crate::{
+        fast_update_catalog_versions::try_fast_update_catalog_versions,
         fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs},
-        fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides},
+        fast_update_overrides::{FastOverrideOptions, RewriteContext, try_fast_update_overrides},
     };
 
     let ReuseSeedInputs {
@@ -258,11 +259,16 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
 
     let reusable_settings_lockfile = wanted_lockfile.filter(|lockfile| {
         lockfile.package_extensions_checksum.as_deref() == package_extensions_checksum
+            && super::ignored_optional_dependencies_match(
+                lockfile.ignored_optional_dependencies.as_deref(),
+                config.ignored_optional_dependencies.as_deref(),
+            )
     });
     let override_settings_match = reusable_settings_lockfile.is_some_and(|lockfile| {
         super::overrides_match(lockfile.overrides.as_ref(), resolved_overrides)
     });
 
+    let rewrite_manifest_hook = super::compose_manifest_hooks(manifest_hook, overrides_hook);
     if let (Some(lockfile), Some(parsed), Some(resolved)) =
         (reusable_settings_lockfile, parsed_overrides, resolved_overrides)
         && catalogs_match
@@ -270,14 +276,16 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
         && !override_settings_match
         && fast_override_eligible
         && let Some(seed) = try_fast_update_overrides(FastOverrideOptions {
-            lockfile,
+            context: RewriteContext {
+                lockfile,
+                resolver: npm_resolver,
+                resolve_options,
+                manifest_hook: rewrite_manifest_hook.as_ref(),
+                registries,
+                lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+            },
             parsed_overrides: parsed,
             resolved_overrides: resolved,
-            resolver: npm_resolver,
-            resolve_options,
-            manifest_hook: super::compose_manifest_hooks(manifest_hook, overrides_hook).as_ref(),
-            registries,
-            lockfile_include_tarball_url: config.lockfile_include_tarball_url,
         })
         .await
     {
@@ -287,6 +295,29 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
     // `override_settings_match` is computed with `is_some_and`, so it
     // already implies `reusable_settings_lockfile` is `Some`.
     if override_settings_match && let Some(seed) = fast_catalog_seed {
+        return Some(Arc::new(seed));
+    }
+
+    // A catalog entry that now names a version the locked one cannot
+    // satisfy left `catalogs_match` false with no seed above. Replacing the
+    // package is the same rewrite an exact override performs.
+    if let Some(lockfile) = reusable_settings_lockfile
+        && override_settings_match
+        && !overrides_use_catalogs
+        && fast_override_eligible
+        && let Some(seed) = try_fast_update_catalog_versions(
+            &RewriteContext {
+                lockfile,
+                resolver: npm_resolver,
+                resolve_options,
+                manifest_hook: rewrite_manifest_hook.as_ref(),
+                registries,
+                lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+            },
+            catalogs,
+        )
+        .await
+    {
         return Some(Arc::new(seed));
     }
 

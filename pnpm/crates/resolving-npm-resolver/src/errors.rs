@@ -21,6 +21,15 @@ use pacquet_network::redact_and_sanitize;
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FetchMetadataError {
+    #[display("Failed to resolve {pkg_name} in package mirror {}", pkg_mirror.display())]
+    #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
+    NoOfflineMeta {
+        #[error(not(source))]
+        pkg_name: String,
+        #[error(not(source))]
+        pkg_mirror: std::path::PathBuf,
+    },
+
     #[display("Failed to fetch metadata from {url}: {error}")]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
     Network {

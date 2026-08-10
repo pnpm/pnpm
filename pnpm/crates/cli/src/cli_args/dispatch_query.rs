@@ -517,12 +517,12 @@ pub(super) fn clean<'a>(
 }
 
 pub(super) fn root<'a>(ctx: &RunCtx<'a>, args: RootArgs) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.dir)?;
+    args.run(ctx.dir, (ctx.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
 pub(super) fn prefix<'a>(ctx: &RunCtx<'a>, args: PrefixArgs) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.dir)?;
+    args.run(ctx.dir, (ctx.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

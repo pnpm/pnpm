@@ -1,8 +1,11 @@
 import { expect, test } from '@jest/globals'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
-import type { ProjectManifest } from '@pnpm/types'
+import type { StoreController } from '@pnpm/store.controller-types'
+import type { DepPath, ProjectId, ProjectManifest } from '@pnpm/types'
 
+import { tryFastUpdateIgnoredOptionalDependencies } from '../../src/install/tryFastUpdateIgnoredOptionalDependencies.js'
 import {
   testDefaults,
 } from '../utils/index.js'
@@ -57,8 +60,9 @@ test('adding or changing manifest.pnpm.ignoredOptionalDependencies should change
     },
   })
   const project = prepareEmpty()
+  const options = testDefaults()
 
-  await install(manifest, testDefaults())
+  await install(manifest, options)
   {
     const lockfile = project.readLockfile()
     expect(lockfile).not.toHaveProperty(['ignoredOptionalDependencies'])
@@ -66,13 +70,153 @@ test('adding or changing manifest.pnpm.ignoredOptionalDependencies should change
     expect(lockfile.packages).toHaveProperty(['is-positive@1.0.0'])
   }
 
-  await install(manifest, testDefaults({
-    ignoredOptionalDependencies: ['is-positive'],
-  }))
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  options.ignoredOptionalDependencies = ['is-positive']
+  await install(manifest, options)
   {
     const lockfile = project.readLockfile()
+    expect(requestedPackages).toStrictEqual([])
     expect(lockfile.ignoredOptionalDependencies).toStrictEqual(['is-positive'])
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
     expect(lockfile.packages).not.toHaveProperty(['is-positive@1.0.0'])
   }
 })
+
+test('removing an ignored optional dependency falls back to resolution', async () => {
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  }
+  const project = prepareEmpty()
+  const options = testDefaults({
+    ignoredOptionalDependencies: ['is-positive'],
+  })
+
+  await install(manifest, options)
+
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  options.ignoredOptionalDependencies = []
+  await install(manifest, options)
+
+  expect(requestedPackages).toContain('is-positive')
+  expect(project.readLockfile().packages).toHaveProperty(['is-positive@1.0.0'])
+})
+
+test('fast update prunes only optional packages that become unreachable', () => {
+  const lockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          carrier: '1.0.0',
+          parent: '1.0.0',
+        },
+        optionalDependencies: {
+          'root-only': '1.0.0',
+        },
+        specifiers: {
+          carrier: '1.0.0',
+          parent: '1.0.0',
+          'root-only': '1.0.0',
+        },
+      },
+    },
+    lockfileVersion: '9.0',
+    packages: {
+      'carrier@1.0.0': {
+        dependencies: {
+          shared: '1.0.0',
+        },
+        resolution: { integrity: 'sha512-carrier' },
+      },
+      'parent@1.0.0': {
+        optionalDependencies: {
+          shared: '1.0.0',
+          unique: '1.0.0',
+        },
+        resolution: { integrity: 'sha512-parent' },
+      },
+      'root-only@1.0.0': {
+        resolution: { integrity: 'sha512-root' },
+      },
+      'shared@1.0.0': {
+        resolution: { integrity: 'sha512-shared' },
+      },
+      'unique@1.0.0': {
+        resolution: { integrity: 'sha512-unique' },
+      },
+    },
+  } as LockfileObject
+
+  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, [
+    'root-only',
+    'shared',
+    'unique',
+  ])).toBe(true)
+
+  const importer = lockfile.importers['.' as ProjectId]
+  const parent = lockfile.packages?.['parent@1.0.0' as DepPath]
+  expect(importer.optionalDependencies).toBeUndefined()
+  expect(importer.specifiers).not.toHaveProperty('root-only')
+  expect(parent?.optionalDependencies).toBeUndefined()
+  expect(lockfile.packages).toHaveProperty(['shared@1.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['root-only@1.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['unique@1.0.0'])
+})
+
+test('fast update prunes a catalog entry its last referent was ignored', () => {
+  const lockfile = {
+    catalogs: {
+      default: {
+        'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+      },
+    },
+    importers: {
+      '.': {
+        optionalDependencies: {
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': 'catalog:',
+        },
+      },
+    },
+    lockfileVersion: '9.0',
+    packages: {
+      'is-positive@1.0.0': { resolution: { integrity: 'sha512-pos' } },
+    },
+  } as unknown as LockfileObject
+
+  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, ['is-positive'])).toBe(true)
+  expect(lockfile.catalogs).toBeUndefined()
+})
+
+test('fast update rejects a new exclusion pattern', () => {
+  const lockfile = {
+    ignoredOptionalDependencies: ['*'],
+    importers: {},
+    lockfileVersion: '9.0',
+  } as LockfileObject
+
+  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, ['*', '!is-positive'])).toBe(false)
+})
+
+test('fast update rejects adding an include to exclusion-only patterns', () => {
+  const lockfile = {
+    ignoredOptionalDependencies: ['!foo'],
+    importers: {},
+    lockfileVersion: '9.0',
+  } as LockfileObject
+
+  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, ['!foo', 'bar'])).toBe(false)
+})
+
+function trackRequestedPackages (storeController: StoreController): string[] {
+  const requestedPackages: string[] = []
+  const requestPackage = storeController.requestPackage
+  storeController.requestPackage = async (wantedDependency, requestOptions) => {
+    requestedPackages.push(wantedDependency.alias!)
+    return requestPackage(wantedDependency, requestOptions)
+  }
+  return requestedPackages
+}

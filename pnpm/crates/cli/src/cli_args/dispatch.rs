@@ -73,6 +73,7 @@ impl CliArgs {
             self.command.reports_scope(self.recursive),
             false,
             self.recursive,
+            self.command.uses_stderr_reporter(),
         );
     }
 
