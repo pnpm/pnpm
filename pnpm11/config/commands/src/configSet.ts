@@ -58,23 +58,23 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       // below. The key only selects a type here, and normalizing it does not
       // change that.
       const castValue = castField(value, kebabCase(key))
-      // A removal skips the key check. Validation exists to stop a write
-      // landing in a file that will not read it back, and a key being deleted
-      // is not read back by anyone. The reader warns about every key this file
-      // does not accept, so a delete has to be able to clear all of them, not
-      // the subset that happens to be a refused setting. Normalization still
-      // applies, or the alternate spelling below is never cleared.
-      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
-        key = castValue == null ? kebabCase(key) : validateYamlConfigKey(key)
+      // A removal skips both key checks. Validation exists to stop a write
+      // landing in a file that will not read it back, and nothing reads back a
+      // key being deleted. Both readers warn about every key their file does
+      // not accept, so a delete has to reach all of them rather than the
+      // subset each validator happens to admit.
+      const isRemoval = castValue == null
+      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME && !isRemoval) {
+        key = validateYamlConfigKey(key)
       }
-      const writtenKey = validateWorkspaceKey(key)
+      const writtenKey = isRemoval ? camelCase(key) : validateWorkspaceKey(key)
       if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
         throw new ConfigSetNotAProjectSettingError(writtenKey)
       }
       // Removing from a file that is not there is a no-op, not an error: the
       // writer deletes a manifest once the removal empties it, and would fail
       // to delete one that was never written.
-      if (castValue == null && !await pathExists(configPath)) break
+      if (isRemoval && !await pathExists(configPath)) break
       const updatedFields: Record<string, unknown> = {
         [writtenKey]: castValue,
       }
@@ -83,7 +83,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       // the reader names when it reports the setting as ignored. A removal
       // clears every spelling rather than only the one the user typed, since
       // the file's spelling is what the warning named and what has to go.
-      if (castValue == null) {
+      if (isRemoval) {
         updatedFields[key] = null
         updatedFields[kebabCase(writtenKey)] = null
       }

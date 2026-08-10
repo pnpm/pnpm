@@ -1236,6 +1236,35 @@ test('config delete clears a key the global config file never accepted', async (
   expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toEqual({ storeDir: '~/store' })
 })
 
+/**
+ * Every key a reader warns about has to be clearable, whichever validator
+ * would otherwise have rejected the spelling.
+ */
+test.each([
+  // Absent from `types`, so the workspace-key check rejects its kebab form.
+  ['global', 'onlyBuiltDependencies', 'onlyBuiltDependencies'],
+  // Refused by a project manifest as bookkeeping, not as a setting.
+  ['project', 'packageManager', 'packageManager'],
+  ['project', 'package-manager', 'packageManager'],
+])('config delete --%s %s clears it', async (location, typed, written) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  const isGlobal = location === 'global'
+  const target = isGlobal ? path.join(configDir, 'config.yaml') : path.join(tmp, 'pnpm-workspace.yaml')
+  fs.writeFileSync(target, `${written}: whatever\nstoreDir: '~/store'\n`)
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    ...(isGlobal ? { global: true } : { location: 'project' as const }),
+    authConfig: {},
+  }), ['delete', typed])
+
+  expect(readYamlFileSync(target)).toEqual({ storeDir: '~/store' })
+})
+
 /** The reader warns about these in the global config file too, so a delete has to reach them there. */
 test('config delete clears a refused setting from the global config.yaml', async () => {
   const tmp = tempDir()
