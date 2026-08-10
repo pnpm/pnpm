@@ -15,6 +15,7 @@ fn try_fast_update_importers(
         manifests,
         &[],
         &pacquet_config::Config::default(),
+        false,
     )
 }
 
@@ -769,5 +770,102 @@ fn rejects_a_higher_version_that_exists_only_under_a_named_registry() {
     assert!(
         try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_none(),
         "a registry-qualified key's semver only pins a version inside that registry",
+    );
+}
+
+/// Two workspace members, each with a dependency of its own.
+const WITH_TWO_IMPORTERS: &str = r"
+lockfileVersion: '9.0'
+importers:
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+  packages/b:
+    dependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-bar
+snapshots:
+  foo@1.1.0: {}
+  bar@2.0.0: {}
+";
+
+fn try_prune_stale_importers(
+    lockfile: &Lockfile,
+    manifests: &[(String, &PackageManifest)],
+) -> Option<Lockfile> {
+    crate::fast_update_compose::try_compose_fast_updates(
+        lockfile,
+        manifests,
+        &[],
+        &pacquet_config::Config::default(),
+        true,
+    )
+}
+
+#[test]
+fn drops_the_importer_of_a_workspace_project_that_is_gone() {
+    let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.0.0" } }));
+
+    let updated = try_prune_stale_importers(
+        &parsed_lockfile(WITH_TWO_IMPORTERS),
+        &[("packages/a".to_string(), &manifest)],
+    )
+    .expect("dropping a project's importer needs no resolution");
+
+    assert_eq!(updated.importers.keys().collect::<Vec<_>>(), vec!["packages/a"]);
+    let mut packages: Vec<_> =
+        updated.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    packages.sort();
+    assert_eq!(packages, vec!["foo@1.1.0".to_string()], "what only it needed goes with it");
+}
+
+#[test]
+fn keeps_the_importer_when_the_run_does_not_see_every_project() {
+    let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.0.0" } }));
+
+    assert!(
+        crate::fast_update_compose::try_compose_fast_updates(
+            &parsed_lockfile(WITH_TWO_IMPORTERS),
+            &[("packages/a".to_string(), &manifest)],
+            &[],
+            &pacquet_config::Config::default(),
+            false,
+        )
+        .is_none(),
+        "a filtered run cannot tell a removed project from an unselected one",
+    );
+}
+
+#[test]
+fn rejects_dropping_an_importer_a_survivor_links_to() {
+    let mut subject = parsed_lockfile(WITH_TWO_IMPORTERS);
+    subject
+        .importers
+        .get_mut("packages/a")
+        .expect("importer")
+        .dependencies
+        .as_mut()
+        .expect("dependencies")
+        .insert(
+            "b".parse().expect("alias"),
+            serde_saphyr::from_str("{specifier: workspace:1.0.0, version: link:../b}")
+                .expect("dependency"),
+        );
+    let manifest =
+        manifest_from(json!({ "dependencies": { "foo": "^1.0.0", "b": "workspace:1.0.0" } }));
+
+    assert!(
+        try_prune_stale_importers(&subject, &[("packages/a".to_string(), &manifest)]).is_none(),
+        "a project that is gone while something links to it is a broken workspace",
     );
 }

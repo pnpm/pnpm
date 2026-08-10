@@ -17,6 +17,8 @@ type ManifestDependencies<'manifest> = HashMap<PkgName, (&'manifest str, Depende
 /// the parsed aliases.
 pub(crate) struct ImportersPlan<'a, 'manifest> {
     manifest_dependencies: Vec<(&'a String, ManifestDependencies<'manifest>)>,
+    /// Importers no project claims, to drop before the rest replays.
+    stale: Vec<String>,
 }
 
 /// Whether the importers' records diverge from the manifests, without
@@ -25,6 +27,7 @@ pub(crate) struct ImportersPlan<'a, 'manifest> {
 pub(crate) fn detect_importers_drift<'a, 'manifest>(
     lockfile: &Lockfile,
     manifests: &'a [(String, &'manifest PackageManifest)],
+    prune_stale_importers: bool,
 ) -> Drift<ImportersPlan<'a, 'manifest>> {
     let mut manifest_dependencies: Vec<(&String, ManifestDependencies<'_>)> = Vec::new();
     for (importer_id, manifest) in manifests {
@@ -42,11 +45,22 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
         }
         manifest_dependencies.push((importer_id, dependencies));
     }
-    if manifest_dependencies
-        .iter()
-        .any(|(importer_id, dependencies)| importer_diverges(lockfile, importer_id, dependencies))
+    let stale: Vec<String> = if prune_stale_importers {
+        lockfile
+            .importers
+            .keys()
+            .filter(|importer_id| !manifests.iter().any(|(id, _)| id == *importer_id))
+            .cloned()
+            .collect()
+    } else {
+        Vec::new()
+    };
+    if !stale.is_empty()
+        || manifest_dependencies.iter().any(|(importer_id, dependencies)| {
+            importer_diverges(lockfile, importer_id, dependencies)
+        })
     {
-        Drift::Absorb(ImportersPlan { manifest_dependencies })
+        Drift::Absorb(ImportersPlan { manifest_dependencies, stale })
     } else {
         Drift::Clean
     }
@@ -63,6 +77,29 @@ pub(crate) fn apply_importers_update(
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
 ) -> bool {
+    // A project that is gone while something still links to it is a broken
+    // workspace, which only the resolver may report.
+    if plan
+        .stale
+        .iter()
+        .any(|importer_id| is_linked_from_a_survivor(candidate, importer_id, &plan.stale))
+    {
+        return false;
+    }
+    for importer_id in &plan.stale {
+        if let Some(importer) = candidate.importers.remove(importer_id) {
+            for group in [
+                importer.dependencies.as_ref(),
+                importer.dev_dependencies.as_ref(),
+                importer.optional_dependencies.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                edits.dropped.extend(group.keys().cloned());
+            }
+        }
+    }
     let Lockfile { packages, importers, .. } = candidate;
     for (importer_id, manifest_dependencies) in &plan.manifest_dependencies {
         let Some(importer) = importers.get_mut(importer_id.as_str()) else {
@@ -110,6 +147,47 @@ pub(crate) fn apply_importers_update(
         edits.dropped.extend(remove_dependencies_absent_from(importer, manifest_dependencies));
     }
     true
+}
+
+/// Whether an importer that survives the prune links to `importer_id`.
+fn is_linked_from_a_survivor(lockfile: &Lockfile, importer_id: &str, stale: &[String]) -> bool {
+    lockfile.importers.iter().any(|(survivor_id, importer)| {
+        if stale.iter().any(|id| id == survivor_id) {
+            return false;
+        }
+        [
+            importer.dependencies.as_ref(),
+            importer.dev_dependencies.as_ref(),
+            importer.optional_dependencies.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|group| {
+            group.values().any(|spec| {
+                spec.version
+                    .as_link_target()
+                    .is_some_and(|target| link_resolves_to(survivor_id, target, importer_id))
+            })
+        })
+    })
+}
+
+/// Whether `target`, a `link:` path relative to `from`'s directory,
+/// names the importer `importer_id`.
+fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> bool {
+    let mut segments: Vec<&str> = if from == "." { Vec::new() } else { from.split('/').collect() };
+    for part in target.split('/') {
+        match part {
+            "." | "" => {}
+            ".." => {
+                if segments.pop().is_none() {
+                    return false;
+                }
+            }
+            other => segments.push(other),
+        }
+    }
+    segments.join("/") == importer_id
 }
 
 /// The version resolution would settle on for `alias` under `range`: the

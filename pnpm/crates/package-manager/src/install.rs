@@ -66,8 +66,8 @@ use lifecycle::{
     run_dev_preinstall, run_projects_lifecycle_scripts,
 };
 pub(crate) use lockfile_freshness::{
-    CheckLockfileSettingsDriftOptions, FreshnessCheckError, check_importer_satisfies,
-    check_lockfile_settings_drift, parse_config_overrides,
+    CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
+    check_importer_satisfies, check_lockfile_settings_drift, parse_config_overrides,
 };
 use lockfile_freshness::{
     FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
