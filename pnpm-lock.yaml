@@ -5821,6 +5821,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
+      '@pnpm/hooks.pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: 'link:'
