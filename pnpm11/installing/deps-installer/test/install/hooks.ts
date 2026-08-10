@@ -2,6 +2,7 @@ import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
+  install,
   type PackageManifest,
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
@@ -84,6 +85,36 @@ test('readPackage, afterAllResolved async hooks', async () => {
 
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile).toHaveProperty(['foo'], 'foo')
+})
+
+test('readPackage rewrites the specifier of the project own dependency', async () => {
+  const project = prepareEmpty()
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  function readPackageHook (manifest: PackageManifest) {
+    if (manifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep'] != null) {
+      manifest.dependencies['@pnpm.e2e/pkg-with-1-dep'] = '100.0.0'
+    }
+    return manifest
+  }
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  }, testDefaults({
+    hooks: {
+      readPackage: [readPackageHook],
+    },
+  }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
 })
 
 test('readPackage hooks array', async () => {

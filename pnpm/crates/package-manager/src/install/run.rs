@@ -3,13 +3,14 @@ use super::{
     FastUpdateLockfileOptions, FreshnessCheckError, HashSet, Host, InMemoryPackageMetaCache,
     IncludedDependencies, Install, InstallError, InstallRunOptions, IsTerminal, Lockfile, LogEvent,
     LogLevel, MaterializationInputs, MaterializationOutput, OptimisticRepeatInstallCheck,
-    OptimisticRepeatInstallDecision, Path, PnpmLog, PrepareModulesStateInputs,
-    PreparedModulesState, Reporter, ScopeLog, Stage, StageLog, SummaryLog, UpdateSeedPolicy,
-    apply_materialization_result, build_project_manifests_list, build_resolution_verifiers,
-    build_root_importer_project_manifests_list, build_selected_project_manifests_list,
-    check_lockfile_freshness, check_optimistic_repeat_install,
-    configured_or_discovered_workspace_dir, dev_preinstall_already_ran,
-    emit_initial_package_manifest, get_catalogs_from_workspace_manifest, gvs_build_marker_present,
+    OptimisticRepeatInstallDecision, PackageManifest, Path, PathBuf, PnpmLog,
+    PrepareModulesStateInputs, PreparedModulesState, Reporter, ScopeLog, Stage, StageLog,
+    SummaryLog, UpdateSeedPolicy, apply_materialization_result, build_project_manifests_list,
+    build_resolution_verifiers, build_root_importer_project_manifests_list,
+    build_selected_project_manifests_list, check_lockfile_freshness,
+    check_optimistic_repeat_install, configured_or_discovered_workspace_dir,
+    dev_preinstall_already_ran, emit_initial_package_manifest,
+    get_catalogs_from_workspace_manifest, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, load_workspace_projects, map_frozen_lockfile_error,
     materialize, prepare_modules_state, run_dev_preinstall, selected_manifest_freshness_inputs,
     try_fast_update_lockfile, unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
@@ -254,22 +255,6 @@ where
             ),
             None => build_project_manifests_list(&workspace_root, manifest, workspace_projects),
         };
-        let manifest_freshness_inputs = match selection.as_ref() {
-            Some(selection) => selected_manifest_freshness_inputs(
-                &workspace_root,
-                &project_manifests,
-                selection.selected_dirs,
-            ),
-            None => project_manifests
-                .iter()
-                .map(|(project_dir, manifest)| {
-                    (
-                        pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
-                        *manifest,
-                    )
-                })
-                .collect(),
-        };
         let selected_importer_ids = selection.as_ref().map(|selection| {
             selection
                 .selected_dirs
@@ -443,6 +428,70 @@ where
         // the resolve path below so an install spawns at most one.
         let pnpmfile_hook = pnpmfile_hook_override
             .or_else(|| pacquet_hooks::finder::load_pnpmfile(&workspace_root));
+
+        // pnpm's `getContext` runs `readPackage` over every project
+        // manifest before anything reads it, so a hook that rewrites a
+        // project's own specifier steers the resolution, the freshness
+        // gates, and the importer entries the lockfile records alike.
+        // The optimistic repeat-install check above stays on the on-disk
+        // manifests on purpose: it is the one gate that must not spawn
+        // the Node worker.
+        let hooked_project_manifests: Vec<(PathBuf, PackageManifest)> = match pnpmfile_hook.as_ref()
+        {
+            Some(hook) => {
+                let log = hook.source_path().map_or_else(
+                    || Arc::new(|_| {}) as pacquet_hooks::LogFn,
+                    |from| {
+                        crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+                            &workspace_root,
+                            from,
+                            "readPackage",
+                        )
+                    },
+                );
+                futures_util::future::try_join_all(project_manifests.iter().map(
+                    |(project_dir, manifest)| {
+                        let ctx = pacquet_hooks::HookContext { log: Arc::clone(&log), dir: None };
+                        async move {
+                            let value = hook
+                                .read_package(manifest.value().clone(), ctx)
+                                .await
+                                .map_err(InstallError::ReadPackageHook)?;
+                            let mut hooked = (*manifest).clone();
+                            *hooked.value_mut() = (*value).clone();
+                            Ok::<_, InstallError>((project_dir.clone(), hooked))
+                        }
+                    },
+                ))
+                .await?
+            }
+            None => Vec::new(),
+        };
+        let project_manifests: Vec<(PathBuf, &PackageManifest)> =
+            if hooked_project_manifests.is_empty() {
+                project_manifests
+            } else {
+                hooked_project_manifests
+                    .iter()
+                    .map(|(project_dir, manifest)| (project_dir.clone(), manifest))
+                    .collect()
+            };
+        let manifest_freshness_inputs = match selection.as_ref() {
+            Some(selection) => selected_manifest_freshness_inputs(
+                &workspace_root,
+                &project_manifests,
+                selection.selected_dirs,
+            ),
+            None => project_manifests
+                .iter()
+                .map(|(project_dir, manifest)| {
+                    (
+                        pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
+                        *manifest,
+                    )
+                })
+                .collect(),
+        };
 
         // Load the *current* lockfile that records what the previous
         // install actually materialized in `<virtual_store_dir>/lock.yaml`.

@@ -9816,6 +9816,47 @@ async fn read_package_hook_pins_transitive_dependency_version() {
     drop((dir, registry));
 }
 
+// The `readPackage` hook rewrites the project's OWN dependency range,
+// and both the resolution and the importer entry the lockfile records
+// follow the hook rather than the on-disk `package.json`. Declaring
+// `^100.0.0` would resolve to 100.1.0; the hook pins it to 100.0.0.
+#[tokio::test]
+async fn read_package_hook_rewrites_the_project_own_specifier() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "^100.0.0")],
+        r"module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.dependencies && pkg.dependencies['@pnpm.e2e/pkg-with-1-dep']) {
+    pkg.dependencies['@pnpm.e2e/pkg-with-1-dep'] = '100.0.0';
+  }
+  return pkg;
+} } }",
+    )
+    .await
+    .expect("install should succeed");
+
+    let content =
+        std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+    let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse pnpm-lock.yaml");
+    let root_deps = lockfile
+        .root_project()
+        .expect("root importer recorded")
+        .dependencies
+        .as_ref()
+        .expect("dependencies map");
+    let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/pkg-with-1-dep").unwrap();
+    let recorded = root_deps.get(&key).expect("pkg-with-1-dep recorded at root");
+    dbg!(recorded);
+    assert_eq!(recorded.specifier, "100.0.0");
+    assert_eq!(recorded.version.to_string(), "100.0.0");
+
+    drop((dir, registry));
+}
+
 // A `readPackage` hook that does not return the modified package
 // manifest makes the installation fail.
 #[tokio::test]

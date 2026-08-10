@@ -1675,7 +1675,7 @@ fn collect_prefetch_cache_keys_from_graph(
 /// `context.log(message)` call emits a `pnpm:hook` event through the
 /// install's reporter, carrying the project `prefix`, the pnpmfile path
 /// (`from`), and the hook name.
-fn hook_log_fn<Reporter: self::Reporter>(
+pub(crate) fn hook_log_fn<Reporter: self::Reporter>(
     prefix: &Path,
     from: &Path,
     hook: &'static str,
