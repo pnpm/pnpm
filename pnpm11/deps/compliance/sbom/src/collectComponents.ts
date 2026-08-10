@@ -337,11 +337,13 @@ export function resolveWorkspaceDeps (
  * recorded on one is not a checksum and is never published as one.
  *
  * Read from an untyped lockfile, so the shape is probed rather than trusted:
- * a non-object resolution must not throw, and a non-string integrity must not
- * reach `ssri.parse` downstream.
+ * reading a checksum out of a malformed resolution yields nothing instead of
+ * throwing, and a non-string integrity never reaches `ssri.parse` downstream.
+ * (A malformed resolution still fails the walk further along, in
+ * `pkgSnapshotToResolution` — this only keeps the checksum lookup total.)
  */
 function verifiedIntegrity (resolution: LockfileResolution): string | undefined {
-  const { type, integrity } = resolution as { type?: string, integrity?: unknown }
+  const { type, integrity } = (resolution ?? {}) as { type?: string, integrity?: unknown }
   if (typeof integrity !== 'string') return undefined
   return (type === undefined || type === 'binary') ? integrity : undefined
 }
