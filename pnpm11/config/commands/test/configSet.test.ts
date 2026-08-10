@@ -1199,7 +1199,9 @@ test('config delete clears a refused setting from the global config.yaml', async
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'config.yaml'), "configDir: /tmp/somewhere\nstoreDir: '~/store'\n")
+  // The hand-written spelling, which the delete has to clear rather than only
+  // the normalised one.
+  fs.writeFileSync(path.join(configDir, 'config.yaml'), "config-dir: /tmp/somewhere\nstoreDir: '~/store'\n")
 
   await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
@@ -1207,7 +1209,7 @@ test('config delete clears a refused setting from the global config.yaml', async
     configDir,
     global: true,
     authConfig: {},
-  }), ['delete', 'config-dir'])
+  }), ['delete', 'configDir'])
 
   expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toEqual({ storeDir: '~/store' })
 })

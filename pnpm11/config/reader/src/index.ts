@@ -517,12 +517,6 @@ export async function getConfig (opts: {
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
-          // Machine-level, so it keeps the settings a project may not choose
-          // but the global config file does take — `stateDir` and friends. The
-          // rest name a location or a credential the reader derives, which no
-          // file supplies. No warning: nothing reports on this file, and the
-          // wording names a project's manifest.
-          skipSettings: GLOBAL_CONFIG_SKIPPED_SETTINGS,
           workspaceDir: pnpmConfig.globalPkgDir,
           workspaceManifest,
         })

@@ -60,9 +60,11 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       const castValue = castField(value, kebabCase(key))
       const isRemovingRefusedSetting = castValue == null && isProjectManifestSkippedSetting(camelCase(key))
       // The reader warns about these in the global config file too, so a
-      // removal has to be able to clear what it named there as well.
-      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME && !isRemovingRefusedSetting) {
-        key = validateYamlConfigKey(key)
+      // removal has to be able to clear what it named there as well. It still
+      // needs the same normalisation, or the alternate spelling below is never
+      // cleared and the entry survives the delete.
+      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
+        key = isRemovingRefusedSetting ? kebabCase(key) : validateYamlConfigKey(key)
       }
       const writtenKey = validateWorkspaceKey(key)
       if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
