@@ -845,7 +845,6 @@ where
 {
     link_bins_of_packages_with_excludes::<Sys>(packages, global_bin_dir, bins_to_skip, &[])
         .map_err(miette::Report::new)
-        .map(|_| ())
 }
 
 struct PublicationFixture {
