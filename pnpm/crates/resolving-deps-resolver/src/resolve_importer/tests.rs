@@ -811,12 +811,34 @@ async fn auto_install_does_not_install_when_no_intersection() {
 fn repeated_consumer_ranges_merge_into_the_unique_intersection() {
     let react = "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc";
     let narrower = "^18.0.0 || ^19.0.0";
-    let merged = ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0||>=19.0.0 <20.0.0-0";
+    let merged = ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0";
 
     assert_eq!(merge_ranges(&[react, narrower], false).as_deref(), Some(merged));
 
     let mut repeated = vec![react; 10];
     repeated.push(narrower);
+
+    assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(merged));
+}
+
+/// Deduplication alone only sees ranges that are spelled identically.
+/// Consumers reach the same peer through spellings that differ, and each
+/// one that survives into the union multiplies the next intersection, so
+/// the merged range has to stay bounded across them too.
+#[test]
+fn differently_spelled_equivalent_ranges_do_not_grow_the_merged_range() {
+    let spellings = [
+        "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+        "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc",
+        ">=16.8 <17 || >=17 <18 || >=18 <19 || >=19 <20 || ^19.0.0-rc",
+        "16.8 - 16.x || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+    ];
+    let merged =
+        ">=16.8.0 <17.0.0-0||>=17.0.0 <18.0.0-0||>=18.0.0 <19.0.0-0||>=19.0.0-rc <20.0.0-0";
+
+    assert_eq!(merge_ranges(&spellings, false).as_deref(), Some(merged));
+
+    let repeated: Vec<&str> = spellings.iter().cycle().copied().take(200).collect();
 
     assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(merged));
 }
@@ -879,10 +901,7 @@ async fn a_peer_reported_once_per_path_is_hoisted_through_one_intersection() {
         ),
     );
     table.insert(
-        (
-            "react".to_string(),
-            ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0||>=19.0.0 <20.0.0-0".to_string(),
-        ),
+        ("react".to_string(), ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0".to_string()),
         fake_result("react", "19.0.0", serde_json::json!({ "name": "react", "version": "19.0.0" })),
     );
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };

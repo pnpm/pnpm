@@ -1063,10 +1063,9 @@ fn partition_missing_peers(
 /// `||`-join under `auto_install_peers_from_highest_match` — or `None`,
 /// dropping the peer on an unresolvable conflict.
 ///
-/// Only the unique ranges reach [`intersect_ranges`]. It intersects two
-/// unions as their Cartesian product without collapsing equivalent
-/// alternatives, so re-intersecting a range already folded in doubles
-/// the alternative count instead of leaving it unchanged.
+/// Only the unique ranges reach [`intersect_ranges`]: folding a range in
+/// a second time cannot narrow the result, and every pass costs another
+/// Cartesian product over the alternatives.
 fn merge_ranges(ranges: &[&str], auto_install_peers_from_highest_match: bool) -> Option<String> {
     if ranges.len() == 1 {
         return Some(ranges[0].to_string());
@@ -1094,9 +1093,48 @@ fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     let mut iter = ranges.iter();
     let first = Range::parse(iter.next()?).ok()?;
     iter.try_fold(first, |acc, range| {
-        Range::parse(range).ok().and_then(|range| acc.intersect(&range))
+        Range::parse(range)
+            .ok()
+            .and_then(|range| acc.intersect(&range))
+            .map(|intersection| collapse_covered_alternatives(&intersection))
     })
     .map(|range| range.to_string())
+}
+
+/// Drop the alternatives of a union that another alternative already
+/// covers, leaving the same set of versions behind.
+///
+/// [`Range::intersect`] pairs every alternative of one union with every
+/// alternative of the other, so an alternative two consumers agree on
+/// survives once per pair and the next intersection multiplies that
+/// count again. `semver-range-intersect` collapses the union upstream,
+/// which is why the growth is pacquet's alone.
+fn collapse_covered_alternatives(range: &Range) -> Range {
+    let rendered = range.to_string();
+    let alternatives: Vec<&str> = rendered.split("||").collect();
+    if alternatives.len() < 2 {
+        return range.clone();
+    }
+    let Some(parsed) = alternatives
+        .iter()
+        .map(|alternative| Range::parse(alternative).ok())
+        .collect::<Option<Vec<Range>>>()
+    else {
+        return range.clone();
+    };
+    let mut kept: Vec<&str> = Vec::with_capacity(alternatives.len());
+    for (index, alternative) in parsed.iter().enumerate() {
+        // Of two alternatives that cover each other, only the first is kept.
+        let covered = parsed.iter().enumerate().any(|(other_index, other)| {
+            other_index != index
+                && other.allows_all(alternative)
+                && (other_index < index || !alternative.allows_all(other))
+        });
+        if !covered {
+            kept.push(alternatives[index]);
+        }
+    }
+    Range::parse(kept.join("||")).unwrap_or_else(|_| range.clone())
 }
 
 /// `link:` / `file:` and the path form of `workspace:` name a directory
