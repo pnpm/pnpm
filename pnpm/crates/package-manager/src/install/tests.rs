@@ -9991,7 +9991,7 @@ async fn read_package_hook_rewrites_a_workspace_member_own_specifier() {
     assert_eq!(
         member_dependency(&read_lockfile()),
         recorded,
-        "the repeat install rewrites nothing"
+        "the repeat install rewrites nothing",
     );
 
     drop((dir, registry));
