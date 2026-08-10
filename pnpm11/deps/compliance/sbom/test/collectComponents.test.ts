@@ -151,3 +151,40 @@ describe('collectSbomComponents integrity', () => {
     expect(binary!.integrity).toBe('sha512-CCCC')
   })
 })
+
+describe('verifiedIntegrity robustness', () => {
+  /**
+   * Lockfiles are untyped YAML, so `pnpm sbom` must survive a resolution
+   * that is not the shape the types promise rather than crashing on it.
+   */
+  it.each([
+    ['a non-object resolution', 'not-an-object'],
+    ['a non-string integrity', { integrity: 12345 }],
+    ['a non-string integrity on a binary resolution', { type: 'binary', integrity: 12345 }],
+  ])('should omit the checksum for %s', async (_label, resolution) => {
+    const lockfile = {
+      lockfileVersion: '9.1',
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      packages: {
+        ['foo@1.0.0' as DepPath]: { resolution },
+      },
+    } as unknown as LockfileObject
+
+    const { components } = await collectSbomComponents({
+      lockfile,
+      rootName: 'root',
+      rootVersion: '1.0.0',
+      registries,
+      namedRegistries: normalizeNamedRegistries(undefined),
+      lockfileDir: '/test',
+      lockfileOnly: true,
+    })
+
+    expect(components.find((component) => component.name === 'foo')?.integrity).toBeUndefined()
+  })
+})

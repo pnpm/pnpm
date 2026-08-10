@@ -191,16 +191,6 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
   }
 }
 
-/**
- * The resolution's integrity, but only where pnpm verifies the downloaded
- * bytes against it — so an SBOM never publishes a checksum as an assurance
- * pnpm did not make. See the call site for why a git resolution's is not one.
- */
-function verifiedIntegrity (resolution: LockfileResolution): string | undefined {
-  if (!('type' in resolution)) return (resolution as TarballResolution).integrity
-  return resolution.type === 'binary' ? resolution.integrity : undefined
-}
-
 async function walkStep (
   step: LockfileWalkerStep,
   parentPurl: string,
@@ -243,13 +233,6 @@ async function walkStep (
 
       if (componentsMap.has(purl)) return
 
-      // A component checksum is published only when pnpm checks the
-      // downloaded bytes against it: the tarball/registry hash, and a
-      // `type: binary` runtime archive's. A typed resolution that merely
-      // carries an `integrity` — a `type: git` entry some other tool
-      // stamped one onto — was never checked against it, and an SBOM
-      // checksum reads as an assurance. Mirrors `integrity_string` in the
-      // Rust CLI's `sbom.rs`.
       const integrity = verifiedIntegrity(pkgSnapshot.resolution)
       const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
       const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
@@ -345,4 +328,20 @@ export function resolveWorkspaceDeps (
   }
 
   return { links, additionalImporterIds }
+}
+
+/**
+ * The resolution's integrity, but only where pnpm verifies the downloaded
+ * bytes against it: the tarball/registry hash and a `type: binary` runtime
+ * archive's. Nothing checks a git checkout against a hash, so an `integrity`
+ * recorded on one is not a checksum and is never published as one.
+ *
+ * Read from an untyped lockfile, so the shape is probed rather than trusted:
+ * a non-object resolution must not throw, and a non-string integrity must not
+ * reach `ssri.parse` downstream.
+ */
+function verifiedIntegrity (resolution: LockfileResolution): string | undefined {
+  const { type, integrity } = resolution as { type?: string, integrity?: unknown }
+  if (typeof integrity !== 'string') return undefined
+  return (type === undefined || type === 'binary') ? integrity : undefined
 }
