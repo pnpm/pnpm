@@ -148,8 +148,11 @@ fn build_rewrite_plan(
             return None;
         }
         let name = PkgName::parse(&parsed.target_pkg.name).ok()?;
-        let new_version =
-            if removes_dependency { None } else { Some(Version::parse(new_value).ok()?) };
+        let new_version = if removes_dependency {
+            None
+        } else {
+            Some(overridden_version(lockfile, &name, new_value)?)
+        };
         overrides.push(FastOverride {
             name,
             new_version,
@@ -166,6 +169,26 @@ fn build_rewrite_plan(
     }
 
     build_replacement_plan(lockfile, overrides)
+}
+
+/// The version an override moves its target to.
+///
+/// An exact value names it outright. A range names whichever version
+/// resolution would settle on, which is the highest already-locked one
+/// that satisfies it: `preferredVersions` makes the resolver reuse a
+/// version the graph already holds rather than the highest published.
+/// `None` when the range matches nothing locked, since only the resolver
+/// can fetch a version that is not there.
+fn overridden_version(lockfile: &Lockfile, name: &PkgName, value: &str) -> Option<Version> {
+    if let Ok(version) = Version::parse(value) {
+        return Some(version);
+    }
+    let range = Range::parse(value).ok()?;
+    crate::fast_update_importers::highest_locked_version_satisfying(
+        lockfile.packages.as_ref(),
+        name,
+        &range,
+    )
 }
 
 /// Work out which locked packages each entry of `overrides` moves, and

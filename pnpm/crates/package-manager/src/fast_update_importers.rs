@@ -204,7 +204,7 @@ fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> bool {
 /// `None` when nothing present satisfies (only the resolver can fetch a
 /// new version), or when a candidate exists under several peer-suffixed
 /// keys, where picking one of them would be a guess.
-fn highest_locked_version_satisfying(
+pub(crate) fn highest_locked_version_satisfying(
     packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
     alias: &PkgName,
     range: &Range,
