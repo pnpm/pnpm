@@ -783,7 +783,12 @@ export async function mutateModules (
       ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
       !isEmptyLockfile(ctx.wantedLockfile) &&
       (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
-      ctx.wantedLockfile.time == null
+      // `time` records publish dates for the importers' direct dependencies
+      // and is pruned back to them whenever the lockfile is written, so a
+      // rewrite that introduces no new version needs no maintenance of it.
+      // The resolver-consulting rewrites do introduce versions, whose dates
+      // only a resolution can record.
+      (ctx.wantedLockfile.time == null || asyncChangedSetting == null)
     if (canTryFastUpdateLockfile) {
       await verifyLockfilePromise
       const overridesUseCatalogs = Object.values(opts.overrides)
