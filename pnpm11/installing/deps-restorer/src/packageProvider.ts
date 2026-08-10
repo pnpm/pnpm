@@ -156,8 +156,12 @@ async function invokeProvider (packageProvider: string, request: unknown): Promi
     // stderr is inherited so provider/Nix build output reaches the user.
     const child = spawn(packageProvider, [], { stdio: ['pipe', 'pipe', 'inherit'] })
     let output = ''
+    // A StringDecoder holds multi-byte UTF-8 sequences split across
+    // chunk boundaries; decoding each chunk independently would corrupt
+    // non-ASCII package names and paths in large responses.
+    child.stdout.setEncoding('utf8')
     child.stdout.on('data', (chunk) => {
-      output += chunk.toString()
+      output += chunk
     })
     child.on('error', (err) => {
       reject(new PnpmError('PACKAGE_PROVIDER_FAILED', `Cannot run the package provider at "${packageProvider}": ${err.message}`))

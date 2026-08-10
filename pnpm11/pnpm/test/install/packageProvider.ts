@@ -1,5 +1,4 @@
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test as jestTest } from '@jest/globals'
@@ -36,14 +35,26 @@ process.stdin.on('end', () => {
 
 test('the CLI reads packageProvider from pnpm-workspace.yaml and materializes through it', async () => {
   prepare()
-  const providerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fake-package-provider-'))
-  const providerBin = path.join(providerDir, 'provider.js')
-  fs.writeFileSync(providerBin, FAKE_PROVIDER, { mode: 0o755 })
+  // A workspace-relative, path-shaped value: it must resolve against the
+  // pnpm-workspace.yaml directory, not the process working directory.
+  const providerDir = path.resolve('provider')
+  fs.mkdirSync(providerDir)
+  fs.writeFileSync(path.join(providerDir, 'provider.js'), FAKE_PROVIDER, { mode: 0o755 })
   writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
-    packageProvider: providerBin,
+    packageProvider: './provider/provider.js',
   })
 
-  await execPnpm(['add', 'is-positive@1.0.0'])
+  // Run from a nested directory so a regression that resolves the
+  // path-shaped value against the process directory instead of the
+  // workspace root cannot pass.
+  const workspaceDir = process.cwd()
+  fs.mkdirSync('nested')
+  process.chdir('nested')
+  try {
+    await execPnpm(['add', 'is-positive@1.0.0'])
+  } finally {
+    process.chdir(workspaceDir)
+  }
 
   const link = fs.readlinkSync(path.join('node_modules', 'is-positive'))
   expect(path.isAbsolute(link)).toBeTruthy()

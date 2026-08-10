@@ -2,6 +2,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
 
+// Junctions need no privileges on Windows and store absolute targets
+// natively; the type is ignored on POSIX.
+const SYMLINK_TYPE = 'junction'
+
 /**
  * Creates a symlink whose stored target is the absolute `target` path, unlike
  * `symlink-dir` which always relativizes. Used for links into externally
@@ -18,13 +22,13 @@ export async function forceAbsoluteSymlink (
   opts?: { overwrite?: boolean }
 ): Promise<{ reused: boolean }> {
   try {
-    await fs.symlink(target, link, 'dir')
+    await fs.symlink(target, link, SYMLINK_TYPE)
     return { reused: false }
   } catch (err: unknown) {
     if (!util.types.isNativeError(err) || !('code' in err)) throw err
     if (err.code === 'ENOENT') {
       await fs.mkdir(path.dirname(link), { recursive: true })
-      await fs.symlink(target, link, 'dir')
+      await fs.symlink(target, link, SYMLINK_TYPE)
       return { reused: false }
     }
     if (err.code !== 'EEXIST' || opts?.overwrite === false) throw err
@@ -41,6 +45,6 @@ export async function forceAbsoluteSymlink (
   } else {
     await fs.rm(link, { recursive: true, force: true })
   }
-  await fs.symlink(target, link, 'dir')
+  await fs.symlink(target, link, SYMLINK_TYPE)
   return { reused: false }
 }
