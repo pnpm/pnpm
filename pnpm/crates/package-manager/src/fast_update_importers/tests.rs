@@ -719,7 +719,7 @@ fn moves_a_widened_range_to_the_higher_version_another_importer_locks() {
     assert_eq!(
         packages,
         vec!["foo@1.2.0".to_string()],
-        "the version it left is unreachable and goes"
+        "the version it left is unreachable and goes",
     );
 }
 
