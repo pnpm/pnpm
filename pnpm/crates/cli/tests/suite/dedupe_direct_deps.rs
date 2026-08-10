@@ -426,16 +426,28 @@ fn removes_a_project_link_the_root_starts_providing() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let root_manifest_path = workspace.join("package.json");
-    fs::write(
-        &root_manifest_path,
-        serde_json::json!({
-            "name": "ws-root",
-            "version": "0.0.0",
-            "private": true,
-        })
-        .to_string(),
-    )
-    .expect("write root package.json");
+    let write_root_manifest = |dependencies: serde_json::Value| {
+        fs::write(
+            &root_manifest_path,
+            serde_json::json!({
+                "name": "ws-root",
+                "version": "0.0.0",
+                "private": true,
+                "dependencies": dependencies,
+            })
+            .to_string(),
+        )
+        .expect("write root package.json");
+    };
+    // `Path::exists` follows the link, so a leftover whose target the
+    // install also pruned would read as absent — stat the entry itself.
+    let assert_absent = |path: &Path, what: &str| match fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Ok(metadata) => panic!("{what} survived at {path:?} ({:?})", metadata.file_type()),
+        Err(error) => panic!("stat {path:?}: {error}"),
+    };
+
+    write_root_manifest(serde_json::json!({}));
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
@@ -467,35 +479,24 @@ fn removes_a_project_link_the_root_starts_providing() {
     let dup_bin = workspace.join("packages/dup/node_modules/.bin/hello-world-js-bin");
     assert!(dup_bin.exists(), "project bin shim missing at {dup_bin:?} before dedupe");
 
-    fs::write(
-        &root_manifest_path,
-        serde_json::json!({
-            "name": "ws-root",
-            "version": "0.0.0",
-            "private": true,
-            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
-        })
-        .to_string(),
-    )
-    .expect("rewrite root package.json");
-
+    write_root_manifest(serde_json::json!({ "@pnpm.e2e/hello-world-js-bin": "1.0.0" }));
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     let root_link = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     let root_link_linked = is_symlink_or_junction(&root_link).expect("query root symlink");
     eprintln!("root_link={root_link:?} linked={root_link_linked}");
     assert!(root_link_linked, "root node_modules direct-dep symlink missing");
+    assert_absent(&dup_link, "the project link the root made redundant");
+    assert_absent(&dup_bin, "the deduped dep's bin shim");
 
-    let dup_link_exists = dup_link.exists();
-    eprintln!("dup_link={dup_link:?} exists={dup_link_exists}");
-    assert!(
-        !dup_link_exists,
-        "the project link became redundant once the root declared the same resolution, but \
-         {dup_link:?} survived",
-    );
-    let dup_bin_exists = dup_bin.exists();
-    eprintln!("dup_bin={dup_bin:?} exists={dup_bin_exists}");
-    assert!(!dup_bin_exists, "the deduped dep's bin shim survived at {dup_bin:?}");
+    // Dropping the root's declaration hands the dep back to the project.
+    write_root_manifest(serde_json::json!({}));
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let dup_link_relinked = is_symlink_or_junction(&dup_link).expect("query relinked dup symlink");
+    eprintln!("dup_link={dup_link:?} linked={dup_link_relinked}");
+    assert!(dup_link_relinked, "project direct-dep symlink not restored at {dup_link:?}");
+    assert!(dup_bin.exists(), "project bin shim not restored at {dup_bin:?}");
 
     drop((root, mock_instance));
 }
