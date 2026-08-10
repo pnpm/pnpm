@@ -9850,9 +9850,149 @@ async fn read_package_hook_rewrites_the_project_own_specifier() {
         .expect("dependencies map");
     let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/pkg-with-1-dep").unwrap();
     let recorded = root_deps.get(&key).expect("pkg-with-1-dep recorded at root");
-    dbg!(recorded);
     assert_eq!(recorded.specifier, "100.0.0");
     assert_eq!(recorded.version.to_string(), "100.0.0");
+
+    drop((dir, registry));
+}
+
+/// Same as [`install_with_pnpmfile`] but for a workspace whose member
+/// carries the dependencies, so a hook rewriting a member's own
+/// specifier is exercised rather than only the root's.
+async fn install_workspace_member_with_pnpmfile(
+    registry_url: String,
+    root: &std::path::Path,
+    member_deps: &[(&str, &str)],
+    pnpmfile_src: &str,
+) -> Result<(), InstallError> {
+    let member_dir = root.join("packages/member");
+    std::fs::create_dir_all(&member_dir).unwrap();
+    std::fs::write(root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+
+    let dependencies: serde_json::Map<_, _> = member_deps
+        .iter()
+        .map(|(name, spec)| ((*name).to_string(), serde_json::Value::from(*spec)))
+        .collect();
+    std::fs::write(
+        member_dir.join("package.json"),
+        serde_json::json!({
+            "name": "member",
+            "version": "1.0.0",
+            "dependencies": dependencies,
+        })
+        .to_string(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("package.json"),
+        serde_json::json!({ "name": "workspace-root", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+    let manifest = PackageManifest::from_path(root.join("package.json")).unwrap();
+
+    std::fs::write(root.join(".pnpmfile.cjs"), pnpmfile_src).unwrap();
+
+    let modules_dir = root.join("node_modules");
+    let mut config = Config::new();
+    config.workspace_dir = Some(root.to_path_buf());
+    config.store_dir = root.join("pacquet-store").into();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.modules_dir = modules_dir;
+    config.registry = registry_url;
+    let config = config.leak();
+
+    let http_client = Default::default();
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallWorkspace,
+        installs_only: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        persist_policy_excludes: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+}
+
+// The hook rewrites a workspace *member*'s own dependency range. The
+// member's importer entry has to follow the hook exactly as the root's
+// does, and a second install must stay frozen against what the first
+// recorded rather than reading the raw range back off `package.json`.
+#[tokio::test]
+async fn read_package_hook_rewrites_a_workspace_member_own_specifier() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let pnpmfile = r"module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.dependencies && pkg.dependencies['@pnpm.e2e/pkg-with-1-dep']) {
+    pkg.dependencies['@pnpm.e2e/pkg-with-1-dep'] = '100.0.0';
+  }
+  return pkg;
+} } }";
+
+    install_workspace_member_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "^100.0.0")],
+        pnpmfile,
+    )
+    .await
+    .expect("install should succeed");
+
+    let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/pkg-with-1-dep").unwrap();
+    let member_dependency = |lockfile: &Lockfile| {
+        lockfile.importers["packages/member"].dependencies.as_ref().expect("member dependencies")
+            [&key]
+            .clone()
+    };
+    let read_lockfile = || {
+        let content = std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME))
+            .expect("read pnpm-lock.yaml");
+        serde_saphyr::from_str::<Lockfile>(&content).expect("parse pnpm-lock.yaml")
+    };
+
+    let recorded = member_dependency(&read_lockfile());
+    assert_eq!(recorded.specifier, "100.0.0");
+    assert_eq!(recorded.version.to_string(), "100.0.0");
+
+    install_workspace_member_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "^100.0.0")],
+        pnpmfile,
+    )
+    .await
+    .expect("the repeat install must not see the raw range as drift");
+    assert_eq!(
+        member_dependency(&read_lockfile()),
+        recorded,
+        "the repeat install rewrites nothing"
+    );
 
     drop((dir, registry));
 }
