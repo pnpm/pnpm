@@ -48,6 +48,26 @@ async fn integrity_of(
     }
 }
 
+/// Resolve `name@version` against the mock registry and return the tarball
+/// URL its packument advertises, so a test can assert on the whole URL
+/// without hard-coding the registry's path layout.
+async fn tarball_url_of(
+    resolver: &NpmResolver<InMemoryPackageMetaCache>,
+    name: &str,
+    version: &str,
+) -> String {
+    let wanted = WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(version.to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    match result.resolution {
+        LockfileResolution::Tarball(tarball) => tarball.tarball,
+        other => panic!("unexpected resolution: {other:?}"),
+    }
+}
+
 /// Build an npm resolver pointing at the in-process mock registry.
 fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, TempDir) {
     let cache_dir = TempDir::new().unwrap();
@@ -1033,6 +1053,7 @@ async fn takes_old_format_tarball_url_from_the_packument() {
     let root = TempDir::new().unwrap();
 
     let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
+    let advertised_tarball = tarball_url_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
     let mut config_deps = BTreeMap::new();
     config_deps.insert(
         "@pnpm.e2e/foo".to_string(),
@@ -1054,10 +1075,7 @@ async fn takes_old_format_tarball_url_from_the_packument() {
     let LockfileResolution::Tarball(tarball) = resolution else {
         panic!("expected the tarball URL the packument advertises to be recorded");
     };
-    assert!(
-        tarball.tarball.starts_with(&harness.registry_url),
-        "tarball URL comes from the packument, not from the configured registry",
-    );
+    assert_eq!(tarball.tarball, advertised_tarball);
     assert_eq!(tarball.integrity.as_ref().unwrap().to_string(), integrity);
 }
 

@@ -255,7 +255,9 @@ test('takes the tarball of an old-format config dep from the packument', async (
   prepareEmpty()
   const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
 
+  let advertisedTarball = ''
   await withNonDerivableTarballRegistry(async (registryUrl) => {
+    advertisedTarball = `${registryUrl}tarballs/@pnpm.e2e/foo/-/foo-100.0.0.tgz`
     await resolveAndInstallConfigDeps({
       '@pnpm.e2e/foo': `100.0.0+${integrity}`,
     }, createOpts(registryUrl))
@@ -268,7 +270,7 @@ test('takes the tarball of an old-format config dep from the packument', async (
   const envLockfile = await readEnvLockfile(process.cwd())
   expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0'].resolution).toStrictEqual({
     integrity,
-    tarball: expect.stringContaining('/tarballs/@pnpm.e2e/foo/-/foo-100.0.0.tgz'),
+    tarball: advertisedTarball,
   })
 })
 
