@@ -15,16 +15,14 @@ jest.unstable_mockModule('@pnpm/worker', () => ({
 
 const { buildModules } = await import('../lib/index.js')
 
-// hardLinkDir() runs on a worker thread, and the cwd is process-wide: applyPatchToDir()
-// switches the cwd to the package it patches, so a worker resolving a relative
-// destination during that window resolves it against the wrong directory. That surfaced as
-// intermittent ERR_PNPM_ENOENT/ENOTEMPTY renames of `_tmp_*` under nodeLinker=hoisted.
+// A relative destination would race with applyPatchToDir()'s process-wide cwd switch —
+// see the comment in buildDependency().
 test('the hoisted locations passed to hardLinkDir are absolute', async () => {
-  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-hoisted-'))
+  const lockfileDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-hoisted-'))
   try {
     await runInstall(lockfileDir)
   } finally {
-    fs.rmSync(lockfileDir, { recursive: true, force: true })
+    await fs.promises.rm(lockfileDir, { recursive: true, force: true })
   }
 })
 
@@ -35,8 +33,8 @@ async function runInstall (lockfileDir: string): Promise<void> {
   const currentHoistedLocation = path.join('node_modules', 'foo')
   const otherHoistedLocation = path.join('node_modules', 'bar', 'node_modules', 'foo')
   const pkgDir = path.join(lockfileDir, currentHoistedLocation)
-  fs.mkdirSync(pkgDir, { recursive: true })
-  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'foo', version: '1.0.0' }))
+  await fs.promises.mkdir(pkgDir, { recursive: true })
+  await fs.promises.writeFile(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'foo', version: '1.0.0' }))
 
   const depGraph = {
     'foo@1.0.0': {
