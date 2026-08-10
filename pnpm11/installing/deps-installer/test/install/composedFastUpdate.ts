@@ -46,6 +46,33 @@ test('a group move and a settings change are absorbed in one pass', () => {
   expect(subject.settings).toStrictEqual({ autoInstallPeers: false, excludeLinksFromLockfile: false })
 })
 
+test('a peer setting is absorbed once the removal drops the last peer dependent', () => {
+  const subject = lockfile()
+  subject.settings = { autoInstallPeers: true, excludeLinksFromLockfile: false }
+  subject.importers['.' as ProjectId].dependencies!.withpeer = '6.0.0'
+  subject.importers['.' as ProjectId].specifiers.withpeer = '^6.0.0'
+  subject.packages!['withpeer@6.0.0' as DepPath] = {
+    resolution: { integrity: 'sha512-withpeer' },
+    peerDependencies: { foo: '^1.0.0' },
+  }
+
+  expect(tryComposeFastUpdates(subject, {
+    drift: { importers: true, settings: true },
+    projects: [project({
+      dependencies: { foo: '^1.0.0', bar: '^2.0.0' },
+      optionalDependencies: { opt: '^5.0.0' },
+    })],
+    settings: {
+      changedSettings: ['settings.autoInstallPeers'],
+      projects: [],
+      settings: { autoInstallPeers: false, excludeLinksFromLockfile: false },
+      workspacePackages: new Map(),
+    },
+  })).toBe(true)
+  expect(subject.settings).toStrictEqual({ autoInstallPeers: false, excludeLinksFromLockfile: false })
+  expect(subject.packages!['withpeer@6.0.0' as DepPath]).toBeUndefined()
+})
+
 test('a composed update falls back when one of its changes cannot be absorbed', () => {
   const subject = lockfile()
   subject.settings = { autoInstallPeers: true, excludeLinksFromLockfile: false }

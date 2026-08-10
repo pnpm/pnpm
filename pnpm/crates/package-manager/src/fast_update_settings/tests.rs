@@ -11,11 +11,10 @@ fn try_fast_update_settings(
     settings: &LockfileSettings,
     manifests: &[(PathBuf, &PackageManifest)],
 ) -> Option<Lockfile> {
-    match super::detect_settings_drift(lockfile, settings, manifests) {
+    match super::detect_settings_drift(lockfile, settings) {
         crate::fast_update_compose::Drift::Absorb(()) => {
             let mut candidate = lockfile.clone();
-            super::apply_settings_update(&mut candidate, settings);
-            Some(candidate)
+            super::apply_settings_update(&mut candidate, settings, manifests).then_some(candidate)
         }
         _ => None,
     }

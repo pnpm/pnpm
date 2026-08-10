@@ -11,11 +11,6 @@ import {
   hasChangedProjectSpecifiers,
   type Project as ImporterProject,
 } from '../../src/install/tryFastUpdateImporters.js'
-
-/** The composed pipeline restricted to manifest drift. */
-function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[]): boolean {
-  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects })
-}
 import { testDefaults } from '../utils/index.js'
 
 test('a dependency moved to another group is noticed as a change', () => {
@@ -220,4 +215,8 @@ function lockfile (): LockfileObject {
       ['child@3.0.0' as DepPath]: { resolution: { integrity: 'sha512-child' } },
     },
   }
+}
+/** The composed pipeline restricted to manifest drift. */
+function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[]): boolean {
+  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects })
 }

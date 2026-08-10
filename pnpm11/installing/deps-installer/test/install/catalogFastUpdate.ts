@@ -11,10 +11,6 @@ import type { Project } from '../../src/install/tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from '../../src/install/tryFastUpdateLockfile.js'
 import { testDefaults } from '../utils/index.js'
 
-/** The composed pipeline restricted to manifest drift. */
-function tryFastUpdateImporters (lockfile: LockfileObject, projects: Project[]): boolean {
-  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects })
-}
 
 test('a compatible package range update retains the locked peer snapshot without resolution', async () => {
   const project = prepareEmpty()
@@ -358,4 +354,8 @@ function trackRequestedPackages (storeController: StoreController): string[] {
     return requestPackage(wantedDependency, requestOptions)
   }
   return requestedPackages
+}
+/** The composed pipeline restricted to manifest drift. */
+function tryFastUpdateImporters (lockfile: LockfileObject, projects: Project[]): boolean {
+  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects })
 }

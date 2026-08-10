@@ -45,6 +45,7 @@ fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &HashSet<PkgNa
     let Some(snapshots) = lockfile.snapshots.as_ref() else {
         return true;
     };
+    let dropped_needles: Vec<String> = dropped.iter().map(|name| format!("{name}@")).collect();
     snapshots.keys().all(|key| {
         let peers = key.suffix.peer();
         peers.is_empty()
@@ -53,7 +54,7 @@ fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &HashSet<PkgNa
                 .trim_end_matches(')')
                 .split(")(")
                 .all(|segment| segment.contains('@'))
-                && !dropped.iter().any(|name| peers.contains(&format!("{name}@"))))
+                && !dropped_needles.iter().any(|needle| peers.contains(needle.as_str())))
     })
 }
 

@@ -728,12 +728,18 @@ export async function mutateModules (
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let didFastUpdateOverrides = false
     const contextProjects = Object.values(ctx.projects)
-    const hasChangedSpecifiers = hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects)
     const changedSettingsFields = changedLockfileSettings.filter(isSettingsField)
+    const allChangedFieldsAreComposable = changedLockfileSettings.every((field) =>
+      isSettingsField(field) || COMPOSABLE_CHANGED_FIELDS.has(field))
+    const changedFieldIsAsync = changedLockfileSettings.length === 1 &&
+      (changedLockfileSettings[0] === 'catalogs' || changedLockfileSettings[0] === 'overrides')
+    // A changed field nothing can absorb forces a resolution, so the
+    // workspace-wide specifier scan would be wasted.
+    const hasChangedSpecifiers = (allChangedFieldsAreComposable || changedFieldIsAsync) &&
+      hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects)
     // The async rewrites (catalogs, overrides) consult the resolver and stay
     // outside the composed pipeline, so they require being the only change.
-    const asyncChangedSetting = changedLockfileSettings.length === 1 && !hasChangedSpecifiers &&
-      (changedLockfileSettings[0] === 'catalogs' || changedLockfileSettings[0] === 'overrides')
+    const asyncChangedSetting = changedFieldIsAsync && !hasChangedSpecifiers
       ? changedLockfileSettings[0]
       : null
     const syncDrift = {
@@ -744,8 +750,7 @@ export async function mutateModules (
     }
     const composableSyncDrift =
       (hasChangedSpecifiers || changedLockfileSettings.length > 0) &&
-      changedLockfileSettings.every((field) =>
-        isSettingsField(field) || COMPOSABLE_CHANGED_FIELDS.has(field))
+      allChangedFieldsAreComposable
     const canTryFastUpdateLockfile =
       (asyncChangedSetting != null || composableSyncDrift) &&
       !frozenLockfile &&

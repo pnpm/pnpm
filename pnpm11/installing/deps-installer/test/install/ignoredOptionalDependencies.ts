@@ -10,17 +10,6 @@ import {
   testDefaults,
 } from '../utils/index.js'
 
-/** The composed pipeline restricted to `ignoredOptionalDependencies` drift. */
-function tryFastUpdateIgnoredOptionalDependencies (
-  lockfile: LockfileObject,
-  ignoredOptionalDependencies: string[]
-): boolean {
-  return tryComposeFastUpdates(lockfile, {
-    drift: { ignoredOptionalDependencies: true },
-    projects: [],
-    ignoredOptionalDependencies,
-  })
-}
 
 test('ignoredOptionalDependencies causes listed optional dependencies to be skipped', async () => {
   const project = prepareEmpty()
@@ -231,4 +220,15 @@ function trackRequestedPackages (storeController: StoreController): string[] {
     return requestPackage(wantedDependency, requestOptions)
   }
   return requestedPackages
+}
+/** The composed pipeline restricted to `ignoredOptionalDependencies` drift. */
+function tryFastUpdateIgnoredOptionalDependencies (
+  lockfile: LockfileObject,
+  ignoredOptionalDependencies: string[]
+): boolean {
+  return tryComposeFastUpdates(lockfile, {
+    drift: { ignoredOptionalDependencies: true },
+    projects: [],
+    ignoredOptionalDependencies,
+  })
 }

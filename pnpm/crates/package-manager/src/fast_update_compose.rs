@@ -16,27 +16,17 @@ pub(crate) enum Drift<Plan> {
     Resolve,
 }
 
-/// Rewrite the loaded lockfile in place of a full resolution for the
-/// drift the lockfile itself proves is safe to absorb, composing every
-/// applicable handler onto one candidate: manifest drift (compatible
-/// range changes, dependency group moves, removals), a widened
-/// `ignoredOptionalDependencies`, a changed `patchedDependencies`, and
-/// a setting change that cannot affect the recorded graph. Drift that
-/// spans several of those dimensions at once is absorbed in one pass —
-/// no handler requires being the only change.
-///
-/// The handlers run in a fixed order. Removals land first (manifest
-/// drift, then newly ignored optional dependencies), then the shared
-/// epilogue prunes what nothing reaches and refuses candidates whose
-/// surviving peer suffixes embed a dropped package. Patches rekey after
-/// that, so the unused-patch guard and the rekey plan see the packages
-/// a full resolution would see. The settings block, which touches no
-/// graph, is recorded last.
+/// Rewrite the loaded lockfile in place of a full resolution, composing
+/// every handler with absorbable drift onto one shared candidate — no
+/// handler requires being the only change. Removals apply first, then
+/// the shared graph epilogue
+/// ([`crate::fast_update_lockfile::finish_graph_edits`]), then patch
+/// rekeying — after the prune, so its guards see the packages a full
+/// resolution would see — and the settings block last.
 ///
 /// `None` — no drift, or drift some handler cannot express — leaves the
-/// caller on the full-resolution path. The caller still validates the
-/// candidate with the lockfile freshness gates before committing, so a
-/// handler that rewrites too much falls back rather than corrupting.
+/// caller on the full-resolution path; the caller still validates the
+/// candidate with the freshness gates before committing.
 pub(crate) fn try_compose_fast_updates(
     lockfile: &Lockfile,
     manifests: &[(String, &PackageManifest)],
@@ -65,14 +55,11 @@ pub(crate) fn try_compose_fast_updates(
             Drift::Resolve => return None,
             drift => drift,
         };
-    let settings_drift = match crate::fast_update_settings::detect_settings_drift(
-        lockfile,
-        &settings,
-        project_manifests,
-    ) {
-        Drift::Resolve => return None,
-        drift => drift,
-    };
+    let settings_drift =
+        match crate::fast_update_settings::detect_settings_drift(lockfile, &settings) {
+            Drift::Resolve => return None,
+            drift => drift,
+        };
     if matches!(
         (&importers, &ignored, &patched, &settings_drift),
         (Drift::Clean, Drift::Clean, Drift::Clean, Drift::Clean),
@@ -106,8 +93,14 @@ pub(crate) fn try_compose_fast_updates(
     {
         return None;
     }
-    if matches!(settings_drift, Drift::Absorb(())) {
-        crate::fast_update_settings::apply_settings_update(&mut candidate, &settings);
+    if matches!(settings_drift, Drift::Absorb(()))
+        && !crate::fast_update_settings::apply_settings_update(
+            &mut candidate,
+            &settings,
+            project_manifests,
+        )
+    {
+        return None;
     }
     Some(candidate)
 }

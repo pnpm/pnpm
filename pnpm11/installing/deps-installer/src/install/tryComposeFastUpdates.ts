@@ -47,25 +47,15 @@ export interface ComposeFastUpdatesOptions {
 }
 
 /**
- * Rewrite `candidate` in place of a full resolution for the drift the
- * lockfile itself proves is safe to absorb, composing every applicable
- * handler onto the one candidate: manifest drift (compatible range changes,
- * dependency group moves, removals), a widened `ignoredOptionalDependencies`,
- * a changed `patchedDependencies`, and a setting change that cannot affect
- * the recorded graph. Drift that spans several of those dimensions at once is
- * absorbed in one pass — no handler requires being the only change.
- *
- * The handlers run in a fixed order. Removals land first (manifest drift,
- * then newly ignored optional dependencies), then the shared epilogue prunes
- * what nothing reaches and refuses candidates whose surviving peer suffixes
- * embed a dropped package. Patches rekey after that, so the unused-patch
- * guard and the rekey plan see the packages a full resolution would see. The
- * settings block, which touches no graph, is recorded last.
+ * Rewrite `candidate` in place of a full resolution, composing every handler
+ * with absorbable drift onto the one candidate — no handler requires being
+ * the only change. Removals apply first, then the shared graph epilogue
+ * (`finishGraphEdits`), then patch rekeying — after the prune, so its guards
+ * see the packages a full resolution would see — and the settings block last.
  *
  * `false` — drift some handler cannot express — leaves the caller on the
  * full-resolution path; `candidate` may be partially rewritten by then, which
- * the coordinator's discard-on-failure makes safe. The caller still validates
- * the candidate with the freshness gates before committing.
+ * the coordinator's discard-on-failure makes safe.
  */
 export function tryComposeFastUpdates (
   candidate: LockfileObject,
@@ -123,6 +113,7 @@ function finishGraphEdits (candidate: LockfileObject, edits: GraphEdits): boolea
  * out.
  */
 function peerSuffixesAreIndependentOf (lockfile: LockfileObject, dropped: Set<string>): boolean {
+  const droppedNeedles = [...dropped].map((alias) => `${alias}@`)
   return Object.keys(lockfile.packages ?? {}).every((depPath) => {
     const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
     if (peersIndex === -1) return true
@@ -132,6 +123,6 @@ function peerSuffixesAreIndependentOf (lockfile: LockfileObject, dropped: Set<st
       .replace(/\)$/, '')
       .split(')(')
       .every((segment) => segment.includes('@')) &&
-      ![...dropped].some((alias) => peers.includes(`${alias}@`))
+      !droppedNeedles.some((needle) => peers.includes(needle))
   })
 }
