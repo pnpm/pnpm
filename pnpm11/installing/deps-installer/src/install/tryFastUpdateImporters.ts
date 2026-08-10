@@ -52,8 +52,6 @@ export function tryFastUpdateImporters (
       return false
     }
     for (const importerId of stale) {
-      // The project is gone, so every edge it held goes with it; whatever
-      // that orphans is the shared epilogue's to prune.
       for (const alias of Object.keys(lockfile.importers[importerId].specifiers)) {
         edits.dropped.add(alias)
       }

@@ -63,6 +63,24 @@ test('a dependency the dropped package shared with a survivor stays', async () =
   })
 })
 
+test('the fast path writes the lockfile a full resolution would', async () => {
+  const { install, readLockfile } = prepareWorkspace()
+  const initial: WorkspaceProject[] = [
+    { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } },
+    { name: 'project-2', dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } },
+  ]
+  const surviving = initial.slice(0, 1)
+
+  await install(initial)
+  await install(surviving)
+  const fastUpdated = readLockfile()
+
+  await install(initial)
+  await install(surviving, { forceFullResolution: true })
+
+  expect(fastUpdated).toStrictEqual(readLockfile())
+})
+
 interface WorkspaceProject {
   name: string
   dependencies?: Record<string, string>
@@ -71,7 +89,10 @@ interface WorkspaceProject {
 function prepareWorkspace () {
   const locations = ['project-1', 'project-2']
   preparePackages(locations.map((name) => ({ location: name, package: { name } })))
-  const install = async (projects: WorkspaceProject[]): Promise<string[]> => {
+  const install = async (
+    projects: WorkspaceProject[],
+    extraOptions?: { forceFullResolution: boolean }
+  ): Promise<string[]> => {
     const options = testDefaults({
       allProjects: projects.map(({ name, dependencies }) => ({
         buildIndex: 0,
@@ -79,6 +100,7 @@ function prepareWorkspace () {
         rootDir: path.resolve(name) as ProjectRootDir,
       })),
       pruneLockfileImporters: true,
+      ...extraOptions,
     })
     const requestedPackages = trackRequestedPackages(options.storeController)
     await mutateModules(projects.map(({ name }) => ({
@@ -109,5 +131,5 @@ test('dropping a workspace package a survivor links to falls back to the resolve
 
   await expect(install([
     { name: 'project-1', dependencies: { 'project-2': 'workspace:1.0.0' } },
-  ])).rejects.toThrow()
+  ])).rejects.toMatchObject({ code: 'ERR_PNPM_WORKSPACE_PKG_NOT_FOUND' })
 })
