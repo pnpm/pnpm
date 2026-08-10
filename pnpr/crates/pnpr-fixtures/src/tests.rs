@@ -1,6 +1,6 @@
 use super::{
-    COMPLETE_FILE, build_storage_at_with_substitutions, ensure_storage, latest_version,
-    packages_dir, publish_storage,
+    COMPLETE_FILE, build_storage_at_with_substitutions, discard_unusable_storage, ensure_storage,
+    latest_version, packages_dir, publish_storage,
 };
 use std::{collections::BTreeSet, fs, path::Path};
 use tempfile::TempDir;
@@ -119,10 +119,6 @@ fn root_license_is_injected_except_for_self_contained_workspaces() {
     assert!(!bundled.contains("package/LICENSE"), "{bundled:?}");
 }
 
-/// A storage tree left behind without its completion marker — a
-/// half-finished publish, or a build cache restored without it — is
-/// unusable, so the next publisher replaces it instead of failing every
-/// run that follows with `Directory not empty`.
 #[test]
 fn publish_replaces_a_storage_tree_that_lost_its_marker() {
     let root = TempDir::new().expect("create temp dir");
@@ -147,8 +143,6 @@ fn publish_replaces_a_storage_tree_that_lost_its_marker() {
     assert!(!temp.exists());
 }
 
-/// The publisher that loses the race keeps the winner's tree and drops
-/// its own — the marker is what proves the content arrived.
 #[test]
 fn publish_yields_to_a_tree_that_already_carries_the_marker() {
     let root = TempDir::new().expect("create temp dir");
@@ -170,4 +164,26 @@ fn publish_yields_to_a_tree_that_already_carries_the_marker() {
         "winner",
     );
     assert!(!temp.exists());
+}
+
+/// The interleaving the claim-then-check ordering exists for: a competing
+/// publisher completes the tree after this publisher's rename failed but
+/// before it claims the tree. Readers already hold that path, so the
+/// content has to survive.
+#[test]
+fn discarding_leaves_a_tree_that_completed_after_the_claim_was_decided() {
+    let root = TempDir::new().expect("create temp dir");
+    let generated = root.path();
+    let storage = generated.join("storage").join("fingerprint");
+    fs::create_dir_all(&storage).expect("create storage dir");
+    fs::write(storage.join("packument"), "winner").expect("write winner file");
+    fs::write(storage.join(COMPLETE_FILE), "").expect("write completion marker");
+
+    discard_unusable_storage(generated, &storage);
+
+    assert_eq!(
+        fs::read_to_string(storage.join("packument")).expect("read published file"),
+        "winner",
+    );
+    assert!(storage.join(COMPLETE_FILE).exists());
 }

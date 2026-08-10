@@ -97,17 +97,37 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
 /// content arrived. A tree *without* the marker is a different matter. It
 /// is a half-finished publish, or a build cache restored without the
 /// marker, and no reader may touch it; left alone it wedges every later
-/// run with `Directory not empty`. Move it aside — atomically, so only
-/// one publisher can claim it — and publish over the space it freed.
+/// run with `Directory not empty`.
 fn publish_storage(generated: &Path, temp: &Path, storage: &Path) {
     if try_publish_storage(temp, storage).is_ok() {
         return;
     }
-    let discarded = generated.join(scratch_name("storage.stale"));
-    if fs::rename(storage, &discarded).is_ok() {
-        fs::remove_dir_all(&discarded).expect("remove unusable registry fixture storage");
-    }
+    discard_unusable_storage(generated, storage);
     try_publish_storage(temp, storage).expect("publish generated registry fixture storage");
+}
+
+/// Clear an unusable tree out of `storage` so a publish can land there.
+///
+/// Claiming the tree with a rename is what makes this safe against other
+/// publishers: exactly one of them can move a given directory, so the
+/// others find the path already free (or already republished) rather than
+/// deleting each other's work.
+///
+/// The claim is taken before the marker can be inspected, though, and a
+/// competing publisher may have completed the tree in between. Deleting it
+/// then would pull content out from under every reader holding the path,
+/// so the marker is re-checked *after* the claim and a completed tree is
+/// put straight back.
+fn discard_unusable_storage(generated: &Path, storage: &Path) {
+    let claimed = generated.join(scratch_name("storage.stale"));
+    if fs::rename(storage, &claimed).is_err() {
+        return;
+    }
+    if claimed.join(COMPLETE_FILE).exists() {
+        fs::rename(&claimed, storage).expect("restore completed registry fixture storage");
+        return;
+    }
+    fs::remove_dir_all(&claimed).expect("remove unusable registry fixture storage");
 }
 
 fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {
