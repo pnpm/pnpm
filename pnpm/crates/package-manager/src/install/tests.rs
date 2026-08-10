@@ -9940,10 +9940,8 @@ async fn install_workspace_member_with_pnpmfile(
     .await
 }
 
-// The hook rewrites a workspace *member*'s own dependency range. The
-// member's importer entry has to follow the hook exactly as the root's
-// does, and a second install must stay frozen against what the first
-// recorded rather than reading the raw range back off `package.json`.
+// Declaring `^100.0.0` would resolve to 100.1.0; the hook pins it to
+// 100.0.0, this time on a workspace member rather than the root.
 #[tokio::test]
 async fn read_package_hook_rewrites_a_workspace_member_own_specifier() {
     let registry = TestRegistry::start();
