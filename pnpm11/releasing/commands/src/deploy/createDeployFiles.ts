@@ -214,7 +214,12 @@ function filterDeployPackageSnapshots (
   }
 
   return Object.fromEntries(
-    Array.from(reachable, (depPath) => [depPath, packages[depPath]])
+    Array.from(reachable, (depPath) => {
+      const snapshot = packages[depPath]
+      // A retained snapshot's optional edges point at packages this filter just dropped.
+      if (include.optionalDependencies) return [depPath, snapshot]
+      return [depPath, { ...snapshot, optionalDependencies: undefined }]
+    })
   ) as PackageSnapshots
 }
 
