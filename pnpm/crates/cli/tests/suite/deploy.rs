@@ -500,8 +500,6 @@ fn deploy_from_shared_lockfile_installs_the_workspace_root_without_its_nested_pr
 
     let deploy_dir = workspace.join("deploy");
     assert!(deploy_dir.join("node_modules/lib").exists());
-    // The deployed root copies `pnpm-workspace.yaml` and the projects it
-    // globs, but only the deployed project itself is an importer.
     let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
     assert_eq!(
         deploy_lockfile.importers.keys().collect::<Vec<_>>(),
@@ -592,9 +590,6 @@ fn write_root_project_depending_on_lib(workspace: &Path) {
     .unwrap();
 }
 
-/// The deployed project is not the workspace, so `pnpm deploy` must
-/// leave the workspace's own `pnpm-lock.yaml` exactly as the install
-/// wrote it.
 fn assert_workspace_lockfile_untouched(workspace: &Path, before: &str) {
     let after = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     assert_eq!(after, before, "deploy must not rewrite the workspace lockfile");

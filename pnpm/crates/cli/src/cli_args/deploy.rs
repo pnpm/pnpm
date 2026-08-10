@@ -303,13 +303,10 @@ impl DeployArgs {
             State::init(deploy_dir.join("package.json"), deploy_config, frozen_lockfile)
                 .wrap_err("initialize the deploy install state")?;
         if legacy {
-            // Legacy deploy still resolves workspace dependencies from the
-            // source workspace, but its synthetic project is not one of that
-            // workspace's importers: the deploy hook rewrites the copied
-            // manifest, so the workspace's own importer entries describe a
-            // different dependency shape. Anchoring the wanted lockfile at
-            // the deploy directory keeps the workspace lockfile out of the
-            // install — `run_legacy_deploy` keeps it from being written too.
+            // The deployed project is not one of the source workspace's
+            // importers — the deploy hook rewrites the copied manifest —
+            // so its resolution must not be seeded from the workspace
+            // lockfile.
             state.lockfile = if state.config.lockfile || frozen_lockfile {
                 LazyLockfile::deferred(deploy_dir.to_path_buf())
             } else {
@@ -318,14 +315,11 @@ impl DeployArgs {
         }
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
-        // The deployed project is installed on its own, even when the
-        // copied files include a `pnpm-workspace.yaml` and the projects
-        // it globs — deploying the workspace root copies both. Handing
-        // the install the deployed project as the whole workspace keeps
-        // those copies out of the importer list, which the generated
-        // frozen lockfile does not describe (pnpm reaches the same
-        // outcome by installing the deploy directory with no workspace
-        // at all).
+        // Deploying the workspace root copies `pnpm-workspace.yaml` and
+        // the projects it globs, none of which the generated frozen
+        // lockfile describes. pnpm installs the deploy directory with no
+        // workspace at all; pacquet's equivalent is a workspace holding
+        // the deployed project alone.
         let workspace_projects_override = (!legacy).then(|| {
             vec![Project {
                 root_dir: deploy_dir.to_path_buf(),
@@ -427,9 +421,7 @@ fn cannot_deploy_error(dir: &Path) -> miette::Report {
 
 /// Resolve `--filter` / `--filter-prod` (and `-w`) to the single project
 /// to deploy, through the same selection every other filtered command
-/// runs: path selectors resolve against `dir` and match by glob, so
-/// `--filter .` names the project in `dir` rather than every project
-/// nested under it.
+/// runs against `dir`.
 fn select_project(
     config: &Config,
     workspace_dir: &Path,
@@ -445,9 +437,6 @@ fn select_project(
         .collect::<Vec<_>>();
 
     let selected_root = {
-        // Deploying the workspace root is a legitimate request
-        // (`--filter .` from the root), so the root is never
-        // auto-excluded from the selection.
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let mut selected = selection.selected.keys();
