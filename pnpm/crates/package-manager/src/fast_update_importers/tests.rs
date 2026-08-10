@@ -644,3 +644,13 @@ fn moves_several_dependencies_between_groups_in_one_pass() {
     assert!(!snapshot_optional(&updated, "foo@1.1.0"));
     assert!(!snapshot_optional(&updated, "qux@5.0.0"));
 }
+
+#[test]
+fn rejects_a_dependency_the_lockfile_does_not_record() {
+    let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.0.0", "extra": "^1.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(&lockfile(), &[(".".to_string(), &manifest)]).is_none(),
+        "an added dependency needs the resolver",
+    );
+}
