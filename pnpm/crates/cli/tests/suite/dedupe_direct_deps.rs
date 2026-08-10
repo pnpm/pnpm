@@ -416,6 +416,92 @@ fn dedupes_only_overlapping_direct_deps() {
     drop((root, mock_instance));
 }
 
+/// A dedupe decision must not depend on install history: once the
+/// root acquires the dep a sibling already had linked, the sibling's
+/// now-redundant link is removed on the next install, leaving the same
+/// layout a clean install of these manifests produces.
+#[test]
+fn removes_a_project_link_the_root_starts_providing() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let root_manifest_path = workspace.join("package.json");
+    fs::write(
+        &root_manifest_path,
+        serde_json::json!({
+            "name": "ws-root",
+            "version": "0.0.0",
+            "private": true,
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeDirectDeps: true\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/dup")).expect("mkdir packages/dup");
+    fs::write(
+        workspace.join("packages/dup/package.json"),
+        serde_json::json!({
+            "name": "@scope/dup",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/dup/package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    // Nothing to dedupe against yet, so the project owns the link.
+    let dup_link = workspace.join("packages/dup/node_modules/@pnpm.e2e/hello-world-js-bin");
+    let dup_link_linked = is_symlink_or_junction(&dup_link).expect("query dup symlink");
+    eprintln!("dup_link={dup_link:?} linked={dup_link_linked}");
+    assert!(dup_link_linked, "project direct-dep symlink missing before the root declares it");
+    let dup_bin = workspace.join("packages/dup/node_modules/.bin/hello-world-js-bin");
+    assert!(dup_bin.exists(), "project bin shim missing at {dup_bin:?} before dedupe");
+
+    fs::write(
+        &root_manifest_path,
+        serde_json::json!({
+            "name": "ws-root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("rewrite root package.json");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let root_link = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
+    let root_link_linked = is_symlink_or_junction(&root_link).expect("query root symlink");
+    eprintln!("root_link={root_link:?} linked={root_link_linked}");
+    assert!(root_link_linked, "root node_modules direct-dep symlink missing");
+
+    let dup_link_exists = dup_link.exists();
+    eprintln!("dup_link={dup_link:?} exists={dup_link_exists}");
+    assert!(
+        !dup_link_exists,
+        "the project link became redundant once the root declared the same resolution, but \
+         {dup_link:?} survived",
+    );
+    let dup_bin_exists = dup_bin.exists();
+    eprintln!("dup_bin={dup_bin:?} exists={dup_bin_exists}");
+    assert!(!dup_bin_exists, "the deduped dep's bin shim survived at {dup_bin:?}");
+
+    drop((root, mock_instance));
+}
+
 /// Two `link:` deps that resolve to the same physical directory via
 /// different relative paths must still dedupe. Pnpm's dedupe runs
 /// `path.relative` on stored symlink targets — which Node normalises
