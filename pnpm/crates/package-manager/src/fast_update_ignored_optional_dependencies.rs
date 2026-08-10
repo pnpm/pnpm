@@ -1,5 +1,4 @@
-use crate::fast_update_compose::Drift;
-use crate::fast_update_lockfile::GraphEdits;
+use crate::{fast_update_compose::Drift, fast_update_lockfile::GraphEdits};
 use pacquet_config::matcher::create_matcher;
 use pacquet_lockfile::{Lockfile, PkgName};
 use std::collections::{BTreeSet, HashMap, HashSet};

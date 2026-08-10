@@ -75,7 +75,7 @@ pub(crate) fn try_compose_fast_updates(
     };
     if matches!(
         (&importers, &ignored, &patched, &settings_drift),
-        (Drift::Clean, Drift::Clean, Drift::Clean, Drift::Clean)
+        (Drift::Clean, Drift::Clean, Drift::Clean, Drift::Clean),
     ) {
         return None;
     }

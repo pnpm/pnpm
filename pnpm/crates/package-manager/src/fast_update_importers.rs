@@ -1,5 +1,4 @@
-use crate::fast_update_compose::Drift;
-use crate::fast_update_lockfile::GraphEdits;
+use crate::{fast_update_compose::Drift, fast_update_lockfile::GraphEdits};
 use node_semver::Range;
 use pacquet_lockfile::{
     Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
