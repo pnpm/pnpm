@@ -505,6 +505,7 @@ fn git_metadata() -> PackageMetadata {
         resolution: LockfileResolution::Git(GitResolution {
             repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
             commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
+            integrity: None,
             path: None,
         }),
         version: None,

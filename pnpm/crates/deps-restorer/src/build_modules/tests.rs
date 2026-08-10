@@ -97,6 +97,7 @@ fn side_effects_key_for_git_resolution_does_not_require_integrity() {
     let resolution = pacquet_lockfile::LockfileResolution::Git(pacquet_lockfile::GitResolution {
         repo: "file:///tmp/repo".to_string(),
         commit: "abcdef".to_string(),
+        integrity: None,
         path: None,
     });
 

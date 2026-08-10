@@ -198,9 +198,8 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
             }
             LockfileResolution::Git(git) => {
                 // No archive endpoint to read, so the working tree is
-                // the only source of the name. A `Git` resolution
-                // carries no integrity — it is anchored by its commit —
-                // so the manifest is all there is to read.
+                // the only source of the name, and there is nothing to
+                // hash — the commit anchors the content.
                 let manifest = read_git_manifest(GitManifestQuery {
                     repo: &git.repo,
                     commit: &git.commit,
@@ -307,6 +306,7 @@ async fn pick_resolution<Probe: GitProbe + ?Sized>(
     LockfileResolution::Git(GitResolution {
         repo: spec.fetch_spec.clone(),
         commit: commit.to_string(),
+        integrity: None,
         path: spec.path.clone(),
     })
 }

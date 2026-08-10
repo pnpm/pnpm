@@ -499,6 +499,7 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
     let git = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/example/foo.git".to_string(),
         commit: "deadbeef".to_string(),
+        integrity: None,
         path: None,
     });
     assert_eq!(resolution_kind(&git), "git");
