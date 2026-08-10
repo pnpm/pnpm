@@ -130,6 +130,13 @@ fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
         ),
         "the non-owner occurrence flips to lazy",
     );
+
+    make_non_owner_nodes_lazy(&ctx, "pkg@1.0.0", &owner);
+    assert_eq!(
+        workspace.children_rewrites(),
+        1,
+        "an occurrence already reading the owner's children is not a rewrite",
+    );
 }
 
 #[test]

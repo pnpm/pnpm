@@ -1466,7 +1466,13 @@ pub(super) fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_
     let mut tree = lock_recoverable(&ctx.workspace.dependencies_tree);
     let mut rewritten = Vec::new();
     for (node_id, parent_ids) in parent_ids_by_node {
-        if let Some(node) = tree.get_mut(&node_id) {
+        // An occurrence already reading the owner's children needs no
+        // rewrite — and must not report one, since the signal makes the
+        // discovery engine rebuild from scratch. In a peer-heavy graph
+        // most occurrences of a package are already lazy.
+        if let Some(node) = tree.get_mut(&node_id)
+            && !matches!(node.children, crate::resolved_tree::TreeChildren::Lazy { .. })
+        {
             node.children = crate::resolved_tree::TreeChildren::Lazy {
                 parent_ids: AncestorIds::from(parent_ids),
             };
