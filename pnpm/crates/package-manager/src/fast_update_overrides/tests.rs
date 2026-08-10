@@ -496,3 +496,98 @@ async fn applies_exact_replacements_and_dependency_removals_together() {
             .is_some_and(|snapshots| !snapshots.contains_key(&"obsolete@1.0.0".parse().unwrap())),
     );
 }
+
+/// The same graph plus a second, higher version of `target` that another
+/// importer holds. The registry has 2.0.0 too, which nothing locks.
+fn lockfile_with_two_target_versions() -> Lockfile {
+    let mut lockfile = lockfile();
+    // No override recorded yet: one at 1.0.0 could not coexist with an
+    // importer holding 1.5.0, since it would have moved that edge too.
+    lockfile.overrides = None;
+    lockfile.importers.insert(
+        "pkg-a".to_string(),
+        serde_json::from_value(json!({
+            "dependencies": { "target": { "specifier": "1.5.0", "version": "1.5.0" } }
+        }))
+        .expect("importer"),
+    );
+    lockfile.packages.as_mut().expect("packages").insert(
+        "target@1.5.0".parse().expect("package key"),
+        serde_json::from_value(json!({ "resolution": { "integrity": "sha512-target-2" } }))
+            .expect("package"),
+    );
+    lockfile.snapshots.as_mut().expect("snapshots").insert(
+        "target@1.5.0".parse().expect("snapshot key"),
+        serde_json::from_value(json!({})).expect("snapshot"),
+    );
+    lockfile
+}
+
+fn range_override(value: &str) -> Vec<VersionOverride> {
+    vec![VersionOverride {
+        selector: "target".to_string(),
+        parent_pkg: None,
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        new_bare_specifier: value.to_string(),
+        converge: false,
+    }]
+}
+
+/// Records the version each resolution asks for. The rewrite that follows
+/// is the pre-existing machinery; what this pins is the version the range
+/// maps to.
+struct RecordingResolver {
+    requested: std::sync::Mutex<Vec<String>>,
+}
+
+impl Resolver for RecordingResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        self.requested
+            .lock()
+            .expect("record the requested version")
+            .push(wanted_dependency.bare_specifier.clone().expect("version"));
+        Box::pin(async { Ok(None) })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+#[tokio::test]
+async fn a_range_override_moves_to_the_version_the_graph_already_holds() {
+    let lockfile = lockfile_with_two_target_versions();
+    let overrides = IndexMap::from([("target".to_string(), "^1.2.0".to_string())]);
+    let resolver = RecordingResolver { requested: std::sync::Mutex::new(Vec::new()) };
+
+    // The rewrite itself stops at the stub's empty resolution; the version
+    // it asked for is the decision under test.
+    let _ = try_update(&lockfile, &range_override("^1.2.0"), &overrides, &resolver).await;
+
+    assert_eq!(
+        *resolver.requested.lock().expect("requested versions"),
+        vec!["1.5.0".to_string()],
+        "resolution prefers the locked 1.5.0 over the registry's higher versions",
+    );
+}
+
+#[tokio::test]
+async fn a_range_override_no_locked_version_satisfies_falls_back() {
+    let lockfile = lockfile_with_two_target_versions();
+    let overrides = IndexMap::from([("target".to_string(), "^3.0.0".to_string())]);
+    let resolver = StubResolver { calls: AtomicUsize::new(0), manifest: json!({}) };
+
+    assert!(
+        try_update(&lockfile, &range_override("^3.0.0"), &overrides, &resolver).await.is_none(),
+        "only the resolver can fetch a version the lockfile does not hold",
+    );
+    assert_eq!(resolver.calls.load(Ordering::Relaxed), 0, "and it bails before resolving");
+}

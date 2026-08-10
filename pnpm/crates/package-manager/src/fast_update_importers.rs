@@ -202,9 +202,11 @@ fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> bool {
 /// cannot satisfy at all.
 ///
 /// `None` when nothing present satisfies (only the resolver can fetch a
-/// new version), or when a candidate exists under several peer-suffixed
-/// keys, where picking one of them would be a guess.
-fn highest_locked_version_satisfying(
+/// new version), or when the alias appears under a key this cannot turn
+/// back into a plain reference: a peer-suffixed one, where picking a
+/// variant would be a guess, or a registry-qualified one, whose semver
+/// only pins a version within its named registry.
+pub(crate) fn highest_locked_version_satisfying(
     packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
     alias: &PkgName,
     range: &Range,
@@ -214,7 +216,7 @@ fn highest_locked_version_satisfying(
         if &key.name != alias {
             continue;
         }
-        if !key.suffix.peer().is_empty() {
+        if !key.suffix.peer().is_empty() || key.suffix.registry_qualified().is_some() {
             return None;
         }
         let Some(version) = key.suffix.version_semver() else { continue };

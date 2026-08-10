@@ -5,6 +5,7 @@ import type {
   PackageSnapshot,
   ResolvedDependencies,
 } from '@pnpm/lockfile.types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { RequestPackageFunction } from '@pnpm/store.controller-types'
 import type {
@@ -60,7 +61,7 @@ export async function tryFastUpdateOverrides (
     parsedOverrides: VersionOverride[]
   }
 ): Promise<boolean> {
-  const fastOverrides = getFastOverrides(lockfile.overrides ?? {}, opts.overrides, opts.parsedOverrides)
+  const fastOverrides = getFastOverrides(lockfile, lockfile.overrides ?? {}, opts.overrides, opts.parsedOverrides)
   if (fastOverrides == null) return false
   return applyFastRewrite(lockfile, fastOverrides, opts, { overrides: opts.overrides })
 }
@@ -132,6 +133,7 @@ export async function applyFastRewrite (
 }
 
 function getFastOverrides (
+  lockfile: LockfileObject,
   oldOverrides: Record<string, string>,
   newOverrides: Record<string, string>,
   parsedOverrides: VersionOverride[]
@@ -156,7 +158,7 @@ function getFastOverrides (
       override.converge === true ||
       !removesDependency && (
         override.parentPkg != null ||
-        semver.valid(newValue) == null ||
+        overriddenVersion(lockfile, override.targetPkg.name, newValue) == null ||
         oldVersion != null && semver.valid(oldVersion) == null
       ) ||
       changedNames.has(override.targetPkg.name) ||
@@ -178,10 +180,41 @@ function getFastOverrides (
             bareSpecifier: override.parentPkg.bareSpecifier,
           },
         },
-      ...removesDependency ? {} : { newVersion: newValue, oldVersion },
+      ...removesDependency
+        ? {}
+        : {
+          newVersion: overriddenVersion(lockfile, override.targetPkg.name, newValue)!,
+          oldVersion,
+        },
     })
   }
   return result
+}
+
+/**
+ * The version an override moves its target to.
+ *
+ * A range names the highest already-locked version satisfying it, because
+ * `preferredVersions` makes the resolver reuse a version the graph already
+ * holds rather than the highest published.
+ */
+function overriddenVersion (
+  lockfile: LockfileObject,
+  name: string,
+  value: string
+): string | null {
+  if (semver.valid(value) != null) return value
+  if (semver.validRange(value) == null) return null
+  const versions: string[] = []
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
+    const parsed = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (parsed.name !== name || parsed.nonSemverVersion != null) continue
+    if (parsed.registryName != null || dp.parseDepPath(depPath).peerDepGraphHash !== '') return null
+    if (semver.valid(parsed.version) != null && semver.satisfies(parsed.version, value)) {
+      versions.push(parsed.version)
+    }
+  }
+  return versions.sort(semver.rcompare)[0] ?? null
 }
 
 function collectReplacements (
