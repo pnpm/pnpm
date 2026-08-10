@@ -49,10 +49,10 @@ test('a group move and a settings change are absorbed in one pass', () => {
 test('a peer setting is absorbed once the removal drops the last peer dependent', () => {
   const subject = lockfile()
   subject.settings = { autoInstallPeers: true, excludeLinksFromLockfile: false }
-  subject.importers['.' as ProjectId].dependencies!.withpeer = '6.0.0'
-  subject.importers['.' as ProjectId].specifiers.withpeer = '^6.0.0'
-  subject.packages!['withpeer@6.0.0' as DepPath] = {
-    resolution: { integrity: 'sha512-withpeer' },
+  subject.importers['.' as ProjectId].dependencies!['has-peer'] = '6.0.0'
+  subject.importers['.' as ProjectId].specifiers['has-peer'] = '^6.0.0'
+  subject.packages!['has-peer@6.0.0' as DepPath] = {
+    resolution: { integrity: 'sha512-has-peer' },
     peerDependencies: { foo: '^1.0.0' },
   }
 
@@ -70,7 +70,7 @@ test('a peer setting is absorbed once the removal drops the last peer dependent'
     },
   })).toBe(true)
   expect(subject.settings).toStrictEqual({ autoInstallPeers: false, excludeLinksFromLockfile: false })
-  expect(subject.packages!['withpeer@6.0.0' as DepPath]).toBeUndefined()
+  expect(subject.packages!['has-peer@6.0.0' as DepPath]).toBeUndefined()
 })
 
 test('a composed update falls back when one of its changes cannot be absorbed', () => {

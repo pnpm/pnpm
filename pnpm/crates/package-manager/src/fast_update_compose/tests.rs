@@ -323,18 +323,18 @@ fn absorbs_a_peer_setting_once_the_removal_drops_the_last_peer_dependent() {
         .as_mut()
         .expect("dependencies")
         .insert(
-            "withpeer".parse().expect("alias"),
+            "has-peer".parse().expect("alias"),
             serde_saphyr::from_str("{specifier: ^6.0.0, version: 6.0.0}").expect("dependency"),
         );
     subject.packages.as_mut().expect("packages").insert(
-        "withpeer@6.0.0".parse().expect("package key"),
+        "has-peer@6.0.0".parse().expect("package key"),
         serde_saphyr::from_str(
-            "resolution:\n  integrity: sha512-withpeer\npeerDependencies:\n  foo: ^1.0.0",
+            "resolution:\n  integrity: sha512-has-peer\npeerDependencies:\n  foo: ^1.0.0",
         )
         .expect("package"),
     );
     subject.snapshots.as_mut().expect("snapshots").insert(
-        "withpeer@6.0.0".parse().expect("snapshot key"),
+        "has-peer@6.0.0".parse().expect("snapshot key"),
         serde_saphyr::from_str("{}").expect("snapshot"),
     );
     let manifest = manifest_from(json!({
@@ -353,7 +353,7 @@ fn absorbs_a_peer_setting_once_the_removal_drops_the_last_peer_dependent() {
 
     assert!(!updated.settings.as_ref().expect("settings").auto_install_peers);
     assert!(
-        !snapshot_keys(&updated).iter().any(|key| key.starts_with("withpeer@")),
+        !snapshot_keys(&updated).iter().any(|key| key.starts_with("has-peer@")),
         "the peer-declaring package went with the removal",
     );
 }
