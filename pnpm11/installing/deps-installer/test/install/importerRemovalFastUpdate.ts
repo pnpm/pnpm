@@ -10,6 +10,7 @@ import {
   hasChangedProjectSpecifiers,
   tryFastUpdateImporters,
 } from '../../src/install/tryFastUpdateImporters.js'
+import { tryFastUpdateLockfile } from '../../src/install/tryFastUpdateLockfile.js'
 import { testDefaults } from '../utils/index.js'
 
 test('a dependency the manifest dropped is noticed as a change', () => {
@@ -26,7 +27,7 @@ test('a dropped dependency is removed and its subtree pruned', () => {
   expect(Object.keys(subject.packages!).sort()).toStrictEqual(['bar@2.0.0', 'child@3.0.0'])
 })
 
-test('dropping a dependency another package resolves as a peer falls back without mutating the lockfile', () => {
+test('dropping a dependency another package resolves as a peer falls back without mutating the lockfile', async () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].dependencies!.baz = '4.0.0(foo@1.1.0)'
   subject.importers['.' as ProjectId].specifiers.baz = '^4.0.0'
@@ -36,8 +37,25 @@ test('dropping a dependency another package resolves as a peer falls back withou
   }
   const before = clone(subject)
 
-  expect(tryFastUpdateImporters(subject, [project({ bar: '^2.0.0', baz: '^4.0.0' })])).toBe(false)
+  expect(await tryFastUpdateLockfile(subject, {
+    update: (candidate) => tryFastUpdateImporters(candidate, [project({ bar: '^2.0.0', baz: '^4.0.0' })]),
+    isLockfileUpToDate: async () => true,
+  })).toBe(false)
   expect(subject).toStrictEqual(before)
+})
+
+test('a lockfile key the update deletes is gone after the commit', async () => {
+  const subject = lockfile()
+  subject.catalogs = { default: { foo: { specifier: '^1.0.0', version: '1.1.0' } } }
+
+  expect(await tryFastUpdateLockfile(subject, {
+    update: (candidate) => {
+      delete candidate.catalogs
+      return true
+    },
+    isLockfileUpToDate: async () => true,
+  })).toBe(true)
+  expect(subject.catalogs).toBeUndefined()
 })
 
 test('dropping a dependency together with its peer-dependent succeeds', () => {
@@ -189,3 +207,67 @@ function lockfile (): LockfileObject {
     },
   }
 }
+
+test('removing the last dependency drops the packages section from the lockfile', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults())
+
+  const options = testDefaults()
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-positive'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages).toStrictEqual([])
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toBeUndefined()
+  expect(lockfile.snapshots).toBeUndefined()
+  project.hasNot('is-positive')
+})
+
+test('removing the last catalog referent drops the catalogs section from the lockfile', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      'is-positive': 'catalog:',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const options = testDefaults()
+  options.catalogs = { default: { 'is-positive': '1.0.0' } }
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+  expect(project.readLockfile().catalogs).toBeDefined()
+
+  const removeOptions = testDefaults()
+  removeOptions.catalogs = { default: { 'is-positive': '1.0.0' } }
+  const requestedPackages = trackRequestedPackages(removeOptions.storeController)
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-positive'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, removeOptions)
+
+  expect(requestedPackages).toStrictEqual([])
+  const lockfile = project.readLockfile()
+  expect(lockfile.catalogs).toBeUndefined()
+  expect(lockfile.importers['.'].dependencies).toStrictEqual({
+    '@pnpm.e2e/pkg-with-1-dep': { specifier: '100.0.0', version: '100.0.0' },
+  })
+})

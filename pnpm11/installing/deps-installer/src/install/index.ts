@@ -139,6 +139,13 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
 
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
+const FAST_UPDATABLE_SETTINGS = new Set<ChangedField | null>([
+  'catalogs',
+  'ignoredOptionalDependencies',
+  'overrides',
+  'patchedDependencies',
+])
+
 interface InstallMutationOptions {
   update?: boolean
   updateToLatest?: boolean
@@ -731,10 +738,7 @@ export async function mutateModules (
     const onlyLockfileSettingsChanged = changedLockfileSettings.length > 0 &&
       changedLockfileSettings.length === changedSettingsFields.length
     const canTryFastUpdateLockfile =
-      (outdatedLockfileSettingName === 'catalogs' ||
-        outdatedLockfileSettingName === 'ignoredOptionalDependencies' ||
-        outdatedLockfileSettingName === 'overrides' ||
-        outdatedLockfileSettingName === 'patchedDependencies' ||
+      (FAST_UPDATABLE_SETTINGS.has(outdatedLockfileSettingName) ||
         onlyLockfileSettingsChanged ||
         hasChangedSpecifiers) &&
       !frozenLockfile &&

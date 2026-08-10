@@ -2,7 +2,6 @@ import * as dp from '@pnpm/deps.path'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.types'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest } from '@pnpm/types'
-import { clone } from 'ramda'
 import semver from 'semver'
 
 import { pruneUnreferencedCatalogEntries } from './tryFastUpdateCatalogs.js'
@@ -28,17 +27,22 @@ export function hasChangedProjectSpecifiers (
   })
 }
 
+/**
+ * Mutates `lockfile` in place and may leave it partially rewritten when it
+ * returns `false` — the caller passes the coordinator's disposable candidate,
+ * which is discarded on failure.
+ */
 export function tryFastUpdateImporters (
   lockfile: LockfileObject,
   projects: Project[]
 ): boolean {
-  const candidate = clone(lockfile)
   const dropped = new Set<string>()
   let changed = false
   let movedAcrossOptional = false
   for (const project of projects) {
-    const importer = candidate.importers[project.id]
+    const importer = lockfile.importers[project.id]
     if (importer == null) return false
+    let editedGroups = false
     const manifestSpecifiers = getManifestSpecifiers(project.manifest)
     for (const [alias, specifier] of Object.entries(manifestSpecifiers)) {
       if (importer.specifiers[alias] !== specifier) {
@@ -67,6 +71,7 @@ export function tryFastUpdateImporters (
       if (recordedIn === 'optionalDependencies' || targetGroup === 'optionalDependencies') {
         movedAcrossOptional = true
       }
+      editedGroups = true
       changed = true
     }
     for (const alias of Object.keys(importer.specifiers)) {
@@ -76,11 +81,14 @@ export function tryFastUpdateImporters (
       for (const group of DEPENDENCIES_FIELDS) {
         delete importer[group]?.[alias]
       }
+      editedGroups = true
       changed = true
     }
-    for (const group of DEPENDENCIES_FIELDS) {
-      if (importer[group] != null && Object.keys(importer[group]).length === 0) {
-        delete importer[group]
+    if (editedGroups) {
+      for (const group of DEPENDENCIES_FIELDS) {
+        if (importer[group] != null && Object.keys(importer[group]).length === 0) {
+          delete importer[group]
+        }
       }
     }
   }
@@ -90,30 +98,18 @@ export function tryFastUpdateImporters (
   // reaches it, which a move into or out of `optionalDependencies` changes
   // for the whole subtree.
   if (dropped.size > 0 || movedAcrossOptional) {
-    const pruned = pruneSharedLockfile(candidate)
+    const pruned = pruneSharedLockfile(lockfile)
     if (pruned.packages == null) {
-      delete candidate.packages
+      delete lockfile.packages
     } else {
-      candidate.packages = pruned.packages
+      lockfile.packages = pruned.packages
     }
   }
   if (dropped.size > 0) {
     // Pruned first: a peer-dependent package that the removal itself makes
     // unreachable needs no rekeying, so only the survivors are checked.
-    if (!peerSuffixesAreIndependentOf(candidate, dropped)) return false
-    pruneUnreferencedCatalogEntries(candidate)
-  }
-
-  lockfile.importers = candidate.importers
-  if (candidate.packages == null) {
-    delete lockfile.packages
-  } else {
-    lockfile.packages = candidate.packages
-  }
-  if (candidate.catalogs == null) {
-    delete lockfile.catalogs
-  } else {
-    lockfile.catalogs = candidate.catalogs
+    if (!peerSuffixesAreIndependentOf(lockfile, dropped)) return false
+    pruneUnreferencedCatalogEntries(lockfile)
   }
   return true
 }

@@ -41,7 +41,7 @@ test('a compatible package range update retains the locked peer snapshot without
   })
 })
 
-test('an incompatible package range update falls back without mutating the lockfile', () => {
+test('an incompatible package range update falls back without mutating the lockfile', async () => {
   const lockfile = {
     importers: {
       '.': {
@@ -58,15 +58,18 @@ test('an incompatible package range update falls back without mutating the lockf
     lockfileVersion: '9.0',
   } as LockfileObject
 
-  expect(tryFastUpdateImporters(lockfile, [{
-    id: '.' as ProjectId,
-    manifest: {
-      dependencies: {
-        foo: '>=1.0.0 <2',
-        bar: '^2.0.0',
+  expect(await tryFastUpdateLockfile(lockfile, {
+    update: (candidate) => tryFastUpdateImporters(candidate, [{
+      id: '.' as ProjectId,
+      manifest: {
+        dependencies: {
+          foo: '>=1.0.0 <2',
+          bar: '^2.0.0',
+        },
       },
-    },
-  }])).toBe(false)
+    }]),
+    isLockfileUpToDate: async () => true,
+  })).toBe(false)
   expect(lockfile.importers['.' as ProjectId].specifiers).toStrictEqual({
     bar: '^1.0.0',
     foo: '^1.0.0',
