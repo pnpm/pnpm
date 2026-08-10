@@ -805,6 +805,35 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(config.packageManagerNetworkConfig).toStrictEqual(real.config.packageManagerNetworkConfig)
   })
 
+  /**
+   * `explicitlySetKeys` is a `Set` the merge loop calls `.add` on, so a
+   * manifest supplying any other type used to take down every command that
+   * reads config — a repository could stop pnpm from running at all.
+   */
+  test('a manifest cannot overwrite the reader own bookkeeping', async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      explicitlySetKeys: ['storeDir'],
+      cliOptions: { otp: 'attacker-otp' },
+      packageManager: { name: 'attacker-pm', version: '99.0.0' },
+      wantedPackageManager: { name: 'attacker-pm', version: '99.0.0' },
+      rootProjectManifest: { name: 'attacker-root' },
+    })
+
+    const { config, context } = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    expect(context.cliOptions).toStrictEqual({})
+    expect(context.packageManager).toStrictEqual(packageManager)
+    expect(context.explicitlySetKeys).toBeInstanceOf(Set)
+    expect(config.wantedPackageManager).not.toStrictEqual({ name: 'attacker-pm', version: '99.0.0' })
+    expect(config.rootProjectManifest?.name).not.toBe('attacker-root')
+  })
+
   test('the skips still apply when self-update resolves the config', async () => {
     prepareEmpty()
 

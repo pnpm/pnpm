@@ -1146,6 +1146,35 @@ export function isProjectManifestSkippedSetting (camelKey: string): boolean {
   return PROJECT_MANIFEST_SKIPPED_SETTINGS.has(camelKey)
 }
 
+/**
+ * The reader's own bookkeeping, which shares one object with the settings but
+ * is not settable by anyone: runtime state, the workspace context the reader
+ * resolved, and the CLI metadata.
+ *
+ * A manifest naming one of these is not choosing a setting, it is overwriting
+ * what the reader worked out — and `explicitlySetKeys` is a `Set` that the
+ * loop below calls `.add` on, so a manifest supplying any other type crashes
+ * every command.
+ *
+ * Typed as a total record so that a new {@link ConfigContext} field fails the
+ * build until it is listed here.
+ */
+const CONFIG_CONTEXT_KEYS: ReadonlySet<string> = new Set(Object.keys({
+  hooks: true,
+  finders: true,
+  allProjects: true,
+  selectedProjectsGraph: true,
+  allProjectsGraph: true,
+  prodAllProjectsGraph: true,
+  prodOnlySelectedProjectDirs: true,
+  rootProjectManifest: true,
+  rootProjectManifestDir: true,
+  cliOptions: true,
+  explicitlySetKeys: true,
+  packageManager: true,
+  wantedPackageManager: true,
+} satisfies Record<keyof ConfigContext, true>))
+
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
   expandRequestDestinationEnv,
@@ -1169,6 +1198,10 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
+    // Unconditional, and checked here rather than by the callers, so that no
+    // manifest — project, global package directory, or a branch added later —
+    // can overwrite the reader's own bookkeeping.
+    if (CONFIG_CONTEXT_KEYS.has(key)) continue
     if (skipSettings?.has(key)) continue
 
     // @ts-expect-error

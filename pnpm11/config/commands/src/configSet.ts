@@ -223,6 +223,7 @@ const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
 const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
   dir: 'Pass --dir on the command line instead',
   configDir: 'pnpm takes it from XDG_CONFIG_HOME, or the platform default',
+  pnpmHomeDir: 'pnpm takes it from PNPM_HOME, which pnpm setup sets',
 }
 
 /**
