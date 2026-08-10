@@ -64,7 +64,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       // Deleting from a file that is not there is a no-op, not an error. The
       // writer removes a manifest once the delete empties it, so it would try
       // to remove one that never existed and surface a raw ENOENT.
-      if (value == null && !fs.existsSync(configPath)) break
+      if (value == null && !await fileExists(configPath)) break
       const updatedFields: Record<string, unknown> = {
         [writtenKey]: castField(value, kebabCase(writtenKey)),
       }
@@ -246,6 +246,16 @@ function isStringOnlyIniKey (key: string): boolean {
   if (key.startsWith('@')) return true
   if (key.startsWith('//')) return true
   return false
+}
+
+async function fileExists (filePath: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(filePath)
+    return true
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
 }
 
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
