@@ -254,6 +254,7 @@ struct CommitModulesStateInputs<'a> {
     take_frozen_path: bool,
     lockfile_synthesized_from_current: bool,
     lockfile_was_fast_updated: bool,
+    save_lockfile: bool,
     loaded_wanted_lockfile: Option<&'a Lockfile>,
 }
 
@@ -280,6 +281,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         take_frozen_path,
         lockfile_synthesized_from_current,
         lockfile_was_fast_updated,
+        save_lockfile,
         loaded_wanted_lockfile,
     } = inputs;
     let now = SystemTime::now();
@@ -445,6 +447,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     if take_frozen_path
         && (lockfile_synthesized_from_current || lockfile_was_fast_updated)
         && config.lockfile
+        && save_lockfile
         && let Some(updated) = loaded_wanted_lockfile
     {
         updated
@@ -626,6 +629,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) take_frozen_path: bool,
     pub(super) lockfile_synthesized_from_current: bool,
     pub(super) lockfile_was_fast_updated: bool,
+    pub(super) save_lockfile: bool,
     pub(super) mutation: ProjectMutation,
     pub(super) manifest_dir: &'a Path,
     pub(super) selection: Option<WorkspaceInstallSelection<'selection>>,
@@ -668,6 +672,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         take_frozen_path,
         lockfile_synthesized_from_current,
         lockfile_was_fast_updated,
+        save_lockfile,
         mutation,
         manifest_dir,
         selection,
@@ -741,6 +746,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         take_frozen_path,
         lockfile_synthesized_from_current,
         lockfile_was_fast_updated,
+        save_lockfile,
         loaded_wanted_lockfile: lockfile,
     })?;
 

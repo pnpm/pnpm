@@ -52,6 +52,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) peer_issues_sink: Option<PeerIssuesSink>,
     pub(super) deps_requiring_build_sink: Option<DepsRequiringBuildSink>,
     pub(super) pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub(super) save_lockfile: bool,
     pub(super) catalogs: &'a Catalogs,
     pub(super) prefix: &'a str,
 }
@@ -111,6 +112,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         peer_issues_sink,
         deps_requiring_build_sink,
         pnpmfile_hook,
+        save_lockfile,
         catalogs,
         prefix,
     } = inputs;
@@ -338,6 +340,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             lockfile_only: resolve_only,
             skip_runtimes,
             dry_run,
+            save_lockfile,
             can_prompt,
             persist_policy_excludes,
             is_full_install: mutation.is_full_install(),
