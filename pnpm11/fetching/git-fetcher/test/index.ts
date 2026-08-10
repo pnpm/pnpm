@@ -355,7 +355,7 @@ test('fetch only the included files', async () => {
 test('a failed clone over SSH names the package and how to re-record it', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
-  const err = await withoutSsh(async () => fetch(
+  const err = await fetchFailure(withoutSsh(async () => fetch(
     createCafsStore(storeDir),
     {
       commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
@@ -366,7 +366,7 @@ test('a failed clone over SSH names the package and how to re-record it', async 
       filesIndexFile: path.join(storeDir, 'index.json'),
       pkg: { name: '@scope/pkg', version: '1.0.0' },
     }
-  )).catch((err: unknown) => err as PnpmError)
+  )))
 
   expect(err.code).toBe('ERR_PNPM_GIT_FETCH_FAILED')
   expect(err.message).toContain('Failed to fetch "@scope/pkg" from the git repository "git@github.com:pnpm-e2e/this-repository-does-not-exist.git"')
@@ -377,7 +377,7 @@ test('a failed clone over SSH names the package and how to re-record it', async 
 test('a failed clone over HTTPS carries no SSH remediation', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
-  const err = await fetch(
+  const err = await fetchFailure(fetch(
     createCafsStore(storeDir),
     {
       commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
@@ -388,11 +388,20 @@ test('a failed clone over HTTPS carries no SSH remediation', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
       pkg: { name: '@scope/pkg', version: '1.0.0' },
     }
-  ).catch((err: unknown) => err as PnpmError)
+  ))
 
   expect(err.code).toBe('ERR_PNPM_GIT_FETCH_FAILED')
   expect(err.hint).toBeUndefined()
 })
+
+async function fetchFailure (fetching: Promise<unknown>): Promise<PnpmError> {
+  return fetching.then(
+    () => {
+      throw new Error('expected the git fetch to fail')
+    },
+    (err: unknown) => err as PnpmError
+  )
+}
 
 async function withoutSsh<T> (fn: () => Promise<T>): Promise<T> {
   const original = process.env.GIT_SSH_COMMAND
