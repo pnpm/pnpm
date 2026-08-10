@@ -18,6 +18,7 @@ use crate::{
 };
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_fs_packlist::packlist;
+use pacquet_network::{redact_and_sanitize, redact_and_sanitize_multiline};
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use pacquet_reporter::Reporter;
 use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
@@ -207,9 +208,16 @@ fn name_fetch_failure(repo: &str, package: &str, err: GitFetcherError) -> GitFet
     else {
         return err;
     };
-    let host = ssh_repo_host(repo).map(str::to_string);
-    let (package, repo, stderr) =
-        (package.to_string(), repo.to_string(), stderr.trim().to_string());
+    // Every value is untrusted: a lockfile URL can carry `user:pass@`
+    // credentials, and git echoes it back through stderr. Only the values are
+    // sanitized — `redact_and_sanitize` strips control characters, which would
+    // collapse the deliberately multi-line help.
+    let host = ssh_repo_host(repo).map(redact_and_sanitize);
+    let (package, repo, stderr) = (
+        redact_and_sanitize(package),
+        redact_and_sanitize(repo),
+        redact_and_sanitize_multiline(stderr.trim()),
+    );
     match host {
         Some(host) => GitFetcherError::FetchOverSsh { package, repo, host, stderr },
         None => GitFetcherError::Fetch { package, repo, stderr },
@@ -222,11 +230,19 @@ fn name_fetch_failure(repo: &str, package: &str, err: GitFetcherError) -> GitFet
 /// scp-style shorthand (`[user@]host:path`) that carries no scheme. The
 /// `user@` is mandatory in the shorthand, which is what keeps a Windows
 /// drive path (`C:\repo`) from being read as a host.
+///
+/// An IPv6 literal keeps its brackets, matching what `URL.hostname` hands
+/// the TypeScript CLI for the same reference.
 fn ssh_repo_host(repo: &str) -> Option<&str> {
     if let Some(rest) = repo.strip_prefix("ssh://").or_else(|| repo.strip_prefix("git+ssh://")) {
         let authority = rest.split('/').next().unwrap_or(rest);
         let host = authority.rsplit_once('@').map_or(authority, |(_user, host)| host);
-        let host = host.split_once(':').map_or(host, |(host, _port)| host);
+        // A bracketed IPv6 literal is full of colons, so the port has to be
+        // looked for after the closing bracket rather than at the first colon.
+        let host = match host.split_once(']') {
+            Some((address, _port)) if host.starts_with('[') => &host[..=address.len()],
+            _ => host.split_once(':').map_or(host, |(host, _port)| host),
+        };
         return (!host.is_empty()).then_some(host);
     }
     if repo.contains("://") {

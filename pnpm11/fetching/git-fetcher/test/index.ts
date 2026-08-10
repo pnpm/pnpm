@@ -349,9 +349,7 @@ test('fetch only the included files', async () => {
   ])
 })
 
-// Covers https://github.com/pnpm/pnpm/issues/13743, where a lockfile that
-// predates the resolver fix keeps cloning over SSH and the raw git failure
-// named neither the dependency nor a way out.
+// Covers https://github.com/pnpm/pnpm/issues/13743.
 test('a failed clone over SSH names the package and how to re-record it', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
@@ -391,6 +389,70 @@ test('a failed clone over HTTPS carries no SSH remediation', async () => {
   ))
 
   expect(err.code).toBe('ERR_PNPM_GIT_FETCH_FAILED')
+  expect(err.hint).toBeUndefined()
+})
+
+// An IPv6 literal keeps its brackets, matching what pacquet's ssh_repo_host
+// returns for the same reference.
+test('the SSH remediation names a bracketed IPv6 host', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  const err = await fetchFailure(withoutSsh(async () => fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'ssh://git@[2001:db8::1]:2222/org/repo.git',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+      pkg: { name: '@scope/pkg', version: '1.0.0' },
+    }
+  )))
+
+  expect(err.hint).toContain('needs an SSH key for [2001:db8::1]')
+})
+
+test('credentials in the repository URL are redacted from the failure', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  const err = await fetchFailure(fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'https://s3cr3t-t0ken:x-oauth-basic@github.com/pnpm-e2e/this-repository-does-not-exist.git',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+      pkg: { name: '@scope/pkg', version: '1.0.0' },
+    }
+  ))
+
+  expect(err.message).not.toContain('s3cr3t-t0ken')
+  expect(err.message).toContain('https://github.com/pnpm-e2e/this-repository-does-not-exist.git')
+})
+
+test('a missing git executable is reported as such, not as a fetch failure', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  jest.mocked(execa).mockImplementationOnce(() => {
+    throw Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })
+  })
+  const err = await fetchFailure(fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'git@github.com:acme/widget.git',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+      pkg: { name: '@scope/pkg', version: '1.0.0' },
+    }
+  ))
+
+  expect(err.code).toBe('ERR_PNPM_GIT_FETCHER_GIT_NOT_FOUND')
   expect(err.hint).toBeUndefined()
 })
 

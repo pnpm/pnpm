@@ -3,7 +3,7 @@ import path from 'node:path'
 import { URL } from 'node:url'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize, redactAndSanitizeMultiline } from '@pnpm/error'
 import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
@@ -41,10 +41,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       }
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))
-      const pkgName = opts.pkg?.name
-      throw new PnpmError('GIT_FETCH_FAILED', `Failed to fetch ${pkgName ? `"${pkgName}" ` : ''}from the git repository "${resolution.repo}": ${gitFailureDetail(err)}`, {
-        hint: sshRemediationHint(resolution.repo, pkgName),
-      })
+      throw gitFetchError(err, resolution.repo, opts.pkg?.name)
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
     const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
@@ -95,6 +92,28 @@ function isValidCommitHash (commit: string): boolean {
   return /^[0-9a-f]{40}$/i.test(commit)
 }
 
+/**
+ * Restate a failure of the transport-touching git invocations, naming the
+ * package the resolution belongs to.
+ *
+ * Every interpolated value is untrusted: a lockfile URL can carry `user:pass@`
+ * credentials, and git echoes it back through stderr. Only the values go
+ * through {@link redactAndSanitize} — it strips control characters, which would
+ * collapse the deliberately multi-line hint.
+ */
+function gitFetchError (err: Error, repo: string, pkgName?: string): PnpmError {
+  if ((err as { code?: string }).code === 'ENOENT') {
+    return new PnpmError('GIT_FETCHER_GIT_NOT_FOUND', '`git` executable not found on PATH. Install git to fetch git-hosted packages.')
+  }
+  const safePkgName = pkgName == null ? undefined : redactAndSanitize(pkgName)
+  const subject = safePkgName == null ? '' : `"${safePkgName}" `
+  return new PnpmError(
+    'GIT_FETCH_FAILED',
+    `Failed to fetch ${subject}from the git repository "${redactAndSanitize(repo)}": ${redactAndSanitizeMultiline(gitFailureDetail(err))}`,
+    { hint: sshRemediationHint(repo, safePkgName) }
+  )
+}
+
 // git appends the child's stderr to its own message, which repeats the repository
 // and leaks the store's temp directory. The stderr alone is what the user needs.
 function gitFailureDetail (err: Error): string {
@@ -114,7 +133,7 @@ function gitFailureDetail (err: Error): string {
 function sshRemediationHint (repo: string, pkgName?: string): string | undefined {
   const host = sshRepoHost(repo)
   if (host == null) return undefined
-  return `The lockfile records an SSH remote for this dependency, so fetching it needs an SSH key for ${host}.
+  return `The lockfile records an SSH remote for this dependency, so fetching it needs an SSH key for ${redactAndSanitize(host)}.
 
 If its specifier does not ask for SSH (for example "github:owner/repo"), the lockfile entry was written before pnpm v11.21 and can be re-recorded over HTTPS:
 

@@ -11,7 +11,7 @@ mod token_helper;
 pub use auth::{
     AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
     base64_encode, hide_auth_information, nerf_dart, normalize_auth_key, redact_and_sanitize,
-    redact_url_credentials,
+    redact_and_sanitize_multiline, redact_url_credentials,
 };
 pub use limited_body::{LimitedBody, read_limited_body};
 pub use token_helper::{TokenHelperOutput, TokenHelperRunner};

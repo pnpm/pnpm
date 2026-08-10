@@ -6,6 +6,7 @@ use crate::{
     error::{GitFetcherError, PreparePackageError},
     prepare_package::AllowBuildRef,
 };
+use miette::Diagnostic;
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::StoreDir;
@@ -1267,6 +1268,9 @@ fn ssh_repo_host_recognises_only_ssh_references() {
         ssh_repo_host("ssh://git@gitlab.example.com:2222/org/repo.git"),
         Some("gitlab.example.com"),
     );
+    // Brackets are kept, matching what `URL.hostname` hands the TypeScript CLI.
+    assert_eq!(ssh_repo_host("ssh://git@[2001:db8::1]:2222/org/repo.git"), Some("[2001:db8::1]"));
+    assert_eq!(ssh_repo_host("ssh://[2001:db8::1]/org/repo.git"), Some("[2001:db8::1]"));
 
     assert_eq!(ssh_repo_host("https://github.com/acme/widget.git"), None);
     assert_eq!(ssh_repo_host("git://github.com/acme/widget.git"), None);
@@ -1274,9 +1278,7 @@ fn ssh_repo_host_recognises_only_ssh_references() {
     assert_eq!(ssh_repo_host(r"C:\src\repo"), None);
 }
 
-/// A lockfile that predates the resolver fix keeps cloning over SSH, and the
-/// raw `git clone` failure named neither the dependency nor a way out. Covers
-/// <https://github.com/pnpm/pnpm/issues/13743>.
+/// Covers <https://github.com/pnpm/pnpm/issues/13743>.
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread")]
 async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
@@ -1297,6 +1299,17 @@ async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
     assert_eq!(repo, "git@github.com:acme/widget.git");
     assert_eq!(host, "github.com");
     assert_eq!(stderr, "ssh: connect to host port 22: Connection refused");
+
+    assert_eq!(err.code().expect("a diagnostic code").to_string(), "ERR_PNPM_GIT_FETCH_FAILED");
+    let rendered = err.to_string();
+    dbg!(&rendered);
+    assert!(rendered.contains(r#"Failed to fetch "@scope/pkg""#), "{rendered}");
+
+    let help = err.help().expect("SSH remediation help").to_string();
+    dbg!(&help);
+    assert!(help.contains("needs an SSH key for github.com"), "{help}");
+    assert!(help.contains("pnpm update @scope/pkg"), "{help}");
+    assert!(help.contains("do not re-resolve git dependencies"), "{help}");
 }
 
 #[cfg(unix)]
@@ -1313,10 +1326,12 @@ async fn a_failed_clone_over_https_carries_no_ssh_remediation() {
         .expect_err("the shim fails every clone");
 
     assert!(matches!(err, GitFetcherError::Fetch { .. }), "{err:?}");
+    assert_eq!(err.code().expect("a diagnostic code").to_string(), "ERR_PNPM_GIT_FETCH_FAILED");
+    assert!(err.help().is_none(), "an HTTPS remote needs no SSH remediation");
 }
 
-/// A `git` shim that fails every invocation with a canned stderr, so the
-/// transport-failure branch is reachable without a remote.
+/// A `git` shim that fails every invocation, so the transport-failure branch
+/// is reachable without a remote.
 #[cfg(unix)]
 fn write_failing_git_shim(dir: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
@@ -1331,8 +1346,7 @@ exit 128
     shim_path
 }
 
-/// A fetcher over `repo` with no shallow hosts configured, so it takes the
-/// `git clone` branch the transport-failure tests drive through the shim.
+/// No shallow hosts, so the fetcher takes the `git clone` branch.
 #[cfg(unix)]
 fn failing_fetcher<'a>(
     repo: &'a str,
