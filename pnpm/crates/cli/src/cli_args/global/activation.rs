@@ -147,6 +147,16 @@ struct PreparedGlobalInstall {
     old_hash_target: Option<PathBuf>,
 }
 
+/// The outcome of activating a group.
+#[derive(Debug)]
+pub(super) struct Activation {
+    /// The commands the activated group provides.
+    pub(super) activated_bins: HashSet<String>,
+    /// Set when the backup directory outlived an already-committed
+    /// activation. The caller warns rather than failing the command.
+    pub(super) leftover_backup: Option<ArtifactCleanupError>,
+}
+
 pub(super) fn activate_global_install<Sys>(
     install_dir: &Path,
     hash_link: &Path,
@@ -154,7 +164,7 @@ pub(super) fn activate_global_install<Sys>(
     packages: &[PackageBinSource],
     bins_to_skip: &HashSet<String>,
     link_bins: impl FnOnce() -> miette::Result<()>,
-) -> miette::Result<HashSet<String>>
+) -> miette::Result<Activation>
 where
     Sys: FsWalkFiles + FsSwapHashLink + FsRename + FsArtifactProbe,
 {
@@ -202,10 +212,18 @@ where
     }
 
     let PreparedGlobalInstall { actual_bin_names, backup_dir, .. } = prepared;
+    let backup_path = backup_dir.path().to_path_buf();
     // Activation is already committed, so a leftover backup directory must
-    // not fail the command.
-    let _ = backup_dir.close();
-    Ok(actual_bin_names)
+    // not fail the command — but it points at a filesystem problem worth
+    // surfacing.
+    let leftover_backup = backup_dir.close().err().map(|source| ArtifactCleanupError {
+        context: format!(
+            "Failed to remove the global bin backup directory at {}",
+            backup_path.display(),
+        ),
+        source,
+    });
+    Ok(Activation { activated_bins: actual_bin_names, leftover_backup })
 }
 
 fn activate_prepared_global_install<Sys: FsSwapHashLink>(

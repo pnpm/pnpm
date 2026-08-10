@@ -7,6 +7,7 @@ import { removeBin } from '@pnpm/bins.remover'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { getHashLink, getInstalledBinNames, type GlobalPackageInfo } from '@pnpm/global.packages'
+import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 import { symlinkDir } from 'symlink-dir'
@@ -70,11 +71,14 @@ export async function activateGlobalInstall (
     await cleanupFailedGlobalActivation({ ...opts, ...prepared }, activationError)
     throw activationError
   }
-  // Activation is already committed, so a leftover backup directory must
-  // not fail the command.
   try {
     await fs.promises.rm(prepared.backupDir, { recursive: true, force: true })
-  } catch {}
+  } catch (err) {
+    // Activation is already committed, so a leftover backup directory
+    // must not fail the command — but it points at a filesystem problem
+    // worth surfacing.
+    globalWarn(`Failed to remove the global bin backup directory at ${prepared.backupDir}: ${getErrorMessage(err)}`)
+  }
   return prepared.actualBinNames
 }
 

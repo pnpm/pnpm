@@ -38,7 +38,7 @@ use pacquet_global::{
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_parse_wanted_dependency::{
     is_valid_old_npm_package_name, parse_wanted_dependency,
 };
@@ -244,7 +244,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
-        let activated_bins = activate_global_install::<CmdShimHost>(
+        let activation = activate_global_install::<CmdShimHost>(
             &install_dir,
             &hash_link,
             &global_bin_dir,
@@ -261,6 +261,10 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             },
         )
         .wrap_err("activate global install")?;
+        if let Some(leftover) = &activation.leftover_backup {
+            warn_global::<Reporter>(&leftover.to_string());
+        }
+        let activated_bins = activation.activated_bins;
         cleanup_replaced_global_installs(
             &global_pkg_dir,
             &global_bin_dir,
@@ -350,7 +354,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 
         let hash_link = get_hash_link(&global_pkg_dir, &pkg.hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
-        let activated_bins = activate_global_install::<CmdShimHost>(
+        let activation = activate_global_install::<CmdShimHost>(
             &install_dir,
             &hash_link,
             &global_bin_dir,
@@ -367,6 +371,10 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             },
         )
         .wrap_err("activate global install")?;
+        if let Some(leftover) = &activation.leftover_backup {
+            warn_global::<Reporter>(&leftover.to_string());
+        }
+        let activated_bins = activation.activated_bins;
         cleanup_replaced_global_installs(
             &global_pkg_dir,
             &global_bin_dir,
@@ -745,6 +753,15 @@ fn bin_names_of_other_groups(
         }
     }
     Ok(names)
+}
+
+/// Surface a non-fatal problem on the `pnpm:global` channel, matching
+/// the TypeScript CLI's `globalWarn`.
+fn warn_global<Reporter: self::Reporter>(message: &str) {
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Warn,
+        message: message.to_string(),
+    }));
 }
 
 /// Build the registry map (`{ default, ...scoped }`) hashed into the

@@ -3,6 +3,7 @@ use super::{
     FsSwapHashLink, SavedBinSlot, activate_global_install, directory_symlink_slots,
     hash_linked_packages, needs_directory_symlink_removal,
 };
+use miette::IntoDiagnostic;
 use pacquet_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
     FsWalkFiles, FsWrite, Host, PackageBinSource, link_bins_of_packages_with_excludes,
@@ -186,6 +187,20 @@ static BACKUP_BLOCKER_BIN_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
 fn arm_backup_cleanup_blocker(global_bin_dir: &Path) {
     *BACKUP_BLOCKER_BIN_DIR.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
         Some(global_bin_dir.to_path_buf());
+}
+
+/// Swap the pending backup directory for a regular file of the same
+/// name, so the recursive removal on the committed path fails and the
+/// entry survives.
+fn replace_backup_dir_with_file(global_bin_dir: &Path) -> io::Result<()> {
+    for entry in fs::read_dir(global_bin_dir)? {
+        let entry = entry?;
+        if entry.file_name().to_string_lossy().starts_with(".pnpm-bin-backup-") {
+            fs::remove_dir_all(entry.path())?;
+            fs::write(entry.path(), b"not a directory\n")?;
+        }
+    }
+    Ok(())
 }
 
 /// Leave a file inside the pending backup directory so removing it fails.
@@ -510,7 +525,8 @@ fn successful_activation_returns_deduped_unskipped_bins_and_removes_backup() {
     )
     .expect("activate global install");
 
-    assert_eq!(activated, HashSet::from(["tool".to_string()]));
+    assert_eq!(activated.activated_bins, HashSet::from(["tool".to_string()]));
+    assert!(activated.leftover_backup.is_none());
     assert_eq!(slot_state(&fixture.global_bin_dir.join("skip")), skipped);
     assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.fresh_install_dir));
     assert!(fixture.old_install_dir.exists());
@@ -737,6 +753,39 @@ fn fresh_cleanup_failure_reports_only_remaining_fresh_install() {
             .iter()
             .any(|message| message.contains("injected hash swap failure")),
     );
+}
+
+#[test]
+fn a_committed_activation_reports_a_leftover_backup_instead_of_failing() {
+    let _guard = backup_cleanup_guard();
+    // Let the hash-link swap succeed, so the activation commits and the
+    // only thing left to fail is removing the backup directory.
+    BACKUP_CLEANUP_HASH_CALLS.store(1, Ordering::SeqCst);
+    let fixture = ActivationFixture::new(&["tool"]);
+    arm_backup_cleanup_blocker(&fixture.global_bin_dir);
+
+    let activation = activate_global_install::<BackupCleanupFailure>(
+        &fixture.fresh_install_dir,
+        &fixture.hash_link,
+        &fixture.global_bin_dir,
+        &fixture.packages,
+        &HashSet::new(),
+        || {
+            test_link_bins::<BackupCleanupFailure>(
+                &fixture.packages,
+                &fixture.global_bin_dir,
+                &HashSet::new(),
+            )?;
+            replace_backup_dir_with_file(&fixture.global_bin_dir).into_diagnostic()
+        },
+    )
+    .expect("a leftover backup directory must not fail a committed activation");
+
+    assert_eq!(activation.activated_bins, HashSet::from(["tool".to_string()]));
+    let leftover = activation.leftover_backup.expect("the leftover backup must be reported");
+    assert!(leftover.to_string().contains("Failed to remove the global bin backup directory"));
+    assert_eq!(backup_dirs(&fixture.global_bin_dir).len(), 1);
+    assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.fresh_install_dir));
 }
 
 #[test]

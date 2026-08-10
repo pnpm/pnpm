@@ -27,6 +27,7 @@ const backupSymlinkTypes: Array<string | null | undefined> = []
 const activationBackupFileContents: Buffer[] = []
 const getHashLink = jest.fn((globalDir: string, hash: string) => path.join(globalDir, hash))
 const getInstalledBinNames = jest.fn<(pkg: GlobalPackageInfo) => Promise<string[]>>()
+const globalWarn = jest.fn<(message: string) => void>()
 const realRm = fs.rm.bind(fs)
 
 jest.spyOn(fs, 'rm').mockImplementation(async (target, options) => {
@@ -125,6 +126,7 @@ jest.spyOn(fs, 'symlink').mockImplementation(async (target, linkPath, type) => {
 jest.unstable_mockModule('@pnpm/bins.linker', () => ({ linkBinsOfPackages }))
 jest.unstable_mockModule('@pnpm/bins.remover', () => ({ removeBin }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({ getHashLink, getInstalledBinNames }))
+jest.unstable_mockModule('@pnpm/logger', () => ({ globalWarn }))
 jest.unstable_mockModule('symlink-dir', () => ({ symlinkDir }))
 
 const { cleanupReplacedGlobalInstalls, activateGlobalInstall } = await import('../src/globalActivation.js')
@@ -149,6 +151,7 @@ afterEach(async () => {
     activationBackupFileContents.length = 0
     getHashLink.mockClear()
     getInstalledBinNames.mockReset()
+    globalWarn.mockClear()
     linkBinsOfPackages.mockClear()
     removeBin.mockClear()
     symlinkDir.mockClear()
@@ -404,7 +407,8 @@ test('succeeds when removing the backup directory fails after activation', async
   const fixture = await createFixture(manifest)
   const toolSlot = path.join(fixture.globalBinDir, 'tool')
   await fs.writeFile(toolSlot, 'old tool\n')
-  backupRemovalFailure = new Error('backup directory removal failed')
+  const backupRemovalMessage = 'backup directory removal failed'
+  backupRemovalFailure = new Error(backupRemovalMessage)
 
   const activatedBins = await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
@@ -418,6 +422,9 @@ test('succeeds when removing the backup directory fails after activation', async
   expect(await fs.readFile(toolSlot, 'utf8')).toBe('fresh tool\n')
   expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.freshInstallDir))
   expect(await findBackupDirs(fixture.root)).toHaveLength(1)
+  // Committed activation must not fail, but the leak has to be visible.
+  expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('Failed to remove the global bin backup directory'))
+  expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining(backupRemovalMessage))
 })
 
 test('activates when a Windows bin slot is a dangling symlink', async () => {
