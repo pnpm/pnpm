@@ -97,11 +97,14 @@ async function cleanupReplacedGlobalInstall (
   group: GlobalPackageInfo
 ): Promise<unknown[]> {
   const errors: unknown[] = []
-  let binNames: string[] = []
+  let binNames: string[]
   try {
     binNames = await getInstalledBinNames(group)
   } catch (err) {
-    errors.push(err)
+    // The install directory is the only record of which bins the group
+    // owns, so removing it now would strand them on PATH forever. Leave
+    // the group intact for a later run to clean up.
+    return [err]
   }
   for (const binName of binNames) {
     if (opts.publishedBins.has(binName) || opts.protectedBins.has(binName)) continue

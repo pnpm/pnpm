@@ -688,6 +688,26 @@ test('does not delete an install directory outside the global directory', async 
   expect(await fs.readFile(marker, 'utf8')).toBe('outside\n')
 })
 
+test('keeps a replaced group whose bin names cannot be enumerated', async () => {
+  const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
+  const hashLink = path.join(globalDir, 'old-hash')
+  await replaceDirectorySymlink(oldInstallDir, hashLink)
+  const enumerationError = new Error('cannot read the installed manifest')
+  getInstalledBinNames.mockRejectedValue(enumerationError)
+
+  await expect(cleanupReplacedGlobalInstalls({
+    groups: [{ dependencies: { old: '1.0.0' }, hash: 'old-hash', installDir: oldInstallDir }],
+    globalDir,
+    globalBinDir,
+    activeHash: 'active-hash',
+    publishedBins: new Set(),
+    protectedBins: new Set(),
+  })).rejects.toBe(enumerationError)
+
+  expect(existsSync(oldInstallDir)).toBe(true)
+  expect(existsSync(hashLink)).toBe(true)
+})
+
 test('cleanup continues past a failed bin removal and reports the error', async () => {
   const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
   const blockedSlot = path.join(globalBinDir, 'blocked')
