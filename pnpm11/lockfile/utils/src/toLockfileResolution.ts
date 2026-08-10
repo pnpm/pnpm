@@ -1,5 +1,5 @@
 import type { LockfileResolution } from '@pnpm/lockfile.types'
-import { isGitHostedTarballUrl, type Resolution, type TarballResolution } from '@pnpm/resolving.resolver-base'
+import { type GitResolution, isGitHostedTarballUrl, type Resolution, type TarballResolution } from '@pnpm/resolving.resolver-base'
 import { isCanonicalRegistryTarballUrl } from '@pnpm/resolving.tarball-url'
 
 export function toLockfileResolution (
@@ -12,6 +12,14 @@ export function toLockfileResolution (
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
   if (resolution.type !== undefined || !resolution['integrity']) {
+    // Nothing checks a git checkout against a hash — the commit pins the
+    // content — so an `integrity` some other tool recorded on a git
+    // resolution is dropped rather than written back, instead of standing
+    // in the lockfile as a check that never runs.
+    if (resolution.type === 'git' && 'integrity' in resolution) {
+      const { integrity: _integrity, ...rest } = resolution as GitResolution & { integrity?: string }
+      return rest
+    }
     return resolution as LockfileResolution
   }
   // Tarball-typed resolutions are guaranteed to carry a tarball URL by the

@@ -233,7 +233,15 @@ async function walkStep (
 
       if (componentsMap.has(purl)) return
 
-      const integrity = (pkgSnapshot.resolution as TarballResolution).integrity
+      // Only the tarball/registry hash is published as a component
+      // checksum: it is the one pnpm checks the downloaded bytes against.
+      // A typed resolution that merely carries an `integrity` — a
+      // `type: git` entry some other tool stamped one onto — was never
+      // checked against it, and an SBOM checksum reads as an assurance.
+      // Mirrors `integrity_string` in the Rust CLI's `sbom.rs`.
+      const integrity = 'type' in pkgSnapshot.resolution
+        ? undefined
+        : (pkgSnapshot.resolution as TarballResolution).integrity
       const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
       const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
 

@@ -410,10 +410,25 @@ fn deserialize_git_resolution_with_integrity() {
     let expected = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
-        integrity: integrity("sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==").into(),
+        integrity: None,
         path: None,
     });
     assert_eq!(received, expected);
+    assert!(received.integrity().is_none());
+}
+
+/// The value is discarded, so a hash pnpm's own reader tolerates must not
+/// become a parse error here.
+#[test]
+fn deserialize_git_resolution_with_a_malformed_integrity() {
+    let yaml = text_block! {
+        "type: git"
+        "repo: https://github.com/ksxnodemodules/ts-pipe-compose.git"
+        "commit: e63c09e460269b0c535e4c34debf69bb91d57b22"
+        "integrity: not-a-real-hash"
+    };
+    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    dbg!(&received);
     assert!(received.integrity().is_none());
 }
 
@@ -445,17 +460,22 @@ fn serialize_git_resolution_with_path() {
     assert_eq!(received, expected);
 }
 
+/// Writing the hash back would keep advertising a check nothing performs,
+/// so it leaves on the next write.
 #[test]
-fn serialize_git_resolution_with_integrity() {
+fn serialize_git_resolution_drops_the_integrity() {
     let resolution = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
-        integrity: integrity("sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==").into(),
+        integrity: Some(
+            "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
+                .to_string(),
+        ),
         path: None,
     });
     let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    let expected = "resolution: {commit: e63c09e460269b0c535e4c34debf69bb91d57b22, integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==, repo: https://github.com/ksxnodemodules/ts-pipe-compose.git, type: git}";
+    let expected = "resolution: {commit: e63c09e460269b0c535e4c34debf69bb91d57b22, repo: https://github.com/ksxnodemodules/ts-pipe-compose.git, type: git}";
     assert_eq!(received, expected);
 }
 

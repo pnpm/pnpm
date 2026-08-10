@@ -64,3 +64,48 @@ describe('collectSbomComponents with named registries', () => {
     )
   })
 })
+
+describe('collectSbomComponents integrity', () => {
+  /**
+   * An SBOM checksum is read as an assurance that the artifact was
+   * verified against it. pnpm never checks a git checkout against a hash,
+   * so an `integrity` recorded on a `type: git` resolution must not be
+   * republished as one.
+   */
+  it('should not publish an integrity recorded on a git resolution', async () => {
+    const lockfile = {
+      lockfileVersion: '9.1',
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: 'git+https://github.com/foo/bar.git#e63c09e460269b0c535e4c34debf69bb91d57b22' },
+          specifiers: { foo: 'github:foo/bar' },
+        },
+      },
+      packages: {
+        ['foo@git+https://github.com/foo/bar.git#e63c09e460269b0c535e4c34debf69bb91d57b22' as DepPath]: {
+          resolution: {
+            type: 'git',
+            repo: 'https://github.com/foo/bar.git',
+            commit: 'e63c09e460269b0c535e4c34debf69bb91d57b22',
+            integrity: 'sha512-AAAA',
+          },
+          version: '1.0.0',
+        },
+      },
+    } as unknown as LockfileObject
+
+    const { components } = await collectSbomComponents({
+      lockfile,
+      rootName: 'root',
+      rootVersion: '1.0.0',
+      registries,
+      namedRegistries: normalizeNamedRegistries(undefined),
+      lockfileDir: '/test',
+      lockfileOnly: true,
+    })
+
+    const git = components.find((component) => component.name === 'foo')
+    expect(git).toBeDefined()
+    expect(git!.integrity).toBeUndefined()
+  })
+})

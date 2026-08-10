@@ -25,7 +25,6 @@ use pacquet_lockfile::{Lockfile, LockfileResolution};
 use pacquet_testing_utils::{bin::CommandTempCwd, git_repo::GitRepoFixture};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
-use ssri::Integrity;
 
 use _utils::{
     append_workspace_yaml_key, assert_success, importer_specifier, importer_version,
@@ -133,9 +132,10 @@ fn install_from_a_git_repo() {
     drop((root, npmrc_info));
 }
 
-/// pnpm's own git fetcher computes no integrity, yet lockfiles in the
-/// wild record one, and pnpm hands it back untouched.
-/// See <https://github.com/pnpm/pnpm/issues/13042>.
+/// No pnpm version computes an integrity for a git checkout, yet
+/// lockfiles in the wild record one. Installing must not choke on it, and
+/// must not write it back — nothing verifies a git checkout against a
+/// hash. See <https://github.com/pnpm/pnpm/issues/13042>.
 #[test]
 fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
     const INTEGRITY: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
@@ -156,12 +156,25 @@ fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     pnpm_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
     assert!(workspace.join("node_modules/is-negative/package.json").exists());
-
-    pnpm_at(&workspace).with_args(["install", "--no-prefer-frozen-lockfile"]).assert().success();
     let lockfile = read_lockfile(&lockfile_path);
-    let resolution = git_resolution(&lockfile, "is-negative");
-    assert_eq!(resolution.commit, commit);
-    assert_eq!(resolution.integrity.as_ref().map(Integrity::to_string).as_deref(), Some(INTEGRITY));
+    assert_eq!(git_resolution(&lockfile, "is-negative").integrity, None, "read back as a hash");
+
+    // Adding a dependency is what next rewrites the lockfile; the hash
+    // leaves with that write rather than provoking one of its own.
+    let (other, other_commit) = simple_repo(root.path(), "is-positive", "1.0.0");
+    write_dependencies(
+        &workspace,
+        &[
+            ("is-negative", &repo.git_url_at(&commit)),
+            ("is-positive", &other.git_url_at(&other_commit)),
+        ],
+    );
+    pnpm_at(&workspace).with_arg("install").assert().success();
+
+    let rewritten = fs::read_to_string(&lockfile_path).expect("read rewritten lockfile");
+    assert!(!rewritten.contains(INTEGRITY), "the rewritten lockfile still advertises the hash");
+    let lockfile = read_lockfile(&lockfile_path);
+    assert_eq!(git_resolution(&lockfile, "is-negative").commit, commit);
 
     drop((root, npmrc_info));
 }
