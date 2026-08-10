@@ -1,4 +1,8 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
+import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
@@ -114,21 +118,23 @@ test('a programmatic hook without a pnpmfile checksum still resolves', async () 
 
 test('a hook from the checksum-excluded global pnpmfile still resolves', async () => {
   prepareEmpty()
+  fs.writeFileSync('global-pnpmfile.cjs', 'module.exports = { hooks: { readPackage: (pkg) => pkg } }')
+  const loadHooks = async () => (await requireHooks(process.cwd(), {
+    globalPnpmfile: path.resolve('global-pnpmfile.cjs'),
+  })).hooks
   const manifest: ProjectManifest = {
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
       'is-positive': '1.0.0',
     },
   }
-  const readPackage = (pkg: PackageManifest) => pkg
-  const hooks = { readPackage: [readPackage], calculatePnpmfileChecksum, hasUntrackedReadPackageHook: true }
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ hooks }))
+  }, testDefaults({ hooks: await loadHooks() }))
 
-  const options = testDefaults({ hooks })
+  const options = testDefaults({ hooks: await loadHooks() })
   const requestedPackages = trackRequestedPackages(options.storeController)
   await mutateModulesInSingleProject({
     dependencyNames: ['is-positive'],
