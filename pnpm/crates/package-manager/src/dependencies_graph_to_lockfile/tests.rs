@@ -84,6 +84,7 @@ fn single_importer_opts<'a>(
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     }
 }
 
@@ -428,6 +429,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
     let on_settings = on.settings.as_ref().expect("settings written");
     assert_eq!(on_settings.dedupe_peers, Some(true));
@@ -459,6 +461,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
     let off_settings = off.settings.as_ref().expect("settings written");
     assert_eq!(off_settings.dedupe_peers, None);
@@ -544,6 +547,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             previous_importers: None,
             update_reuse_scope: UpdateReuseScope::All,
             update_reuse_scopes_by_importer: BTreeMap::new(),
+            time: BTreeMap::new(),
         })
     };
 
@@ -702,6 +706,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let snapshots = lockfile.catalogs.as_ref().expect("catalogs snapshot present");
@@ -1760,6 +1765,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
@@ -1851,6 +1857,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -1960,6 +1967,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -2095,6 +2103,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");

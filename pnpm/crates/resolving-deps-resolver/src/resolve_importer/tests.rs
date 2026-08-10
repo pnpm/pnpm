@@ -55,6 +55,7 @@ fn locked_peer_context_is_recorded_by_direct_alias() {
         patched_dependencies: None,
         packages: None,
         snapshots: None,
+        time: None,
     };
 
     let ImporterLockedPeerContext { versions, names_by_alias } =
@@ -116,6 +117,7 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
                 SnapshotEntry::default(),
             ),
         ])),
+        time: None,
     };
 
     assert_eq!(
@@ -181,6 +183,7 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
                 ..SnapshotEntry::default()
             },
         )])),
+        time: None,
     };
 
     let ImporterLockedPeerContext { versions, names_by_alias } =

@@ -157,6 +157,9 @@ pub struct WorkspaceResolveOptions {
 pub struct ResolveWorkspaceResult {
     pub merged_tree: ResolvedTree,
     pub peers: WorkspaceResolvePeersResult,
+    /// Publish date of every direct dependency, for the lockfile's
+    /// `time:` section. Empty unless the install ran `time-based`.
+    pub time: BTreeMap<String, String>,
 }
 
 /// Resolve every importer's dependencies, then run one workspace-wide
@@ -202,6 +205,8 @@ where
         registries,
         named_registries,
     } = opts;
+    // Taken before the lockfile moves into the workspace ctx below.
+    let recorded_time = wanted_lockfile.as_ref().and_then(|lockfile| lockfile.time.clone());
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(manifest_hook)
@@ -240,7 +245,7 @@ where
     // importer's `base_opts.published_by` by the install layer; it is
     // the upper bound on the time-based cutoff.
     let maximum_published_by = importer_opts.first().and_then(|opts| opts.base_opts.published_by);
-    let subdep_published_by = if time_based {
+    let TimeBasedCutoff { published_by: subdep_published_by, time } = if time_based {
         compute_time_based_cutoff(
             resolver,
             importers,
@@ -248,10 +253,11 @@ where
             dependency_groups,
             pick_lowest_direct,
             maximum_published_by,
+            recorded_time.as_ref(),
         )
         .await
     } else {
-        maximum_published_by
+        TimeBasedCutoff { published_by: maximum_published_by, time: BTreeMap::new() }
     };
 
     // Phase 1: every importer's initial wave resolves before any peer
@@ -396,13 +402,29 @@ where
         resolve_peers_from_workspace_root,
         peer_opts,
     );
-    Ok(ResolveWorkspaceResult { merged_tree, peers })
+    Ok(ResolveWorkspaceResult { merged_tree, peers, time })
+}
+
+/// What a `time-based` pre-pass learned about the direct dependencies.
+struct TimeBasedCutoff {
+    /// The ceiling every transitive dependency's publish date must
+    /// respect.
+    published_by: Option<DateTime<Utc>>,
+    /// Publish date per direct dependency, for the lockfile's `time:`
+    /// section.
+    time: BTreeMap<String, String>,
 }
 
 /// Resolve every importer's direct dependencies and derive the
 /// `time-based` publish-date cutoff for transitive deps.
 ///
-/// Only the direct deps' `published_at` is read here, so the throwaway
+/// Each direct dependency's publish date comes from its packument, or —
+/// against a registry whose abbreviated metadata omits publish times —
+/// from `recorded_time`, the date the lockfile's `time:` section
+/// recorded for it. The cutoff is the newest of those dates plus an
+/// hour, clamped by `maximum_published_by`.
+///
+/// Only the direct deps' publish date is read here, so the throwaway
 /// resolves warm the resolver's packument cache for the real walk that
 /// follows. Resolver errors are ignored here — the real walk surfaces
 /// them.
@@ -413,11 +435,12 @@ async fn compute_time_based_cutoff<Chain>(
     dependency_groups: &[DependencyGroup],
     pick_lowest_direct: bool,
     maximum_published_by: Option<DateTime<Utc>>,
-) -> Option<DateTime<Utc>>
+    recorded_time: Option<&BTreeMap<String, String>>,
+) -> TimeBasedCutoff
 where
     Chain: Resolver + ?Sized,
 {
-    let mut newest: Option<DateTime<Utc>> = None;
+    let mut time = BTreeMap::new();
     for (importer, opts) in importers.iter().zip(importer_opts) {
         let Ok(specs) = importer_direct_wanted_specs(
             importer.manifest,
@@ -437,21 +460,25 @@ where
                 injected: injected.then_some(true),
                 ..WantedDependency::default()
             };
-            if let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await
-                && let Some(published_at) = result.published_at.as_deref()
-                && let Some(parsed) = parse_packument_timestamp(published_at)
-            {
-                newest = Some(newest.map_or(parsed, |current| current.max(parsed)));
+            let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await else { continue };
+            let published_at = result.published_at.or_else(|| {
+                recorded_time.and_then(|recorded| recorded.get(result.id.as_str())).cloned()
+            });
+            if let Some(published_at) = published_at {
+                time.insert(result.id.into_inner(), published_at);
             }
         }
     }
 
+    let newest =
+        time.values().filter_map(|published_at| parse_packument_timestamp(published_at)).max();
     let candidate = newest.and_then(|date| date.checked_add_signed(Duration::hours(1)));
-    match (candidate, maximum_published_by) {
+    let published_by = match (candidate, maximum_published_by) {
         (Some(candidate), Some(maximum)) => Some(candidate.min(maximum)),
         (Some(candidate), None) => Some(candidate),
         (None, maximum) => maximum,
-    }
+    };
+    TimeBasedCutoff { published_by, time }
 }
 
 #[cfg(test)]

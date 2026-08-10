@@ -1059,6 +1059,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         }
         let merged_graph = workspace_result.peers.graph;
         let direct_by_importer = workspace_result.peers.direct_dependencies_by_importer;
+        let resolved_time = workspace_result.time;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "resolve_workspace",
@@ -1140,6 +1141,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 real_importer_ids,
                 selected_importer_ids,
                 lockfile_dir,
+                resolved_time,
             })?;
             return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
                 built_lockfile,
@@ -1228,6 +1230,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             real_importer_ids,
             selected_importer_ids,
             lockfile_dir,
+            resolved_time,
         })?;
         tracing::info!(
             target: "pacquet::install::phase",
@@ -1990,6 +1993,10 @@ struct FreshLockfileBuildOptions<'a> {
     real_importer_ids: Option<&'a std::collections::HashSet<String>>,
     selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
     lockfile_dir: &'a Path,
+    /// Publish dates this run resolved for the direct dependencies,
+    /// layered over the ones [`Self::wanted_lockfile`] recorded. Empty
+    /// unless the install resolved `time-based`.
+    resolved_time: BTreeMap<String, String>,
 }
 
 /// Build the fresh lockfile, then — under a filtered install — splice it
@@ -2023,10 +2030,11 @@ fn build_fresh_lockfile(
     opts: FreshLockfileBuildOptions<'_>,
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let FreshLockfileBuildOptions {
-        wanted_lockfile: _,
+        wanted_lockfile,
         real_importer_ids: _,
         selected_importer_ids: _,
         lockfile_dir: _,
+        resolved_time,
         config,
         importer_manifests,
         graph,
@@ -2077,8 +2085,26 @@ fn build_fresh_lockfile(
         previous_importers,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
+        time: merge_recorded_time(wanted_lockfile, resolved_time),
     })?;
     Ok(lockfile)
+}
+
+/// The `time:` section the rewritten lockfile carries: what the prior
+/// lockfile recorded, with this run's freshly resolved publish dates
+/// layered over it. Keeping the prior entries is what preserves a
+/// recorded date for a dependency whose packument does not carry one;
+/// saving prunes whatever is no longer a direct dependency.
+fn merge_recorded_time(
+    wanted_lockfile: Option<&Lockfile>,
+    resolved_time: BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    let Some(recorded) = wanted_lockfile.and_then(|lockfile| lockfile.time.as_ref()) else {
+        return resolved_time;
+    };
+    let mut time = recorded.clone();
+    time.extend(resolved_time);
+    time
 }
 
 pub(crate) fn compute_package_extensions_checksum(config: &Config) -> Option<String> {

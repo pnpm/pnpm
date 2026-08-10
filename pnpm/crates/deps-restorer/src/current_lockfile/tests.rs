@@ -88,6 +88,7 @@ fn empty_lockfile() -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 
@@ -130,6 +131,7 @@ fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 

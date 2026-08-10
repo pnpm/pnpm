@@ -98,6 +98,7 @@ pub fn materialization_closure(
             importers,
             packages,
             snapshots,
+            time: lockfile.time.clone(),
         },
         importer_ids: reachable.importer_ids,
     }
@@ -328,6 +329,7 @@ fn lockfile_with_graph(
         importers,
         packages,
         snapshots,
+        time: source.time.clone(),
     }
 }
 
