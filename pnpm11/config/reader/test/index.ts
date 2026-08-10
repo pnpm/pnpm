@@ -834,8 +834,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       rootProjectManifest: { name: 'attacker-root' },
     })
 
-    const { context } = await getConfig({ cliOptions, packageManager, workspaceDir })
+    const { context, warnings } = await getConfig({ cliOptions, packageManager, workspaceDir })
 
+    // The global config file reports these; a project manifest has to as well,
+    // or the same key is named in one file and dropped in silence in the other.
+    expect(warnings).toContainEqual(expect.stringContaining('"packageManager"'))
     expect(context.cliOptions).toStrictEqual({})
     expect(context.packageManager).toStrictEqual(packageManager)
     expect(context.explicitlySetKeys).toBeInstanceOf(Set)

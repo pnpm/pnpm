@@ -331,12 +331,8 @@ export async function getConfig (opts: {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
       // A project manifest refuses some of these too, so pointing every one of
       // them at it would send the user from this warning straight to the other.
-      const refusedByAProjectManifest = (key: string): boolean => {
-        const camelKey = camelcase(key, { locale: 'en-US' })
-        return isProjectManifestSkippedSetting(camelKey) || CONFIG_CONTEXT_KEYS.has(camelKey)
-      }
-      const movable = ignoredKeys.filter((key) => !refusedByAProjectManifest(key))
-      const nowhere = ignoredKeys.filter(refusedByAProjectManifest)
+      const movable = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key))
+      const nowhere = ignoredKeys.filter(isRefusedByAProjectManifest)
       if (movable.length > 0) {
         warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(movable)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
       }
@@ -492,8 +488,7 @@ export async function getConfig (opts: {
       if (workspaceManifest) {
         // Matched in camelCase so a kebab-case spelling is reported too. The
         // settings loop drops that spelling either way, but silently.
-        const ignoredKeys = Object.keys(workspaceManifest)
-          .filter((key) => PROJECT_MANIFEST_SKIPPED_SETTINGS.has(camelcase(key, { locale: 'en-US' })))
+        const ignoredKeys = Object.keys(workspaceManifest).filter(isRefusedByAProjectManifest)
         if (ignoredKeys.length > 0) {
           warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndExplain(ignoredKeys)}.`)
         }
@@ -1175,6 +1170,17 @@ const GLOBAL_CONFIG_SKIPPED_SETTINGS: ReadonlySet<string> = new Set(
  */
 export function isProjectManifestSkippedSetting (camelKey: string): boolean {
   return PROJECT_MANIFEST_SKIPPED_SETTINGS.has(camelKey)
+}
+
+/**
+ * Whether a project's `pnpm-workspace.yaml` drops this key — either because it
+ * is a setting a project may not contribute, or because it names the reader's
+ * own bookkeeping. Both warnings ask this, so neither can report a key the
+ * other passes over in silence.
+ */
+function isRefusedByAProjectManifest (key: string): boolean {
+  const camelKey = camelcase(key, { locale: 'en-US' })
+  return isProjectManifestSkippedSetting(camelKey) || CONFIG_CONTEXT_KEYS.has(camelKey)
 }
 
 /**
