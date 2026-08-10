@@ -14,7 +14,7 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use super::{
     ImporterLockedPeerContext, discard_changed_direct_dep_peer_context,
-    importer_locked_peer_context,
+    importer_locked_peer_context, merge_ranges,
 };
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
@@ -805,6 +805,18 @@ async fn auto_install_does_not_install_when_no_intersection() {
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
     assert!(!direct.contains(&"peer-c"), "peer-c must not be hoisted on conflict: {direct:?}");
+}
+
+#[test]
+fn repeated_consumer_ranges_merge_into_the_unique_intersection() {
+    let react = "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc";
+    let narrower = "^18.0.0 || ^19.0.0";
+    let expected = merge_ranges(&[react, narrower], false).expect("the two ranges overlap");
+
+    let mut repeated = vec![react; 10];
+    repeated.push(narrower);
+
+    assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(expected.as_str()));
 }
 
 #[tokio::test]

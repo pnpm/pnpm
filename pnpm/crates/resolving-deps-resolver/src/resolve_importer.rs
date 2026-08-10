@@ -1062,15 +1062,21 @@ fn partition_missing_peers(
 /// their semver intersection, and an empty intersection falls back to a
 /// `||`-join under `auto_install_peers_from_highest_match` — or `None`,
 /// dropping the peer on an unresolvable conflict.
+///
+/// Only the unique ranges reach [`intersect_ranges`]. It intersects two
+/// unions as their Cartesian product without collapsing equivalent
+/// alternatives, so re-intersecting a range already folded in doubles
+/// the alternative count instead of leaving it unchanged.
 fn merge_ranges(ranges: &[&str], auto_install_peers_from_highest_match: bool) -> Option<String> {
     if ranges.len() == 1 {
         return Some(ranges[0].to_string());
     }
-    let unique: BTreeSet<&&str> = ranges.iter().collect();
+    let mut seen: HashSet<&str> = HashSet::default();
+    let unique: Vec<&str> = ranges.iter().copied().filter(|range| seen.insert(range)).collect();
     if unique.len() == 1 {
         return Some(ranges[0].to_string());
     }
-    if let Some(intersection) = intersect_ranges(ranges) {
+    if let Some(intersection) = intersect_ranges(&unique) {
         return Some(intersection);
     }
     if auto_install_peers_from_highest_match {
