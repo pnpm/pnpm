@@ -156,12 +156,13 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
         .success();
     let with_optional = workspace.join("deploy-with-optional");
     assert!(with_optional.join("node_modules/optional-only").exists());
-    assert!(
-        deploy_graph_keys(&with_optional).iter().any(|key| key.contains("@pnpm.e2e/qar@100.0.0")),
-    );
-    assert!(
-        deploy_graph_keys(&with_optional).iter().any(|key| key.contains("@pnpm.e2e/foo@100.0.0")),
-    );
+    let graph_keys = deploy_graph_keys(&with_optional);
+    for included in ["@pnpm.e2e/qar@100.0.0", "@pnpm.e2e/foo@100.0.0"] {
+        assert!(
+            graph_keys.iter().any(|key| key.contains(included)),
+            "default deploy lock graph should include {included}: {graph_keys:#?}",
+        );
+    }
 
     pacquet_cmd(&workspace)
         .with_args([
@@ -175,18 +176,25 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
         .assert()
         .success();
     let without_optional = workspace.join("deploy-without-optional");
-    assert!(without_optional.join("node_modules/lib").exists());
+    assert!(
+        without_optional.join("node_modules/lib").exists(),
+        "the production dependency carrying the optional edges should still be deployed",
+    );
     assert!(!without_optional.join("node_modules/optional-only").exists());
-    assert!(!deploy_graph_keys(&without_optional).iter().any(|key| {
-        key.contains("optional-only@file:")
-            || key.contains("@pnpm.e2e/qar@")
-            || key.contains("@pnpm.e2e/foo@")
-    }),);
-    assert!(!virtual_store_entries(&without_optional).iter().any(|entry| {
-        entry.contains("optional-only@file+")
-            || entry.contains("@pnpm.e2e+qar@")
-            || entry.contains("@pnpm.e2e+foo@")
-    }),);
+    let graph_keys = deploy_graph_keys(&without_optional);
+    for excluded in ["optional-only@file:", "@pnpm.e2e/qar@", "@pnpm.e2e/foo@"] {
+        assert!(
+            !graph_keys.iter().any(|key| key.contains(excluded)),
+            "no-optional deploy lock graph should exclude {excluded}: {graph_keys:#?}",
+        );
+    }
+    let virtual_store_entries = virtual_store_entries(&without_optional);
+    for excluded in ["optional-only@file+", "@pnpm.e2e+qar@", "@pnpm.e2e+foo@"] {
+        assert!(
+            !virtual_store_entries.iter().any(|entry| entry.contains(excluded)),
+            "no-optional deploy virtual store should exclude {excluded}: {virtual_store_entries:#?}",
+        );
+    }
 
     let deploy_lockfile = Lockfile::load_wanted_from_dir(&without_optional).unwrap().unwrap();
     let retained_optional_edges = deploy_lockfile
