@@ -124,10 +124,22 @@ fn discard_unusable_storage(generated: &Path, storage: &Path) {
         return;
     }
     if claimed.join(COMPLETE_FILE).exists() {
-        fs::rename(&claimed, storage).expect("restore completed registry fixture storage");
+        restore_claimed_storage(&claimed, storage);
         return;
     }
     fs::remove_dir_all(&claimed).expect("remove unusable registry fixture storage");
+}
+
+/// Put a claimed tree back after it turned out to be complete.
+///
+/// The claim leaves `storage` free, so a publisher can land its own tree
+/// there before the restore runs. Its content is the same — the path is
+/// addressed by a fingerprint of the fixtures — so a claim that can no
+/// longer go back is redundant rather than lost, and gets dropped.
+fn restore_claimed_storage(claimed: &Path, storage: &Path) {
+    if fs::rename(claimed, storage).is_err() {
+        fs::remove_dir_all(claimed).expect("remove redundant registry fixture storage");
+    }
 }
 
 fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {

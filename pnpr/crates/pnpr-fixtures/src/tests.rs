@@ -1,6 +1,6 @@
 use super::{
     COMPLETE_FILE, build_storage_at_with_substitutions, discard_unusable_storage, ensure_storage,
-    latest_version, packages_dir, publish_storage,
+    latest_version, packages_dir, publish_storage, restore_claimed_storage,
 };
 use std::{collections::BTreeSet, fs, path::Path};
 use tempfile::TempDir;
@@ -186,4 +186,30 @@ fn discarding_leaves_a_tree_that_completed_after_the_claim_was_decided() {
         "winner",
     );
     assert!(storage.join(COMPLETE_FILE).exists());
+}
+
+/// The claim frees `storage`, so a publisher can take it before the
+/// restore runs. That tree is equivalent — the path is keyed by a
+/// fingerprint of the fixtures — so the claim is dropped, not forced back.
+#[test]
+fn restoring_yields_to_a_publisher_that_took_the_freed_path() {
+    let root = TempDir::new().expect("create temp dir");
+    let generated = root.path();
+    let storage = generated.join("storage").join("fingerprint");
+    fs::create_dir_all(&storage).expect("create storage dir");
+    fs::write(storage.join("packument"), "publisher").expect("write publisher file");
+    fs::write(storage.join(COMPLETE_FILE), "").expect("write completion marker");
+
+    let claimed = generated.join("storage.stale");
+    fs::create_dir_all(&claimed).expect("create claimed dir");
+    fs::write(claimed.join("packument"), "claimed").expect("write claimed file");
+    fs::write(claimed.join(COMPLETE_FILE), "").expect("write completion marker");
+
+    restore_claimed_storage(&claimed, &storage);
+
+    assert!(!claimed.exists());
+    assert_eq!(
+        fs::read_to_string(storage.join("packument")).expect("read published file"),
+        "publisher",
+    );
 }
