@@ -6,10 +6,16 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type { DepPath, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { clone } from 'ramda'
 
+import { tryComposeFastUpdates } from '../../src/install/tryComposeFastUpdates.js'
 import {
   hasChangedProjectSpecifiers,
-  tryFastUpdateImporters,
+  type Project as ImporterProject,
 } from '../../src/install/tryFastUpdateImporters.js'
+
+/** The composed pipeline restricted to manifest drift. */
+function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[]): boolean {
+  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects })
+}
 import { testDefaults } from '../utils/index.js'
 
 test('a dependency moved to another group is noticed as a change', () => {

@@ -1,3 +1,5 @@
+use crate::fast_update_compose::Drift;
+use crate::fast_update_lockfile::GraphEdits;
 use node_semver::Range;
 use pacquet_lockfile::{
     Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
@@ -10,10 +12,20 @@ use std::collections::{HashMap, HashSet};
 /// against importer records need no per-dependency conversions.
 type ManifestDependencies<'manifest> = HashMap<PkgName, (&'manifest str, DependencyGroup)>;
 
-pub(crate) fn try_fast_update_importers(
+/// The prepared inputs [`apply_importers_update`] replays: each
+/// importer's manifest map, built once so detection and application share
+/// the parsed aliases.
+pub(crate) struct ImportersPlan<'a, 'manifest> {
+    manifest_dependencies: Vec<(&'a String, ManifestDependencies<'manifest>)>,
+}
+
+/// Whether the importers' records diverge from the manifests, without
+/// cloning anything. [`Drift::Resolve`] when an alias cannot be parsed,
+/// which the resolver reports.
+pub(crate) fn detect_importers_drift<'a, 'manifest>(
     lockfile: &Lockfile,
-    manifests: &[(String, &PackageManifest)],
-) -> Option<Lockfile> {
+    manifests: &'a [(String, &'manifest PackageManifest)],
+) -> Drift<ImportersPlan<'a, 'manifest>> {
     let mut manifest_dependencies: Vec<(&String, ManifestDependencies<'_>)> = Vec::new();
     for (importer_id, manifest) in manifests {
         // Later groups overwrite, so each alias ends at the group
@@ -22,60 +34,65 @@ pub(crate) fn try_fast_update_importers(
         let mut dependencies = HashMap::new();
         for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
             for (name, specifier) in manifest.dependencies([group]) {
-                dependencies.insert(PkgName::parse(name).ok()?, (specifier, group));
+                let Ok(name) = PkgName::parse(name) else {
+                    return Drift::Resolve;
+                };
+                dependencies.insert(name, (specifier, group));
             }
         }
         manifest_dependencies.push((importer_id, dependencies));
     }
-    // Cloning the lockfile is the expensive part, so nothing is cloned
-    // until this cheap scan finds drift the loop below would act on.
-    if !manifest_dependencies
+    if manifest_dependencies
         .iter()
         .any(|(importer_id, dependencies)| importer_diverges(lockfile, importer_id, dependencies))
     {
-        return None;
+        Drift::Absorb(ImportersPlan { manifest_dependencies })
+    } else {
+        Drift::Clean
     }
-    let mut candidate = lockfile.clone();
-    let mut changed = false;
-    let mut moved_across_optional = false;
-    let mut dropped = HashSet::new();
-    for (importer_id, manifest_dependencies) in &manifest_dependencies {
-        let importer = candidate.importers.get_mut(importer_id.as_str())?;
+}
+
+/// Replay the manifests' drift onto `candidate`: compatible specifier
+/// changes, group moves, and removals, with the dropped aliases and
+/// optionality moves recorded in `edits` for the shared epilogue.
+/// `false` — an incompatible or non-semver change, or an alias the
+/// lockfile does not record — leaves the caller on the full-resolution
+/// path.
+pub(crate) fn apply_importers_update(
+    candidate: &mut Lockfile,
+    plan: &ImportersPlan<'_, '_>,
+    edits: &mut GraphEdits,
+) -> bool {
+    for (importer_id, manifest_dependencies) in &plan.manifest_dependencies {
+        let Some(importer) = candidate.importers.get_mut(importer_id.as_str()) else {
+            return false;
+        };
         for (alias, (specifier, target)) in manifest_dependencies {
-            let dependency = importer_dependency_mut(importer, alias)?;
+            let Some(dependency) = importer_dependency_mut(importer, alias) else {
+                return false;
+            };
             if dependency.specifier != *specifier {
-                let range = Range::parse(specifier).ok()?;
-                let version = dependency.version.ver_peer()?.version_semver()?;
+                let Ok(range) = Range::parse(specifier) else {
+                    return false;
+                };
+                let Some(version) =
+                    dependency.version.ver_peer().and_then(|ver_peer| ver_peer.version_semver())
+                else {
+                    return false;
+                };
                 if !version.satisfies(&range) {
-                    return None;
+                    return false;
                 }
                 dependency.specifier = (*specifier).to_string();
-                changed = true;
             }
             if let Some(source) = move_dependency(importer, alias, *target) {
-                moved_across_optional |=
+                edits.moved_across_optional |=
                     source == DependencyGroup::Optional || *target == DependencyGroup::Optional;
-                changed = true;
             }
         }
-        let removed = remove_dependencies_absent_from(importer, manifest_dependencies);
-        changed |= !removed.is_empty();
-        dropped.extend(removed);
+        edits.dropped.extend(remove_dependencies_absent_from(importer, manifest_dependencies));
     }
-    if !dropped.is_empty() {
-        // Prune first: a peer-dependent snapshot that the removal itself
-        // makes unreachable needs no rekeying, so only the survivors are
-        // checked.
-        crate::fast_update_lockfile::prune_unreachable_packages(&mut candidate);
-        if !peer_suffixes_are_independent_of(&candidate, &dropped) {
-            return None;
-        }
-        crate::fast_update_lockfile::prune_unreferenced_catalog_entries(&mut candidate);
-    }
-    if !dropped.is_empty() || moved_across_optional {
-        crate::fast_update_lockfile::recompute_optional_flags(&mut candidate);
-    }
-    changed.then_some(candidate)
+    true
 }
 
 /// Whether the importer's record differs from the manifest in a way the
@@ -200,28 +217,6 @@ fn remove_dependencies_absent_from(
         specifiers.retain(|alias, _| !removed.iter().any(|name| name.to_string() == *alias));
     }
     removed
-}
-
-/// Whether no surviving snapshot resolves a peer through one of `dropped`.
-///
-/// A dropped package that some snapshot reaches as a peer is embedded in
-/// that snapshot's key, so removing it would rekey the dependent rather
-/// than only prune. A peer suffix pnpm shortened into a hash cannot be
-/// read to rule that out.
-fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &HashSet<PkgName>) -> bool {
-    let Some(snapshots) = lockfile.snapshots.as_ref() else {
-        return true;
-    };
-    snapshots.keys().all(|key| {
-        let peers = key.suffix.peer();
-        peers.is_empty()
-            || (peers
-                .trim_start_matches('(')
-                .trim_end_matches(')')
-                .split(")(")
-                .all(|segment| segment.contains('@'))
-                && !dropped.iter().any(|name| peers.contains(&format!("{name}@"))))
-    })
 }
 
 fn importer_dependency_mut<'a>(

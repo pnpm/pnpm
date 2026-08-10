@@ -1,8 +1,22 @@
-use super::try_fast_update_importers;
 use pacquet_lockfile::{Lockfile, PkgName};
 use pacquet_package_manifest::PackageManifest;
 use serde_json::json;
 use std::path::PathBuf;
+
+/// The composed pipeline restricted to manifest drift: every other
+/// input is neutral, so these tests exercise the importers handler and
+/// the shared epilogue alone.
+fn try_fast_update_importers(
+    lockfile: &Lockfile,
+    manifests: &[(String, &PackageManifest)],
+) -> Option<Lockfile> {
+    crate::fast_update_compose::try_compose_fast_updates(
+        lockfile,
+        manifests,
+        &[],
+        &pacquet_config::Config::default(),
+    )
+}
 
 fn lockfile() -> Lockfile {
     serde_saphyr::from_str(

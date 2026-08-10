@@ -1,3 +1,4 @@
+use crate::fast_update_compose::Drift;
 use pacquet_config::Config;
 use pacquet_lockfile::{ImporterDepVersion, Lockfile, LockfileSettings, ProjectSnapshot};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -32,32 +33,34 @@ pub(crate) enum ChangedSetting {
     InjectWorkspacePackages,
 }
 
-/// Record a changed lockfile setting without resolving the dependency
-/// graph, for the settings that the lockfile itself proves cannot
-/// affect its graph: the peer settings when nothing declares a peer
-/// dependency, and the link and injection settings when no project
-/// depends on a directory or on another workspace project.
-///
-/// `None` — nothing changed, or a changed setting could affect the
-/// graph — leaves the caller on the full-resolution path.
-pub(crate) fn try_fast_update_settings(
+/// Whether the lockfile's recorded `settings` block drifted from the
+/// current configuration, restricted to the drift the lockfile itself
+/// proves cannot affect its graph: the peer settings when nothing
+/// declares a peer dependency, and the link and injection settings when
+/// no project depends on a directory or on another workspace project.
+/// Everything else is [`Drift::Resolve`].
+pub(crate) fn detect_settings_drift(
     lockfile: &Lockfile,
     settings: &LockfileSettings,
     manifests: &[(PathBuf, &PackageManifest)],
-) -> Option<Lockfile> {
+) -> Drift<()> {
     let changed = changed_settings(lockfile.settings.as_ref(), settings);
     if changed.is_empty() {
-        return None;
+        return Drift::Clean;
     }
     let workspace_package_names = workspace_package_names(manifests);
-    if !changed.iter().all(|setting| {
+    if changed.iter().all(|setting| {
         setting_cannot_affect_lockfile(*setting, lockfile, manifests, &workspace_package_names)
     }) {
-        return None;
+        Drift::Absorb(())
+    } else {
+        Drift::Resolve
     }
-    let mut candidate = lockfile.clone();
+}
+
+/// Record the current configuration's `settings` block on `candidate`.
+pub(crate) fn apply_settings_update(candidate: &mut Lockfile, settings: &LockfileSettings) {
     candidate.settings = Some(settings.clone());
-    Some(candidate)
 }
 
 fn changed_settings(

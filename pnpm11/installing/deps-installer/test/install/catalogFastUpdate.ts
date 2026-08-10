@@ -5,10 +5,16 @@ import { prepareEmpty } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
+import { tryComposeFastUpdates } from '../../src/install/tryComposeFastUpdates.js'
 import { tryFastUpdateCatalogs } from '../../src/install/tryFastUpdateCatalogs.js'
-import { tryFastUpdateImporters } from '../../src/install/tryFastUpdateImporters.js'
+import type { Project } from '../../src/install/tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from '../../src/install/tryFastUpdateLockfile.js'
 import { testDefaults } from '../utils/index.js'
+
+/** The composed pipeline restricted to manifest drift. */
+function tryFastUpdateImporters (lockfile: LockfileObject, projects: Project[]): boolean {
+  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects })
+}
 
 test('a compatible package range update retains the locked peer snapshot without resolution', async () => {
   const project = prepareEmpty()

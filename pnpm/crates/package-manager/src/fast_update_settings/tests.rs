@@ -1,8 +1,25 @@
-use super::try_fast_update_settings;
 use pacquet_lockfile::{Lockfile, LockfileSettings};
 use pacquet_package_manifest::PackageManifest;
 use serde_json::{Value, json};
 use std::path::PathBuf;
+
+/// Detection and application chained the way the composed pipeline
+/// chains them, with an arbitrary `settings` block instead of one
+/// derived from a `Config`.
+fn try_fast_update_settings(
+    lockfile: &Lockfile,
+    settings: &LockfileSettings,
+    manifests: &[(PathBuf, &PackageManifest)],
+) -> Option<Lockfile> {
+    match super::detect_settings_drift(lockfile, settings, manifests) {
+        crate::fast_update_compose::Drift::Absorb(()) => {
+            let mut candidate = lockfile.clone();
+            super::apply_settings_update(&mut candidate, settings);
+            Some(candidate)
+        }
+        _ => None,
+    }
+}
 
 const PEERLESS_LOCKFILE: &str = r"
 lockfileVersion: '9.0'

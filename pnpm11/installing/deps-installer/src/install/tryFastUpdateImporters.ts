@@ -1,12 +1,11 @@
 import * as dp from '@pnpm/deps.path'
-import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.types'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
-import { pruneUnreferencedCatalogEntries } from './tryFastUpdateCatalogs.js'
+import type { GraphEdits } from './tryComposeFastUpdates.js'
 
-interface Project {
+export interface Project {
   id: ProjectId
   manifest: ProjectManifest
 }
@@ -30,15 +29,15 @@ export function hasChangedProjectSpecifiers (
 /**
  * Mutates `lockfile` in place and may leave it partially rewritten when it
  * returns `false` — the caller passes the coordinator's disposable candidate,
- * which is discarded on failure.
+ * which is discarded on failure. The dropped aliases and optionality moves
+ * are recorded in `edits` for the shared epilogue.
  */
 export function tryFastUpdateImporters (
   lockfile: LockfileObject,
-  projects: Project[]
+  projects: Project[],
+  edits: GraphEdits
 ): boolean {
-  const dropped = new Set<string>()
   let changed = false
-  let movedAcrossOptional = false
   for (const project of projects) {
     const importer = lockfile.importers[project.id]
     if (importer == null) return false
@@ -69,14 +68,14 @@ export function tryFastUpdateImporters (
       target[alias] = importer[recordedIn]![alias]
       delete importer[recordedIn]![alias]
       if (recordedIn === 'optionalDependencies' || targetGroup === 'optionalDependencies') {
-        movedAcrossOptional = true
+        edits.movedAcrossOptional = true
       }
       editedGroups = true
       changed = true
     }
     for (const alias of Object.keys(importer.specifiers)) {
       if (manifestSpecifiers[alias] != null) continue
-      dropped.add(alias)
+      edits.dropped.add(alias)
       delete importer.specifiers[alias]
       for (const group of DEPENDENCIES_FIELDS) {
         delete importer[group]?.[alias]
@@ -92,48 +91,7 @@ export function tryFastUpdateImporters (
       }
     }
   }
-  if (!changed) return false
-
-  // The prune also recomputes each package's `optional` flag from what still
-  // reaches it, which a move into or out of `optionalDependencies` changes
-  // for the whole subtree.
-  if (dropped.size > 0 || movedAcrossOptional) {
-    const pruned = pruneSharedLockfile(lockfile)
-    if (pruned.packages == null) {
-      delete lockfile.packages
-    } else {
-      lockfile.packages = pruned.packages
-    }
-  }
-  if (dropped.size > 0) {
-    // Pruned first: a peer-dependent package that the removal itself makes
-    // unreachable needs no rekeying, so only the survivors are checked.
-    if (!peerSuffixesAreIndependentOf(lockfile, dropped)) return false
-    pruneUnreferencedCatalogEntries(lockfile)
-  }
-  return true
-}
-
-/**
- * Whether no surviving package resolves a peer through one of `dropped`.
- *
- * A dropped package that some package reaches as a peer is embedded in that
- * package's key, so removing it would rekey the dependent rather than only
- * prune. A peer suffix pnpm shortened into a hash cannot be read to rule that
- * out.
- */
-function peerSuffixesAreIndependentOf (lockfile: LockfileObject, dropped: Set<string>): boolean {
-  return Object.keys(lockfile.packages ?? {}).every((depPath) => {
-    const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
-    if (peersIndex === -1) return true
-    const peers = depPath.substring(peersIndex)
-    return peers
-      .replace(/^\(/, '')
-      .replace(/\)$/, '')
-      .split(')(')
-      .every((segment) => segment.includes('@')) &&
-      ![...dropped].some((alias) => peers.includes(`${alias}@`))
-  })
+  return changed
 }
 
 function dependencyGroupMoved (

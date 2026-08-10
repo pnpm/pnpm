@@ -1292,3 +1292,82 @@ fn moving_a_dependency_between_groups_skips_resolution() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn combined_manifest_and_ignore_list_drift_skips_resolution() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0",
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0"
+            },
+            "optionalDependencies": {
+                "is-positive": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0"
+            },
+            "optionalDependencies": {
+                "is-positive": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("drop one prod dependency");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}ignoredOptionalDependencies:\n  - is-positive\n"),
+    )
+    .expect("widen the ignore list");
+    let dead_registry = dead_registry_url();
+    let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead_npmrc = live_npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "the removal and the widened ignore list are absorbed in one pass",
+    );
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let packages: Vec<String> =
+        wanted.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    assert!(
+        packages.iter().all(|key| key.starts_with("@pnpm.e2e/foo@")),
+        "both the removed dependency and the newly ignored optional are gone: {packages:?}",
+    );
+    assert_eq!(
+        wanted.ignored_optional_dependencies.as_deref(),
+        Some(&["is-positive".to_string()][..]),
+    );
+    assert!(
+        !workspace.join("node_modules").join("@pnpm.e2e").join("pkg-with-1-dep").exists(),
+        "the removed dependency is unlinked",
+    );
+
+    drop((root, mock_instance));
+}
