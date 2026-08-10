@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isProjectManifestSkippedSetting, types } from '@pnpm/config.reader'
+import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isProjectManifestSkippedSetting, types, whereRefusedKeyBelongs } from '@pnpm/config.reader'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { parsePropertyPath } from '@pnpm/object.property-path'
@@ -206,55 +206,11 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
   }
 }
 
-/**
- * The key to name in a suggestion, for settings whose own name would be
- * accepted by the global config file but never read back from it.
- *
- * `userconfig` is one: the reader takes the user-level `.npmrc` from
- * `npmrcAuthFile`, or from the `--userconfig` flag, and never from the config
- * file's `userconfig`. Suggesting it would send the user to a command that
- * succeeds and changes nothing.
- */
-const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
-  userconfig: 'npmrc-auth-file',
-}
-
-/**
- * How to set a refused key that no config file accepts, for the ones that are
- * still settable by another route.
- *
- * Without these the fallback below would tell a user that pnpm works `dir` out
- * for itself, when `--dir` sets it, and that pnpm works `configDir` out for
- * itself, when `XDG_CONFIG_HOME` moves it.
- */
-const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
-  dir: 'Pass --dir on the command line instead',
-  configDir: 'pnpm takes it from XDG_CONFIG_HOME, or the platform default',
-  userConfig: "pnpm reads it from the user's .npmrc",
-  pnpmHomeDir: 'pnpm takes it from PNPM_HOME, which pnpm setup sets',
-}
-
-/**
- * Where {@link key} can be set, for a key a project manifest refuses.
- *
- * Some are still valid in the global config file, some are set another way
- * entirely, and the rest pnpm resolves per run. Suggesting the project
- * manifest — the fallback for every other key — would send the user in a
- * circle.
- */
-function whereRefusedKeyBelongs (key: string): string {
-  const camelKey = camelCase(key)
-  const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelKey] ?? kebabCase(key)
-  if (isConfigFileKey(kebabKey)) {
-    return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
-  }
-  return NON_CONFIG_FILE_SOURCES[camelKey] ?? 'pnpm resolves this setting per run, so no config file sets it'
-}
-
 /** The suggestion for {@link key}, which falls back when the key is allowed in a project manifest. */
 function hintForRefusedKey (key: string, fallback: string): string {
-  if (!isProjectManifestSkippedSetting(camelCase(key))) return fallback
-  return whereRefusedKeyBelongs(key)
+  const camelKey = camelCase(key)
+  if (!isProjectManifestSkippedSetting(camelKey)) return fallback
+  return whereRefusedKeyBelongs(camelKey)
 }
 
 export class ConfigSetNotAProjectSettingError extends PnpmError {

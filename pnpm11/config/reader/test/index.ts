@@ -778,6 +778,10 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
 
     expect(config.configDir).not.toBe('/tmp/attacker-config-dir')
     expect(warnings).toContainEqual(expect.stringContaining('"config-dir"'))
+    // The route has to be the real one, and the same one `pnpm config set`
+    // names — both read it from `whereRefusedKeyBelongs`.
+    expect(warnings).toContainEqual(expect.stringContaining('XDG_CONFIG_HOME'))
+    expect(warnings).not.toContainEqual(expect.stringContaining('pnpm resolves these itself'))
   })
 
   test('auth and the bootstrap download routes stay out of the manifest', async () => {

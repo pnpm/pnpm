@@ -337,7 +337,7 @@ export async function getConfig (opts: {
         warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(movable)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
       }
       if (nowhere.length > 0) {
-        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(nowhere)}. pnpm resolves these itself, so no config file sets them.`)
+        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndExplain(nowhere)}.`)
       }
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
@@ -490,7 +490,7 @@ export async function getConfig (opts: {
         const ignoredKeys = Object.keys(workspaceManifest)
           .filter((key) => PROJECT_MANIFEST_SKIPPED_SETTINGS.has(camelcase(key, { locale: 'en-US' })))
         if (ignoredKeys.length > 0) {
-          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndJoin(ignoredKeys)}.`)
+          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndExplain(ignoredKeys)}.`)
         }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
@@ -1186,6 +1186,50 @@ const CONFIG_CONTEXT_KEYS: ReadonlySet<string> = new Set(Object.keys({
   packageManager: true,
   wantedPackageManager: true,
 } satisfies Record<keyof ConfigContext, true>))
+
+/**
+ * The key to name in a suggestion, for a setting whose own name the global
+ * config file accepts but never reads back.
+ *
+ * `userconfig` is one: the user-level `.npmrc` comes from `npmrcAuthFile`, or
+ * from `--userconfig`, and never from the config file's `userconfig`. Naming
+ * it would send the user to a command that succeeds and changes nothing.
+ */
+const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
+  userconfig: 'npmrc-auth-file',
+}
+
+/**
+ * How to set a refused key that no config file accepts, for the ones that are
+ * still settable another way. Without these the fallback would tell a user
+ * that pnpm works `dir` out for itself, when `--dir` sets it.
+ */
+const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
+  dir: 'Pass --dir on the command line instead',
+  configDir: 'pnpm takes it from XDG_CONFIG_HOME, or the platform default',
+  pnpmHomeDir: 'pnpm takes it from PNPM_HOME, which pnpm setup sets',
+  userConfig: "pnpm reads it from the user's .npmrc",
+}
+
+/**
+ * Where {@link camelKey} can be set, for a key a project manifest refuses.
+ *
+ * Lives here rather than in the config command so that the reader's warnings
+ * and the command's errors cannot drift into naming different routes for the
+ * same setting.
+ */
+export function whereRefusedKeyBelongs (camelKey: string): string {
+  const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelKey] ?? kebabCase(camelKey)
+  if (isConfigFileKey(kebabKey)) {
+    return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
+  }
+  return NON_CONFIG_FILE_SOURCES[camelKey] ?? 'pnpm resolves this setting per run, so no config file sets it'
+}
+
+/** Renders each refused key with the route that does set it. */
+function quoteAndExplain (keys: string[]): string {
+  return keys.map((key) => `"${key}" (${whereRefusedKeyBelongs(camelcase(key, { locale: 'en-US' }))})`).join(', ')
+}
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
