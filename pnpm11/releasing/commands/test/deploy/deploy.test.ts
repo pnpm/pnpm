@@ -146,7 +146,7 @@ test('legacy deploy injects workspace dependencies that the shared lockfile link
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
   })
-  expect(assertProject(process.cwd()).readLockfile().importers['project-1'].dependencies['project-2'].version).toBe('link:../project-2')
+  expect(assertProject(process.cwd()).readLockfile().importers['project-1'].dependencies!['project-2'].version).toBe('link:../project-2')
 
   await deploy.handler({
     ...DEFAULT_OPTS,
