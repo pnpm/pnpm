@@ -110,6 +110,7 @@ export interface StrictInstallOptions {
     customResolvers?: CustomResolver[]
     customFetchers?: CustomFetcher[]
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
+    hasUntrackedReadPackageHook?: boolean
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean

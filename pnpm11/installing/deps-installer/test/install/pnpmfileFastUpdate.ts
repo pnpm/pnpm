@@ -112,6 +112,34 @@ test('a programmatic hook without a pnpmfile checksum still resolves', async () 
   expect(requestedPackages).not.toStrictEqual([])
 })
 
+test('a hook from the checksum-excluded global pnpmfile still resolves', async () => {
+  prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      'is-positive': '1.0.0',
+    },
+  }
+  const readPackage = (pkg: PackageManifest) => pkg
+  const hooks = { readPackage: [readPackage], calculatePnpmfileChecksum, hasUntrackedReadPackageHook: true }
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ hooks }))
+
+  const options = testDefaults({ hooks })
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-positive'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages).not.toStrictEqual([])
+})
+
 /**
  * Marks the hooks as coming from a pnpmfile whose content is stable across
  * the installs of one test, the way `requireHooks` tracks real pnpmfiles.
