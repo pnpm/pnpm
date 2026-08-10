@@ -613,6 +613,7 @@ fn cleanup_replaced_global_installs(
 ) -> miette::Result<()> {
     let mut cleanup_reports = Vec::new();
     for group in groups {
+        let mut bin_removal_failed = false;
         for bin_name in get_installed_bin_names(group) {
             if activated_bins.contains(&bin_name) || protected_bins.contains(&bin_name) {
                 continue;
@@ -623,7 +624,14 @@ fn cleanup_replaced_global_installs(
                     context: format!("remove replaced global bin at {}", bin_path.display()),
                     source: error,
                 });
+                bin_removal_failed = true;
             }
+        }
+        // A bin that could not be removed is only discoverable through the
+        // group's manifests, so keep the group until every one of them is
+        // gone.
+        if bin_removal_failed {
+            continue;
         }
         if group.hash != active_hash {
             let hash_link = get_hash_link(global_pkg_dir, &group.hash);

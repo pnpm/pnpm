@@ -750,7 +750,7 @@ test('keeps a replaced group whose bin names cannot be enumerated', async () => 
   expect(existsSync(hashLink)).toBe(true)
 })
 
-test('cleanup continues past a failed bin removal and reports the error', async () => {
+test('cleanup removes the other bins but keeps a group whose bin removal failed', async () => {
   const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
   const blockedSlot = path.join(globalBinDir, 'blocked')
   const staleSlot = path.join(globalBinDir, 'stale')
@@ -772,7 +772,10 @@ test('cleanup continues past a failed bin removal and reports the error', async 
   })).rejects.toBe(removalError)
 
   await expect(fs.lstat(staleSlot)).rejects.toMatchObject({ code: 'ENOENT' })
-  expect(existsSync(oldInstallDir)).toBe(false)
+  // The bin that could not be removed is only discoverable through the
+  // group's manifests, so the group has to outlive the failure.
+  expect(existsSync(blockedSlot)).toBe(true)
+  expect(existsSync(oldInstallDir)).toBe(true)
 })
 
 interface ActivationFixture {

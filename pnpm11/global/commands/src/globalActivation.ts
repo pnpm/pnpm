@@ -109,14 +109,19 @@ async function cleanupReplacedGlobalInstall (
     // the group intact for a later run to clean up.
     return [err]
   }
+  let binRemovalFailed = false
   for (const binName of binNames) {
     if (opts.activatedBins.has(binName) || opts.protectedBins.has(binName)) continue
     try {
       await removeBin(path.join(opts.globalBinDir, binName)) // eslint-disable-line no-await-in-loop -- Each removal must settle before cleanup continues.
     } catch (err) {
       errors.push(err)
+      binRemovalFailed = true
     }
   }
+  // A bin that could not be removed is only discoverable through the
+  // group's manifests, so keep the group until every one of them is gone.
+  if (binRemovalFailed) return errors
   if (group.hash !== opts.activeHash) {
     try {
       await fs.promises.rm(getHashLink(opts.globalDir, group.hash), { force: true })

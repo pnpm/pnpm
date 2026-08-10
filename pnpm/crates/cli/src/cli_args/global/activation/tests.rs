@@ -566,7 +566,7 @@ fn cleanup_after_activation_preserves_current_state_and_external_install() {
 }
 
 #[test]
-fn cleanup_error_includes_the_offending_bin_path_and_cleanup_continues() {
+fn cleanup_removes_the_other_bins_but_keeps_a_group_whose_bin_removal_failed() {
     let root = tempfile::tempdir().expect("create cleanup error fixture");
     let global_pkg_dir = root.path().join("global");
     let global_bin_dir = root.path().join("bin");
@@ -589,7 +589,10 @@ fn cleanup_error_includes_the_offending_bin_path_and_cleanup_continues() {
     assert!(error.to_string().contains("remove replaced global bin"));
     assert!(error.to_string().contains(&blocked_bin.display().to_string()));
     assert!(!global_bin_dir.join("stale").exists());
-    assert!(!install_dir.exists());
+    // The bin that could not be removed is only discoverable through the
+    // group's manifests, so the group has to outlive the failure.
+    assert!(blocked_bin.exists());
+    assert!(install_dir.exists());
 }
 
 #[cfg(windows)]
