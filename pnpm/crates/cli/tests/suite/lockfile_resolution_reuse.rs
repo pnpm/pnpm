@@ -1379,12 +1379,12 @@ fn a_remove_with_an_unchanged_pnpmfile_skips_resolution() {
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
     fs::write(
         workspace.join(".pnpmfile.cjs"),
-        r#"module.exports = { hooks: { readPackage: (pkg) => {
+        r"module.exports = { hooks: { readPackage: (pkg) => {
             if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
                 pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0';
             }
             return pkg;
-        } } }"#,
+        } } }",
     )
     .expect("write pnpmfile");
     fs::write(
@@ -1442,12 +1442,12 @@ fn a_remove_keeps_the_specifiers_a_project_rewriting_pnpmfile_recorded() {
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
     fs::write(
         workspace.join(".pnpmfile.cjs"),
-        r#"module.exports = { hooks: { readPackage: (pkg) => {
+        r"module.exports = { hooks: { readPackage: (pkg) => {
             if (pkg.dependencies && pkg.dependencies['is-positive']) {
                 pkg.dependencies['is-positive'] = '1.0.0';
             }
             return pkg;
-        } } }"#,
+        } } }",
     )
     .expect("write pnpmfile");
     fs::write(
