@@ -1159,6 +1159,10 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
  * itself — and only for users who happen to have a `config.yaml`. The ones it
  * does accept (`stateDir`, `globalDir`, `globalBinDir`, `npmrcAuthFile` and
  * `userconfig`) are deliberately absent.
+ *
+ * This closes the two merges a project install goes through. A `--global`
+ * command that finds a manifest in the global package directory merges the
+ * command line unfiltered, so the same spellings still reach the config there.
  */
 const GLOBAL_CONFIG_SKIPPED_SETTINGS: ReadonlySet<string> = new Set(
   [...PROJECT_MANIFEST_SKIPPED_SETTINGS].filter((key) => !isConfigFileKey(kebabCase(key)))
