@@ -1503,34 +1503,28 @@ fn a_remove_keeps_the_specifiers_a_project_rewriting_pnpmfile_recorded() {
 }
 
 #[test]
+fn a_frozen_install_tolerates_the_importer_of_a_removed_workspace_project() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_two_member_workspace(&workspace);
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    fs::remove_dir_all(workspace.join("packages/b")).expect("remove the member");
+
+    // pnpm's importer-set gate lives in the auto-frozen branch, which an
+    // explicit `--frozen-lockfile` short-circuits past.
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn removing_a_workspace_project_prunes_its_importer_without_resolving() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let workspace_yaml =
-        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(&workspace_yaml_path, format!("{workspace_yaml}packages:\n  - packages/*\n"))
-        .expect("declare the workspace members");
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({ "name": "root", "version": "1.0.0" }).to_string(),
-    )
-    .expect("write the root package.json");
-    for (name, dependency) in [("a", "@pnpm.e2e/foo"), ("b", "@pnpm.e2e/bar")] {
-        let dir = workspace.join("packages").join(name);
-        fs::create_dir_all(&dir).expect("create the member directory");
-        fs::write(
-            dir.join("package.json"),
-            serde_json::json!({
-                "name": name,
-                "version": "1.0.0",
-                "dependencies": { dependency: "100.0.0" },
-            })
-            .to_string(),
-        )
-        .expect("write the member package.json");
-    }
+    write_two_member_workspace(&workspace);
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     fs::remove_dir_all(workspace.join("packages/b")).expect("remove the member");
@@ -1571,4 +1565,32 @@ fn removing_a_workspace_project_prunes_its_importer_without_resolving() {
     );
 
     drop((root, mock_instance));
+}
+
+/// A workspace whose two members each depend on a package of their own.
+fn write_two_member_workspace(workspace: &Path) {
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}packages:\n  - packages/*\n"))
+        .expect("declare the workspace members");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+    for (name, dependency) in [("a", "@pnpm.e2e/foo"), ("b", "@pnpm.e2e/bar")] {
+        let dir = workspace.join("packages").join(name);
+        fs::create_dir_all(&dir).expect("create the member directory");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { dependency: "100.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write the member package.json");
+    }
 }

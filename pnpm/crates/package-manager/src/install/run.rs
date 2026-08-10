@@ -261,9 +261,13 @@ where
         // pnpm's `pruneLockfileImporters`, which its recursive install
         // defaults to the same condition — outside a workspace there is no
         // project list to compare against.
+        // A `NodeApiProject[]` handed in by an API consumer carries no
+        // promise of listing every workspace project, so it cannot stand
+        // in for the project list either.
         let prune_stale_importers = selection.is_none()
             && mutation.is_full_install()
             && workspace_projects.is_some()
+            && !workspace_projects_are_overridden
             && config.shared_workspace_lockfile;
         let selected_importer_ids = selection.as_ref().map(|selection| {
             selection
@@ -746,7 +750,11 @@ where
                 FreshnessScope {
                     ignore_manifest_check,
                     allow_missing_dependency_free_importers: false,
-                    prune_stale_importers,
+                    // pnpm's importer-set gate sits in the auto-frozen branch
+                    // of `isFrozenInstallPossible`, which an explicit
+                    // `--frozen-lockfile` short-circuits past, so a removed
+                    // project does not fail the install there.
+                    prune_stale_importers: false,
                 },
             )
             .await
