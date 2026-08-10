@@ -34,6 +34,8 @@ interface RewriteContext {
   peerNames: Set<string>
   removals: FastOverride[]
   replacements: Map<DepPath, DepPath>
+  /** The replacing overrides, needed to scope a `parent>child` selector. */
+  moves: FastOverride[]
 }
 
 interface ResolverPolicyOptions {
@@ -83,6 +85,7 @@ export async function applyFastRewrite (
   settings: Partial<LockfileObject>
 ): Promise<boolean> {
   const removals = fastOverrides.filter(({ newVersion }) => newVersion == null)
+  const moves = fastOverrides.filter(({ newVersion }) => newVersion != null)
   const peerNames = getPeerNames(lockfile)
   if (removals.some(({ name }) => peerNames.has(name))) return false
 
@@ -94,7 +97,7 @@ export async function applyFastRewrite (
       .filter(({ newVersion }) => newVersion != null)
       .map(({ name }) => name)
   )
-  const rewriteContext = { changedNames, peerNames, removals, replacements }
+  const rewriteContext = { changedNames, peerNames, removals, replacements, moves }
   const manifests = await resolveNewManifests(fastOverrides, replacements, opts)
   if (manifests == null) return false
 
@@ -157,7 +160,6 @@ function getFastOverrides (
       override.targetPkg.bareSpecifier != null ||
       override.converge === true ||
       !removesDependency && (
-        override.parentPkg != null ||
         overriddenVersion(lockfile, override.targetPkg.name, newValue) == null ||
         oldVersion != null && semver.valid(oldVersion) == null
       ) ||
@@ -486,7 +488,7 @@ function validateAndRewriteDependencies (opts: {
     const lockedReference = lockedDependencies?.[name]
     const reference = lockedReference == null
       ? findReusableReference({ name, packages, range, rewriteContext })
-      : rewriteReference(name, lockedReference, rewriteContext)
+      : rewriteReference(name, lockedReference, rewriteContext, parentDepPath)
     if (reference == null) return null
     const depPath = dp.refToRelative(reference, name)
     const version = depPath == null ? null : dp.parse(depPath).version
@@ -584,7 +586,7 @@ function rewriteResolvedDependencies (
       .filter(([alias]) => !shouldRemoveDependency(alias, parentDepPath, rewriteContext.removals))
       .map(([alias, reference]) => [
         alias,
-        rewriteReference(alias, reference, rewriteContext),
+        rewriteReference(alias, reference, rewriteContext, parentDepPath),
       ])
   )
   return Object.keys(rewritten).length === 0 ? undefined : rewritten
@@ -595,16 +597,30 @@ function shouldRemoveDependency (
   parentDepPath: DepPath | undefined,
   removals: FastOverride[]
 ): boolean {
-  return removals.some((removal) => {
-    if (removal.name !== alias) return false
-    if (removal.parent == null) return true
+  return overrideApplies(alias, parentDepPath, removals)
+}
+
+/**
+ * Whether any of `overrides` names an edge on `alias` owned by
+ * `parentDepPath`. A selector without a parent names every edge; one with a
+ * parent names only edges out of a package it matches, which an importer
+ * never is.
+ */
+function overrideApplies (
+  alias: string,
+  parentDepPath: DepPath | undefined,
+  overrides: FastOverride[]
+): boolean {
+  return overrides.some((override) => {
+    if (override.name !== alias) return false
+    if (override.parent == null) return true
     if (parentDepPath == null) return false
     const parent = dp.parse(parentDepPath)
-    return parent.name === removal.parent.name &&
+    return parent.name === override.parent.name &&
       parent.version != null &&
       (
-        removal.parent.bareSpecifier == null ||
-        semver.satisfies(parent.version, removal.parent.bareSpecifier)
+        override.parent.bareSpecifier == null ||
+        semver.satisfies(parent.version, override.parent.bareSpecifier)
       )
   })
 }
@@ -612,9 +628,13 @@ function shouldRemoveDependency (
 function rewriteReference (
   alias: string,
   reference: string,
-  { changedNames, replacements }: RewriteContext
+  { changedNames, replacements, moves }: RewriteContext,
+  parentDepPath?: DepPath
 ): string {
   if (!changedNames.has(alias)) return reference
+  // A `parent>child` selector names only the edges out of that parent, so
+  // the other dependents keep the version they have.
+  if (!overrideApplies(alias, parentDepPath, moves)) return reference
   const oldDepPath = dp.refToRelative(reference, alias)
   if (oldDepPath == null) return reference
   const newDepPath = replacements.get(oldDepPath)

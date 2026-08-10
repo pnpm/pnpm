@@ -79,3 +79,52 @@ test('an exact override still names the version it was given', async () => {
 
   expect(requested).toStrictEqual(['1.3.0'])
 })
+
+/**
+ * `parent` and `other` both depend on `target@1.0.0`, so a selector naming
+ * only `parent` has to leave `other` where it is.
+ */
+function makeSharedDependencyLockfile (): LockfileObject {
+  return {
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { parent: '1.0.0', other: '1.0.0' },
+        specifiers: { parent: '1.0.0', other: '1.0.0' },
+      },
+    },
+    packages: {
+      ['parent@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-parent' },
+        dependencies: { target: '1.0.0' },
+      },
+      ['other@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-other' },
+        dependencies: { target: '1.0.0' },
+      },
+      ['target@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-target' } },
+    },
+  } as unknown as LockfileObject
+}
+
+test('a parent-scoped override reaches the resolution step', async () => {
+  const requested: string[] = []
+
+  await expect(tryFastUpdateOverrides(makeSharedDependencyLockfile(), {
+    lockfileDir: '/test',
+    overrides: { 'parent>target': '2.0.0' },
+    parsedOverrides: [{
+      selector: 'parent>target',
+      newBareSpecifier: '2.0.0',
+      targetPkg: { name: 'target' },
+      parentPkg: { name: 'parent' },
+    }],
+    registries,
+    requestPackage: trackResolvedVersions(requested),
+    isLockfileUpToDate: async () => true,
+  } as never)).rejects.toThrow('reached the resolution step')
+
+  // Getting this far is the assertion: the parent-scoped form used to bail
+  // before resolving anything.
+  expect(requested).toStrictEqual(['2.0.0'])
+})
