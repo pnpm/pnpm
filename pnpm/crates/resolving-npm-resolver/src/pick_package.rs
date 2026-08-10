@@ -20,7 +20,7 @@
 //! the in-memory cache key (`:full` suffix when full), and the
 //! `Accept` header on the registry request. When `published_by` is
 //! active and the picker ends up with abbreviated metadata that
-//! lacks the per-version `time` map, the orchestrator transparently
+//! lacks a complete per-version `time` map, the orchestrator transparently
 //! upgrades to full metadata via a follow-up fetch so the
 //! `minimumReleaseAge` check runs against real timestamps instead of
 //! silently degrading to its warn-and-skip fallback (see
@@ -70,7 +70,7 @@ use crate::{
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, filter_pkg_metadata_versions,
+        RegistryPackageSpecType, filter_pkg_metadata_versions, has_all_version_publish_times,
         pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_version_by_version_range,
     },
@@ -1184,7 +1184,7 @@ struct UpgradeOutcome {
 /// per-version timestamps.
 ///
 /// When the resolver default-fetched abbreviated metadata but
-/// `published_by` is active, the per-version `time` map is missing
+/// `published_by` is active, the per-version `time` map is incomplete
 /// so the maturity check would silently degrade to the warn-and-skip
 /// fallback. This function detects that and re-fetches full metadata
 /// when the package's top-level `modified` field shows it was
@@ -1195,9 +1195,8 @@ struct UpgradeOutcome {
 ///
 /// - `ctx.offline`: no network allowed. Stick with what we have.
 /// - `opts.published_by.is_none()`: maturity check disabled.
-/// - `meta.time.is_some()`: already full metadata (or an
-///   abbreviated response that happens to carry `time`). Nothing
-///   to upgrade.
+/// - every version has a publish timestamp: the metadata is complete.
+///   Nothing to upgrade.
 /// - `opts.published_by_exclude` matches the package: caller has
 ///   opted this package out of the policy.
 /// - `meta.modified.is_some()` and parses as a date `<= cutoff`:
@@ -1230,7 +1229,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     let Some(cutoff) = opts.published_by else {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     };
-    if meta.time.is_some() || meta.release_age_upgrade_checked {
+    if has_all_version_publish_times(&meta) || meta.release_age_upgrade_checked {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     if let Some(policy) = opts.published_by_exclude
@@ -1266,7 +1265,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
     if let Some(cached) = ctx.meta_cache.get(cache_key) {
         let cached_meta = cached.meta;
-        if cached_meta.time.is_some() || cached_meta.release_age_upgrade_checked {
+        if has_all_version_publish_times(&cached_meta) || cached_meta.release_age_upgrade_checked {
             return Ok(UpgradeOutcome { meta: cached_meta, upgraded: false });
         }
     }

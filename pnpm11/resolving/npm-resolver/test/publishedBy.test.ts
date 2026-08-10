@@ -248,6 +248,35 @@ test('re-fetch full metadata when abbreviated modified date is recent', async ()
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 })
 
+test('re-fetch full metadata when per-version publish times are incomplete', async () => {
+  const partialTimeMeta = {
+    ...isPositiveAbbreviatedMeta,
+    time: {
+      '3.0.0': isPositiveMeta.time['3.0.0'],
+      '3.1.0': isPositiveMeta.time['3.1.0'],
+    },
+    modified: isPositiveMeta.time.modified,
+  }
+
+  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, partialTimeMeta, { headers: { 'content-type': 'application/json' } })
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '>=1 <3' }, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@2.0.0')
+})
+
 test('ignoreMissingTimeField=true skips maturity check when full metadata has no time field', async () => {
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 

@@ -43,7 +43,7 @@ export function pickPackageFromMeta (
         // The package was modified after the cutoff (or carries no usable
         // `modified`), so which of its versions are mature is unknowable
         // from abbreviated metadata. The error tells the caller to refetch.
-        assertMetaHasTime(meta)
+        assertMetaHasAllVersionPublishTimes(meta)
       }
       // else: `modified` is an upper bound on every per-version timestamp, so
       // `modified <= publishedBy` means they all pass the maturity filter and
@@ -134,8 +134,7 @@ export function applyPublishedByPolicy (
 ): PublishedByView {
   const excludeResult = publishedByExclude?.(meta.name) ?? false
   if (excludeResult === true) return { meta, needsFullMetadata: false }
-  if (meta.time == null) return { meta, needsFullMetadata: true }
-  assertMetaHasTime(meta)
+  if (!hasAllVersionPublishTimes(meta)) return { meta, needsFullMetadata: true }
   const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
   return {
     meta: filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions),
@@ -145,6 +144,21 @@ export function applyPublishedByPolicy (
 
 export function assertMetaHasTime (meta: PackageMeta): asserts meta is PackageMetaWithTime {
   if (meta.time == null) {
+    throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
+  }
+}
+
+export function hasAllVersionPublishTimes (meta: PackageMeta): meta is PackageMetaWithTime {
+  if (meta.time == null) return false
+  for (const version in meta.versions) {
+    if (!Object.hasOwn(meta.versions, version)) continue
+    if (!Object.hasOwn(meta.time, version) || !meta.time[version]) return false
+  }
+  return true
+}
+
+function assertMetaHasAllVersionPublishTimes (meta: PackageMeta): asserts meta is PackageMetaWithTime {
+  if (!hasAllVersionPublishTimes(meta)) {
     throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
   }
 }

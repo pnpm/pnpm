@@ -1077,6 +1077,60 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
     );
 }
 
+#[tokio::test]
+async fn published_by_upgrades_metadata_with_partial_time_map() {
+    let mut server = mockito::Server::new_async().await;
+    let partial_time_body =
+        PACKAGE_BODY.replacen(",\n        \"1.1.0\": \"2024-12-10T08:30:00.000Z\"", "", 1);
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(partial_time_body)
+        .expect(1)
+        .create_async()
+        .await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.published_by = Some(parse_cutoff("2025-01-01T00:00:00Z"));
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
+
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+}
+
 /// Boundary case: `modified == cutoff`. `modified` is an upper
 /// bound on every version's publish time, so when it equals the
 /// cutoff every version passes the per-version `<=` filter and

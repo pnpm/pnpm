@@ -394,7 +394,7 @@ pub(crate) fn apply_published_by_policy(
     if matches!(exclude_result, PolicyMatch::AnyVersion) {
         return PublishedByView { filtered: None, needs_full_metadata: false };
     }
-    if meta.time.is_none() {
+    if !has_all_version_publish_times(meta) {
         return PublishedByView { filtered: None, needs_full_metadata: true };
     }
     let trusted = match &exclude_result {
@@ -405,6 +405,21 @@ pub(crate) fn apply_published_by_policy(
         filtered: Some(filter_pkg_metadata_by_publish_date(meta, cutoff, trusted)),
         needs_full_metadata: false,
     }
+}
+
+/// Whether `meta.time` contains a non-empty publish timestamp for
+/// every version in the packument.
+///
+/// Some registries return abbreviated metadata with a partial `time`
+/// map. Treating that map as complete would make the release-age
+/// filter silently discard every version whose timestamp is absent.
+#[must_use]
+pub(crate) fn has_all_version_publish_times(meta: &Package) -> bool {
+    meta.time.is_some()
+        && meta
+            .versions
+            .keys()
+            .all(|version| meta.published_at(version).is_some_and(|value| !value.is_empty()))
 }
 
 /// Filter a packument to versions published at or before `cutoff`,

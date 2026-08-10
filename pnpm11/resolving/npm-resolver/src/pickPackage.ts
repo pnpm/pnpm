@@ -21,6 +21,7 @@ import {
 } from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
+  hasAllVersionPublishTimes,
   pickLowestVersionByVersionRange,
   pickPackageFromMeta,
   type PickPackageFromMetaOptions,
@@ -505,7 +506,7 @@ export async function pickPackage (
       if (
         opts.publishedBy &&
         !fullMetadata &&
-        meta.time == null &&
+        !hasAllVersionPublishTimes(meta) &&
         opts.publishedByExclude?.(spec.name) !== true
       ) {
         const modifiedDate = meta.modified ? new Date(meta.modified) : null
@@ -583,7 +584,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   if (
     ctx.offline === true ||
     !opts.publishedBy ||
-    meta.time != null ||
+    hasAllVersionPublishTimes(meta) ||
     opts.publishedByExclude?.(spec.name) === true
   ) {
     return { meta }
