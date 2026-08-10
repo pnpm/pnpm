@@ -106,6 +106,9 @@
       "path": "../../fs/symlink-dependency"
     },
     {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
       "path": "../../hooks/read-package-hook"
     },
     {
