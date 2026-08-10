@@ -321,6 +321,15 @@ test('global install of the standalone executable skips its build scripts', asyn
   expect(args).toEqual(['add', '-g', '--ignore-scripts', `file:${tmpDir}`])
 })
 
+test('the manifest written next to the standalone executable declares the module type', () => {
+  expect(setup.standaloneManifest('pnpm.exe')).toStrictEqual({
+    name: '@pnpm/exe',
+    version: actualCliMeta.packageManager.version,
+    type: 'module',
+    bin: { pnpm: 'pnpm.exe', pn: 'pnpm.exe' },
+  })
+})
+
 test('setup removes leftover v10-layout shims at the top of pnpmHomeDir', async () => {
   // Reproduces pnpm/pnpm#12496: `pnpm setup` migrated PATH to
   // pnpmHomeDir/bin but left the v10-layout shims (pnpm/pn/pnpx/pnx and

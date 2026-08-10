@@ -124,6 +124,11 @@ pub struct WorkspaceSettings {
     /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
     /// [`Config::virtual_store_only`].
     pub virtual_store_only: Option<bool>,
+    /// `globalShims` from `pnpm-workspace.yaml` or the global
+    /// `config.yaml`. One layer of the record; merged key-wise into
+    /// [`Config::global_shims`] rather than assigned
+    /// wholesale. See [`crate::GlobalShims`].
+    pub global_shims: Option<crate::GlobalShimsSetting>,
     /// `enableModulesDir` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_modules_dir`].
     pub enable_modules_dir: Option<bool>,
@@ -886,39 +891,36 @@ impl WorkspaceSettings {
         self.save_peer = None;
     }
 
+    /// Read `<dir>/pnpm-workspace.yaml` without walking ancestors.
+    /// Returns `Ok(None)` only when nothing exists at that exact path;
+    /// every other error (including `EISDIR` for a directory named
+    /// `pnpm-workspace.yaml`, or permission denied) propagates, matching
+    /// pnpm where `ENOENT` is the only silent case.
+    pub fn load_at(dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
+        let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
+        };
+        let settings = text
+            .pipe_as_ref(serde_saphyr::from_str)
+            .map_err(Box::new)
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+        Ok(Some(settings))
+    }
+
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
-    /// Returns `Ok(None)` if no ancestor has one. Read or parse failures
-    /// other than `ENOENT` propagate, matching pnpm.
+    /// Returns `Ok(None)` if no ancestor has one. Per-level semantics are
+    /// [`Self::load_at`]'s.
     pub fn find_and_load(
         start_dir: &Path,
     ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
         for dir in start_dir.ancestors() {
-            let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-            let read_result = fs::read_to_string(&path);
-
-            // Walk up only when the read failed because nothing exists at
-            // this level. Every other error (including `EISDIR` for a
-            // directory named `pnpm-workspace.yaml`, or permission denied)
-            // propagates, matching pnpm where `ENOENT` is the only silent
-            // case.
-            if let Err(error) = &read_result
-                && error.kind() == ErrorKind::NotFound
-            {
-                continue;
+            if let Some(settings) = Self::load_at(dir)? {
+                return Ok(Some((dir.join(WORKSPACE_MANIFEST_FILENAME), settings)));
             }
-
-            let settings: WorkspaceSettings = read_result
-                .map_err(|source| LoadWorkspaceYamlError::ReadFile { path: path.clone(), source })?
-                .pipe_as_ref(serde_saphyr::from_str)
-                .map_err(Box::new)
-                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                    path: path.clone(),
-                    source,
-                })?;
-
-            return Ok(Some((path, settings)));
         }
-
         Ok(None)
     }
 
@@ -1055,6 +1057,12 @@ impl WorkspaceSettings {
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
             allow_unused_patches,
+        }
+
+        // `globalShims` merges key-wise instead of replacing,
+        // so a layer can flip one package without restating the defaults.
+        if let Some(global_shims) = self.global_shims {
+            config.global_shims.apply(&global_shims);
         }
 
         // The `update` section supersedes the deprecated `updateConfig`.

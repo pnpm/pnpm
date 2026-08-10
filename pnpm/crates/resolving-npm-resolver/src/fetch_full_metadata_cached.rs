@@ -14,7 +14,7 @@
 //! only the version fragments a pick consults.
 
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -60,6 +60,9 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     /// When full metadata is requested, use pnpm's filtered metadata
     /// mirror and persist the filtered packument shape.
     pub filter_metadata: bool,
+    /// When true, use only the on-disk metadata mirror and never reach
+    /// the registry.
+    pub offline: bool,
     pub(crate) retry_opts: RetryOpts,
 }
 
@@ -104,6 +107,17 @@ pub async fn fetch_full_metadata_cached(
         // No cache dir — fetch fresh without reading or writing a mirror.
         None => None,
     };
+
+    if opts.offline {
+        if let Some(meta) = load_meta_async(mirror_path.as_deref()).await {
+            return Ok(meta);
+        }
+        return Err(FetchMetadataError::NoOfflineMeta {
+            pkg_name: pkg_name.to_string(),
+            pkg_mirror: mirror_path.unwrap_or_else(PathBuf::new),
+        });
+    }
+
     let cache_headers = load_meta_headers_async(mirror_path.as_deref()).await;
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     let should_filter_metadata = opts.full_metadata && opts.filter_metadata;

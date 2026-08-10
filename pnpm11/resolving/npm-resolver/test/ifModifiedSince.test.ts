@@ -62,6 +62,44 @@ beforeEach(async () => {
   await setupMockAgent()
 })
 
+test.each(cachedMetadataCases)('cached $kind metadata uses the mirror without registry access in offline mode', async ({ fetchMetadata, metaDir }) => {
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, metaDir, registries.default, 'is-positive')
+  await saveMeta(pkgMirror, prepareJsonForDisk(isPositiveMeta, '"cached"'))
+
+  const result = await fetchMetadata({
+    fetch,
+    retry: { retries: 0 },
+    timeout: 30_000,
+    fetchWarnTimeoutMs: 30_000,
+  }, 'is-positive', {
+    cacheDir,
+    registry: registries.default,
+    offline: true,
+  })
+
+  expect(result.name).toBe('is-positive')
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('cached metadata reports NO_OFFLINE_META without registry access when offline cache is empty', async () => {
+  const cacheDir = temporaryDirectory()
+
+  await expect(fetchFullMetadataCached({
+    fetch,
+    retry: { retries: 0 },
+    timeout: 30_000,
+    fetchWarnTimeoutMs: 30_000,
+  }, 'is-positive', {
+    cacheDir,
+    registry: registries.default,
+    offline: true,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_OFFLINE_META',
+  })
+  getMockAgent().assertNoPendingInterceptors()
+})
+
 test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
   // Write cached metadata with etag to disk in NDJSON format:

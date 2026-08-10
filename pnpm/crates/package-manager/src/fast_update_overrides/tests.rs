@@ -130,14 +130,16 @@ async fn try_update(
     let registries =
         HashMap::from([("default".to_string(), "https://registry.npmjs.org/".to_string())]);
     try_fast_update_overrides(FastOverrideOptions {
-        lockfile,
+        context: super::RewriteContext {
+            lockfile,
+            resolver,
+            resolve_options: &resolve_options,
+            manifest_hook: None,
+            registries: &registries,
+            lockfile_include_tarball_url: false,
+        },
         parsed_overrides,
         resolved_overrides,
-        resolver,
-        resolve_options: &resolve_options,
-        manifest_hook: None,
-        registries: &registries,
-        lockfile_include_tarball_url: false,
     })
     .await
 }

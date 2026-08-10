@@ -110,6 +110,7 @@ import {
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
+import { tryFastUpdateCatalogVersions } from './tryFastUpdateCatalogVersions.js'
 import { tryFastUpdateIgnoredOptionalDependencies } from './tryFastUpdateIgnoredOptionalDependencies.js'
 import { hasChangedProjectSpecifiers, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
@@ -717,6 +718,9 @@ export async function mutateModules (
         onlyLockfileSettingsChanged ||
         hasChangedSpecifiers) &&
       !frozenLockfile &&
+      // `pnpm fetch` installs from the lockfile alone; with its empty
+      // manifests every recorded dependency would read as removed.
+      !opts.ignorePackageManifest &&
       installsOnly &&
       !isCheckOnlyInstall(opts) &&
       opts.preferFrozenLockfile &&
@@ -768,10 +772,35 @@ export async function mutateModules (
               })
             }
             if (changedSetting === 'catalogs') {
-              return tryFastUpdateCatalogs(candidate, {
+              // The range-only rewrite keeps the entries it cannot handle, so a
+              // mixed update still leaves an exact move for the rewrite below.
+              const rewroteRanges = tryFastUpdateCatalogs(candidate, {
                 catalogs: opts.catalogs,
                 overrides: opts.overrides,
               })
+              if (overridesUseCatalogs) return rewroteRanges
+              const catalogPolicy = getPublishedByPolicy(opts)
+              const rewrite = await tryFastUpdateCatalogVersions(candidate, {
+                catalogs: opts.catalogs,
+                lockfileDir: opts.lockfileDir,
+                lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+                readPackageHook: opts.readPackageHook,
+                registries: ctx.registries,
+                requestPackage: opts.storeController.requestPackage,
+                publishedBy: catalogPolicy.publishedBy,
+                publishedByExclude: catalogPolicy.publishedByExclude,
+                trustPolicy: opts.trustPolicy,
+                trustPolicyExclude: opts.trustPolicyExclude
+                  ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+                  : undefined,
+                trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+                isLockfileUpToDate,
+              })
+              // Only the "nothing moved" outcome may fall back on the
+              // range-only result. A move this cannot express has to reach the
+              // resolver, even though the range-only rewrite succeeded.
+              if (rewrite === 'applied') return true
+              return rewrite === 'nothing-to-move' && rewroteRanges
             }
             if (changedSetting === 'ignoredOptionalDependencies') {
               return tryFastUpdateIgnoredOptionalDependencies(candidate, opts.ignoredOptionalDependencies)

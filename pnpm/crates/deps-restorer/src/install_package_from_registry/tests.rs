@@ -45,6 +45,7 @@ fn create_config(
         symlink: false,
         virtual_store_dir: virtual_store_dir.to_path_buf(),
         enable_global_virtual_store: false,
+        global_shims: Default::default(),
         virtual_store_only: false,
         enable_modules_dir: true,
         global_virtual_store_dir: virtual_store_dir.to_path_buf(),

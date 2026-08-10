@@ -296,8 +296,17 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The throwaway cache project is not part of the caller's
     // workspace. If a caller has a settings-only pnpm-workspace.yaml,
     // carrying its workspace root here makes the install enumerate that
-    // workspace and fail on the missing root package.json.
-    config.workspace_dir = None;
+    // workspace and fail on the missing root package.json. Anchored
+    // rather than `None`, which walks up from the cache dir and can
+    // adopt a stray `pnpm-workspace.yaml` above it (pnpm/pnpm#13697).
+    config.workspace_dir = Some(prepare_dir.to_path_buf());
+    // The caller's patches never apply to the throwaway install (pnpm's
+    // dlx installs the package unpatched too). Their paths are relative
+    // to the caller's workspace root, which the anchor above replaced, so
+    // keeping them would also make every dlx invocation from a project
+    // with `patchedDependencies` fail on a patch file missing under the
+    // cache dir.
+    config.patched_dependencies = None;
     // Build a *fresh* allow-list for the throwaway install — the dlx
     // packages themselves plus the CLI `--allow-build` entries — rather
     // than inheriting the caller project's `allow_builds` /

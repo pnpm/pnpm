@@ -410,9 +410,9 @@ pub(crate) fn apply_published_by_policy(
 /// Filter a packument to versions published at or before `cutoff`,
 /// then rewrite each `dist-tag` to the highest within-cutoff version
 /// that still belongs to the tag's original "family" (same major
-/// for non-`latest` tags, no newer than the original target for
-/// `latest`, matching prerelease/release status, and preferring
-/// non-deprecated versions when both are present).
+/// for non-`latest` tags, no newer than the original target, matching
+/// prerelease/release status, and preferring non-deprecated versions
+/// when both are present).
 ///
 /// The result is memoized on `meta` (see [`DerivedPackuments`]) and
 /// shared between callers, so it is handed back behind an [`Arc`]:
@@ -464,7 +464,7 @@ fn filter_pkg_metadata_by_publish_date_uncached(
          caller must check before invoking",
     );
 
-    filter_pkg_metadata_versions_with_latest_bound(
+    filter_pkg_metadata_versions_with_dist_tag_bound(
         meta,
         |version| {
             let mature = time
@@ -488,18 +488,18 @@ fn filter_pkg_metadata_by_publish_date_uncached(
 /// major/prerelease lane.
 #[must_use]
 pub fn filter_pkg_metadata_versions(meta: &Package, keep: impl FnMut(&str) -> bool) -> Package {
-    filter_pkg_metadata_versions_with_latest_bound(meta, keep, false)
+    filter_pkg_metadata_versions_with_dist_tag_bound(meta, keep, false)
 }
 
-fn filter_pkg_metadata_versions_with_latest_bound(
+fn filter_pkg_metadata_versions_with_dist_tag_bound(
     meta: &Package,
     mut keep: impl FnMut(&str) -> bool,
-    bound_latest: bool,
+    bound_dist_tags: bool,
 ) -> Package {
     // Decide on version strings alone; slots move as raw fragments, so
     // the filter never hydrates a manifest.
     let filtered_versions = meta.versions.filtered(|version| keep(version));
-    let dist_tags = repopulate_dist_tags(meta, &filtered_versions, bound_latest);
+    let dist_tags = repopulate_dist_tags(meta, &filtered_versions, bound_dist_tags);
 
     Package {
         name: meta.name.clone(),
@@ -518,7 +518,7 @@ fn filter_pkg_metadata_versions_with_latest_bound(
 fn repopulate_dist_tags(
     meta: &Package,
     filtered_versions: &PackageVersions,
-    bound_latest: bool,
+    bound_dist_tags: bool,
 ) -> std::collections::HashMap<String, String> {
     let mut dist_tags_within_date = std::collections::HashMap::new();
     // Candidate versions parsed once per filter call and shared by
@@ -550,7 +550,7 @@ fn repopulate_dist_tags(
         let mut best_index: Option<usize> = None;
         for (index, slot) in candidates.iter().enumerate() {
             let (candidate, _, _) = slot;
-            if bound_latest && tag == "latest" && candidate > &original {
+            if bound_dist_tags && candidate > &original {
                 continue;
             }
             if tag != "latest" && candidate.major != original.major {

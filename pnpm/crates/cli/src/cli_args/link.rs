@@ -159,6 +159,7 @@ impl LinkArgs {
             node_linker: config.node_linker,
             lockfile_only: false,
             dry_run: false,
+            persist_policy_excludes: false,
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,

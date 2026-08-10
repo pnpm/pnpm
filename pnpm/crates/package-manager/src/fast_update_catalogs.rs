@@ -75,7 +75,7 @@ pub(crate) fn try_fast_update_catalogs(
     FastCatalogUpdate::Updated(Box::new(candidate))
 }
 
-fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &Catalogs) -> bool {
+pub(crate) fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &Catalogs) -> bool {
     lockfile.importers.values().all(|importer| {
         [
             importer.dependencies.as_ref(),
@@ -102,13 +102,14 @@ fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &Catalogs) -
     })
 }
 
-fn catalog_entry_is_referenced(lockfile: &Lockfile, catalog_name: &str, alias: &str) -> bool {
+pub(crate) fn catalog_entry_is_referenced(
+    lockfile: &Lockfile,
+    catalog_name: &str,
+    alias: &str,
+) -> bool {
     let Ok(alias) = PkgName::parse(alias) else { return true };
-    let protocol = if catalog_name == "default" {
-        "catalog:".to_string()
-    } else {
-        format!("catalog:{catalog_name}")
-    };
+    // Parsed rather than compared to a rebuilt protocol string, so the
+    // `catalog:default` spelling of the default catalog counts too.
     lockfile.importers.values().any(|importer| {
         [
             importer.dependencies.as_ref(),
@@ -118,7 +119,10 @@ fn catalog_entry_is_referenced(lockfile: &Lockfile, catalog_name: &str, alias: &
         .into_iter()
         .flatten()
         .any(|dependencies| {
-            dependencies.get(&alias).is_some_and(|dependency| dependency.specifier == protocol)
+            dependencies.get(&alias).is_some_and(|dependency| {
+                pacquet_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
+                    == Some(catalog_name)
+            })
         })
     })
 }

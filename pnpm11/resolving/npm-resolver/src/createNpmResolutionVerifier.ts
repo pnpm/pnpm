@@ -89,6 +89,11 @@ export interface CreateNpmResolutionVerifierOptions {
   getAuthHeaderValueByURI: GetAuthHeader
   cacheDir?: FetchFullMetadataCachedOptions['cacheDir']
   /**
+   * When true, verifier metadata lookups must use the local mirror
+   * only and never reach the registry or attestation endpoint.
+   */
+  offline?: boolean
+  /**
    * Per-install LRU shared with the npm resolver's `pickPackage`
    * (`{ get, set }` over `PackageMeta`). When provided, the verifier
    * consults it before fetching: a name the resolver already pulled
@@ -148,6 +153,7 @@ export function createNpmResolutionVerifier (
     fetchOpts: opts.fetchOpts,
     getAuthHeaderValueByURI: opts.getAuthHeaderValueByURI,
     cacheDir: opts.cacheDir,
+    offline: opts.offline === true,
     cutoffMs: cutoff,
     sharedMetaCache: opts.metaCache,
     abbreviatedMetaCache: new Map(),
@@ -522,6 +528,7 @@ function fetchFullMetaForTrust (
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
+        offline: context.offline,
       }).then(projectTrustMeta)
     }
     context.fullMetaForTrustCache.set(cacheKey, cachedPromise)
@@ -588,6 +595,7 @@ interface PublishedAtLookupContext {
   fetchOpts: FetchMetadataFromFromRegistryOptions
   getAuthHeaderValueByURI: GetAuthHeader
   cacheDir?: string
+  offline: boolean
   /**
    * The `minimumReleaseAge` cutoff converted to a unix-ms epoch. A
    * version with a publish time strictly less than this passes the
@@ -697,11 +705,13 @@ async function resolvePublishedAt (
   const localTime = await readLocalMetaTime(context, registry, name)
   if (localTime?.[version]) return localTime[version]
 
-  const attestationTime = await fetchAttestationPublishedAt(context.fetchOpts, name, version, {
-    registry,
-    authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
-  })
-  if (attestationTime != null) return attestationTime
+  if (!context.offline) {
+    const attestationTime = await fetchAttestationPublishedAt(context.fetchOpts, name, version, {
+      registry,
+      authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
+    })
+    if (attestationTime != null) return attestationTime
+  }
 
   const fullMetaTime = await fetchFullMetaTime(context, registry, name)
   return fullMetaTime?.[version]
@@ -773,6 +783,7 @@ function fetchAbbreviatedMeta (
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
+        offline: context.offline,
       }).then(
         (meta) => ({ meta: projectAbbreviatedMeta(meta) }),
         (error: unknown) => ({ error })
@@ -915,6 +926,7 @@ function fetchFullMetaTime (
       registry,
       authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
       cacheDir: context.cacheDir,
+      offline: context.offline,
     }).then((meta) => meta.time)
     context.fullMetaCache.set(cacheKey, cachedPromise)
   }

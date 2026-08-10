@@ -3,7 +3,6 @@
 //! node-id remapping, peer-suffix parsing, and range matching.
 
 use crate::{
-    dependencies_graph::ParentPackageRef,
     node_id::NodeId,
     resolve_peers::{ResolvePeersOptions, walker::Walker},
     resolved_tree::{ResolvedPackage, TreeChildren},
@@ -62,7 +61,7 @@ pub(super) struct ParentPkgInfo {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct SharedChain<Element>(Option<Arc<SharedChainLink<Element>>>);
+pub(crate) struct SharedChain<Element>(Option<Arc<SharedChainLink<Element>>>);
 
 #[derive(Debug)]
 struct SharedChainLink<Element> {
@@ -77,11 +76,11 @@ impl<Element> Default for SharedChain<Element> {
 }
 
 impl<Element> SharedChain<Element> {
-    pub(super) fn pushed(&self, value: Element) -> Self {
+    pub(crate) fn pushed(&self, value: Element) -> Self {
         SharedChain(Some(Arc::new(SharedChainLink { value, parent: self.0.clone() })))
     }
 
-    pub(super) fn iter(&self) -> SharedChainIter<'_, Element> {
+    pub(crate) fn iter(&self) -> SharedChainIter<'_, Element> {
         SharedChainIter { next: self.0.as_deref() }
     }
 }
@@ -150,14 +149,14 @@ fn link_key<Element>(link: &Arc<SharedChainLink<Element>>) -> usize {
 }
 
 impl<Element: Clone> SharedChain<Element> {
-    fn to_root_vec(&self) -> Vec<Element> {
+    pub(crate) fn to_root_vec(&self) -> Vec<Element> {
         let mut values: Vec<Element> = self.iter().cloned().collect();
         values.reverse();
         values
     }
 }
 
-pub(super) struct SharedChainIter<'a, Element> {
+pub(crate) struct SharedChainIter<'a, Element> {
     next: Option<&'a SharedChainLink<Element>>,
 }
 
@@ -541,24 +540,6 @@ fn named_registry_of(result: &ResolveResult) -> Option<&str> {
     let (registry_name, _) =
         pacquet_deps_path::parse_registry_qualified_version(id.get(at + 1..)?)?;
     Some(registry_name)
-}
-
-/// Build the `parents` chain attached to a peer issue. Records just
-/// `name` and `version` per parent, which is what the renderer
-/// downstream consumes.
-pub(super) fn parents_from_chain(
-    chain_names: &SharedChain<String>,
-    _pkg_name: &str,
-) -> Vec<ParentPackageRef> {
-    // The chain pacquet tracks today is name-only — populating
-    // `version` would need a parallel `Vec<String>` of versions or a
-    // re-lookup against the tree. The issue-renderer consumes the
-    // names primarily; expanding to versions is a follow-up.
-    chain_names
-        .to_root_vec()
-        .into_iter()
-        .map(|name| ParentPackageRef { name, version: String::new() })
-        .collect()
 }
 
 pub(super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<String>> {

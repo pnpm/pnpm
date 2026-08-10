@@ -141,3 +141,40 @@ importers: {}
         Some(["unused".to_string()].as_slice()),
     );
 }
+
+/// The ignored optional dependency is the only referent of its catalog
+/// entry, so the entry goes with it.
+#[test]
+fn prunes_a_catalog_entry_its_last_referent_was_ignored() {
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+catalogs:
+  default:
+    is-positive:
+      specifier: ^1.0.0
+      version: 1.0.0
+importers:
+  .:
+    specifiers:
+      is-positive: 'catalog:'
+    optionalDependencies:
+      is-positive:
+        specifier: 'catalog:'
+        version: 1.0.0
+packages:
+  is-positive@1.0.0:
+    resolution:
+      integrity: sha512-pos
+snapshots:
+  is-positive@1.0.0: {}
+",
+    )
+    .expect("parse lockfile");
+
+    let updated =
+        try_fast_update_ignored_optional_dependencies(&lockfile, &["is-positive".to_string()])
+            .expect("ignoring the sole referent needs no resolution");
+
+    assert!(updated.catalogs.is_none(), "the orphaned catalog entry goes with its referent");
+}

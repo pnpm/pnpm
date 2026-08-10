@@ -107,6 +107,10 @@ impl DedupeArgs {
             node_linker: config.node_linker,
             lockfile_only: true,
             dry_run: false,
+            // `--check` must leave the working tree untouched: the lockfile
+            // guard restores `pnpm-lock.yaml`, and this gate keeps loose
+            // minimumReleaseAge picks out of `pnpm-workspace.yaml`.
+            persist_policy_excludes: !self.check,
             update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
             auth_override: None,
             resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter> {

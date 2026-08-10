@@ -74,11 +74,7 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
   // (Updated tarballs on GitHub Pages will ship with package.json already.)
   let createdPkgJson = false
   if (!fs.existsSync(pkgJsonPath)) {
-    fs.writeFileSync(pkgJsonPath, JSON.stringify({
-      name: '@pnpm/exe',
-      version: packageManager.version,
-      bin: { pnpm: execName, pn: execName },
-    }))
+    fs.writeFileSync(pkgJsonPath, JSON.stringify(standaloneManifest(execName)))
     createdPkgJson = true
   }
 
@@ -114,6 +110,28 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
     if (createdPkgJson) {
       fs.unlinkSync(pkgJsonPath)
     }
+  }
+}
+
+/**
+ * The manifest `pnpm setup` writes next to a standalone executable that ships
+ * without one, so the global install has a package to install.
+ *
+ * `type: module` matters even though nothing here is imported as a package:
+ * without it Node.js reparses the ESM files shipped alongside the executable
+ * (`dist/worker.js`) as CommonJS first and warns on every spawn.
+ */
+export function standaloneManifest (execName: string): {
+  name: string
+  version: string
+  type: string
+  bin: Record<string, string>
+} {
+  return {
+    name: '@pnpm/exe',
+    version: packageManager.version,
+    type: 'module',
+    bin: { pnpm: execName, pn: execName },
   }
 }
 

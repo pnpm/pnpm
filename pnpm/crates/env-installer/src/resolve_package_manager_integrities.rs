@@ -7,8 +7,8 @@ use crate::{
     verify_env_lockfile::write_verified_env_lockfile,
 };
 use pacquet_lockfile::{
-    EnvLockfile, PackageKey, PkgName, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
-    SpecifierAndResolution,
+    EnvLockfile, LockfileResolution, PackageKey, PkgName, PkgVerPeer, RegistryResolution,
+    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use std::{collections::HashMap, path::PathBuf};
@@ -17,22 +17,28 @@ const PACKAGE_MANAGER_DEPS_WITH_EXE: [&str; 2] = ["pnpm", "@pnpm/exe"];
 const PACKAGE_MANAGER_DEPS_PNPM_ONLY: [&str; 1] = ["pnpm"];
 const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 
+/// `force_resync` skips the recorded-entries fast path, so entries that look
+/// up to date but are invalid (e.g. resolutions carrying tarball URLs
+/// written by an earlier pnpm) are discarded and re-resolved.
 pub async fn resolve_package_manager_integrities(
     wanted_specifier: &str,
     pnpm_version: &str,
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
+    force_resync: bool,
 ) -> Result<(), ConfigDepError> {
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
     let package_manager_deps = package_manager_deps(pnpm_version);
-    if is_package_manager_resolved_with_deps(
-        &env_lockfile,
-        wanted_specifier,
-        pnpm_version,
-        package_manager_deps,
-    ) {
+    if !force_resync
+        && is_package_manager_resolved_with_deps(
+            &env_lockfile,
+            wanted_specifier,
+            pnpm_version,
+            package_manager_deps,
+        )
+    {
         return Ok(());
     }
     if opts.frozen_lockfile {
@@ -69,10 +75,10 @@ pub async fn resolve_package_manager_integrities(
             continue;
         }
         let registry = opts.pick_registry(&package.name);
-        env_lockfile.packages.insert(
-            package.key.clone(),
-            package_metadata(&package.name, &package.version, &package.result, registry, false),
-        );
+        let mut metadata =
+            package_metadata(&package.name, &package.version, &package.result, registry, false);
+        metadata.resolution = strip_registry_tarball_url(metadata.resolution);
+        env_lockfile.packages.insert(package.key.clone(), metadata);
 
         let manifest = package.result.manifest.as_deref();
         let mut dependencies = HashMap::new();
@@ -103,6 +109,29 @@ pub async fn resolve_package_manager_integrities(
 
     prune_env_lockfile(&mut env_lockfile);
     write_verified_env_lockfile(&env_lockfile, opts.root_dir)
+}
+
+/// Rewrite a registry tarball resolution to integrity-only form, dropping
+/// tarball URLs a registry advertises on a host other than its own —
+/// load-balanced proxies and Artifactory-style mirrors do this, see
+/// <https://github.com/pnpm/pnpm/issues/13619>. The package-manager
+/// bootstrap never fetches a URL recorded in the lockfile: the download URL
+/// is always derived from the trusted bootstrap registries at install time,
+/// so a repository-provided entry cannot steer the download. Dropping the
+/// URL here keeps freshly resolved entries in exactly the integrity-only
+/// shape the bootstrap validation accepts.
+fn strip_registry_tarball_url(resolution: LockfileResolution) -> LockfileResolution {
+    match resolution {
+        LockfileResolution::Tarball(TarballResolution {
+            tarball,
+            integrity: Some(integrity),
+            git_hosted: None | Some(false),
+            path: None,
+        }) if !tarball.starts_with("file:") => {
+            LockfileResolution::Registry(RegistryResolution { integrity })
+        }
+        other => other,
+    }
 }
 
 #[must_use]
