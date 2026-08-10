@@ -16,7 +16,7 @@ export interface Project {
 export function hasChangedProjectSpecifiers (
   lockfile: LockfileObject,
   projects: Project[],
-  pruneLockfileImporters: boolean
+  pruneLockfileImporters: boolean = false
 ): boolean {
   if (pruneLockfileImporters && staleImporterIds(lockfile, projects).length > 0) return true
   return projects.some((project) => {
