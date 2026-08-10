@@ -272,6 +272,24 @@ test('takes the tarball of an old-format config dep from the packument', async (
   })
 })
 
+test('keeps optional subdeps of a pinned config dep out of the lockfile', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  // @pnpm.e2e/foobar declares `@pnpm.e2e/bar: "^100.0.0"` as an
+  // optionalDependency — a range, which a clean specifier forbids.
+  const integrity = getIntegrity('@pnpm.e2e/foobar', '100.0.0')
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foobar': `100.0.0+${integrity}`,
+  }, opts)
+
+  const manifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foobar/package.json')
+  expect(manifest.version).toBe('100.0.0')
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile!.snapshots['@pnpm.e2e/foobar@100.0.0']).toStrictEqual({})
+})
+
 test('handles mixed old-format and new-format config deps together', async () => {
   prepareEmpty()
   const opts = createOpts()

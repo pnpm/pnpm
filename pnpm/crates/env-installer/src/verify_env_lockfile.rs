@@ -53,7 +53,7 @@ pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepEr
 
 /// The env lockfile is verified before it is written, but a migrated config
 /// dependency is resolved against the registry first, so its name and version
-/// are checked here instead of reaching the resolver.
+/// are checked here, before they reach the resolver.
 pub(crate) fn assert_valid_migrated_config_dep(
     name: &str,
     version: &str,

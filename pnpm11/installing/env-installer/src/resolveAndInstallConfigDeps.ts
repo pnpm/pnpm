@@ -1,6 +1,5 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
-import { assertValidDependencyAliases } from '@pnpm/installing.deps-resolver'
 import {
   createEnvLockfile,
   type EnvLockfile,
@@ -12,11 +11,11 @@ import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@p
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/resolving.npm-resolver'
 import type { ConfigDependencies, RegistryConfig } from '@pnpm/types'
 
-import { assertValidConfigDepVersion } from './assertValidConfigDepVersion.js'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { parseIntegrity } from './parseIntegrity.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
+import { assertValidMigratedConfigDep } from './verifyEnvLockfile.js'
 import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 export type ResolveAndInstallConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
@@ -39,7 +38,7 @@ export async function resolveAndInstallConfigDeps (
   const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
   const lockfileConfigDeps = envLockfile.importers['.'].configDependencies
 
-  const depsToResolve: Array<{ name: string, specifier: string, integrity?: string }> = []
+  const depsToResolve: Array<{ name: string, specifier: string, pinnedIntegrity?: string }> = []
   let lockfileChanged = false
 
   for (const [name, value] of Object.entries(configDeps)) {
@@ -48,9 +47,7 @@ export async function resolveAndInstallConfigDeps (
       if (!lockfileConfigDeps[name]) {
         const { version, integrity } = parseIntegrity(name, value.integrity)
         assertValidMigratedConfigDep(name, version)
-        if (value.tarball == null) {
-          depsToResolve.push({ name, specifier: version, integrity })
-        } else {
+        if (value.tarball != null) {
           const registry = pickRegistryForPackage(opts.registriesByScope, name)
           const pkgKey = `${name}@${version}`
           lockfileConfigDeps[name] = { specifier: version, version }
@@ -59,6 +56,8 @@ export async function resolveAndInstallConfigDeps (
           }
           envLockfile.snapshots[pkgKey] = {}
           lockfileChanged = true
+        } else {
+          depsToResolve.push({ name, specifier: version, pinnedIntegrity: integrity })
         }
       }
       continue
@@ -69,7 +68,7 @@ export async function resolveAndInstallConfigDeps (
       if (!lockfileConfigDeps[name]) {
         const { version, integrity } = parseIntegrity(name, value)
         assertValidMigratedConfigDep(name, version)
-        depsToResolve.push({ name, specifier: version, integrity })
+        depsToResolve.push({ name, specifier: version, pinnedIntegrity: integrity })
       }
       continue
     }
@@ -101,7 +100,7 @@ export async function resolveAndInstallConfigDeps (
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
-  await Promise.all(depsToResolve.map(async ({ name, specifier, integrity }) => {
+  await Promise.all(depsToResolve.map(async ({ name, specifier, pinnedIntegrity }) => {
     const resolution = await resolveFromNpm({ alias: name, bareSpecifier: specifier }, {
       lockfileDir: opts.rootDir,
       preferredVersions: {},
@@ -123,21 +122,24 @@ export async function resolveAndInstallConfigDeps (
       specifier,
       version,
     }
+    // A migrated dependency keeps the integrity pinned in pnpm-workspace.yaml,
+    // so the registry hands over the tarball URL without loosening the pin.
+    const pkgResolution = pinnedIntegrity == null
+      ? resolution.resolution
+      : { ...resolution.resolution, integrity: pinnedIntegrity }
     envLockfile.packages[pkgKey] = {
-      resolution: toLockfileResolution(
-        { name, version },
-        // A migrated dependency keeps the integrity pinned in pnpm-workspace.yaml,
-        // so the registry can hand over the tarball URL without loosening the pin.
-        integrity == null ? resolution.resolution : { ...resolution.resolution, integrity },
-        { registry }
-      ),
+      resolution: toLockfileResolution({ name, version }, pkgResolution, { registry }),
     }
-    const optionalSubdeps = await resolveOptionalSubdeps(name, resolution.manifest, {
-      envLockfile,
-      lockfileDir: opts.rootDir,
-      registriesByScope: opts.registriesByScope,
-      resolveFromNpm,
-    })
+    // A pinned dependency covers only itself, so its optional subdeps stay out
+    // of the lockfile until it is declared as a clean specifier.
+    const optionalSubdeps = pinnedIntegrity == null
+      ? await resolveOptionalSubdeps(name, resolution.manifest, {
+        envLockfile,
+        lockfileDir: opts.rootDir,
+        registriesByScope: opts.registriesByScope,
+        resolveFromNpm,
+      })
+      : undefined
     envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
   }))
 
@@ -145,12 +147,4 @@ export async function resolveAndInstallConfigDeps (
 
   await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   await installConfigDeps(envLockfile, opts)
-}
-
-// The env lockfile is verified before it is written, but a migrated dependency
-// is resolved against the registry first, so its name and version are checked
-// here instead of reaching the resolver.
-function assertValidMigratedConfigDep (name: string, version: string): void {
-  assertValidDependencyAliases({ [name]: version }, 'The configDependencies in pnpm-workspace.yaml')
-  assertValidConfigDepVersion(name, version)
 }

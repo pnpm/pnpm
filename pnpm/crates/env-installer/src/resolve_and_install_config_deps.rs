@@ -172,7 +172,7 @@ async fn resolve_one(
     );
     let mut resolution = result.resolution.clone();
     // A migrated dependency keeps the integrity pinned in pnpm-workspace.yaml,
-    // so the registry can hand over the tarball URL without loosening the pin.
+    // so the registry hands over the tarball URL without loosening the pin.
     if let (Some(pinned), LockfileResolution::Tarball(tarball)) =
         (pinned_integrity, &mut resolution)
     {
@@ -187,11 +187,13 @@ async fn resolve_one(
         )),
     );
 
-    let optional_subdeps = match result.manifest.as_deref() {
-        Some(manifest) => {
+    // A pinned dependency covers only itself, so its optional subdeps stay out
+    // of the lockfile until it is declared as a clean specifier.
+    let optional_subdeps = match (pinned_integrity, result.manifest.as_deref()) {
+        (None, Some(manifest)) => {
             resolve_optional_subdeps(name, manifest, resolver, opts, env_lockfile).await?
         }
-        None => None,
+        _ => None,
     };
     env_lockfile.snapshots.insert(
         key,

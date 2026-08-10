@@ -631,6 +631,38 @@ async fn rejects_optional_subdep_with_non_exact_version() {
     );
 }
 
+/// An inline integrity pins the config dependency alone, so a range in its
+/// optionalDependencies does not block the install the way it does for a
+/// clean specifier.
+#[tokio::test]
+async fn keeps_optional_subdeps_of_a_pinned_config_dep_out_of_the_lockfile() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let integrity = integrity_of(&resolver, "@pnpm.e2e/foobar", "100.0.0").await;
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert(
+        "@pnpm.e2e/foobar".to_string(),
+        ConfigDependency::VersionWithIntegrity(format!("100.0.0+{integrity}")),
+    );
+
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let key: PackageKey = "@pnpm.e2e/foobar@100.0.0".parse().unwrap();
+    assert!(
+        env.snapshots[&key].optional_dependencies.is_none(),
+        "a pinned config dep records no optional subdeps",
+    );
+}
+
 /// Recursively search `dir` for an entry named `name`, without following
 /// symlinks (so it can't loop through the dir links a successful install leaves).
 fn contains_entry_named(dir: &Path, name: &str) -> bool {
@@ -963,7 +995,6 @@ async fn migrates_old_inline_integrity_format() {
     let (resolver, _cache) = build_resolver(&harness.registry_url);
     let root = TempDir::new().unwrap();
 
-    // The old format embeds the integrity inline as `<version>+<integrity>`.
     let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
     let mut config_deps = BTreeMap::new();
     config_deps.insert(
@@ -1023,7 +1054,10 @@ async fn takes_old_format_tarball_url_from_the_packument() {
     let LockfileResolution::Tarball(tarball) = resolution else {
         panic!("expected the tarball URL the packument advertises to be recorded");
     };
-    assert!(tarball.tarball.starts_with(&harness.registry_url));
+    assert!(
+        tarball.tarball.starts_with(&harness.registry_url),
+        "tarball URL comes from the packument, not from the configured registry",
+    );
     assert_eq!(tarball.integrity.as_ref().unwrap().to_string(), integrity);
 }
 
