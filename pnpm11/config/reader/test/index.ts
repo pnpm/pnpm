@@ -825,13 +825,13 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       rootProjectManifest: { name: 'attacker-root' },
     })
 
-    const { config, context } = await getConfig({ cliOptions, packageManager, workspaceDir })
+    const { context } = await getConfig({ cliOptions, packageManager, workspaceDir })
 
     expect(context.cliOptions).toStrictEqual({})
     expect(context.packageManager).toStrictEqual(packageManager)
     expect(context.explicitlySetKeys).toBeInstanceOf(Set)
-    expect(config.wantedPackageManager).not.toStrictEqual({ name: 'attacker-pm', version: '99.0.0' })
-    expect(config.rootProjectManifest?.name).not.toBe('attacker-root')
+    expect(context.wantedPackageManager).not.toStrictEqual({ name: 'attacker-pm', version: '99.0.0' })
+    expect(context.rootProjectManifest?.name).not.toBe('attacker-root')
   })
 
   test('the skips still apply when self-update resolves the config', async () => {

@@ -1136,3 +1136,49 @@ test('config delete clears a hand-written kebab-case key', async () => {
 
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
 })
+
+/**
+ * Nine of these settings have no entry in `types`, so their kebab-case
+ * spelling reaches `validateWorkspaceKey`'s rejection rather than the delete.
+ * The reader names whichever spelling the file used, so every one of them has
+ * to be clearable under that name.
+ */
+test.each([
+  'pnpm-home-dir',
+  'global-pkg-dir',
+  'root-project-manifest-dir',
+  'workspace-dir',
+  'package-manager-registries',
+])('config delete clears %s, which is absent from the types table', async (key) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), `'${key}': /tmp/somewhere\nstoreDir: '~/store'\n`)
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['delete', key])
+
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
+})
+
+/** The same spellings must still be refused on the way in, and by the accurate error. */
+test.each(['pnpm-home-dir', 'workspace-dir'])('config set still refuses %s', async (key) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', key, '/tmp/somewhere'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING',
+  })
+})
