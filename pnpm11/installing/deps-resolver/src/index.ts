@@ -304,6 +304,13 @@ export async function resolveDependencies (
     })
     : initiallyResolvedPeers
 
+  // The guard below only compensates for dedupeInjectedDeps not running on
+  // every re-resolution path. With dedupeInjectedDeps off, no run may turn an
+  // injected workspace dependency into a `link:`, so a previously recorded
+  // `link:` is stale and the freshly resolved `file:` must win. `pnpm deploy`
+  // relies on this: it injects every workspace dependency with
+  // dedupeInjectedDeps disabled so the deployed directory is self-contained.
+  const preserveDedupedWorkspaceLinks = Boolean(opts.dedupeInjectedDeps)
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   await Promise.all(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
@@ -396,7 +403,7 @@ export async function resolveDependencies (
       const previousRef = previousDirectRefs[alias]
       const targetedByUpdate = updateTargetedAliases.has(alias) ||
         (updateMatching?.(depNode.name) ?? false)
-      if (!targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
+      if (preserveDedupedWorkspaceLinks && !targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
         ref = previousRef
       }
       if (projectSnapshot.dependencies?.[alias]) {

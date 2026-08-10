@@ -109,6 +109,61 @@ test('workspace packages should maintain link: protocol after single-project pnp
   expect(lockfileAfterRm.importers.a.dependencies!.b.version).toBe('link:../b')
 })
 
+// The guard that preserves a prior `link:` only compensates for
+// dedupeInjectedDeps not running on every re-resolution path. With
+// dedupeInjectedDeps off nothing may turn an injected workspace dependency back
+// into a `link:`, so the freshly resolved `file:` has to win — this is what
+// `pnpm deploy` relies on to produce a self-contained directory
+// (https://github.com/pnpm/pnpm/issues/13754).
+test('workspace packages switch to file: protocol when injected with dedupeInjectedDeps disabled', async () => {
+  const projectAManifest = {
+    name: 'a',
+    version: '1.0.0',
+    dependencies: {
+      b: 'workspace:*',
+    },
+  }
+  const projectBManifest = {
+    name: 'b',
+    version: '1.0.0',
+  }
+
+  preparePackages([
+    { location: 'a', package: projectAManifest },
+    { location: 'b', package: projectBManifest },
+  ])
+
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: projectAManifest,
+      rootDir: path.resolve('a') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: projectBManifest,
+      rootDir: path.resolve('b') as ProjectRootDir,
+    },
+  ]
+  const mutations = allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir }))
+
+  await mutateModules(mutations, testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+  }))
+
+  const rootModules = assertProject(process.cwd())
+  expect(rootModules.readLockfile().importers.a.dependencies!.b.version).toBe('link:../b')
+
+  await mutateModules(mutations, testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+    injectWorkspacePackages: true,
+  }))
+
+  expect(rootModules.readLockfile().importers.a.dependencies!.b.version).toBe('file:b')
+})
+
 test('workspace packages with their own dependencies should maintain link: protocol after single-project pnpm rm with injectWorkspacePackages', async () => {
   const projectAManifest: { name: string, version: string, dependencies: Record<string, string> } = {
     name: 'a',
