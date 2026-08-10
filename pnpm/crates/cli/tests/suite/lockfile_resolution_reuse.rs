@@ -1501,3 +1501,96 @@ fn a_remove_keeps_the_specifiers_a_project_rewriting_pnpmfile_recorded() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn a_frozen_install_tolerates_the_importer_of_a_removed_workspace_project() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_two_member_workspace(&workspace);
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    fs::remove_dir_all(workspace.join("packages/b")).expect("remove the member");
+
+    // pnpm's importer-set gate lives in the auto-frozen branch, which an
+    // explicit `--frozen-lockfile` short-circuits past.
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn removing_a_workspace_project_prunes_its_importer_without_resolving() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    write_two_member_workspace(&workspace);
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    fs::remove_dir_all(workspace.join("packages/b")).expect("remove the member");
+    let dead_registry = dead_registry_url();
+    let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead_npmrc = live_npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "dropping a workspace project needs no resolution",
+    );
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let mut importers: Vec<_> = wanted.importers.keys().map(String::as_str).collect();
+    importers.sort_unstable();
+    assert_eq!(
+        importers,
+        vec![".", "packages/a"],
+        "the departed project's importer is gone, the root and its sibling stay",
+    );
+    assert!(
+        !wanted
+            .packages
+            .as_ref()
+            .expect("packages")
+            .keys()
+            .any(|key| key.to_string().starts_with("@pnpm.e2e/bar@")),
+        "and so is what only it depended on",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A workspace whose two members each depend on a package of their own.
+fn write_two_member_workspace(workspace: &Path) {
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}packages:\n  - packages/*\n"))
+        .expect("declare the workspace members");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+    for (name, dependency) in [("a", "@pnpm.e2e/foo"), ("b", "@pnpm.e2e/bar")] {
+        let dir = workspace.join("packages").join(name);
+        fs::create_dir_all(&dir).expect("create the member directory");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { dependency: "100.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write the member package.json");
+    }
+}

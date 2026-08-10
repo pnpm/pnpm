@@ -32,13 +32,17 @@ pub(crate) fn try_compose_fast_updates(
     manifests: &[(String, &PackageManifest)],
     project_manifests: &[(PathBuf, &PackageManifest)],
     config: &Config,
+    prune_stale_importers: bool,
 ) -> Option<Lockfile> {
     let ignored_optional_dependencies =
         config.ignored_optional_dependencies.as_deref().unwrap_or_default();
     let settings = crate::fast_update_settings::lockfile_settings_from_config(config);
 
-    let importers = match crate::fast_update_importers::detect_importers_drift(lockfile, manifests)
-    {
+    let importers = match crate::fast_update_importers::detect_importers_drift(
+        lockfile,
+        manifests,
+        prune_stale_importers,
+    ) {
         Drift::Resolve => return None,
         drift => drift,
     };

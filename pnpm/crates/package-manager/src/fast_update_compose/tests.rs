@@ -83,7 +83,7 @@ fn absorbs_a_removal_and_a_widened_ignore_list_in_one_pass() {
     };
 
     let updated =
-        try_compose_fast_updates(&lockfile(), &[(".".to_string(), &manifest)], &[], &config)
+        try_compose_fast_updates(&lockfile(), &[(".".to_string(), &manifest)], &[], &config, false)
             .expect("both kinds of drift are absorbable at once");
 
     assert_eq!(
@@ -120,6 +120,7 @@ fn absorbs_a_group_move_and_a_settings_change_in_one_pass() {
         &[(".".to_string(), &manifest)],
         &[(PathBuf::from("/project"), &manifest)],
         &config,
+        false,
     )
     .expect("a peerless lockfile absorbs the setting alongside the move");
 
@@ -153,6 +154,7 @@ fn falls_back_when_one_of_the_composed_changes_cannot_be_absorbed() {
             &[(".".to_string(), &manifest)],
             &[(PathBuf::from("/project"), &manifest)],
             &config,
+            false,
         )
         .is_none(),
         "the incompatible range needs the resolver, and the settings change goes with it",
@@ -169,7 +171,7 @@ fn falls_back_when_a_removal_leaves_a_configured_patch_unused() {
     let config = Config { allow_unused_patches: false, ..patch_config(dir.path(), &["bar@2.0.0"]) };
 
     assert!(
-        try_compose_fast_updates(&lockfile(), &[(".".to_string(), &manifest)], &[], &config)
+        try_compose_fast_updates(&lockfile(), &[(".".to_string(), &manifest)], &[], &config, false)
             .is_none(),
         "removing the patch's only referent is what the resolver reports as an unused patch",
     );
@@ -185,7 +187,7 @@ fn rekeys_a_patched_survivor_alongside_a_removal() {
     let config = patch_config(dir.path(), &["bar@2.0.0"]);
 
     let updated =
-        try_compose_fast_updates(&lockfile(), &[(".".to_string(), &manifest)], &[], &config)
+        try_compose_fast_updates(&lockfile(), &[(".".to_string(), &manifest)], &[], &config, false)
             .expect("the removal and the patch rekey compose");
 
     assert!(
@@ -223,7 +225,7 @@ fn falls_back_when_an_ignored_optional_is_embedded_in_a_peer_suffix() {
     };
 
     assert!(
-        try_compose_fast_updates(&subject, &[], &[], &config).is_none(),
+        try_compose_fast_updates(&subject, &[], &[], &config, false).is_none(),
         "the surviving dependent's key embeds the removed package, so it would rekey, not prune",
     );
 }
@@ -241,6 +243,7 @@ fn stands_aside_when_nothing_drifted() {
             &[(".".to_string(), &manifest)],
             &[],
             &Config::default(),
+            false,
         )
         .is_none(),
         "no drift means the ordinary frozen path decides",
@@ -274,7 +277,7 @@ fn recomputes_optional_flags_for_an_ignored_optional_removal() {
         .expect("snapshot")
         .optional = true;
 
-    let updated = try_compose_fast_updates(&subject, &[], &[], &config)
+    let updated = try_compose_fast_updates(&subject, &[], &[], &config, false)
         .expect("widening the ignore list needs no resolution");
 
     assert!(
@@ -348,6 +351,7 @@ fn absorbs_a_peer_setting_once_the_removal_drops_the_last_peer_dependent() {
         &[(".".to_string(), &manifest)],
         &[(PathBuf::from("/project"), &manifest)],
         &config,
+        false,
     )
     .expect("the removal prunes the only peer dependent, so the setting cannot affect the graph");
 

@@ -1,10 +1,10 @@
 use super::{
     ApplyMaterializationInputs, Arc, AtomicU8, ContextLog, DependencyGroup,
-    FastUpdateLockfileOptions, FreshnessCheckError, HashSet, Host, InMemoryPackageMetaCache,
-    IncludedDependencies, Install, InstallError, InstallRunOptions, IsTerminal, Lockfile, LogEvent,
-    LogLevel, MaterializationInputs, MaterializationOutput, OptimisticRepeatInstallCheck,
-    OptimisticRepeatInstallDecision, PackageManifest, Path, PathBuf, PnpmLog,
-    PrepareModulesStateInputs, PreparedModulesState, Reporter, ScopeLog, Stage, StageLog,
+    FastUpdateLockfileOptions, FreshnessCheckError, FreshnessScope, HashSet, Host,
+    InMemoryPackageMetaCache, IncludedDependencies, Install, InstallError, InstallRunOptions,
+    IsTerminal, Lockfile, LogEvent, LogLevel, MaterializationInputs, MaterializationOutput,
+    OptimisticRepeatInstallCheck, OptimisticRepeatInstallDecision, PackageManifest, Path, PathBuf,
+    PnpmLog, PrepareModulesStateInputs, PreparedModulesState, Reporter, ScopeLog, Stage, StageLog,
     SummaryLog, UpdateSeedPolicy, apply_materialization_result, build_project_manifests_list,
     build_resolution_verifiers, build_root_importer_project_manifests_list,
     build_selected_project_manifests_list, check_lockfile_freshness,
@@ -256,6 +256,20 @@ where
             ),
             None => build_project_manifests_list(&workspace_root, manifest, workspace_projects),
         };
+        // Only an unfiltered install of a whole workspace sees the complete
+        // project list, so only it may conclude that an importer the
+        // lockfile records belongs to a project that is gone. This is
+        // pnpm's `pruneLockfileImporters`, which its recursive install
+        // defaults to the same condition — outside a workspace there is no
+        // project list to compare against.
+        // A `NodeApiProject[]` handed in by an API consumer carries no
+        // promise of listing every workspace project, so it cannot stand
+        // in for the project list either.
+        let prune_stale_importers = selection.is_none()
+            && mutation.is_full_install()
+            && workspace_projects.is_some()
+            && !workspace_projects_are_overridden
+            && config.shared_workspace_lockfile;
         let selected_importer_ids = selection.as_ref().map(|selection| {
             selection
                 .selected_dirs
@@ -531,8 +545,11 @@ where
                     config,
                     &catalogs,
                     pnpmfile_hook.as_ref(),
-                    ignore_manifest_check,
-                    true,
+                    FreshnessScope {
+                        ignore_manifest_check,
+                        allow_missing_dependency_free_importers: true,
+                        prune_stale_importers,
+                    },
                 )
                 .await
                 .ok()
@@ -560,6 +577,7 @@ where
                 catalogs: &catalogs,
                 pnpmfile_hook: pnpmfile_hook.as_ref(),
                 ignore_manifest_check,
+                prune_stale_importers,
             })
             .await
         } else {
@@ -730,8 +748,15 @@ where
                 config,
                 &catalogs,
                 pnpmfile_hook.as_ref(),
-                ignore_manifest_check,
-                false,
+                FreshnessScope {
+                    ignore_manifest_check,
+                    allow_missing_dependency_free_importers: false,
+                    // pnpm's importer-set gate sits in the auto-frozen branch
+                    // of `isFrozenInstallPossible`, which an explicit
+                    // `--frozen-lockfile` short-circuits past, so a removed
+                    // project does not fail the install there.
+                    prune_stale_importers: false,
+                },
             )
             .await
             .map_err(InstallError::from)?;
@@ -753,8 +778,11 @@ where
                     config,
                     &catalogs,
                     pnpmfile_hook.as_ref(),
-                    ignore_manifest_check,
-                    true,
+                    FreshnessScope {
+                        ignore_manifest_check,
+                        allow_missing_dependency_free_importers: true,
+                        prune_stale_importers,
+                    },
                 )
                 .await
                 {

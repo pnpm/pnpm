@@ -12,6 +12,9 @@ pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     pub(super) ignore_manifest_check: bool,
+    /// Whether this run sees the complete project list, so an importer
+    /// no project claims may be dropped rather than kept.
+    pub(super) prune_stale_importers: bool,
 }
 
 /// Rewrite the loaded lockfile in place of a full resolution for the
@@ -30,6 +33,7 @@ pub(super) async fn try_fast_update_lockfile(
         opts.manifests,
         opts.project_manifests,
         opts.config,
+        opts.prune_stale_importers,
     )?;
     check_lockfile_freshness(
         &candidate,
@@ -37,12 +41,42 @@ pub(super) async fn try_fast_update_lockfile(
         opts.config,
         opts.catalogs,
         opts.pnpmfile_hook,
-        opts.ignore_manifest_check,
-        true,
+        FreshnessScope {
+            ignore_manifest_check: opts.ignore_manifest_check,
+            allow_missing_dependency_free_importers: true,
+            prune_stale_importers: opts.prune_stale_importers,
+        },
     )
     .await
     .ok()?;
     Some(candidate)
+}
+
+/// Which importers a freshness check may reason about, and how
+/// strictly. See [`check_lockfile_freshness`] for what each one admits.
+#[derive(Clone, Copy)]
+pub(crate) struct FreshnessScope {
+    /// Skip the per-importer specifier gate entirely.
+    pub(crate) ignore_manifest_check: bool,
+    /// Treat a project with no importer entry and no dependencies as
+    /// satisfied rather than missing.
+    pub(crate) allow_missing_dependency_free_importers: bool,
+    /// Treat an importer no project claims as staleness. Only an
+    /// unfiltered workspace install may, since only it sees the
+    /// complete project list.
+    pub(crate) prune_stale_importers: bool,
+}
+
+/// The first importer the lockfile records that no project claims.
+pub(super) fn removed_importer_id<'a>(
+    lockfile: &'a Lockfile,
+    manifest_freshness_inputs: &[(String, &PackageManifest)],
+) -> Option<&'a str> {
+    lockfile
+        .importers
+        .keys()
+        .find(|importer_id| !manifest_freshness_inputs.iter().any(|(id, _)| id == *importer_id))
+        .map(String::as_str)
 }
 
 /// Run every gate the frozen-lockfile dispatch consults before
@@ -78,9 +112,13 @@ pub(super) async fn check_lockfile_freshness(
     config: &Config,
     catalogs: &Catalogs,
     pnpmfile_hook: Option<&Arc<dyn pacquet_hooks::PnpmfileHooks>>,
-    ignore_manifest_check: bool,
-    allow_missing_dependency_free_importers: bool,
+    scope: FreshnessScope,
 ) -> Result<(), FreshnessCheckError> {
+    let FreshnessScope {
+        ignore_manifest_check,
+        allow_missing_dependency_free_importers,
+        prune_stale_importers,
+    } = scope;
     let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
     let pnpmfile_checksum = pacquet_hooks::current_pnpmfile_checksum(
         pnpmfile_hook,
@@ -100,6 +138,18 @@ pub(super) async fn check_lockfile_freshness(
 
     if ignore_manifest_check {
         return Ok(());
+    }
+
+    // An importer whose project is gone leaves the recorded graph wider
+    // than the workspace, and it is a root in every reachability walk, so
+    // it also keeps that project's dependencies alive. Only an unfiltered
+    // install sees the whole project list, so only it may conclude this.
+    if prune_stale_importers
+        && let Some(importer_id) = removed_importer_id(lockfile, manifest_freshness_inputs)
+    {
+        return Err(FreshnessCheckError::Stale(StalenessReason::RemovedImporter {
+            importer_id: importer_id.to_string(),
+        }));
     }
 
     let ignored_optional_matcher = pacquet_config::matcher::create_matcher(

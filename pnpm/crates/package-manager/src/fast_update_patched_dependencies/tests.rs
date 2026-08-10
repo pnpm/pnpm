@@ -2,7 +2,7 @@
 /// every other input is neutral, so these tests exercise this handler
 /// alone.
 fn try_fast_update_patched_dependencies(lockfile: &Lockfile, config: &Config) -> Option<Lockfile> {
-    crate::fast_update_compose::try_compose_fast_updates(lockfile, &[], &[], config)
+    crate::fast_update_compose::try_compose_fast_updates(lockfile, &[], &[], config, false)
 }
 use indexmap::IndexMap;
 use pacquet_config::Config;
