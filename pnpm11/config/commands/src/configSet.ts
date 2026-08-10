@@ -193,7 +193,9 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY', `The key ${JSON.stringify(key)} isn't supported by the workspace manifest`, {
-      hint: hintForRefusedKey(key, `Try ${JSON.stringify(camelCase(key))}`),
+      // No `hintForRefusedKey` here: `validateWorkspaceKey` returns early for
+      // every refused setting, so this error never sees one.
+      hint: `Try ${JSON.stringify(camelCase(key))}`,
     })
     this.key = key
   }
@@ -223,6 +225,7 @@ const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
 const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
   dir: 'Pass --dir on the command line instead',
   configDir: 'pnpm takes it from XDG_CONFIG_HOME, or the platform default',
+  userConfig: "pnpm reads it from the user's .npmrc",
   pnpmHomeDir: 'pnpm takes it from PNPM_HOME, which pnpm setup sets',
 }
 

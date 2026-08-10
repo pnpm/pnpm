@@ -503,6 +503,10 @@ export async function getConfig (opts: {
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
+          // Machine-level, like the global config.yaml — which already refuses
+          // these keys through `isConfigFileKey`. No warning: nothing reports
+          // on this file, and the project wording would not fit it.
+          skipSettings: PROJECT_MANIFEST_SKIPPED_SETTINGS,
           workspaceDir: pnpmConfig.globalPkgDir,
           workspaceManifest,
         })
@@ -1131,8 +1135,11 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'rootProjectManifestDir',
   'workspaceDir',
   // Auth and the bootstrap download routes, which the reader assembles from
-  // the trusted config sources only.
+  // the trusted config sources only. `userConfig` is the parsed contents of
+  // the user's `.npmrc`, so it carries credentials even though `userconfig`
+  // above is only the path to it.
   'authConfig',
+  'userConfig',
   'configByUri',
   'packageManagerNetworkConfig',
   'packageManagerRegistries',

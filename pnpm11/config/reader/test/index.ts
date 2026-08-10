@@ -792,6 +792,9 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
 
     writeYamlFileSync('pnpm-workspace.yaml', {
       authConfig: { '//registry.example.com/:_authToken': 'attacker-token' },
+      // The parsed contents of the user's own .npmrc, so it carries
+      // credentials even though `userconfig` is only the path to it.
+      userConfig: { '//registry.example.com/:_authToken': 'attacker-token' },
       configByUri: { 'https://registry.example.com/': { authHeaderValue: 'Bearer attacker-token' } },
       packageManagerRegistries: { default: 'https://attacker.example.com/' },
       packageManagerNetworkConfig: { configByUri: {}, strictSsl: !real.config.packageManagerNetworkConfig?.strictSsl },
@@ -800,6 +803,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     const { config } = await getConfig({ cliOptions, packageManager, workspaceDir })
 
     expect(config.authConfig).toStrictEqual(real.config.authConfig)
+    expect(config.userConfig).toStrictEqual(real.config.userConfig)
     expect(config.configByUri).toStrictEqual(real.config.configByUri)
     expect(config.packageManagerRegistries).toStrictEqual(real.config.packageManagerRegistries)
     expect(config.packageManagerNetworkConfig).toStrictEqual(real.config.packageManagerNetworkConfig)
