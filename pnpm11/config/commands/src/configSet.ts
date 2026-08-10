@@ -79,10 +79,12 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       }
       // pnpm always writes the normalized spelling, but a hand-edited file may
       // carry another one — and for a project manifest that is the spelling
-      // the reader names when it reports the setting as ignored. Remove both,
-      // so the remedy the warning implies actually clears the file.
-      if (castValue == null && key !== writtenKey) {
+      // the reader names when it reports the setting as ignored. A removal
+      // clears every spelling rather than only the one the user typed, since
+      // the file's spelling is what the warning named and what has to go.
+      if (castValue == null) {
         updatedFields[key] = null
+        updatedFields[kebabCase(writtenKey)] = null
       }
       await updateWorkspaceManifest(configDir, { fileName: configFileName, updatedFields })
       break

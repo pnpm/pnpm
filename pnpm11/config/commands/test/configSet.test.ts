@@ -1118,6 +1118,27 @@ test.each([
   })
 })
 
+/** The file's spelling is what the reader named, whichever spelling the user types. */
+test.each([
+  ['config-dir', 'configDir'],
+  ['configDir', 'config-dir'],
+])('config delete %s clears a file written as %s', async (typed, written) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), `'${written}': /tmp/somewhere\nstoreDir: '~/store'\n`)
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['delete', typed])
+
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
+})
+
 test('config delete clears a hand-written kebab-case key', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
