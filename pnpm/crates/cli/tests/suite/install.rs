@@ -1526,9 +1526,9 @@ fn time_based_install_records_and_preserves_the_lockfile_time_section() {
     let recorded =
         read_lockfile(&lockfile_path).time.expect("a time-based install records `time:`");
     assert_eq!(
-        recorded.keys().filter(|dep_path| dep_path.starts_with("@pnpm.e2e/foo@")).count(),
-        1,
-        "the direct dependency's publish date is recorded: {recorded:?}",
+        recorded.keys().collect::<Vec<_>>(),
+        ["@pnpm.e2e/foo@100.0.0"],
+        "only the direct dependency's publish date is recorded: {recorded:?}",
     );
 
     new_pacquet_command(&workspace).with_arg("install").assert().success();

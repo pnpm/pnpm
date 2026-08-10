@@ -172,6 +172,56 @@ fn write_manifest(deps_value: serde_json::Value) -> (TempDir, PackageManifest) {
 }
 
 #[test]
+fn recorded_publish_dates_reach_the_lockfiles_time_section() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let node = make_node(
+        "react",
+        "17.0.2",
+        json!({ "name": "react", "version": "17.0.2" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+    let direct = BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
+
+    let time =
+        BTreeMap::from([("react@17.0.2".to_string(), "2021-03-22T14:00:00.000Z".to_string())]);
+    let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+    opts.time = time.clone();
+
+    assert_eq!(dependencies_graph_to_lockfile(opts).time, Some(time));
+}
+
+/// An install that resolved no publish dates leaves the section out
+/// rather than writing an empty map.
+#[test]
+fn no_recorded_publish_dates_leave_out_the_time_section() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let graph = DependenciesGraph::default();
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        BTreeMap::new(),
+        true,
+        false,
+        None,
+        None,
+    ));
+
+    assert_eq!(lockfile.time, None);
+}
+
+#[test]
 fn fresh_install_records_a_single_direct_dependency() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",

@@ -116,7 +116,6 @@ fn time_survives_a_save_round_trip() {
     assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
 }
 
-/// Port of pnpm's `pruneTimeInLockfile`.
 #[test]
 fn time_is_pruned_to_the_importers_direct_dependencies() {
     const TIME_WITH_TRANSITIVE: &str = text_block! {

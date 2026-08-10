@@ -1020,13 +1020,6 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     if let Some(registry) = benchmark_registry_override.as_ref() {
         registry.rewrite_lockfile(&mut outcome.lockfile);
     }
-    // The pnpr server does not resolve `time-based`, so its outcome
-    // never carries a `time:` section of its own; hand back what the
-    // previous lockfile recorded rather than dropping it. Saving prunes
-    // whatever is no longer a direct dependency.
-    if outcome.lockfile.time.is_none() {
-        outcome.lockfile.time = previous_wanted.as_ref().and_then(|wanted| wanted.time.clone());
-    }
     if let (Some((real_importer_ids, selected_importer_ids)), Some(workspace_root)) = (
         selection_importer_ids.as_ref().or(full_workspace_importer_ids.as_ref()),
         selection
