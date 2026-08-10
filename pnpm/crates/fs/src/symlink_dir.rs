@@ -34,6 +34,24 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     }
 }
 
+/// Like [`symlink_dir`], but the symlink contents are stored as the
+/// absolute `original` path. Used for links into externally
+/// materialized package directories (a package provider's store):
+/// the target never moves, while the project directory may, so a
+/// relative link would break. Mirrors pnpm's `forceAbsoluteSymlink`
+/// link style. (On Windows the writer already stores the absolute
+/// target — junctions require one — so both styles coincide there.)
+pub fn symlink_dir_absolute(original: &Path, link: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(original, link);
+    #[cfg(windows)]
+    {
+        let original = to_native_separators(original);
+        let link = to_native_separators(link);
+        windows::create(&original, &link)
+    }
+}
+
 /// Rewrite every `/` in `path` to the native `\` on Windows.
 ///
 /// A scoped alias like `@scope/name` is joined into a path as a single
@@ -194,6 +212,16 @@ pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkO
     return force_symlink_inner(&target, &link, false, windows::create);
     #[cfg(not(windows))]
     force_symlink_inner(&target, &link, false, symlink_dir)
+}
+
+/// [`force_symlink_dir`] with the [`symlink_dir_absolute`] link style.
+pub fn force_symlink_dir_absolute(target: &Path, link: &Path) -> io::Result<ForceSymlinkOutcome> {
+    let target = to_native_separators(target);
+    let link = to_native_separators(link);
+    #[cfg(windows)]
+    return force_symlink_inner(&target, &link, false, windows::create);
+    #[cfg(not(windows))]
+    force_symlink_inner(&target, &link, false, symlink_dir_absolute)
 }
 
 fn force_symlink_inner(

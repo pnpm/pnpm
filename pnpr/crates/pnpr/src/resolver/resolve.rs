@@ -234,6 +234,9 @@ pub async fn resolve(
         // `catalog:` specifiers in dependencies and overrides.
         catalogs_override: request.catalogs.clone(),
         disable_optimistic_repeat_install: false,
+        // Resolve-only (`lockfile_only: true`): nothing is materialized
+        // server-side, so no package provider is ever consulted.
+        package_provider: None,
         pnpmfile_hook_override: None,
         workspace_projects_override: None,
     }

@@ -204,6 +204,14 @@ where
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
+    /// Path to the external package-provider executable. When set, the
+    /// lockfile graph is materialized through it — see
+    /// [`crate::materialize_through_package_provider`] — and the
+    /// virtual-store population, per-slot bin, and dependency build
+    /// phases are skipped. See `Install::package_provider` in
+    /// `pacquet-package-manager` (a doc link cannot cross that dependency
+    /// direction).
+    pub package_provider: Option<String>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -321,6 +329,14 @@ pub enum InstallFrozenLockfileError {
     #[display("failed to write PnP loader: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE))]
     WritePnpFile(#[error(source)] crate::WritePnpFileError),
+
+    /// Surfaces any failure from the external package provider —
+    /// unsupported resolutions in the graph, a provider that could not
+    /// be spawned or exited non-zero, or an invalid response. See
+    /// [`crate::PackageProviderError`] for the `ERR_PNPM_PACKAGE_PROVIDER_*`
+    /// codes.
+    #[diagnostic(transparent)]
+    PackageProvider(#[error(source)] crate::PackageProviderError),
 }
 
 impl<DependencyGroupList> InstallFrozenLockfile<'_, DependencyGroupList>
@@ -368,6 +384,7 @@ where
             rebuild,
             prior_hoisted_dependencies,
             prune_orphans,
+            package_provider,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -530,6 +547,14 @@ where
                 host_node.as_ref(),
             )
             .await;
+        // The package provider needs the engine string in its request
+        // (it is part of every node), so resolve the deferred
+        // `node --version` probe up front instead of right before the
+        // (skipped) build phase.
+        let (initial_engine_name, deferred_engine_handle) = match deferred_engine_handle {
+            Some(handle) if package_provider.is_some() => (handle.await.ok().flatten(), None),
+            other => (initial_engine_name, other),
+        };
         let engine_name = initial_engine_name;
 
         // Build the install-scoped slot-directory layout. When
@@ -541,7 +566,7 @@ where
         // `slot_dir` call. Either way every downstream consumer
         // (warm batch, cold batch, direct-dep symlinks, bin linker,
         // build module) routes through this one lookup.
-        let layout = VirtualStoreLayout::new(
+        let mut layout = VirtualStoreLayout::new(
             config,
             engine_name.as_deref(),
             snapshots,
@@ -595,34 +620,6 @@ where
             .map_err(InstallFrozenLockfileError::LockfileVerification)
         };
         let custom_fetcher_picker = load_custom_fetcher_picker(workspace_root).await?;
-        let create_virtual_store_fut = async {
-            CreateVirtualStore {
-                http_client,
-                config,
-                packages,
-                snapshots,
-                current_snapshots,
-                current_packages,
-                layout: &layout,
-                logged_methods,
-                requester,
-                store_index_writer: &store_index_writer,
-                allow_build_policy: &allow_build_policy,
-                skipped: &skipped,
-                include_optional_dependencies: include_optional,
-                supported_architectures,
-                workspace_root,
-                node_linker,
-                progress_reported: &progress_reported,
-                tarball_mem_cache,
-                custom_fetcher_picker: custom_fetcher_picker.as_ref(),
-                #[cfg(test)]
-                link_concurrency_probe: None,
-            }
-            .run::<Reporter>()
-            .await
-            .map_err(InstallFrozenLockfileError::CreateVirtualStore)
-        };
         let phase_start = std::time::Instant::now();
         // The verification verdict takes precedence over a concurrent fetch
         // error — a plain `try_join!` would surface whichever error lands
@@ -637,7 +634,44 @@ where
             requires_build_by_snapshot,
             fetch_failed,
             cas_paths_by_pkg_id,
-        } = {
+        } = if package_provider.is_some() {
+            // The package provider owns materialization: nothing is
+            // fetched into the store and no virtual-store slot is
+            // populated. Verification still gates the provider spawn
+            // below — the provider runs the dependency lifecycle
+            // scripts, which must not execute for an unverified
+            // lockfile.
+            verify_fut.await?;
+            CreateVirtualStoreOutput::default()
+        } else {
+            let create_virtual_store_fut = async {
+                CreateVirtualStore {
+                    http_client,
+                    config,
+                    packages,
+                    snapshots,
+                    current_snapshots,
+                    current_packages,
+                    layout: &layout,
+                    logged_methods,
+                    requester,
+                    store_index_writer: &store_index_writer,
+                    allow_build_policy: &allow_build_policy,
+                    skipped: &skipped,
+                    include_optional_dependencies: include_optional,
+                    supported_architectures,
+                    workspace_root,
+                    node_linker,
+                    progress_reported: &progress_reported,
+                    tarball_mem_cache,
+                    custom_fetcher_picker: custom_fetcher_picker.as_ref(),
+                    #[cfg(test)]
+                    link_concurrency_probe: None,
+                }
+                .run::<Reporter>()
+                .await
+                .map_err(InstallFrozenLockfileError::CreateVirtualStore)
+            };
             let mut verify_fut = std::pin::pin!(verify_fut);
             let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
             tokio::select! {
@@ -668,6 +702,56 @@ where
         // not updated at the catch site.
         for key in fetch_failed {
             skipped.add_fetch_failed(key);
+        }
+
+        // Delegate materialization to the external package provider.
+        // The provider returns the directory each snapshot lives at;
+        // repointing the layout at those directories makes the
+        // direct-dep symlink and bin-link passes below work unchanged.
+        // Optional packages the provider could not build are folded
+        // into the installability skip set so they are excluded from
+        // linking and recorded in `.modules.yaml.skipped`, exactly
+        // like platform-skipped optionals.
+        if let Some(package_provider) = &package_provider {
+            let patches = resolve_snapshot_patches(config, None, snapshots)
+                .map_err(InstallFrozenLockfileError::BuildPhase)?;
+            let provided =
+                crate::materialize_through_package_provider(&crate::PackageProviderInputs {
+                    package_provider,
+                    lockfile_dir: workspace_root,
+                    snapshots,
+                    packages,
+                    skipped: &skipped,
+                    patches: patches.as_ref(),
+                    engine: engine_name.as_deref(),
+                    config,
+                })
+                .await
+                .map_err(InstallFrozenLockfileError::PackageProvider)?;
+            let provider_skipped_any = !provided.skipped.is_empty();
+            for key in provided.skipped {
+                skipped.insert_installability(key);
+            }
+            layout.set_provider_paths(provided.paths);
+            // Re-run the closure expansion: a provider-skipped optional's
+            // optional-only descendants must drop out of hoisting, the
+            // package map, and the lockfile write, exactly like the
+            // pre-provider installability skips expanded above.
+            if provider_skipped_any {
+                let importer_ids: std::collections::HashSet<String> =
+                    importers.keys().cloned().collect();
+                crate::extend_skipped_with_dependency_closure(
+                    &mut skipped,
+                    lockfile,
+                    workspace_root,
+                    &importer_ids,
+                    IncludedDependencies {
+                        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+                        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+                        optional_dependencies: include_optional,
+                    },
+                );
+            }
         }
 
         // Importer ids backed by the install's own declared projects.
@@ -776,7 +860,45 @@ where
         // lossy `requester` string so non-UTF-8 filenames survive.
         // `allow_build_policy` was constructed up-front (before
         // `CreateVirtualStore`) so the git fetcher could consult it.
-        let crate::BuildModulesOutput { ignored_builds, deferred_builds } =
+        //
+        // Under a package provider the dependency build phase is the
+        // provider's job (the returned directories are read-only with
+        // scripts already run), so only the reporter emit and the
+        // per-importer top-level bin pass remain.
+        let crate::BuildModulesOutput { ignored_builds, deferred_builds } = if package_provider
+            .is_some()
+        {
+            Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+                level: LogLevel::Debug,
+                package_names: Vec::new(),
+                strict_dep_builds: config.strict_dep_builds,
+            }));
+            let modules_dir_basename: &OsStr =
+                config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+            for (importer_id, importer_snapshot) in importers {
+                let project_dir = importer_root_dir(workspace_root, importer_id);
+                let modules_dir = project_dir.join(modules_dir_basename);
+                let direct_names = direct_dep_names_for_importer(
+                    importer_snapshot,
+                    dependency_groups.iter().copied(),
+                    &skipped,
+                    false,
+                );
+                // Public-hoist promotes transitives into the workspace
+                // root's `node_modules/<alias>`, so only the root
+                // importer's `.bin` sees hoisted candidates — same rule
+                // as `run_build_phase`.
+                let hoisted_names: &[String] = if *importer_id == Lockfile::ROOT_IMPORTER_KEY {
+                    &publicly_hoisted_for_post_build
+                } else {
+                    &[]
+                };
+                link_top_level_bins(&modules_dir, &direct_names, hoisted_names, &extra_node_paths)
+                    .map_err(BuildPhaseError::TopLevelBinLink)
+                    .map_err(InstallFrozenLockfileError::BuildPhase)?;
+            }
+            crate::BuildModulesOutput { ignored_builds: Vec::new(), deferred_builds: Vec::new() }
+        } else {
             run_build_phase::<Reporter>(&BuildPhaseInputs {
                 config,
                 workspace_root,
@@ -803,7 +925,8 @@ where
                 rebuild,
                 extra_node_paths: &extra_node_paths,
             })
-            .map_err(InstallFrozenLockfileError::BuildPhase)?;
+            .map_err(InstallFrozenLockfileError::BuildPhase)?
+        };
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped;

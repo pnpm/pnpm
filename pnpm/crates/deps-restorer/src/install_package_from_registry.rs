@@ -224,7 +224,7 @@ impl InstallPackageFromRegistry<'_> {
             }));
         }
 
-        symlink_package(&save_path, &symlink_path)
+        symlink_package(&save_path, &symlink_path, false)
             .map_err(InstallPackageFromRegistryError::SymlinkPackage)?;
 
         Ok(())

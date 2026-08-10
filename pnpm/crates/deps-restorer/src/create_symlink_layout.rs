@@ -58,7 +58,8 @@ pub fn create_symlink_layout(
             let symlink_path =
                 safe_join_modules_dir(virtual_node_modules_dir, &alias_name.to_string())
                     .map_err(SymlinkPackageError::InvalidAlias)?;
-            return symlink_package(&lockfile_dir.join(link_target), &symlink_path).map(drop);
+            return symlink_package(&lockfile_dir.join(link_target), &symlink_path, false)
+                .map(drop);
         }
         let Some(target) = dep_ref.resolve(alias_name) else {
             return Ok(());
@@ -78,7 +79,7 @@ pub fn create_symlink_layout(
         .map_err(SymlinkPackageError::InvalidAlias)?;
         let symlink_path = safe_join_modules_dir(virtual_node_modules_dir, &alias_name.to_string())
             .map_err(SymlinkPackageError::InvalidAlias)?;
-        symlink_package(&symlink_target, &symlink_path).map(drop)
+        symlink_package(&symlink_target, &symlink_path, false).map(drop)
     })
 }
 

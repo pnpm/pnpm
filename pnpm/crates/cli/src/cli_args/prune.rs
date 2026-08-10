@@ -73,6 +73,7 @@ impl PruneArgs {
             disable_optimistic_repeat_install: true,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            package_provider: config.package_provider.clone(),
         }
         .run::<Reporter>()
         .await

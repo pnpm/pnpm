@@ -118,6 +118,8 @@ export interface ResolveDependenciesOptions {
   currentLockfile: LockfileObject
   dedupePeerDependents?: boolean
   dryRun: boolean
+  /** Resolve without fetching tarballs into the store (packages will be materialized externally). */
+  skipFetching?: boolean
   engineStrict: boolean
   force: boolean
   forceFullResolution: boolean
@@ -195,6 +197,7 @@ export async function resolveDependencyTree<T> (
     defaultTag: opts.tag,
     dependenciesTree: new Map() as DependenciesTree<ResolvedPackage>,
     dryRun: opts.dryRun,
+    skipFetching: opts.skipFetching,
     engineStrict: opts.engineStrict,
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,

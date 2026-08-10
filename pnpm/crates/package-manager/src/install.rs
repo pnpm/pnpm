@@ -431,6 +431,13 @@ where
     /// meaning extraneous packages can survive a prune when the lockfile
     /// hasn't changed.
     pub disable_optimistic_repeat_install: bool,
+    /// Path to the external package-provider executable
+    /// ([`pacquet_config::Config::package_provider`]). Threaded as a
+    /// separate field like [`Self::node_linker`] so callers stay in
+    /// control of which invocations delegate materialization; every
+    /// production call site passes `config.package_provider` today.
+    /// `None` materializes locally.
+    pub package_provider: Option<String>,
     /// In-process `readPackage` / `afterAllResolved` hooks supplied by an
     /// embedder (the Node API binding) instead of a `.pnpmfile.cjs` on disk.
     /// `Some` replaces the disk lookup on the fresh-resolve path entirely;
@@ -705,6 +712,22 @@ pub enum InstallError {
     #[display("Cannot generate a pnpm-lock.yaml because lockfile is set to false")]
     #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE))]
     ConfigConflictLockfileOnlyWithNoLockfile,
+
+    /// `packageProvider` was configured with a `nodeLinker` other than
+    /// `isolated`. The provider contract is built around the isolated
+    /// layout (each package materialized once, `node_modules` entries
+    /// symlinked to it), so the hoisted and pnp linkers can't honor it.
+    #[display("packageProvider requires node-linker=isolated")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_PACKAGE_PROVIDER_NODE_LINKER))]
+    ConfigConflictPackageProviderNodeLinker,
+
+    /// `packageProvider` was configured together with
+    /// `enableGlobalVirtualStore`.
+    #[display(
+        "packageProvider cannot be used together with enableGlobalVirtualStore: both take over where packages are materialized"
+    )]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_PACKAGE_PROVIDER_GLOBAL_VIRTUAL_STORE))]
+    ConfigConflictPackageProviderGlobalVirtualStore,
 
     /// `--force` was requested together with `frozenStore`. Force
     /// re-imports packages into the store, which `frozenStore` opens

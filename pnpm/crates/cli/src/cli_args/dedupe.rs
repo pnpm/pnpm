@@ -127,6 +127,7 @@ impl DedupeArgs {
             deps_requiring_build_sink: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
+            package_provider: config.package_provider.clone(),
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
         }

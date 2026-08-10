@@ -423,6 +423,7 @@ export async function mutateModules (
   // isn't known here — so verification still runs in that window, the
   // duplicate is bounded to it.
   const willDelegateToPacquet = opts.runPacquet != null &&
+    opts.packageProvider == null &&
     opts.useLockfile &&
     !opts.useGitBranchLockfile &&
     !opts.mergeGitBranchLockfiles &&
@@ -1306,7 +1307,7 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
-    if (opts.runPacquet != null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
+    if (opts.runPacquet != null && opts.packageProvider == null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       try {
         await opts.runPacquet.run()
       } catch (err) {
@@ -1776,6 +1777,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupePeerDependents: opts.dedupePeerDependents,
       dedupePeers: opts.dedupePeers,
       dryRun: opts.lockfileOnly,
+      skipFetching: opts.packageProvider != null,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -1939,6 +1941,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         lockfileDir: opts.lockfileDir,
         makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
         outdatedDependencies,
+        packageProvider: opts.packageProvider,
         pruneStore: opts.pruneStore,
         pruneVirtualStore: opts.pruneVirtualStore,
         publicHoistPattern: ctx.publicHoistPattern,
@@ -2064,7 +2067,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     const binWarn = (prefix: string, message: string) => {
       logger.info({ message, prefix })
     }
-    if (result.newDepPaths?.length && !opts.virtualStoreOnly) {
+    // With a package provider, the packages' node_modules are read-only and
+    // dependency scripts already ran during materialization, so no bins are
+    // linked between dependencies.
+    if (result.newDepPaths?.length && !opts.virtualStoreOnly && opts.packageProvider == null) {
       const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
@@ -2098,7 +2104,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           (
             await Promise.all(
               directPkgs.map(async (dep) => {
-                const manifest = (await dep.fetching?.())?.bundledManifest ?? await safeReadProjectManifestOnly(dep.dir)
+                // With a package provider nothing was fetched into the store;
+                // read the manifest from the materialized directory instead.
+                const manifest = opts.packageProvider != null
+                  ? await safeReadProjectManifestOnly(dep.dir)
+                  : (await dep.fetching?.())?.bundledManifest ?? await safeReadProjectManifestOnly(dep.dir)
                 return {
                   location: dep.dir,
                   manifest,
@@ -2328,6 +2338,7 @@ function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): 
 async function materializeOrDelegate (
   opts: {
     mergeGitBranchLockfiles?: boolean
+    packageProvider?: string
     runPacquet?: { run: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> }
     saveLockfile?: boolean
     useGitBranchLockfile?: boolean
@@ -2337,6 +2348,7 @@ async function materializeOrDelegate (
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
   if (
     opts.runPacquet != null &&
+    opts.packageProvider == null &&
     opts.useLockfile !== false &&
     opts.saveLockfile !== false &&
     opts.useGitBranchLockfile !== true &&
@@ -2446,7 +2458,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // Isolated `nodeLinker` (the default) with a non-frozen install.
     // The frozen branch is handled earlier in `tryFrozenInstall`; the
     // hoisted branch above runs a resolve-then-materialize sequence.
-    if (opts.runPacquet != null && opts.useLockfile && opts.saveLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
+    if (opts.runPacquet != null && opts.packageProvider == null && opts.useLockfile && opts.saveLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       // pacquet >= 0.11.7 resolves itself: hand it the whole install
       // (resolve + fetch + import + link + build, writing the lockfile)
       // in a single non-frozen pass. Only for plain installs — `add` /

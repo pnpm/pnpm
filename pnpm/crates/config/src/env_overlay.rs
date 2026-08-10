@@ -169,6 +169,7 @@ impl WorkspaceSettings {
             settings.scope = Some(scope);
         }
         string_field!(pnpr_server, "PNPR_SERVER");
+        string_field!(package_provider, "PACKAGE_PROVIDER");
         string_field!(https_proxy, "HTTPS_PROXY");
         string_field!(http_proxy, "HTTP_PROXY");
         string_field!(proxy, "PROXY");

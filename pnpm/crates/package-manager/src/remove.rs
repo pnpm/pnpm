@@ -149,6 +149,7 @@ impl Remove<'_> {
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            package_provider: config.package_provider.clone(),
         }
         .run::<Reporter>()
         .await
@@ -231,6 +232,7 @@ impl Remove<'_> {
             deps_requiring_build_sink: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
+            package_provider: config.package_provider.clone(),
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
         }

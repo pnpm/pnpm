@@ -194,6 +194,34 @@ fn apply_resolves_relative_paths_against_base_dir() {
     assert_eq!(config.store_dir, StoreDir::from(base.join("../shared-store")));
 }
 
+/// A path-shaped `packageProvider` is anchored at the yaml's directory;
+/// a bare command name stays a PATH lookup.
+#[test]
+fn apply_resolves_path_shaped_package_provider_against_base_dir() {
+    let base = Path::new("/workspace/root");
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        "packageProvider: ./provider/run.js
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, base);
+    assert_eq!(
+        config.package_provider.as_deref(),
+        Some(base.join("./provider/run.js").to_string_lossy().as_ref()),
+    );
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        "packageProvider: pnpm-nix-provider
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, base);
+    assert_eq!(config.package_provider.as_deref(), Some("pnpm-nix-provider"));
+}
+
 /// pnpm reads `fetchRetries` / `fetchRetryFactor` /
 /// `fetchRetryMintimeout` / `fetchRetryMaxtimeout` from
 /// `pnpm-workspace.yaml` as camelCase keys (mirrors of the kebab-case

@@ -93,9 +93,10 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
                 let symlink_path = safe_join_modules_dir(&modules_dir, alias)
                     .map_err(LinkManifestLinkDepsError::InvalidAlias)?;
                 let target_path = resolve_link_target(project_dir, target);
-                let outcome = symlink_package(&target_path, &symlink_path).map_err(|source| {
-                    LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
-                })?;
+                let outcome =
+                    symlink_package(&target_path, &symlink_path, false).map_err(|source| {
+                        LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
+                    })?;
                 // Bins are (re-)linked for reused symlinks too — the
                 // `.bin` entry may be missing even when the package
                 // link itself is already correct.

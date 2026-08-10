@@ -28,6 +28,9 @@
       "path": "../../../core/types"
     },
     {
+      "path": "../../../fs/symlink-dependency"
+    },
+    {
       "path": "../../../text/ordinal-comparator"
     }
   ]

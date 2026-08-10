@@ -52,6 +52,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'node-linker',
     'noproxy',
     'package-import-method',
+    'package-provider',
     'pnpmfile',
     'pnpr-server',
     'prefer-frozen-lockfile',
@@ -236,6 +237,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--frozen-store',
           },
           {
+            description: 'Materialize packages through an external package provider executable (e.g. into the Nix store) and symlink node_modules directly to the returned read-only directories',
+            name: '--package-provider <path>',
+          },
+          {
             description: 'Fail on missing or invalid peer dependencies',
             name: '--strict-peer-dependencies',
           },
@@ -344,6 +349,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'optimisticRepeatInstall'
 | 'modulesDir'
 | 'nodeLinker'
+| 'packageProvider'
 | 'patchedDependencies'
 | 'preferFrozenLockfile'
 | 'preferWorkspacePackages'

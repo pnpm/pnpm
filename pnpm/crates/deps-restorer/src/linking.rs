@@ -307,16 +307,21 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         // its own per-`node_modules` bin pass while walking the
         // hierarchy, routing both link phases through the hoisted
         // linker.
-        LinkVirtualStoreBins {
-            layout,
-            snapshots,
-            packages,
-            package_manifests,
-            skipped,
-            extra_node_paths,
+        //
+        // Skipped under a package provider: the provider already wired
+        // each package's dependency bins inside its read-only directory.
+        if !layout.uses_provider() {
+            LinkVirtualStoreBins {
+                layout,
+                snapshots,
+                packages,
+                package_manifests,
+                skipped,
+                extra_node_paths,
+            }
+            .run()
+            .map_err(LinkPhaseError::LinkVirtualStoreBins)?;
         }
-        .run()
-        .map_err(LinkPhaseError::LinkVirtualStoreBins)?;
     }
 
     // Hoisted-linker materialization. Replaces the isolated

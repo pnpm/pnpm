@@ -156,6 +156,11 @@ pub struct WorkspaceSettings {
     pub scope: Option<String>,
     pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
+    /// `packageProvider` from `pnpm-workspace.yaml` / global
+    /// `config.yaml`. See [`Config::package_provider`].
+    ///
+    /// [`Config::package_provider`]: crate::Config::package_provider
+    pub package_provider: Option<String>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
     pub no_proxy: Option<serde_json::Value>,
@@ -986,6 +991,7 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
         substitute_optional_string::<Sys>(&mut self.patches_dir);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
+        substitute_optional_string::<Sys>(&mut self.package_provider);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
     }
@@ -1133,6 +1139,17 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
+        }
+        if let Some(v) = self.package_provider {
+            // A bare command name stays a PATH lookup; anything with a
+            // path separator is anchored at this file's directory like
+            // the other path-valued settings.
+            config.package_provider =
+                Some(if v.contains('/') || v.contains(std::path::MAIN_SEPARATOR) {
+                    resolve(base_dir, &v).to_string_lossy().into_owned()
+                } else {
+                    v
+                });
         }
         if let Some(v) = self.named_registries {
             config.named_registries = v;

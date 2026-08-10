@@ -76,6 +76,7 @@ fn create_config(
         scope: None,
         registries: Default::default(),
         pnpr_server: None,
+        package_provider: None,
         named_registries: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,

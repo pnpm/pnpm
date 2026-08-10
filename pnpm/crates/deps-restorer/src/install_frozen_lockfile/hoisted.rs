@@ -375,7 +375,7 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
                 linked_names.push(alias.clone());
                 continue;
             }
-            crate::symlink_package(target, &link_path).map_err(|source| {
+            crate::symlink_package(target, &link_path, false).map_err(|source| {
                 HoistedLinkerError::SymlinkDirectDependencies(
                     SymlinkDirectDependenciesError::SymlinkPackage {
                         importer_id: importer_id.clone(),

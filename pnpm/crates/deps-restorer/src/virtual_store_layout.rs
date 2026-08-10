@@ -78,6 +78,16 @@ pub struct VirtualStoreLayout {
     /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
     gvs_suffixes: Option<HashMap<PackageKey, String>>,
 
+    /// `Some` only when a package provider materialized this install
+    /// (see [`crate::materialize_through_package_provider`]). Maps each
+    /// snapshot to the provider-returned directory whose
+    /// `node_modules/<name>` holds the package; [`Self::slot_dir`]
+    /// then resolves to that directory instead of a virtual-store
+    /// slot, so direct-dep symlinking and bin linking work unchanged.
+    /// Skipped snapshots have no entry — every consumer filters
+    /// through [`crate::SkippedSnapshots`] before asking for a slot.
+    provider_paths: Option<HashMap<PackageKey, PathBuf>>,
+
     /// Threshold passed into
     /// [`PkgNameVerPeer::to_virtual_store_name`] for the legacy flat-
     /// name fallback. Mirrors pnpm's `virtualStoreDirMaxLength`: when
@@ -113,6 +123,7 @@ impl VirtualStoreLayout {
         VirtualStoreLayout {
             package_store_dir: root.into(),
             gvs_suffixes: None,
+            provider_paths: None,
             virtual_store_dir_max_length,
             lockfile_dir: None,
         }
@@ -213,6 +224,7 @@ impl VirtualStoreLayout {
             return VirtualStoreLayout {
                 package_store_dir,
                 gvs_suffixes: None,
+                provider_paths: None,
                 virtual_store_dir_max_length,
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
@@ -221,6 +233,7 @@ impl VirtualStoreLayout {
             return VirtualStoreLayout {
                 package_store_dir,
                 gvs_suffixes: Some(HashMap::new()),
+                provider_paths: None,
                 virtual_store_dir_max_length,
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
@@ -290,6 +303,7 @@ impl VirtualStoreLayout {
         VirtualStoreLayout {
             package_store_dir,
             gvs_suffixes: Some(gvs_suffixes),
+            provider_paths: None,
             virtual_store_dir_max_length,
             lockfile_dir: lockfile_dir.map(Path::to_path_buf),
         }
@@ -315,16 +329,39 @@ impl VirtualStoreLayout {
         self.gvs_suffixes.is_some()
     }
 
+    /// Repoint every slot lookup at the directories a package provider
+    /// materialized. Called once per install, after
+    /// [`crate::materialize_through_package_provider`] returns and
+    /// before any consumer asks for a slot.
+    pub fn set_provider_paths(&mut self, provider_paths: HashMap<PackageKey, PathBuf>) {
+        self.provider_paths = Some(provider_paths);
+    }
+
+    /// Whether this install resolves slots through a package provider.
+    /// Links into provider directories are created absolute (see
+    /// [`pacquet_fs::symlink_dir_absolute`]) — the provider's store
+    /// outlives the project location.
+    #[must_use]
+    pub fn uses_provider(&self) -> bool {
+        self.provider_paths.is_some()
+    }
+
     /// Absolute directory that holds `node_modules/<name>` for one
-    /// snapshot. Falls back to
+    /// snapshot. A provider-materialized install resolves through the
+    /// provider map (see [`Self::set_provider_paths`]). Falls back to
     /// [`PkgNameVerPeer::to_virtual_store_name`](pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name)
-    /// when GVS is off, or when GVS is on but the key isn't in the
-    /// precomputed map (which would indicate a bug — every snapshot
-    /// the install touches must have been visited in
-    /// [`Self::new`]; the fallback is defensive rather than expected
-    /// to fire).
+    /// when GVS is off, or when the key isn't in the precomputed
+    /// provider/GVS map (which would indicate a bug — every snapshot
+    /// the install touches must have been visited in [`Self::new`] /
+    /// [`Self::set_provider_paths`]; the fallback is defensive rather
+    /// than expected to fire).
     #[must_use]
     pub fn slot_dir(&self, key: &PackageKey) -> PathBuf {
+        if let Some(provider_paths) = &self.provider_paths
+            && let Some(dir) = provider_paths.get(key)
+        {
+            return dir.clone();
+        }
         let suffix = match &self.gvs_suffixes {
             Some(map) => map
                 .get(key)

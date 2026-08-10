@@ -64,6 +64,7 @@ where
             disable_optimistic_repeat_install,
             pnpmfile_hook_override,
             workspace_projects_override,
+            package_provider,
         } = self;
         let can_prompt = prompt_eligibility_override
             .unwrap_or_else(|| !is_ci::cached() && std::io::stdin().is_terminal());
@@ -75,6 +76,17 @@ where
         // Fail fast rather than run a resolve that writes nothing.
         if lockfile_only && !config.lockfile {
             return Err(InstallError::ConfigConflictLockfileOnlyWithNoLockfile);
+        }
+
+        // `packageProvider` conflicts are rejected before any install
+        // work begins, mirroring pnpm's `extendInstallOptions` checks.
+        if package_provider.is_some() {
+            if !matches!(node_linker, pacquet_config::NodeLinker::Isolated) {
+                return Err(InstallError::ConfigConflictPackageProviderNodeLinker);
+            }
+            if config.enable_global_virtual_store {
+                return Err(InstallError::ConfigConflictPackageProviderGlobalVirtualStore);
+            }
         }
 
         // `enableModulesDir: false` (with the global virtual store off) is
@@ -868,6 +880,7 @@ where
             pnpmfile_hook,
             catalogs: &catalogs,
             prefix: &prefix,
+            package_provider,
         })
         .await?;
 

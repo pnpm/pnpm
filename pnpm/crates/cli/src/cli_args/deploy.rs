@@ -403,6 +403,7 @@ impl DeployArgs {
             disable_optimistic_repeat_install: true,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            package_provider: config.package_provider.clone(),
         };
         if legacy {
             install.run_with_root_importer::<ReporterT>().await

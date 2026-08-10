@@ -97,6 +97,9 @@
       "path": "../../deps/path"
     },
     {
+      "path": "../../engine/runtime/system-version"
+    },
+    {
       "path": "../../exec/lifecycle"
     },
     {

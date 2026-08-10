@@ -18,8 +18,9 @@ use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    DeprecationLog, GlobalLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    DeprecationLog, GlobalLog, HookLog, IgnoredScriptsLog, LogEvent, LogLevel, Reporter,
+    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
+    SkippedOptionalReason, Stage, StageLog,
 };
 use pacquet_resolving_deps_resolver::{ManifestHook, ResolveDependencyTreeError, UpdateDepth};
 use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, MergeNamedRegistriesError};
@@ -216,6 +217,13 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
+    /// Path to the external package-provider executable. When set, the
+    /// freshly-resolved graph is materialized through it — see
+    /// [`crate::materialize_through_package_provider`] — and the
+    /// tarball prefetch, virtual-store population, hoist, per-slot bin,
+    /// and dependency build phases are skipped. See
+    /// [`crate::Install::package_provider`].
+    pub package_provider: Option<String>,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -386,6 +394,14 @@ pub enum InstallWithFreshLockfileError {
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
+
+    /// Surfaces any failure from the external package provider —
+    /// unsupported resolutions in the graph, a provider that could not
+    /// be spawned or exited non-zero, or an invalid response. See
+    /// [`crate::PackageProviderError`] for the `ERR_PNPM_PACKAGE_PROVIDER_*`
+    /// codes.
+    #[diagnostic(transparent)]
+    PackageProvider(#[error(source)] crate::PackageProviderError),
 
     #[display("failed to write PnP loader: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE))]
@@ -687,6 +703,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             current_lockfile,
             prior_hoisted_dependencies,
             prune_orphans,
+            package_provider,
         } = self;
 
         // Shared once so the per-edge `ResolveOptions` clones below stay
@@ -795,7 +812,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             store_index_writer: &store_index_writer,
             verified_files_cache: &verified_files_cache,
             progress_reported: &progress_reported,
-            prefetch_downloads: !lockfile_only && !filtered_isolated,
+            // Also disabled under a package provider, which fetches
+            // every tarball itself — the `skipFetching` behavior of
+            // pnpm's deps-resolver.
+            prefetch_downloads: !lockfile_only && !filtered_isolated && package_provider.is_none(),
             pnpmfile_hook_override,
             resolution_observer,
         })
@@ -1164,7 +1184,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // serialize on `Arc<Mutex<StoreIndex>>` for warm packages
         // that weren't reached by the resolve-time prefetch (e.g.
         // resolutions without a structured `name@version`).
-        let cache_keys: Vec<String> = if filtered_isolated {
+        // Also skipped under a package provider: the warm batch exists
+        // only to serve the virtual-store materialization, which the
+        // provider replaces wholesale.
+        let cache_keys: Vec<String> = if filtered_isolated || package_provider.is_some() {
             Vec::new()
         } else {
             collect_prefetch_cache_keys_from_graph(&merged_graph)
@@ -1280,10 +1303,18 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 host_node.as_ref(),
             )
             .await;
+        // The package provider needs the engine string in its request
+        // (it is part of every node), so resolve the deferred
+        // `node --version` probe up front instead of right before the
+        // (skipped) build phase.
+        let (engine_name, deferred_engine_handle) = match deferred_engine_handle {
+            Some(handle) if package_provider.is_some() => (handle.await.ok().flatten(), None),
+            other => (engine_name, other),
+        };
         let layout_engine_name =
             if config.enable_global_virtual_store { engine_name.as_deref() } else { None };
         let phase_start = std::time::Instant::now();
-        let layout = VirtualStoreLayout::new(
+        let mut layout = VirtualStoreLayout::new(
             config,
             layout_engine_name,
             initial_materialization_lockfile.snapshots.as_ref(),
@@ -1349,6 +1380,40 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None => materialization_importer_ids.clone(),
         };
 
+        // Delegate materialization to the external package provider.
+        // The provider returns the directory each snapshot lives at;
+        // repointing the layout at those directories makes the
+        // direct-dep symlink and bin-link passes below work unchanged.
+        // Optional packages the provider could not build are folded
+        // into the installability skip set so they are excluded from
+        // linking and recorded in `.modules.yaml.skipped`, exactly
+        // like platform-skipped optionals.
+        if let Some(package_provider) = &package_provider {
+            let patches = crate::install_frozen_lockfile::resolve_snapshot_patches(
+                config,
+                patched_dependencies.as_deref(),
+                materialization_lockfile.snapshots.as_ref(),
+            )
+            .map_err(InstallWithFreshLockfileError::BuildPhase)?;
+            let provided =
+                crate::materialize_through_package_provider(&crate::PackageProviderInputs {
+                    package_provider,
+                    lockfile_dir,
+                    snapshots: materialization_lockfile.snapshots.as_ref(),
+                    packages: materialization_lockfile.packages.as_ref(),
+                    skipped: &skipped,
+                    patches: patches.as_ref(),
+                    engine: engine_name.as_deref(),
+                    config,
+                })
+                .await
+                .map_err(InstallWithFreshLockfileError::PackageProvider)?;
+            for key in provided.skipped {
+                skipped.insert_installability(key);
+            }
+            layout.set_provider_paths(provided.paths);
+        }
+
         // Materialise the virtual store via the same phased
         // warm/cold-batch pipeline the frozen-lockfile path uses. The
         // phased pipeline in `CreateVirtualStore` runs a single
@@ -1356,6 +1421,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // ~94% wall-time gap to pnpm on the full-resolution-warm scenario
         // without regressing the cold-cache or frozen-lockfile paths.
         //
+        // Skipped under a package provider, which owns materialization:
+        // nothing is fetched into the store and no virtual-store slot
+        // is populated.
         let phase_start = std::time::Instant::now();
         let CreateVirtualStoreOutput {
             package_manifests,
@@ -1374,39 +1442,44 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // the hoisted-linker pass below to materialize the on-disk
             // tree. `None` for the isolated linker.
             cas_paths_by_pkg_id,
-        } = CreateVirtualStore {
-            http_client,
-            config,
-            packages: materialization_lockfile.packages.as_ref(),
-            snapshots: materialization_lockfile.snapshots.as_ref(),
-            current_snapshots: current_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
-            current_packages: current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
-            layout: &layout,
-            logged_methods,
-            requester,
-            store_index_writer: &store_index_writer,
-            allow_build_policy: &allow_build_policy,
-            skipped: &skipped,
-            include_optional_dependencies: include_transitive_optional_dependencies,
-            supported_architectures,
-            workspace_root: lockfile_dir,
-            node_linker,
-            progress_reported: &progress_reported,
-            // Share the resolve-time prefetcher's in-flight downloads with
-            // the cold batch. The `PrefetchingResolver` streams each
-            // tarball into `tarball_mem_cache` keyed by URL; the cold
-            // batch's only on-disk dedup is the store-index row, which the
-            // prefetcher's writer commits asynchronously. Without the
-            // shared cache a snapshot whose prefetch hasn't committed its
-            // row yet is classified cold and re-downloaded — a race that
-            // routing the cold batch through the mem cache fixes by
-            // reusing the in-flight download instead.
-            tarball_mem_cache: Some(&tarball_mem_cache),
-            custom_fetcher_picker: custom_fetcher_picker.as_ref(),
-        }
-        .run::<Reporter>()
-        .await
-        .map_err(InstallWithFreshLockfileError::CreateVirtualStore)?;
+        } = if package_provider.is_some() {
+            CreateVirtualStoreOutput::default()
+        } else {
+            CreateVirtualStore {
+                http_client,
+                config,
+                packages: materialization_lockfile.packages.as_ref(),
+                snapshots: materialization_lockfile.snapshots.as_ref(),
+                current_snapshots: current_lockfile
+                    .and_then(|lockfile| lockfile.snapshots.as_ref()),
+                current_packages: current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
+                layout: &layout,
+                logged_methods,
+                requester,
+                store_index_writer: &store_index_writer,
+                allow_build_policy: &allow_build_policy,
+                skipped: &skipped,
+                include_optional_dependencies: include_transitive_optional_dependencies,
+                supported_architectures,
+                workspace_root: lockfile_dir,
+                node_linker,
+                progress_reported: &progress_reported,
+                // Share the resolve-time prefetcher's in-flight downloads with
+                // the cold batch. The `PrefetchingResolver` streams each
+                // tarball into `tarball_mem_cache` keyed by URL; the cold
+                // batch's only on-disk dedup is the store-index row, which the
+                // prefetcher's writer commits asynchronously. Without the
+                // shared cache a snapshot whose prefetch hasn't committed its
+                // row yet is classified cold and re-downloaded — a race that
+                // routing the cold batch through the mem cache fixes by
+                // reusing the in-flight download instead.
+                tarball_mem_cache: Some(&tarball_mem_cache),
+                custom_fetcher_picker: custom_fetcher_picker.as_ref(),
+            }
+            .run::<Reporter>()
+            .await
+            .map_err(InstallWithFreshLockfileError::CreateVirtualStore)?
+        };
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "create_virtual_store",
@@ -1527,7 +1600,22 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // is the real lockfile dir (sets each script's `INIT_CWD`); the
         // post-build bin link anchors on `symlink_root` to match where
         // this path placed `node_modules`.
-        let crate::BuildModulesOutput { ignored_builds, deferred_builds } =
+        //
+        // Under a package provider the dependency build phase is the
+        // provider's job (the returned directories are read-only with
+        // scripts already run); only the reporter emit remains — the
+        // per-importer `link_bins` pass above already covered the
+        // top-level bins.
+        let crate::BuildModulesOutput { ignored_builds, deferred_builds } = if package_provider
+            .is_some()
+        {
+            Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+                level: LogLevel::Debug,
+                package_names: Vec::new(),
+                strict_dep_builds: config.strict_dep_builds,
+            }));
+            crate::BuildModulesOutput { ignored_builds: Vec::new(), deferred_builds: Vec::new() }
+        } else {
             crate::install_frozen_lockfile::run_build_phase::<Reporter>(
                 &crate::install_frozen_lockfile::BuildPhaseInputs {
                     config,
@@ -1558,7 +1646,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     extra_node_paths: &extra_node_paths,
                 },
             )
-            .map_err(InstallWithFreshLockfileError::BuildPhase)?;
+            .map_err(InstallWithFreshLockfileError::BuildPhase)?
+        };
 
         // Drop the orchestration's writer handle so the channel closes,
         // then wait for the final batch flush — now including any

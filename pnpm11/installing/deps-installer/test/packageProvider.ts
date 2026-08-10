@@ -1,0 +1,243 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { expect, test as jestTest } from '@jest/globals'
+import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
+import { prepareEmpty } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
+
+import { testDefaults } from './utils/index.js'
+
+const f = fixtures(import.meta.dirname)
+
+// The fake provider is an executable script with a Unix shebang, which
+// child_process.spawn cannot execute on Windows.
+const test = process.platform === 'win32' ? jestTest.skip : jestTest
+
+// Mimics the nix-provider contract: materializes every requested depPath as
+// a directory whose node_modules holds the package next to symlinks to its
+// dependencies, and records the request for assertions.
+const FAKE_PROVIDER = `#!/usr/bin/env node
+const fs = require('fs')
+const path = require('path')
+let input = ''
+process.stdin.on('data', (chunk) => { input += chunk })
+process.stdin.on('end', () => {
+  const request = JSON.parse(input)
+  fs.writeFileSync(path.join(__dirname, 'request.json'), JSON.stringify(request))
+  const subdir = (depPath) => depPath.replace(/[^A-Za-z0-9._@-]/g, '+')
+  const setTreeMode = (root, mode) => {
+    // Walk without following symlinks: chmod on a symlink would affect
+    // the (possibly shared) target tree.
+    const stack = [root]
+    while (stack.length > 0) {
+      const dir = stack.pop()
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const entryPath = path.join(dir, entry.name)
+        if (entry.isSymbolicLink()) continue
+        if (entry.isDirectory()) stack.push(entryPath)
+        // preserve executable bits so frozen bin scripts stay runnable
+        const executableBits = fs.lstatSync(entryPath).mode & 0o111
+        fs.chmodSync(entryPath, entry.isDirectory() ? mode | 0o111 : mode | executableBits)
+      }
+    }
+    fs.chmodSync(root, mode | 0o111)
+  }
+  const paths = {}
+  const skipped = []
+  for (const [depPath, node] of Object.entries(request.nodes)) {
+    // simulate an optional package whose build fails
+    if (node.optional === true) {
+      skipped.push(depPath)
+      continue
+    }
+    const dir = path.join(__dirname, 'store', subdir(depPath))
+    // a repeat request may reuse a tree this provider froze earlier
+    if (fs.existsSync(dir)) setTreeMode(dir, 0o644)
+    fs.mkdirSync(path.join(dir, 'node_modules', node.name), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'node_modules', node.name, 'package.json'), JSON.stringify({ name: node.name, version: node.version }))
+    paths[depPath] = dir
+  }
+  for (const [depPath, node] of Object.entries(request.nodes)) {
+    if (paths[depPath] == null) continue
+    for (const [alias, dep] of Object.entries(node.deps)) {
+      if (paths[dep.depPath] == null) continue
+      const link = path.join(paths[depPath], 'node_modules', alias)
+      fs.mkdirSync(path.dirname(link), { recursive: true })
+      try {
+        fs.symlinkSync(path.join(paths[dep.depPath], 'node_modules', dep.name), link)
+      } catch (err) {
+        if (err.code !== 'EEXIST') throw err
+      }
+    }
+  }
+  // Freeze the returned trees: a real provider (the Nix store) hands
+  // out read-only directories, so installer writes must fail here too.
+  for (const dir of Object.values(paths)) setTreeMode(dir, 0o444)
+  process.stdout.write(JSON.stringify({ protocol: 1, paths, skipped }))
+})
+`
+
+function prepareFakeProvider (script: string = FAKE_PROVIDER): { providerBin: string, providerDir: string } {
+  const providerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fake-package-provider-'))
+  const providerBin = path.join(providerDir, 'provider.js')
+  fs.writeFileSync(providerBin, script, { mode: 0o755 })
+  return { providerBin, providerDir }
+}
+
+test('packages are materialized through the package provider and symlinked from its directories', async () => {
+  const project = prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ packageProvider: providerBin, hoistPattern: ['*'] }))
+
+  const manifest = project.requireModule('@pnpm.e2e/pkg-with-1-dep/package.json')
+  expect(manifest.name).toBe('@pnpm.e2e/pkg-with-1-dep')
+
+  // the direct dependency resolves into the provider's store, through an
+  // absolute symlink (provider directories outlive the project location)
+  const directLink = fs.readlinkSync(path.join('node_modules', '@pnpm.e2e/pkg-with-1-dep'))
+  expect(path.isAbsolute(directLink)).toBeTruthy()
+  const realDir = fs.realpathSync(path.join('node_modules', '@pnpm.e2e/pkg-with-1-dep'))
+  expect(realDir.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+
+  // hoisted links are absolute as well
+  const hoistedLink = fs.readlinkSync(path.join('node_modules', '.pnpm', 'node_modules', '@pnpm.e2e', 'dep-of-pkg-with-1-dep'))
+  expect(path.isAbsolute(hoistedLink)).toBeTruthy()
+
+  // the transitive dependency is reachable as a sibling inside the provider's store
+  const transitive = fs.realpathSync(path.join(realDir, '../..', '@pnpm.e2e/dep-of-pkg-with-1-dep'))
+  expect(transitive.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+
+  // the provider received a closed graph with resolutions and the gc root location
+  const request = JSON.parse(fs.readFileSync(path.join(providerDir, 'request.json'), 'utf8'))
+  expect(request.protocol).toBe(1)
+  expect(request.gcRootDir).toBe(path.join(process.cwd(), 'node_modules', '.pnpm-nix'))
+  const requestedNodes = Object.values<any>(request.nodes) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const directNode = requestedNodes.find((node) => node.name === '@pnpm.e2e/pkg-with-1-dep')
+  expect(directNode.tarball).toBeTruthy()
+  expect(directNode.integrity).toMatch(/^sha/)
+  expect(directNode.engine).toContain(process.platform)
+  const depAlias = directNode.deps['@pnpm.e2e/dep-of-pkg-with-1-dep']
+  expect(request.nodes[depAlias.depPath].name).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep')
+
+  // nothing was imported into the virtual store
+  const virtualStoreEntries = fs.readdirSync(path.join('node_modules', '.pnpm'))
+  expect(virtualStoreEntries.find((entry) => entry.includes('pkg-with-1-dep'))).toBeUndefined()
+
+  // the lockfile is written as usual
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
+})
+
+test('a repeat install keeps resolving from the package provider', async () => {
+  const project = prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+  const opts = testDefaults({ packageProvider: providerBin })
+
+  const { updatedManifest } = await addDependenciesToPackage({}, ['is-positive'], opts)
+  await addDependenciesToPackage(updatedManifest, ['is-negative'], opts)
+
+  for (const pkgName of ['is-positive', 'is-negative']) {
+    const realDir = fs.realpathSync(path.join('node_modules', pkgName))
+    expect(realDir.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+  }
+  expect(project.requireModule('is-negative/package.json').name).toBe('is-negative')
+})
+
+test('patched dependencies are sent to the package provider with their patch content', async () => {
+  prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  await install({
+    dependencies: { 'is-positive': '1.0.0' },
+  }, testDefaults({
+    packageProvider: providerBin,
+    patchedDependencies: { 'is-positive@1.0.0': patchPath },
+  }))
+
+  const request = JSON.parse(fs.readFileSync(path.join(providerDir, 'request.json'), 'utf8'))
+  const node = Object.values<any>(request.nodes).find((requestNode) => requestNode.name === 'is-positive') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(node.patch.content).toContain('// patched')
+  expect(node.patch.hash).toBeTruthy()
+})
+
+test('a frozen install materializes through the provider on the headless path', async () => {
+  prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+  const { updatedManifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ packageProvider: providerBin }))
+
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  await install(updatedManifest, testDefaults({ packageProvider: providerBin, frozenLockfile: true }))
+
+  expect(path.isAbsolute(fs.readlinkSync(path.join('node_modules', '@pnpm.e2e/pkg-with-1-dep')))).toBeTruthy()
+  const realDir = fs.realpathSync(path.join('node_modules', '@pnpm.e2e/pkg-with-1-dep'))
+  expect(realDir.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+  const transitive = fs.realpathSync(path.join(realDir, '../..', '@pnpm.e2e/dep-of-pkg-with-1-dep'))
+  expect(transitive.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+  const virtualStoreEntries = fs.existsSync('node_modules/.pnpm') ? fs.readdirSync('node_modules/.pnpm') : []
+  expect(virtualStoreEntries.filter((entry) => entry.includes('pkg-with-1-dep'))).toHaveLength(0)
+})
+
+test('local directory dependencies are sent as absolute directories', async () => {
+  prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+  fs.mkdirSync('local-pkg')
+  fs.writeFileSync(path.join('local-pkg', 'package.json'), JSON.stringify({ name: 'local-pkg', version: '1.0.0' }))
+
+  await addDependenciesToPackage({}, ['file:./local-pkg'], testDefaults({ packageProvider: providerBin }))
+
+  const request = JSON.parse(fs.readFileSync(path.join(providerDir, 'request.json'), 'utf8'))
+  const localNode = Object.values<any>(request.nodes).find((node) => node.name === 'local-pkg') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(localNode.directory).toBe(path.resolve('local-pkg'))
+  expect(localNode.tarball).toBeUndefined()
+  const realDir = fs.realpathSync(path.join('node_modules', 'local-pkg'))
+  expect(realDir.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+})
+
+test('optional packages the provider cannot build are skipped', async () => {
+  prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+
+  await install({
+    dependencies: { 'is-positive': '1.0.0' },
+    optionalDependencies: { 'is-negative': '1.0.0' },
+  }, testDefaults({ packageProvider: providerBin }))
+
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.join('node_modules', 'is-negative'))).toBeFalsy()
+
+  const request = JSON.parse(fs.readFileSync(path.join(providerDir, 'request.json'), 'utf8'))
+  const negNode = Object.values<any>(request.nodes).find((node) => node.name === 'is-negative') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(negNode.optional).toBe(true)
+})
+
+test('a frozen install does not record provider-skipped optionals in the current lockfile', async () => {
+  const project = prepareEmpty()
+  const { providerBin } = prepareFakeProvider()
+  const manifest = {
+    dependencies: { 'is-positive': '1.0.0' },
+    optionalDependencies: { 'is-negative': '1.0.0' },
+  }
+
+  await install(manifest, testDefaults({ packageProvider: providerBin }))
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  await install(manifest, testDefaults({ packageProvider: providerBin, frozenLockfile: true }))
+
+  expect(fs.existsSync(path.join('node_modules', 'is-negative'))).toBeFalsy()
+  const currentLockfile = project.readCurrentLockfile()
+  const currentPackages = Object.keys(currentLockfile.packages ?? {})
+  expect(currentPackages.some((depPath) => depPath.includes('is-negative'))).toBeFalsy()
+  expect(currentPackages.some((depPath) => depPath.includes('is-positive'))).toBeTruthy()
+})
+
+test('the install aborts when the package provider fails', async () => {
+  prepareEmpty()
+  const { providerBin } = prepareFakeProvider('#!/usr/bin/env node\nprocess.exit(1)\n')
+
+  await expect(
+    addDependenciesToPackage({}, ['is-positive'], testDefaults({ packageProvider: providerBin }))
+  ).rejects.toThrow(/package provider/)
+})

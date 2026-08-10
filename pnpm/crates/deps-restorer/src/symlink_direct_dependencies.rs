@@ -460,13 +460,12 @@ fn link_one_importer<Reporter: self::Reporter>(
 
         if symlink {
             let outcome =
-                symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
-                    SymlinkDirectDependenciesError::SymlinkPackage {
+                symlink_package(target, &modules_dir.join(name_str), layout.uses_provider())
+                    .map_err(|source| SymlinkDirectDependenciesError::SymlinkPackage {
                         importer_id: importer_id.to_string(),
                         name: name_str.clone(),
                         source,
-                    }
-                })?;
+                    })?;
 
             if outcome.reused {
                 return Ok(());

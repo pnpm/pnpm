@@ -512,6 +512,7 @@ fn run_install_inner(
                 disable_optimistic_repeat_install: mode.disable_optimistic_repeat_install(),
                 pnpmfile_hook_override: pnpmfile_hook,
                 workspace_projects_override,
+                package_provider: config.package_provider.clone(),
             };
             match mode {
                 EngineMode::Install(_) | EngineMode::PeerIssues(_) => {

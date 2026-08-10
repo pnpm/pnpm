@@ -5,6 +5,7 @@ import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
+import { forceAbsoluteSymlink } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
@@ -34,6 +35,8 @@ export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
+  /** Link with absolute symlinks — for externally materialized targets that outlive the project location. */
+  absoluteSymlinks?: boolean
 }
 
 export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<HoistedDependencies | null> {
@@ -49,6 +52,7 @@ export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<Hois
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     hoistedWorkspacePackages: opts.hoistedWorkspacePackages,
+    absoluteSymlinks: opts.absoluteSymlinks,
   })
 
   // Here we only link the bins of the privately hoisted modules.
@@ -274,11 +278,13 @@ async function symlinkHoistedDependencies<T extends string> (
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     hoistedWorkspacePackages?: Record<string, HoistedWorkspaceProject>
+    absoluteSymlinks?: boolean
   }
 ): Promise<void> {
   const symlink = symlinkHoistedDependency.bind(null, {
     virtualStoreDir: opts.virtualStoreDir,
     internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
+    absolute: opts.absoluteSymlinks,
   })
   const promises: Array<Promise<void>> = []
   for (const [hoistedDepNodeId, pkgAliases] of hoistedDependenciesByNodeId.entries()) {
@@ -308,12 +314,19 @@ async function symlinkHoistedDependencies<T extends string> (
 }
 
 async function symlinkHoistedDependency (
-  opts: { virtualStoreDir: string, internalPnpmDir: string },
+  opts: { virtualStoreDir: string, internalPnpmDir: string, absolute?: boolean },
   depLocation: string,
   dest: string
 ): Promise<void> {
+  const symlink = async (target: string, link: string, symlinkOpts?: { overwrite: boolean }): Promise<void> => {
+    if (opts.absolute) {
+      await forceAbsoluteSymlink(target, link, symlinkOpts)
+    } else {
+      await symlinkDir(target, link, symlinkOpts)
+    }
+  }
   try {
-    await symlinkDir(depLocation, dest, { overwrite: false })
+    await symlink(depLocation, dest, { overwrite: false })
     linkLogger.debug({ target: dest, link: depLocation })
     return
   } catch (err: any) { // eslint-disable-line
@@ -338,7 +351,7 @@ async function symlinkHoistedDependency (
     return
   }
   await fs.promises.unlink(dest)
-  await symlinkDir(depLocation, dest)
+  await symlink(depLocation, dest)
   linkLogger.debug({ target: dest, link: depLocation })
 }
 

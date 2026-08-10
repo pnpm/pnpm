@@ -239,7 +239,7 @@ fn link_declared_siblings(members: &[Member]) -> Result<(), LinkRootComponentMem
             if std::fs::symlink_metadata(&symlink_path).is_ok() {
                 continue;
             }
-            symlink_package(&sibling.package_dir, &symlink_path).map_err(|source| {
+            symlink_package(&sibling.package_dir, &symlink_path, false).map_err(|source| {
                 LinkRootComponentMembersError::Symlink {
                     member: host.name.clone(),
                     sibling: sibling.name.clone(),

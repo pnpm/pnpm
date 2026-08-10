@@ -54,6 +54,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     pub(super) catalogs: &'a Catalogs,
     pub(super) prefix: &'a str,
+    pub(super) package_provider: Option<String>,
 }
 
 pub(super) struct MaterializationOutput {
@@ -113,6 +114,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         pnpmfile_hook,
         catalogs,
         prefix,
+        package_provider,
     } = inputs;
     let ignored_builds: Vec<String>;
     let deferred_builds: Vec<String>;
@@ -254,6 +256,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             rebuild,
             prior_hoisted_dependencies,
             prune_orphans,
+            package_provider,
         }
         .run::<Reporter>()
         .await
@@ -352,6 +355,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             current_lockfile,
             prior_hoisted_dependencies,
             prune_orphans,
+            package_provider,
         }
         .run::<Reporter>()
         .await

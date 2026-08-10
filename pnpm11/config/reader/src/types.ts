@@ -85,6 +85,7 @@ export const pnpmTypes = {
   'pack-destination': String,
   'pack-gzip-level': Number,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
+  'package-provider': String,
   'patches-dir': String,
   pnpmfile: String,
   'pm-on-fail': ['download', 'error', 'warn', 'ignore'],
