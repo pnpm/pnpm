@@ -465,7 +465,7 @@ fn clears_the_subtree_flags_on_a_move_out_of_optional_dependencies() {
         .expect("a group move needs no resolution");
 
     assert!(
-        updated.importers["."].dependencies.as_ref().is_some_and(|deps| deps.contains_key(&alias))
+        updated.importers["."].dependencies.as_ref().is_some_and(|deps| deps.contains_key(&alias)),
     );
     assert!(!snapshot_optional(&updated, "bar@2.0.0"));
     assert!(!snapshot_optional(&updated, "child@3.0.0"), "bar reaches child non-optionally again");
