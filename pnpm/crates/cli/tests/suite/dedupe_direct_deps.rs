@@ -756,3 +756,79 @@ fn dedupe_under_shamefully_hoist() {
 
     drop((root, mock_instance));
 }
+
+/// `link:` payloads are stored relative to their own importer, so two
+/// importers can spell the same string while resolving to different
+/// directories. The prune's version-string dedupe fires on the pair
+/// anyway; the relink behind it is what keeps the importer pointing at
+/// its own target.
+#[test]
+fn relative_link_payloads_survive_the_dedupe_prune() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "ws-root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { "x": "link:vendor/x" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeDirectDeps: true\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("vendor/x")).expect("mkdir vendor/x");
+    fs::write(
+        workspace.join("vendor/x/package.json"),
+        serde_json::json!({ "name": "@scope/root-x", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write vendor/x/package.json");
+
+    fs::create_dir_all(workspace.join("packages/app/vendor/x")).expect("mkdir app vendor/x");
+    fs::write(
+        workspace.join("packages/app/vendor/x/package.json"),
+        serde_json::json!({ "name": "@scope/app-x", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write app vendor/x/package.json");
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({
+            "name": "@scope/app",
+            "version": "1.0.0",
+            "dependencies": { "x": "link:vendor/x" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+
+    pacquet.with_arg("install").assert().success();
+    // The second install is the one that prunes: only then does a
+    // current lockfile record the importer's link.
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let app_link = workspace.join("packages/app/node_modules/x");
+    let app_link_linked = is_symlink_or_junction(&app_link).expect("query app symlink");
+    eprintln!("app_link={app_link:?} linked={app_link_linked}");
+    assert!(app_link_linked, "app's link must survive at {app_link:?}");
+    let linked_manifest =
+        fs::read_to_string(app_link.join("package.json")).expect("read the linked manifest");
+    eprintln!("linked_manifest={linked_manifest}");
+    assert!(
+        linked_manifest.contains("@scope/app-x"),
+        "app's `link:vendor/x` must resolve to its own vendor/x, not the root's",
+    );
+
+    drop((root, mock_instance));
+}
