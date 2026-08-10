@@ -12,6 +12,9 @@
 //! per-project symlink — is covered by
 //! [`dedupe_off_by_default_keeps_shared_workspace_link`].
 
+use crate::_utils;
+
+use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
@@ -449,14 +452,8 @@ fn removes_a_project_link_the_root_starts_providing() {
 
     write_root_manifest(serde_json::json!({}));
 
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut workspace_yaml =
-        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    if !workspace_yaml.ends_with('\n') {
-        workspace_yaml.push('\n');
-    }
-    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeDirectDeps: true\n");
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+    append_workspace_yaml_key(&workspace, "dedupeDirectDeps", true);
 
     fs::create_dir_all(workspace.join("packages/dup")).expect("mkdir packages/dup");
     fs::write(
@@ -780,14 +777,8 @@ fn relative_link_payloads_survive_the_dedupe_prune() {
     )
     .expect("write root package.json");
 
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut workspace_yaml =
-        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    if !workspace_yaml.ends_with('\n') {
-        workspace_yaml.push('\n');
-    }
-    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeDirectDeps: true\n");
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+    append_workspace_yaml_key(&workspace, "dedupeDirectDeps", true);
 
     fs::create_dir_all(workspace.join("vendor/x")).expect("mkdir vendor/x");
     fs::write(
