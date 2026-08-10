@@ -102,11 +102,10 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
             // cache. Replace it rather than failing every test that
             // needs the fixtures from here on.
             if let Err(err) = fs::remove_dir_all(storage) {
-                if err.kind() != io::ErrorKind::NotFound {
-                    panic!(
-                        "publish generated registry fixture storage: {first_err}                          (and clearing the incomplete destination failed: {err})"
-                    );
-                }
+                assert!(
+                    err.kind() == io::ErrorKind::NotFound,
+                    "publish generated registry fixture storage: {first_err} (and clearing the incomplete destination failed: {err})",
+                );
             }
             match fs::rename(&temp, storage) {
                 Ok(()) => {}

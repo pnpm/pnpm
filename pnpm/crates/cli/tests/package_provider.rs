@@ -81,7 +81,7 @@ const IS_POSITIVE_PATCH: &str = include_str!(
 );
 
 fn pacquet(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(workspace)
 }
 
 /// Write the fake provider script into `<root>/provider/provider.js`.
