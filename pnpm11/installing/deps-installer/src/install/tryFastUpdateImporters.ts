@@ -1,5 +1,6 @@
 import * as dp from '@pnpm/deps.path'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
@@ -45,18 +46,21 @@ export function tryFastUpdateImporters (
     const manifestSpecifiers = getManifestSpecifiers(project.manifest)
     for (const [alias, specifier] of Object.entries(manifestSpecifiers)) {
       if (importer.specifiers[alias] !== specifier) {
-        const reference =
-          importer.optionalDependencies?.[alias] ??
-          importer.dependencies?.[alias] ??
-          importer.devDependencies?.[alias]
+        const recordedIn = recordedDependencyGroup(importer, alias)
+        const reference = recordedIn == null ? undefined : importer[recordedIn]![alias]
         const version = reference == null ? null : dp.removeSuffix(reference)
-        if (
-          semver.validRange(specifier) == null ||
-          version == null ||
-          semver.valid(version) == null ||
-          !semver.satisfies(version, specifier)
-        ) {
+        if (semver.validRange(specifier) == null || version == null || semver.valid(version) == null) {
           return false
+        }
+        const wanted = highestLockedVersionSatisfying(lockfile, alias, specifier)
+        if (wanted == null) return false
+        if (wanted !== version) {
+          // The alias moves to a version the lockfile already holds, so its
+          // subtree is already recorded. The old one may now be unreachable,
+          // which the shared epilogue prunes.
+          if (reference !== version) return false
+          importer[recordedIn!]![alias] = wanted
+          edits.dropped.add(alias)
         }
         importer.specifiers[alias] = specifier
         changed = true
@@ -92,6 +96,36 @@ export function tryFastUpdateImporters (
     }
   }
   return changed
+}
+
+/**
+ * The version resolution would settle on for `alias` under `specifier`: the
+ * highest version of it the lockfile already holds that satisfies the range.
+ *
+ * Resolution prefers a version already in the graph over a higher one from
+ * the registry, so reusing what is present is what it would record — for a
+ * widened range as much as for one the locked version cannot satisfy at all.
+ *
+ * `null` when nothing present satisfies (only the resolver can fetch a new
+ * version), or when a candidate exists under several peer-suffixed keys,
+ * where picking one of them would be a guess.
+ */
+function highestLockedVersionSatisfying (
+  lockfile: LockfileObject,
+  alias: string,
+  specifier: string
+): string | null {
+  const versions = new Set<string>()
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
+    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (name !== alias || nonSemverVersion != null) continue
+    if (dp.parseDepPath(depPath).peerDepGraphHash !== '') return null
+    if (semver.valid(version) != null && semver.satisfies(version, specifier)) {
+      versions.add(version)
+    }
+  }
+  if (versions.size === 0) return null
+  return [...versions].sort(semver.rcompare)[0]
 }
 
 function dependencyGroupMoved (

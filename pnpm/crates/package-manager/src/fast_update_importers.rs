@@ -1,7 +1,8 @@
 use crate::{fast_update_compose::Drift, fast_update_lockfile::GraphEdits};
-use node_semver::Range;
+use node_semver::{Range, Version};
 use pacquet_lockfile::{
-    Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
+    ImporterDepVersion, Lockfile, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencyMap,
+    ResolvedDependencySpec,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use std::collections::{HashMap, HashSet};
@@ -62,6 +63,7 @@ pub(crate) fn apply_importers_update(
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
 ) -> bool {
+    let packages = candidate.packages.clone().unwrap_or_default();
     for (importer_id, manifest_dependencies) in &plan.manifest_dependencies {
         let Some(importer) = candidate.importers.get_mut(importer_id.as_str()) else {
             return false;
@@ -70,17 +72,34 @@ pub(crate) fn apply_importers_update(
             let Some(dependency) = importer_dependency_mut(importer, alias) else {
                 return false;
             };
-            if dependency.specifier != *specifier {
+            let specifier_changed = dependency.specifier != *specifier;
+            if specifier_changed {
                 let Ok(range) = Range::parse(specifier) else {
                     return false;
                 };
-                let Some(version) =
-                    dependency.version.ver_peer().and_then(|ver_peer| ver_peer.version_semver())
+                let Some(ver_peer) = dependency.version.ver_peer() else {
+                    return false;
+                };
+                let Some(version) = ver_peer.version_semver() else {
+                    return false;
+                };
+                let Some(wanted) = highest_locked_version_satisfying(&packages, alias, &range)
                 else {
                     return false;
                 };
-                if !version.satisfies(&range) {
-                    return false;
+                if wanted != *version {
+                    // The alias moves to a version the lockfile already
+                    // holds, so its subtree is already recorded. The one it
+                    // leaves may now be unreachable, which the shared
+                    // epilogue prunes.
+                    if ver_peer.peer() != "" {
+                        return false;
+                    }
+                    let Ok(moved) = wanted.to_string().parse() else {
+                        return false;
+                    };
+                    dependency.version = ImporterDepVersion::Regular(moved);
+                    edits.dropped.insert(alias.clone());
                 }
                 dependency.specifier = (*specifier).to_string();
             }
@@ -92,6 +111,39 @@ pub(crate) fn apply_importers_update(
         edits.dropped.extend(remove_dependencies_absent_from(importer, manifest_dependencies));
     }
     true
+}
+
+/// The version resolution would settle on for `alias` under `range`: the
+/// highest version of it the lockfile already holds that satisfies the
+/// range.
+///
+/// Resolution prefers a version already in the graph over a higher one
+/// from the registry, so reusing what is present is what it would
+/// record — for a widened range as much as for one the locked version
+/// cannot satisfy at all.
+///
+/// `None` when nothing present satisfies (only the resolver can fetch a
+/// new version), or when a candidate exists under several peer-suffixed
+/// keys, where picking one of them would be a guess.
+fn highest_locked_version_satisfying(
+    packages: &HashMap<PackageKey, pacquet_lockfile::PackageMetadata>,
+    alias: &PkgName,
+    range: &Range,
+) -> Option<Version> {
+    let mut highest: Option<Version> = None;
+    for key in packages.keys() {
+        if &key.name != alias {
+            continue;
+        }
+        if !key.suffix.peer().is_empty() {
+            return None;
+        }
+        let Some(version) = key.suffix.version_semver() else { continue };
+        if version.satisfies(range) && highest.as_ref().is_none_or(|best| version > best) {
+            highest = Some(version.clone());
+        }
+    }
+    highest
 }
 
 /// Whether the importer's record differs from the manifest in a way the
