@@ -1,6 +1,6 @@
 use super::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, hide_auth_information,
-    nerf_dart, redact_and_sanitize, redact_url_credentials,
+    nerf_dart, redact_and_sanitize, redact_and_sanitize_multiline, redact_url_credentials,
 };
 use crate::TokenHelperOutput;
 use pretty_assertions::assert_eq;
@@ -578,4 +578,22 @@ fn nerf_dart_handles_url_with_no_path_separator() {
 fn empty_user_info_returns_no_basic_header() {
     let empty = AuthHeaders::default();
     assert_eq!(empty.for_url("https://@reg.com/"), None);
+}
+
+#[test]
+fn redact_and_sanitize_multiline_keeps_line_breaks() {
+    assert_eq!(
+        redact_and_sanitize_multiline("cloning https://user:pass@host/x.git\r\nfailed"),
+        "cloning https://host/x.git\nfailed",
+    );
+}
+
+#[test]
+fn redact_and_sanitize_multiline_collapses_when_a_newline_splits_credentials() {
+    // Redacting each line on its own would leave "user:pass" readable, so the
+    // collapsed form wins over the more readable one.
+    let redacted = redact_and_sanitize_multiline("url: https://user:pass\n@host/x.git\nfailed");
+    dbg!(&redacted);
+    assert!(!redacted.contains("user:pass"), "{redacted}");
+    assert_eq!(redacted, redact_and_sanitize("url: https://user:pass\n@host/x.git\nfailed"));
 }

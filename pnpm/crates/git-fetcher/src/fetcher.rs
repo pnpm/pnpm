@@ -18,6 +18,7 @@ use crate::{
 };
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_fs_packlist::packlist;
+use pacquet_network::{redact_and_sanitize, redact_and_sanitize_multiline};
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use pacquet_reporter::Reporter;
 use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
@@ -58,6 +59,11 @@ pub struct GitFetcher<'a> {
     /// Matches the `package_id` the rest of the install dispatcher uses
     /// — for a git dep, the bare `git+…#<commit>` id.
     pub package_id: &'a str,
+    /// Name of the package this resolution belongs to, used to say which
+    /// dependency a transport failure came from. Unlike
+    /// [`Self::package_id`], which for a git dep is the bare
+    /// `git+…#<commit>` id and carries no name.
+    pub package_name: &'a str,
     pub requester: &'a str,
     /// Install-scoped store-index writer. When provided, the fetcher
     /// queues a `PackageFilesIndex` row at [`Self::files_index_file`]
@@ -110,7 +116,8 @@ impl GitFetcher<'_> {
             git_shallow_hosts: self.git_shallow_hosts,
             git_bin: self.git_bin,
             dest: temp_location,
-        })?;
+        })
+        .map_err(|err| name_fetch_failure(self.repo, self.package_name, err))?;
 
         // `extra_env` is a borrow rather than `Option<&HashMap>`.
         // Bind an empty map to a local so the borrow has the same lifetime
@@ -184,6 +191,66 @@ impl GitFetcher<'_> {
 
         Ok(GitFetchOutput { cas_paths, built: should_be_built })
     }
+}
+
+/// Restate a failure of the transport-touching part of
+/// [`checkout_commit`] as [`GitFetcherError::Fetch`] — or, when the
+/// lockfile pins an SSH remote, [`GitFetcherError::FetchOverSsh`], which
+/// carries the remediation help.
+///
+/// Only `init` / `remote` / `clone` / `fetch` are restated. A failing
+/// `checkout` or `rev-parse` says nothing about reaching the remote, and
+/// its own error already describes it.
+fn name_fetch_failure(repo: &str, package: &str, err: GitFetcherError) -> GitFetcherError {
+    let GitFetcherError::GitExec {
+        operation: "init" | "remote" | "clone" | "fetch", stderr, ..
+    } = &err
+    else {
+        return err;
+    };
+    // Every value is untrusted: a lockfile URL can carry `user:pass@`
+    // credentials, and git echoes it back through stderr. Only the values are
+    // sanitized — `redact_and_sanitize` strips control characters, which would
+    // collapse the deliberately multi-line help.
+    let host = ssh_repo_host(repo).map(redact_and_sanitize);
+    let (package, repo, stderr) = (
+        redact_and_sanitize(package),
+        redact_and_sanitize(repo),
+        redact_and_sanitize_multiline(stderr.trim()),
+    );
+    match host {
+        Some(host) => GitFetcherError::FetchOverSsh { package, repo, host, stderr },
+        None => GitFetcherError::Fetch { package, repo, stderr },
+    }
+}
+
+/// The host an SSH git reference points at, or `None` if `repo` is not one.
+///
+/// Covers the URL form (`[git+]ssh://[user@]host[:port]/path`) and the
+/// scp-style shorthand (`[user@]host:path`) that carries no scheme. The
+/// `user@` is mandatory in the shorthand, which is what keeps a Windows
+/// drive path (`C:\repo`) from being read as a host.
+///
+/// An IPv6 literal keeps its brackets, matching what `URL.hostname` hands
+/// the TypeScript CLI for the same reference.
+fn ssh_repo_host(repo: &str) -> Option<&str> {
+    if let Some(rest) = repo.strip_prefix("ssh://").or_else(|| repo.strip_prefix("git+ssh://")) {
+        let authority = rest.split('/').next().unwrap_or(rest);
+        let host = authority.rsplit_once('@').map_or(authority, |(_user, host)| host);
+        // A bracketed IPv6 literal is full of colons, so the port has to be
+        // looked for after the closing bracket rather than at the first colon.
+        let host = match host.split_once(']') {
+            Some((address, _port)) if host.starts_with('[') => &host[..=address.len()],
+            _ => host.split_once(':').map_or(host, |(host, _port)| host),
+        };
+        return (!host.is_empty()).then_some(host);
+    }
+    if repo.contains("://") {
+        return None;
+    }
+    let (authority, _path) = repo.split_once(':')?;
+    let (_user, host) = authority.rsplit_once('@')?;
+    (!host.is_empty()).then_some(host)
 }
 
 /// Wrap `PreparePackageError` to convey the "Failed to prepare

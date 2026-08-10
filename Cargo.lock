@@ -4461,6 +4461,7 @@ dependencies = [
  "pacquet-executor",
  "pacquet-fs",
  "pacquet-fs-packlist",
+ "pacquet-network",
  "pacquet-package-manifest",
  "pacquet-reporter",
  "pacquet-store-dir",

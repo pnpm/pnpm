@@ -604,6 +604,7 @@ impl InstallPackageBySnapshot<'_> {
                 // lock-step with `snapshot_cache_key`.
                 let built = !config.ignore_scripts;
                 let files_index_file = git_hosted_store_index_key(&package_id, built);
+                let package_name = package_key.name.to_string();
                 let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
                     repo: &git_resolution.repo,
                     commit: &git_resolution.commit,
@@ -619,6 +620,7 @@ impl InstallPackageBySnapshot<'_> {
                     npm_execpath: None,
                     store_dir: &config.store_dir,
                     package_id: &package_id,
+                    package_name: &package_name,
                     requester,
                     store_index_writer,
                     files_index_file: &files_index_file,
