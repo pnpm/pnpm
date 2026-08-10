@@ -96,7 +96,26 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
         Err(_) if storage.join(COMPLETE_FILE).exists() => {
             fs::remove_dir_all(&temp).expect("remove redundant registry fixture storage");
         }
-        Err(err) => panic!("publish generated registry fixture storage: {err}"),
+        Err(first_err) => {
+            // A storage dir without the completion marker is garbage by
+            // protocol — an interrupted run or a partially restored CI
+            // cache. Replace it rather than failing every test that
+            // needs the fixtures from here on.
+            if let Err(err) = fs::remove_dir_all(storage) {
+                if err.kind() != io::ErrorKind::NotFound {
+                    panic!(
+                        "publish generated registry fixture storage: {first_err}                          (and clearing the incomplete destination failed: {err})"
+                    );
+                }
+            }
+            match fs::rename(&temp, storage) {
+                Ok(()) => {}
+                Err(_) if storage.join(COMPLETE_FILE).exists() => {
+                    fs::remove_dir_all(&temp).expect("remove redundant registry fixture storage");
+                }
+                Err(err) => panic!("publish generated registry fixture storage: {err}"),
+            }
+        }
     }
 }
 

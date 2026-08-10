@@ -208,7 +208,9 @@ where
     /// lockfile graph is materialized through it — see
     /// [`crate::materialize_through_package_provider`] — and the
     /// virtual-store population, per-slot bin, and dependency build
-    /// phases are skipped. See [`crate::Install::package_provider`].
+    /// phases are skipped. See `Install::package_provider` in
+    /// `pacquet-package-manager` (a doc link cannot cross that dependency
+    /// direction).
     pub package_provider: Option<String>,
 }
 

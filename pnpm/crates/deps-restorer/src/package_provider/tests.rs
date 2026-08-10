@@ -403,7 +403,7 @@ fn response_must_be_valid_json() {
         .expect_err("invalid JSON must be rejected");
     let message = error.to_string();
     eprintln!("MESSAGE:\n{message}\n");
-    assert_eq!(message, "The package provider at \"/provider\" did not return valid JSON");
+    assert_eq!(message, r#"The package provider at "/provider" did not return valid JSON"#);
 }
 
 #[test]
@@ -414,7 +414,7 @@ fn response_protocol_must_match() {
     eprintln!("MESSAGE:\n{message}\n");
     assert_eq!(
         message,
-        "The package provider at \"/provider\" returned an unsupported response (protocol 2)"
+        r#"The package provider at "/provider" returned an unsupported response (protocol 2)"#
     );
 
     let error = parse_provider_response("/provider", br#"{"paths":{}}"#)
@@ -423,7 +423,7 @@ fn response_protocol_must_match() {
     eprintln!("MESSAGE:\n{message}\n");
     assert_eq!(
         message,
-        "The package provider at \"/provider\" returned an unsupported response (protocol missing)"
+        r#"The package provider at "/provider" returned an unsupported response (protocol missing)"#
     );
 
     let error = parse_provider_response("/provider", br#"{"protocol":1}"#)
