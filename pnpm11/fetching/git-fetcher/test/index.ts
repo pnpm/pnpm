@@ -2,6 +2,7 @@
 import path from 'node:path'
 
 import { afterAll, beforeEach, expect, jest, test } from '@jest/globals'
+import type { PnpmError } from '@pnpm/error'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -347,3 +348,62 @@ test('fetch only the included files', async () => {
     'package.json',
   ])
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/13743, where a lockfile that
+// predates the resolver fix keeps cloning over SSH and the raw git failure
+// named neither the dependency nor a way out.
+test('a failed clone over SSH names the package and how to re-record it', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  const err = await withoutSsh(async () => fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'git@github.com:pnpm-e2e/this-repository-does-not-exist.git',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+      pkg: { name: '@scope/pkg', version: '1.0.0' },
+    }
+  )).catch((err: unknown) => err as PnpmError)
+
+  expect(err.code).toBe('ERR_PNPM_GIT_FETCH_FAILED')
+  expect(err.message).toContain('Failed to fetch "@scope/pkg" from the git repository "git@github.com:pnpm-e2e/this-repository-does-not-exist.git"')
+  expect(err.hint).toContain('needs an SSH key for github.com')
+  expect(err.hint).toContain('pnpm update @scope/pkg')
+})
+
+test('a failed clone over HTTPS carries no SSH remediation', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  const err = await fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'https://github.com/pnpm-e2e/this-repository-does-not-exist.git',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+      pkg: { name: '@scope/pkg', version: '1.0.0' },
+    }
+  ).catch((err: unknown) => err as PnpmError)
+
+  expect(err.code).toBe('ERR_PNPM_GIT_FETCH_FAILED')
+  expect(err.hint).toBeUndefined()
+})
+
+async function withoutSsh<T> (fn: () => Promise<T>): Promise<T> {
+  const original = process.env.GIT_SSH_COMMAND
+  process.env.GIT_SSH_COMMAND = 'false'
+  try {
+    return await fn()
+  } finally {
+    if (original == null) {
+      delete process.env.GIT_SSH_COMMAND
+    } else {
+      process.env.GIT_SSH_COMMAND = original
+    }
+  }
+}
