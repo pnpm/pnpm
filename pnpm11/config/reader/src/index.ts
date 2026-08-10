@@ -503,10 +503,6 @@ export async function getConfig (opts: {
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
-          // Machine-level, like the global config.yaml — which already refuses
-          // these keys through `isConfigFileKey`. No warning: nothing reports
-          // on this file, and the project wording would not fit it.
-          skipSettings: PROJECT_MANIFEST_SKIPPED_SETTINGS,
           workspaceDir: pnpmConfig.globalPkgDir,
           workspaceManifest,
         })
