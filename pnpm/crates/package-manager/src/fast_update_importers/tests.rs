@@ -571,3 +571,76 @@ fn moves_a_group_alongside_a_satisfied_range_change() {
         [&"bar".parse::<PkgName>().expect("alias")];
     assert_eq!(moved.specifier, ">=2 <3");
 }
+
+/// `foo` and `bar` are prod dependencies (`bar` reaching `child`), `qux`
+/// is a dev dependency.
+const WITH_THREE_GROUPS: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+    devDependencies:
+      qux:
+        specifier: ^5.0.0
+        version: 5.0.0
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-bar
+  child@3.0.0:
+    resolution:
+      integrity: sha512-child
+  qux@5.0.0:
+    resolution:
+      integrity: sha512-qux
+snapshots:
+  foo@1.1.0: {}
+  bar@2.0.0:
+    dependencies:
+      child: 3.0.0
+  child@3.0.0: {}
+  qux@5.0.0: {}
+";
+
+#[test]
+fn moves_several_dependencies_between_groups_in_one_pass() {
+    let manifest = manifest_from(json!({
+        "dependencies": { "qux": "^5.0.0" },
+        "devDependencies": { "foo": "^1.0.0" },
+        "optionalDependencies": { "bar": "^2.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_THREE_GROUPS),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("group moves need no resolution");
+
+    let importer = &updated.importers["."];
+    let recorded_aliases = |group: &Option<pacquet_lockfile::ResolvedDependencyMap>| {
+        group
+            .as_ref()
+            .map(|dependencies| {
+                let mut aliases: Vec<_> = dependencies.keys().map(ToString::to_string).collect();
+                aliases.sort();
+                aliases
+            })
+            .unwrap_or_default()
+    };
+    assert_eq!(recorded_aliases(&importer.dependencies), vec!["qux".to_string()]);
+    assert_eq!(recorded_aliases(&importer.dev_dependencies), vec!["foo".to_string()]);
+    assert_eq!(recorded_aliases(&importer.optional_dependencies), vec!["bar".to_string()]);
+    assert!(snapshot_optional(&updated, "bar@2.0.0"));
+    assert!(snapshot_optional(&updated, "child@3.0.0"));
+    assert!(!snapshot_optional(&updated, "foo@1.1.0"));
+    assert!(!snapshot_optional(&updated, "qux@5.0.0"));
+}

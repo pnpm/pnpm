@@ -61,14 +61,9 @@ export function tryFastUpdateImporters (
       const recordedIn = recordedDependencyGroup(importer, alias)
       const targetGroup = effectiveDependencyGroup(project.manifest, alias)
       if (recordedIn == null || recordedIn === targetGroup) continue
-      importer[targetGroup] = {
-        ...importer[targetGroup],
-        [alias]: importer[recordedIn]![alias],
-      }
+      const target = importer[targetGroup] ??= {}
+      target[alias] = importer[recordedIn]![alias]
       delete importer[recordedIn]![alias]
-      if (Object.keys(importer[recordedIn]!).length === 0) {
-        delete importer[recordedIn]
-      }
       if (recordedIn === 'optionalDependencies' || targetGroup === 'optionalDependencies') {
         movedAcrossOptional = true
       }
@@ -78,13 +73,15 @@ export function tryFastUpdateImporters (
       if (manifestSpecifiers[alias] != null) continue
       dropped.add(alias)
       delete importer.specifiers[alias]
-      for (const group of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+      for (const group of DEPENDENCIES_FIELDS) {
         delete importer[group]?.[alias]
-        if (importer[group] != null && Object.keys(importer[group]).length === 0) {
-          delete importer[group]
-        }
       }
       changed = true
+    }
+    for (const group of DEPENDENCIES_FIELDS) {
+      if (importer[group] != null && Object.keys(importer[group]).length === 0) {
+        delete importer[group]
+      }
     }
   }
   if (!changed) return false

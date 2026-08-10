@@ -15,10 +15,16 @@ pub(crate) fn try_fast_update_importers(
     let mut dropped = HashSet::new();
     for (importer_id, manifest) in manifests {
         let importer = candidate.importers.get_mut(importer_id)?;
-        let manifest_specifiers = manifest
-            .dependencies([DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional])
-            .collect::<HashMap<_, _>>();
-        for (alias, specifier) in &manifest_specifiers {
+        // Later groups overwrite, so each alias ends at the group
+        // `satisfies_package_manifest` expects it recorded under when it
+        // appears in several: optional wins over prod, prod over dev.
+        let mut manifest_dependencies = HashMap::new();
+        for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
+            for (name, specifier) in manifest.dependencies([group]) {
+                manifest_dependencies.insert(name, (specifier, group));
+            }
+        }
+        for (alias, (specifier, target)) in &manifest_dependencies {
             let alias = PkgName::parse(*alias).ok()?;
             let dependency = importer_dependency_mut(importer, &alias)?;
             if dependency.specifier != *specifier {
@@ -30,14 +36,13 @@ pub(crate) fn try_fast_update_importers(
                 dependency.specifier = (*specifier).to_string();
                 changed = true;
             }
-            let target = effective_dependency_group(manifest, &alias);
-            if let Some(source) = move_dependency(importer, &alias, target) {
+            if let Some(source) = move_dependency(importer, &alias, *target) {
                 moved_across_optional |=
-                    source == DependencyGroup::Optional || target == DependencyGroup::Optional;
+                    source == DependencyGroup::Optional || *target == DependencyGroup::Optional;
                 changed = true;
             }
         }
-        let removed = remove_dependencies_absent_from(importer, &manifest_specifiers);
+        let removed = remove_dependencies_absent_from(importer, &manifest_dependencies);
         changed |= !removed.is_empty();
         dropped.extend(removed);
     }
@@ -55,21 +60,6 @@ pub(crate) fn try_fast_update_importers(
         crate::fast_update_lockfile::recompute_optional_flags(&mut candidate);
     }
     changed.then_some(candidate)
-}
-
-/// The group `satisfies_package_manifest` expects a manifest dependency to
-/// be recorded under when it appears in several: optional wins over prod,
-/// prod over dev.
-fn effective_dependency_group(manifest: &PackageManifest, alias: &PkgName) -> DependencyGroup {
-    let declared_in =
-        |group| manifest.dependencies([group]).any(|(name, _)| alias.to_string() == name);
-    if declared_in(DependencyGroup::Optional) {
-        DependencyGroup::Optional
-    } else if declared_in(DependencyGroup::Prod) {
-        DependencyGroup::Prod
-    } else {
-        DependencyGroup::Dev
-    }
 }
 
 /// Move the importer's record of `alias` into `target`, returning the group
@@ -115,9 +105,9 @@ fn importer_group(
 /// declares, returning their names.
 fn remove_dependencies_absent_from(
     importer: &mut ProjectSnapshot,
-    manifest_specifiers: &HashMap<&str, &str>,
+    manifest_dependencies: &HashMap<&str, (&str, DependencyGroup)>,
 ) -> HashSet<PkgName> {
-    let declared = |alias: &PkgName| manifest_specifiers.contains_key(alias.to_string().as_str());
+    let declared = |alias: &PkgName| manifest_dependencies.contains_key(alias.to_string().as_str());
     let mut removed = HashSet::new();
     for group in [
         importer.dependencies.as_mut(),

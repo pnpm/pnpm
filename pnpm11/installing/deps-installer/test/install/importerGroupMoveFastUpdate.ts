@@ -102,6 +102,29 @@ test('an alias in both prod and optional groups is recorded as optional', () => 
   expect(importer.optionalDependencies).toStrictEqual({ bar: '2.0.0' })
 })
 
+test('several dependencies move between groups in one pass', () => {
+  const subject = lockfile()
+  subject.importers['.' as ProjectId].devDependencies = { qux: '5.0.0' }
+  subject.importers['.' as ProjectId].specifiers.qux = '^5.0.0'
+  subject.packages!['qux@5.0.0' as DepPath] = { resolution: { integrity: 'sha512-qux' } }
+
+  expect(tryFastUpdateImporters(subject, [
+    project({
+      dependencies: { qux: '^5.0.0' },
+      devDependencies: { foo: '^1.0.0' },
+      optionalDependencies: { bar: '^2.0.0' },
+    }),
+  ])).toBe(true)
+  const importer = subject.importers['.' as ProjectId]
+  expect(importer.dependencies).toStrictEqual({ qux: '5.0.0' })
+  expect(importer.devDependencies).toStrictEqual({ foo: '1.1.0' })
+  expect(importer.optionalDependencies).toStrictEqual({ bar: '2.0.0' })
+  expect(subject.packages!['bar@2.0.0' as DepPath].optional).toBe(true)
+  expect(subject.packages!['child@3.0.0' as DepPath].optional).toBe(true)
+  expect(subject.packages!['qux@5.0.0' as DepPath].optional).toBeUndefined()
+  expect(subject.packages!['foo@1.1.0' as DepPath].optional).toBeUndefined()
+})
+
 test('a group move rides along with a satisfied range change', () => {
   const subject = lockfile()
 
