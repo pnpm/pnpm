@@ -2307,6 +2307,9 @@ importers:
       lodash.kebabcase:
         specifier: 'catalog:'
         version: 4.1.1
+      path-exists:
+        specifier: 'catalog:'
+        version: 5.0.0
       read-ini-file:
         specifier: 'catalog:'
         version: 5.0.0

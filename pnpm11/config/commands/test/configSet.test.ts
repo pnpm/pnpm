@@ -1171,7 +1171,13 @@ test.each([
  * manifest once a delete empties it — so with no manifest present it would try
  * to remove a file that was never there.
  */
-test.each(['pnpm-home-dir', 'config-dir', 'store-dir'])('config delete %s is a no-op with no manifest present', async (key) => {
+test.each([
+  ['delete', 'pnpm-home-dir', undefined],
+  ['delete', 'config-dir', undefined],
+  ['delete', 'store-dir', undefined],
+  // `castField` turns this into a removal as well, so it reaches the same path.
+  ['set', 'store-dir', 'null'],
+])('config %s %s is a no-op with no manifest present', async (subcommand, key, value) => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
@@ -1182,7 +1188,7 @@ test.each(['pnpm-home-dir', 'config-dir', 'store-dir'])('config delete %s is a n
     configDir,
     location: 'project',
     authConfig: {},
-  }), ['delete', key])).resolves.toBeUndefined()
+  }), value == null ? [subcommand, key] : [subcommand, key, value])).resolves.toBeUndefined()
 
   expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBe(false)
 })

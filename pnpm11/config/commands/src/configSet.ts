@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -10,6 +9,7 @@ import { isCamelCase, isStrictlyKebabCase } from '@pnpm/text.naming-cases'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import camelCase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
+import { pathExists } from 'path-exists'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 
@@ -61,18 +61,21 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       if (value != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
         throw new ConfigSetNotAProjectSettingError(writtenKey)
       }
-      // Deleting from a file that is not there is a no-op, not an error. The
-      // writer removes a manifest once the delete empties it, so it would try
-      // to remove one that never existed and surface a raw ENOENT.
-      if (value == null && !await fileExists(configPath)) break
+      // `castField` turns an explicit `null` value into a removal too, so it
+      // decides this rather than the raw parameter. Removing from a file that
+      // is not there is a no-op, not an error: the writer deletes a manifest
+      // once the removal empties it, and would fail to delete one that was
+      // never written.
+      const castValue = castField(value, kebabCase(writtenKey))
+      if (castValue == null && !await pathExists(configPath)) break
       const updatedFields: Record<string, unknown> = {
-        [writtenKey]: castField(value, kebabCase(writtenKey)),
+        [writtenKey]: castValue,
       }
       // pnpm always writes the normalized spelling, but a hand-edited file may
       // carry another one — and for a project manifest that is the spelling
       // the reader names when it reports the setting as ignored. Remove both,
       // so the remedy the warning implies actually clears the file.
-      if (value == null && key !== writtenKey) {
+      if (castValue == null && key !== writtenKey) {
         updatedFields[key] = null
       }
       await updateWorkspaceManifest(configDir, { fileName: configFileName, updatedFields })
@@ -246,16 +249,6 @@ function isStringOnlyIniKey (key: string): boolean {
   if (key.startsWith('@')) return true
   if (key.startsWith('//')) return true
   return false
-}
-
-async function fileExists (filePath: string): Promise<boolean> {
-  try {
-    await fs.promises.stat(filePath)
-    return true
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
-    throw err
-  }
 }
 
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
