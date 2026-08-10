@@ -42,6 +42,7 @@ export function tryFastUpdateImporters (
   for (const project of projects) {
     const importer = lockfile.importers[project.id]
     if (importer == null) return false
+    let editedGroups = false
     const manifestSpecifiers = getManifestSpecifiers(project.manifest)
     for (const [alias, specifier] of Object.entries(manifestSpecifiers)) {
       if (importer.specifiers[alias] !== specifier) {
@@ -70,6 +71,7 @@ export function tryFastUpdateImporters (
       if (recordedIn === 'optionalDependencies' || targetGroup === 'optionalDependencies') {
         movedAcrossOptional = true
       }
+      editedGroups = true
       changed = true
     }
     for (const alias of Object.keys(importer.specifiers)) {
@@ -79,11 +81,14 @@ export function tryFastUpdateImporters (
       for (const group of DEPENDENCIES_FIELDS) {
         delete importer[group]?.[alias]
       }
+      editedGroups = true
       changed = true
     }
-    for (const group of DEPENDENCIES_FIELDS) {
-      if (importer[group] != null && Object.keys(importer[group]).length === 0) {
-        delete importer[group]
+    if (editedGroups) {
+      for (const group of DEPENDENCIES_FIELDS) {
+        if (importer[group] != null && Object.keys(importer[group]).length === 0) {
+          delete importer[group]
+        }
       }
     }
   }

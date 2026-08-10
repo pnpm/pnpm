@@ -6,28 +6,27 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use std::collections::{HashMap, HashSet};
 
 /// Each manifest alias with its specifier and the group it is
-/// effectively declared under.
-type ManifestDependencies<'manifest> = HashMap<&'manifest str, (&'manifest str, DependencyGroup)>;
+/// effectively declared under. Keyed by [`PkgName`] so membership tests
+/// against importer records need no per-dependency conversions.
+type ManifestDependencies<'manifest> = HashMap<PkgName, (&'manifest str, DependencyGroup)>;
 
 pub(crate) fn try_fast_update_importers(
     lockfile: &Lockfile,
     manifests: &[(String, &PackageManifest)],
 ) -> Option<Lockfile> {
-    let manifest_dependencies: Vec<(&String, ManifestDependencies<'_>)> = manifests
-        .iter()
-        .map(|(importer_id, manifest)| {
-            // Later groups overwrite, so each alias ends at the group
-            // `satisfies_package_manifest` expects it recorded under when it
-            // appears in several: optional wins over prod, prod over dev.
-            let mut dependencies = HashMap::new();
-            for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
-                for (name, specifier) in manifest.dependencies([group]) {
-                    dependencies.insert(name, (specifier, group));
-                }
+    let mut manifest_dependencies: Vec<(&String, ManifestDependencies<'_>)> = Vec::new();
+    for (importer_id, manifest) in manifests {
+        // Later groups overwrite, so each alias ends at the group
+        // `satisfies_package_manifest` expects it recorded under when it
+        // appears in several: optional wins over prod, prod over dev.
+        let mut dependencies = HashMap::new();
+        for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
+            for (name, specifier) in manifest.dependencies([group]) {
+                dependencies.insert(PkgName::parse(name).ok()?, (specifier, group));
             }
-            (importer_id, dependencies)
-        })
-        .collect();
+        }
+        manifest_dependencies.push((importer_id, dependencies));
+    }
     // Cloning the lockfile is the expensive part, so nothing is cloned
     // until this cheap scan finds drift the loop below would act on.
     if !manifest_dependencies
@@ -43,8 +42,7 @@ pub(crate) fn try_fast_update_importers(
     for (importer_id, manifest_dependencies) in &manifest_dependencies {
         let importer = candidate.importers.get_mut(importer_id.as_str())?;
         for (alias, (specifier, target)) in manifest_dependencies {
-            let alias = PkgName::parse(*alias).ok()?;
-            let dependency = importer_dependency_mut(importer, &alias)?;
+            let dependency = importer_dependency_mut(importer, alias)?;
             if dependency.specifier != *specifier {
                 let range = Range::parse(specifier).ok()?;
                 let version = dependency.version.ver_peer()?.version_semver()?;
@@ -54,7 +52,7 @@ pub(crate) fn try_fast_update_importers(
                 dependency.specifier = (*specifier).to_string();
                 changed = true;
             }
-            if let Some(source) = move_dependency(importer, &alias, *target) {
+            if let Some(source) = move_dependency(importer, alias, *target) {
                 moved_across_optional |=
                     source == DependencyGroup::Optional || *target == DependencyGroup::Optional;
                 changed = true;
@@ -101,13 +99,10 @@ fn importer_diverges(
     .into_iter()
     .flatten()
     .flat_map(HashMap::keys)
-    .any(|alias| !manifest_dependencies.contains_key(alias.to_string().as_str()));
+    .any(|alias| !manifest_dependencies.contains_key(alias));
     recorded_but_undeclared
         || manifest_dependencies.iter().any(|(alias, (specifier, target))| {
-            let Ok(alias) = PkgName::parse(*alias) else {
-                return true;
-            };
-            let Some((recorded_in, dependency)) = importer_dependency(importer, &alias) else {
+            let Some((recorded_in, dependency)) = importer_dependency(importer, alias) else {
                 return true;
             };
             dependency.specifier != *specifier || recorded_in != *target
@@ -174,7 +169,7 @@ fn remove_dependencies_absent_from(
     importer: &mut ProjectSnapshot,
     manifest_dependencies: &ManifestDependencies<'_>,
 ) -> HashSet<PkgName> {
-    let declared = |alias: &PkgName| manifest_dependencies.contains_key(alias.to_string().as_str());
+    let declared = |alias: &PkgName| manifest_dependencies.contains_key(alias);
     let mut removed = HashSet::new();
     for group in [
         importer.dependencies.as_mut(),

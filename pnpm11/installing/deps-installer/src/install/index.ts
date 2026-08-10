@@ -139,7 +139,6 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
 
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
-/** The changed lockfile fields that have a dedicated fast-update handler. */
 const FAST_UPDATABLE_SETTINGS = new Set<ChangedField | null>([
   'catalogs',
   'ignoredOptionalDependencies',

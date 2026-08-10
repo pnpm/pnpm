@@ -23,7 +23,7 @@ export async function tryFastUpdateLockfile (
   // (an emptied `packages` or `catalogs` section) has to disappear too, which
   // assignment alone would not do.
   for (const key of Object.keys(lockfile)) {
-    if (!(key in candidate)) {
+    if (!Object.hasOwn(candidate, key)) {
       delete lockfile[key as keyof LockfileObject]
     }
   }
