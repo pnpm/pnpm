@@ -925,8 +925,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // entries and this run's final update scope, but `update_reuse_scope`
         // is moved into the resolver options below and `wanted_lockfile` is
         // later shadowed by the freshly built lockfile.
+        // Withheld when `dedupe_injected_deps` is off, since the guard only
+        // compensates for that pass not running on every re-resolution path.
         let guard_previous_importers: Option<&HashMap<String, pacquet_lockfile::ProjectSnapshot>> =
-            wanted_lockfile.map(|lockfile| &lockfile.importers);
+            wanted_lockfile
+                .filter(|_| config.dedupe_injected_deps)
+                .map(|lockfile| &lockfile.importers);
         let guard_update_reuse_scope = update_reuse_scope.clone();
         let guard_update_reuse_scopes_by_importer = update_reuse_scopes_by_importer.clone();
 
