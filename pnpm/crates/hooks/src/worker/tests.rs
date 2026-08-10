@@ -90,9 +90,8 @@ async fn a_queued_request_does_not_spend_its_timeout_waiting_for_its_turn() {
     call_read_package_concurrently(&worker, 100).await;
 }
 
-/// Call `readPackage` `count` times at once, requiring every call to
-/// succeed. Returns the highest `peak` any of them reported back, which is
-/// `0` for a hook that reports none.
+/// Every call must succeed; the value returned is the highest `peak` the
+/// hook reported back.
 async fn call_read_package_concurrently(worker: &Arc<NodeWorker>, count: usize) -> usize {
     let mut calls = JoinSet::new();
     for _ in 0..count {
