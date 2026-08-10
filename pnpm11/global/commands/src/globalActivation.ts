@@ -11,7 +11,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 import { symlinkDir } from 'symlink-dir'
 
-export interface PublishGlobalInstallOptions {
+export interface ActivateGlobalInstallOptions {
   installDir: string
   hashLink: string
   globalBinDir: string
@@ -24,7 +24,7 @@ export interface CleanupReplacedGlobalInstallsOptions {
   globalDir: string
   globalBinDir: string
   activeHash: string
-  publishedBins: Set<string>
+  activatedBins: Set<string>
   protectedBins: Set<string>
 }
 
@@ -41,8 +41,8 @@ interface PreparedGlobalInstall {
   oldHashTarget: string | undefined
 }
 
-export async function publishGlobalInstall (
-  opts: PublishGlobalInstallOptions
+export async function activateGlobalInstall (
+  opts: ActivateGlobalInstallOptions
 ): Promise<Set<string>> {
   const prepared = await prepareGlobalInstall(opts)
   try {
@@ -54,23 +54,23 @@ export async function publishGlobalInstall (
     await swapHashLink(opts.installDir, opts.hashLink)
     await linkBinsOfPackages(hashLinkedPkgs(opts), opts.globalBinDir, { excludeBins: opts.binsToSkip })
     await removeSlotsOfMissingBins(opts, prepared.actualBins)
-  } catch (publicationError) {
+  } catch (activationError) {
     try {
       await restoreGlobalInstall({ ...opts, ...prepared })
     } catch (rollbackError) {
       const rollbackMessage = getErrorMessage(rollbackError)
       throw new PnpmError(
         'GLOBAL_BIN_ROLLBACK_FAILED',
-        'Failed to restore global bins after publication failed. ' +
+        'Failed to restore global bins after activation failed. ' +
           `Recovery files remain at ${prepared.backupDir}; the fresh install remains at ${opts.installDir}. ` +
           `Rollback error: ${rollbackMessage}`,
-        { cause: publicationError }
+        { cause: activationError }
       )
     }
-    await cleanupFailedGlobalPublication({ ...opts, ...prepared }, publicationError)
-    throw publicationError
+    await cleanupFailedGlobalActivation({ ...opts, ...prepared }, activationError)
+    throw activationError
   }
-  // Publication is already committed, so a leftover backup directory must
+  // Activation is already committed, so a leftover backup directory must
   // not fail the command.
   try {
     await fs.promises.rm(prepared.backupDir, { recursive: true, force: true })
@@ -92,7 +92,7 @@ export async function cleanupReplacedGlobalInstalls (
   }
 }
 
-// Publication already succeeded when this runs, so every removal is
+// Activation already succeeded when this runs, so every removal is
 // attempted even after one fails; the failures are aggregated instead of
 // aborting the remaining cleanup.
 async function cleanupReplacedGlobalInstall (
@@ -110,7 +110,7 @@ async function cleanupReplacedGlobalInstall (
     return [err]
   }
   for (const binName of binNames) {
-    if (opts.publishedBins.has(binName) || opts.protectedBins.has(binName)) continue
+    if (opts.activatedBins.has(binName) || opts.protectedBins.has(binName)) continue
     try {
       await removeBin(path.join(opts.globalBinDir, binName)) // eslint-disable-line no-await-in-loop -- Each removal must settle before cleanup continues.
     } catch (err) {
@@ -140,7 +140,7 @@ async function cleanupReplacedGlobalInstall (
  * embed the path they are generated from, so this is what makes a shim
  * survive the next update untouched.
  */
-function hashLinkedPkgs (opts: PublishGlobalInstallOptions): PublishGlobalInstallOptions['pkgs'] {
+function hashLinkedPkgs (opts: ActivateGlobalInstallOptions): ActivateGlobalInstallOptions['pkgs'] {
   return opts.pkgs.map((pkg) => {
     if (!isSubdir(opts.installDir, pkg.location)) return pkg
     return { ...pkg, location: path.join(opts.hashLink, path.relative(opts.installDir, pkg.location)) }
@@ -171,7 +171,7 @@ async function swapHashLink (target: string, hashLink: string): Promise<void> {
 }
 
 async function prepareGlobalInstall (
-  opts: PublishGlobalInstallOptions
+  opts: ActivateGlobalInstallOptions
 ): Promise<PreparedGlobalInstall> {
   let backupDir: string | undefined
   try {
@@ -199,7 +199,7 @@ async function prepareGlobalInstall (
     if (cleanupErrors.length > 0) {
       throw new AggregateError(
         [preparationError, ...cleanupErrors],
-        'Failed to clean up after global bin publication preparation failed.',
+        'Failed to clean up after global bin activation preparation failed.',
         { cause: preparationError }
       )
     }
@@ -208,7 +208,7 @@ async function prepareGlobalInstall (
 }
 
 /** The commands the group declares, mapped to the file each one runs. */
-async function getActualBins (opts: PublishGlobalInstallOptions): Promise<Map<string, string>> {
+async function getActualBins (opts: ActivateGlobalInstallOptions): Promise<Map<string, string>> {
   const actualBins = new Map<string, string>()
   const binsByPackage = await Promise.all(opts.pkgs.map(async ({ manifest, location }) => {
     return getBinsFromPackageManifest(manifest, location)
@@ -227,7 +227,7 @@ async function getActualBins (opts: PublishGlobalInstallOptions): Promise<Map<st
  * behind for a command that cannot run.
  */
 async function removeSlotsOfMissingBins (
-  opts: PublishGlobalInstallOptions,
+  opts: ActivateGlobalInstallOptions,
   actualBins: Map<string, string>
 ): Promise<void> {
   const missing = (await Promise.all([...actualBins].map(async ([name, binPath]) => {
@@ -310,7 +310,7 @@ async function readHashTarget (hashLink: string): Promise<string | undefined> {
   }
 }
 
-async function restoreGlobalInstall (opts: PublishGlobalInstallOptions & PreparedGlobalInstall): Promise<void> {
+async function restoreGlobalInstall (opts: ActivateGlobalInstallOptions & PreparedGlobalInstall): Promise<void> {
   for (const name of opts.actualBinNames) {
     // eslint-disable-next-line no-await-in-loop -- Rollback mutation must settle before the next step or return.
     await removeBin(path.join(opts.globalBinDir, name))
@@ -326,9 +326,9 @@ async function restoreGlobalInstall (opts: PublishGlobalInstallOptions & Prepare
   }
 }
 
-async function cleanupFailedGlobalPublication (
-  opts: PublishGlobalInstallOptions & PreparedGlobalInstall,
-  publicationError: unknown
+async function cleanupFailedGlobalActivation (
+  opts: ActivateGlobalInstallOptions & PreparedGlobalInstall,
+  activationError: unknown
 ): Promise<void> {
   const cleanupResults = await Promise.allSettled([
     fs.promises.rmdir(opts.backupDir),
@@ -352,9 +352,9 @@ async function cleanupFailedGlobalPublication (
     ? ''
     : ` Remaining artifacts: ${remainingPaths.join(', ')}.`
   throw new AggregateError(
-    [publicationError, ...cleanupErrors],
-    `Failed to clean up after global bin publication failed.${remainingMessage}`,
-    { cause: publicationError }
+    [activationError, ...cleanupErrors],
+    `Failed to clean up after global bin activation failed.${remainingMessage}`,
+    { cause: activationError }
   )
 }
 

@@ -6,9 +6,9 @@
 //! installs into a fresh directory under the global packages dir, then a
 //! hash symlink and the global bins are pointed at it.
 
-mod publication;
+mod activation;
 
-use self::publication::{ArtifactCleanupError, hash_linked_packages, publish_global_install};
+use self::activation::{ArtifactCleanupError, activate_global_install, hash_linked_packages};
 use crate::{
     State,
     cli_args::{
@@ -244,7 +244,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
-        let published_bins = publish_global_install::<CmdShimHost>(
+        let activated_bins = activate_global_install::<CmdShimHost>(
             &install_dir,
             &hash_link,
             &global_bin_dir,
@@ -260,13 +260,13 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
                 )
             },
         )
-        .wrap_err("publish global install")?;
+        .wrap_err("activate global install")?;
         cleanup_replaced_global_installs(
             &global_pkg_dir,
             &global_bin_dir,
             &existing.groups_to_replace,
             &cache_hash,
-            &published_bins,
+            &activated_bins,
             &existing.protected_bins,
         )
         .wrap_err("remove existing global installs")?;
@@ -350,7 +350,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 
         let hash_link = get_hash_link(&global_pkg_dir, &pkg.hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
-        let published_bins = publish_global_install::<CmdShimHost>(
+        let activated_bins = activate_global_install::<CmdShimHost>(
             &install_dir,
             &hash_link,
             &global_bin_dir,
@@ -366,13 +366,13 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
                 )
             },
         )
-        .wrap_err("publish global install")?;
+        .wrap_err("activate global install")?;
         cleanup_replaced_global_installs(
             &global_pkg_dir,
             &global_bin_dir,
             std::slice::from_ref(pkg),
             &pkg.hash,
-            &published_bins,
+            &activated_bins,
             &protected,
         )
         .wrap_err("remove existing global installs")?;
@@ -600,7 +600,7 @@ struct ReplacedGlobalInstallCleanupError {
     cleanup_reports: Vec<ArtifactCleanupError>,
 }
 
-// Publication already succeeded when this runs, so every removal is
+// Activation already succeeded when this runs, so every removal is
 // attempted even after one fails; the failures are aggregated instead of
 // aborting the remaining cleanup.
 fn cleanup_replaced_global_installs(
@@ -608,13 +608,13 @@ fn cleanup_replaced_global_installs(
     global_bin_dir: &Path,
     groups: &[GlobalPackageInfo],
     active_hash: &str,
-    published_bins: &HashSet<String>,
+    activated_bins: &HashSet<String>,
     protected_bins: &HashSet<String>,
 ) -> miette::Result<()> {
     let mut cleanup_reports = Vec::new();
     for group in groups {
         for bin_name in get_installed_bin_names(group) {
-            if published_bins.contains(&bin_name) || protected_bins.contains(&bin_name) {
+            if activated_bins.contains(&bin_name) || protected_bins.contains(&bin_name) {
                 continue;
             }
             let bin_path = global_bin_dir.join(&bin_name);

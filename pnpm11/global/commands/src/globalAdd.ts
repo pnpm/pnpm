@@ -16,7 +16,7 @@ import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manage
 
 import { getBinNamesOfOtherGroups } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { cleanupReplacedGlobalInstalls, publishGlobalInstall } from './globalPublication.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
@@ -161,7 +161,7 @@ async function installGroup (
     registries: opts.registries,
   })
   const hashLink = getHashLink(globalDir, cacheHash)
-  const publishedBins = await publishGlobalInstall({
+  const activatedBins = await activateGlobalInstall({
     installDir,
     hashLink,
     globalBinDir,
@@ -173,7 +173,7 @@ async function installGroup (
     globalDir,
     globalBinDir,
     activeHash: cacheHash,
-    publishedBins,
+    activatedBins,
     protectedBins,
   })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)

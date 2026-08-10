@@ -11,7 +11,7 @@ const installGlobalPackages = jest.fn<(...args: unknown[]) => Promise<{ ignoredB
 const promptApproveGlobalBuilds = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
 const readInstalledPackages = jest.fn<() => Promise<[]>>().mockResolvedValue([])
 const summaryDebug = jest.fn()
-const publishGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['fresh']))
+const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['fresh']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
 
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
@@ -23,7 +23,7 @@ jest.unstable_mockModule('@pnpm/global.packages', () => ({
   scanGlobalPackages,
 }))
 jest.unstable_mockModule('../src/checkGlobalBinConflicts.js', () => ({ checkGlobalBinConflicts }))
-jest.unstable_mockModule('../src/globalPublication.js', () => ({ cleanupReplacedGlobalInstalls, publishGlobalInstall }))
+jest.unstable_mockModule('../src/globalActivation.js', () => ({ cleanupReplacedGlobalInstalls, activateGlobalInstall }))
 jest.unstable_mockModule('../src/installGlobalPackages.js', () => ({ installGlobalPackages }))
 jest.unstable_mockModule('../src/promptApproveGlobalBuilds.js', () => ({ promptApproveGlobalBuilds }))
 jest.unstable_mockModule('../src/readInstalledPackages.js', () => ({ readInstalledPackages }))
@@ -35,7 +35,7 @@ beforeEach(() => {
   checkGlobalBinConflicts.mockResolvedValue(new Set())
   cleanupReplacedGlobalInstalls.mockResolvedValue(undefined)
   getInstalledBinNames.mockResolvedValue([])
-  publishGlobalInstall.mockResolvedValue(new Set(['fresh']))
+  activateGlobalInstall.mockResolvedValue(new Set(['fresh']))
 })
 
 test('global update emits a single summary after updating all isolated groups', async () => {
@@ -85,14 +85,14 @@ test('global update emits a single summary after updating all isolated groups', 
     }),
     ['bar@^2.0.0']
   )
-  expect(publishGlobalInstall).toHaveBeenNthCalledWith(1, {
+  expect(activateGlobalInstall).toHaveBeenNthCalledWith(1, {
     installDir: '/global/v11/install-1',
     hashLink: '/global/v11/hash-foo',
     globalBinDir: '/global/bin',
     pkgs: [],
     binsToSkip: new Set(),
   })
-  expect(publishGlobalInstall).toHaveBeenNthCalledWith(2, {
+  expect(activateGlobalInstall).toHaveBeenNthCalledWith(2, {
     installDir: '/global/v11/install-2',
     hashLink: '/global/v11/hash-bar',
     globalBinDir: '/global/bin',
@@ -104,7 +104,7 @@ test('global update emits a single summary after updating all isolated groups', 
     globalDir: '/global/v11',
     globalBinDir: '/global/bin',
     activeHash: 'hash-foo',
-    publishedBins: new Set(['fresh']),
+    activatedBins: new Set(['fresh']),
     protectedBins: new Set(),
   })
   expect(cleanupReplacedGlobalInstalls).toHaveBeenNthCalledWith(2, {
@@ -112,11 +112,11 @@ test('global update emits a single summary after updating all isolated groups', 
     globalDir: '/global/v11',
     globalBinDir: '/global/bin',
     activeHash: 'hash-bar',
-    publishedBins: new Set(['fresh']),
+    activatedBins: new Set(['fresh']),
     protectedBins: new Set(),
   })
   for (const index of [0, 1]) {
-    expect(publishGlobalInstall.mock.invocationCallOrder[index]).toBeLessThan(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[index])
+    expect(activateGlobalInstall.mock.invocationCallOrder[index]).toBeLessThan(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[index])
     expect(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[index]).toBeLessThan(updateResolutionPolicyManifest.mock.invocationCallOrder[index])
   }
   expect(summaryDebug).toHaveBeenCalledTimes(1)
@@ -152,24 +152,24 @@ test('global update only updates interactively selected groups', async () => {
   )
 })
 
-test('global update does not clean up or persist policy when publication fails', async () => {
+test('global update does not clean up or persist policy when activation fails', async () => {
   const group = {
     dependencies: { foo: '^1.0.0' },
     hash: 'hash-foo',
     installDir: '/global/v11/old-foo',
   }
-  const publicationError = new Error('publication failed')
+  const activationError = new Error('activation failed')
   const updateResolutionPolicyManifest = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
   createInstallDir.mockReturnValue('/global/v11/install-1')
   getHashLink.mockReturnValue('/global/v11/hash-foo')
   scanGlobalPackages.mockReturnValue([group])
-  publishGlobalInstall.mockRejectedValue(publicationError)
+  activateGlobalInstall.mockRejectedValue(activationError)
 
   await expect(handleGlobalUpdate({
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
     updateResolutionPolicyManifest,
-  } as any, [], {})).rejects.toBe(publicationError) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {})).rejects.toBe(activationError) // eslint-disable-line @typescript-eslint/no-explicit-any
 
   expect(cleanupReplacedGlobalInstalls).not.toHaveBeenCalled()
   expect(updateResolutionPolicyManifest).not.toHaveBeenCalled()

@@ -12,8 +12,8 @@ use std::{
 };
 use tempfile::TempDir;
 
-pub(super) trait FsPublishHashLink {
-    fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()>;
+pub(super) trait FsSwapHashLink {
+    fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()>;
 }
 
 pub(super) trait FsRename {
@@ -24,9 +24,9 @@ pub(super) trait FsArtifactProbe {
     fn artifact_exists(path: &Path) -> io::Result<bool>;
 }
 
-impl FsPublishHashLink for Host {
-    fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()> {
-        swap_hash_link(target, link)
+impl FsSwapHashLink for Host {
+    fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+        swap_hash_link_atomically(target, link)
     }
 }
 
@@ -34,7 +34,7 @@ impl FsPublishHashLink for Host {
 /// so a concurrent command never observes it missing. Windows cannot
 /// rename over an existing junction, so there the replacement falls back
 /// to the non-atomic remove-and-recreate.
-fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+fn swap_hash_link_atomically(target: &Path, link: &Path) -> io::Result<()> {
     if cfg!(windows) {
         return pacquet_fs::force_symlink_dir(target, link).map(|_| ());
     }
@@ -81,7 +81,7 @@ impl FsArtifactProbe for Host {
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
-enum GlobalPublicationError {
+enum GlobalActivationError {
     #[display(
         "Cannot replace global bin slot at {}: expected a regular file or symbolic link",
         path.display()
@@ -90,7 +90,7 @@ enum GlobalPublicationError {
     UnsupportedType { path: PathBuf },
 
     #[display(
-        "Failed to restore global bins after publication failed. Recovery files remain at {}; the fresh install remains at {}. Rollback error: {rollback_error}",
+        "Failed to restore global bins after activation failed. Recovery files remain at {}; the fresh install remains at {}. Rollback error: {rollback_error}",
         backup_dir.display(),
         install_dir.display()
     )]
@@ -101,10 +101,10 @@ enum GlobalPublicationError {
         rollback_error: String,
         #[error(source)]
         #[diagnostic_source]
-        publication_error: Box<dyn Diagnostic + Send + Sync>,
+        activation_error: Box<dyn Diagnostic + Send + Sync>,
     },
 
-    #[display("Failed to clean up after global bin publication failed.{remaining_artifacts}")]
+    #[display("Failed to clean up after global bin activation failed.{remaining_artifacts}")]
     RollbackCleanupFailed {
         remaining_artifacts: String,
         #[error(not(source))]
@@ -112,7 +112,7 @@ enum GlobalPublicationError {
         cleanup_reports: Vec<ArtifactCleanupError>,
         #[error(source)]
         #[diagnostic_source]
-        publication_error: Box<dyn Diagnostic + Send + Sync>,
+        activation_error: Box<dyn Diagnostic + Send + Sync>,
     },
 }
 
@@ -147,7 +147,7 @@ struct PreparedGlobalInstall {
     old_hash_target: Option<PathBuf>,
 }
 
-pub(super) fn publish_global_install<Sys>(
+pub(super) fn activate_global_install<Sys>(
     install_dir: &Path,
     hash_link: &Path,
     global_bin_dir: &Path,
@@ -156,7 +156,7 @@ pub(super) fn publish_global_install<Sys>(
     link_bins: impl FnOnce() -> miette::Result<()>,
 ) -> miette::Result<HashSet<String>>
 where
-    Sys: FsWalkFiles + FsPublishHashLink + FsRename + FsArtifactProbe,
+    Sys: FsWalkFiles + FsSwapHashLink + FsRename + FsArtifactProbe,
 {
     let prepared = prepare_global_install::<Sys>(
         install_dir,
@@ -165,24 +165,24 @@ where
         packages,
         bins_to_skip,
     )?;
-    let publication_result = publish_prepared_global_install::<Sys>(
+    let activation_result = activate_prepared_global_install::<Sys>(
         install_dir,
         hash_link,
         global_bin_dir,
         link_bins,
         &prepared.actual_bins,
     );
-    if let Err(publication_error) = publication_result {
+    if let Err(activation_error) = activation_result {
         if let Err(rollback_error) =
             restore_global_install::<Sys>(hash_link, global_bin_dir, &prepared)
         {
             let backup_dir = prepared.backup_dir.path().to_path_buf();
             let _ = prepared.backup_dir.keep();
-            return Err(GlobalPublicationError::RollbackFailed {
+            return Err(GlobalActivationError::RollbackFailed {
                 backup_dir,
                 install_dir: install_dir.to_path_buf(),
                 rollback_error: format!("{rollback_error:?}"),
-                publication_error: publication_error.into(),
+                activation_error: activation_error.into(),
             }
             .into());
         }
@@ -191,24 +191,24 @@ where
             let remaining_artifacts =
                 remaining_rollback_artifacts::<Sys>(install_dir, &prepared, &mut cleanup_errors);
             let _ = prepared.backup_dir.keep();
-            return Err(GlobalPublicationError::RollbackCleanupFailed {
+            return Err(GlobalActivationError::RollbackCleanupFailed {
                 remaining_artifacts,
                 cleanup_reports: cleanup_errors,
-                publication_error: publication_error.into(),
+                activation_error: activation_error.into(),
             }
             .into());
         }
-        return Err(publication_error);
+        return Err(activation_error);
     }
 
     let PreparedGlobalInstall { actual_bin_names, backup_dir, .. } = prepared;
-    // Publication is already committed, so a leftover backup directory must
+    // Activation is already committed, so a leftover backup directory must
     // not fail the command.
     let _ = backup_dir.close();
     Ok(actual_bin_names)
 }
 
-fn publish_prepared_global_install<Sys: FsPublishHashLink>(
+fn activate_prepared_global_install<Sys: FsSwapHashLink>(
     install_dir: &Path,
     hash_link: &Path,
     global_bin_dir: &Path,
@@ -220,7 +220,7 @@ fn publish_prepared_global_install<Sys: FsPublishHashLink>(
     // running the new install here, in one step. Linking afterwards only
     // has to write the shims whose target actually changed, which for an
     // update of the same commands is none of them.
-    Sys::publish_hash_link(install_dir, hash_link).into_diagnostic().wrap_err_with(|| {
+    Sys::swap_hash_link(install_dir, hash_link).into_diagnostic().wrap_err_with(|| {
         format!("link the global package install directory at {}", hash_link.display())
     })?;
     link_bins().wrap_err("link global package bins")?;
@@ -272,7 +272,7 @@ fn restore_global_install<Sys>(
     prepared: &PreparedGlobalInstall,
 ) -> miette::Result<()>
 where
-    Sys: FsPublishHashLink + FsRename,
+    Sys: FsSwapHashLink + FsRename,
 {
     remove_current_bin_slots(
         global_bin_dir,
@@ -291,9 +291,9 @@ where
             })?;
     }
     if let Some(old_hash_target) = &prepared.old_hash_target {
-        Sys::publish_hash_link(old_hash_target, hash_link).into_diagnostic().wrap_err_with(
-            || format!("restore global package hash link at {}", hash_link.display()),
-        )?;
+        Sys::swap_hash_link(old_hash_target, hash_link).into_diagnostic().wrap_err_with(|| {
+            format!("restore global package hash link at {}", hash_link.display())
+        })?;
     } else {
         match remove_symlink_dir(hash_link) {
             Ok(()) => {}
@@ -465,7 +465,7 @@ fn cleanup_failed_preparation<Value>(
         return Err(preparation_error);
     }
     Err(preparation_error.wrap_err(format!(
-        "Failed to clean up after global bin publication preparation failed: {}",
+        "Failed to clean up after global bin activation preparation failed: {}",
         cleanup_errors.join("; "),
     )))
 }
@@ -532,7 +532,7 @@ fn backup_bin_slot(original: PathBuf, backup: PathBuf) -> miette::Result<Option<
         }
     };
     let kind = bin_slot_kind(&metadata)
-        .ok_or_else(|| GlobalPublicationError::UnsupportedType { path: original.clone() })?;
+        .ok_or_else(|| GlobalActivationError::UnsupportedType { path: original.clone() })?;
     match kind {
         BinSlotKind::FileSymlink | BinSlotKind::DirectorySymlink => {
             backup_symlink(&original, &backup, kind).into_diagnostic().wrap_err_with(|| {

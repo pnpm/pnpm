@@ -14,7 +14,7 @@ type SymlinkDir = typeof import('symlink-dir').symlinkDir
 
 let testRoot: string | undefined
 let linkFailure: { afterWrites: number, error: Error } | undefined
-let publicationLinkFailure: Error | undefined
+let activationLinkFailure: Error | undefined
 let restorationLinkFailure: Error | undefined
 let freshCleanupFailure: { path: string, error: Error } | undefined
 let removeBinFailure: { name: string, error: Error } | undefined
@@ -24,7 +24,7 @@ let skipMissingBinSources = false
 let symlinkCallCount = 0
 const linkedBinNames: string[] = []
 const backupSymlinkTypes: Array<string | null | undefined> = []
-const publicationBackupFileContents: Buffer[] = []
+const activationBackupFileContents: Buffer[] = []
 const getHashLink = jest.fn((globalDir: string, hash: string) => path.join(globalDir, hash))
 const getInstalledBinNames = jest.fn<(pkg: GlobalPackageInfo) => Promise<string[]>>()
 const realRm = fs.rm.bind(fs)
@@ -81,14 +81,14 @@ const removeBin = jest.fn<RemoveBin>(async (cmd) => {
   await Promise.all(extensions.map(async (extension) => fs.rm(`${cmd}${extension}`, { force: true, recursive: true })))
 })
 
-// Both the publication swap and the rollback swap go through this; the
+// Both the activation swap and the rollback swap go through this; the
 // call order decides which injected failure fires.
 async function onHashLinkSwap (): Promise<void> {
   symlinkCallCount++
   if (symlinkCallCount === 1) {
-    if (testRoot == null) throw new Error('Expected a publication fixture before linking the hash directory')
+    if (testRoot == null) throw new Error('Expected a activation fixture before linking the hash directory')
     const backupDirs = await findBackupDirs(testRoot)
-    publicationBackupFileContents.push(...(await Promise.all(backupDirs.map(readRegularFileContents))).flat())
+    activationBackupFileContents.push(...(await Promise.all(backupDirs.map(readRegularFileContents))).flat())
     if (obstructBackupCleanup) {
       const [backupDir] = backupDirs
       if (backupDir == null) throw new Error('Expected a global bin backup directory')
@@ -98,8 +98,8 @@ async function onHashLinkSwap (): Promise<void> {
   if (symlinkCallCount === 2 && restorationLinkFailure != null) {
     throw restorationLinkFailure
   }
-  if (symlinkCallCount === 1 && publicationLinkFailure != null) {
-    throw publicationLinkFailure
+  if (symlinkCallCount === 1 && activationLinkFailure != null) {
+    throw activationLinkFailure
   }
 }
 
@@ -127,7 +127,7 @@ jest.unstable_mockModule('@pnpm/bins.remover', () => ({ removeBin }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({ getHashLink, getInstalledBinNames }))
 jest.unstable_mockModule('symlink-dir', () => ({ symlinkDir }))
 
-const { cleanupReplacedGlobalInstalls, publishGlobalInstall } = await import('../src/globalPublication.js')
+const { cleanupReplacedGlobalInstalls, activateGlobalInstall } = await import('../src/globalActivation.js')
 
 afterEach(async () => {
   const root = testRoot
@@ -137,7 +137,7 @@ afterEach(async () => {
     if (root != null) await fs.rm(root, { force: true, recursive: true })
   } finally {
     linkFailure = undefined
-    publicationLinkFailure = undefined
+    activationLinkFailure = undefined
     restorationLinkFailure = undefined
     backupRemovalFailure = undefined
     obstructBackupCleanup = false
@@ -146,7 +146,7 @@ afterEach(async () => {
     symlinkCallCount = 0
     backupSymlinkTypes.length = 0
     linkedBinNames.length = 0
-    publicationBackupFileContents.length = 0
+    activationBackupFileContents.length = 0
     getHashLink.mockClear()
     getInstalledBinNames.mockReset()
     linkBinsOfPackages.mockClear()
@@ -177,16 +177,16 @@ test('restores exact bin slots when linking fails after a partial write', async 
   await fs.chmod(linkedTarget, 0o754)
   const linkedBefore = await seedSymlinkOrRegularFile(linkedSlot, linkedTarget)
 
-  const publicationError = new Error('linker stopped after one write')
-  linkFailure = { afterWrites: 1, error: publicationError }
+  const activationError = new Error('linker stopped after one write')
+  linkFailure = { afterWrites: 1, error: activationError }
 
-  await expect(publishGlobalInstall({
+  await expect(activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(),
-  })).rejects.toBe(publicationError)
+  })).rejects.toBe(activationError)
 
   expect(linkedBinNames).toStrictEqual(['executable'])
   expect(await readSlotState(executableSlot)).toStrictEqual(executableBefore)
@@ -203,7 +203,7 @@ test('restores exact bin slots when linking fails after a partial write', async 
   expect(await findBackupDirs(fixture.root)).toStrictEqual([])
 })
 
-test('leaves skipped bins untouched when hash-link publication fails', async () => {
+test('leaves skipped bins untouched when hash-link activation fails', async () => {
   const manifest: DependencyManifest = {
     name: 'replacement',
     version: '2.0.0',
@@ -223,24 +223,24 @@ test('leaves skipped bins untouched when hash-link publication fails', async () 
   await fs.writeFile(sharedSlot, skippedSharedBytes)
   await fs.chmod(sharedSlot, 0o740)
   const sharedBefore = await readSlotState(sharedSlot)
-  const publicationError = new Error('hash-link publication failed')
-  publicationLinkFailure = publicationError
+  const activationError = new Error('hash-link activation failed')
+  activationLinkFailure = activationError
 
-  await expect(publishGlobalInstall({
+  await expect(activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(['shared']),
-  })).rejects.toBe(publicationError)
+  })).rejects.toBe(activationError)
 
   // The hash link is the switch-over, so a failure there aborts before any
   // bin is linked.
   expect(linkedBinNames).toStrictEqual([])
   expect(await readSlotState(replacementSlot)).toStrictEqual(replacementBefore)
   expect(await readSlotState(sharedSlot)).toStrictEqual(sharedBefore)
-  expect(publicationBackupFileContents).toContainEqual(oldReplacementBytes)
-  expect(publicationBackupFileContents).not.toContainEqual(skippedSharedBytes)
+  expect(activationBackupFileContents).toContainEqual(oldReplacementBytes)
+  expect(activationBackupFileContents).not.toContainEqual(skippedSharedBytes)
   expect(removeBin).toHaveBeenCalledWith(replacementSlot)
   expect(removeBin).not.toHaveBeenCalledWith(sharedSlot)
   expect(symlinkCallCount).toBe(2)
@@ -263,13 +263,13 @@ test('keeps recovery artifacts when rollback fails', async () => {
   await fs.writeFile(replacementSlot, 'old replacement\n')
   await fs.chmod(replacementSlot, 0o750)
   const replacementBefore = await readSlotState(replacementSlot)
-  const publicationError = new Error('hash-link publication failed')
-  publicationLinkFailure = publicationError
+  const activationError = new Error('hash-link activation failed')
+  activationLinkFailure = activationError
   restorationLinkFailure = new Error('hash-link restoration failed')
 
   let thrown: unknown
   try {
-    await publishGlobalInstall({
+    await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
       globalBinDir: fixture.globalBinDir,
@@ -281,11 +281,11 @@ test('keeps recovery artifacts when rollback fails', async () => {
   }
 
   expect(util.types.isNativeError(thrown)).toBe(true)
-  if (!util.types.isNativeError(thrown)) throw new Error('Expected publishGlobalInstall to throw a native error')
+  if (!util.types.isNativeError(thrown)) throw new Error('Expected activateGlobalInstall to throw a native error')
   expect(thrown).toMatchObject({
     code: 'ERR_PNPM_GLOBAL_BIN_ROLLBACK_FAILED',
   })
-  expect(thrown.cause).toBe(publicationError)
+  expect(thrown.cause).toBe(activationError)
   expect(await readSlotState(replacementSlot)).toStrictEqual(replacementBefore)
   const backupDirs = await findBackupDirs(fixture.root)
   expect(backupDirs).toHaveLength(1)
@@ -318,16 +318,16 @@ test('preserves Windows file and directory symlink kinds with relative targets',
     const dirLink = path.join(fixture.globalBinDir, 'dir-link')
     if (!await seedSymlinkOrSkip(fileTarget, fileLink, 'file')) return
     if (!await seedSymlinkOrSkip(dirTarget, dirLink, 'dir')) return
-    const publicationError = new Error('hash-link publication failed')
-    publicationLinkFailure = publicationError
+    const activationError = new Error('hash-link activation failed')
+    activationLinkFailure = activationError
 
-    await expect(publishGlobalInstall({
+    await expect(activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
       globalBinDir: fixture.globalBinDir,
       pkgs: [{ manifest, location: fixture.packageDir }],
       binsToSkip: new Set(),
-    })).rejects.toBe(publicationError)
+    })).rejects.toBe(activationError)
 
     expect(backupSymlinkTypes).toHaveLength(2)
     expect(new Set(backupSymlinkTypes)).toStrictEqual(new Set(['file', 'dir']))
@@ -350,7 +350,7 @@ test('links bins through the hash link, and moves it before linking', async () =
   }
   const fixture = await createFixture(manifest)
 
-  await publishGlobalInstall({
+  await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
     globalBinDir: fixture.globalBinDir,
@@ -368,7 +368,7 @@ test('links bins through the hash link, and moves it before linking', async () =
   expect(symlinkCallCount).toBe(1)
 })
 
-test('publishes into a global bin directory that does not exist yet', async () => {
+test('activates into a global bin directory that does not exist yet', async () => {
   const manifest: DependencyManifest = {
     name: 'replacement',
     version: '2.0.0',
@@ -379,7 +379,7 @@ test('publishes into a global bin directory that does not exist yet', async () =
   const fixture = await createFixture(manifest)
   await fs.rm(fixture.globalBinDir, { recursive: true })
 
-  const publishedBins = await publishGlobalInstall({
+  const activatedBins = await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
     globalBinDir: fixture.globalBinDir,
@@ -387,13 +387,13 @@ test('publishes into a global bin directory that does not exist yet', async () =
     binsToSkip: new Set(),
   })
 
-  expect(publishedBins).toStrictEqual(new Set(['tool']))
+  expect(activatedBins).toStrictEqual(new Set(['tool']))
   expect(await fs.readFile(path.join(fixture.globalBinDir, 'tool'), 'utf8')).toBe('fresh tool\n')
   expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.freshInstallDir))
   expect(await findBackupDirs(fixture.root)).toStrictEqual([])
 })
 
-test('succeeds when removing the backup directory fails after publication', async () => {
+test('succeeds when removing the backup directory fails after activation', async () => {
   const manifest: DependencyManifest = {
     name: 'replacement',
     version: '2.0.0',
@@ -406,7 +406,7 @@ test('succeeds when removing the backup directory fails after publication', asyn
   await fs.writeFile(toolSlot, 'old tool\n')
   backupRemovalFailure = new Error('backup directory removal failed')
 
-  const publishedBins = await publishGlobalInstall({
+  const activatedBins = await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
     globalBinDir: fixture.globalBinDir,
@@ -414,13 +414,13 @@ test('succeeds when removing the backup directory fails after publication', asyn
     binsToSkip: new Set(),
   })
 
-  expect(publishedBins).toStrictEqual(new Set(['tool']))
+  expect(activatedBins).toStrictEqual(new Set(['tool']))
   expect(await fs.readFile(toolSlot, 'utf8')).toBe('fresh tool\n')
   expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.freshInstallDir))
   expect(await findBackupDirs(fixture.root)).toHaveLength(1)
 })
 
-test('publishes when a Windows bin slot is a dangling symlink', async () => {
+test('activates when a Windows bin slot is a dangling symlink', async () => {
   const platform = Object.getOwnPropertyDescriptor(process, 'platform')
   if (platform == null) throw new Error('Expected process.platform to be an own property')
   Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
@@ -436,7 +436,7 @@ test('publishes when a Windows bin slot is a dangling symlink', async () => {
     const toolSlot = path.join(fixture.globalBinDir, 'tool')
     if (!await seedSymlinkOrSkip(path.join(fixture.oldInstallDir, 'missing-target.js'), toolSlot, 'file')) return
 
-    const publishedBins = await publishGlobalInstall({
+    const activatedBins = await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
       globalBinDir: fixture.globalBinDir,
@@ -444,7 +444,7 @@ test('publishes when a Windows bin slot is a dangling symlink', async () => {
       binsToSkip: new Set(),
     })
 
-    expect(publishedBins).toStrictEqual(new Set(['tool']))
+    expect(activatedBins).toStrictEqual(new Set(['tool']))
     expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.freshInstallDir))
     expect(await findBackupDirs(fixture.root)).toStrictEqual([])
   } finally {
@@ -464,7 +464,7 @@ test('rejects an unsupported bin slot type and cleans up preparation artifacts',
   const toolSlot = path.join(fixture.globalBinDir, 'tool')
   await fs.mkdir(toolSlot)
 
-  await expect(publishGlobalInstall({
+  await expect(activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
     globalBinDir: fixture.globalBinDir,
@@ -493,14 +493,14 @@ test('reports fresh-install cleanup failure without claiming a core rollback fai
   const replacementSlot = path.join(fixture.globalBinDir, 'replacement')
   await fs.writeFile(replacementSlot, 'old replacement\n')
   const replacementBefore = await readSlotState(replacementSlot)
-  const publicationError = new Error('hash-link publication failed')
+  const activationError = new Error('hash-link activation failed')
   const cleanupError = new Error('fresh-install cleanup failed')
-  publicationLinkFailure = publicationError
+  activationLinkFailure = activationError
   freshCleanupFailure = { path: fixture.freshInstallDir, error: cleanupError }
 
   let thrown: unknown
   try {
-    await publishGlobalInstall({
+    await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
       globalBinDir: fixture.globalBinDir,
@@ -517,8 +517,8 @@ test('reports fresh-install cleanup failure without claiming a core rollback fai
   }
   expect(thrown.name).toBe('AggregateError')
   expect('code' in thrown ? thrown.code : undefined).toBeUndefined()
-  expect(thrown.cause).toBe(publicationError)
-  expect(thrown.errors).toEqual(expect.arrayContaining([publicationError, cleanupError]))
+  expect(thrown.cause).toBe(activationError)
+  expect(thrown.errors).toEqual(expect.arrayContaining([activationError, cleanupError]))
   expect(thrown.message).toContain(fixture.freshInstallDir)
   expect(await readSlotState(replacementSlot)).toStrictEqual(replacementBefore)
   expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.oldInstallDir))
@@ -538,13 +538,13 @@ test('reports backup cleanup failure after restoring bins and removes the fresh 
   const replacementSlot = path.join(fixture.globalBinDir, 'replacement')
   await fs.writeFile(replacementSlot, 'old replacement\n')
   const replacementBefore = await readSlotState(replacementSlot)
-  const publicationError = new Error('hash-link publication failed')
-  publicationLinkFailure = publicationError
+  const activationError = new Error('hash-link activation failed')
+  activationLinkFailure = activationError
   obstructBackupCleanup = true
 
   let thrown: unknown
   try {
-    await publishGlobalInstall({
+    await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
       globalBinDir: fixture.globalBinDir,
@@ -561,8 +561,8 @@ test('reports backup cleanup failure after restoring bins and removes the fresh 
   }
   expect(thrown.name).toBe('AggregateError')
   expect('code' in thrown ? thrown.code : undefined).toBeUndefined()
-  expect(thrown.cause).toBe(publicationError)
-  expect(thrown.errors).toContain(publicationError)
+  expect(thrown.cause).toBe(activationError)
+  expect(thrown.errors).toContain(activationError)
   const backupDirs = await findBackupDirs(fixture.root)
   expect(backupDirs).toHaveLength(1)
   expect(thrown.message).toContain(backupDirs[0])
@@ -583,15 +583,15 @@ test('preserves both cleanup errors when backup and fresh-install cleanup fail',
   const fixture = await createFixture(manifest)
   const replacementSlot = path.join(fixture.globalBinDir, 'replacement')
   await fs.writeFile(replacementSlot, 'old replacement\n')
-  const publicationError = new Error('hash-link publication failed')
+  const activationError = new Error('hash-link activation failed')
   const freshCleanupError = new Error('fresh-install cleanup failed')
-  publicationLinkFailure = publicationError
+  activationLinkFailure = activationError
   obstructBackupCleanup = true
   freshCleanupFailure = { path: fixture.freshInstallDir, error: freshCleanupError }
 
   let thrown: unknown
   try {
-    await publishGlobalInstall({
+    await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
       globalBinDir: fixture.globalBinDir,
@@ -608,9 +608,9 @@ test('preserves both cleanup errors when backup and fresh-install cleanup fail',
   }
   expect(thrown.name).toBe('AggregateError')
   expect(thrown.errors).toHaveLength(3)
-  expect(thrown.errors).toEqual(expect.arrayContaining([publicationError, freshCleanupError]))
+  expect(thrown.errors).toEqual(expect.arrayContaining([activationError, freshCleanupError]))
   const backupCleanupErrors = thrown.errors.filter((error) => {
-    return error !== publicationError && error !== freshCleanupError
+    return error !== activationError && error !== freshCleanupError
   })
   expect(backupCleanupErrors).toHaveLength(1)
   expect(util.types.isNativeError(backupCleanupErrors[0])).toBe(true)
@@ -637,7 +637,7 @@ test('removes an old bin slot when the linker skips a missing source', async () 
   skipMissingBinSources = true
   getInstalledBinNames.mockResolvedValue(['tool'])
 
-  const publishedBins = await publishGlobalInstall({
+  const activatedBins = await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
     globalBinDir: fixture.globalBinDir,
@@ -653,36 +653,36 @@ test('removes an old bin slot when the linker skips a missing source', async () 
     globalDir: fixture.root,
     globalBinDir: fixture.globalBinDir,
     activeHash: 'hash-link',
-    publishedBins,
+    activatedBins,
     protectedBins: new Set(),
   })
 
-  expect(publishedBins).toStrictEqual(new Set(['tool']))
+  expect(activatedBins).toStrictEqual(new Set(['tool']))
   await expect(fs.lstat(toolSlot)).rejects.toMatchObject({ code: 'ENOENT' })
   expect(existsSync(fixture.oldInstallDir)).toBe(false)
   expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.freshInstallDir))
 })
 
-test('preserves bin slots owned by the published and surviving groups', async () => {
+test('preserves bin slots owned by the activated and surviving groups', async () => {
   const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
-  const publishedSlot = path.join(globalBinDir, 'published')
+  const activatedSlot = path.join(globalBinDir, 'activated')
   const protectedSlot = path.join(globalBinDir, 'protected')
   await Promise.all([
-    fs.writeFile(publishedSlot, 'published\n'),
+    fs.writeFile(activatedSlot, 'activated\n'),
     fs.writeFile(protectedSlot, 'protected\n'),
   ])
-  getInstalledBinNames.mockResolvedValue(['published', 'protected'])
+  getInstalledBinNames.mockResolvedValue(['activated', 'protected'])
 
   await cleanupReplacedGlobalInstalls({
     groups: [{ dependencies: { old: '1.0.0' }, hash: 'active-hash', installDir: oldInstallDir }],
     globalDir,
     globalBinDir,
     activeHash: 'active-hash',
-    publishedBins: new Set(['published']),
+    activatedBins: new Set(['activated']),
     protectedBins: new Set(['protected']),
   })
 
-  expect(await fs.readFile(publishedSlot, 'utf8')).toBe('published\n')
+  expect(await fs.readFile(activatedSlot, 'utf8')).toBe('activated\n')
   expect(await fs.readFile(protectedSlot, 'utf8')).toBe('protected\n')
 })
 
@@ -701,7 +701,7 @@ test('removes stale bins and the old install without removing the active hash li
     globalDir,
     globalBinDir,
     activeHash: 'active-hash',
-    publishedBins: new Set(),
+    activatedBins: new Set(),
     protectedBins: new Set(),
   })
 
@@ -723,7 +723,7 @@ test('does not delete an install directory outside the global directory', async 
     globalDir,
     globalBinDir,
     activeHash: 'active-hash',
-    publishedBins: new Set(),
+    activatedBins: new Set(),
     protectedBins: new Set(),
   })
 
@@ -742,7 +742,7 @@ test('keeps a replaced group whose bin names cannot be enumerated', async () => 
     globalDir,
     globalBinDir,
     activeHash: 'active-hash',
-    publishedBins: new Set(),
+    activatedBins: new Set(),
     protectedBins: new Set(),
   })).rejects.toBe(enumerationError)
 
@@ -767,7 +767,7 @@ test('cleanup continues past a failed bin removal and reports the error', async 
     globalDir,
     globalBinDir,
     activeHash: 'active-hash',
-    publishedBins: new Set(),
+    activatedBins: new Set(),
     protectedBins: new Set(),
   })).rejects.toBe(removalError)
 
@@ -775,7 +775,7 @@ test('cleanup continues past a failed bin removal and reports the error', async 
   expect(existsSync(oldInstallDir)).toBe(false)
 })
 
-interface PublicationFixture {
+interface ActivationFixture {
   root: string
   globalBinDir: string
   oldInstallDir: string
@@ -788,11 +788,11 @@ type SlotState =
   | { kind: 'file', bytes: Buffer, mode: number }
   | { kind: 'symlink', target: string, mode: number }
 
-async function createFixture (manifest: DependencyManifest): Promise<PublicationFixture> {
+async function createFixture (manifest: DependencyManifest): Promise<ActivationFixture> {
   if (typeof manifest.bin !== 'object' || manifest.bin == null) {
-    throw new Error('The publication fixture requires an explicit bin map')
+    throw new Error('The activation fixture requires an explicit bin map')
   }
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-global-publication-'))
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-global-activation-'))
   testRoot = root
   const globalBinDir = path.join(root, 'global-bin')
   const oldInstallDir = path.join(root, 'old-install')

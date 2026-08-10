@@ -1,7 +1,7 @@
 use super::{
-    super::cleanup_replaced_global_installs, BinSlotKind, FsArtifactProbe, FsPublishHashLink,
-    FsRename, SavedBinSlot, directory_symlink_slots, hash_linked_packages,
-    needs_directory_symlink_removal, publish_global_install,
+    super::cleanup_replaced_global_installs, BinSlotKind, FsArtifactProbe, FsRename,
+    FsSwapHashLink, SavedBinSlot, activate_global_install, directory_symlink_slots,
+    hash_linked_packages, needs_directory_symlink_removal,
 };
 use pacquet_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
@@ -78,29 +78,29 @@ static HASH_FAILURE_CALLS: AtomicUsize = AtomicUsize::new(0);
 static RENAME_FAILURE_HASH_CALLS: AtomicUsize = AtomicUsize::new(0);
 static BACKUP_CLEANUP_HASH_CALLS: AtomicUsize = AtomicUsize::new(0);
 static ARTIFACT_PROBE_CALLS: AtomicUsize = AtomicUsize::new(0);
-static PUBLICATION_CALLS: AtomicUsize = AtomicUsize::new(0);
+static ACTIVATION_CALLS: AtomicUsize = AtomicUsize::new(0);
 static HASH_FAILURE_LOCK: Mutex<()> = Mutex::new(());
 static BACKUP_CLEANUP_LOCK: Mutex<()> = Mutex::new(());
 
 struct PartialWriteFailure;
-struct HashPublicationFailure;
+struct HashSwapFailure;
 struct RenameRollbackFailure;
 struct BackupCleanupFailure;
 struct ArtifactProbeFailure;
-struct TrackingPublication;
+struct TrackingActivation;
 
 delegate_cmd_shim_capabilities!(PartialWriteFailure);
-delegate_cmd_shim_capabilities!(HashPublicationFailure);
+delegate_cmd_shim_capabilities!(HashSwapFailure);
 delegate_cmd_shim_capabilities!(RenameRollbackFailure);
 delegate_cmd_shim_capabilities!(BackupCleanupFailure);
 delegate_cmd_shim_capabilities!(ArtifactProbeFailure);
-delegate_cmd_shim_capabilities!(TrackingPublication);
+delegate_cmd_shim_capabilities!(TrackingActivation);
 delegate_artifact_probe!(
     PartialWriteFailure,
-    HashPublicationFailure,
+    HashSwapFailure,
     RenameRollbackFailure,
     BackupCleanupFailure,
-    TrackingPublication,
+    TrackingActivation,
 );
 
 impl FsWrite for PartialWriteFailure {
@@ -112,9 +112,9 @@ impl FsWrite for PartialWriteFailure {
     }
 }
 
-impl FsPublishHashLink for PartialWriteFailure {
-    fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()> {
-        <Host as FsPublishHashLink>::publish_hash_link(target, link)
+impl FsSwapHashLink for PartialWriteFailure {
+    fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+        <Host as FsSwapHashLink>::swap_hash_link(target, link)
     }
 }
 
@@ -124,25 +124,25 @@ impl FsRename for PartialWriteFailure {
     }
 }
 
-impl FsWrite for HashPublicationFailure {
+impl FsWrite for HashSwapFailure {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         <Host as FsWrite>::write(path, bytes)
     }
 }
 
-impl FsPublishHashLink for HashPublicationFailure {
-    fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+impl FsSwapHashLink for HashSwapFailure {
+    fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()> {
         if HASH_FAILURE_CALLS.fetch_add(1, Ordering::SeqCst) == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
-                "injected hash publication failure",
+                "injected hash swap failure",
             ));
         }
-        <Host as FsPublishHashLink>::publish_hash_link(target, link)
+        <Host as FsSwapHashLink>::swap_hash_link(target, link)
     }
 }
 
-impl FsRename for HashPublicationFailure {
+impl FsRename for HashSwapFailure {
     fn rename(source: &Path, target: &Path) -> io::Result<()> {
         <Host as FsRename>::rename(source, target)
     }
@@ -154,12 +154,12 @@ impl FsWrite for RenameRollbackFailure {
     }
 }
 
-impl FsPublishHashLink for RenameRollbackFailure {
-    fn publish_hash_link(_target: &Path, _link: &Path) -> io::Result<()> {
+impl FsSwapHashLink for RenameRollbackFailure {
+    fn swap_hash_link(_target: &Path, _link: &Path) -> io::Result<()> {
         if RENAME_FAILURE_HASH_CALLS.fetch_add(1, Ordering::SeqCst) == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
-                "injected hash publication failure",
+                "injected hash swap failure",
             ));
         }
         panic!("hash restoration must not run after backup rename fails")
@@ -201,16 +201,16 @@ fn block_backup_cleanup() -> io::Result<()> {
     Ok(())
 }
 
-impl FsPublishHashLink for BackupCleanupFailure {
-    fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+impl FsSwapHashLink for BackupCleanupFailure {
+    fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()> {
         if BACKUP_CLEANUP_HASH_CALLS.fetch_add(1, Ordering::SeqCst) == 0 {
             block_backup_cleanup()?;
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
-                "injected hash publication failure",
+                "injected hash swap failure",
             ));
         }
-        <Host as FsPublishHashLink>::publish_hash_link(target, link)
+        <Host as FsSwapHashLink>::swap_hash_link(target, link)
     }
 }
 
@@ -226,9 +226,9 @@ impl FsWrite for ArtifactProbeFailure {
     }
 }
 
-impl FsPublishHashLink for ArtifactProbeFailure {
-    fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()> {
-        <BackupCleanupFailure as FsPublishHashLink>::publish_hash_link(target, link)
+impl FsSwapHashLink for ArtifactProbeFailure {
+    fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+        <BackupCleanupFailure as FsSwapHashLink>::swap_hash_link(target, link)
     }
 }
 
@@ -250,20 +250,20 @@ impl FsArtifactProbe for ArtifactProbeFailure {
     }
 }
 
-impl FsWrite for TrackingPublication {
+impl FsWrite for TrackingActivation {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         <Host as FsWrite>::write(path, bytes)
     }
 }
 
-impl FsPublishHashLink for TrackingPublication {
-    fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()> {
-        PUBLICATION_CALLS.fetch_add(1, Ordering::SeqCst);
-        <Host as FsPublishHashLink>::publish_hash_link(target, link)
+impl FsSwapHashLink for TrackingActivation {
+    fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+        ACTIVATION_CALLS.fetch_add(1, Ordering::SeqCst);
+        <Host as FsSwapHashLink>::swap_hash_link(target, link)
     }
 }
 
-impl FsRename for TrackingPublication {
+impl FsRename for TrackingActivation {
     fn rename(source: &Path, target: &Path) -> io::Result<()> {
         <Host as FsRename>::rename(source, target)
     }
@@ -289,10 +289,10 @@ fn packages_are_addressed_through_the_hash_link() {
 }
 
 #[test]
-fn the_hash_link_is_published_before_the_bins_are_linked() {
-    let fixture = PublicationFixture::new(&["tool"]);
+fn the_hash_link_is_swapped_before_the_bins_are_linked() {
+    let fixture = ActivationFixture::new(&["tool"]);
 
-    publish_global_install::<Host>(
+    activate_global_install::<Host>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
@@ -307,7 +307,7 @@ fn the_hash_link_is_published_before_the_bins_are_linked() {
             Ok(())
         },
     )
-    .expect("publish global install");
+    .expect("activate global install");
 }
 
 #[test]
@@ -344,12 +344,12 @@ fn directory_removal_uses_the_current_slot_kind() {
 #[test]
 fn partial_shim_failure_restores_exact_slots_and_hash_target() {
     PARTIAL_WRITE_CALLS.store(0, Ordering::SeqCst);
-    let fixture = PublicationFixture::new(&["first", "second", "shared"]);
+    let fixture = ActivationFixture::new(&["first", "second", "shared"]);
     let first = fixture.seed_file_slot("first", b"old first\n", 0o751);
     let second = fixture.seed_link_or_file_slot("second");
     let shared = fixture.seed_file_slot("shared", b"other owner\n", 0o740);
 
-    let error = publish_global_install::<PartialWriteFailure>(
+    let error = activate_global_install::<PartialWriteFailure>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
@@ -363,7 +363,7 @@ fn partial_shim_failure_restores_exact_slots_and_hash_target() {
             )
         },
     )
-    .expect_err("the injected shim write must fail publication");
+    .expect_err("the injected shim write must fail activation");
 
     assert!(format!("{error:?}").contains("injected shim write failure"));
     assert_eq!(slot_state(&fixture.global_bin_dir.join("first")), first);
@@ -376,32 +376,32 @@ fn partial_shim_failure_restores_exact_slots_and_hash_target() {
 }
 
 #[test]
-fn hash_publication_failure_restores_bins_and_hash_target() {
+fn hash_swap_failure_restores_bins_and_hash_target() {
     let _guard = hash_failure_guard();
     HASH_FAILURE_CALLS.store(0, Ordering::SeqCst);
-    let fixture = PublicationFixture::new(&["tool"]);
+    let fixture = ActivationFixture::new(&["tool"]);
     let tool = fixture.seed_file_slot("tool", b"old tool\n", 0o750);
     assert!(
         !read_symlink_dir(&fixture.hash_link).expect("read relative hash target").is_absolute(),
     );
 
-    let error = publish_global_install::<HashPublicationFailure>(
+    let error = activate_global_install::<HashSwapFailure>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
         &fixture.packages,
         &HashSet::new(),
         || {
-            test_link_bins::<HashPublicationFailure>(
+            test_link_bins::<HashSwapFailure>(
                 &fixture.packages,
                 &fixture.global_bin_dir,
                 &HashSet::new(),
             )
         },
     )
-    .expect_err("the injected hash publication must fail");
+    .expect_err("the injected hash activation must fail");
 
-    assert!(format!("{error:?}").contains("injected hash publication failure"));
+    assert!(format!("{error:?}").contains("injected hash swap failure"));
     assert_eq!(slot_state(&fixture.global_bin_dir.join("tool")), tool);
     assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.old_install_dir));
     assert!(fixture.old_install_dir.exists());
@@ -413,26 +413,26 @@ fn hash_publication_failure_restores_bins_and_hash_target() {
 fn hash_failure_removes_hash_link_that_was_originally_absent() {
     let _guard = hash_failure_guard();
     HASH_FAILURE_CALLS.store(0, Ordering::SeqCst);
-    let fixture = PublicationFixture::new(&["tool"]);
+    let fixture = ActivationFixture::new(&["tool"]);
     remove_symlink_dir(&fixture.hash_link).expect("remove initial hash link");
 
-    let error = publish_global_install::<HashPublicationFailure>(
+    let error = activate_global_install::<HashSwapFailure>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
         &fixture.packages,
         &HashSet::new(),
         || {
-            test_link_bins::<HashPublicationFailure>(
+            test_link_bins::<HashSwapFailure>(
                 &fixture.packages,
                 &fixture.global_bin_dir,
                 &HashSet::new(),
             )
         },
     )
-    .expect_err("the injected hash publication must fail");
+    .expect_err("the injected hash activation must fail");
 
-    assert!(format!("{error:?}").contains("injected hash publication failure"));
+    assert!(format!("{error:?}").contains("injected hash swap failure"));
     assert_eq!(
         fs::symlink_metadata(&fixture.hash_link).expect_err("hash link remains absent").kind(),
         io::ErrorKind::NotFound,
@@ -442,20 +442,20 @@ fn hash_failure_removes_hash_link_that_was_originally_absent() {
 }
 
 #[test]
-fn unsupported_bin_slot_fails_before_publication_and_cleans_preparation_artifacts() {
-    PUBLICATION_CALLS.store(0, Ordering::SeqCst);
-    let fixture = PublicationFixture::new(&["tool"]);
+fn unsupported_bin_slot_fails_before_activation_and_cleans_preparation_artifacts() {
+    ACTIVATION_CALLS.store(0, Ordering::SeqCst);
+    let fixture = ActivationFixture::new(&["tool"]);
     let unsupported_path = fixture.global_bin_dir.join("tool");
     fs::create_dir(&unsupported_path).expect("create unsupported bin directory");
 
-    let error = publish_global_install::<TrackingPublication>(
+    let error = activate_global_install::<TrackingActivation>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
         &fixture.packages,
         &HashSet::new(),
         || {
-            test_link_bins::<TrackingPublication>(
+            test_link_bins::<TrackingActivation>(
                 &fixture.packages,
                 &fixture.global_bin_dir,
                 &HashSet::new(),
@@ -470,7 +470,7 @@ fn unsupported_bin_slot_fails_before_publication_and_cleans_preparation_artifact
         Some("ERR_PNPM_GLOBAL_BIN_UNSUPPORTED_TYPE".to_string()),
     );
     assert!(error.to_string().contains(&unsupported_path.display().to_string()));
-    assert_eq!(PUBLICATION_CALLS.load(Ordering::SeqCst), 0);
+    assert_eq!(ACTIVATION_CALLS.load(Ordering::SeqCst), 0);
     assert!(unsupported_path.is_dir());
     assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.old_install_dir));
     assert!(!fixture.fresh_install_dir.exists());
@@ -478,8 +478,8 @@ fn unsupported_bin_slot_fails_before_publication_and_cleans_preparation_artifact
 }
 
 #[test]
-fn successful_publication_returns_deduped_unskipped_bins_and_removes_backup() {
-    let mut fixture = PublicationFixture::new(&["tool", "skip"]);
+fn successful_activation_returns_deduped_unskipped_bins_and_removes_backup() {
+    let mut fixture = ActivationFixture::new(&["tool", "skip"]);
     let skipped = fixture.seed_file_slot("skip", b"other owner\n", 0o740);
     let duplicate_dir = fixture.fresh_install_dir.join("node_modules/duplicate");
     fs::create_dir_all(duplicate_dir.join("bin")).expect("create duplicate bin directory");
@@ -494,7 +494,7 @@ fn successful_publication_returns_deduped_unskipped_bins_and_removes_backup() {
         })),
     ));
 
-    let published = publish_global_install::<Host>(
+    let activated = activate_global_install::<Host>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
@@ -508,9 +508,9 @@ fn successful_publication_returns_deduped_unskipped_bins_and_removes_backup() {
             )
         },
     )
-    .expect("publish global install");
+    .expect("activate global install");
 
-    assert_eq!(published, HashSet::from(["tool".to_string()]));
+    assert_eq!(activated, HashSet::from(["tool".to_string()]));
     assert_eq!(slot_state(&fixture.global_bin_dir.join("skip")), skipped);
     assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.fresh_install_dir));
     assert!(fixture.old_install_dir.exists());
@@ -518,7 +518,7 @@ fn successful_publication_returns_deduped_unskipped_bins_and_removes_backup() {
 }
 
 #[test]
-fn cleanup_after_publication_preserves_current_state_and_external_install() {
+fn cleanup_after_activation_preserves_current_state_and_external_install() {
     let root = tempfile::tempdir().expect("create cleanup fixture");
     let global_pkg_dir = root.path().join("global");
     let global_bin_dir = root.path().join("bin");
@@ -531,14 +531,14 @@ fn cleanup_after_publication_preserves_current_state_and_external_install() {
     let active_group = global_package_with_bins(
         &old_install_dir,
         "active-hash",
-        &["published", "survivor", "obsolete"],
+        &["activated", "survivor", "obsolete"],
     );
     let external_group = GlobalPackageInfo {
         hash: "external-hash".to_string(),
         install_dir: external_install_dir.clone(),
         dependencies: Vec::new(),
     };
-    for bin_name in ["published", "survivor", "obsolete"] {
+    for bin_name in ["activated", "survivor", "obsolete"] {
         fs::write(global_bin_dir.join(bin_name), b"bin\n").expect("seed global bin");
     }
     let active_hash_link = pacquet_global::get_hash_link(&global_pkg_dir, "active-hash");
@@ -549,12 +549,12 @@ fn cleanup_after_publication_preserves_current_state_and_external_install() {
         &global_bin_dir,
         &[active_group, external_group],
         "active-hash",
-        &HashSet::from(["published".to_string()]),
+        &HashSet::from(["activated".to_string()]),
         &HashSet::from(["survivor".to_string()]),
     )
-    .expect("clean up replaced installs after publication");
+    .expect("clean up replaced installs after activation");
 
-    assert!(global_bin_dir.join("published").exists());
+    assert!(global_bin_dir.join("activated").exists());
     assert!(global_bin_dir.join("survivor").exists());
     assert!(!global_bin_dir.join("obsolete").exists());
     assert_eq!(
@@ -599,7 +599,7 @@ fn hash_failure_restores_windows_file_and_directory_symlink_kinds() {
     use std::os::windows::fs::{FileTypeExt, symlink_dir, symlink_file};
 
     HASH_FAILURE_CALLS.store(0, Ordering::SeqCst);
-    let fixture = PublicationFixture::new(&["file-link", "dir-link"]);
+    let fixture = ActivationFixture::new(&["file-link", "dir-link"]);
     let file_target = PathBuf::from("../old-install/file-target.js");
     let dir_target = PathBuf::from("../old-install/dir-target");
     fs::write(fixture.old_install_dir.join("file-target.js"), b"old file target\n")
@@ -611,23 +611,23 @@ fn hash_failure_restores_windows_file_and_directory_symlink_kinds() {
     symlink_file(&file_target, &file_link).expect("seed file symlink");
     symlink_dir(&dir_target, &dir_link).expect("seed directory symlink");
 
-    let error = publish_global_install::<HashPublicationFailure>(
+    let error = activate_global_install::<HashSwapFailure>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
         &fixture.packages,
         &HashSet::new(),
         || {
-            test_link_bins::<HashPublicationFailure>(
+            test_link_bins::<HashSwapFailure>(
                 &fixture.packages,
                 &fixture.global_bin_dir,
                 &HashSet::new(),
             )
         },
     )
-    .expect_err("the injected hash publication must fail");
+    .expect_err("the injected hash activation must fail");
 
-    assert!(format!("{error:?}").contains("injected hash publication failure"));
+    assert!(format!("{error:?}").contains("injected hash swap failure"));
     let file_type = fs::symlink_metadata(&file_link).expect("file link metadata").file_type();
     assert!(file_type.is_symlink_file());
     assert_eq!(fs::read_link(&file_link).expect("read file symlink"), file_target);
@@ -641,10 +641,10 @@ fn hash_failure_restores_windows_file_and_directory_symlink_kinds() {
 #[test]
 fn rollback_failure_keeps_recovery_artifacts() {
     RENAME_FAILURE_HASH_CALLS.store(0, Ordering::SeqCst);
-    let fixture = PublicationFixture::new(&["tool"]);
+    let fixture = ActivationFixture::new(&["tool"]);
     fixture.seed_file_slot("tool", b"old tool\n", 0o750);
 
-    let error = publish_global_install::<RenameRollbackFailure>(
+    let error = activate_global_install::<RenameRollbackFailure>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
@@ -670,15 +670,15 @@ fn rollback_failure_keeps_recovery_artifacts() {
     );
     assert!(message.contains(&backup_dirs[0].display().to_string()));
     assert!(message.contains(&fixture.fresh_install_dir.display().to_string()));
-    assert!(format!("{error:?}").contains("injected hash publication failure"));
+    assert!(format!("{error:?}").contains("injected hash swap failure"));
     assert!(format!("{error:?}").contains("injected backup rename failure"));
-    let publication_source =
-        std::error::Error::source(diagnostic).expect("publication error must be the source");
-    assert!(format!("{publication_source:?}").contains("injected hash publication failure"));
+    let activation_source =
+        std::error::Error::source(diagnostic).expect("activation error must be the source");
+    assert!(format!("{activation_source:?}").contains("injected hash swap failure"));
     assert!(
         diagnostic_source_messages(diagnostic)
             .iter()
-            .any(|message| message.contains("injected hash publication failure")),
+            .any(|message| message.contains("injected hash swap failure")),
     );
     assert!(fixture.fresh_install_dir.exists());
     assert!(backup_dirs[0].exists());
@@ -707,13 +707,13 @@ fn fresh_cleanup_failure_reports_only_remaining_fresh_install() {
         })),
     )];
 
-    let error = publish_global_install::<HashPublicationFailure>(
+    let error = activate_global_install::<HashSwapFailure>(
         &fresh_install_path,
         &hash_link,
         &global_bin_dir,
         &packages,
         &HashSet::new(),
-        || test_link_bins::<HashPublicationFailure>(&packages, &global_bin_dir, &HashSet::new()),
+        || test_link_bins::<HashSwapFailure>(&packages, &global_bin_dir, &HashSet::new()),
     )
     .expect_err("removing a regular file as an install directory must fail cleanup");
 
@@ -725,14 +725,14 @@ fn fresh_cleanup_failure_reports_only_remaining_fresh_install() {
     assert_eq!(
         message,
         format!(
-            "Failed to clean up after global bin publication failed. Remaining artifacts: {}.",
+            "Failed to clean up after global bin activation failed. Remaining artifacts: {}.",
             fresh_install_path.display(),
         ),
     );
     assert!(
         diagnostic_source_messages(diagnostic)
             .iter()
-            .any(|message| message.contains("injected hash publication failure")),
+            .any(|message| message.contains("injected hash swap failure")),
     );
 }
 
@@ -740,10 +740,10 @@ fn fresh_cleanup_failure_reports_only_remaining_fresh_install() {
 fn backup_cleanup_failure_reports_only_remaining_backup_without_code() {
     let _guard = backup_cleanup_guard();
     BACKUP_CLEANUP_HASH_CALLS.store(0, Ordering::SeqCst);
-    let fixture = PublicationFixture::new(&["tool"]);
+    let fixture = ActivationFixture::new(&["tool"]);
     arm_backup_cleanup_blocker(&fixture.global_bin_dir);
 
-    let error = publish_global_install::<BackupCleanupFailure>(
+    let error = activate_global_install::<BackupCleanupFailure>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
@@ -769,14 +769,14 @@ fn backup_cleanup_failure_reports_only_remaining_backup_without_code() {
     assert_eq!(
         message,
         format!(
-            "Failed to clean up after global bin publication failed. Remaining artifacts: {}.",
+            "Failed to clean up after global bin activation failed. Remaining artifacts: {}.",
             backup_dirs[0].display(),
         ),
     );
     assert!(
         diagnostic_source_messages(diagnostic)
             .iter()
-            .any(|message| message.contains("injected hash publication failure")),
+            .any(|message| message.contains("injected hash swap failure")),
     );
 }
 
@@ -785,10 +785,10 @@ fn artifact_probe_failure_is_related_and_not_reported_as_a_confirmed_path() {
     let _guard = backup_cleanup_guard();
     BACKUP_CLEANUP_HASH_CALLS.store(0, Ordering::SeqCst);
     ARTIFACT_PROBE_CALLS.store(0, Ordering::SeqCst);
-    let fixture = PublicationFixture::new(&["tool"]);
+    let fixture = ActivationFixture::new(&["tool"]);
     arm_backup_cleanup_blocker(&fixture.global_bin_dir);
 
-    let error = publish_global_install::<ArtifactProbeFailure>(
+    let error = activate_global_install::<ArtifactProbeFailure>(
         &fixture.fresh_install_dir,
         &fixture.hash_link,
         &fixture.global_bin_dir,
@@ -809,7 +809,7 @@ fn artifact_probe_failure_is_related_and_not_reported_as_a_confirmed_path() {
     assert_eq!(backup_dirs.len(), 1);
     assert!(backup_dirs[0].exists());
     assert!(!fixture.fresh_install_dir.exists());
-    assert_eq!(error.to_string(), "Failed to clean up after global bin publication failed.");
+    assert_eq!(error.to_string(), "Failed to clean up after global bin activation failed.");
     let related = miette::Diagnostic::related(diagnostic)
         .expect("cleanup failures must be related diagnostics")
         .collect::<Vec<_>>();
@@ -845,7 +845,7 @@ fn both_cleanup_failures_report_both_errors_and_remaining_artifacts() {
     )];
     arm_backup_cleanup_blocker(&global_bin_dir);
 
-    let error = publish_global_install::<BackupCleanupFailure>(
+    let error = activate_global_install::<BackupCleanupFailure>(
         &fresh_install_path,
         &hash_link,
         &global_bin_dir,
@@ -865,7 +865,7 @@ fn both_cleanup_failures_report_both_errors_and_remaining_artifacts() {
     assert_eq!(
         message,
         format!(
-            "Failed to clean up after global bin publication failed. Remaining artifacts: {}, {}.",
+            "Failed to clean up after global bin activation failed. Remaining artifacts: {}, {}.",
             backup_dirs[0].display(),
             fresh_install_path.display(),
         ),
@@ -885,7 +885,7 @@ fn both_cleanup_failures_report_both_errors_and_remaining_artifacts() {
     assert!(
         diagnostic_source_messages(diagnostic)
             .iter()
-            .any(|source| source.contains("injected hash publication failure")),
+            .any(|source| source.contains("injected hash swap failure")),
     );
 }
 
@@ -907,7 +907,7 @@ where
         .map_err(miette::Report::new)
 }
 
-struct PublicationFixture {
+struct ActivationFixture {
     _root: TempDir,
     global_bin_dir: PathBuf,
     old_install_dir: PathBuf,
@@ -916,9 +916,9 @@ struct PublicationFixture {
     packages: Vec<PackageBinSource>,
 }
 
-impl PublicationFixture {
+impl ActivationFixture {
     fn new(bin_names: &[&str]) -> Self {
-        let root = tempfile::tempdir().expect("create publication fixture");
+        let root = tempfile::tempdir().expect("create activation fixture");
         let global_bin_dir = root.path().join("bin");
         let old_install_dir = root.path().join("old-install");
         let fresh_install_dir = root.path().join("fresh-install");

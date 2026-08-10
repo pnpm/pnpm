@@ -25,7 +25,7 @@ const installGlobalPackages = jest.fn<(...args: unknown[]) => Promise<{ ignoredB
 const promptApproveGlobalBuilds = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
 const readInstalledPackages = jest.fn<() => Promise<[]>>().mockResolvedValue([])
 const summaryDebug = jest.fn()
-const publishGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['pnpm']))
+const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['pnpm']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
 
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
@@ -43,7 +43,7 @@ jest.unstable_mockModule('@pnpm/pkg-manifest.reader', () => ({
 }))
 jest.unstable_mockModule('../src/checkGlobalBinConflicts.js', () => ({ checkGlobalBinConflicts }))
 jest.unstable_mockModule('../src/installGlobalPackages.js', () => ({ installGlobalPackages }))
-jest.unstable_mockModule('../src/globalPublication.js', () => ({ cleanupReplacedGlobalInstalls, publishGlobalInstall }))
+jest.unstable_mockModule('../src/globalActivation.js', () => ({ cleanupReplacedGlobalInstalls, activateGlobalInstall }))
 jest.unstable_mockModule('../src/promptApproveGlobalBuilds.js', () => ({ promptApproveGlobalBuilds }))
 jest.unstable_mockModule('../src/readInstalledPackages.js', () => ({ readInstalledPackages }))
 
@@ -55,7 +55,7 @@ beforeEach(() => {
   cleanupReplacedGlobalInstalls.mockResolvedValue(undefined)
   createGlobalCacheKey.mockReturnValue('new-hash')
   findGlobalPackage.mockReturnValue(null)
-  publishGlobalInstall.mockResolvedValue(new Set(['pnpm']))
+  activateGlobalInstall.mockResolvedValue(new Set(['pnpm']))
   scanGlobalPackages.mockReturnValue([])
 })
 
@@ -101,19 +101,19 @@ test('global add still replaces exact aliases in mixed existing groups', () => {
   }, aliases, replacementAliases)).toBe(true)
 })
 
-test('global add publishes before cleaning up a same-hash pnpm replacement', async () => {
+test('global add activates before cleaning up a same-hash pnpm replacement', async () => {
   const existingPnpm = {
     dependencies: { pnpm: '12.0.0-alpha.2' },
     hash: 'old-pnpm',
     installDir: '/global/v11/old-pnpm',
   }
-  const publishedBins = new Set(['pnpm'])
+  const activatedBins = new Set(['pnpm'])
   const updateResolutionPolicyManifest = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
   createGlobalCacheKey.mockReturnValue('old-pnpm')
   findGlobalPackage.mockImplementation((_globalDir: string, alias: string) => {
     return alias === 'pnpm' ? existingPnpm : null
   })
-  publishGlobalInstall.mockResolvedValue(publishedBins)
+  activateGlobalInstall.mockResolvedValue(activatedBins)
   checkGlobalBinConflicts.mockImplementation(async (opts) => {
     expect(opts.shouldSkip(existingPnpm)).toBe(true)
     return new Set()
@@ -129,7 +129,7 @@ test('global add publishes before cleaning up a same-hash pnpm replacement', asy
 
   expect(findGlobalPackage).toHaveBeenCalledWith('/global/v11', '@pnpm/exe')
   expect(findGlobalPackage).toHaveBeenCalledWith('/global/v11', 'pnpm')
-  expect(publishGlobalInstall).toHaveBeenCalledWith({
+  expect(activateGlobalInstall).toHaveBeenCalledWith({
     installDir: '/global/v11/new',
     hashLink: '/global/v11/old-pnpm',
     globalBinDir: '/global/bin',
@@ -141,17 +141,17 @@ test('global add publishes before cleaning up a same-hash pnpm replacement', asy
     globalDir: '/global/v11',
     globalBinDir: '/global/bin',
     activeHash: 'old-pnpm',
-    publishedBins,
+    activatedBins,
     protectedBins: new Set(),
   })
-  expect(publishGlobalInstall.mock.invocationCallOrder[0]).toBeLessThan(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[0])
+  expect(activateGlobalInstall.mock.invocationCallOrder[0]).toBeLessThan(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[0])
   expect(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[0]).toBeLessThan(updateResolutionPolicyManifest.mock.invocationCallOrder[0])
 })
 
-test('global add does not clean up or persist policy when publication fails', async () => {
-  const publicationError = new Error('publication failed')
+test('global add does not clean up or persist policy when activation fails', async () => {
+  const activationError = new Error('activation failed')
   const updateResolutionPolicyManifest = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
-  publishGlobalInstall.mockRejectedValue(publicationError)
+  activateGlobalInstall.mockRejectedValue(activationError)
 
   await expect(handleGlobalAdd({
     bin: '/global/bin',
@@ -159,7 +159,7 @@ test('global add does not clean up or persist policy when publication fails', as
     globalPkgDir: '/global/v11',
     registries: {},
     updateResolutionPolicyManifest,
-  } as any, ['file:/tmp/pnpm'], {})).rejects.toBe(publicationError) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, ['file:/tmp/pnpm'], {})).rejects.toBe(activationError) // eslint-disable-line @typescript-eslint/no-explicit-any
 
   expect(cleanupReplacedGlobalInstalls).not.toHaveBeenCalled()
   expect(updateResolutionPolicyManifest).not.toHaveBeenCalled()
