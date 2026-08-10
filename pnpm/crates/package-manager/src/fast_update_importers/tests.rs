@@ -1023,6 +1023,45 @@ fn rejects_dropping_a_dependency_a_nested_peer_suffix_segment_names() {
     );
 }
 
+/// A peer suffix reaches the guard verbatim from the lockfile, so a
+/// segment may start with a character no package name would.
+const WITH_NON_ASCII_PEER_SUFFIX: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+      baz:
+        specifier: ^4.0.0
+        version: 4.0.0(é@1.0.0)
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  baz@4.0.0:
+    resolution:
+      integrity: sha512-baz
+snapshots:
+  foo@1.1.0: {}
+  baz@4.0.0(é@1.0.0): {}
+";
+
+#[test]
+fn reads_a_peer_suffix_segment_that_starts_with_a_multi_byte_character() {
+    let manifest = manifest_from(json!({ "dependencies": { "baz": "^4.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_NON_ASCII_PEER_SUFFIX),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_some(),
+        "the segment names neither foo nor anything else dropped",
+    );
+}
+
 #[test]
 fn rejects_dropping_a_linked_dependency_a_surviving_peer_suffix_names() {
     let manifest = manifest_from(json!({ "dependencies": { "baz": "^4.0.0" } }));

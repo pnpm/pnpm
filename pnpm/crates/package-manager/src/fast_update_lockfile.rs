@@ -73,10 +73,15 @@ impl DroppedEdges {
             .split(['(', ')'])
             .filter(|peer_id| !peer_id.is_empty() && !peer_id.starts_with("patch_hash="))
             .all(|peer_id| {
-                let Some(version_index) = peer_id[1..].find('@').map(|index| index + 2) else {
+                // The `@` of a scoped name is not the separator, and a
+                // segment the lockfile put a multi-byte character in front
+                // of must not be sliced blindly.
+                let Some(separator) =
+                    peer_id.match_indices('@').map(|(index, _)| index).find(|index| *index > 0)
+                else {
                     return false;
                 };
-                !self.0.contains(peer_id) && !self.0.contains(&peer_id[..version_index])
+                !self.0.contains(peer_id) && !self.0.contains(&peer_id[..=separator])
             })
     }
 }
