@@ -416,10 +416,9 @@ fn dedupes_only_overlapping_direct_deps() {
     drop((root, mock_instance));
 }
 
-/// A dedupe decision must not depend on install history: once the
-/// root acquires the dep a sibling already had linked, the sibling's
-/// now-redundant link is removed on the next install, leaving the same
-/// layout a clean install of these manifests produces.
+/// The dedupe decision must not depend on install history: two
+/// incremental installs land on the layout a clean install of the same
+/// manifests produces (pnpm/pnpm#13775).
 #[test]
 fn removes_a_project_link_the_root_starts_providing() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -461,7 +460,6 @@ fn removes_a_project_link_the_root_starts_providing() {
 
     pacquet.with_arg("install").assert().success();
 
-    // Nothing to dedupe against yet, so the project owns the link.
     let dup_link = workspace.join("packages/dup/node_modules/@pnpm.e2e/hello-world-js-bin");
     let dup_link_linked = is_symlink_or_junction(&dup_link).expect("query dup symlink");
     eprintln!("dup_link={dup_link:?} linked={dup_link_linked}");
