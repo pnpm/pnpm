@@ -57,6 +57,63 @@ pub(crate) fn prune_unreachable_packages(lockfile: &mut Lockfile) {
     }
 }
 
+/// Recompute every snapshot's `optional` flag from what still reaches it:
+/// set when every path from any importer goes through an
+/// `optionalDependencies` edge, cleared otherwise. An importer edge that
+/// moves into or out of `optionalDependencies`, or a removal that severs
+/// the last non-optional path, changes the flag for the whole subtree.
+pub(crate) fn recompute_optional_flags(lockfile: &mut Lockfile) {
+    let only_optionally_reached = {
+        let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
+        // Walk `(key, reached-optionally)`: `dependencies` edges keep the
+        // context, `optionalDependencies` edges always enter it.
+        let mut visited = HashSet::new();
+        let mut queue = VecDeque::new();
+        for importer in lockfile.importers.values() {
+            for (dependencies, optional) in [
+                (importer.dependencies.as_ref(), false),
+                (importer.dev_dependencies.as_ref(), false),
+                (importer.optional_dependencies.as_ref(), true),
+            ] {
+                for (alias, spec) in dependencies.into_iter().flatten() {
+                    if let Some(key) = spec.version.resolved_key(alias) {
+                        queue.push_back((key, optional));
+                    }
+                }
+            }
+        }
+        while let Some((key, optional)) = queue.pop_front() {
+            if !visited.insert((key.clone(), optional)) {
+                continue;
+            }
+            let Some(snapshot) = snapshots.get(&key) else { continue };
+            for (dependencies, next_optional) in [
+                (snapshot.dependencies.as_ref(), optional),
+                (snapshot.optional_dependencies.as_ref(), true),
+            ] {
+                for (alias, dep_ref) in dependencies.into_iter().flatten() {
+                    if let Some(key) = dep_ref.resolve(alias) {
+                        queue.push_back((key, next_optional));
+                    }
+                }
+            }
+        }
+        let non_optional: HashSet<_> = visited
+            .iter()
+            .filter_map(|(key, optional)| (!optional).then_some(key.clone()))
+            .collect();
+        visited
+            .into_iter()
+            .filter_map(|(key, optional)| (optional && !non_optional.contains(&key)).then_some(key))
+            .collect::<HashSet<_>>()
+    };
+    if let Some(snapshots) = lockfile.snapshots.as_mut() {
+        for (key, snapshot) in snapshots.iter_mut() {
+            snapshot.optional = only_optionally_reached.contains(key);
+        }
+    }
+}
+
 /// Drop every catalog snapshot entry that no importer references any
 /// more, matching what a full resolution records after the same removal.
 pub(crate) fn prune_unreferenced_catalog_entries(lockfile: &mut Lockfile) {
