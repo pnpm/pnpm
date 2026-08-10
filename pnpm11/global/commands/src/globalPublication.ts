@@ -46,7 +46,7 @@ export async function publishGlobalInstall (
 ): Promise<Set<string>> {
   const prepared = await prepareGlobalInstall(opts)
   try {
-    // Repointing the hash link is the switch-over: the shims resolve
+    // Moving the hash link is the switch-over: the shims resolve
     // through it, so every command the group already provides starts
     // running the new install here, in one step. Linking afterwards only
     // has to write the shims whose target actually changed, which for an

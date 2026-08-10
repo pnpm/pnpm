@@ -340,7 +340,7 @@ test('preserves Windows file and directory symlink kinds with relative targets',
   }
 })
 
-test('links bins through the hash link, and repoints it before linking', async () => {
+test('links bins through the hash link, and moves it before linking', async () => {
   const manifest: DependencyManifest = {
     name: 'replacement',
     version: '2.0.0',
@@ -360,7 +360,7 @@ test('links bins through the hash link, and repoints it before linking', async (
 
   // A shim embeds the path it was generated from. Generating it from the
   // hash link is what lets the next update switch the command over by
-  // repointing that link alone, leaving the shim byte-identical.
+  // moving that link alone, leaving the shim byte-identical.
   const [linkedPkgs] = linkBinsOfPackages.mock.calls[0]
   const relativeLocation = path.relative(fixture.freshInstallDir, fixture.packageDir)
   expect(linkedPkgs[0].location).toBe(path.join(fixture.hashLink, relativeLocation))
