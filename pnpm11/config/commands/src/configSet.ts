@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -60,6 +61,10 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       if (value != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
         throw new ConfigSetNotAProjectSettingError(writtenKey)
       }
+      // Deleting from a file that is not there is a no-op, not an error. The
+      // writer removes a manifest once the delete empties it, so it would try
+      // to remove one that never existed and surface a raw ENOENT.
+      if (value == null && !fs.existsSync(configPath)) break
       const updatedFields: Record<string, unknown> = {
         [writtenKey]: castField(value, kebabCase(writtenKey)),
       }

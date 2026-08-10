@@ -1166,6 +1166,27 @@ test.each([
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
 })
 
+/**
+ * Accepting these spellings routes them into the writer, which removes a
+ * manifest once a delete empties it — so with no manifest present it would try
+ * to remove a file that was never there.
+ */
+test.each(['pnpm-home-dir', 'config-dir', 'store-dir'])('config delete %s is a no-op with no manifest present', async (key) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['delete', key])).resolves.toBeUndefined()
+
+  expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBe(false)
+})
+
 /** The same spellings must still be refused on the way in, and by the accurate error. */
 test.each(['pnpm-home-dir', 'workspace-dir'])('config set still refuses %s', async (key) => {
   const tmp = tempDir()
