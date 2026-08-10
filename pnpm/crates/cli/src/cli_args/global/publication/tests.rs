@@ -1,7 +1,7 @@
 use super::{
     super::cleanup_replaced_global_installs, BinSlotKind, FsArtifactProbe, FsPublishHashLink,
-    FsRename, SavedBinSlot, directory_symlink_slots, needs_directory_symlink_removal,
-    publish_global_install,
+    FsRename, SavedBinSlot, directory_symlink_slots, hash_linked_packages,
+    needs_directory_symlink_removal, publish_global_install,
 };
 use pacquet_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
@@ -174,21 +174,37 @@ impl FsRename for RenameRollbackFailure {
 
 impl FsWrite for BackupCleanupFailure {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
-        <Host as FsWrite>::write(path, bytes)?;
-        let global_bin_dir = path.parent().expect("shim path has a parent");
-        for entry in fs::read_dir(global_bin_dir)? {
-            let entry = entry?;
-            if entry.file_name().to_string_lossy().starts_with(".pnpm-bin-backup-") {
-                fs::write(entry.path().join("cleanup-blocker"), b"keep backup non-empty\n")?;
-            }
-        }
-        Ok(())
+        <Host as FsWrite>::write(path, bytes)
     }
+}
+
+/// The global bin directory whose backup directory
+/// [`BackupCleanupFailure`] should wedge open. Guarded by
+/// [`BACKUP_CLEANUP_LOCK`], like the call counter.
+static BACKUP_BLOCKER_BIN_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+fn arm_backup_cleanup_blocker(global_bin_dir: &Path) {
+    *BACKUP_BLOCKER_BIN_DIR.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+        Some(global_bin_dir.to_path_buf());
+}
+
+/// Leave a file inside the pending backup directory so removing it fails.
+fn block_backup_cleanup() -> io::Result<()> {
+    let guard = BACKUP_BLOCKER_BIN_DIR.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let Some(global_bin_dir) = guard.as_ref() else { return Ok(()) };
+    for entry in fs::read_dir(global_bin_dir)? {
+        let entry = entry?;
+        if entry.file_name().to_string_lossy().starts_with(".pnpm-bin-backup-") {
+            fs::write(entry.path().join("cleanup-blocker"), b"keep backup non-empty\n")?;
+        }
+    }
+    Ok(())
 }
 
 impl FsPublishHashLink for BackupCleanupFailure {
     fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()> {
         if BACKUP_CLEANUP_HASH_CALLS.fetch_add(1, Ordering::SeqCst) == 0 {
+            block_backup_cleanup()?;
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "injected hash publication failure",
@@ -251,6 +267,47 @@ impl FsRename for TrackingPublication {
     fn rename(source: &Path, target: &Path) -> io::Result<()> {
         <Host as FsRename>::rename(source, target)
     }
+}
+
+#[test]
+fn packages_are_addressed_through_the_hash_link() {
+    let install_dir = Path::new("/global/v11/install-1");
+    let hash_link = Path::new("/global/v11/hash-foo");
+    let outside = PathBuf::from("/elsewhere/pkg");
+    let packages = vec![
+        PackageBinSource::new(install_dir.join("node_modules/tool"), Arc::new(json!({}))),
+        PackageBinSource::new(outside.clone(), Arc::new(json!({}))),
+    ];
+
+    let linked = hash_linked_packages(&packages, install_dir, hash_link);
+
+    // A shim embeds the path it was generated from, so generating it from
+    // the hash link is what lets the next update switch the command over
+    // by repointing that link alone.
+    assert_eq!(linked[0].location, hash_link.join("node_modules/tool"));
+    assert_eq!(linked[1].location, outside);
+}
+
+#[test]
+fn the_hash_link_is_published_before_the_bins_are_linked() {
+    let fixture = PublicationFixture::new(&["tool"]);
+
+    publish_global_install::<Host>(
+        &fixture.fresh_install_dir,
+        &fixture.hash_link,
+        &fixture.global_bin_dir,
+        &fixture.packages,
+        &HashSet::new(),
+        || {
+            assert_eq!(
+                resolved_hash_target(&fixture.hash_link),
+                canonical(&fixture.fresh_install_dir),
+                "the hash link must already point at the new install when the bins are linked",
+            );
+            Ok(())
+        },
+    )
+    .expect("publish global install");
 }
 
 #[test]
@@ -684,6 +741,7 @@ fn backup_cleanup_failure_reports_only_remaining_backup_without_code() {
     let _guard = backup_cleanup_guard();
     BACKUP_CLEANUP_HASH_CALLS.store(0, Ordering::SeqCst);
     let fixture = PublicationFixture::new(&["tool"]);
+    arm_backup_cleanup_blocker(&fixture.global_bin_dir);
 
     let error = publish_global_install::<BackupCleanupFailure>(
         &fixture.fresh_install_dir,
@@ -728,6 +786,7 @@ fn artifact_probe_failure_is_related_and_not_reported_as_a_confirmed_path() {
     BACKUP_CLEANUP_HASH_CALLS.store(0, Ordering::SeqCst);
     ARTIFACT_PROBE_CALLS.store(0, Ordering::SeqCst);
     let fixture = PublicationFixture::new(&["tool"]);
+    arm_backup_cleanup_blocker(&fixture.global_bin_dir);
 
     let error = publish_global_install::<ArtifactProbeFailure>(
         &fixture.fresh_install_dir,
@@ -784,6 +843,7 @@ fn both_cleanup_failures_report_both_errors_and_remaining_artifacts() {
             "bin": { "tool": "bin/tool.js" },
         })),
     )];
+    arm_backup_cleanup_blocker(&global_bin_dir);
 
     let error = publish_global_install::<BackupCleanupFailure>(
         &fresh_install_path,

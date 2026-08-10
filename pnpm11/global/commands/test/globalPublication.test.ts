@@ -23,6 +23,7 @@ let obstructBackupCleanup = false
 let skipMissingBinSources = false
 let symlinkCallCount = 0
 const linkedBinNames: string[] = []
+const backupSymlinkTypes: Array<string | null | undefined> = []
 const publicationBackupFileContents: Buffer[] = []
 const getHashLink = jest.fn((globalDir: string, hash: string) => path.join(globalDir, hash))
 const getInstalledBinNames = jest.fn<(pkg: GlobalPackageInfo) => Promise<string[]>>()
@@ -80,7 +81,9 @@ const removeBin = jest.fn<RemoveBin>(async (cmd) => {
   await Promise.all(extensions.map(async (extension) => fs.rm(`${cmd}${extension}`, { force: true, recursive: true })))
 })
 
-const symlinkDir = jest.fn<SymlinkDir>(async (target, linkPath) => {
+// Both the publication swap and the rollback swap go through this; the
+// call order decides which injected failure fires.
+async function onHashLinkSwap (): Promise<void> {
   symlinkCallCount++
   if (symlinkCallCount === 1) {
     if (testRoot == null) throw new Error('Expected a publication fixture before linking the hash directory')
@@ -95,11 +98,28 @@ const symlinkDir = jest.fn<SymlinkDir>(async (target, linkPath) => {
   if (symlinkCallCount === 2 && restorationLinkFailure != null) {
     throw restorationLinkFailure
   }
-  await replaceDirectorySymlink(target, linkPath)
   if (symlinkCallCount === 1 && publicationLinkFailure != null) {
     throw publicationLinkFailure
   }
+}
+
+// Used only on the Windows path, where the swap cannot be a rename.
+const symlinkDir = jest.fn<SymlinkDir>(async (target, linkPath) => {
+  await onHashLinkSwap()
+  await replaceDirectorySymlink(target, linkPath)
   return { reused: false }
+})
+
+const realSymlink = fs.symlink.bind(fs)
+jest.spyOn(fs, 'symlink').mockImplementation(async (target, linkPath, type) => {
+  // The staged link is the POSIX hash-link swap; everything else is
+  // fixture seeding or a bin-slot backup.
+  if (String(linkPath).endsWith('.tmp')) {
+    await onHashLinkSwap()
+  } else if (String(linkPath).includes(`${path.sep}.pnpm-bin-backup-`)) {
+    backupSymlinkTypes.push(type)
+  }
+  await realSymlink(target, linkPath, type)
 })
 
 jest.unstable_mockModule('@pnpm/bins.linker', () => ({ linkBinsOfPackages }))
@@ -124,6 +144,7 @@ afterEach(async () => {
     removeBinFailure = undefined
     skipMissingBinSources = false
     symlinkCallCount = 0
+    backupSymlinkTypes.length = 0
     linkedBinNames.length = 0
     publicationBackupFileContents.length = 0
     getHashLink.mockClear()
@@ -213,14 +234,16 @@ test('leaves skipped bins untouched when hash-link publication fails', async () 
     binsToSkip: new Set(['shared']),
   })).rejects.toBe(publicationError)
 
-  expect(linkedBinNames).toStrictEqual(['replacement'])
+  // The hash link is the switch-over, so a failure there aborts before any
+  // bin is linked.
+  expect(linkedBinNames).toStrictEqual([])
   expect(await readSlotState(replacementSlot)).toStrictEqual(replacementBefore)
   expect(await readSlotState(sharedSlot)).toStrictEqual(sharedBefore)
   expect(publicationBackupFileContents).toContainEqual(oldReplacementBytes)
   expect(publicationBackupFileContents).not.toContainEqual(skippedSharedBytes)
   expect(removeBin).toHaveBeenCalledWith(replacementSlot)
   expect(removeBin).not.toHaveBeenCalledWith(sharedSlot)
-  expect(symlinkDir).toHaveBeenCalledTimes(2)
+  expect(symlinkCallCount).toBe(2)
   expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.oldInstallDir))
   expect(existsSync(fixture.oldInstallDir)).toBe(true)
   expect(existsSync(fixture.freshInstallDir)).toBe(false)
@@ -270,21 +293,13 @@ test('keeps recovery artifacts when rollback fails', async () => {
   expect(thrown.message).toContain(fixture.freshInstallDir)
   expect(existsSync(backupDirs[0])).toBe(true)
   expect(existsSync(fixture.freshInstallDir)).toBe(true)
-  expect(symlinkDir).toHaveBeenCalledTimes(2)
+  expect(symlinkCallCount).toBe(2)
 })
 
 test('preserves Windows file and directory symlink kinds with relative targets', async () => {
   const platform = Object.getOwnPropertyDescriptor(process, 'platform')
   if (platform == null) throw new Error('Expected process.platform to be an own property')
   Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
-  const realSymlink = fs.symlink.bind(fs)
-  const backupSymlinkTypes: Array<string | null | undefined> = []
-  const symlink = jest.spyOn(fs, 'symlink').mockImplementation(async (target, linkPath, type) => {
-    if (String(linkPath).includes(`${path.sep}.pnpm-bin-backup-`)) {
-      backupSymlinkTypes.push(type)
-    }
-    await realSymlink(target, linkPath, type)
-  })
   try {
     const manifest: DependencyManifest = {
       name: 'replacement',
@@ -321,9 +336,36 @@ test('preserves Windows file and directory symlink kinds with relative targets',
     expect((await fs.stat(fileLink)).isFile()).toBe(true)
     expect((await fs.stat(dirLink)).isDirectory()).toBe(true)
   } finally {
-    symlink.mockRestore()
     Object.defineProperty(process, 'platform', platform)
   }
+})
+
+test('links bins through the hash link, and repoints it before linking', async () => {
+  const manifest: DependencyManifest = {
+    name: 'replacement',
+    version: '2.0.0',
+    bin: {
+      tool: 'bin/tool.js',
+    },
+  }
+  const fixture = await createFixture(manifest)
+
+  await publishGlobalInstall({
+    installDir: fixture.freshInstallDir,
+    hashLink: fixture.hashLink,
+    globalBinDir: fixture.globalBinDir,
+    pkgs: [{ manifest, location: fixture.packageDir }],
+    binsToSkip: new Set(),
+  })
+
+  // A shim embeds the path it was generated from. Generating it from the
+  // hash link is what lets the next update switch the command over by
+  // repointing that link alone, leaving the shim byte-identical.
+  const [linkedPkgs] = linkBinsOfPackages.mock.calls[0]
+  const relativeLocation = path.relative(fixture.freshInstallDir, fixture.packageDir)
+  expect(linkedPkgs[0].location).toBe(path.join(fixture.hashLink, relativeLocation))
+  expect(linkedPkgs[0].location.startsWith(fixture.freshInstallDir)).toBe(false)
+  expect(symlinkCallCount).toBe(1)
 })
 
 test('publishes into a global bin directory that does not exist yet', async () => {

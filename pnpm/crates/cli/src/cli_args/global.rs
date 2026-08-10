@@ -8,7 +8,7 @@
 
 mod publication;
 
-use self::publication::{ArtifactCleanupError, publish_global_install};
+use self::publication::{ArtifactCleanupError, hash_linked_packages, publish_global_install};
 use crate::{
     State,
     cli_args::{
@@ -243,13 +243,22 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
 
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
+        let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
         let published_bins = publish_global_install::<CmdShimHost>(
             &install_dir,
             &hash_link,
             &global_bin_dir,
             &pkgs,
             &bins_to_skip,
-            || link_global_bins(base_config, &pkgs, &dependencies, &global_bin_dir, &bins_to_skip),
+            || {
+                link_global_bins(
+                    base_config,
+                    &linked_pkgs,
+                    &dependencies,
+                    &global_bin_dir,
+                    &bins_to_skip,
+                )
+            },
         )
         .wrap_err("publish global install")?;
         cleanup_replaced_global_installs(
@@ -340,13 +349,22 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
                 .wrap_err("scan global packages")?;
 
         let hash_link = get_hash_link(&global_pkg_dir, &pkg.hash);
+        let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
         let published_bins = publish_global_install::<CmdShimHost>(
             &install_dir,
             &hash_link,
             &global_bin_dir,
             &pkgs,
             &bins_to_skip,
-            || link_global_bins(base_config, &pkgs, &dependencies, &global_bin_dir, &bins_to_skip),
+            || {
+                link_global_bins(
+                    base_config,
+                    &linked_pkgs,
+                    &dependencies,
+                    &global_bin_dir,
+                    &bins_to_skip,
+                )
+            },
         )
         .wrap_err("publish global install")?;
         cleanup_replaced_global_installs(

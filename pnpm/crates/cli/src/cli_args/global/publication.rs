@@ -3,11 +3,12 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_cmd_shim::{
     FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest, remove_bin,
 };
-use pacquet_fs::{read_symlink_dir, remove_symlink_dir};
+use pacquet_fs::{read_symlink_dir, relative_path, remove_symlink_dir};
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use tempfile::TempDir;
 
@@ -25,8 +26,42 @@ pub(super) trait FsArtifactProbe {
 
 impl FsPublishHashLink for Host {
     fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()> {
-        pacquet_fs::force_symlink_dir(target, link).map(|_| ())
+        swap_hash_link(target, link)
     }
+}
+
+/// Point `link` at `target`, replacing any existing link in a single step
+/// so a concurrent command never observes it missing. Windows cannot
+/// rename over an existing junction, so there the replacement falls back
+/// to the non-atomic remove-and-recreate.
+fn swap_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+    if cfg!(windows) {
+        return pacquet_fs::force_symlink_dir(target, link).map(|_| ());
+    }
+    let Some(parent) = link.parent() else {
+        return pacquet_fs::force_symlink_dir(target, link).map(|_| ());
+    };
+    fs::create_dir_all(parent)?;
+    let staged = link.with_extension(format!("{}.tmp", std::process::id()));
+    match fs::remove_file(&staged) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    symlink_dir_entry(&relative_path(parent, target), &staged)?;
+    fs::rename(&staged, link).inspect_err(|_| {
+        let _ = fs::remove_file(&staged);
+    })
+}
+
+#[cfg(unix)]
+fn symlink_dir_entry(target: &Path, link: &Path) -> io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(not(unix))]
+fn symlink_dir_entry(target: &Path, link: &Path) -> io::Result<()> {
+    pacquet_fs::force_symlink_dir(target, link).map(|_| ())
 }
 
 impl FsRename for Host {
@@ -105,6 +140,7 @@ enum BinSlotKind {
 
 #[derive(Debug)]
 struct PreparedGlobalInstall {
+    actual_bins: BTreeMap<String, PathBuf>,
     actual_bin_names: HashSet<String>,
     backup_dir: TempDir,
     saved_bin_slots: Vec<SavedBinSlot>,
@@ -134,8 +170,7 @@ where
         hash_link,
         global_bin_dir,
         link_bins,
-        &prepared.actual_bin_names,
-        &prepared.saved_bin_slots,
+        &prepared.actual_bins,
     );
     if let Err(publication_error) = publication_result {
         if let Err(rollback_error) =
@@ -178,14 +213,57 @@ fn publish_prepared_global_install<Sys: FsPublishHashLink>(
     hash_link: &Path,
     global_bin_dir: &Path,
     link_bins: impl FnOnce() -> miette::Result<()>,
-    actual_bin_names: &HashSet<String>,
-    saved_bin_slots: &[SavedBinSlot],
+    actual_bins: &BTreeMap<String, PathBuf>,
 ) -> miette::Result<()> {
-    remove_current_bin_slots(global_bin_dir, actual_bin_names, saved_bin_slots)?;
-    link_bins().wrap_err("link global package bins")?;
+    // Repointing the hash link is the switch-over: the shims resolve
+    // through it, so every command the group already provides starts
+    // running the new install here, in one step. Linking afterwards only
+    // has to write the shims whose target actually changed, which for an
+    // update of the same commands is none of them.
     Sys::publish_hash_link(install_dir, hash_link).into_diagnostic().wrap_err_with(|| {
         format!("link the global package install directory at {}", hash_link.display())
-    })
+    })?;
+    link_bins().wrap_err("link global package bins")?;
+    remove_slots_of_missing_bins(global_bin_dir, actual_bins)
+}
+
+/// Drop the slots of commands the linker could not create because the file
+/// the manifest points at is missing, so a replaced install leaves no shim
+/// behind for a command that cannot run.
+fn remove_slots_of_missing_bins(
+    global_bin_dir: &Path,
+    actual_bins: &BTreeMap<String, PathBuf>,
+) -> miette::Result<()> {
+    for (name, bin_path) in actual_bins {
+        if bin_path.exists() {
+            continue;
+        }
+        let slot = global_bin_dir.join(name);
+        remove_bin(&slot)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("remove global bin at {}", slot.display()))?;
+    }
+    Ok(())
+}
+
+/// The packages to link from, addressed through the group's hash link
+/// instead of the generation directory it currently points at. Bin shims
+/// embed the path they are generated from, so this is what makes a shim
+/// survive the next update untouched.
+pub(super) fn hash_linked_packages(
+    packages: &[PackageBinSource],
+    install_dir: &Path,
+    hash_link: &Path,
+) -> Vec<PackageBinSource> {
+    packages
+        .iter()
+        .map(|package| match package.location.strip_prefix(install_dir) {
+            Ok(relative) => {
+                PackageBinSource::new(hash_link.join(relative), Arc::clone(&package.manifest))
+            }
+            Err(_) => package.clone(),
+        })
+        .collect()
 }
 
 fn restore_global_install<Sys>(
@@ -331,7 +409,8 @@ fn prepare_global_install<Sys: FsWalkFiles>(
     packages: &[PackageBinSource],
     bins_to_skip: &HashSet<String>,
 ) -> miette::Result<PreparedGlobalInstall> {
-    let actual_bin_names = get_actual_bin_names::<Sys>(packages, bins_to_skip);
+    let actual_bins = get_actual_bins::<Sys>(packages, bins_to_skip);
+    let actual_bin_names: HashSet<String> = actual_bins.keys().cloned().collect();
     let backup_dir =
         match tempfile::Builder::new().prefix(".pnpm-bin-backup-").tempdir_in(global_bin_dir) {
             Ok(backup_dir) => backup_dir,
@@ -352,7 +431,13 @@ fn prepare_global_install<Sys: FsWalkFiles>(
         Ok(old_hash_target) => old_hash_target,
         Err(error) => return cleanup_failed_preparation(install_dir, Some(backup_dir), error),
     };
-    Ok(PreparedGlobalInstall { actual_bin_names, backup_dir, saved_bin_slots, old_hash_target })
+    Ok(PreparedGlobalInstall {
+        actual_bins,
+        actual_bin_names,
+        backup_dir,
+        saved_bin_slots,
+        old_hash_target,
+    })
 }
 
 fn cleanup_failed_preparation<Value>(
@@ -397,17 +482,18 @@ fn remove_dir_all_if_exists(path: &Path) -> io::Result<()> {
     }
 }
 
-fn get_actual_bin_names<Sys: FsWalkFiles>(
+/// The commands the group declares, mapped to the file each one runs.
+fn get_actual_bins<Sys: FsWalkFiles>(
     packages: &[PackageBinSource],
     bins_to_skip: &HashSet<String>,
-) -> HashSet<String> {
+) -> BTreeMap<String, PathBuf> {
     packages
         .iter()
         .flat_map(|package| {
             get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location)
         })
-        .map(|command| command.name)
-        .filter(|name| !bins_to_skip.contains(name))
+        .filter(|command| !bins_to_skip.contains(&command.name))
+        .map(|command| (command.name, command.path))
         .collect()
 }
 

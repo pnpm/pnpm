@@ -34,6 +34,7 @@ interface SavedBinSlot {
 }
 
 interface PreparedGlobalInstall {
+  actualBins: Map<string, string>
   actualBinNames: Set<string>
   backupDir: string
   savedBinSlots: SavedBinSlot[]
@@ -45,12 +46,14 @@ export async function publishGlobalInstall (
 ): Promise<Set<string>> {
   const prepared = await prepareGlobalInstall(opts)
   try {
-    for (const name of prepared.actualBinNames) {
-      // eslint-disable-next-line no-await-in-loop -- Publication mutations must settle before linking or rollback starts.
-      await removeBin(path.join(opts.globalBinDir, name))
-    }
-    await linkBinsOfPackages(opts.pkgs, opts.globalBinDir, { excludeBins: opts.binsToSkip })
-    await symlinkDir(opts.installDir, opts.hashLink, { overwrite: true })
+    // Repointing the hash link is the switch-over: the shims resolve
+    // through it, so every command the group already provides starts
+    // running the new install here, in one step. Linking afterwards only
+    // has to write the shims whose target actually changed, which for an
+    // update of the same commands is none of them.
+    await swapHashLink(opts.installDir, opts.hashLink)
+    await linkBinsOfPackages(hashLinkedPkgs(opts), opts.globalBinDir, { excludeBins: opts.binsToSkip })
+    await removeSlotsOfMissingBins(opts, prepared.actualBins)
   } catch (publicationError) {
     try {
       await restoreGlobalInstall({ ...opts, ...prepared })
@@ -131,12 +134,49 @@ async function cleanupReplacedGlobalInstall (
   return errors
 }
 
+/**
+ * The packages to link from, addressed through the group's hash link
+ * instead of the generation directory it currently points at. Bin shims
+ * embed the path they are generated from, so this is what makes a shim
+ * survive the next update untouched.
+ */
+function hashLinkedPkgs (opts: PublishGlobalInstallOptions): PublishGlobalInstallOptions['pkgs'] {
+  return opts.pkgs.map((pkg) => {
+    if (!isSubdir(opts.installDir, pkg.location)) return pkg
+    return { ...pkg, location: path.join(opts.hashLink, path.relative(opts.installDir, pkg.location)) }
+  })
+}
+
+/**
+ * Point `hashLink` at `target`, replacing any existing link in a single
+ * step so a concurrent command never observes it missing. Windows cannot
+ * rename over an existing junction, so there the replacement is not
+ * atomic.
+ */
+async function swapHashLink (target: string, hashLink: string): Promise<void> {
+  if (process.platform === 'win32') {
+    await symlinkDir(target, hashLink, { overwrite: true })
+    return
+  }
+  await fs.promises.mkdir(path.dirname(hashLink), { recursive: true })
+  const stagedLink = `${hashLink}.${process.pid}.tmp`
+  await fs.promises.rm(stagedLink, { force: true, recursive: true })
+  await fs.promises.symlink(path.relative(path.dirname(hashLink), target), stagedLink, 'dir')
+  try {
+    await fs.promises.rename(stagedLink, hashLink)
+  } catch (err) {
+    await fs.promises.rm(stagedLink, { force: true, recursive: true })
+    throw err
+  }
+}
+
 async function prepareGlobalInstall (
   opts: PublishGlobalInstallOptions
 ): Promise<PreparedGlobalInstall> {
   let backupDir: string | undefined
   try {
-    const actualBinNames = await getActualBinNames(opts)
+    const actualBins = await getActualBins(opts)
+    const actualBinNames = new Set(actualBins.keys())
     // The backup directory lives in the global bin directory, which the
     // linker would otherwise be the first to create.
     await fs.promises.mkdir(opts.globalBinDir, { recursive: true })
@@ -147,7 +187,7 @@ async function prepareGlobalInstall (
       globalBinDir: opts.globalBinDir,
     })
     const oldHashTarget = await readHashTarget(opts.hashLink)
-    return { actualBinNames, backupDir, savedBinSlots, oldHashTarget }
+    return { actualBins, actualBinNames, backupDir, savedBinSlots, oldHashTarget }
   } catch (preparationError) {
     const cleanupResults = await Promise.allSettled([
       ...(backupDir == null ? [] : [fs.promises.rm(backupDir, { recursive: true, force: true })]),
@@ -167,17 +207,35 @@ async function prepareGlobalInstall (
   }
 }
 
-async function getActualBinNames (opts: PublishGlobalInstallOptions): Promise<Set<string>> {
-  const actualBinNames = new Set<string>()
+/** The commands the group declares, mapped to the file each one runs. */
+async function getActualBins (opts: PublishGlobalInstallOptions): Promise<Map<string, string>> {
+  const actualBins = new Map<string, string>()
   const binsByPackage = await Promise.all(opts.pkgs.map(async ({ manifest, location }) => {
     return getBinsFromPackageManifest(manifest, location)
   }))
   for (const bins of binsByPackage) {
-    for (const { name } of bins) {
-      if (!opts.binsToSkip.has(name)) actualBinNames.add(name)
+    for (const { name, path: binPath } of bins) {
+      if (!opts.binsToSkip.has(name)) actualBins.set(name, binPath)
     }
   }
-  return actualBinNames
+  return actualBins
+}
+
+/**
+ * Drop the slots of commands the linker could not create because the file
+ * the manifest points at is missing, so a replaced install leaves no shim
+ * behind for a command that cannot run.
+ */
+async function removeSlotsOfMissingBins (
+  opts: PublishGlobalInstallOptions,
+  actualBins: Map<string, string>
+): Promise<void> {
+  const missing = (await Promise.all([...actualBins].map(async ([name, binPath]) => {
+    return await pathExists(binPath) ? [] : [name]
+  }))).flat()
+  for (const name of missing) {
+    await removeBin(path.join(opts.globalBinDir, name)) // eslint-disable-line no-await-in-loop -- Each removal must settle before the next.
+  }
 }
 
 async function backupBinSlots (opts: {
@@ -264,12 +322,7 @@ async function restoreGlobalInstall (opts: PublishGlobalInstallOptions & Prepare
   if (opts.oldHashTarget == null) {
     await fs.promises.rm(opts.hashLink, { force: true, recursive: true })
   } else {
-    // symlink-dir creates a relative link, so both paths must use the same canonical parent space.
-    const canonicalHashLink = path.join(
-      await fs.promises.realpath(path.dirname(opts.hashLink)),
-      path.basename(opts.hashLink)
-    )
-    await symlinkDir(opts.oldHashTarget, canonicalHashLink, { overwrite: true })
+    await swapHashLink(opts.oldHashTarget, opts.hashLink)
   }
 }
 
