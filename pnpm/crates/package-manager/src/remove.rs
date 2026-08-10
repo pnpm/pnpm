@@ -115,11 +115,12 @@ impl Remove<'_> {
             // re-resolve walks all three.
             dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
-            // `pacquet remove` mutates the manifest, so the lockfile is
-            // necessarily stale — short-circuit the prefer-frozen fast
-            // path so the install always re-resolves. See the parallel
-            // comment in `add.rs`.
-            prefer_frozen_lockfile: Some(false),
+            // The manifest was just edited, but the drift is exactly the
+            // deleted importer edges, which the removal handler of the
+            // lockfile fast path absorbs without resolving. When it
+            // declines, the freshness check fails and the install
+            // re-resolves as it always did.
+            prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
@@ -128,7 +129,7 @@ impl Remove<'_> {
             // `uninstallSome` mutation), so the root project's own
             // lifecycle scripts must not run — they fire only on a full
             // install.
-            mutation: ProjectMutation::NoInstall,
+            mutation: ProjectMutation::UninstallSome,
             installs_only: false,
             resolved_packages,
             supported_architectures,
@@ -210,12 +211,12 @@ impl Remove<'_> {
             lockfile_path,
             dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
+            prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            mutation: ProjectMutation::NoInstall,
+            mutation: ProjectMutation::UninstallSome,
             installs_only: false,
             resolved_packages,
             supported_architectures,
