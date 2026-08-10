@@ -81,23 +81,50 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
     }
     fs::create_dir_all(storage.parent().expect("registry fixture storage has parent"))
         .expect("create generated registry fixture storage dir");
-    let temp = generated.join(format!(
-        "storage.tmp.{}.{}",
-        std::process::id(),
-        TEMP_COUNTER.fetch_add(1, Ordering::Relaxed),
-    ));
+    let temp = generated.join(scratch_name("storage.tmp"));
     if temp.exists() {
         fs::remove_dir_all(&temp).expect("remove stale temp registry fixture storage");
     }
     build_storage(packages, &temp, &[]);
     fs::write(temp.join(COMPLETE_FILE), "").expect("write registry fixture completion marker");
-    match fs::rename(&temp, storage) {
-        Ok(()) => {}
-        Err(_) if storage.join(COMPLETE_FILE).exists() => {
-            fs::remove_dir_all(&temp).expect("remove redundant registry fixture storage");
-        }
-        Err(err) => panic!("publish generated registry fixture storage: {err}"),
+    publish_storage(generated, &temp, storage);
+}
+
+/// Move a freshly built `temp` tree into place at `storage`.
+///
+/// Publishers race: the loser's rename fails because the winner's tree is
+/// already there, which is harmless — the completion marker proves the
+/// content arrived. A tree *without* the marker is a different matter. It
+/// is a half-finished publish, or a build cache restored without the
+/// marker, and no reader may touch it; left alone it wedges every later
+/// run with `Directory not empty`. Move it aside — atomically, so only
+/// one publisher can claim it — and publish over the space it freed.
+fn publish_storage(generated: &Path, temp: &Path, storage: &Path) {
+    if try_publish_storage(temp, storage).is_ok() {
+        return;
     }
+    let discarded = generated.join(scratch_name("storage.stale"));
+    if fs::rename(storage, &discarded).is_ok() {
+        fs::remove_dir_all(&discarded).expect("remove unusable registry fixture storage");
+    }
+    try_publish_storage(temp, storage).expect("publish generated registry fixture storage");
+}
+
+fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {
+    match fs::rename(temp, storage) {
+        Ok(()) => Ok(()),
+        Err(_) if storage.join(COMPLETE_FILE).exists() => {
+            fs::remove_dir_all(temp).expect("remove redundant registry fixture storage");
+            Ok(())
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// A scratch directory name no other publisher — in this process or any
+/// concurrent one — can collide with.
+fn scratch_name(prefix: &str) -> String {
+    format!("{prefix}.{}.{}", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 fn fixture_fingerprint(root: &Path) -> String {

@@ -1,5 +1,9 @@
-use super::{build_storage_at_with_substitutions, ensure_storage, latest_version, packages_dir};
-use std::{collections::BTreeSet, path::Path};
+use super::{
+    COMPLETE_FILE, build_storage_at_with_substitutions, ensure_storage, latest_version,
+    packages_dir, publish_storage,
+};
+use std::{collections::BTreeSet, fs, path::Path};
+use tempfile::TempDir;
 
 fn tarball_entries(tarball: &Path) -> BTreeSet<String> {
     let bytes = std::fs::read(tarball).expect("read fixture tarball");
@@ -113,4 +117,57 @@ fn root_license_is_injected_except_for_self_contained_workspaces() {
             "@pnpm.e2e/pkg-with-bundled-dependencies/pkg-with-bundled-dependencies-1.0.0.tgz",
         ));
     assert!(!bundled.contains("package/LICENSE"), "{bundled:?}");
+}
+
+/// A storage tree left behind without its completion marker — a
+/// half-finished publish, or a build cache restored without it — is
+/// unusable, so the next publisher replaces it instead of failing every
+/// run that follows with `Directory not empty`.
+#[test]
+fn publish_replaces_a_storage_tree_that_lost_its_marker() {
+    let root = TempDir::new().expect("create temp dir");
+    let generated = root.path();
+    let storage = generated.join("storage").join("fingerprint");
+    fs::create_dir_all(&storage).expect("create storage dir");
+    fs::write(storage.join("leftover"), "stale").expect("write leftover file");
+
+    let temp = generated.join("storage.tmp");
+    fs::create_dir_all(&temp).expect("create temp dir");
+    fs::write(temp.join("packument"), "fresh").expect("write fresh file");
+    fs::write(temp.join(COMPLETE_FILE), "").expect("write completion marker");
+
+    publish_storage(generated, &temp, &storage);
+
+    assert!(storage.join(COMPLETE_FILE).exists());
+    assert_eq!(
+        fs::read_to_string(storage.join("packument")).expect("read published file"),
+        "fresh",
+    );
+    assert!(!storage.join("leftover").exists());
+    assert!(!temp.exists());
+}
+
+/// The publisher that loses the race keeps the winner's tree and drops
+/// its own — the marker is what proves the content arrived.
+#[test]
+fn publish_yields_to_a_tree_that_already_carries_the_marker() {
+    let root = TempDir::new().expect("create temp dir");
+    let generated = root.path();
+    let storage = generated.join("storage").join("fingerprint");
+    fs::create_dir_all(&storage).expect("create storage dir");
+    fs::write(storage.join("packument"), "winner").expect("write winner file");
+    fs::write(storage.join(COMPLETE_FILE), "").expect("write completion marker");
+
+    let temp = generated.join("storage.tmp");
+    fs::create_dir_all(&temp).expect("create temp dir");
+    fs::write(temp.join("packument"), "loser").expect("write loser file");
+    fs::write(temp.join(COMPLETE_FILE), "").expect("write completion marker");
+
+    publish_storage(generated, &temp, &storage);
+
+    assert_eq!(
+        fs::read_to_string(storage.join("packument")).expect("read published file"),
+        "winner",
+    );
+    assert!(!temp.exists());
 }
