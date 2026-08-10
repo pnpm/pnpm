@@ -283,7 +283,7 @@ async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner
 }
 
 /// Box a ref-resolution failure as a [`ResolveError`], naming the dependency
-/// when the remote could not be reached at all.
+/// when the `git ls-remote` invocation itself failed.
 ///
 /// [`GitResolveError`] has to be the outermost box for the tree walker's
 /// downcast to find it, which is what keeps its code and help alive across
@@ -293,11 +293,11 @@ fn ref_resolution_error(
     wanted_dependency: &WantedDependency,
     repo: &str,
 ) -> ResolveError {
-    let GitResolveRefError::Runner(unreachable) = &err else {
+    let GitResolveRefError::Runner(ls_remote) = &err else {
         return Box::new(err) as ResolveError;
     };
     let specifier = wanted_dependency.bare_specifier.as_deref().unwrap_or_default();
-    Box::new(GitResolveError::new(specifier, repo, &unreachable.to_string())) as ResolveError
+    Box::new(GitResolveError::new(specifier, repo, &ls_remote.to_string())) as ResolveError
 }
 
 /// Pick between a tarball and a git resolution — see [`GitProbe`] for

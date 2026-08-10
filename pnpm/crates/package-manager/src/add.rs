@@ -139,11 +139,11 @@ pub enum AddError {
         source: pacquet_resolving_resolver_base::ResolveError,
     },
 
-    /// The git dependency's remote could not be reached. Kept as the
-    /// diagnostic the resolver raised, which already names the specifier and
-    /// carries the `ERR_PNPM_GIT_RESOLVE_FAILED` code and its remediation.
+    /// The git dependency's `git ls-remote` failed. Kept as the diagnostic the
+    /// resolver raised, which already names the specifier and carries the
+    /// `ERR_PNPM_GIT_RESOLVE_FAILED` code and its remediation.
     #[diagnostic(transparent)]
-    GitRemoteUnreachable(#[error(source)] GitResolveError),
+    GitResolve(#[error(source)] GitResolveError),
 
     #[display("Could not determine the package name of git dependency {specifier:?}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_GIT_PACKAGE_NAME))]
@@ -835,7 +835,7 @@ async fn resolve_aliasless_git(
     )
     .await
     .map_err(|source| match source.downcast::<GitResolveError>() {
-        Ok(unreachable) => AddError::GitRemoteUnreachable(*unreachable),
+        Ok(git_resolve) => AddError::GitResolve(*git_resolve),
         Err(source) => AddError::ResolveGit { specifier: specifier.to_string(), source },
     })?
     .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;

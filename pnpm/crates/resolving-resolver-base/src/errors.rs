@@ -220,8 +220,9 @@ fn is_semver(candidate: &str) -> bool {
     candidate.parse::<node_semver::Version>().is_ok()
 }
 
-/// `ERR_PNPM_GIT_RESOLVE_FAILED`: `git ls-remote` could not reach the remote a
-/// git specifier points at, so its committish cannot be pinned to a commit.
+/// `ERR_PNPM_GIT_RESOLVE_FAILED`: a git specifier's `git ls-remote` failed —
+/// the remote was unreachable, refused the request, or git could not be run —
+/// so the committish cannot be pinned to a commit.
 ///
 /// Distinct from the failures that describe the refs a remote *did* serve (an
 /// unknown ref, an ambiguous commit-ish): those already name the repository
@@ -285,6 +286,10 @@ fn https_transport_hint(repo: &str) -> Option<String> {
         Some((address, _port)) if host.starts_with('[') => &host[..=address.len()],
         _ => host.split_once(':').map_or(host, |(hostname, _port)| hostname),
     };
+    // The scheme's own port is dropped from the `insteadOf` prefix, matching
+    // what git and the TypeScript CLI's `URL` both normalize the remote to.
+    let default_port = if scheme == "https" { ":443" } else { ":80" };
+    let host = host.strip_suffix(default_port).unwrap_or(host);
     let (host, hostname) = (redact_and_sanitize(host), redact_and_sanitize(hostname));
     Some(format!(
         r#"pnpm resolves this specifier over HTTPS because it does not ask for SSH, and the URL it records has to work on every machine that installs the lockfile.

@@ -234,7 +234,7 @@ pub enum ResolveDependencyTreeError {
     #[diagnostic(transparent)]
     RegistryResponse(#[error(source)] RegistryResponseError),
 
-    /// A git dependency's remote could not be reached, raised with the
+    /// A git dependency's `git ls-remote` failed, raised with the
     /// `ERR_PNPM_GIT_RESOLVE_FAILED` code.
     #[diagnostic(transparent)]
     GitResolve(#[error(source)] GitResolveError),

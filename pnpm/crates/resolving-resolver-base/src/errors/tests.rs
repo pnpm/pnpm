@@ -270,3 +270,20 @@ fn an_unreachable_remote_redacts_the_credentials_git_echoes_back() {
     assert!(!err.to_string().contains("hunter2"), "{err}");
     assert!(!err.help().expect("help").to_string().contains("hunter2"));
 }
+
+#[test]
+fn the_transport_hint_drops_the_scheme_s_own_port() {
+    let err = GitResolveError::new(
+        "https://github.com:443/foo/bar.git",
+        "https://github.com:443/foo/bar.git",
+        "git ls-remote failed: connection refused",
+    );
+
+    let help = err.help().expect("help").to_string();
+    assert!(
+        help.contains(
+            r#"git config --global url."git@github.com:".insteadOf "https://github.com/""#
+        ),
+        "{help}",
+    );
+}

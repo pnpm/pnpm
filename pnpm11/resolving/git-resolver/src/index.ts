@@ -205,10 +205,10 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
 }
 
 /**
- * Restate a failure to reach the remote as `ERR_PNPM_GIT_RESOLVE_FAILED`,
- * naming the dependency it was resolving. Errors that describe the refs the
- * remote did return (an unknown ref, an ambiguous commit-ish) already say
- * which repository they came from and are left alone.
+ * Restate a failed `git ls-remote` as `ERR_PNPM_GIT_RESOLVE_FAILED`, naming the
+ * dependency it was resolving. Errors that describe the refs the remote did
+ * return (an unknown ref, an ambiguous commit-ish) already say which repository
+ * they came from and are left alone.
  */
 function gitResolveError (err: Error, bareSpecifier: string, repo: string): Error {
   if ((err as { code?: string }).code !== 'ERR_PNPM_GIT_LS_REMOTE_FAILED') return err

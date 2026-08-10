@@ -87,6 +87,9 @@ async fn head_probe_retries_transient_statuses_to_exhaustion() {
     mock.assert_async().await;
 }
 
+// Every production `RealGitRunner` leaves `git_bin` unset and spawns `git`
+// from `PATH`, so a configured missing path is the portable way to make the
+// spawn fail; the message asserted here is the one a user without git gets.
 #[tokio::test]
 async fn a_missing_git_binary_is_reported_as_one() {
     let runner = RealGitRunner { git_bin: Some("/nonexistent/git".into()) };

@@ -617,6 +617,17 @@ test('an unreachable remote names the dependency and how to substitute the trans
   expect(err.hint).toContain('git config --global url."git@github.com:".insteadOf "https://github.com/"')
 })
 
+test('an unreachable remote redacts the credentials git echoes back', async () => {
+  mockGit(async () => {
+    throw Object.assign(new Error('Command failed with exit code 128'), {
+      stderr: "fatal: unable to access 'https://hunter2:x-oauth-basic@github.com/foo/bar.git/': not found",
+    })
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+https://hunter2:x-oauth-basic@github.com/foo/bar.git' }))
+  expect(err.message).not.toContain('hunter2')
+  expect(err.hint).not.toContain('hunter2')
+})
+
 test('a missing git binary is reported as one', async () => {
   mockGit(async () => {
     throw Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })
