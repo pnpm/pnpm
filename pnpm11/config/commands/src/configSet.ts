@@ -55,13 +55,13 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       // with a null value, and `pnpm config set <key> null` casts to one. Both
       // are how a file that already carries one of these gets fixed, so the
       // result of the cast — not the raw parameter — gates every refusal
-      // below. The key only selects a type here, and normalising it does not
+      // below. The key only selects a type here, and normalizing it does not
       // change that.
       const castValue = castField(value, kebabCase(key))
       const isRemovingRefusedSetting = castValue == null && isProjectManifestSkippedSetting(camelCase(key))
       // The reader warns about these in the global config file too, so a
       // removal has to be able to clear what it named there as well. It still
-      // needs the same normalisation, or the alternate spelling below is never
+      // needs the same normalization, or the alternate spelling below is never
       // cleared and the entry survives the delete.
       if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
         key = isRemovingRefusedSetting ? kebabCase(key) : validateYamlConfigKey(key)
