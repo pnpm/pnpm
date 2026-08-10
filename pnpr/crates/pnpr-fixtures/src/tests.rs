@@ -213,3 +213,17 @@ fn restoring_yields_to_a_publisher_that_took_the_freed_path() {
         "publisher",
     );
 }
+
+/// Another publisher claimed the tree first, so there is nothing at the
+/// path to claim and nothing to do.
+#[test]
+fn discarding_does_nothing_when_the_path_is_already_free() {
+    let root = TempDir::new().expect("create temp dir");
+    let generated = root.path();
+    let storage = generated.join("storage").join("fingerprint");
+
+    discard_unusable_storage(generated, &storage);
+
+    assert!(!storage.exists());
+    assert!(!generated.join("storage").exists());
+}
