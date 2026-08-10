@@ -808,7 +808,7 @@ fn filtered_isolated_install_keeps_workspace_link_targets_shallow() {
     assert!(
         !fixture.modules().pending_builds.iter().any(|entry| {
             entry.contains(PARENT) || entry.contains(DEP) || entry.contains(NO_DEPS)
-        })
+        }),
     );
     assert_full_wanted(
         &fixture.wanted(),
