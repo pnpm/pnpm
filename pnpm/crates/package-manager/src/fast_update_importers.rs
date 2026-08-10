@@ -96,7 +96,9 @@ pub(crate) fn apply_importers_update(
             .into_iter()
             .flatten()
             {
-                edits.dropped.extend(group.keys().cloned());
+                for (alias, dependency) in group {
+                    edits.dropped.record(alias, dependency);
+                }
             }
         }
     }
@@ -134,8 +136,8 @@ pub(crate) fn apply_importers_update(
                     let Ok(moved) = wanted.to_string().parse() else {
                         return false;
                     };
+                    edits.dropped.record(alias, &*dependency);
                     dependency.version = ImporterDepVersion::Regular(moved);
-                    edits.dropped.insert(alias.clone());
                 }
                 dependency.specifier = (*specifier).to_string();
             }
@@ -144,7 +146,7 @@ pub(crate) fn apply_importers_update(
                     source == DependencyGroup::Optional || *target == DependencyGroup::Optional;
             }
         }
-        edits.dropped.extend(remove_dependencies_absent_from(importer, manifest_dependencies));
+        remove_dependencies_absent_from(importer, manifest_dependencies, edits);
     }
     true
 }
@@ -309,11 +311,12 @@ fn importer_group(
 }
 
 /// Drop every dependency the importer records that the manifest no longer
-/// declares, returning their names.
+/// declares, recording the severed edges in `edits`.
 fn remove_dependencies_absent_from(
     importer: &mut ProjectSnapshot,
     manifest_dependencies: &ManifestDependencies<'_>,
-) -> HashSet<PkgName> {
+    edits: &mut GraphEdits,
+) {
     let declared = |alias: &PkgName| manifest_dependencies.contains_key(alias);
     let mut removed = HashSet::new();
     for group in [
@@ -324,10 +327,11 @@ fn remove_dependencies_absent_from(
     .into_iter()
     .flatten()
     {
-        group.retain(|alias, _| {
+        group.retain(|alias, dependency| {
             if declared(alias) {
                 return true;
             }
+            edits.dropped.record(alias, dependency);
             removed.insert(alias.clone());
             false
         });
@@ -344,7 +348,6 @@ fn remove_dependencies_absent_from(
     if let Some(specifiers) = importer.specifiers.as_mut() {
         specifiers.retain(|alias, _| !removed.iter().any(|name| name.to_string() == *alias));
     }
-    removed
 }
 
 fn importer_dependency_mut<'a>(

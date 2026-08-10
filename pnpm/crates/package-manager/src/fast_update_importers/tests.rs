@@ -869,3 +869,261 @@ fn rejects_dropping_an_importer_a_survivor_links_to() {
         "a project that is gone while something links to it is a broken workspace",
     );
 }
+
+/// The importer depends on `foo@1.0.0` directly, while `baz` — reached
+/// through `qux` — resolves `foo` as a peer at the version `qux`
+/// provides, `1.2.0`.
+const WITH_PEER_ON_ANOTHER_VERSION: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: 1.0.0
+        version: 1.0.0
+      qux:
+        specifier: ^5.0.0
+        version: 5.0.0
+packages:
+  foo@1.0.0:
+    resolution:
+      integrity: sha512-foo-1
+  foo@1.2.0:
+    resolution:
+      integrity: sha512-foo-2
+  qux@5.0.0:
+    resolution:
+      integrity: sha512-qux
+  baz@4.0.0:
+    resolution:
+      integrity: sha512-baz
+snapshots:
+  foo@1.0.0: {}
+  foo@1.2.0: {}
+  qux@5.0.0:
+    dependencies:
+      foo: 1.2.0
+      baz: 4.0.0(foo@1.2.0)
+  baz@4.0.0(foo@1.2.0):
+    dependencies:
+      foo: 1.2.0
+";
+
+/// `baz` resolves `qux` as a peer, which in turn resolved `foo`, so the
+/// dropped `foo@1.1.0` is named one level down in `baz`'s key.
+const WITH_NESTED_PEER_ON_REMOVABLE_DEP: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+      baz:
+        specifier: ^4.0.0
+        version: 4.0.0(qux@5.0.0(foo@1.1.0))
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  baz@4.0.0:
+    resolution:
+      integrity: sha512-baz
+snapshots:
+  foo@1.1.0: {}
+  baz@4.0.0(qux@5.0.0(foo@1.1.0)): {}
+";
+
+/// `foo` is a workspace sibling `baz` resolves as a peer. A link has no
+/// `name@version` for a suffix segment to be compared against — the
+/// segment carries the filename-safe form of the link path instead.
+const WITH_PEER_ON_REMOVABLE_LINK: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: 'workspace:*'
+        version: link:packages/foo
+      baz:
+        specifier: ^4.0.0
+        version: 4.0.0(foo@packages+foo)
+packages:
+  baz@4.0.0:
+    resolution:
+      integrity: sha512-baz
+snapshots:
+  baz@4.0.0(foo@packages+foo): {}
+";
+
+fn sorted_snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
+    let mut keys: Vec<_> =
+        lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
+    keys.sort();
+    keys
+}
+
+#[test]
+fn drops_a_dependency_whose_version_no_surviving_peer_suffix_names() {
+    let manifest = manifest_from(json!({ "dependencies": { "qux": "^5.0.0" } }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_PEER_ON_ANOTHER_VERSION),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("the surviving suffix names the version qux provides, not the dropped one");
+
+    assert_eq!(
+        sorted_snapshot_keys(&updated),
+        vec!["baz@4.0.0(foo@1.2.0)".to_string(), "foo@1.2.0".to_string(), "qux@5.0.0".to_string()],
+    );
+}
+
+#[test]
+fn drops_a_dependency_a_surviving_suffix_only_ends_with_the_name_of() {
+    let mut subject = parsed_lockfile(WITH_PEER_ON_ANOTHER_VERSION);
+    let snapshots = subject.snapshots.as_mut().expect("snapshots");
+    snapshots.insert(
+        "baz@4.0.0(@scope/foo@1.0.0)".parse().expect("snapshot key"),
+        serde_saphyr::from_str("dependencies:\n  '@scope/foo': 1.0.0").expect("snapshot"),
+    );
+    snapshots.insert(
+        "@scope/foo@1.0.0".parse().expect("snapshot key"),
+        pacquet_lockfile::SnapshotEntry::default(),
+    );
+    snapshots
+        .get_mut(&"qux@5.0.0".parse().expect("snapshot key"))
+        .expect("qux")
+        .dependencies
+        .as_mut()
+        .expect("dependencies")
+        .insert(
+            "baz".parse().expect("alias"),
+            "4.0.0(@scope/foo@1.0.0)".parse().expect("reference"),
+        );
+    let manifest = manifest_from(json!({ "dependencies": { "qux": "^5.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_some(),
+        "@scope/foo is not foo, however the two names end",
+    );
+}
+
+#[test]
+fn rejects_dropping_a_dependency_a_nested_peer_suffix_segment_names() {
+    let manifest = manifest_from(json!({ "dependencies": { "baz": "^4.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_NESTED_PEER_ON_REMOVABLE_DEP),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "the peers of a peer are as much a part of baz's key as the top-level ones",
+    );
+}
+
+/// A peer suffix reaches the guard verbatim from the lockfile, so a
+/// segment may start with a character no package name would.
+const WITH_NON_ASCII_PEER_SUFFIX: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+      baz:
+        specifier: ^4.0.0
+        version: 4.0.0(é@1.0.0)
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  baz@4.0.0:
+    resolution:
+      integrity: sha512-baz
+snapshots:
+  foo@1.1.0: {}
+  baz@4.0.0(é@1.0.0): {}
+";
+
+#[test]
+fn reads_a_peer_suffix_segment_that_starts_with_a_multi_byte_character() {
+    let manifest = manifest_from(json!({ "dependencies": { "baz": "^4.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_NON_ASCII_PEER_SUFFIX),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_some(),
+        "the segment names neither foo nor anything else dropped",
+    );
+}
+
+#[test]
+fn rejects_dropping_a_linked_dependency_a_surviving_peer_suffix_names() {
+    let manifest = manifest_from(json!({ "dependencies": { "baz": "^4.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_PEER_ON_REMOVABLE_LINK),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "nothing pins the link to a version, so every suffix naming it stays suspect",
+    );
+}
+
+#[test]
+fn moves_a_range_past_a_peer_suffix_naming_the_version_it_moves_to() {
+    let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.1.0", "qux": "^5.0.0" } }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_PEER_ON_ANOTHER_VERSION),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("baz already resolves the peer to the version the importer moves to");
+
+    let alias: PkgName = "foo".parse().expect("alias");
+    assert_eq!(
+        updated.importers["."].dependencies.as_ref().expect("dependencies")[&alias]
+            .version
+            .to_string(),
+        "1.2.0",
+    );
+    assert_eq!(
+        sorted_snapshot_keys(&updated),
+        vec!["baz@4.0.0(foo@1.2.0)".to_string(), "foo@1.2.0".to_string(), "qux@5.0.0".to_string()],
+    );
+}
+
+#[test]
+fn rejects_a_range_move_a_peer_suffix_names_the_version_it_moves_off() {
+    let mut subject = parsed_lockfile(WITH_PEER_ON_ANOTHER_VERSION);
+    subject
+        .importers
+        .get_mut(".")
+        .expect("importer")
+        .dependencies
+        .as_mut()
+        .expect("dependencies")
+        .insert(
+            "baz".parse().expect("alias"),
+            serde_saphyr::from_str("{specifier: ^4.0.0, version: 4.0.0(foo@1.0.0)}")
+                .expect("dependency"),
+        );
+    subject.snapshots.as_mut().expect("snapshots").insert(
+        "baz@4.0.0(foo@1.0.0)".parse().expect("snapshot key"),
+        serde_saphyr::from_str("dependencies:\n  foo: 1.0.0").expect("snapshot"),
+    );
+    let manifest = manifest_from(
+        json!({ "dependencies": { "foo": "^1.1.0", "qux": "^5.0.0", "baz": "^4.0.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_none(),
+        "baz resolved the peer to the version the importer moves off, so its key would change",
+    );
+}

@@ -6,6 +6,7 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
+import { type DroppedEdges, recordDroppedEdge } from './droppedEdges.js'
 import type { GraphEdits } from './tryComposeFastUpdates.js'
 
 export interface Project {
@@ -34,8 +35,8 @@ export function hasChangedProjectSpecifiers (
 /**
  * Mutates `lockfile` in place and may leave it partially rewritten when it
  * returns `false` — the caller passes the coordinator's disposable candidate,
- * which is discarded on failure. The dropped aliases and optionality moves
- * are recorded in `edits` for the shared epilogue.
+ * which is discarded on failure. The severed edges and optionality moves are
+ * recorded in `edits` for the shared epilogue.
  */
 export function tryFastUpdateImporters (
   lockfile: LockfileObject,
@@ -52,8 +53,9 @@ export function tryFastUpdateImporters (
       return false
     }
     for (const importerId of stale) {
-      for (const alias of Object.keys(lockfile.importers[importerId].specifiers)) {
-        edits.dropped.add(alias)
+      const importer = lockfile.importers[importerId]
+      for (const alias of Object.keys(importer.specifiers)) {
+        recordDroppedImporterEdge(edits.dropped, importer, alias)
       }
       delete lockfile.importers[importerId]
       changed = true
@@ -79,7 +81,7 @@ export function tryFastUpdateImporters (
           // the lockfile, subtree and all.
           if (reference !== version) return false
           importer[recordedIn!]![alias] = wanted
-          edits.dropped.add(alias)
+          recordDroppedEdge(edits.dropped, alias, reference)
         }
         importer.specifiers[alias] = specifier
         changed = true
@@ -98,7 +100,7 @@ export function tryFastUpdateImporters (
     }
     for (const alias of Object.keys(importer.specifiers)) {
       if (manifestSpecifiers[alias] != null) continue
-      edits.dropped.add(alias)
+      recordDroppedImporterEdge(edits.dropped, importer, alias)
       delete importer.specifiers[alias]
       for (const group of DEPENDENCIES_FIELDS) {
         delete importer[group]?.[alias]
@@ -179,6 +181,12 @@ function dependencyGroupMoved (
 ): boolean {
   const recordedIn = recordedDependencyGroup(importer, alias)
   return recordedIn != null && recordedIn !== effectiveDependencyGroup(manifest, alias)
+}
+
+/** Record the edge from `importer` to `alias` as severed. */
+function recordDroppedImporterEdge (dropped: DroppedEdges, importer: ProjectSnapshot, alias: string): void {
+  const recordedIn = recordedDependencyGroup(importer, alias)
+  recordDroppedEdge(dropped, alias, recordedIn == null ? undefined : importer[recordedIn]![alias])
 }
 
 function recordedDependencyGroup (importer: ProjectSnapshot, alias: string): DependenciesField | null {

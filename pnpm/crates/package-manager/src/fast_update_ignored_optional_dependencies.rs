@@ -1,4 +1,7 @@
-use crate::{fast_update_compose::Drift, fast_update_lockfile::GraphEdits};
+use crate::{
+    fast_update_compose::Drift,
+    fast_update_lockfile::{DroppedEdgeTarget, GraphEdits},
+};
 use pacquet_config::matcher::create_matcher;
 use pacquet_lockfile::{Lockfile, PkgName};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -34,8 +37,8 @@ pub(crate) fn detect_ignored_optional_drift(
 }
 
 /// Remove every optional dependency the widened pattern list now
-/// ignores, from importers and snapshots alike, recording the removed
-/// aliases in `edits` for the shared epilogue.
+/// ignores, from importers and snapshots alike, recording the severed
+/// edges in `edits` for the shared epilogue.
 pub(crate) fn apply_ignored_optional_update(
     candidate: &mut Lockfile,
     ignored_optional_dependencies: &[String],
@@ -47,21 +50,22 @@ pub(crate) fn apply_ignored_optional_update(
             &mut importer.optional_dependencies,
             &mut importer.dependencies,
             &matcher,
+            edits,
         );
         if let Some(specifiers) = importer.specifiers.as_mut() {
             let removed_specifiers: HashSet<_> =
                 removed.iter().map(std::string::ToString::to_string).collect();
             specifiers.retain(|name, _| !removed_specifiers.contains(name));
         }
-        edits.dropped.extend(removed);
     }
     if let Some(snapshots) = candidate.snapshots.as_mut() {
         for snapshot in snapshots.values_mut() {
-            edits.dropped.extend(remove_ignored_optional_dependencies(
+            remove_ignored_optional_dependencies(
                 &mut snapshot.optional_dependencies,
                 &mut snapshot.dependencies,
                 &matcher,
-            ));
+                edits,
+            );
         }
     }
     let mut recorded: Vec<_> = ignored_optional_dependencies.to_vec();
@@ -70,18 +74,30 @@ pub(crate) fn apply_ignored_optional_update(
     candidate.ignored_optional_dependencies = Some(recorded);
 }
 
-fn remove_ignored_optional_dependencies<OptionalValue, DependencyValue>(
+fn remove_ignored_optional_dependencies<
+    OptionalValue: DroppedEdgeTarget,
+    DependencyValue: DroppedEdgeTarget,
+>(
     optional_dependencies: &mut Option<HashMap<PkgName, OptionalValue>>,
     dependencies: &mut Option<HashMap<PkgName, DependencyValue>>,
     matcher: &pacquet_config::matcher::Matcher,
+    edits: &mut GraphEdits,
 ) -> HashSet<PkgName> {
     let removed: HashSet<_> = optional_dependencies
         .as_ref()
         .into_iter()
         .flatten()
         .filter(|(name, _)| matches_package_name(matcher, name))
-        .map(|(name, _)| name.clone())
+        .map(|(name, dependency)| {
+            edits.dropped.record(name, dependency);
+            name.clone()
+        })
         .collect();
+    for (name, dependency) in dependencies.as_ref().into_iter().flatten() {
+        if removed.contains(name) {
+            edits.dropped.record(name, dependency);
+        }
+    }
     if let Some(optional_dependencies) = optional_dependencies.as_mut() {
         optional_dependencies.retain(|name, _| !removed.contains(name));
     }
