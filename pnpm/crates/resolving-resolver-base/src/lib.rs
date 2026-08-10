@@ -24,7 +24,9 @@ mod resolve;
 mod semver_range;
 mod verifier;
 
-pub use errors::{NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions};
+pub use errors::{
+    GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
+};
 pub use peer_range::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{

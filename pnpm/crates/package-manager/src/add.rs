@@ -34,7 +34,7 @@ use pacquet_resolving_npm_resolver::{
     parse_bare_specifier, pick_matching_local_version_or_null, pick_package,
     pick_registry_for_package, shared_packument_fetch_locker,
 };
-use pacquet_resolving_resolver_base::WorkspacePackages;
+use pacquet_resolving_resolver_base::{GitResolveError, WorkspacePackages};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
@@ -138,6 +138,12 @@ pub enum AddError {
         #[error(source)]
         source: pacquet_resolving_resolver_base::ResolveError,
     },
+
+    /// The git dependency's remote could not be reached. Kept as the
+    /// diagnostic the resolver raised, which already names the specifier and
+    /// carries the `ERR_PNPM_GIT_RESOLVE_FAILED` code and its remediation.
+    #[diagnostic(transparent)]
+    GitRemoteUnreachable(#[error(source)] GitResolveError),
 
     #[display("Could not determine the package name of git dependency {specifier:?}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_GIT_PACKAGE_NAME))]
@@ -828,7 +834,10 @@ async fn resolve_aliasless_git(
         &pacquet_resolving_resolver_base::ResolveOptions::default(),
     )
     .await
-    .map_err(|source| AddError::ResolveGit { specifier: specifier.to_string(), source })?
+    .map_err(|source| match source.downcast::<GitResolveError>() {
+        Ok(unreachable) => AddError::GitRemoteUnreachable(*unreachable),
+        Err(source) => AddError::ResolveGit { specifier: specifier.to_string(), source },
+    })?
     .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
     let package_name = result
         .manifest

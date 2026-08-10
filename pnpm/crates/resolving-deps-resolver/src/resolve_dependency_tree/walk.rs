@@ -9,8 +9,8 @@ use async_recursion::async_recursion;
 use futures_util::future;
 use pacquet_lockfile::PkgNameVerPeer;
 use pacquet_resolving_resolver_base::{
-    CurrentPkg, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
-    ResolveError, ResolveOptions, Resolver, WantedDependency,
+    CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
+    RegistryResponseError, ResolveError, ResolveOptions, Resolver, WantedDependency,
 };
 use pipe_trait::Pipe;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
@@ -330,6 +330,7 @@ where
                 err @ (ResolveDependencyTreeError::Resolve(_)
                 | ResolveDependencyTreeError::NoMatchingVersion(_)
                 | ResolveDependencyTreeError::RegistryResponse(_)
+                | ResolveDependencyTreeError::GitResolve(_)
                 | ResolveDependencyTreeError::SpecNotSupported { .. }),
             ) if wanted.optional.unwrap_or(false) => {
                 if wanted_lockfile_contains_satisfying_entry(
@@ -994,8 +995,12 @@ fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError {
         }
         Err(err) => err,
     };
-    match err.downcast::<RegistryResponseError>() {
-        Ok(response) => ResolveDependencyTreeError::RegistryResponse(*response),
+    let err = match err.downcast::<RegistryResponseError>() {
+        Ok(response) => return ResolveDependencyTreeError::RegistryResponse(*response),
+        Err(err) => err,
+    };
+    match err.downcast::<GitResolveError>() {
+        Ok(git) => ResolveDependencyTreeError::GitResolve(*git),
         Err(err) => ResolveDependencyTreeError::Resolve(err.to_string()),
     }
 }

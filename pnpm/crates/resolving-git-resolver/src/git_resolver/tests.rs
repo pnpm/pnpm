@@ -1,7 +1,10 @@
 use super::{GitProbe, GitResolver, ProbeFuture};
 use crate::resolve_ref::{GitCommandRunner, GitRunError};
+use miette::Diagnostic;
 use pacquet_lockfile::LockfileResolution;
-use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
+use pacquet_resolving_resolver_base::{
+    GitResolveError, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+};
 use std::{
     future::Future,
     pin::Pin,
@@ -43,6 +46,39 @@ impl GitCommandRunner for FakeRunner {
         let stdout = self.stdout.clone();
         Box::pin(async move { Ok(stdout) })
     }
+}
+
+/// Stands in for a git that cannot reach the remote at all — a machine
+/// without the host's CA certificates, without an SSH key, offline.
+struct UnreachableRunner {
+    stderr: String,
+}
+
+impl GitCommandRunner for UnreachableRunner {
+    fn ls_remote<'a>(
+        &'a self,
+        _repo: &'a str,
+        _ref_: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+        let message = self.stderr.clone();
+        Box::pin(async move { Err(GitRunError { message }) })
+    }
+}
+
+async fn resolve_unreachable(bare_specifier: &str, stderr: &str) -> GitResolveError {
+    let resolver = GitResolver::new(
+        Arc::new(FakeProbe::new(true)),
+        Arc::new(UnreachableRunner { stderr: stderr.to_string() }),
+    );
+    let wanted = WantedDependency {
+        bare_specifier: Some(bare_specifier.to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("unreachable remote");
+    *err.downcast::<GitResolveError>().expect("the resolver's own diagnostic, boxed outermost")
 }
 
 fn runner(stdout: &str) -> FakeRunner {
@@ -279,4 +315,40 @@ async fn credentialed_https_url_keeps_the_authenticated_url() {
         [(AUTH_URL.to_string(), Some("HEAD".to_string()))],
     );
     assert!(probe.calls.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn unreachable_remote_names_the_dependency_and_how_to_substitute_the_transport() {
+    let err = resolve_unreachable(
+        "zkochan/is-negative#next",
+        "fatal: unable to access 'https://github.com/zkochan/is-negative.git/': SSL certificate problem",
+    )
+    .await;
+
+    assert_eq!(err.code().expect("code").to_string(), "ERR_PNPM_GIT_RESOLVE_FAILED");
+    assert_eq!(
+        err.to_string(),
+        r#"Failed to resolve git dependency "zkochan/is-negative#next": git ls-remote failed: fatal: unable to access 'https://github.com/zkochan/is-negative.git/': SSL certificate problem"#,
+    );
+    let help = err.help().expect("help").to_string();
+    assert!(
+        help.contains(
+            r#"git config --global url."git@github.com:".insteadOf "https://github.com/""#
+        ),
+        "{help}",
+    );
+}
+
+// A known host's SSH URL is an identity that finalises to HTTPS (see
+// `parse_bare_specifier`), so the hint applies there too. Only an unknown
+// host's URL keeps the transport the user wrote.
+#[tokio::test]
+async fn unreachable_ssh_remote_carries_no_transport_substitution_hint() {
+    let err = resolve_unreachable(
+        "git+ssh://git@example.com/foo/bar.git",
+        "git@example.com: Permission denied (publickey).",
+    )
+    .await;
+
+    assert!(err.help().is_none());
 }
