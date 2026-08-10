@@ -185,6 +185,8 @@ describe('verifiedIntegrity robustness', () => {
       lockfileOnly: true,
     })
 
-    expect(components.find((component) => component.name === 'foo')?.integrity).toBeUndefined()
+    const component = components.find((candidate) => candidate.name === 'foo')
+    expect(component).toBeDefined()
+    expect(component!.integrity).toBeUndefined()
   })
 })
