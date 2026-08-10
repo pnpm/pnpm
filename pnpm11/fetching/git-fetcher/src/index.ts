@@ -118,7 +118,7 @@ function gitFetchError (err: Error, repo: string, pkgName?: string): PnpmError {
 // and leaks the store's temp directory. The stderr alone is what the user needs.
 function gitFailureDetail (err: Error): string {
   const stderr = (err as { stderr?: string }).stderr?.trim()
-  return stderr ?? err.message
+  return stderr == null || stderr === '' ? err.message : stderr
 }
 
 /**

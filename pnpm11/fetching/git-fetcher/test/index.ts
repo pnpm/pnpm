@@ -392,6 +392,28 @@ test('a failed clone over HTTPS carries no SSH remediation', async () => {
   expect(err.hint).toBeUndefined()
 })
 
+test('a failed shallow fetch is reported like a failed clone', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ gitShallowHosts: ['github.com'], storeIndex: createStoreIndex(storeDir) }).git
+  const err = await fetchFailure(withoutSsh(async () => fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'ssh://git@github.com/pnpm-e2e/this-repository-does-not-exist.git',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+      pkg: { name: '@scope/pkg', version: '1.0.0' },
+    }
+  )))
+
+  expect(jest.mocked(execa).mock.calls.some(([, args]) => (args as string[])?.includes('fetch'))).toBe(true)
+  expect(err.code).toBe('ERR_PNPM_GIT_FETCH_FAILED')
+  expect(err.message).toContain('Failed to fetch "@scope/pkg" from the git repository')
+  expect(err.hint).toContain('needs an SSH key for github.com')
+})
+
 // An IPv6 literal keeps its brackets, matching what pacquet's ssh_repo_host
 // returns for the same reference.
 test('the SSH remediation names a bracketed IPv6 host', async () => {
