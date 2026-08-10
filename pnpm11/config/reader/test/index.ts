@@ -885,6 +885,48 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     }
   })
 
+  /**
+   * The global config file's own contents are filtered before the merge, but
+   * the CLI options are merged in again there — so the escape hatch used to
+   * work for anyone who happened to have a `config.yaml`, and not for anyone
+   * who did not.
+   */
+  test.each([true, false])('the --config escape hatch is inert whether or not a global config.yaml exists (%s)', async (withGlobalYaml) => {
+    prepareEmpty()
+
+    const xdgConfigHome = process.cwd()
+    const globalConfigDir = path.join(xdgConfigHome, 'pnpm')
+    fs.mkdirSync(globalConfigDir, { recursive: true })
+    if (withGlobalYaml) {
+      writeYamlFileSync(path.join(globalConfigDir, 'config.yaml'), { stateDir: '/tmp/from-global-yaml' })
+    }
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
+
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = xdgConfigHome
+    let config: Config
+    try {
+      ;({ config } = await getConfig({
+        cliOptions: { 'config-dir': '/tmp/from-cli', dir: process.cwd() },
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      if (previousXdgConfigHome == null) {
+        delete process.env.XDG_CONFIG_HOME
+      } else {
+        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      }
+    }
+
+    expect(config.configDir).not.toBe('/tmp/from-cli')
+    // The dedicated flags and the keys the global file does take are unaffected.
+    expect(config.dir).toBe(process.cwd())
+    if (withGlobalYaml) {
+      expect(config.stateDir).toBe('/tmp/from-global-yaml')
+    }
+  })
+
   test('the skips still apply when self-update resolves the config', async () => {
     prepareEmpty()
 

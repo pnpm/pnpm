@@ -55,18 +55,17 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
         key = validateYamlConfigKey(key)
       }
       const writtenKey = validateWorkspaceKey(key)
-      // `pnpm config delete` arrives here with a null value. Deleting one of
-      // these is the fix for a manifest that already has it, so only writing
-      // is refused.
-      if (value != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
+      // `castField` is what decides a removal: `pnpm config delete` arrives
+      // with a null value, and `pnpm config set <key> null` casts to one. Both
+      // are how a manifest that already carries one of these gets fixed, so
+      // the result of the cast — not the raw parameter — gates the refusal.
+      const castValue = castField(value, kebabCase(writtenKey))
+      if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
         throw new ConfigSetNotAProjectSettingError(writtenKey)
       }
-      // `castField` turns an explicit `null` value into a removal too, so it
-      // decides this rather than the raw parameter. Removing from a file that
-      // is not there is a no-op, not an error: the writer deletes a manifest
-      // once the removal empties it, and would fail to delete one that was
-      // never written.
-      const castValue = castField(value, kebabCase(writtenKey))
+      // Removing from a file that is not there is a no-op, not an error: the
+      // writer deletes a manifest once the removal empties it, and would fail
+      // to delete one that was never written.
       if (castValue == null && !await pathExists(configPath)) break
       const updatedFields: Record<string, unknown> = {
         [writtenKey]: castValue,

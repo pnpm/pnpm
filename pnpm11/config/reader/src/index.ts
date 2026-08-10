@@ -344,6 +344,7 @@ export async function getConfig (opts: {
       configFromCliOpts,
       expandRequestDestinationEnv: true,
       projectManifest: undefined,
+      skipSettings: GLOBAL_CONFIG_SKIPPED_SETTINGS,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
@@ -1149,6 +1150,20 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'packageManagerNetworkConfig',
   'packageManagerRegistries',
 ] satisfies Array<keyof (Config & ConfigContext)>)
+
+/**
+ * The refused settings the global config file does not accept either.
+ *
+ * Its own contents are already filtered by `isConfigFileKey` before the merge,
+ * but the CLI options are merged in again there, so without this a
+ * `--config.config-dir` would land back on a key the reader resolves for
+ * itself — and only for users who happen to have a `config.yaml`. The ones it
+ * does accept (`stateDir`, `globalDir`, `globalBinDir`, `npmrcAuthFile`) are
+ * deliberately absent.
+ */
+const GLOBAL_CONFIG_SKIPPED_SETTINGS: ReadonlySet<string> = new Set(
+  [...PROJECT_MANIFEST_SKIPPED_SETTINGS].filter((key) => !isConfigFileKey(kebabCase(key)))
+)
 
 /**
  * Whether a project's `pnpm-workspace.yaml` would ignore this camelCase key.
