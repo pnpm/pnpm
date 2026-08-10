@@ -55,9 +55,6 @@ fn every_dependency_group_of_every_importer_is_direct() {
     );
 }
 
-/// A `time:` key never carries a peer suffix, so the depPath a
-/// peer-qualified importer entry contributes must be stripped down to
-/// the one the entry is recorded under.
 #[test]
 fn a_peer_qualified_dependency_matches_its_peer_stripped_key() {
     let document = pruned(json!({
@@ -73,8 +70,6 @@ fn a_peer_qualified_dependency_matches_its_peer_stripped_key() {
     assert_eq!(document["time"], json!({ "react-dom@17.0.2": "2021-03-22T15:00:00.000Z" }));
 }
 
-/// An npm-aliased dependency is recorded under the aliased package's
-/// depPath, not under the name it is installed as.
 #[test]
 fn an_aliased_dependency_matches_its_target_key() {
     let document = pruned(json!({
@@ -93,8 +88,6 @@ fn an_aliased_dependency_matches_its_target_key() {
     assert_eq!(document["time"], json!({ "is-positive@1.0.0": "2016-02-02T00:00:00.000Z" }));
 }
 
-/// A workspace sibling resolves to no depPath, so it can never keep a
-/// `time:` entry alive.
 #[test]
 fn a_linked_dependency_keeps_nothing() {
     let document = pruned(json!({

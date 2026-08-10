@@ -1500,11 +1500,9 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
     drop((root, mock_instance));
 }
 
-/// `resolutionMode: time-based` records each direct dependency's publish
-/// date under `time:`, and every later install hands the section back.
-/// Dropping it would lose the dates a re-resolve falls back on when the
-/// registry's abbreviated metadata carries none, changing the cutoff
-/// every subdependency is resolved under.
+/// Dropping `time:` would lose the publish dates a re-resolve falls back
+/// on when the registry's abbreviated metadata carries none, changing the
+/// cutoff every subdependency is resolved under.
 #[test]
 fn time_based_install_records_and_preserves_the_lockfile_time_section() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

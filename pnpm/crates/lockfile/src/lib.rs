@@ -183,7 +183,7 @@ pub struct Lockfile {
     /// abbreviated metadata carries none, so the cutoff a later
     /// time-based resolution derives stays the one this lockfile was
     /// written under. Sorted by key and pruned to the importers' direct
-    /// dependencies on save (see [`crate::prune_time`]), so it does not
+    /// dependencies on save (see [`crate::prune_time()`]), so it does not
     /// grow an entry per transitive package.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time: Option<BTreeMap<String, String>>,

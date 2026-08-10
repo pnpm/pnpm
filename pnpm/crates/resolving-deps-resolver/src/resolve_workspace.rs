@@ -205,8 +205,13 @@ where
         registries,
         named_registries,
     } = opts;
-    // Taken before the lockfile moves into the workspace ctx below.
-    let recorded_time = wanted_lockfile.as_ref().and_then(|lockfile| lockfile.time.clone());
+    // Taken before the lockfile moves into the workspace ctx below, and
+    // only for the pre-pass that reads it — a lockfile is untrusted
+    // input, so an install that will not consult the recorded dates
+    // must not copy them.
+    let recorded_time = time_based
+        .then(|| wanted_lockfile.as_ref().and_then(|lockfile| lockfile.time.clone()))
+        .flatten();
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(manifest_hook)

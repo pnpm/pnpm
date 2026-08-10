@@ -103,10 +103,6 @@ fn save_reproduces_pnpm_authored_bytes() {
     assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n"));
 }
 
-/// A `resolutionMode: time-based` install records `time:`, and every
-/// later save has to hand it back — the recorded dates are what a
-/// registry whose abbreviated metadata omits publish times resolves
-/// against.
 #[test]
 fn time_survives_a_save_round_trip() {
     let lockfile: Lockfile = serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{DIRECT_TIME}"))
@@ -120,9 +116,7 @@ fn time_survives_a_save_round_trip() {
     assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
 }
 
-/// Saving prunes `time:` to the importers' direct dependencies, the way
-/// pnpm's `pruneTimeInLockfile` does, so the section stays one entry per
-/// direct dependency instead of growing one per resolved package.
+/// Port of pnpm's `pruneTimeInLockfile`.
 #[test]
 fn time_is_pruned_to_the_importers_direct_dependencies() {
     const TIME_WITH_TRANSITIVE: &str = text_block! {
