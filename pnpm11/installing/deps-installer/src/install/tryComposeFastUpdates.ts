@@ -41,6 +41,8 @@ export interface FastUpdateDrift {
 export interface ComposeFastUpdatesOptions {
   drift: FastUpdateDrift
   projects: Project[]
+  /** Whether importers of removed projects are dropped from the lockfile. */
+  pruneLockfileImporters?: boolean
   ignoredOptionalDependencies?: string[]
   patchedDependencies?: FastPatchedDependenciesUpdateOptions
   settings?: FastSettingsUpdateOptions
@@ -62,7 +64,10 @@ export function tryComposeFastUpdates (
   opts: ComposeFastUpdatesOptions
 ): boolean {
   const edits: GraphEdits = { dropped: new Set(), movedAcrossOptional: false }
-  if (opts.drift.importers && !tryFastUpdateImporters(candidate, opts.projects, edits)) {
+  if (opts.drift.importers && !tryFastUpdateImporters(candidate, {
+    projects: opts.projects,
+    pruneLockfileImporters: opts.pruneLockfileImporters ?? false,
+  }, edits)) {
     return false
   }
   if (opts.drift.ignoredOptionalDependencies) {

@@ -736,7 +736,7 @@ export async function mutateModules (
     // A changed field nothing can absorb forces a resolution, so the
     // workspace-wide specifier scan would be wasted.
     const hasChangedSpecifiers = (allChangedFieldsAreComposable || changedFieldIsAsync) &&
-      hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects)
+      hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects, opts.pruneLockfileImporters)
     // The async rewrites (catalogs, overrides) consult the resolver and stay
     // outside the composed pipeline, so they require being the only change.
     const asyncChangedSetting = changedFieldIsAsync && !hasChangedSpecifiers
@@ -782,7 +782,8 @@ export async function mutateModules (
       !ctx.lockfileHadConflicts &&
       ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
       !isEmptyLockfile(ctx.wantedLockfile) &&
-      (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
+      // Extra importers are drift the handler absorbs; a missing one is not.
+      contextProjects.every((project) => ctx.wantedLockfile.importers[project.id] != null) &&
       // `time` records publish dates for the importers' direct dependencies
       // and is pruned back to them whenever the lockfile is written, so a
       // rewrite that introduces no new version needs no maintenance of it.
@@ -842,6 +843,7 @@ export async function mutateModules (
               return tryComposeFastUpdates(candidate, {
                 drift: syncDrift,
                 projects: contextProjects,
+                pruneLockfileImporters: opts.pruneLockfileImporters,
                 ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
                 patchedDependencies: {
                   patchedDependencies,

@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import * as dp from '@pnpm/deps.path'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -13,8 +15,10 @@ export interface Project {
 
 export function hasChangedProjectSpecifiers (
   lockfile: LockfileObject,
-  projects: Project[]
+  projects: Project[],
+  pruneLockfileImporters: boolean = false
 ): boolean {
+  if (pruneLockfileImporters && staleImporterIds(lockfile, projects).length > 0) return true
   return projects.some((project) => {
     const importer = lockfile.importers[project.id]
     if (importer == null) return false
@@ -35,10 +39,26 @@ export function hasChangedProjectSpecifiers (
  */
 export function tryFastUpdateImporters (
   lockfile: LockfileObject,
-  projects: Project[],
+  opts: { projects: Project[], pruneLockfileImporters: boolean },
   edits: GraphEdits
 ): boolean {
+  const { projects } = opts
   let changed = false
+  if (opts.pruneLockfileImporters) {
+    const stale = staleImporterIds(lockfile, projects)
+    // A project that is gone while something still links to it is a broken
+    // workspace, which only the resolver may report.
+    if (stale.some((importerId) => isLinkedFromASurvivor(lockfile, importerId, stale))) {
+      return false
+    }
+    for (const importerId of stale) {
+      for (const alias of Object.keys(lockfile.importers[importerId].specifiers)) {
+        edits.dropped.add(alias)
+      }
+      delete lockfile.importers[importerId]
+      changed = true
+    }
+  }
   for (const project of projects) {
     const importer = lockfile.importers[project.id]
     if (importer == null) return false
@@ -128,6 +148,28 @@ function highestLockedVersionSatisfying (
   }
   if (versions.size === 0) return null
   return [...versions].sort(semver.rcompare)[0]
+}
+
+/** Whether an importer that survives the prune links to `importerId`. */
+function isLinkedFromASurvivor (
+  lockfile: LockfileObject,
+  importerId: ProjectId,
+  stale: ProjectId[]
+): boolean {
+  return Object.entries(lockfile.importers).some(([survivorId, importer]) => {
+    if (stale.includes(survivorId as ProjectId)) return false
+    return DEPENDENCIES_FIELDS.some((group) =>
+      Object.values(importer[group] ?? {}).some((reference) =>
+        reference.startsWith('link:') &&
+        path.posix.normalize(path.posix.join(survivorId, reference.slice('link:'.length))) === importerId))
+  })
+}
+
+/** Importers the lockfile records that no project claims any more. */
+function staleImporterIds (lockfile: LockfileObject, projects: Project[]): ProjectId[] {
+  const projectIds = new Set(projects.map(({ id }) => id))
+  return (Object.keys(lockfile.importers) as ProjectId[])
+    .filter((importerId) => !projectIds.has(importerId))
 }
 
 function dependencyGroupMoved (
