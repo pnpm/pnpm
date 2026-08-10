@@ -120,8 +120,8 @@ pub struct GraphToLockfileOptions<'a> {
     /// [`Self::importers`]. Used to preserve a workspace dependency's
     /// prior `link:` entry when this install does not target it — see
     /// `build_importer` and pnpm/pnpm#10433. `None` when there is no
-    /// previous lockfile (a first install), and when `dedupeInjectedDeps`
-    /// is off, which disables the guard entirely (pnpm/pnpm#13754).
+    /// previous lockfile (a first install) or when `dedupeInjectedDeps`
+    /// is off.
     pub previous_importers: Option<&'a HashMap<String, ProjectSnapshot>>,
     /// How this install reuses the prior resolution, mapped from the
     /// `pacquet update` seed policy. Together with a spec change it
@@ -391,8 +391,7 @@ fn build_importer(
         // *target* that dependency, keep its previous `link:` importer entry
         // rather than rewriting it to a peer-suffixed `file:`.
         // `dedupe_injected_deps` runs earlier in the resolver and does not
-        // reach this finalization path; when that pass is off there is nothing
-        // to compensate for and the caller withholds `previous_importer`.
+        // reach this finalization path.
         if let ImporterDepVersion::File(_) = &version
             && let Some(previous) =
                 previous_importer.and_then(|prev| previous_importer_dep(prev, &name_for_key))

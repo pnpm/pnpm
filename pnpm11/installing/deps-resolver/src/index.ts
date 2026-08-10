@@ -304,9 +304,6 @@ export async function resolveDependencies (
     })
     : initiallyResolvedPeers
 
-  // The guard below only compensates for dedupeInjectedDeps not running on
-  // every re-resolution path, so with that pass off a recorded `link:` is
-  // stale. See pnpm/pnpm#13754.
   const preserveDedupedWorkspaceLinks = Boolean(opts.dedupeInjectedDeps)
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   await Promise.all(projectsToResolve.map(async (project, index) => {
