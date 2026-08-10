@@ -633,27 +633,6 @@ jobs:
             'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
 
-      - name: Stage artifact contents
-        # The artifact carries the rendered report plus the
-        # Bencher-shaped JSON consumed by the comment-posting
-        # workflow. The PR number and runner OS are derived from the
-        # trusted workflow_run event payload in that workflow, not
-        # from fork-controlled artifact contents.
-        shell: bash
-        run: |
-          mkdir -p benchmark-artifact
-          cp bench-work-env/SUMMARY.md benchmark-artifact/SUMMARY.md
-          cp bench-work-env/bencher-results.json benchmark-artifact/bencher-results.json
-          cp bench-work-env/bencher-results-pnpr.json benchmark-artifact/bencher-results-pnpr.json
-
-      - name: Upload benchmark report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: integrated-benchmark-report-ubuntu-latest
-          path: benchmark-artifact/
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Check stable benchmark scenarios
         id: stable_scenarios
         if: github.ref_name != 'main'
@@ -694,6 +673,29 @@ jobs:
             bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json \
             'fresh restore, cold cache + cold store + cold pnpr'
           exit "$failed"
+
+      - name: Stage artifact contents
+        # The artifact carries the rendered report, the Bencher-shaped JSON,
+        # and a stable-gate failure marker when applicable. The PR number and
+        # runner OS are derived from the trusted workflow_run event payload in
+        # the comment workflow, not from fork-controlled artifact contents.
+        shell: bash
+        run: |
+          mkdir -p benchmark-artifact
+          cp bench-work-env/SUMMARY.md benchmark-artifact/SUMMARY.md
+          cp bench-work-env/bencher-results.json benchmark-artifact/bencher-results.json
+          cp bench-work-env/bencher-results-pnpr.json benchmark-artifact/bencher-results-pnpr.json
+          if [ "${{ steps.stable_scenarios.outcome }}" = 'failure' ]; then
+            touch benchmark-artifact/STABLE_SCENARIO_GATE_FAILED
+          fi
+
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integrated-benchmark-report-ubuntu-latest
+          path: benchmark-artifact/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Install Bencher CLI
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -749,7 +751,9 @@ jobs:
           upload pnpr bench-work-env/bencher-results-pnpr.json
 
       - name: Re-raise the stable-scenario gate
-        if: always() && steps.stable_scenarios.outcome == 'failure'
+        # Pull requests re-raise this marker in the comment workflow, after it
+        # has posted the report. Direct runs have no second-stage workflow.
+        if: always() && github.event_name != 'pull_request' && steps.stable_scenarios.outcome == 'failure'
         shell: bash
         run: |
           echo "::error::A stable pacquet benchmark scenario regressed by more than 20%; see the check step for measurements."

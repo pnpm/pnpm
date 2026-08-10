@@ -31,13 +31,12 @@ jobs:
   comment:
     name: Post benchmark comment
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # A deferred regression gate fails only after the report artifact has been
-    # staged, so consume both successful and failed runs. Earlier failures have
-    # no artifact and fail safely in the download step.
+    # Stable-scenario failures are carried in the successful run artifact and
+    # re-raised below, after the report is posted. Early benchmark failures do
+    # not have an artifact, so keep skipping them here.
     if: |
       github.event.workflow_run.event == 'pull_request' &&
-      (github.event.workflow_run.conclusion == 'success' ||
-       github.event.workflow_run.conclusion == 'failure')
+      github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Resolve PR number from workflow_run trigger
         # `workflow_run.pull_requests` is empty for fork PRs (the case
@@ -179,3 +178,10 @@ jobs:
           }
           upload pacquet benchmark-artifact/bencher-results.json
           upload pnpr benchmark-artifact/bencher-results-pnpr.json
+
+      - name: Re-raise the stable-scenario gate
+        if: hashFiles('benchmark-artifact/STABLE_SCENARIO_GATE_FAILED') != ''
+        shell: bash
+        run: |
+          echo "::error::A stable pacquet benchmark scenario regressed by more than 20%; see the benchmark comment for measurements."
+          exit 1
