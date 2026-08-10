@@ -326,6 +326,31 @@ test('preserves Windows file and directory symlink kinds with relative targets',
   }
 })
 
+test('publishes into a global bin directory that does not exist yet', async () => {
+  const manifest: DependencyManifest = {
+    name: 'replacement',
+    version: '2.0.0',
+    bin: {
+      tool: 'bin/tool.js',
+    },
+  }
+  const fixture = await createFixture(manifest)
+  await fs.rm(fixture.globalBinDir, { recursive: true })
+
+  const publishedBins = await publishGlobalInstall({
+    installDir: fixture.freshInstallDir,
+    hashLink: fixture.hashLink,
+    globalBinDir: fixture.globalBinDir,
+    pkgs: [{ manifest, location: fixture.packageDir }],
+    binsToSkip: new Set(),
+  })
+
+  expect(publishedBins).toStrictEqual(new Set(['tool']))
+  expect(await fs.readFile(path.join(fixture.globalBinDir, 'tool'), 'utf8')).toBe('fresh tool\n')
+  expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.freshInstallDir))
+  expect(await findBackupDirs(fixture.root)).toStrictEqual([])
+})
+
 test('succeeds when removing the backup directory fails after publication', async () => {
   const manifest: DependencyManifest = {
     name: 'replacement',

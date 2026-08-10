@@ -14,6 +14,9 @@ const rimraf = jest.fn<(path: string) => Promise<void>>(() => deletions[nextDele
 
 jest.unstable_mockModule('@zkochan/rimraf', () => ({ rimraf }), { virtual: true })
 jest.unstable_mockModule('is-windows', () => ({ default: () => true }), { virtual: true })
+// The real extension is derived from the host's COMSPEC, which is
+// uppercase on Windows and would make the expected paths host-dependent.
+jest.unstable_mockModule('cmd-extension', () => ({ cmdExtension: '.cmd' }), { virtual: true })
 
 const { removeBin } = await import('../../../bins/remover/src/removeBins.js')
 

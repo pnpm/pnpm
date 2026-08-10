@@ -134,6 +134,9 @@ async function prepareGlobalInstall (
   let backupDir: string | undefined
   try {
     const actualBinNames = await getActualBinNames(opts)
+    // The backup directory lives in the global bin directory, which the
+    // linker would otherwise be the first to create.
+    await fs.promises.mkdir(opts.globalBinDir, { recursive: true })
     backupDir = await fs.promises.mkdtemp(path.join(opts.globalBinDir, '.pnpm-bin-backup-'))
     const savedBinSlots = await backupBinSlots({
       actualBinNames,
