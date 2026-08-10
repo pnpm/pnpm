@@ -331,8 +331,12 @@ export async function getConfig (opts: {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
       // A project manifest refuses some of these too, so pointing every one of
       // them at it would send the user from this warning straight to the other.
-      const movable = ignoredKeys.filter((key) => !isProjectManifestSkippedSetting(camelcase(key, { locale: 'en-US' })))
-      const nowhere = ignoredKeys.filter((key) => isProjectManifestSkippedSetting(camelcase(key, { locale: 'en-US' })))
+      const refusedByAProjectManifest = (key: string): boolean => {
+        const camelKey = camelcase(key, { locale: 'en-US' })
+        return isProjectManifestSkippedSetting(camelKey) || CONFIG_CONTEXT_KEYS.has(camelKey)
+      }
+      const movable = ignoredKeys.filter((key) => !refusedByAProjectManifest(key))
+      const nowhere = ignoredKeys.filter(refusedByAProjectManifest)
       if (movable.length > 0) {
         warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(movable)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
       }
@@ -1158,8 +1162,8 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
  * but the CLI options are merged in again there, so without this a
  * `--config.config-dir` would land back on a key the reader resolves for
  * itself — and only for users who happen to have a `config.yaml`. The ones it
- * does accept (`stateDir`, `globalDir`, `globalBinDir`, `npmrcAuthFile`) are
- * deliberately absent.
+ * does accept (`stateDir`, `globalDir`, `globalBinDir`, `npmrcAuthFile` and
+ * `userconfig`) are deliberately absent.
  */
 const GLOBAL_CONFIG_SKIPPED_SETTINGS: ReadonlySet<string> = new Set(
   [...PROJECT_MANIFEST_SKIPPED_SETTINGS].filter((key) => !isConfigFileKey(kebabCase(key)))

@@ -1138,7 +1138,7 @@ test('config delete clears a hand-written kebab-case key', async () => {
 })
 
 /**
- * Nine of these settings have no entry in `types`, so their kebab-case
+ * Ten of these settings have no entry in `types`, so their kebab-case
  * spelling reaches `validateWorkspaceKey`'s rejection rather than the delete.
  * The reader names whichever spelling the file used, so every one of them has
  * to be clearable under that name.
@@ -1149,6 +1149,7 @@ test.each([
   'root-project-manifest-dir',
   'workspace-dir',
   'package-manager-registries',
+  'user-config',
 ])('config delete clears %s, which is absent from the types table', async (key) => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
