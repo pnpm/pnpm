@@ -329,7 +329,16 @@ export async function getConfig (opts: {
     }
     if (ignoredKeys.length > 0) {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
-      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(ignoredKeys)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      // A project manifest refuses some of these too, so pointing every one of
+      // them at it would send the user from this warning straight to the other.
+      const movable = ignoredKeys.filter((key) => !isProjectManifestSkippedSetting(camelcase(key, { locale: 'en-US' })))
+      const nowhere = ignoredKeys.filter((key) => isProjectManifestSkippedSetting(camelcase(key, { locale: 'en-US' })))
+      if (movable.length > 0) {
+        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(movable)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      }
+      if (nowhere.length > 0) {
+        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(nowhere)}. pnpm resolves these itself, so no config file sets them.`)
+      }
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,

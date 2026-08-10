@@ -838,6 +838,43 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(context.rootProjectManifest?.name).not.toBe('attacker-root')
   })
 
+  /**
+   * The global config file's own warning told users to move an ignored setting
+   * to a project manifest, which now refuses a subset of them — following it
+   * would land on the other warning, which offers no remedy.
+   */
+  test('the global config file does not send a refused setting to the project manifest', async () => {
+    prepareEmpty()
+
+    // `getConfigDir` reads `process.env` directly and appends `pnpm`.
+    const xdgConfigHome = process.cwd()
+    const configDir = path.join(xdgConfigHome, 'pnpm')
+    fs.mkdirSync(configDir, { recursive: true })
+    writeYamlFileSync(path.join(configDir, 'config.yaml'), {
+      configDir: '/tmp/attacker-config-dir',
+      bail: false,
+    })
+
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = xdgConfigHome
+    let warnings: string[]
+    try {
+      ;({ warnings } = await getConfig({
+        cliOptions: {},
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+    }
+
+    const aboutConfigDir = warnings.filter((warning) => warning.includes('"configDir"'))
+    expect(aboutConfigDir).not.toEqual([])
+    for (const warning of aboutConfigDir) {
+      expect(warning).not.toContain('Move them to a project-level pnpm-workspace.yaml')
+    }
+  })
+
   test('the skips still apply when self-update resolves the config', async () => {
     prepareEmpty()
 
