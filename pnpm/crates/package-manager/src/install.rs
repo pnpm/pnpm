@@ -506,6 +506,12 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
 
+    /// The pnpmfile's `readPackage` hook threw while transforming a
+    /// workspace project's own manifest.
+    #[display("{_0}")]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
+    ReadPackageHook(#[error(not(source))] pacquet_hooks::HookError),
+
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 
