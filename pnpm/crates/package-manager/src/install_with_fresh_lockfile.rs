@@ -926,12 +926,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // is moved into the resolver options below and `wanted_lockfile` is
         // later shadowed by the freshly built lockfile.
         //
-        // Withheld when `dedupe_injected_deps` is off: the guard exists only to
-        // compensate for that pass not running on every re-resolution path, and
-        // with it off no run may turn an injected workspace dependency back
-        // into a `link:`, so a recorded `link:` is stale and the freshly
-        // resolved `file:` has to win. `pacquet deploy` depends on this to
-        // produce a self-contained directory (pnpm/pnpm#13754).
+        // Withheld when `dedupe_injected_deps` is off: the guard only
+        // compensates for that pass not running on every re-resolution path, so
+        // with it off a recorded `link:` is stale (pnpm/pnpm#13754).
         let guard_previous_importers: Option<&HashMap<String, pacquet_lockfile::ProjectSnapshot>> =
             wanted_lockfile
                 .filter(|_| config.dedupe_injected_deps)

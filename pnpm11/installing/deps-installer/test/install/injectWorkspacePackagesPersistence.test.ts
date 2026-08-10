@@ -110,11 +110,8 @@ test('workspace packages should maintain link: protocol after single-project pnp
 })
 
 // The guard that preserves a prior `link:` only compensates for
-// dedupeInjectedDeps not running on every re-resolution path. With
-// dedupeInjectedDeps off nothing may turn an injected workspace dependency back
-// into a `link:`, so the freshly resolved `file:` has to win — this is what
-// `pnpm deploy` relies on to produce a self-contained directory
-// (https://github.com/pnpm/pnpm/issues/13754).
+// dedupeInjectedDeps not running on every re-resolution path, so with that pass
+// off a recorded `link:` is stale (https://github.com/pnpm/pnpm/issues/13754).
 test('workspace packages switch to file: protocol when injected with dedupeInjectedDeps disabled', async () => {
   const projectAManifest = {
     name: 'a',

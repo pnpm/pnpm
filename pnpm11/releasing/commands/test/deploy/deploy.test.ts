@@ -107,9 +107,6 @@ test('deploy without existing lockfile', async () => {
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/13754
-// The legacy deploy injects every workspace dependency, so the deployed
-// directory must not reference the workspace it was built from, even though the
-// shared lockfile it re-resolves records those dependencies as `link:`.
 test('legacy deploy injects workspace dependencies that the shared lockfile links', async () => {
   preparePackages([
     {

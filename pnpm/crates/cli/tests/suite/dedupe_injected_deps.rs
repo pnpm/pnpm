@@ -284,16 +284,10 @@ fn injected_peer_suffixed_workspace_dep_stays_file_after_remove() {
     drop((root, mock_instance));
 }
 
-/// Injecting a workspace dep that a previous install recorded as
-/// `link:../b`, with `dedupeInjectedDeps: false`. The pnpm/pnpm#10433
-/// guard preserves an untargeted dep's prior `link:`, but it only
-/// compensates for the dedupe pass not running on every re-resolution
-/// path — with that pass off, nothing may collapse an injected dep back
-/// to `link:`, so the recorded entry is stale and the fresh `file:` has
-/// to win. `pnpm deploy` disables dedupe and injects every workspace
-/// dependency, so the guard leaking into this case left the deployed
-/// directory symlinked into the workspace it was built from
-/// (pnpm/pnpm#13754).
+/// The pnpm/pnpm#10433 guard preserves an untargeted workspace dep's
+/// prior `link:`, but it only compensates for the dedupe pass not
+/// running on every re-resolution path — with that pass off the recorded
+/// entry is stale (pnpm/pnpm#13754).
 #[test]
 fn newly_injected_workspace_dep_with_dedupe_off_replaces_recorded_link() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
