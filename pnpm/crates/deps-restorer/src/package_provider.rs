@@ -547,7 +547,10 @@ fn validate_provider_response(
         };
         // A relative or empty path would resolve against the pnpm
         // process directory; reject it like the TypeScript client does.
-        if dir.is_empty() || !Path::new(dir).is_absolute() {
+        // `has_root` rather than `is_absolute`: Node's `path.isAbsolute`
+        // accepts drive-less rooted paths (`\store\foo`) on Windows,
+        // and the two clients must accept the same responses.
+        if dir.is_empty() || !Path::new(dir).has_root() {
             return Err(PackageProviderError::RelativePath {
                 dep_path: dep_path.clone(),
                 dir: dir.clone(),
