@@ -1,4 +1,6 @@
-use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer};
+use pacquet_lockfile::{
+    Lockfile, PkgName, PkgNameVerPeer, Prefix, ResolvedDependencySpec, SnapshotDepRef, VersionPart,
+};
 use std::collections::{HashSet, VecDeque};
 
 /// What the fast-update handlers did to the dependency graph, so the
@@ -8,11 +10,89 @@ use std::collections::{HashSet, VecDeque};
 /// per handler.
 #[derive(Default)]
 pub(crate) struct GraphEdits {
-    /// Aliases whose importer or snapshot edges were severed.
-    pub(crate) dropped: HashSet<PkgName>,
+    /// What the severed importer or snapshot edges pointed at.
+    pub(crate) dropped: DroppedEdges,
     /// Whether an edge into or out of `optionalDependencies` moved, which
     /// changes the reachability-derived `optional` flags for a subtree.
     pub(crate) moved_across_optional: bool,
+}
+
+/// What the edges a fast update severed pointed at, each written the way
+/// a peer suffix names a package: `name@version`, or a bare `name@` when
+/// the reference pins no version a suffix segment can be compared
+/// against — a link or a tarball, whose suffix segment carries the
+/// resolved manifest version instead — which makes every suffix naming
+/// that name suspect.
+#[derive(Default)]
+pub(crate) struct DroppedEdges(HashSet<String>);
+
+/// The `snapshots:` key a dependency record points at, across the
+/// importer-level and snapshot-level reference shapes, so a severed edge
+/// can be recorded from either.
+pub(crate) trait DroppedEdgeTarget {
+    fn resolved_key(&self, alias: &PkgName) -> Option<PkgNameVerPeer>;
+}
+
+impl DroppedEdgeTarget for ResolvedDependencySpec {
+    fn resolved_key(&self, alias: &PkgName) -> Option<PkgNameVerPeer> {
+        self.version.resolved_key(alias)
+    }
+}
+
+impl DroppedEdgeTarget for SnapshotDepRef {
+    fn resolved_key(&self, alias: &PkgName) -> Option<PkgNameVerPeer> {
+        self.resolve(alias)
+    }
+}
+
+impl DroppedEdges {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Record the edge from `alias` to `target` as severed.
+    pub(crate) fn record(&mut self, alias: &PkgName, target: &impl DroppedEdgeTarget) {
+        let peer_id = match target.resolved_key(alias) {
+            // A peer suffix names an aliased dependency by the package's
+            // own name, not by the name it is linked into `node_modules`
+            // under; a link has no key to take a name from at all.
+            Some(key) => peer_id_of(&key).unwrap_or_else(|| format!("{}@", key.name)),
+            None => format!("{alias}@"),
+        };
+        self.0.insert(peer_id);
+    }
+
+    /// Whether `peers` — the peer suffix of a snapshot key — names none
+    /// of the severed edges' targets, at any nesting depth. Without
+    /// `dedupePeers` a peer is named by its whole dep path, and the peers
+    /// that path pins are as much a part of the dependent's key as the
+    /// top-level ones. A `patch_hash=` segment names no package; a suffix
+    /// pnpm shortened into a hash names nothing that can be ruled out.
+    fn are_absent_from(&self, peers: &str) -> bool {
+        peers
+            .split(['(', ')'])
+            .filter(|peer_id| !peer_id.is_empty() && !peer_id.starts_with("patch_hash="))
+            .all(|peer_id| {
+                let Some(version_index) = peer_id[1..].find('@').map(|index| index + 2) else {
+                    return false;
+                };
+                !self.0.contains(peer_id) && !self.0.contains(&peer_id[..version_index])
+            })
+    }
+}
+
+/// The id a peer suffix names `key` by.
+fn peer_id_of(key: &PkgNameVerPeer) -> Option<String> {
+    if key.suffix.prefix() != Prefix::None {
+        return None;
+    }
+    match key.suffix.version() {
+        VersionPart::Semver(version) => Some(format!("{}@{version}", key.name)),
+        VersionPart::RegistryQualified { registry_name, version } => {
+            Some(format!("{}@{registry_name}:{version}", key.name))
+        }
+        VersionPart::File(_) | VersionPart::NonSemver(_) => None,
+    }
 }
 
 /// Settle the graph after every handler has run: drop what nothing
@@ -39,23 +119,13 @@ pub(crate) fn finish_graph_edits(candidate: &mut Lockfile, edits: &GraphEdits) -
 ///
 /// A dropped package that some snapshot reaches as a peer is embedded in
 /// that snapshot's key, so removing it would rekey the dependent rather
-/// than only prune. A peer suffix pnpm shortened into a hash cannot be
-/// read to rule that out.
-fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &HashSet<PkgName>) -> bool {
+/// than only prune. A package the same alias still provides at another
+/// version is no such peer: the suffix names the version, not the alias.
+fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &DroppedEdges) -> bool {
     let Some(snapshots) = lockfile.snapshots.as_ref() else {
         return true;
     };
-    let dropped_needles: Vec<String> = dropped.iter().map(|name| format!("{name}@")).collect();
-    snapshots.keys().all(|key| {
-        let peers = key.suffix.peer();
-        peers.is_empty()
-            || (peers
-                .trim_start_matches('(')
-                .trim_end_matches(')')
-                .split(")(")
-                .all(|segment| segment.contains('@'))
-                && !dropped_needles.iter().any(|needle| peers.contains(needle.as_str())))
-    })
+    snapshots.keys().all(|key| dropped.are_absent_from(key.suffix.peer()))
 }
 
 pub(crate) fn prune_unreachable_packages(lockfile: &mut Lockfile) {

@@ -144,6 +144,76 @@ test('a higher version under a plain key is reused', () => {
   })
 })
 
+test('a moved range keeps a package whose peer suffix names the version it moves to', () => {
+  const subject = lockfileWithPeerDependentUnderQux()
+
+  expect(tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    projects: [{
+      id: '.' as ProjectId,
+      manifest: { dependencies: { '@pnpm.e2e/foo': '^1.1.0', '@pnpm.e2e/qux': '^5.0.0' } } as ProjectManifest,
+    }],
+  })).toBe(true)
+  expect(subject.importers['.' as ProjectId].dependencies!['@pnpm.e2e/foo']).toBe('1.2.0')
+  expect(Object.keys(subject.packages ?? {}).filter(isFoo)).toStrictEqual(['@pnpm.e2e/foo@1.2.0'])
+})
+
+test('a moved range falls back when a peer suffix names the version it moves off', () => {
+  const subject = lockfileWithPeerDependentUnderQux()
+  subject.importers['.' as ProjectId].specifiers['@pnpm.e2e/baz'] = '^4.0.0'
+  subject.importers['.' as ProjectId].dependencies!['@pnpm.e2e/baz'] = '4.0.0(@pnpm.e2e/foo@1.0.0)'
+  subject.packages!['@pnpm.e2e/baz@4.0.0(@pnpm.e2e/foo@1.0.0)' as DepPath] = {
+    resolution: { integrity: 'sha512-baz-1' },
+    dependencies: { '@pnpm.e2e/foo': '1.0.0' },
+  }
+
+  expect(tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    projects: [{
+      id: '.' as ProjectId,
+      manifest: {
+        dependencies: {
+          '@pnpm.e2e/foo': '^1.1.0',
+          '@pnpm.e2e/qux': '^5.0.0',
+          '@pnpm.e2e/baz': '^4.0.0',
+        },
+      } as ProjectManifest,
+    }],
+  })).toBe(false)
+})
+
+/**
+ * The importer depends on `@pnpm.e2e/foo@1.0.0` directly, while
+ * `@pnpm.e2e/baz` — reached through `@pnpm.e2e/qux` — resolves it as a peer
+ * at the version `@pnpm.e2e/qux` provides, `1.2.0`.
+ */
+function lockfileWithPeerDependentUnderQux (): LockfileTypesObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { '@pnpm.e2e/foo': '1.0.0', '@pnpm.e2e/qux': '^5.0.0' },
+        dependencies: { '@pnpm.e2e/foo': '1.0.0', '@pnpm.e2e/qux': '5.0.0' },
+      },
+    },
+    packages: {
+      ['@pnpm.e2e/foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-foo-1' } },
+      ['@pnpm.e2e/foo@1.2.0' as DepPath]: { resolution: { integrity: 'sha512-foo-2' } },
+      ['@pnpm.e2e/qux@5.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-qux' },
+        dependencies: {
+          '@pnpm.e2e/foo': '1.2.0',
+          '@pnpm.e2e/baz': '4.0.0(@pnpm.e2e/foo@1.2.0)',
+        },
+      },
+      ['@pnpm.e2e/baz@4.0.0(@pnpm.e2e/foo@1.2.0)' as DepPath]: {
+        resolution: { integrity: 'sha512-baz-2' },
+        dependencies: { '@pnpm.e2e/foo': '1.2.0' },
+      },
+    },
+  }
+}
+
 function lockfileWithHigherVersionKeyedAs (higher: DepPath): LockfileTypesObject {
   return {
     lockfileVersion: '9.0',

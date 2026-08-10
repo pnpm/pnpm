@@ -5,12 +5,13 @@ import type {
   ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 
+import { recordDroppedEdge } from './droppedEdges.js'
 import type { GraphEdits } from './tryComposeFastUpdates.js'
 
 /**
  * Remove every optional dependency a widened `ignoredOptionalDependencies`
- * now ignores, from importers and packages alike, recording the removed
- * aliases in `edits` for the shared epilogue. `false` — a narrowed list, a
+ * now ignores, from importers and packages alike, recording the severed
+ * edges in `edits` for the shared epilogue. `false` — a narrowed list, a
  * new exclusion, or a previous configuration that ignores by default — leaves
  * the caller on the full-resolution path, because only a resolution can bring
  * packages back.
@@ -53,9 +54,11 @@ function removeIgnoredOptionalDependencies (
 ): void {
   const removed = Object.keys(snapshot.optionalDependencies ?? {}).filter(isIgnored)
   for (const dependency of removed) {
-    edits.dropped.add(dependency)
-    delete snapshot.optionalDependencies![dependency]
-    delete snapshot.dependencies?.[dependency]
+    for (const references of [snapshot.optionalDependencies, snapshot.dependencies]) {
+      if (references?.[dependency] == null) continue
+      recordDroppedEdge(edits.dropped, dependency, references[dependency])
+      delete references[dependency]
+    }
     delete snapshot.specifiers?.[dependency]
   }
   if (snapshot.optionalDependencies != null && Object.keys(snapshot.optionalDependencies).length === 0) {

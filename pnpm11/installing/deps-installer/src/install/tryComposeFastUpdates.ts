@@ -1,7 +1,7 @@
-import * as dp from '@pnpm/deps.path'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 
+import { type DroppedEdges, peerSuffixesAreIndependentOf } from './droppedEdges.js'
 import { pruneUnreferencedCatalogEntries } from './tryFastUpdateCatalogs.js'
 import { tryFastUpdateIgnoredOptionalDependencies } from './tryFastUpdateIgnoredOptionalDependencies.js'
 import { type Project, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
@@ -21,8 +21,8 @@ import {
  * runs once over the combined result instead of once per handler.
  */
 export interface GraphEdits {
-  /** Aliases whose importer or package edges were severed. */
-  dropped: Set<string>
+  /** What the severed importer or package edges pointed at. */
+  dropped: DroppedEdges
   /**
    * Whether an edge into or out of `optionalDependencies` moved, which
    * changes the reachability-derived `optional` flags for a subtree.
@@ -107,27 +107,4 @@ function finishGraphEdits (candidate: LockfileObject, edits: GraphEdits): boolea
     pruneUnreferencedCatalogEntries(candidate)
   }
   return true
-}
-
-/**
- * Whether no surviving package resolves a peer through one of `dropped`.
- *
- * A dropped package that some package reaches as a peer is embedded in that
- * package's key, so removing it would rekey the dependent rather than only
- * prune. A peer suffix pnpm shortened into a hash cannot be read to rule that
- * out.
- */
-function peerSuffixesAreIndependentOf (lockfile: LockfileObject, dropped: Set<string>): boolean {
-  const droppedNeedles = [...dropped].map((alias) => `${alias}@`)
-  return Object.keys(lockfile.packages ?? {}).every((depPath) => {
-    const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
-    if (peersIndex === -1) return true
-    const peers = depPath.substring(peersIndex)
-    return peers
-      .replace(/^\(/, '')
-      .replace(/\)$/, '')
-      .split(')(')
-      .every((segment) => segment.includes('@')) &&
-      !droppedNeedles.some((needle) => peers.includes(needle))
-  })
 }

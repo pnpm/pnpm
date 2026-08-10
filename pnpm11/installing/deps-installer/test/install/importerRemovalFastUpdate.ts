@@ -72,6 +72,41 @@ test('dropping a dependency together with its peer-dependent succeeds', () => {
   expect(Object.keys(subject.packages!)).toStrictEqual(['bar@2.0.0', 'child@3.0.0'])
 })
 
+test('dropping one version of a dependency keeps a package whose peer suffix names another', () => {
+  const subject = lockfileWithPeerOnEachVersionOfFoo()
+
+  expect(tryFastUpdateImporters(subject, [project({ qux: '^5.0.0' })])).toBe(true)
+  expect(Object.keys(subject.packages!).sort()).toStrictEqual([
+    'baz@4.0.0(foo@2.0.0)',
+    'foo@2.0.0',
+    'qux@5.0.0',
+  ])
+})
+
+test('dropping a dependency keeps a surviving suffix that only ends with its name', () => {
+  const subject = lockfile()
+  subject.importers['.' as ProjectId].dependencies!.qux = '5.0.0(@scope/foo@6.0.0)'
+  subject.importers['.' as ProjectId].specifiers.qux = '^5.0.0'
+  subject.packages!['qux@5.0.0(@scope/foo@6.0.0)' as DepPath] = {
+    resolution: { integrity: 'sha512-qux' },
+    dependencies: { '@scope/foo': '6.0.0' },
+  }
+  subject.packages!['@scope/foo@6.0.0' as DepPath] = { resolution: { integrity: 'sha512-scoped-foo' } }
+
+  expect(tryFastUpdateImporters(subject, [project({ bar: '^2.0.0', qux: '^5.0.0' })])).toBe(true)
+})
+
+test('dropping a dependency a nested peer suffix segment names falls back', () => {
+  const subject = lockfileWithPeerOnEachVersionOfFoo()
+  subject.importers['.' as ProjectId].dependencies!.baz = '4.0.0(qux@5.0.0(foo@1.1.0))'
+  subject.importers['.' as ProjectId].specifiers.baz = '^4.0.0'
+  subject.packages!['baz@4.0.0(qux@5.0.0(foo@1.1.0))' as DepPath] = {
+    resolution: { integrity: 'sha512-baz' },
+  }
+
+  expect(tryFastUpdateImporters(subject, [project({ qux: '^5.0.0', baz: '^4.0.0' })])).toBe(false)
+})
+
 test('dropping a dependency when a surviving peer suffix is hashed falls back', () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].dependencies!.baz = '4.0.0(sha256-abcdef)'
@@ -205,6 +240,34 @@ function lockfile (): LockfileObject {
         dependencies: { child: '3.0.0' },
       },
       ['child@3.0.0' as DepPath]: { resolution: { integrity: 'sha512-child' } },
+    },
+  }
+}
+
+/**
+ * The importer depends on `foo@1.1.0` directly, while `baz` — reached through
+ * `qux` — resolves `foo` as a peer at the version `qux` provides, `2.0.0`.
+ */
+function lockfileWithPeerOnEachVersionOfFoo (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { foo: '^1.0.0', qux: '^5.0.0' },
+        dependencies: { foo: '1.1.0', qux: '5.0.0' },
+      },
+    },
+    packages: {
+      ['foo@1.1.0' as DepPath]: { resolution: { integrity: 'sha512-foo-1' } },
+      ['foo@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-foo-2' } },
+      ['qux@5.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-qux' },
+        dependencies: { foo: '2.0.0', baz: '4.0.0(foo@2.0.0)' },
+      },
+      ['baz@4.0.0(foo@2.0.0)' as DepPath]: {
+        resolution: { integrity: 'sha512-baz' },
+        dependencies: { foo: '2.0.0' },
+      },
     },
   }
 }
