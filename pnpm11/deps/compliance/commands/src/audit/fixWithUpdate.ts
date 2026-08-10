@@ -15,6 +15,7 @@ import semver from 'semver'
 import type { AuditOptions } from './audit.js'
 import { createMinimumReleaseAgeExcludes } from './fix.js'
 import { lockfileToPackages } from './lockfileToPackages.js'
+import { createPublishTimesFetcher } from './publishTimes.js'
 
 interface ExtendedPackageVulnerability {
   vulnerability: PackageVulnerability
@@ -92,7 +93,12 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
 
   // Add minimum patched versions to minimumReleaseAgeExclude so the resolver
   // can install them even when minimumReleaseAge would otherwise block them.
-  const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories)) : []
+  const addedAgeExcludes = opts.minimumReleaseAge
+    ? await createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories), {
+      getPublishTimes: createPublishTimesFetcher(opts),
+      minimumReleaseAge: opts.minimumReleaseAge,
+    })
+    : []
   const updateOpts = { ...opts } as Record<string, unknown>
   if (addedAgeExcludes.length > 0) {
     const existing = (updateOpts.minimumReleaseAgeExclude as string[] | undefined) ?? []
