@@ -216,6 +216,12 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
+    /// pnpm's `saveLockfile`: whether the freshly built lockfile may be
+    /// written to `<lockfile_dir>/pnpm-lock.yaml`. `false` leaves that
+    /// file untouched — the resolved graph is still returned and still
+    /// drives `<virtual_store_dir>/lock.yaml`. See
+    /// [`crate::Install::run_legacy_deploy`].
+    pub save_lockfile: bool,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -687,6 +693,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             current_lockfile,
             prior_hoisted_dependencies,
             prune_orphans,
+            save_lockfile,
         } = self;
 
         // Shared once so the per-edge `ResolveOptions` clones below stay
@@ -1149,6 +1156,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 lockfile_dir,
                 requester,
                 dry_run,
+                save_lockfile,
                 after_all_resolved_hook: after_all_resolved_hook.as_ref(),
                 after_all_resolved_log,
                 store_index_writer,
@@ -1588,7 +1596,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // Saved after the build phase succeeds so a partial install can't
         // leave a lockfile pointing at slots that never landed on disk.
-        let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
+        let (wanted_lockfile, can_record_lockfile_verification) = if !config.lockfile {
+            (None, false)
+        } else if save_lockfile {
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
             let can_record_lockfile_verification = save_wanted_lockfile(
                 &built_lockfile,
@@ -1599,7 +1609,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .await?;
             (Some(built_lockfile), can_record_lockfile_verification)
         } else {
-            (None, false)
+            // Nothing was persisted, so there is no `pnpm-lock.yaml`
+            // whose verification a later install could key off.
+            (Some(built_lockfile), false)
         };
 
         Ok(InstallWithFreshLockfileResult {
@@ -1800,6 +1812,7 @@ struct LockfileOnlyOptions<'a> {
     lockfile_dir: &'a Path,
     requester: &'a str,
     dry_run: bool,
+    save_lockfile: bool,
     after_all_resolved_hook: Option<&'a Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     after_all_resolved_log: Option<pacquet_hooks::LogFn>,
     store_index_writer: Arc<pacquet_store_dir::StoreIndexWriter>,
@@ -1822,13 +1835,14 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
         lockfile_dir,
         requester,
         dry_run,
+        save_lockfile,
         after_all_resolved_hook,
         after_all_resolved_log,
         store_index_writer,
         writer_task,
     } = opts;
 
-    let (wanted_lockfile, can_record_lockfile_verification) = if dry_run {
+    let (wanted_lockfile, can_record_lockfile_verification) = if dry_run || !save_lockfile {
         (Some(built_lockfile), false)
     } else if config.lockfile {
         let can_record_lockfile_verification = save_wanted_lockfile(

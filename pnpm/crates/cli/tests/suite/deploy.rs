@@ -466,7 +466,9 @@ fn legacy_deploy_installs_selected_project() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
 
-    pacquet
+    pacquet.with_arg("install").assert().success();
+    let workspace_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    pacquet_cmd(&workspace)
         .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
         .assert()
         .success();
@@ -476,6 +478,68 @@ fn legacy_deploy_installs_selected_project() {
     assert!(!deploy_dir.join("test.js").exists());
     assert!(deploy_dir.join("node_modules/lib").exists());
     assert!(!deploy_dir.join("node_modules/dev-only").exists());
+    assert_workspace_lockfile_untouched(&workspace, &workspace_lockfile);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn deploy_from_shared_lockfile_installs_the_workspace_root_without_its_nested_projects() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_root_project_depending_on_lib(&workspace);
+
+    pacquet.with_arg("install").assert().success();
+    let workspace_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", ".", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(deploy_dir.join("node_modules/lib").exists());
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    assert_eq!(
+        deploy_lockfile.importers.keys().collect::<Vec<_>>(),
+        vec![Lockfile::ROOT_IMPORTER_KEY],
+    );
+    assert_workspace_lockfile_untouched(&workspace, &workspace_lockfile);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn legacy_deploy_of_the_workspace_root_injects_its_workspace_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    write_root_project_depending_on_lib(&workspace);
+
+    pacquet.with_arg("install").assert().success();
+    let workspace_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", ".", "deploy", "--legacy", "--prod", "legacy-deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("legacy-deploy");
+    let deploy_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(deploy_dir.join("package.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        deploy_manifest["name"], "root",
+        "`--filter .` should deploy the project in the current directory, not the projects nested under it: {deploy_manifest:#}",
+    );
+    assert!(deploy_dir.join("node_modules/lib").exists());
+    let virtual_store_entries = virtual_store_entries(&deploy_dir);
+    assert!(
+        virtual_store_entries.iter().any(|entry| entry.starts_with("lib@file+")),
+        "the root's workspace dependency should be injected into the deploy virtual store: {virtual_store_entries:#?}",
+    );
+    assert_workspace_lockfile_untouched(&workspace, &workspace_lockfile);
 
     drop((root, mock_instance));
 }
@@ -510,6 +574,25 @@ fn flatten_miette_report(stderr: &str) -> String {
         .filter(|token| !matches!(*token, "│" | "×" | "╰─▶"))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn write_root_project_depending_on_lib(workspace: &Path) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { "lib": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+}
+
+fn assert_workspace_lockfile_untouched(workspace: &Path, before: &str) {
+    let after = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert_eq!(after, before, "deploy must not rewrite the workspace lockfile");
 }
 
 fn pacquet_cmd(workspace: &Path) -> Command {

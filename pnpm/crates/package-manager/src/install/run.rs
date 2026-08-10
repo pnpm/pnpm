@@ -30,6 +30,7 @@ where
             rebuild,
             selection,
             root_manifest_as_workspace_root,
+            save_lockfile,
             prompt_eligibility_override,
         } = options;
         let Install {
@@ -852,6 +853,7 @@ where
             lockfile_verification_override,
             lockfile_synthesized_from_current,
             lockfile_was_fast_updated,
+            save_lockfile,
             catalogs: &catalogs,
             project_manifests: &project_manifests,
             prefix: &prefix,
@@ -915,6 +917,7 @@ where
             peer_issues_sink,
             deps_requiring_build_sink,
             pnpmfile_hook,
+            save_lockfile,
             catalogs: &catalogs,
             prefix: &prefix,
         })
@@ -951,6 +954,7 @@ where
             take_frozen_path,
             lockfile_synthesized_from_current,
             lockfile_was_fast_updated,
+            save_lockfile,
             mutation,
             manifest_dir,
             selection,
