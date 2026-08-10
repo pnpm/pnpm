@@ -108,4 +108,46 @@ describe('collectSbomComponents integrity', () => {
     expect(git).toBeDefined()
     expect(git!.integrity).toBeUndefined()
   })
+
+  /**
+   * A `type: binary` runtime archive is checked against its integrity, so
+   * that checksum is a real assurance and belongs in the SBOM.
+   */
+  it('should publish the integrity of a binary resolution', async () => {
+    const lockfile = {
+      lockfileVersion: '9.1',
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { node: '22.0.0' },
+          specifiers: { node: '22.0.0' },
+        },
+      },
+      packages: {
+        ['node@22.0.0' as DepPath]: {
+          resolution: {
+            type: 'binary',
+            archive: 'tarball',
+            url: 'https://nodejs.org/dist/v22.0.0/node-v22.0.0-linux-x64.tar.gz',
+            integrity: 'sha512-CCCC',
+            bin: 'bin/node',
+          },
+          version: '22.0.0',
+        },
+      },
+    } as unknown as LockfileObject
+
+    const { components } = await collectSbomComponents({
+      lockfile,
+      rootName: 'root',
+      rootVersion: '1.0.0',
+      registries,
+      namedRegistries: normalizeNamedRegistries(undefined),
+      lockfileDir: '/test',
+      lockfileOnly: true,
+    })
+
+    const binary = components.find((component) => component.name === 'node')
+    expect(binary).toBeDefined()
+    expect(binary!.integrity).toBe('sha512-CCCC')
+  })
 })

@@ -1,7 +1,8 @@
 use super::{
-    base64_to_hex, build_purl, classify_license, confined_importer_dir, encode_purl_name,
-    extract_author, extract_repository, is_simple_spdx_id, normalize_link_path,
-    peer_names_from_manifest, sanitize_spdx_id, split_scoped_name, strip_url_credentials,
+    LockfileResolution, base64_to_hex, build_purl, classify_license, confined_importer_dir,
+    encode_purl_name, extract_author, extract_repository, integrity_string, is_simple_spdx_id,
+    normalize_link_path, peer_names_from_manifest, sanitize_spdx_id, split_scoped_name,
+    strip_url_credentials,
 };
 
 #[test]
@@ -206,4 +207,36 @@ fn strip_url_credentials_no_credentials() {
 #[test]
 fn normalize_link_path_escape_returns_none() {
     assert_eq!(normalize_link_path(".", ".."), None);
+}
+
+/// An SBOM checksum reads as an assurance that the artifact was verified
+/// against it. Only the shapes pnpm actually checks the downloaded bytes
+/// against may supply one.
+#[test]
+fn integrity_string_publishes_only_verified_hashes() {
+    const HASH: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
+    let hash = || HASH.parse::<ssri::Integrity>().expect("parse integrity");
+
+    let registry =
+        LockfileResolution::Registry(pacquet_lockfile::RegistryResolution { integrity: hash() });
+    assert_eq!(integrity_string(&registry).as_deref(), Some(HASH));
+
+    let binary = LockfileResolution::Binary(pacquet_lockfile::BinaryResolution {
+        url: "https://nodejs.org/dist/v22.0.0/node-v22.0.0-linux-x64.tar.gz".to_string(),
+        integrity: hash(),
+        bin: pacquet_lockfile::BinarySpec::Single("bin/node".to_string()),
+        archive: pacquet_lockfile::BinaryArchive::Tarball,
+        prefix: None,
+    });
+    assert_eq!(integrity_string(&binary).as_deref(), Some(HASH));
+
+    // Nothing verifies a git checkout against a hash, so one recorded on
+    // the entry must not be republished as a checksum.
+    let git = LockfileResolution::Git(pacquet_lockfile::GitResolution {
+        repo: "https://github.com/foo/bar.git".to_string(),
+        commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
+        integrity: Some(HASH.to_string()),
+        path: None,
+    });
+    assert_eq!(integrity_string(&git), None);
 }

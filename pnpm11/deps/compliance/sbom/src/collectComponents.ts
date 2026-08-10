@@ -3,7 +3,7 @@ import path from 'node:path'
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, LockfileResolution, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import {
   lockfileWalkerGroupImporterSteps,
@@ -191,6 +191,16 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
   }
 }
 
+/**
+ * The resolution's integrity, but only where pnpm verifies the downloaded
+ * bytes against it — so an SBOM never publishes a checksum as an assurance
+ * pnpm did not make. See the call site for why a git resolution's is not one.
+ */
+function verifiedIntegrity (resolution: LockfileResolution): string | undefined {
+  if (!('type' in resolution)) return (resolution as TarballResolution).integrity
+  return resolution.type === 'binary' ? resolution.integrity : undefined
+}
+
 async function walkStep (
   step: LockfileWalkerStep,
   parentPurl: string,
@@ -233,15 +243,14 @@ async function walkStep (
 
       if (componentsMap.has(purl)) return
 
-      // Only the tarball/registry hash is published as a component
-      // checksum: it is the one pnpm checks the downloaded bytes against.
-      // A typed resolution that merely carries an `integrity` — a
-      // `type: git` entry some other tool stamped one onto — was never
-      // checked against it, and an SBOM checksum reads as an assurance.
-      // Mirrors `integrity_string` in the Rust CLI's `sbom.rs`.
-      const integrity = 'type' in pkgSnapshot.resolution
-        ? undefined
-        : (pkgSnapshot.resolution as TarballResolution).integrity
+      // A component checksum is published only when pnpm checks the
+      // downloaded bytes against it: the tarball/registry hash, and a
+      // `type: binary` runtime archive's. A typed resolution that merely
+      // carries an `integrity` — a `type: git` entry some other tool
+      // stamped one onto — was never checked against it, and an SBOM
+      // checksum reads as an assurance. Mirrors `integrity_string` in the
+      // Rust CLI's `sbom.rs`.
+      const integrity = verifiedIntegrity(pkgSnapshot.resolution)
       const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
       const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
 

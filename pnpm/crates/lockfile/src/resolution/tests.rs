@@ -429,7 +429,8 @@ fn deserialize_git_resolution_with_a_malformed_integrity() {
     };
     let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
     dbg!(&received);
-    assert!(received.integrity().is_none());
+    let LockfileResolution::Git(git) = &received else { panic!("expected a git resolution") };
+    assert_eq!(git.integrity, None, "the malformed hash must not survive the read");
 }
 
 #[test]
