@@ -811,12 +811,104 @@ async fn auto_install_does_not_install_when_no_intersection() {
 fn repeated_consumer_ranges_merge_into_the_unique_intersection() {
     let react = "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc";
     let narrower = "^18.0.0 || ^19.0.0";
-    let expected = merge_ranges(&[react, narrower], false).expect("the two ranges overlap");
+    let merged = ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0||>=19.0.0 <20.0.0-0";
+
+    assert_eq!(merge_ranges(&[react, narrower], false).as_deref(), Some(merged));
 
     let mut repeated = vec![react; 10];
     repeated.push(narrower);
 
-    assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(expected.as_str()));
+    assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(merged));
+}
+
+/// A scheme specifier is not a semver range, so intersecting it would
+/// drop the peer instead of hoisting it.
+#[test]
+fn repeated_scheme_specifier_stays_verbatim() {
+    assert_eq!(
+        merge_ranges(&["workspace:^", "workspace:^"], false).as_deref(),
+        Some("workspace:^"),
+    );
+}
+
+/// The `@radix-ui/react-dialog` shape of pnpm/pnpm#13786: four paths
+/// reach the same package, so every branch reports the identical missing
+/// `react` peer again. One narrower declarer turns the merge into a real
+/// intersection, and the stub resolves `react` only through the
+/// deduplicated one — a merge that folds the duplicates back in reaches
+/// a different range and leaves the peer unhoisted.
+#[tokio::test]
+async fn a_peer_reported_once_per_path_is_hoisted_through_one_intersection() {
+    let react_range = "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc";
+    let mut table = HashMap::default();
+    for (name, deps) in [
+        ("dialog", vec!["dismissable-layer", "focus-scope", "portal", "primitive"]),
+        ("dismissable-layer", vec!["primitive"]),
+        ("focus-scope", vec!["primitive"]),
+        ("portal", vec!["primitive"]),
+        ("primitive", vec![]),
+    ] {
+        let dependencies: serde_json::Map<String, serde_json::Value> = deps
+            .into_iter()
+            .map(|dep| (dep.to_string(), serde_json::Value::from("1.0.0")))
+            .collect();
+        table.insert(
+            (name.to_string(), "1.0.0".to_string()),
+            fake_result(
+                name,
+                "1.0.0",
+                serde_json::json!({
+                    "name": name,
+                    "version": "1.0.0",
+                    "dependencies": dependencies,
+                    "peerDependencies": { "react": react_range },
+                }),
+            ),
+        );
+    }
+    table.insert(
+        ("wants-react-18-or-19".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-react-18-or-19",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-react-18-or-19",
+                "version": "1.0.0",
+                "peerDependencies": { "react": "^18.0.0 || ^19.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        (
+            "react".to_string(),
+            ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0||>=19.0.0 <20.0.0-0".to_string(),
+        ),
+        fake_result("react", "19.0.0", serde_json::json!({ "name": "react", "version": "19.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "dialog": "1.0.0",
+        "wants-react-18-or-19": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"react"), "react should be hoisted: {direct:?}");
+    let react_entries: Vec<&DepPath> = result
+        .peers_result
+        .graph
+        .keys()
+        .filter(|dep_path| dep_path.to_string().starts_with("react@"))
+        .collect();
+    assert_eq!(react_entries.len(), 1, "expected one react entry, got: {react_entries:?}");
+    assert!(
+        react_entries[0].to_string().starts_with("react@19.0.0"),
+        "react must resolve through the intersected range: {react_entries:?}",
+    );
 }
 
 #[tokio::test]

@@ -1072,7 +1072,7 @@ fn merge_ranges(ranges: &[&str], auto_install_peers_from_highest_match: bool) ->
         return Some(ranges[0].to_string());
     }
     let mut seen: HashSet<&str> = HashSet::default();
-    let unique: Vec<&str> = ranges.iter().copied().filter(|range| seen.insert(range)).collect();
+    let unique: Vec<&str> = ranges.iter().copied().filter(|&range| seen.insert(range)).collect();
     if unique.len() == 1 {
         return Some(ranges[0].to_string());
     }
