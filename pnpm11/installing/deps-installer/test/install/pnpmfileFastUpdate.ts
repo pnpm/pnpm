@@ -68,7 +68,7 @@ test('a remove keeps the specifiers a project-rewriting pnpmfile recorded', asyn
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ hooks: { readPackage: [readPackage] } }))
-  expect(project.readLockfile().importers['.'].dependencies['is-positive'].specifier).toBe('1.0.0')
+  expect(project.readLockfile().importers['.'].dependencies!['is-positive'].specifier).toBe('1.0.0')
 
   const options = testDefaults({ hooks: { readPackage: [readPackage] } })
   const requestedPackages = trackRequestedPackages(options.storeController)
@@ -81,7 +81,7 @@ test('a remove keeps the specifiers a project-rewriting pnpmfile recorded', asyn
 
   expect(requestedPackages).toStrictEqual([])
   const lockfile = project.readLockfile()
-  expect(lockfile.importers['.'].dependencies['is-positive'].specifier).toBe('1.0.0')
+  expect(lockfile.importers['.'].dependencies!['is-positive'].specifier).toBe('1.0.0')
   expect(Object.keys(lockfile.packages).some((depPath) => depPath.startsWith('@pnpm.e2e/pkg-with-1-dep@'))).toBe(false)
 })
 
