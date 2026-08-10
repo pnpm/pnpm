@@ -1,7 +1,7 @@
 import * as dp from '@pnpm/deps.path'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import type { LockfileObject } from '@pnpm/lockfile.types'
-import type { ProjectId, ProjectManifest } from '@pnpm/types'
+import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.types'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { clone } from 'ramda'
 import semver from 'semver'
 
@@ -21,7 +21,9 @@ export function hasChangedProjectSpecifiers (
     if (importer == null) return false
     const manifestSpecifiers = getManifestSpecifiers(project.manifest)
     return Object.entries(manifestSpecifiers)
-      .some(([alias, specifier]) => importer.specifiers[alias] !== specifier) ||
+      .some(([alias, specifier]) =>
+        importer.specifiers[alias] !== specifier ||
+        dependencyGroupMoved(importer, project.manifest, alias)) ||
       Object.keys(importer.specifiers).some((alias) => manifestSpecifiers[alias] == null)
   })
 }
@@ -33,26 +35,43 @@ export function tryFastUpdateImporters (
   const candidate = clone(lockfile)
   const dropped = new Set<string>()
   let changed = false
+  let movedAcrossOptional = false
   for (const project of projects) {
     const importer = candidate.importers[project.id]
     if (importer == null) return false
     const manifestSpecifiers = getManifestSpecifiers(project.manifest)
     for (const [alias, specifier] of Object.entries(manifestSpecifiers)) {
-      if (importer.specifiers[alias] === specifier) continue
-      const reference =
-        importer.optionalDependencies?.[alias] ??
-        importer.dependencies?.[alias] ??
-        importer.devDependencies?.[alias]
-      const version = reference == null ? null : dp.removeSuffix(reference)
-      if (
-        semver.validRange(specifier) == null ||
-        version == null ||
-        semver.valid(version) == null ||
-        !semver.satisfies(version, specifier)
-      ) {
-        return false
+      if (importer.specifiers[alias] !== specifier) {
+        const reference =
+          importer.optionalDependencies?.[alias] ??
+          importer.dependencies?.[alias] ??
+          importer.devDependencies?.[alias]
+        const version = reference == null ? null : dp.removeSuffix(reference)
+        if (
+          semver.validRange(specifier) == null ||
+          version == null ||
+          semver.valid(version) == null ||
+          !semver.satisfies(version, specifier)
+        ) {
+          return false
+        }
+        importer.specifiers[alias] = specifier
+        changed = true
       }
-      importer.specifiers[alias] = specifier
+      const recordedIn = recordedDependencyGroup(importer, alias)
+      const targetGroup = effectiveDependencyGroup(project.manifest, alias)
+      if (recordedIn == null || recordedIn === targetGroup) continue
+      importer[targetGroup] = {
+        ...importer[targetGroup],
+        [alias]: importer[recordedIn]![alias],
+      }
+      delete importer[recordedIn]![alias]
+      if (Object.keys(importer[recordedIn]!).length === 0) {
+        delete importer[recordedIn]
+      }
+      if (recordedIn === 'optionalDependencies' || targetGroup === 'optionalDependencies') {
+        movedAcrossOptional = true
+      }
       changed = true
     }
     for (const alias of Object.keys(importer.specifiers)) {
@@ -70,13 +89,18 @@ export function tryFastUpdateImporters (
   }
   if (!changed) return false
 
-  if (dropped.size > 0) {
+  // The prune also recomputes each package's `optional` flag from what still
+  // reaches it, which a move into or out of `optionalDependencies` changes
+  // for the whole subtree.
+  if (dropped.size > 0 || movedAcrossOptional) {
     const pruned = pruneSharedLockfile(candidate)
     if (pruned.packages == null) {
       delete candidate.packages
     } else {
       candidate.packages = pruned.packages
     }
+  }
+  if (dropped.size > 0) {
     // Pruned first: a peer-dependent package that the removal itself makes
     // unreachable needs no rekeying, so only the survivors are checked.
     if (!peerSuffixesAreIndependentOf(candidate, dropped)) return false
@@ -117,6 +141,30 @@ function peerSuffixesAreIndependentOf (lockfile: LockfileObject, dropped: Set<st
       .every((segment) => segment.includes('@')) &&
       ![...dropped].some((alias) => peers.includes(`${alias}@`))
   })
+}
+
+function dependencyGroupMoved (
+  importer: ProjectSnapshot,
+  manifest: ProjectManifest,
+  alias: string
+): boolean {
+  const recordedIn = recordedDependencyGroup(importer, alias)
+  return recordedIn != null && recordedIn !== effectiveDependencyGroup(manifest, alias)
+}
+
+function recordedDependencyGroup (importer: ProjectSnapshot, alias: string): DependenciesField | null {
+  return DEPENDENCIES_FIELDS.find((group) => importer[group]?.[alias] != null) ?? null
+}
+
+/**
+ * The group `satisfiesPackageManifest` expects a manifest dependency to be
+ * recorded under when it appears in several: optional wins over prod, prod
+ * over dev.
+ */
+function effectiveDependencyGroup (manifest: ProjectManifest, alias: string): DependenciesField {
+  if (manifest.optionalDependencies?.[alias] != null) return 'optionalDependencies'
+  if (manifest.dependencies?.[alias] != null) return 'dependencies'
+  return 'devDependencies'
 }
 
 function getManifestSpecifiers (manifest: ProjectManifest): Record<string, string> {

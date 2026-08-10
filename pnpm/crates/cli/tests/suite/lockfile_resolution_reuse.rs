@@ -1205,3 +1205,90 @@ fn remove_command_drops_the_dependency_without_resolving() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn moving_a_dependency_between_groups_skips_resolution() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+                "is-positive": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "is-positive": "1.0.0"
+            },
+            "optionalDependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("move the dependency to optionalDependencies");
+    let dead_registry = dead_registry_url();
+    let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead_npmrc = live_npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "moving a dependency between groups needs no resolution",
+    );
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let importer = &wanted.importers["."];
+    let moved_alias = "@pnpm.e2e/pkg-with-1-dep".parse().expect("alias");
+    assert!(
+        importer
+            .optional_dependencies
+            .as_ref()
+            .is_some_and(|dependencies| dependencies.contains_key(&moved_alias)),
+        "the importer records the moved dependency under optionalDependencies",
+    );
+    assert!(
+        !importer
+            .dependencies
+            .as_ref()
+            .is_some_and(|dependencies| dependencies.contains_key(&moved_alias)),
+        "and no longer under dependencies",
+    );
+    let snapshots = wanted.snapshots.as_ref().expect("snapshots");
+    for prefix in ["@pnpm.e2e/pkg-with-1-dep@", "@pnpm.e2e/dep-of-pkg-with-1-dep@"] {
+        let (key, snapshot) = snapshots
+            .iter()
+            .find(|(key, _)| key.to_string().starts_with(prefix))
+            .expect("moved subtree snapshot");
+        assert!(snapshot.optional, "{key} is only reachable through an optional edge now");
+    }
+    let is_positive_snapshot = snapshots
+        .iter()
+        .find_map(|(key, snapshot)| key.to_string().starts_with("is-positive@").then_some(snapshot))
+        .expect("is-positive snapshot");
+    assert!(!is_positive_snapshot.optional, "the untouched prod dependency keeps its flags");
+    assert!(
+        workspace.join("node_modules").join("@pnpm.e2e").join("pkg-with-1-dep").exists(),
+        "the moved dependency stays linked",
+    );
+
+    drop((root, mock_instance));
+}

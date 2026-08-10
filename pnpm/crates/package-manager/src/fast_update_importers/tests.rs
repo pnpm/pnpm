@@ -354,3 +354,220 @@ fn keeps_a_catalog_entry_referenced_with_the_catalog_default_spelling() {
         "the catalog:default spelling counts as a reference to the default catalog",
     );
 }
+
+/// `bar` is a prod dependency reaching `child`; `opt` is an optional
+/// dependency reaching the same `child`, which is therefore non-optional.
+const WITH_SHARED_OPTIONAL_CHILD: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+    optionalDependencies:
+      opt:
+        specifier: ^5.0.0
+        version: 5.0.0
+packages:
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-bar
+  opt@5.0.0:
+    resolution:
+      integrity: sha512-opt
+  child@3.0.0:
+    resolution:
+      integrity: sha512-child
+snapshots:
+  bar@2.0.0:
+    dependencies:
+      child: 3.0.0
+  opt@5.0.0:
+    optional: true
+    dependencies:
+      child: 3.0.0
+  child@3.0.0: {}
+";
+
+fn snapshot_optional(lockfile: &Lockfile, key: &str) -> bool {
+    lockfile.snapshots.as_ref().expect("snapshots")[&key.parse().expect("snapshot key")].optional
+}
+
+#[test]
+fn moves_a_dependency_between_prod_and_dev_without_touching_snapshots() {
+    let manifest = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0" },
+        "devDependencies": { "bar": "^2.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_REMOVABLE_DEP),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("a group move needs no resolution");
+
+    let importer = &updated.importers["."];
+    let alias: PkgName = "bar".parse().expect("alias");
+    assert!(importer.dependencies.as_ref().is_some_and(|deps| !deps.contains_key(&alias)));
+    let moved = &importer.dev_dependencies.as_ref().expect("devDependencies")[&alias];
+    assert_eq!((moved.specifier.as_str(), moved.version.to_string().as_str()), ("^2.0.0", "2.0.0"));
+    assert_eq!(updated.snapshots, parsed_lockfile(WITH_REMOVABLE_DEP).snapshots);
+}
+
+#[test]
+fn marks_the_subtree_optional_on_a_move_into_optional_dependencies() {
+    let manifest = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0" },
+        "optionalDependencies": { "bar": "^2.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_REMOVABLE_DEP),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("a group move needs no resolution");
+
+    let alias: PkgName = "bar".parse().expect("alias");
+    assert!(
+        updated.importers["."]
+            .optional_dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&alias)),
+    );
+    assert!(snapshot_optional(&updated, "bar@2.0.0"));
+    assert!(snapshot_optional(&updated, "child@3.0.0"));
+    assert!(!snapshot_optional(&updated, "foo@1.1.0"));
+}
+
+#[test]
+fn clears_the_subtree_flags_on_a_move_out_of_optional_dependencies() {
+    let manifest = manifest_from(json!({
+        "dependencies": { "bar": "^2.0.0" },
+        "optionalDependencies": { "opt": "^5.0.0" },
+    }));
+    let mut subject = parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD);
+    let importer = subject.importers.get_mut(".").expect("importer");
+    let alias: PkgName = "bar".parse().expect("alias");
+    let moved = importer.dependencies.as_mut().expect("dependencies").remove(&alias).expect("bar");
+    importer.dependencies = None;
+    importer
+        .optional_dependencies
+        .as_mut()
+        .expect("optionalDependencies")
+        .insert(alias.clone(), moved);
+    let snapshots = subject.snapshots.as_mut().expect("snapshots");
+    for key in ["bar@2.0.0", "child@3.0.0"] {
+        snapshots.get_mut(&key.parse().expect("snapshot key")).expect("snapshot").optional = true;
+    }
+
+    let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
+        .expect("a group move needs no resolution");
+
+    assert!(
+        updated.importers["."].dependencies.as_ref().is_some_and(|deps| deps.contains_key(&alias))
+    );
+    assert!(!snapshot_optional(&updated, "bar@2.0.0"));
+    assert!(!snapshot_optional(&updated, "child@3.0.0"), "bar reaches child non-optionally again");
+    assert!(snapshot_optional(&updated, "opt@5.0.0"));
+}
+
+#[test]
+fn stands_aside_when_every_dependency_is_in_its_recorded_group() {
+    let manifest = manifest_from(json!({
+        "dependencies": { "bar": "^2.0.0" },
+        "optionalDependencies": { "opt": "^5.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD),
+        &[(".".to_string(), &manifest)],
+    );
+
+    assert!(updated.is_none(), "nothing changed, so the handler stands aside");
+}
+
+#[test]
+fn keeps_a_child_another_prod_dependency_reaches_non_optional() {
+    let mut subject = parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD);
+    let importer = subject.importers.get_mut(".").expect("importer");
+    importer.dependencies.as_mut().expect("dependencies").insert(
+        "keeper".parse().expect("alias"),
+        serde_saphyr::from_str("{specifier: ^6.0.0, version: 6.0.0}").expect("dependency"),
+    );
+    let snapshots = subject.snapshots.as_mut().expect("snapshots");
+    snapshots.insert(
+        "keeper@6.0.0".parse().expect("snapshot key"),
+        serde_saphyr::from_str("dependencies:\n  child: 3.0.0").expect("snapshot"),
+    );
+    let manifest = manifest_from(json!({
+        "dependencies": { "keeper": "^6.0.0" },
+        "optionalDependencies": { "bar": "^2.0.0", "opt": "^5.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
+        .expect("a group move needs no resolution");
+
+    assert!(snapshot_optional(&updated, "bar@2.0.0"));
+    assert!(
+        !snapshot_optional(&updated, "child@3.0.0"),
+        "keeper still reaches child through prod edges",
+    );
+}
+
+#[test]
+fn flips_a_shared_child_optional_when_a_removal_severs_the_prod_path() {
+    let manifest = manifest_from(json!({ "optionalDependencies": { "opt": "^5.0.0" } }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("dropping an importer edge needs no resolution");
+
+    assert!(
+        snapshot_optional(&updated, "child@3.0.0"),
+        "only the optional path reaches child once bar is gone",
+    );
+}
+
+#[test]
+fn records_an_alias_declared_in_both_prod_and_optional_as_optional() {
+    let manifest = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" },
+        "optionalDependencies": { "bar": "^2.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_REMOVABLE_DEP),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("a group move needs no resolution");
+
+    let alias: PkgName = "bar".parse().expect("alias");
+    assert!(
+        updated.importers["."]
+            .optional_dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&alias)),
+        "optional wins when the manifest declares both",
+    );
+}
+
+#[test]
+fn moves_a_group_alongside_a_satisfied_range_change() {
+    let manifest = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0" },
+        "devDependencies": { "bar": ">=2 <3" },
+    }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_REMOVABLE_DEP),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("both edits stay within the importer");
+
+    let moved = &updated.importers["."].dev_dependencies.as_ref().expect("devDependencies")
+        [&"bar".parse::<PkgName>().expect("alias")];
+    assert_eq!(moved.specifier, ">=2 <3");
+}

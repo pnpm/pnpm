@@ -1,5 +1,7 @@
 use node_semver::Range;
-use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
+use pacquet_lockfile::{
+    Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
+};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use std::collections::{HashMap, HashSet};
 
@@ -9,6 +11,7 @@ pub(crate) fn try_fast_update_importers(
 ) -> Option<Lockfile> {
     let mut candidate = lockfile.clone();
     let mut changed = false;
+    let mut moved_across_optional = false;
     let mut dropped = HashSet::new();
     for (importer_id, manifest) in manifests {
         let importer = candidate.importers.get_mut(importer_id)?;
@@ -18,16 +21,21 @@ pub(crate) fn try_fast_update_importers(
         for (alias, specifier) in &manifest_specifiers {
             let alias = PkgName::parse(*alias).ok()?;
             let dependency = importer_dependency_mut(importer, &alias)?;
-            if dependency.specifier == *specifier {
-                continue;
+            if dependency.specifier != *specifier {
+                let range = Range::parse(specifier).ok()?;
+                let version = dependency.version.ver_peer()?.version_semver()?;
+                if !version.satisfies(&range) {
+                    return None;
+                }
+                dependency.specifier = (*specifier).to_string();
+                changed = true;
             }
-            let range = Range::parse(specifier).ok()?;
-            let version = dependency.version.ver_peer()?.version_semver()?;
-            if !version.satisfies(&range) {
-                return None;
+            let target = effective_dependency_group(manifest, &alias);
+            if let Some(source) = move_dependency(importer, &alias, target) {
+                moved_across_optional |=
+                    source == DependencyGroup::Optional || target == DependencyGroup::Optional;
+                changed = true;
             }
-            dependency.specifier = (*specifier).to_string();
-            changed = true;
         }
         let removed = remove_dependencies_absent_from(importer, &manifest_specifiers);
         changed |= !removed.is_empty();
@@ -43,7 +51,64 @@ pub(crate) fn try_fast_update_importers(
         }
         crate::fast_update_lockfile::prune_unreferenced_catalog_entries(&mut candidate);
     }
+    if !dropped.is_empty() || moved_across_optional {
+        crate::fast_update_lockfile::recompute_optional_flags(&mut candidate);
+    }
     changed.then_some(candidate)
+}
+
+/// The group `satisfies_package_manifest` expects a manifest dependency to
+/// be recorded under when it appears in several: optional wins over prod,
+/// prod over dev.
+fn effective_dependency_group(manifest: &PackageManifest, alias: &PkgName) -> DependencyGroup {
+    let declared_in =
+        |group| manifest.dependencies([group]).any(|(name, _)| alias.to_string() == name);
+    if declared_in(DependencyGroup::Optional) {
+        DependencyGroup::Optional
+    } else if declared_in(DependencyGroup::Prod) {
+        DependencyGroup::Prod
+    } else {
+        DependencyGroup::Dev
+    }
+}
+
+/// Move the importer's record of `alias` into `target`, returning the group
+/// it was recorded under, or `None` when it is not recorded or already
+/// there.
+fn move_dependency(
+    importer: &mut ProjectSnapshot,
+    alias: &PkgName,
+    target: DependencyGroup,
+) -> Option<DependencyGroup> {
+    let source = [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
+        .into_iter()
+        .find(|group| {
+            importer_group(importer, *group)
+                .as_ref()
+                .is_some_and(|dependencies| dependencies.contains_key(alias))
+        })?;
+    if source == target {
+        return None;
+    }
+    let source_group = importer_group(importer, source);
+    let dependency = source_group.as_mut()?.remove(alias)?;
+    if source_group.as_ref().is_some_and(HashMap::is_empty) {
+        *source_group = None;
+    }
+    importer_group(importer, target).get_or_insert_default().insert(alias.clone(), dependency);
+    Some(source)
+}
+
+fn importer_group(
+    importer: &mut ProjectSnapshot,
+    group: DependencyGroup,
+) -> &mut Option<ResolvedDependencyMap> {
+    match group {
+        DependencyGroup::Prod => &mut importer.dependencies,
+        DependencyGroup::Dev => &mut importer.dev_dependencies,
+        DependencyGroup::Optional => &mut importer.optional_dependencies,
+        DependencyGroup::Peer => unreachable!("peerDependencies is not an importer group"),
+    }
 }
 
 /// Drop every dependency the importer records that the manifest no longer
