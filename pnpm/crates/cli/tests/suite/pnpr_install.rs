@@ -601,8 +601,8 @@ fn filtered_workspace_pnpr_resolves_workspace_protocol_from_project_identity() {
     let wanted = read_workspace_lockfile(&workspace);
     assert_eq!(workspace_importer_version(&wanted, "packages/app", "lib"), "link:../lib");
     assert!(workspace_has_link(&workspace, "app", "lib"));
-    assert!(workspace_has_link(&workspace, "lib", WORKSPACE_HELLO));
-    assert!(workspace_slot(&workspace, WORKSPACE_HELLO, "1.0.0").exists());
+    assert!(!workspace_has_link(&workspace, "lib", WORKSPACE_HELLO));
+    assert!(!workspace_slot(&workspace, WORKSPACE_HELLO, "1.0.0").exists());
 
     drop((root, mock_instance));
 }
