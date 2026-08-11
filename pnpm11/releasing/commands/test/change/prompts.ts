@@ -41,12 +41,21 @@ test('change: every picker pages to the terminal height', async () => {
   mockCheckbox.mockResolvedValueOnce(['lib']).mockResolvedValue([])
   mockInput.mockResolvedValue('Added a feature.')
 
-  const output = await change.handler({ dir: workspaceDir, workspaceDir, allProjects } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(output).toMatch(/Recorded change intent \.changeset\/.+\.md/)
+  const rows = Object.getOwnPropertyDescriptor(process.stdout, 'rows')
+  Object.defineProperty(process.stdout, 'rows', { value: 24, configurable: true })
+  try {
+    const output = await change.handler({ dir: workspaceDir, workspaceDir, allProjects } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(output).toMatch(/Recorded change intent \.changeset\/.+\.md/)
+  } finally {
+    if (rows == null) {
+      delete (process.stdout as Partial<Pick<NodeJS.WriteStream, 'rows'>>).rows
+    } else {
+      Object.defineProperty(process.stdout, 'rows', rows)
+    }
+  }
 
-  const pageSize = process.stdout.rows == null ? 7 : Math.max(7, process.stdout.rows - 6)
   expect(mockCheckbox.mock.calls).toHaveLength(3)
   for (const [options] of mockCheckbox.mock.calls) {
-    expect(options).toEqual(expect.objectContaining({ pageSize }))
+    expect(options).toEqual(expect.objectContaining({ pageSize: 18 }))
   }
 })
