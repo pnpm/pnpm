@@ -16,6 +16,7 @@ fn try_fast_update_importers(
         manifests,
         &[],
         &pacquet_config::Config::default(),
+        None,
         false,
     )
 }
@@ -906,6 +907,7 @@ fn rejects_a_new_project_that_depends_on_a_workspace_sibling() {
             &projects_of_a_new_project_lockfile(&existing, &locks_the_higher_child, &added),
             &[(PathBuf::from("/workspace/child"), &sibling)],
             &pacquet_config::Config::default(),
+            None,
             false,
         )
         .is_none(),
@@ -925,6 +927,7 @@ fn rejects_a_widened_range_when_resolution_would_pick_its_lowest_locked_version(
             &[(".".to_string(), &manifest), ("pkg-a".to_string(), &other)],
             &[],
             &config,
+            None,
             false,
         )
         .is_none(),
@@ -944,6 +947,7 @@ fn rejects_a_new_project_when_resolution_would_pick_the_lowest_of_several_locked
             &projects_of_a_new_project_lockfile(&existing, &locks_the_higher_child, &added),
             &[],
             &config,
+            None,
             false,
         )
         .is_none(),
@@ -1015,6 +1019,7 @@ fn try_prune_stale_importers(
         manifests,
         &[],
         &pacquet_config::Config::default(),
+        None,
         true,
     )
 }
@@ -1046,6 +1051,7 @@ fn keeps_the_importer_when_the_run_does_not_see_every_project() {
             &[("packages/a".to_string(), &manifest)],
             &[],
             &pacquet_config::Config::default(),
+            None,
             false,
         )
         .is_none(),
@@ -1444,6 +1450,7 @@ fn rejects_adding_a_dependency_naming_a_workspace_project() {
             &[(".".to_string(), &manifest)],
             &[(PathBuf::from("/child/package.json"), &sibling)],
             &pacquet_config::Config::default(),
+            None,
             false,
         )
         .is_none(),
@@ -1465,6 +1472,7 @@ fn rejects_adding_a_dependency_several_locked_versions_satisfy_when_resolution_p
             &[(".".to_string(), &manifest)],
             &[],
             &config,
+            None,
             false,
         )
         .is_none(),

@@ -999,6 +999,11 @@ fn an_unused_patch_is_recorded_without_resolution_and_a_used_one_is_not() {
         vec!["absent-package@1.0.0".to_string()],
         "the new patchedDependencies entry is still recorded",
     );
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("The following patches were not used: absent-package@1.0.0"),
+        "and the rewrite still says what the resolution it replaced would have said",
+    );
 
     // Patching a locked package renames its snapshot, which the rewrite
     // does without asking the registry anything — the tarball it patches

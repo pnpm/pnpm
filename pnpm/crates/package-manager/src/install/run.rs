@@ -572,7 +572,7 @@ where
             && prefer_frozen_lockfile
             && mutation.may_fast_update_lockfile();
         let fast_updated_lockfile = if can_fast_update_lockfile {
-            try_fast_update_lockfile(FastUpdateLockfileOptions {
+            try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
                 lockfile,
                 manifests: &manifest_freshness_inputs,
                 project_manifests: &project_manifests,

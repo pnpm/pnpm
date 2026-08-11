@@ -82,9 +82,15 @@ fn absorbs_a_removal_and_a_widened_ignore_list_in_one_pass() {
         ..Config::default()
     };
 
-    let updated =
-        try_compose_fast_updates(&lockfile(), &[(".".to_string(), &manifest)], &[], &config, false)
-            .expect("both kinds of drift are absorbable at once");
+    let updated = try_compose_fast_updates(
+        &lockfile(),
+        &[(".".to_string(), &manifest)],
+        &[],
+        &config,
+        patch_hashes(&config).as_ref(),
+        false,
+    )
+    .expect("both kinds of drift are absorbable at once");
 
     assert_eq!(
         snapshot_keys(&updated),
@@ -120,6 +126,7 @@ fn absorbs_a_group_move_and_a_settings_change_in_one_pass() {
         &[(".".to_string(), &manifest)],
         &[(PathBuf::from("/project"), &manifest)],
         &config,
+        patch_hashes(&config).as_ref(),
         false,
     )
     .expect("a peerless lockfile absorbs the setting alongside the move");
@@ -154,6 +161,7 @@ fn falls_back_when_one_of_the_composed_changes_cannot_be_absorbed() {
             &[(".".to_string(), &manifest)],
             &[(PathBuf::from("/project"), &manifest)],
             &config,
+            patch_hashes(&config).as_ref(),
             false,
         )
         .is_none(),
@@ -171,8 +179,15 @@ fn falls_back_when_a_removal_leaves_a_configured_patch_unused() {
     let config = Config { allow_unused_patches: false, ..patch_config(dir.path(), &["bar@2.0.0"]) };
 
     assert!(
-        try_compose_fast_updates(&lockfile(), &[(".".to_string(), &manifest)], &[], &config, false)
-            .is_none(),
+        try_compose_fast_updates(
+            &lockfile(),
+            &[(".".to_string(), &manifest)],
+            &[],
+            &config,
+            patch_hashes(&config).as_ref(),
+            false
+        )
+        .is_none(),
         "removing the patch's only referent is what the resolver reports as an unused patch",
     );
 }
@@ -186,9 +201,15 @@ fn rekeys_a_patched_survivor_alongside_a_removal() {
     }));
     let config = patch_config(dir.path(), &["bar@2.0.0"]);
 
-    let updated =
-        try_compose_fast_updates(&lockfile(), &[(".".to_string(), &manifest)], &[], &config, false)
-            .expect("the removal and the patch rekey compose");
+    let updated = try_compose_fast_updates(
+        &lockfile(),
+        &[(".".to_string(), &manifest)],
+        &[],
+        &config,
+        patch_hashes(&config).as_ref(),
+        false,
+    )
+    .expect("the removal and the patch rekey compose");
 
     assert!(
         snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@2.0.0(patch_hash=")),
@@ -198,6 +219,70 @@ fn rekeys_a_patched_survivor_alongside_a_removal() {
         !snapshot_keys(&updated).iter().any(|key| key.starts_with("foo@")),
         "while the removed dependency is pruned",
     );
+}
+
+/// Records the patch so a later pass sees it already configured, leaving the
+/// removal as the only drift.
+fn lockfile_recording_a_patch_for_bar(config: &Config) -> Lockfile {
+    let keeps_everything = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" },
+        "optionalDependencies": { "opt": "^5.0.0" },
+    }));
+    try_compose_fast_updates(
+        &lockfile(),
+        &[(".".to_string(), &keeps_everything)],
+        &[],
+        config,
+        patch_hashes(config).as_ref(),
+        false,
+    )
+    .expect("the patch rekey alone is absorbed")
+}
+
+#[test]
+fn falls_back_when_a_removal_orphans_a_patch_the_lockfile_already_records() {
+    let dir = workspace(&["bar@2.0.0"]);
+    let config = Config { allow_unused_patches: false, ..patch_config(dir.path(), &["bar@2.0.0"]) };
+    let subject = lockfile_recording_a_patch_for_bar(&config);
+    let drops_bar = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0" },
+        "optionalDependencies": { "opt": "^5.0.0" },
+    }));
+
+    assert!(
+        try_compose_fast_updates(
+            &subject,
+            &[(".".to_string(), &drops_bar)],
+            &[],
+            &config,
+            patch_hashes(&config).as_ref(),
+            false
+        )
+        .is_none(),
+        "the patch is left with nothing to apply to, which only a resolution reports",
+    );
+}
+
+#[test]
+fn absorbs_a_removal_that_orphans_a_patch_under_allow_unused_patches() {
+    let dir = workspace(&["bar@2.0.0"]);
+    let config = patch_config(dir.path(), &["bar@2.0.0"]);
+    let subject = lockfile_recording_a_patch_for_bar(&config);
+    let drops_bar = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0" },
+        "optionalDependencies": { "opt": "^5.0.0" },
+    }));
+
+    let updated = try_compose_fast_updates(
+        &subject,
+        &[(".".to_string(), &drops_bar)],
+        &[],
+        &config,
+        patch_hashes(&config).as_ref(),
+        false,
+    )
+    .expect("an unused patch is only a warning here");
+    assert!(!snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@")));
 }
 
 #[test]
@@ -225,7 +310,15 @@ fn falls_back_when_an_ignored_optional_is_embedded_in_a_peer_suffix() {
     };
 
     assert!(
-        try_compose_fast_updates(&subject, &[], &[], &config, false).is_none(),
+        try_compose_fast_updates(
+            &subject,
+            &[],
+            &[],
+            &config,
+            patch_hashes(&config).as_ref(),
+            false
+        )
+        .is_none(),
         "the surviving dependent's key embeds the removed package, so it would rekey, not prune",
     );
 }
@@ -243,6 +336,7 @@ fn stands_aside_when_nothing_drifted() {
             &[(".".to_string(), &manifest)],
             &[],
             &Config::default(),
+            None,
             false,
         )
         .is_none(),
@@ -277,13 +371,26 @@ fn recomputes_optional_flags_for_an_ignored_optional_removal() {
         .expect("snapshot")
         .optional = true;
 
-    let updated = try_compose_fast_updates(&subject, &[], &[], &config, false)
-        .expect("widening the ignore list needs no resolution");
+    let updated = try_compose_fast_updates(
+        &subject,
+        &[],
+        &[],
+        &config,
+        patch_hashes(&config).as_ref(),
+        false,
+    )
+    .expect("widening the ignore list needs no resolution");
 
     assert!(
         snapshot_optional(&updated, "child@3.0.0"),
         "only the optional path reaches child once bar is ignored",
     );
+}
+
+/// The hashes the caller computes once per attempt and hands to the
+/// pipeline.
+fn patch_hashes(config: &Config) -> Option<std::collections::BTreeMap<String, String>> {
+    config.patched_dependency_hashes().expect("hash the configured patch files")
 }
 
 fn workspace(patches: &[&str]) -> TempDir {
@@ -351,6 +458,7 @@ fn absorbs_a_peer_setting_once_the_removal_drops_the_last_peer_dependent() {
         &[(".".to_string(), &manifest)],
         &[(PathBuf::from("/project"), &manifest)],
         &config,
+        patch_hashes(&config).as_ref(),
         false,
     )
     .expect("the removal prunes the only peer dependent, so the setting cannot affect the graph");

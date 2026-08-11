@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
@@ -10,6 +10,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DepPath, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
+import { tryComposeFastUpdates } from '../../src/install/tryComposeFastUpdates.js'
 import {
   type FastPatchedDependenciesUpdateOptions,
   tryFastUpdatePatchedDependencies,
@@ -210,6 +211,45 @@ test('adding a patch for a locked package rekeys it without resolution', async (
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 })
 
+test('a removal that orphans an allowed unused patch still reports it', async () => {
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const manifest: ProjectManifest = {
+    dependencies: { 'is-positive': '1.0.0', '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+  }
+  const options = testDefaults({
+    allowUnusedPatches: true,
+    patchedDependencies: { 'is-positive@1.0.0': patchPath },
+  })
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const reporter = jest.fn()
+  const removalOptions = testDefaults({
+    allowUnusedPatches: true,
+    patchedDependencies: { 'is-positive@1.0.0': patchPath },
+    reporter,
+  })
+  const requestedPackages = trackRequestedPackages(removalOptions.storeController)
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-positive'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, removalOptions)
+
+  // The rewrite keeps the fast path, and still says what the resolution it
+  // replaced would have said.
+  expect(requestedPackages).toStrictEqual([])
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: 'The following patches were not used: is-positive@1.0.0',
+  }))
+})
+
 test('the rekeyed lockfile matches what a full resolution writes', async () => {
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
   const manifest: ProjectManifest = { dependencies: { 'is-positive': '1.0.0' } }
@@ -235,6 +275,91 @@ test('the rekeyed lockfile matches what a full resolution writes', async () => {
   }, testDefaults({ patchedDependencies: { 'is-positive@1.0.0': patchPath } }))
 
   expect(rekeyedLockfile).toStrictEqual(resolved.readLockfile())
+})
+
+/**
+ * `parent` is the only thing that reaches the patched `victim`, so dropping it
+ * leaves the patch with nothing to apply to — `ERR_PNPM_UNUSED_PATCH`, which
+ * only a resolution raises.
+ */
+function lockfileWithAPatchedTransitiveDependency (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    patchedDependencies: { 'victim@1.0.0': 'victim-hash' },
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { parent: '^1.0.0', keep: '^2.0.0' },
+        dependencies: { parent: '1.0.0', keep: '2.0.0' },
+      },
+    },
+    packages: {
+      ['parent@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-parent' },
+        dependencies: { victim: '1.0.0(patch_hash=victim-hash)' },
+      },
+      ['victim@1.0.0(patch_hash=victim-hash)' as DepPath]: { resolution: { integrity: 'sha512-victim' } },
+      ['keep@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-keep' } },
+    },
+  } as unknown as LockfileObject
+}
+
+const patchedTransitive: FastPatchedDependenciesUpdateOptions = {
+  patchedDependencies: { 'victim@1.0.0': 'victim-hash' },
+  allowUnusedPatches: false,
+}
+
+test('a manifest removal that leaves a patch unused falls back', async () => {
+  expect(await tryComposeFastUpdates(lockfileWithAPatchedTransitiveDependency(), {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [{ id: '.' as ProjectId, manifest: { dependencies: { keep: '^2.0.0' } } as ProjectManifest }],
+    patchedDependencies: patchedTransitive,
+  })).toBe(false)
+})
+
+test('a removal override that leaves a patch unused falls back', async () => {
+  expect(await tryComposeFastUpdates(lockfileWithAPatchedTransitiveDependency(), {
+    drift: { overrides: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [],
+    patchedDependencies: patchedTransitive,
+    overrides: {
+      overrides: { victim: '-' },
+      parsedOverrides: [{ selector: 'victim', newBareSpecifier: '-', targetPkg: { name: 'victim' } }],
+      isLockfileUpToDate: async () => true,
+      lockfileDir: '/test',
+      registries: { default: 'https://registry.npmjs.org/' },
+      requestPackage: (() => {
+        throw new Error('a removal resolves nothing')
+      }) as never,
+    },
+  })).toBe(false)
+})
+
+test('a removal that keeps the patch applied is still absorbed', async () => {
+  const subject = lockfileWithAPatchedTransitiveDependency()
+
+  expect(await tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [{ id: '.' as ProjectId, manifest: { dependencies: { parent: '^1.0.0' } } as ProjectManifest }],
+    patchedDependencies: patchedTransitive,
+  })).toBe(true)
+  expect(Object.keys(subject.packages!).sort())
+    .toStrictEqual(['parent@1.0.0', 'victim@1.0.0(patch_hash=victim-hash)'])
+})
+
+test('a removal that leaves a patch unused is absorbed under allowUnusedPatches', async () => {
+  expect(await tryComposeFastUpdates(lockfileWithAPatchedTransitiveDependency(), {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [{ id: '.' as ProjectId, manifest: { dependencies: { keep: '^2.0.0' } } as ProjectManifest }],
+    patchedDependencies: { ...patchedTransitive, allowUnusedPatches: true },
+  })).toBe(true)
 })
 
 function updateOptions (

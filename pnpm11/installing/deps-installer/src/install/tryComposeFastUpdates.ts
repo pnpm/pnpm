@@ -14,6 +14,7 @@ import {
   tryFastUpdateOverrides,
 } from './tryFastUpdateOverrides.js'
 import {
+  everyConfiguredPatchIsApplied,
   type FastPatchedDependenciesUpdateOptions,
   tryFastUpdatePatchedDependencies,
 } from './tryFastUpdatePatchedDependencies.js'
@@ -84,7 +85,8 @@ export interface ComposeFastUpdatesOptions {
  * (`finishGraphEdits`), then patch rekeying — after the prune, so its guards
  * see the packages a full resolution would see — the settings block, and the
  * two resolver-consulting rewrites last: catalogs before overrides, the order
- * a resolution applies them in.
+ * a resolution applies them in. What survives is then held to
+ * `everyConfiguredPatchIsApplied`.
  *
  * `false` — drift some handler cannot express — leaves the caller on the
  * full-resolution path; `candidate` may be partially rewritten by then, which
@@ -119,6 +121,10 @@ export async function tryComposeFastUpdates (
     return false
   }
   if (opts.drift.overrides && !await tryFastUpdateOverrides(candidate, opts.overrides!)) {
+    return false
+  }
+  if (opts.patchedDependencies != null &&
+    !everyConfiguredPatchIsApplied(candidate, opts.patchedDependencies)) {
     return false
   }
   return true

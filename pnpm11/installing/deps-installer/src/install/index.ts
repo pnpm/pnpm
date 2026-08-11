@@ -114,6 +114,7 @@ import { type AddedManifests, tryAddLockedVersions } from './tryAddLockedVersion
 import { tryComposeFastUpdates } from './tryComposeFastUpdates.js'
 import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
+import { warnUnusedPatches } from './tryFastUpdatePatchedDependencies.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
@@ -929,6 +930,13 @@ export async function mutateModules (
           })
         }
         addedManifestsAreCommitted = true
+        // Only the committed candidate is worth reporting on: a rewrite the
+        // freshness gates reject is followed by the resolution, which reports
+        // it itself.
+        warnUnusedPatches(ctx.wantedLockfile, {
+          patchedDependencies,
+          allowUnusedPatches: opts.allowUnusedPatches,
+        })
       }
     }
     const outdatedLockfileSettings = outdatedLockfileSettingName != null

@@ -2,7 +2,7 @@ use crate::fast_update_lockfile::GraphEdits;
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manifest::PackageManifest;
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 /// What a fast-update handler's detector concluded about its slice of
 /// the configuration and manifests.
@@ -22,7 +22,9 @@ pub(crate) enum Drift<Plan> {
 /// the shared graph epilogue
 /// ([`crate::fast_update_lockfile::finish_graph_edits`]), then patch
 /// rekeying — after the prune, so its guards see the packages a full
-/// resolution would see — and the settings block last.
+/// resolution would see — and the settings block last. What survives is
+/// then held to
+/// [`crate::fast_update_patched_dependencies::every_configured_patch_is_applied`].
 ///
 /// `None` — no drift, or drift some handler cannot express — leaves the
 /// caller on the full-resolution path; the caller still validates the
@@ -32,6 +34,7 @@ pub(crate) fn try_compose_fast_updates(
     manifests: &[(String, &PackageManifest)],
     project_manifests: &[(PathBuf, &PackageManifest)],
     config: &Config,
+    patch_hashes: Option<&BTreeMap<String, String>>,
     prune_stale_importers: bool,
 ) -> Option<Lockfile> {
     let ignored_optional_dependencies =
@@ -57,7 +60,8 @@ pub(crate) fn try_compose_fast_updates(
             drift => drift,
         };
     let patched =
-        match crate::fast_update_patched_dependencies::detect_patched_drift(lockfile, config) {
+        match crate::fast_update_patched_dependencies::detect_patched_drift(lockfile, patch_hashes)
+        {
             Drift::Resolve => return None,
             drift => drift,
         };
@@ -106,6 +110,13 @@ pub(crate) fn try_compose_fast_updates(
             project_manifests,
         )
     {
+        return None;
+    }
+    if !crate::fast_update_patched_dependencies::every_configured_patch_is_applied(
+        &candidate,
+        patch_hashes,
+        config.allow_unused_patches,
+    ) {
         return None;
     }
     Some(candidate)

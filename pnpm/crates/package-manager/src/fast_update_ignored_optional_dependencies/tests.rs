@@ -15,6 +15,7 @@ fn try_fast_update_ignored_optional_dependencies(
             ignored_optional_dependencies: Some(ignored_optional_dependencies.to_vec()),
             ..pacquet_config::Config::default()
         },
+        None,
         false,
     )
 }

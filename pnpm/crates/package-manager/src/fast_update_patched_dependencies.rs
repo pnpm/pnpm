@@ -1,5 +1,4 @@
 use crate::fast_update_compose::Drift;
-use pacquet_config::Config;
 use pacquet_deps_path::{index_of_dep_path_suffix, remove_suffix};
 use pacquet_lockfile::{
     ImporterDepVersion, Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap,
@@ -29,16 +28,16 @@ pub(crate) struct PatchedPlan {
 }
 
 /// Whether `patchedDependencies` drifted from what the lockfile
-/// records. [`Drift::Resolve`] when a patch file cannot be read or
-/// hashed, or a key's version segment parses as neither a version nor a
-/// range — the resolver reports those.
-pub(crate) fn detect_patched_drift(lockfile: &Lockfile, config: &Config) -> Drift<PatchedPlan> {
+/// records, against the hashes of the configured patch files.
+/// [`Drift::Resolve`] when a key's version segment parses as neither a
+/// version nor a range — the resolver reports that.
+pub(crate) fn detect_patched_drift(
+    lockfile: &Lockfile,
+    hashes: Option<&BTreeMap<String, String>>,
+) -> Drift<PatchedPlan> {
     let empty = BTreeMap::new();
-    let Ok(hashes) = config.patched_dependency_hashes() else {
-        return Drift::Resolve;
-    };
     let recorded = lockfile.patched_dependencies.as_ref().unwrap_or(&empty);
-    let current = hashes.as_ref().unwrap_or(&empty);
+    let current = hashes.unwrap_or(&empty);
     if recorded == current {
         return Drift::Clean;
     }
@@ -236,11 +235,60 @@ fn rewrite_importer_group(group: &mut ResolvedDependencyMap, rekeys: &Rekeys) {
     }
 }
 
+/// Whether every configured patch still has a package to apply to.
+///
+/// A patch with none left is `ERR_PNPM_UNUSED_PATCH`, which only a
+/// resolution raises, so a rewrite that would produce one has to decline
+/// and let the resolver report it. Any handler that drops an edge can
+/// produce one, not only a changed patch configuration, so this runs over
+/// the settled graph rather than inside [`apply_patched_update`].
+///
+/// `allowUnusedPatches` turns that error into a warning the resolution
+/// emits, which no rewrite reproduces either; as elsewhere in this module,
+/// a warning is not worth a full resolution.
+pub(crate) fn every_configured_patch_is_applied(
+    lockfile: &Lockfile,
+    hashes: Option<&BTreeMap<String, String>>,
+    allow_unused_patches: bool,
+) -> bool {
+    if allow_unused_patches {
+        return true;
+    }
+    let Some(hashes) = hashes.filter(|hashes| !hashes.is_empty()) else {
+        return true;
+    };
+    let Some(groups) = groups_from_hashes(hashes) else {
+        return false;
+    };
+    let Some(applied) = applied_patch_keys(lockfile, &groups) else {
+        return false;
+    };
+    !all_patch_keys(&groups).any(|key| !applied.contains(key))
+}
+
+/// The configured patches the committed lockfile leaves unused, as the
+/// resolution's own `verify_patches` would report them.
+///
+/// Only non-empty with `allowUnusedPatches` on: with it off,
+/// [`every_configured_patch_is_applied`] declines the rewrite instead, and
+/// the resolution that takes over raises `ERR_PNPM_UNUSED_PATCH`.
+pub(crate) fn unused_patches(
+    lockfile: &Lockfile,
+    hashes: Option<&BTreeMap<String, String>>,
+) -> Option<pacquet_patching::UnusedPatches> {
+    let hashes = hashes.filter(|hashes| !hashes.is_empty())?;
+    let groups = groups_from_hashes(hashes)?;
+    let applied = applied_patch_keys(lockfile, &groups)?;
+    let applied = applied.into_iter().map(str::to_string).collect();
+    pacquet_patching::verify_patches(&groups, &applied, true).ok().flatten()
+}
+
 /// Bucket `hashes` the way the resolver buckets configured patches.
 ///
 /// The patch file path is left out: nothing here applies a patch, and
-/// the hashes [`Config::patched_dependency_hashes`] already computed are
-/// the only payload the rewrite needs, so no patch file is read twice.
+/// the hashes [`pacquet_config::Config::patched_dependency_hashes`]
+/// already computed are the only payload the rewrite needs, so no patch
+/// file is read twice.
 ///
 /// `None` for a key whose version segment is neither a version nor a
 /// range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
