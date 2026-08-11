@@ -47,6 +47,7 @@ export type SbomCommandOptions = {
   | 'optional'
   | 'production'
   | 'storeDir'
+  | 'supportedArchitectures'
   | 'virtualStoreDir'
   | 'modulesDir'
   | 'pnpmHomeDir'
@@ -494,6 +495,7 @@ async function generateSbomForProject (
     namedRegistries: opts.namedRegistries,
     lockfileDir,
     includedImporterIds,
+    supportedArchitectures: opts.supportedArchitectures,
     lockfileOnly: opts.lockfileOnly,
     storeDir: ctx.storeDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,

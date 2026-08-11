@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { checkPackageInstallability } from '@pnpm/config.package-is-installable'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, LockfileResolution, TarballResolution } from '@pnpm/lockfile.types'
@@ -11,7 +12,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
+import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
@@ -42,6 +43,7 @@ export interface CollectSbomComponentsOptions {
   namedRegistries?: Record<string, string>
   lockfileDir: string
   includedImporterIds?: ProjectId[]
+  supportedArchitectures?: SupportedArchitectures
   lockfileOnly?: boolean
   storeDir?: string
   virtualStoreDirMaxLength?: number
@@ -206,6 +208,24 @@ async function walkStep (
       const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       if (!name || !version) return
+
+      // An optional dependency for another platform is in the lockfile but was
+      // never fetched, so the store holds no metadata to describe it with.
+      // `checkPackageInstallability`, not `packageIsInstallable`: the latter
+      // reports every skip through the install loggers, which reading a
+      // lockfile must not do.
+      if (!opts.lockfileOnly && pkgSnapshot.optional === true && checkPackageInstallability(pkgSnapshot.id ?? depPath, {
+        name,
+        version,
+        cpu: pkgSnapshot.cpu,
+        os: pkgSnapshot.os,
+        libc: pkgSnapshot.libc,
+      }, {
+        optional: true,
+        supportedArchitectures: opts.supportedArchitectures,
+      }) != null) {
+        return
+      }
 
       // Resolve the alias before the purl is built. An unknown alias would
       // otherwise yield an unqualified purl that collides with the same
