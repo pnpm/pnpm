@@ -237,6 +237,10 @@ export function createNpmResolver (
   // using.
   const ownsMetaCache = opts.metaCache == null
   const metaCache: PackageMetaCache = opts.metaCache ?? createDefaultPackageMetaCache()
+  // This marker is intentionally resolver-scoped rather than attached to
+  // `metaCache`: callers may reuse one metadata cache across installs, and a
+  // later install must retry a full-metadata upgrade that previously got 304.
+  const releaseAgeUpgradeCheckedPackuments = new WeakSet<PackageMeta>()
   // Create peek function if storeDir is provided
   const storeDir = opts.storeDir
   const peekLockerForPeek = new Map<string, Promise<DependencyManifest | undefined>>()
@@ -280,6 +284,7 @@ export function createNpmResolver (
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
+      releaseAgeUpgradeCheckedPackuments,
     }),
     registriesByScope: opts.registriesByScope,
     registriesByPrefix,

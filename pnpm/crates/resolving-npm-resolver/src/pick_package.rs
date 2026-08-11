@@ -31,7 +31,7 @@
 //! into a single network fetch — the rest wait, then re-check the
 //! in-memory cache that the winner just populated and short-circuit
 //! without hitting the registry. This is done via
-//! [`PackumentFetchLocker`], a [`DashMap<String, Arc<Semaphore>>`]
+//! [`PackumentFetchLocker`], which owns per-key semaphores and is
 //! threaded through [`PickPackageContext::fetch_locker`]: the first
 //! caller for a given cache key acquires the per-key permit and
 //! does the disk + network work; subsequent callers wait on the
@@ -51,7 +51,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
@@ -138,12 +138,10 @@ pub trait PackageMetaCache: Send + Sync {
     fn set_unverified(&self, key: String, meta: Arc<Package>);
 }
 
-/// Per-`(registry, package_name)` fetch serializer: a map of
-/// single-permit limits keyed on the on-disk mirror path, used to
-/// coalesce concurrent picks for the same packument.
+/// Install-scoped state for packument fetching.
 ///
-/// Pacquet stores one [`tokio::sync::Semaphore`] (single-permit) per
-/// in-memory cache key; first caller acquires, runs the
+/// Pacquet stores one [`tokio::sync::Semaphore`] (single-permit) per in-memory
+/// cache key; first caller acquires, runs the
 /// disk-then-network flow, releases. Subsequent callers wait on the
 /// same semaphore; after acquiring, they re-check
 /// [`PackageMetaCache`] and short-circuit on a hit so only the first
@@ -154,16 +152,25 @@ pub trait PackageMetaCache: Send + Sync {
 /// in-flight set. Keying is on the same string [`PackageMetaCache`]
 /// uses (`{registry}\x00{name}` for abbreviated,
 /// `{registry}\x00{name}:full` for full), so two callers asking for
-/// different forms of the same packument don't accidentally serialize
-/// — the `metaDir` differentiator is embedded in the key.
-pub type PackumentFetchLocker = Arc<DashMap<String, Arc<Semaphore>>>;
+/// different forms of the same packument don't accidentally serialize — the
+/// `metaDir` differentiator is embedded in the key. Release-age upgrade 304s
+/// are tracked alongside the limits because they have the same install
+/// lifetime; keeping that marker out of [`Package`] prevents a caller-owned
+/// metadata cache from leaking it into a later install.
+#[derive(Debug, Default)]
+pub struct PackumentFetchState {
+    limits: DashMap<String, Arc<Semaphore>>,
+    release_age_upgrade_checked: DashSet<String>,
+}
+
+pub type PackumentFetchLocker = Arc<PackumentFetchState>;
 
 /// Construct a fresh [`PackumentFetchLocker`] for a new install.
 /// Equivalent to `Default::default()`; named for symmetry with
 /// [`shared_in_memory_cache`].
 #[must_use]
 pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
-    Arc::new(DashMap::new())
+    Arc::new(PackumentFetchState::default())
 }
 
 /// Per-`(registry, pkg_name, version)` cache for the resolver's
@@ -578,6 +585,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     let limit = {
         let entry = ctx
             .fetch_locker
+            .limits
             .entry(cache_key.clone())
             .or_insert_with(|| Arc::new(Semaphore::new(1)));
         Arc::clone(entry.value())
@@ -1229,7 +1237,9 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     let Some(cutoff) = opts.published_by else {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     };
-    if has_all_version_publish_times(&meta) || meta.release_age_upgrade_checked {
+    if has_all_version_publish_times(&meta)
+        || ctx.fetch_locker.release_age_upgrade_checked.contains(cache_key)
+    {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     if let Some(policy) = opts.published_by_exclude
@@ -1257,6 +1267,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     // registry for the same packument hundreds of times per install.
     let limit = Arc::clone(
         ctx.fetch_locker
+            .limits
             .entry(format!("{cache_key}#release-age-upgrade"))
             .or_insert_with(|| Arc::new(Semaphore::new(1)))
             .value(),
@@ -1265,9 +1276,13 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
     if let Some(cached) = ctx.meta_cache.get(cache_key) {
         let cached_meta = cached.meta;
-        if has_all_version_publish_times(&cached_meta) || cached_meta.release_age_upgrade_checked {
+        if has_all_version_publish_times(&cached_meta)
+            || ctx.fetch_locker.release_age_upgrade_checked.contains(cache_key)
+        {
             return Ok(UpgradeOutcome { meta: cached_meta, upgraded: false });
         }
+    } else if ctx.fetch_locker.release_age_upgrade_checked.contains(cache_key) {
+        return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     let fetch_opts = FetchFullMetadataOptions {
         registry: opts.registry,
@@ -1286,17 +1301,16 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         // headers, so the abbreviated meta is still the freshest
         // signal we have. Keep it (the downstream picker falls through
         // to its warn-and-skip path on the missing `time` map), but
-        // stamp it so no later pick repeats the round trip — the 304
-        // also registry-validated the document, so it may enter the
-        // shared cache as verified.
+        // mark it in install-owned state so no later pick repeats the round
+        // trip. The 304 also registry-validated the document, so it may enter
+        // the shared metadata cache as verified without carrying the marker
+        // into a later install.
         FetchFullMetadataOutcome::NotModified => {
-            let mut stamped = (*meta).clone();
-            stamped.release_age_upgrade_checked = true;
-            let stamped = Arc::new(stamped);
+            ctx.fetch_locker.release_age_upgrade_checked.insert(cache_key.to_string());
             if !opts.dry_run {
-                ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&stamped));
+                ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
             }
-            Ok(UpgradeOutcome { meta: stamped, upgraded: false })
+            Ok(UpgradeOutcome { meta, upgraded: false })
         }
     }
 }

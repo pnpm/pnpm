@@ -209,14 +209,6 @@ function pickMatchingVersionFinal (
 const unverifiedDiskPackuments = new WeakSet<PackageMeta>()
 
 /**
- * Packuments whose release-age full-metadata upgrade returned 304 during this
- * install. The marker is deliberately identity-based and in-memory only: later
- * picks can skip the same round trip, while a future install still gets a
- * chance to retrieve a fuller document from the registry.
- */
-const releaseAgeUpgradeCheckedPackuments = new WeakSet<PackageMeta>()
-
-/**
  * Promote a packument parsed from the on-disk mirror into the in-memory
  * cache, so repeat resolutions of the same package (common across a large
  * dependency graph) don't re-read and re-parse the mirror. The entry is
@@ -260,6 +252,8 @@ export async function pickPackage (
     preferOffline?: boolean
     filterMetadata?: boolean
     ignoreMissingTimeField?: boolean
+    /** Packuments already checked by a full-metadata upgrade in this resolver. */
+    releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta>
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -579,6 +573,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, cacheBypass?: boolean, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     offline?: boolean
+    releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta>
   },
   spec: RegistryPackageSpec,
   opts: {
@@ -593,7 +588,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     ctx.offline === true ||
     !opts.publishedBy ||
     hasAllVersionPublishTimes(meta) ||
-    releaseAgeUpgradeCheckedPackuments.has(meta) ||
+    ctx.releaseAgeUpgradeCheckedPackuments?.has(meta) === true ||
     opts.publishedByExclude?.(spec.name) === true
   ) {
     return { meta }
@@ -624,9 +619,11 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   if (fullFetchResult.notModified) {
     // Upgrade fetch came back 304: keep the abbreviated meta. The downstream
     // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
-    // Remember this registry-validated outcome on the packument itself so
-    // another pick in this install does not repeat the full-metadata request.
-    releaseAgeUpgradeCheckedPackuments.add(meta)
+    // Remember this registry-validated outcome in the resolver-owned marker
+    // set so another pick in this install does not repeat the request. Do not
+    // attach the marker to the caller-owned metadata cache: that cache may be
+    // shared by a later install, which must get its own upgrade attempt.
+    ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }

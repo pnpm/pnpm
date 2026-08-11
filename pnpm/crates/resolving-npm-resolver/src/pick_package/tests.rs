@@ -1236,21 +1236,17 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
     abbrev_mock.assert_async().await;
 }
 
-/// A `304 Not Modified` answer to the release-age upgrade means the registry
-/// holds no fuller form than the abbreviated document, so the outcome must be
-/// remembered for the rest of the install: repeat picks of the same package
-/// must not repeat the upgrade round trip. Registries that ignore the
-/// `Accept` representation answered every upgrade with `304`, and a large
-/// workspace re-asked for the same packument hundreds of times per install.
+/// A `304 Not Modified` answer to the release-age upgrade is remembered within
+/// one install, but not by a metadata cache reused by the next install.
 #[tokio::test]
-async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
+async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
     let mut server = mockito::Server::new_async().await;
     let full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
         .match_header("if-none-match", r#""acme-etag""#)
         .with_status(304)
-        .expect(1)
+        .expect(2)
         .create_async()
         .await;
 
@@ -1292,8 +1288,29 @@ async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second pick");
 
-    // Exactly one upgrade attempt — the 304 outcome is stamped into the
-    // shared cache and reused by later picks.
+    // A new install gets fresh fetch state but reuses the caller-owned metadata
+    // cache. It must retry the upgrade instead of inheriting the first
+    // install's marker from the cached Package.
+    let next_install_fetch_locker = shared_packument_fetch_locker();
+    let next_install_ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &next_install_fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: true,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    let _ = pick_package(&next_install_ctx, &range_spec("acme", "^1.0.0"), &opts)
+        .await
+        .expect("next install pick");
+
+    // One request for each install: the repeat pick in the first install is
+    // the only one suppressed.
     full_mock.assert_async().await;
 }
 

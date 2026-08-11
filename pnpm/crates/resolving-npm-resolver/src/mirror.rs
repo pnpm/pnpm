@@ -646,7 +646,6 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
         etag: headers.etag,
         homepage: index.homepage,
         mutex: Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     })
 }

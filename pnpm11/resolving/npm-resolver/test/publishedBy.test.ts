@@ -278,7 +278,7 @@ test('re-fetch full metadata when per-version publish times are incomplete', asy
   expect(resolveResult!.id).toBe('is-positive@2.0.0')
 })
 
-test('does not repeat a 304 full-metadata upgrade for an incomplete time map', async () => {
+test('scopes a 304 full-metadata upgrade marker to one resolver', async () => {
   const partialTimeMeta = {
     ...isPositiveAbbreviatedMeta,
     time: {
@@ -296,11 +296,17 @@ test('does not repeat a 304 full-metadata upgrade for an incomplete time map', a
     method: 'GET',
     headers: { 'if-none-match': '"partial-time"' },
   }).reply(304, '')
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"partial-time"' },
+  }).reply(304, '')
 
   const metaCache = new Map<string, PackageMeta>()
+  const cacheDir = temporaryDirectory()
   const { clearCache, resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
-    cacheDir: temporaryDirectory(),
+    cacheDir,
     registries,
     ignoreMissingTimeField: true,
     metaCache,
@@ -321,8 +327,22 @@ test('does not repeat a 304 full-metadata upgrade for an incomplete time map', a
     publishedBy: new Date('2015-07-01T00:00:00.000Z'),
   })
 
+  // A new resolver represents a new install. Reusing the caller-owned
+  // metadata cache must not carry the first install's 304 marker forward.
+  const nextInstall = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+    ignoreMissingTimeField: true,
+    metaCache,
+  })
+  const third = await nextInstall.resolveFromNpm(wantedDependency, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+
   expect(first!.id).toBe('is-positive@3.1.0')
   expect(second!.id).toBe('is-positive@3.1.0')
+  expect(third!.id).toBe('is-positive@3.1.0')
   getMockAgent().assertNoPendingInterceptors()
 })
 

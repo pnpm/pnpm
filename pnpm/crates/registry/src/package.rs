@@ -67,14 +67,6 @@ pub struct Package {
     /// [`DerivedPackuments`].
     #[serde(skip_serializing, skip_deserializing)]
     pub derived: DerivedPackuments,
-
-    /// `true` once a release-age upgrade fetch for this document answered
-    /// `304 Not Modified` in this process: the registry holds no fuller
-    /// form than what is already cached, so re-asking within the install
-    /// is pure waste. In-memory only — never written to the mirror, so a
-    /// later install re-validates once and re-stamps.
-    #[serde(skip_serializing, skip_deserializing)]
-    pub release_age_upgrade_checked: bool,
 }
 
 impl Package {

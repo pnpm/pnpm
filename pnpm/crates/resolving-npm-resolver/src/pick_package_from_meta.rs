@@ -256,7 +256,6 @@ fn without_version(meta: &Package, version: &str) -> Package {
         etag: meta.etag.clone(),
         homepage: meta.homepage.clone(),
         mutex: Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }
@@ -525,7 +524,6 @@ fn filter_pkg_metadata_versions_with_dist_tag_bound(
         etag: meta.etag.clone(),
         homepage: meta.homepage.clone(),
         mutex: std::sync::Arc::clone(&meta.mutex),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }

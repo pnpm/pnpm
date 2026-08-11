@@ -166,7 +166,6 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         etag: None,
         homepage: None,
         mutex: std::sync::Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }
