@@ -77,7 +77,25 @@ fn ci_false_disables_github_actions_detection() {
         }
     }
 
-    assert!(!default_ci::<GithubActionsWithCiFalse>());
+    assert!(!default_ci::<GithubActionsWithCiFalse>(|| true));
+}
+
+#[test]
+fn ci_detection_uses_injected_detector() {
+    struct InjectedCi;
+
+    impl EnvVar for InjectedCi {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+
+        fn vars() -> Vec<(String, String)> {
+            Vec::new()
+        }
+    }
+
+    assert!(default_ci::<InjectedCi>(|| true));
+    assert!(!default_ci::<InjectedCi>(|| false));
 }
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage

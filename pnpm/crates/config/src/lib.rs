@@ -56,7 +56,7 @@ pub use workspace_yaml::{
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds, workspace_root_or,
 };
 
-fn default_ci<Sys: EnvVar>() -> bool {
+fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
     let ci = Sys::var("CI");
     if ci.as_deref() == Some("false") {
         return false;
@@ -64,7 +64,7 @@ fn default_ci<Sys: EnvVar>() -> bool {
 
     matches!(ci.as_deref(), Some("true" | "1" | "woodpecker"))
         || Sys::var("GITHUB_ACTIONS").is_some()
-        || is_ci::cached()
+        || detect_ci()
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -749,7 +749,7 @@ pub struct Config {
     /// Whether pnpm is running in a continuous-integration environment.
     /// Defaults to automatic CI detection and may be overridden through
     /// configuration.
-    #[default(_code = "default_ci::<Host>()")]
+    #[default(_code = "default_ci::<Host>(is_ci::cached)")]
     pub ci: bool,
 
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
