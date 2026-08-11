@@ -118,10 +118,10 @@ test('adding by dist tag falls back to the resolver', async () => {
   expect(requestedPackages).not.toStrictEqual([])
 })
 
-test('a new dependency is added at the highest locked version satisfying it', () => {
+test('a new dependency is added at the highest locked version satisfying it', async () => {
   const subject = withASecondLockedChild()
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0', child: '^3.0.0' } }),
   ])).toBe(true)
   const importer = subject.importers['.' as ProjectId]
@@ -129,10 +129,10 @@ test('a new dependency is added at the highest locked version satisfying it', ()
   expect(importer.specifiers.child).toBe('^3.0.0')
 })
 
-test('a new dependency clears the optional flag of what it reaches', () => {
+test('a new dependency clears the optional flag of what it reaches', async () => {
   const subject = lockfileWithOptionalBar()
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({
       dependencies: { foo: '^1.0.0', child: '^3.0.0' },
       optionalDependencies: { bar: '^2.0.0' },
@@ -142,10 +142,10 @@ test('a new dependency clears the optional flag of what it reaches', () => {
   expect(subject.packages!['child@3.0.0' as DepPath].optional).toBeUndefined()
 })
 
-test('a new optional dependency leaves the flags alone', () => {
+test('a new optional dependency leaves the flags alone', async () => {
   const subject = lockfileWithOptionalBar()
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({
       dependencies: { foo: '^1.0.0' },
       optionalDependencies: { bar: '^2.0.0', child: '^3.0.0' },
@@ -154,16 +154,16 @@ test('a new optional dependency leaves the flags alone', () => {
   expect(subject.packages!['child@3.0.0' as DepPath].optional).toBe(true)
 })
 
-test('a new dependency no locked version satisfies falls back', () => {
-  expect(tryFastUpdateImporters(lockfile(), [
+test('a new dependency no locked version satisfies falls back', async () => {
+  expect(await tryFastUpdateImporters(lockfile(), [
     project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0', child: '^4.0.0' } }),
   ])).toBe(false)
 })
 
-test('a new dependency naming a workspace project falls back', () => {
+test('a new dependency naming a workspace project falls back', async () => {
   const subject = lockfile()
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     projects: [project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0', child: '^3.0.0' } })],
     workspacePackages: new Map([['child', new Map()]]),
@@ -171,10 +171,10 @@ test('a new dependency naming a workspace project falls back', () => {
   })).toBe(false)
 })
 
-test('a new dependency several locked versions satisfy falls back when resolution picks lowest', () => {
+test('a new dependency several locked versions satisfy falls back when resolution picks lowest', async () => {
   const subject = withASecondLockedChild()
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     projects: [project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0', child: '^3.0.0' } })],
     workspacePackages: new Map(),
@@ -182,14 +182,14 @@ test('a new dependency several locked versions satisfy falls back when resolutio
   })).toBe(false)
 })
 
-test('a new dependency falls back on a lockfile that records publish dates', () => {
+test('a new dependency falls back on a lockfile that records publish dates', async () => {
   const subject = lockfile()
   subject.time = {
     'foo@1.1.0': '2020-01-01T00:00:00.000Z',
     'bar@2.0.0': '2020-01-01T00:00:00.000Z',
   }
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0', child: '^3.0.0' } }),
   ])).toBe(false)
 })
@@ -308,7 +308,7 @@ function lockfile (): LockfileObject {
 }
 
 /** The composed pipeline restricted to manifest drift. */
-function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[]): boolean {
+async function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[]): Promise<boolean> {
   return tryComposeFastUpdates(lockfile, {
     drift: { importers: true },
     projects,
