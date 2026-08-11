@@ -111,11 +111,6 @@ pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
 /// `optionalDependencies` sections.
 pub(super) type ChildSpec = (String, String, bool);
 
-/// What the preferred-versions overlay offers one package's child
-/// edges: `name → preferred versions` over the names those edges look
-/// the overlay up under. See [`RecordedChildrenContext::overlay_view`].
-pub(super) type ChildrenOverlayView = BTreeMap<String, Vec<String>>;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ChildrenOwner {
     update_active: bool,
@@ -176,26 +171,22 @@ pub(super) struct RecordedChildrenContext {
     /// Whether the resolving importer had an active update policy, which
     /// re-resolves what a keep-all importer reuses.
     pub(super) update_active: bool,
-    /// What the walk's preferred-versions overlay offered the package's
-    /// child edges, projected down to the names those edges look up.
-    ///
-    /// The overlay chain itself is per-occurrence — it carries every
-    /// ancestor level's resolved versions — so comparing chains would
-    /// mean requiring identical parents, which the occurrences of one
-    /// package never have. The projection is the part of the chain a
-    /// child edge's version pick can read: it joins the per-wanted
-    /// resolve cache key, so two occurrences that agree on it resolve
-    /// every child edge to the same package.
-    pub(super) overlay_view: ChildrenOverlayView,
 }
 
 impl RecordedChildrenContext {
     /// Two contexts produce the same children.
+    ///
+    /// The preferred-versions overlay is deliberately not part of the
+    /// test. `children_by_id` records one child list per package id,
+    /// and every occurrence that does not own the children already
+    /// expands from it whatever its own overlay says — the overlay
+    /// only ever decides which occurrence's versions get *recorded*.
+    /// Requiring identical overlays here would mean requiring identical
+    /// parents, which the occurrences that race never have.
     pub(super) fn produces_same_children_as(&self, other: &Self) -> bool {
         self.peer_shadowed == other.peer_shadowed
             && self.prior_key == other.prior_key
             && self.update_active == other.update_active
-            && self.overlay_view == other.overlay_view
     }
 }
 
