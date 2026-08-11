@@ -176,8 +176,6 @@ describe('plugin-commands-audit', () => {
       rootProjectManifestDir: hasBrokenLockfileDir,
     }, ['signatures'])
 
-    // The resolvable package verifies, the dangling reference is reported —
-    // both count towards `audited` rather than silently shrinking it.
     expect(exitCode).toBe(1)
     const plainOutput = stripAnsi(output)
     expect(plainOutput).toContain('audited 2 packages')

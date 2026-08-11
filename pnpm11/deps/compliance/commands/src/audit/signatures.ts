@@ -40,11 +40,8 @@ export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: 
     timeout: networkOptions.fetchTimeout,
   })
 
-  // Dependency references the lockfile walk couldn't resolve to a
-  // packages:/snapshots: entry never reached `packages` above, so
-  // verifySignatures never saw them either. There is no registry lookup to
-  // attempt for a reference the lockfile itself can't stand behind -- report
-  // them directly rather than silently shrinking `audited`.
+  // A reference the lockfile cannot stand behind has nothing to look up in a
+  // registry, so it is reported here rather than left to shrink `audited`.
   if (auditRequest.unresolvable.length > 0) {
     const unresolvableIssues: SignatureIssue[] = auditRequest.unresolvable.map(({ name, depPath }) => ({
       name,

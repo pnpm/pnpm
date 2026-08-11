@@ -32,9 +32,8 @@ describe('audit', () => {
   })
 
   test('lockfileToAuditRequest() surfaces lockfile entries it cannot resolve instead of silently dropping them', () => {
-    // Simulates a lockfile edited/tampered inconsistently: the importer still
-    // references uuid@13.0.2, but packages: was only updated to uuid@13.99.99,
-    // leaving the importer's reference dangling. https://github.com/pnpm/pnpm/issues/13638
+    // The importer references uuid@13.0.2 while packages: only carries
+    // 13.99.99 -- what an inconsistently edited lockfile looks like. See #13638.
     const result = lockfileToAuditRequest({
       importers: {
         ['.' as ProjectId]: {
@@ -49,10 +48,8 @@ describe('audit', () => {
       },
     }, {})
 
-    // The dangling entry must not just vanish from the request and counts...
     expect(result.request).toEqual({ ms: ['2.1.3'] })
     expect(result.totalDependencies).toBe(1)
-    // ...it must be surfaced so a caller can report it as a failure.
     expect(result.unresolvable).toEqual([{ name: 'uuid', depPath: 'uuid@13.0.2' }])
   })
 
