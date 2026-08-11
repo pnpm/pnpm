@@ -2,7 +2,7 @@ use crate::fast_update_lockfile::GraphEdits;
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manifest::PackageManifest;
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 /// What a fast-update handler's detector concluded about its slice of
 /// the configuration and manifests.
@@ -34,6 +34,7 @@ pub(crate) fn try_compose_fast_updates(
     manifests: &[(String, &PackageManifest)],
     project_manifests: &[(PathBuf, &PackageManifest)],
     config: &Config,
+    patch_hashes: Option<&BTreeMap<String, String>>,
     prune_stale_importers: bool,
 ) -> Option<Lockfile> {
     let ignored_optional_dependencies =
@@ -58,19 +59,12 @@ pub(crate) fn try_compose_fast_updates(
             Drift::Resolve => return None,
             drift => drift,
         };
-    // Reading and hashing the patch files is the only I/O this pipeline
-    // does, and both the drift check and the guard at the end need the
-    // result.
-    let Ok(patch_hashes) = config.patched_dependency_hashes() else {
-        return None;
-    };
-    let patched = match crate::fast_update_patched_dependencies::detect_patched_drift(
-        lockfile,
-        patch_hashes.as_ref(),
-    ) {
-        Drift::Resolve => return None,
-        drift => drift,
-    };
+    let patched =
+        match crate::fast_update_patched_dependencies::detect_patched_drift(lockfile, patch_hashes)
+        {
+            Drift::Resolve => return None,
+            drift => drift,
+        };
     let settings_drift =
         match crate::fast_update_settings::detect_settings_drift(lockfile, &settings) {
             Drift::Resolve => return None,
@@ -120,7 +114,7 @@ pub(crate) fn try_compose_fast_updates(
     }
     if !crate::fast_update_patched_dependencies::every_configured_patch_is_applied(
         &candidate,
-        patch_hashes.as_ref(),
+        patch_hashes,
         config.allow_unused_patches,
     ) {
         return None;
