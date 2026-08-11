@@ -1516,9 +1516,6 @@ fn update_no_save_skips_version_outside_kept_range() {
     drop((root, anchor));
 }
 
-/// A versioned selector under `--no-save` can drive an in-range lockfile bump,
-/// but the importer entry must keep the manifest's specifier. Regression test
-/// for <https://github.com/pnpm/pnpm/issues/13526>.
 #[test]
 fn update_no_save_keeps_importer_specifier_for_admitted_version() {
     let (root, workspace, anchor) = setup();
@@ -1543,6 +1540,42 @@ fn update_no_save_keeps_importer_specifier_for_admitted_version() {
     assert!(
         !lock.contains("specifier: 100.1.0"),
         "the requested version must not replace the importer specifier: {lock}",
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+#[test]
+fn update_no_save_applies_read_package_to_kept_importer_specifier() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            "module.exports = {{ hooks: {{ readPackage (pkg) {{\n  if (pkg.name === 'test-update' && pkg.dependencies && pkg.dependencies[{DEP:?}]) {{\n    pkg.dependencies[{DEP:?}] = '100.1.0';\n  }}\n  return pkg;\n}} }} }}\n",
+        ),
+    )
+    .expect("write pnpmfile");
+
+    let output =
+        pacquet(&workspace, ["update", "--no-save", "--lockfile-only", &format!("{DEP}@100.1.0")])
+            .output()
+            .expect("run update --no-save");
+    assert!(output.status.success(), "update --no-save failed: {output:?}");
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lock.contains("specifier: 100.1.0"),
+        "the lockfile importer entry must follow readPackage's kept specifier: {lock}",
+    );
+    assert!(
+        !lock.contains("specifier: ^100.0.0"),
+        "the raw package.json specifier must not bypass readPackage: {lock}",
     );
     pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 

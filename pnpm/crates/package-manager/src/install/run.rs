@@ -492,36 +492,61 @@ where
                     .map(|(project_dir, manifest)| (project_dir.clone(), manifest))
                     .collect()
             };
-        let hooked_project_manifests: Vec<(PathBuf, PackageManifest)> = match pnpmfile_hook.as_ref()
-        {
-            Some(hook) => {
-                let log = hook.source_path().map_or_else(
-                    || Arc::new(|_| {}) as pnpm_hooks::LogFn,
-                    |from| {
-                        crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
-                            &workspace_root,
-                            from,
-                            "readPackage",
-                        )
-                    },
-                );
-                futures_util::future::try_join_all(project_manifests.iter().map(
-                    |(project_dir, manifest)| {
-                        let ctx = pnpm_hooks::HookContext { log: Arc::clone(&log), dir: None };
+        let read_package_log = pnpmfile_hook.as_ref().map(|hook| {
+            hook.source_path().map_or_else(
+                || Arc::new(|_| {}) as pnpm_hooks::LogFn,
+                |from| {
+                    crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+                        &workspace_root,
+                        from,
+                        "readPackage",
+                    )
+                },
+            )
+        });
+        let hooked_project_manifests: Vec<(PathBuf, PackageManifest)> =
+            match (pnpmfile_hook.as_ref(), read_package_log.as_ref()) {
+                (Some(hook), Some(log)) => {
+                    futures_util::future::try_join_all(project_manifests.iter().map(
+                        |(project_dir, manifest)| {
+                            let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
+                            async move {
+                                let value = hook
+                                    .read_package(manifest.value().clone(), ctx)
+                                    .await
+                                    .map_err(InstallError::ReadPackageHook)?;
+                                let mut hooked = (*manifest).clone();
+                                *hooked.value_mut() = (*value).clone();
+                                Ok::<_, InstallError>((project_dir.clone(), hooked))
+                            }
+                        },
+                    ))
+                    .await?
+                }
+                _ => Vec::new(),
+            };
+        let lockfile_specifier_project_manifests = match (
+            lockfile_specifier_project_manifests,
+            pnpmfile_hook.as_ref(),
+            read_package_log.as_ref(),
+        ) {
+            (Some(manifests), Some(hook), Some(log)) => Some(
+                futures_util::future::try_join_all(manifests.into_iter().map(
+                    |(project_dir, mut manifest)| {
+                        let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
                         async move {
                             let value = hook
                                 .read_package(manifest.value().clone(), ctx)
                                 .await
                                 .map_err(InstallError::ReadPackageHook)?;
-                            let mut hooked = (*manifest).clone();
-                            *hooked.value_mut() = (*value).clone();
-                            Ok::<_, InstallError>((project_dir.clone(), hooked))
+                            *manifest.value_mut() = (*value).clone();
+                            Ok::<_, InstallError>((project_dir, manifest))
                         }
                     },
                 ))
-                .await?
-            }
-            None => Vec::new(),
+                .await?,
+            ),
+            (manifests, _, _) => manifests,
         };
         let project_manifests: Vec<(PathBuf, &PackageManifest)> =
             if hooked_project_manifests.is_empty() {
