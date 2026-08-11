@@ -65,7 +65,23 @@ export async function tryFastUpdateOverrides (
 ): Promise<boolean> {
   const fastOverrides = getFastOverrides(lockfile, lockfile.overrides ?? {}, opts.overrides, opts.parsedOverrides)
   if (fastOverrides == null) return false
+  if (movesACatalogedPackage(lockfile, fastOverrides)) return false
   return applyFastRewrite(lockfile, fastOverrides, opts, { overrides: opts.overrides })
+}
+
+/**
+ * Whether any of `fastOverrides` moves a package a catalog entry records the
+ * version of. The entry would have to move with it — which is the catalog
+ * rewrite's job, not this one's — so the move goes to the resolver instead.
+ *
+ * A `parent>child` selector names no importer edge, and only importer edges
+ * are what a catalog entry resolves.
+ */
+function movesACatalogedPackage (lockfile: LockfileObject, fastOverrides: FastOverride[]): boolean {
+  const catalogedAliases = new Set(
+    Object.values(lockfile.catalogs ?? {}).flatMap((catalog) => Object.keys(catalog))
+  )
+  return fastOverrides.some(({ name, parent }) => parent == null && catalogedAliases.has(name))
 }
 
 /**

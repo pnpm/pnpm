@@ -25,11 +25,11 @@ test('a dependency in its recorded group is not a change', () => {
   ])).toBe(false)
 })
 
-test('a move between prod and dev only edits the importer', () => {
+test('a move between prod and dev only edits the importer', async () => {
   const subject = lockfile()
   const packagesBefore = clone(subject.packages)
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({ dependencies: { foo: '^1.0.0' }, devDependencies: { bar: '^2.0.0' } }),
   ])).toBe(true)
   const importer = subject.importers['.' as ProjectId]
@@ -39,10 +39,10 @@ test('a move between prod and dev only edits the importer', () => {
   expect(subject.packages).toStrictEqual(packagesBefore)
 })
 
-test('a move into optionalDependencies marks the subtree optional', () => {
+test('a move into optionalDependencies marks the subtree optional', async () => {
   const subject = lockfile()
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({ dependencies: { foo: '^1.0.0' }, optionalDependencies: { bar: '^2.0.0' } }),
   ])).toBe(true)
   const importer = subject.importers['.' as ProjectId]
@@ -53,7 +53,7 @@ test('a move into optionalDependencies marks the subtree optional', () => {
   expect(subject.packages!['foo@1.1.0' as DepPath].optional).toBeUndefined()
 })
 
-test('a move out of optionalDependencies clears the subtree flags', () => {
+test('a move out of optionalDependencies clears the subtree flags', async () => {
   const subject = lockfile()
   const importer = subject.importers['.' as ProjectId]
   importer.optionalDependencies = { bar: importer.dependencies!.bar }
@@ -61,7 +61,7 @@ test('a move out of optionalDependencies clears the subtree flags', () => {
   subject.packages!['bar@2.0.0' as DepPath].optional = true
   subject.packages!['child@3.0.0' as DepPath].optional = true
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0' } }),
   ])).toBe(true)
   expect(subject.importers['.' as ProjectId].optionalDependencies).toBeUndefined()
@@ -70,7 +70,7 @@ test('a move out of optionalDependencies clears the subtree flags', () => {
   expect(subject.packages!['child@3.0.0' as DepPath].optional).toBeUndefined()
 })
 
-test('a subtree package another prod dependency reaches stays non-optional', () => {
+test('a subtree package another prod dependency reaches stays non-optional', async () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].dependencies!.parent = '4.0.0'
   subject.importers['.' as ProjectId].specifiers.parent = '^4.0.0'
@@ -79,7 +79,7 @@ test('a subtree package another prod dependency reaches stays non-optional', () 
     dependencies: { child: '3.0.0' },
   }
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({
       dependencies: { foo: '^1.0.0', parent: '^4.0.0' },
       optionalDependencies: { bar: '^2.0.0' },
@@ -89,10 +89,10 @@ test('a subtree package another prod dependency reaches stays non-optional', () 
   expect(subject.packages!['child@3.0.0' as DepPath].optional).toBeUndefined()
 })
 
-test('an alias in both prod and optional groups is recorded as optional', () => {
+test('an alias in both prod and optional groups is recorded as optional', async () => {
   const subject = lockfile()
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({
       dependencies: { foo: '^1.0.0', bar: '^2.0.0' },
       optionalDependencies: { bar: '^2.0.0' },
@@ -103,13 +103,13 @@ test('an alias in both prod and optional groups is recorded as optional', () => 
   expect(importer.optionalDependencies).toStrictEqual({ bar: '2.0.0' })
 })
 
-test('several dependencies move between groups in one pass', () => {
+test('several dependencies move between groups in one pass', async () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].devDependencies = { qux: '5.0.0' }
   subject.importers['.' as ProjectId].specifiers.qux = '^5.0.0'
   subject.packages!['qux@5.0.0' as DepPath] = { resolution: { integrity: 'sha512-qux' } }
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({
       dependencies: { qux: '^5.0.0' },
       devDependencies: { foo: '^1.0.0' },
@@ -126,10 +126,10 @@ test('several dependencies move between groups in one pass', () => {
   expect(subject.packages!['foo@1.1.0' as DepPath].optional).toBeUndefined()
 })
 
-test('a group move rides along with a satisfied range change', () => {
+test('a group move rides along with a satisfied range change', async () => {
   const subject = lockfile()
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({ dependencies: { foo: '^1.0.0' }, devDependencies: { bar: '^2.0.0 <3.0.0' } }),
   ])).toBe(true)
   const importer = subject.importers['.' as ProjectId]
@@ -217,6 +217,6 @@ function lockfile (): LockfileObject {
   }
 }
 /** The composed pipeline restricted to manifest drift. */
-function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[]): boolean {
+async function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[]): Promise<boolean> {
   return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects, workspacePackages: new Map(), resolutionPicksLowest: false })
 }

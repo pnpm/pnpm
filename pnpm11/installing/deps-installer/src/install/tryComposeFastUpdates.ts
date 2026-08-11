@@ -1,11 +1,18 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
+import type { VersionOverride } from '@pnpm/config.parse-overrides'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 
 import { type DroppedEdges, peerSuffixesAreIndependentOf } from './droppedEdges.js'
-import { pruneUnreferencedCatalogEntries } from './tryFastUpdateCatalogs.js'
+import { pruneUnreferencedCatalogEntries, tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
+import { tryFastUpdateCatalogVersions } from './tryFastUpdateCatalogVersions.js'
 import { tryFastUpdateIgnoredOptionalDependencies } from './tryFastUpdateIgnoredOptionalDependencies.js'
 import { type Project, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
+import {
+  type FastRewriteOptions,
+  tryFastUpdateOverrides,
+} from './tryFastUpdateOverrides.js'
 import {
   type FastPatchedDependenciesUpdateOptions,
   tryFastUpdatePatchedDependencies,
@@ -31,12 +38,25 @@ export interface GraphEdits {
   optionalFlagsAreStale: boolean
 }
 
-/** The drift dimensions the composed sync handlers can absorb. */
+/** The drift dimensions the composed handlers can absorb. */
 export interface FastUpdateDrift {
   importers?: boolean
   ignoredOptionalDependencies?: boolean
   patchedDependencies?: boolean
   settings?: boolean
+  catalogs?: boolean
+  overrides?: boolean
+}
+
+export type FastCatalogsUpdateOptions = FastRewriteOptions & {
+  catalogs: Catalogs
+  overrides: Record<string, string>
+  parsedOverrides: VersionOverride[]
+}
+
+export type FastOverridesUpdateOptions = FastRewriteOptions & {
+  overrides: Record<string, string>
+  parsedOverrides: VersionOverride[]
 }
 
 export interface ComposeFastUpdatesOptions {
@@ -53,6 +73,8 @@ export interface ComposeFastUpdatesOptions {
   ignoredOptionalDependencies?: string[]
   patchedDependencies?: FastPatchedDependenciesUpdateOptions
   settings?: FastSettingsUpdateOptions
+  catalogs?: FastCatalogsUpdateOptions
+  overrides?: FastOverridesUpdateOptions
 }
 
 /**
@@ -60,16 +82,18 @@ export interface ComposeFastUpdatesOptions {
  * with absorbable drift onto the one candidate — no handler requires being
  * the only change. Removals apply first, then the shared graph epilogue
  * (`finishGraphEdits`), then patch rekeying — after the prune, so its guards
- * see the packages a full resolution would see — and the settings block last.
+ * see the packages a full resolution would see — the settings block, and the
+ * two resolver-consulting rewrites last: catalogs before overrides, the order
+ * a resolution applies them in.
  *
  * `false` — drift some handler cannot express — leaves the caller on the
  * full-resolution path; `candidate` may be partially rewritten by then, which
  * the coordinator's discard-on-failure makes safe.
  */
-export function tryComposeFastUpdates (
+export async function tryComposeFastUpdates (
   candidate: LockfileObject,
   opts: ComposeFastUpdatesOptions
-): boolean {
+): Promise<boolean> {
   const edits: GraphEdits = { dropped: new Set(), optionalFlagsAreStale: false }
   if (opts.drift.importers && !tryFastUpdateImporters(candidate, {
     projects: opts.projects,
@@ -91,7 +115,35 @@ export function tryComposeFastUpdates (
   if (opts.drift.settings && !tryFastUpdateSettings(candidate, opts.settings!)) {
     return false
   }
+  if (opts.drift.catalogs && !await applyCatalogsUpdate(candidate, opts.catalogs!)) {
+    return false
+  }
+  if (opts.drift.overrides && !await tryFastUpdateOverrides(candidate, opts.overrides!)) {
+    return false
+  }
   return true
+}
+
+/**
+ * Move the catalog entries the configuration changed, taking the range-only
+ * rewrite first so the entries it settles never reach the resolver.
+ */
+async function applyCatalogsUpdate (
+  candidate: LockfileObject,
+  opts: FastCatalogsUpdateOptions
+): Promise<boolean> {
+  // The range-only rewrite keeps the entries it cannot handle, so a mixed
+  // update still leaves an exact move for the rewrite below.
+  const rewroteRanges = tryFastUpdateCatalogs(candidate, {
+    catalogs: opts.catalogs,
+    overrides: opts.overrides,
+  })
+  const rewrite = await tryFastUpdateCatalogVersions(candidate, opts)
+  // Only the "nothing moved" outcome may fall back on the range-only result.
+  // A move this cannot express has to reach the resolver, even though the
+  // range-only rewrite succeeded.
+  if (rewrite === 'applied') return true
+  return rewrite === 'nothing-to-move' && rewroteRanges
 }
 
 /**

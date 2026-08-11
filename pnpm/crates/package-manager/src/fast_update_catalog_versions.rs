@@ -25,9 +25,6 @@ pub(crate) async fn try_fast_update_catalog_versions(
     // The same gate the range-only path opens with: an importer pointing at
     // a catalog entry with nothing recorded for it needs the resolver, and
     // this path would otherwise never look at that entry.
-    // The same gate the range-only path opens with: an importer pointing at
-    // a catalog entry with nothing recorded for it needs the resolver, and
-    // this path would otherwise never look at that entry.
     if !crate::fast_update_catalogs::catalog_references_have_snapshots(context.lockfile, catalogs) {
         return None;
     }

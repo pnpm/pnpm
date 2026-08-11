@@ -18,10 +18,10 @@ test('a dependency the manifest dropped is noticed as a change', () => {
   expect(hasChangedProjectSpecifiers(lockfile(), [project({ bar: '^2.0.0' })])).toBe(true)
 })
 
-test('a dropped dependency is removed and its subtree pruned', () => {
+test('a dropped dependency is removed and its subtree pruned', async () => {
   const subject = lockfile()
 
-  expect(tryFastUpdateImporters(subject, [project({ bar: '^2.0.0' })])).toBe(true)
+  expect(await tryFastUpdateImporters(subject, [project({ bar: '^2.0.0' })])).toBe(true)
   const importer = subject.importers['.' as ProjectId]
   expect(importer.specifiers).toStrictEqual({ bar: '^2.0.0' })
   expect(importer.dependencies).toStrictEqual({ bar: '2.0.0' })
@@ -39,7 +39,7 @@ test('dropping a dependency another package resolves as a peer falls back withou
   const before = clone(subject)
 
   expect(await tryFastUpdateLockfile(subject, {
-    update: (candidate) => tryFastUpdateImporters(candidate, [project({ bar: '^2.0.0', baz: '^4.0.0' })]),
+    update: async (candidate) => tryFastUpdateImporters(candidate, [project({ bar: '^2.0.0', baz: '^4.0.0' })]),
     isLockfileUpToDate: async () => true,
   })).toBe(false)
   expect(subject).toStrictEqual(before)
@@ -59,7 +59,7 @@ test('a lockfile key the update deletes is gone after the commit', async () => {
   expect(subject.catalogs).toBeUndefined()
 })
 
-test('dropping a dependency together with its peer-dependent succeeds', () => {
+test('dropping a dependency together with its peer-dependent succeeds', async () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].dependencies!.baz = '4.0.0(foo@1.1.0)'
   subject.importers['.' as ProjectId].specifiers.baz = '^4.0.0'
@@ -68,14 +68,14 @@ test('dropping a dependency together with its peer-dependent succeeds', () => {
     dependencies: { foo: '1.1.0' },
   }
 
-  expect(tryFastUpdateImporters(subject, [project({ bar: '^2.0.0' })])).toBe(true)
+  expect(await tryFastUpdateImporters(subject, [project({ bar: '^2.0.0' })])).toBe(true)
   expect(Object.keys(subject.packages!)).toStrictEqual(['bar@2.0.0', 'child@3.0.0'])
 })
 
-test('dropping one version of a dependency keeps a package whose peer suffix names another', () => {
+test('dropping one version of a dependency keeps a package whose peer suffix names another', async () => {
   const subject = lockfileWithPeerOnEachVersionOfFoo()
 
-  expect(tryFastUpdateImporters(subject, [project({ qux: '^5.0.0' })])).toBe(true)
+  expect(await tryFastUpdateImporters(subject, [project({ qux: '^5.0.0' })])).toBe(true)
   expect(Object.keys(subject.packages!).sort()).toStrictEqual([
     'baz@4.0.0(foo@2.0.0)',
     'foo@2.0.0',
@@ -83,7 +83,7 @@ test('dropping one version of a dependency keeps a package whose peer suffix nam
   ])
 })
 
-test('dropping a dependency keeps a surviving suffix that only ends with its name', () => {
+test('dropping a dependency keeps a surviving suffix that only ends with its name', async () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].dependencies!.qux = '5.0.0(@scope/foo@6.0.0)'
   subject.importers['.' as ProjectId].specifiers.qux = '^5.0.0'
@@ -93,10 +93,10 @@ test('dropping a dependency keeps a surviving suffix that only ends with its nam
   }
   subject.packages!['@scope/foo@6.0.0' as DepPath] = { resolution: { integrity: 'sha512-scoped-foo' } }
 
-  expect(tryFastUpdateImporters(subject, [project({ bar: '^2.0.0', qux: '^5.0.0' })])).toBe(true)
+  expect(await tryFastUpdateImporters(subject, [project({ bar: '^2.0.0', qux: '^5.0.0' })])).toBe(true)
 })
 
-test('dropping a dependency a nested peer suffix segment names falls back', () => {
+test('dropping a dependency a nested peer suffix segment names falls back', async () => {
   const subject = lockfileWithPeerOnEachVersionOfFoo()
   subject.importers['.' as ProjectId].dependencies!.baz = '4.0.0(qux@5.0.0(foo@1.1.0))'
   subject.importers['.' as ProjectId].specifiers.baz = '^4.0.0'
@@ -104,10 +104,10 @@ test('dropping a dependency a nested peer suffix segment names falls back', () =
     resolution: { integrity: 'sha512-baz' },
   }
 
-  expect(tryFastUpdateImporters(subject, [project({ qux: '^5.0.0', baz: '^4.0.0' })])).toBe(false)
+  expect(await tryFastUpdateImporters(subject, [project({ qux: '^5.0.0', baz: '^4.0.0' })])).toBe(false)
 })
 
-test('dropping a linked dependency a surviving peer suffix names falls back', () => {
+test('dropping a linked dependency a surviving peer suffix names falls back', async () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].specifiers.foo = 'workspace:*'
   subject.importers['.' as ProjectId].dependencies!.foo = 'link:packages/foo'
@@ -118,10 +118,10 @@ test('dropping a linked dependency a surviving peer suffix names falls back', ()
     resolution: { integrity: 'sha512-baz' },
   }
 
-  expect(tryFastUpdateImporters(subject, [project({ bar: '^2.0.0', baz: '^4.0.0' })])).toBe(false)
+  expect(await tryFastUpdateImporters(subject, [project({ bar: '^2.0.0', baz: '^4.0.0' })])).toBe(false)
 })
 
-test('dropping a dependency when a surviving peer suffix is hashed falls back', () => {
+test('dropping a dependency when a surviving peer suffix is hashed falls back', async () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].dependencies!.baz = '4.0.0(sha256-abcdef)'
   subject.importers['.' as ProjectId].specifiers.baz = '^4.0.0'
@@ -129,29 +129,29 @@ test('dropping a dependency when a surviving peer suffix is hashed falls back', 
     resolution: { integrity: 'sha512-baz' },
   }
 
-  expect(tryFastUpdateImporters(subject, [project({ bar: '^2.0.0', baz: '^4.0.0' })])).toBe(false)
+  expect(await tryFastUpdateImporters(subject, [project({ bar: '^2.0.0', baz: '^4.0.0' })])).toBe(false)
 })
 
-test('a dependency group emptied by the removal is deleted', () => {
+test('a dependency group emptied by the removal is deleted', async () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].devDependencies = { qux: '5.0.0' }
   subject.importers['.' as ProjectId].specifiers.qux = '^5.0.0'
   subject.packages!['qux@5.0.0' as DepPath] = { resolution: { integrity: 'sha512-qux' } }
 
-  expect(tryFastUpdateImporters(subject, [project({ foo: '^1.0.0', bar: '^2.0.0' })])).toBe(true)
+  expect(await tryFastUpdateImporters(subject, [project({ foo: '^1.0.0', bar: '^2.0.0' })])).toBe(true)
   expect(subject.importers['.' as ProjectId].devDependencies).toBeUndefined()
 })
 
-test('a catalog entry whose last referent is dropped is pruned', () => {
+test('a catalog entry whose last referent is dropped is pruned', async () => {
   const subject = lockfile()
   subject.catalogs = { default: { foo: { specifier: '^1.0.0', version: '1.1.0' } } }
   subject.importers['.' as ProjectId].specifiers.foo = 'catalog:'
 
-  expect(tryFastUpdateImporters(subject, [project({ bar: '^2.0.0' })])).toBe(true)
+  expect(await tryFastUpdateImporters(subject, [project({ bar: '^2.0.0' })])).toBe(true)
   expect(subject.catalogs).toBeUndefined()
 })
 
-test('a catalog entry referenced with the catalog:default spelling is kept', () => {
+test('a catalog entry referenced with the catalog:default spelling is kept', async () => {
   const subject = lockfile()
   subject.catalogs = { default: { foo: { specifier: '^1.0.0', version: '1.1.0' } } }
   subject.importers['.' as ProjectId].specifiers.foo = 'catalog:default'
@@ -160,14 +160,14 @@ test('a catalog entry referenced with the catalog:default spelling is kept', () 
     dependencies: { foo: '1.1.0', bar: '2.0.0' },
   }
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({ bar: '^2.0.0' }),
     { id: 'pkg-a' as ProjectId, manifest: { dependencies: { foo: 'catalog:default', bar: '^2.0.0' } } as ProjectManifest },
   ])).toBe(true)
   expect(subject.catalogs).toStrictEqual({ default: { foo: { specifier: '^1.0.0', version: '1.1.0' } } })
 })
 
-test('a catalog entry another importer references is kept', () => {
+test('a catalog entry another importer references is kept', async () => {
   const subject = lockfile()
   subject.catalogs = { default: { foo: { specifier: '^1.0.0', version: '1.1.0' } } }
   subject.importers['.' as ProjectId].specifiers.foo = 'catalog:'
@@ -176,7 +176,7 @@ test('a catalog entry another importer references is kept', () => {
     dependencies: { foo: '1.1.0' },
   }
 
-  expect(tryFastUpdateImporters(subject, [
+  expect(await tryFastUpdateImporters(subject, [
     project({ bar: '^2.0.0' }),
     { id: 'pkg-a' as ProjectId, manifest: { dependencies: { foo: 'catalog:' } } as ProjectManifest },
   ])).toBe(true)
@@ -350,6 +350,6 @@ test('removing the last catalog referent drops the catalogs section from the loc
   })
 })
 /** The composed pipeline restricted to manifest drift. */
-function tryFastUpdateImporters (lockfile: LockfileObject, projects: Project[]): boolean {
+async function tryFastUpdateImporters (lockfile: LockfileObject, projects: Project[]): Promise<boolean> {
   return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects, workspacePackages: new Map(), resolutionPicksLowest: false })
 }
