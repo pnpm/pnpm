@@ -201,7 +201,7 @@ test('simultaneous catalog and override changes are absorbed in one pass', async
   expect(requestedPackages).toStrictEqual(['@pnpm.e2e/pkg-with-1-dep'])
   const written = project.readLockfile()
   expect(written.catalogs.default['@pnpm.e2e/parent-of-pkg-with-1-dep'].specifier).toBe('>=1 <2')
-  expect(written.snapshots['@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0'].dependencies['@pnpm.e2e/pkg-with-1-dep'])
+  expect(written.snapshots['@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0'].dependencies?.['@pnpm.e2e/pkg-with-1-dep'])
     .toBe('100.1.0')
 })
 
