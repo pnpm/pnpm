@@ -257,7 +257,7 @@ fn populate_dir<Reporter: self::Reporter>(
     ordered.sort_by_key(|s| s.len());
     for rel in ordered {
         if placement == Placement::Repair {
-            clear_dirents_blocking_dir(dir_path, rel)?;
+            clear_dirent_blocking_dir(dir_path, rel)?;
         }
         let abs = dir_path.join(rel);
         fs::create_dir_all(&abs)
@@ -363,7 +363,7 @@ fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
 /// Walking top-down means a component whose parent is itself a file is
 /// never stat-ed: the parent is cleared first, and everything below a
 /// missing component is missing too.
-fn clear_dirents_blocking_dir(root: &Path, rel: &str) -> Result<(), ImportIndexedDirError> {
+fn clear_dirent_blocking_dir(root: &Path, rel: &str) -> Result<(), ImportIndexedDirError> {
     let mut abs = root.to_path_buf();
     for component in Path::new(rel).components() {
         abs.push(component);

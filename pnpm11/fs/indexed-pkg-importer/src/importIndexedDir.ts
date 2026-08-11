@@ -147,7 +147,7 @@ function repairIndexedDir (
   newDir: string,
   filenames: Map<string, string>
 ): void {
-  makeFileMapDirs(newDir, filenames, { clearBlockingDirents: true })
+  makeFileMapDirs(newDir, filenames, { clearBlockers: true })
   let packageJsonSrc: string | undefined
   for (const [f, src] of filenames) {
     if (f === 'package.json') {
@@ -175,13 +175,13 @@ function replaceFileIfDifferent (importFile: ImportFile, src: string, dest: stri
     } catch {} // eslint-disable-line:no-empty
     throw err
   }
-  clearDirentBlockingFile(dest)
+  clearDirBlockingFile(dest)
   renameOverwriteSync(tmp, dest)
 }
 
 // A rename cannot put a file where a directory is (EISDIR), so one standing in
 // the way has to go first. Only a damaged tree has one.
-function clearDirentBlockingFile (dest: string): void {
+function clearDirBlockingFile (dest: string): void {
   let stats
   try {
     stats = fs.lstatSync(dest)
@@ -198,7 +198,7 @@ function clearDirentBlockingFile (dest: string): void {
 // and would fail the mkdir below. Walking top-down means a segment whose
 // parent is itself a file is never reached: the parent goes first, and
 // everything under a missing segment is missing too.
-function clearDirentsBlockingDir (newDir: string, relativeDir: string): void {
+function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
   let dir = newDir
   for (const segment of relativeDir.split(/[\\/]/)) {
     dir = path.join(dir, segment)
@@ -379,7 +379,7 @@ function tryImportIndexedDir (
 function makeFileMapDirs (
   newDir: string,
   filenames: Map<string, string>,
-  opts?: { clearBlockingDirents: boolean }
+  opts?: { clearBlockers: boolean }
 ): void {
   const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
@@ -388,8 +388,8 @@ function makeFileMapDirs (
     allDirs.add(dir)
   }
   for (const dir of Array.from(allDirs).sort((d1, d2) => d1.length - d2.length)) {
-    if (opts?.clearBlockingDirents) {
-      clearDirentsBlockingDir(newDir, dir)
+    if (opts?.clearBlockers) {
+      clearDirentBlockingDir(newDir, dir)
     }
     fs.mkdirSync(path.join(newDir, dir), { recursive: true })
   }
