@@ -285,19 +285,23 @@ where
     let overlay_versions: Vec<(String, Vec<String>)> = pick_overlay
         .as_ref()
         .map(|overlay| {
-            let mut view: Vec<(String, Vec<String>)> = overlay_lookup_names(&wanted)
-                .into_iter()
-                .filter_map(|name| {
-                    let mut versions: Vec<String> =
-                        overlay.versions_for(&name).into_iter().map(str::to_string).collect();
-                    if versions.is_empty() {
-                        return None;
-                    }
-                    versions.sort_unstable();
-                    versions.dedup();
-                    Some((name, versions))
-                })
-                .collect();
+            let mut view: Vec<(String, Vec<String>)> = overlay_lookup_names(
+                wanted.alias.as_deref(),
+                wanted.bare_specifier.as_deref(),
+            )
+            .into_iter()
+            .flatten()
+            .filter_map(|name| {
+                let mut versions: Vec<String> =
+                    overlay.versions_for(&name).into_iter().map(str::to_string).collect();
+                if versions.is_empty() {
+                    return None;
+                }
+                versions.sort_unstable();
+                versions.dedup();
+                Some((name.into_owned(), versions))
+            })
+            .collect();
             view.sort_unstable();
             view
         })
@@ -814,19 +818,18 @@ fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> b
 /// `jsr:` specifier) — mirroring the name derivation in the npm
 /// resolver's `parse_bare_specifier`, which keys its overlay merge by
 /// the resolved `spec.name` rather than the outer alias.
-fn overlay_lookup_names(wanted: &WantedDependency) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
-    if let Some(alias) = wanted.alias.as_deref()
-        && !alias.is_empty()
-    {
-        names.push(alias.to_string());
-    }
-    if let Some(real_name) = real_package_name_of(wanted)
-        && !names.iter().any(|name| name == real_name.as_ref())
-    {
-        names.push(real_name.into_owned());
-    }
-    names
+///
+/// Borrowed and slot-shaped rather than a `Vec<String>`: every edge of
+/// every walked package asks for these, and the overwhelming majority
+/// resolve to one borrowed alias.
+fn overlay_lookup_names<'edge>(
+    alias: Option<&'edge str>,
+    bare_specifier: Option<&'edge str>,
+) -> [Option<Cow<'edge, str>>; 2] {
+    let alias = alias.filter(|alias| !alias.is_empty());
+    let real_name = real_package_name_of(alias, bare_specifier)
+        .filter(|real_name| alias.is_none_or(|alias| alias != real_name.as_ref()));
+    [alias.map(Cow::Borrowed), real_name]
 }
 
 /// Look the wanted edge up in the per-wanted dedup cache or run the
