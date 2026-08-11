@@ -240,6 +240,8 @@ test('an override moving a cataloged package falls back', async () => {
   // move would have to carry it along — which only the catalog rewrite does.
   expect(await tryComposeFastUpdates(subject, {
     drift: { overrides: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
     projects: [],
     overrides: {
       overrides: { bar: '2.1.0' },
