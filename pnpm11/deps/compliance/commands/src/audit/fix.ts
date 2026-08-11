@@ -117,11 +117,22 @@ export async function createMinimumReleaseAgeExcludes (
     if (!lowest) return undefined
     const lowestSpec = `${advisory.module_name}@${lowest.parsed.version}`
     const publishTime: unknown = times[lowest.key]
-    // The time map comes from an untrusted registry response: only a string
-    // can carry a real timestamp; anything else is treated as unknown.
+    // The time map comes from an untrusted registry response: only a strict
+    // ISO 8601 timestamp counts; anything else (including bare numbers and
+    // non-ISO strings the Date constructor would accept) is treated as unknown.
     if (typeof publishTime !== 'string') return lowestSpec
-    const publishedAt = new Date(publishTime).getTime()
-    return Number.isNaN(publishedAt) || publishedAt > cutoff ? lowestSpec : undefined
+    const publishedAt = parseIsoTimestamp(publishTime)
+    return publishedAt == null || publishedAt > cutoff ? lowestSpec : undefined
   }))
   return mergePackageVersionSpecs(specs.filter((spec): spec is string => spec != null))
+}
+
+// RFC 3339 / ISO 8601 date-time, e.g. 2020-01-01T00:00:00.000Z.
+// Rejects bare numbers and other non-ISO strings that `new Date()` would parse.
+const ISO_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+
+function parseIsoTimestamp (input: string): number | undefined {
+  if (!ISO_TIMESTAMP_RE.test(input)) return undefined
+  const ms = new Date(input).getTime()
+  return Number.isNaN(ms) ? undefined : ms
 }

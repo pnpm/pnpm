@@ -401,18 +401,22 @@ describe('createMinimumReleaseAgeExcludes', () => {
     const advisories = [
       advisory('axios', '<=0.18.0', '>=0.18.1'),
       advisory('lodash', '<4.17.21', '>=4.17.21'),
+      advisory('underscore', '<1.13.0', '>=1.13.1'),
     ]
     const publishTimes: Record<string, Record<string, string>> = {
       axios: { '0.18.1': 'not-a-date' },
       // A non-string value smuggled past the registry response type.
       lodash: { '4.17.21': 0 as unknown as string },
+      // A bare number parses as epoch 0 with `new Date()`, which is not a
+      // real publish timestamp and must be treated as unknown.
+      underscore: { '1.13.1': '0' },
     }
     const excludes = await createMinimumReleaseAgeExcludes(advisories, {
       getPublishTimes: async (pkgName) => publishTimes[pkgName],
       minimumReleaseAge: 60,
       now: new Date('2026-01-08T00:00:00.000Z').getTime(),
     })
-    expect(excludes).toEqual(['axios@0.18.1', 'lodash@4.17.21'])
+    expect(excludes).toEqual(['axios@0.18.1', 'lodash@4.17.21', 'underscore@1.13.1'])
   })
 })
 
