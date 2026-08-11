@@ -771,6 +771,39 @@ fn safe_to_skip_still_repairs_an_incomplete_target() {
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
 }
 
+// An incomplete slot is as often an importer mid-flight as an interrupted one, and swapping a
+// fresh directory over it would remove the files that importer is still writing.
+#[cfg(unix)]
+#[test]
+fn safe_to_skip_repairs_an_incomplete_target_without_replacing_it() {
+    use std::os::unix::fs::MetadataExt;
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("index.js"), b"module.exports = 1").unwrap();
+    let occupied = fs::metadata(&target).unwrap().ino();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("an incomplete slot must be repaired");
+
+    assert_eq!(fs::metadata(&target).unwrap().ino(), occupied);
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+}
+
 // Windows needs retry handling while a competing importer holds file handles.
 #[cfg(unix)]
 #[test]

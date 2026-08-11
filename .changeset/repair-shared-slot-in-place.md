@@ -1,0 +1,5 @@
+---
+"pacquet": patch
+---
+
+An install sharing a global virtual store no longer removes an incomplete package directory that another importer is still writing, which could fail with `failed to remove existing directory ... prior to swap: Directory not empty`.

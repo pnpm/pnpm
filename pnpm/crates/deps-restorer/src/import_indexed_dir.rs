@@ -396,15 +396,20 @@ fn stage_and_swap<Reporter: self::Reporter>(
         Some(_) | None => false,
     };
 
-    // 3b. Keep a complete content-addressed target instead of removing a directory that another
-    //     importer may be populating or reading. When step 3 moved `node_modules/`, continue with
-    //     the swap so that it can be restored.
+    // 3b. Never remove a content-addressed target another importer may be populating or reading:
+    //     keep it when it is complete, and otherwise repair it in place, which is non-destructive
+    //     and converges because the path identifies the contents. When step 3 moved
+    //     `node_modules/`, continue with the swap so that it can be restored.
     if safe_to_skip && !nm_moved {
         match fs::rename(&stage, dir_path) {
             Ok(()) => return Ok(()),
-            Err(error) if is_occupied_target(&error) && is_complete_import(dir_path, cas_paths) => {
+            Err(error) if is_occupied_target(&error) => {
                 let _ = fs::remove_dir_all(&stage);
-                return Ok(());
+                return if is_complete_import(dir_path, cas_paths) {
+                    Ok(())
+                } else {
+                    populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+                };
             }
             Err(_) => {}
         }
