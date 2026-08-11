@@ -15,6 +15,7 @@ import sanitizeFilename from 'sanitize-filename'
 const filenameConflictsLogger = logger('_filename-conflicts')
 const RENAME_RETRY_BUDGET_MS = 60_000
 const RENAME_RETRY_BACKOFF_CAP_MS = 100
+const FILE_COMPARE_BUFFER_SIZE = 64 * 1024
 const renameRetrySleepBuffer = new Int32Array(new SharedArrayBuffer(4))
 
 export type ImportFile = (src: string, dest: string) => void
@@ -347,14 +348,37 @@ function fileMatches (dir: string, f: string, src: string): boolean {
 // settles it without a read; the copy tier compares size first, then content.
 function mismatchReason (target: string, src: string): string | undefined {
   try {
-    const targetStat = gfs.statSync(target)
+    const targetStat = fs.lstatSync(target)
+    if (!targetStat.isFile()) return 'is not a regular file'
     const srcStat = gfs.statSync(src)
     if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) return undefined
     if (targetStat.size !== srcStat.size) return 'has a different size'
-    if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) return 'has different content'
+    if (!filesHaveEqualContents(target, src)) return 'has different content'
     return undefined
   } catch {
     return 'is missing or unreadable'
+  }
+}
+
+function filesHaveEqualContents (left: string, right: string): boolean {
+  const leftBuffer = Buffer.allocUnsafe(FILE_COMPARE_BUFFER_SIZE)
+  const rightBuffer = Buffer.allocUnsafe(FILE_COMPARE_BUFFER_SIZE)
+  const leftFd = fs.openSync(left, 'r')
+  try {
+    const rightFd = fs.openSync(right, 'r')
+    try {
+      for (;;) {
+        const leftBytes = fs.readSync(leftFd, leftBuffer, 0, leftBuffer.length, null)
+        const rightBytes = fs.readSync(rightFd, rightBuffer, 0, rightBuffer.length, null)
+        if (leftBytes !== rightBytes) return false
+        if (leftBytes === 0) return true
+        if (!leftBuffer.subarray(0, leftBytes).equals(rightBuffer.subarray(0, rightBytes))) return false
+      }
+    } finally {
+      fs.closeSync(rightFd)
+    }
+  } finally {
+    fs.closeSync(leftFd)
   }
 }
 

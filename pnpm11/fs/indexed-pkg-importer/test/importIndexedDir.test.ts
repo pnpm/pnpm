@@ -70,6 +70,49 @@ test('importIndexedDir() safeToSkip repairs a directory damaged after it was com
   expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('module.exports = 1')
 })
 
+test('importIndexedDir() safeToSkip detects damage after the first comparison buffer', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  const sharedPrefix = Buffer.alloc(70_000, 'a')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(src, 'index.js'), Buffer.concat([sharedPrefix, Buffer.from('source')]))
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(newDir, 'index.js'), Buffer.concat([sharedPrefix, Buffer.from('target')]))
+
+  importIndexedDir(linkingImporter, newDir, new Map([
+    ['index.js', path.join(src, 'index.js')],
+    ['package.json', path.join(src, 'package.json')],
+  ]), { safeToSkip: true })
+
+  expect(fs.readFileSync(path.join(newDir, 'index.js'))).toEqual(
+    Buffer.concat([sharedPrefix, Buffer.from('source')])
+  )
+})
+
+test('importIndexedDir() safeToSkip replaces a symlink to matching content', async () => {
+  if (process.platform === 'win32') return
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(src, 'index.js'), 'module.exports = 1')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"pkg"}')
+  fs.symlinkSync(path.join(src, 'index.js'), path.join(newDir, 'index.js'), 'file')
+
+  importIndexedDir(linkingImporter, newDir, new Map([
+    ['index.js', path.join(src, 'index.js')],
+    ['package.json', path.join(src, 'package.json')],
+  ]), { safeToSkip: true })
+
+  expect(fs.lstatSync(path.join(newDir, 'index.js')).isSymbolicLink()).toBe(false)
+  expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('module.exports = 1')
+})
+
 test('importIndexedDir() adopts a matching file placed by a concurrent repair', async () => {
   const tmp = tempDir()
   const src = path.join(tmp, 'src')

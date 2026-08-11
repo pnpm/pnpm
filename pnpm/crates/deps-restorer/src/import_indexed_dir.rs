@@ -488,9 +488,14 @@ fn all_files_match(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> boo
 /// read; the copy tier falls back to comparing size and then bytes, the
 /// way pnpm's `allFilesMatch` does.
 fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool {
-    let (Ok(target_meta), Ok(store_meta)) = (fs::metadata(target), fs::metadata(store_path)) else {
+    let (Ok(target_meta), Ok(store_meta)) =
+        (fs::symlink_metadata(target), fs::metadata(store_path))
+    else {
         return false;
     };
+    if !target_meta.is_file() {
+        return false;
+    }
     // Unix carries the file's identity in the stat results already.
     // Windows keeps it behind an open handle, which `same-file` opens —
     // worth two handles to spare a hardlinked package a full read on the

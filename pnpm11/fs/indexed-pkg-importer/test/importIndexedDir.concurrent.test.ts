@@ -36,7 +36,8 @@ test('a concurrent importer repairs a partial shared virtual-store slot before m
     ])
     execFileSync(process.execPath, importerArgs('contender'), { stdio: 'pipe', timeout: 20_000 })
   } finally {
-    if (!writer.kill()) fs.writeFileSync(releaseFile, '')
+    fs.writeFileSync(releaseFile, '')
+    writer.kill()
     await writerExit
   }
 

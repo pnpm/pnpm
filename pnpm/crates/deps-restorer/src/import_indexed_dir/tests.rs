@@ -848,6 +848,36 @@ fn safe_to_skip_replaces_a_damaged_file_the_linking_tiers_would_adopt() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn safe_to_skip_replaces_a_symlink_to_matching_store_content() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index.clone())]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("package.json"), b"{\"version\":\"1.0.0\"}").unwrap();
+    symlink(&index, target.join("index.js")).unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("a shared slot must not adopt a symlink to store content");
+
+    assert!(!fs::symlink_metadata(target.join("index.js")).unwrap().file_type().is_symlink());
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+}
+
 // The marker says nothing about the files placed before it: a slot damaged after its import
 // finished carries a complete-looking tree, and existence checks would call it done forever.
 #[test]
