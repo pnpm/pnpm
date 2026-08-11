@@ -205,6 +205,57 @@ test('simultaneous catalog and override changes are absorbed in one pass', async
     .toBe('100.1.0')
 })
 
+test('a catalog edit and a removal override are absorbed in one pass', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': 'catalog:',
+    },
+  }
+  const options = testDefaults({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+      },
+    },
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  options.catalogs = {
+    default: {
+      '@pnpm.e2e/pkg-with-good-optional': '>=1.0.0 <2',
+    },
+  }
+  options.overrides = {
+    'is-positive': '-',
+  }
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  // A removal names no new version, so the composed pass introduces nothing
+  // the registry has to answer for.
+  expect(requestedPackages).toStrictEqual([])
+  const written = project.readLockfile()
+  expect(written.catalogs.default['@pnpm.e2e/pkg-with-good-optional']).toStrictEqual({
+    specifier: '>=1.0.0 <2',
+    version: '1.0.0',
+  })
+  expect(written.snapshots['@pnpm.e2e/pkg-with-good-optional@1.0.0'].optionalDependencies)
+    .toBeUndefined()
+  expect(Object.keys(written.snapshots).some((depPath) => depPath.startsWith('is-positive@')))
+    .toBe(false)
+})
+
 test.each(['catalog:', 'catalog:default'])('a default catalog snapshot referenced as %s is not removed', (specifier) => {
   const lockfile = {
     catalogs: {
