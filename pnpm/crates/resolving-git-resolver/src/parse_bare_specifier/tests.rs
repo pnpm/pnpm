@@ -62,16 +62,14 @@ fn correct_url_keeps_numeric_port() {
 
 #[test]
 fn correct_url_keeps_bracketed_ipv6_host() {
-    // The colons inside the brackets belong to the address, so the
-    // authority has no SCP-style separator to rewrite.
     assert_eq!(correct_url("ssh://[::1]/repo.git"), "ssh://[::1]/repo.git");
     assert_eq!(
         correct_url("ssh://[2001:db8::1]/team/repo.git"),
         "ssh://[2001:db8::1]/team/repo.git",
     );
     assert_eq!(correct_url("ssh://[::1]:2222/repo.git"), "ssh://[::1]:2222/repo.git");
+    assert_eq!(correct_url("ssh://[::1]:team/repo.git"), "ssh://[::1]/team/repo.git");
     assert_eq!(correct_url("ssh://git@[::1]/repo.git"), "ssh://git@[::1]/repo.git");
-    // A colon *after* the closing bracket is still the separator.
     assert_eq!(correct_url("ssh://git@[::1]:team/repo.git"), "ssh://git@[::1]/team/repo.git");
 }
 
@@ -213,6 +211,7 @@ fn fetch_spec_for_bracketed_ipv6_hosts() {
         ("ssh://[::1]/repo.git", "ssh://[::1]/repo.git"),
         ("ssh://[2001:db8::1]/team/repo.git", "ssh://[2001:db8::1]/team/repo.git"),
         ("ssh://[::1]:2222/repo.git", "ssh://[::1]:2222/repo.git"),
+        ("ssh://[::1]:team/repo.git", "ssh://[::1]/team/repo.git"),
         ("ssh://git@[::1]/repo.git", "ssh://git@[::1]/repo.git"),
         ("ssh://git@[::1]:team/repo.git", "ssh://git@[::1]/team/repo.git"),
     ];

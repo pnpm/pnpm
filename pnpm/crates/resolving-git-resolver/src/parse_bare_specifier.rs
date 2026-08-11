@@ -141,9 +141,7 @@ fn correct_url(input: &str) -> String {
     // that the URL parser cannot consume. Convert the last colon in
     // the host into a `/`, unless it's followed by a numeric port.
     let host = auth.rsplit_once('@').map_or(auth, |(_, host)| host);
-    // A bracketed IPv6 literal carries colons of its own, so only what
-    // comes after the closing bracket can hold the SCP-style separator
-    // or a port.
+    // The colons of a bracketed IPv6 literal belong to the address.
     let after_host = if host.starts_with('[') {
         host.find(']').map_or(host, |idx| &host[idx + 1..])
     } else {
