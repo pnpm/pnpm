@@ -648,7 +648,7 @@ impl CliCommand {
     /// projects it selected. pnpm gates this on two things at once: the
     /// command must be one of the few that report scope, and the run must
     /// be workspace-wide — either asked for with `-r` / `--filter`, or
-    /// because the command is workspace-wide by nature (`install`).
+    /// because the command is workspace-wide by nature (`install`, `prune`).
     pub(crate) fn reports_scope(&self, recursive: bool) -> bool {
         let reports_scope = matches!(
             self,
@@ -662,7 +662,8 @@ impl CliCommand {
                 | CliCommand::Run(_)
                 | CliCommand::Test(_),
         );
-        reports_scope && (recursive || matches!(self, CliCommand::Install(_)))
+        reports_scope
+            && (recursive || matches!(self, CliCommand::Install(_) | CliCommand::Prune(_)))
     }
 
     /// Whether reporter output (warnings, progress) goes to stderr so this
