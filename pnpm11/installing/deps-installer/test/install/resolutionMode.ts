@@ -112,3 +112,18 @@ test('the lowest version of a direct dependency is installed when a minimum rele
   expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
   expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeFalsy()
 })
+
+test('the lowest version of a direct dependency is installed in time-based mode when a minimum release age is also configured', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'time-based', minimumReleaseAge: 1 }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeFalsy()
+})

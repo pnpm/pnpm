@@ -127,13 +127,11 @@ function pickMax (
 const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
 
-// When minimumReleaseAge is active: pick from the mature versions by the
-// caller's `pickLowestVersion` preference, since maturity narrows which
-// versions are on offer and `resolutionMode` decides which end of what is
-// left to take. If no mature version satisfies the range, fall back to the
-// lowest version regardless of maturity so the resolver can report the
-// violation inline and let the install layer (or other caller) decide what to
-// do — never throw at this layer.
+// `minimumReleaseAge` narrows which versions are on offer; `pickLowestVersion`
+// decides which end of what is left to take. The fallback deliberately drops
+// the maturity filter so a range no mature version satisfies still yields a
+// pick, which the install layer reports as a violation rather than this layer
+// throwing.
 function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,

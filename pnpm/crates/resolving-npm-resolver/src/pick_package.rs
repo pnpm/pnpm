@@ -912,12 +912,11 @@ fn pick_matching_version_final(
     }
 }
 
-/// `publishedBy` is active: pick from the mature versions by
-/// `pickLowestVersion`, since maturity narrows what is on offer and
-/// `resolutionMode` decides which end of the remainder to take. If no
-/// mature version satisfies, fall back to lowest (regardless of
-/// maturity) so the orchestrator can report the violation inline and
-/// let the install layer decide what to do.
+/// `publishedBy` is active: it narrows which versions are on offer, and
+/// `pick_lowest_version` decides which end of what is left to take. The
+/// fallback deliberately drops the maturity filter so a range no mature
+/// version satisfies still yields a pick, which the install layer
+/// reports as a violation.
 fn pick_respecting_min_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
@@ -934,11 +933,6 @@ fn pick_respecting_min_release_age(
         if mature.is_some() {
             return Ok(mature);
         }
-        // Fall-back lowest pick drops `publishedBy` so the picker
-        // can return *something* even if every version is past the
-        // cutoff. The install layer reads the resulting pick's
-        // publish timestamp and surfaces the violation through the
-        // verifier.
         let fallback_opts = PickPackageFromMetaOptions {
             preferred_version_selectors: picker_opts.preferred_version_selectors,
             published_by: None,
