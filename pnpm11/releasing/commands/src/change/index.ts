@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { checkbox, input, Separator } from '@inquirer/prompts'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
@@ -88,9 +90,7 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
   try {
     return await recordChange(workspaceDir, opts, params)
   } catch (err: unknown) {
-    // Cancelling a prompt with Ctrl-c is how the user abandons the intent,
-    // not an error: report it and leave with a success status.
-    if (err instanceof Error && err.name === 'ExitPromptError') {
+    if (util.types.isNativeError(err) && err.name === 'ExitPromptError') {
       globalInfo('Change canceled')
       process.exit(0)
     }
