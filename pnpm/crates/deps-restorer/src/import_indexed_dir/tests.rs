@@ -1,4 +1,4 @@
-use super::{ImportIndexedDirError, ImportIndexedDirOpts, import_indexed_dir};
+use super::{ImportIndexedDirError, ImportIndexedDirOpts, import_indexed_dir, is_occupied_target};
 use pacquet_config::PackageImportMethod;
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -807,6 +807,37 @@ fn safe_to_skip_repairs_an_incomplete_target_without_replacing_it() {
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
 }
 
+// The classifier decides whether a failed swap adopts the target or gives up on it, and giving
+// up is the only safe answer for an error that says nothing about the target: the alternative
+// used to be a fall-through to `remove_dir_all`, which deletes a slot another importer holds.
+// A Windows sharing violation arrives as `ResourceBusy` and would have taken exactly that path.
+#[test]
+fn only_a_present_directory_counts_as_an_occupied_target() {
+    use std::io::{Error, ErrorKind};
+
+    let tmp = tempdir().unwrap();
+    let slot = tmp.path().join("slot");
+    fs::create_dir_all(&slot).unwrap();
+    let file = tmp.path().join("file");
+    fs::write(&file, b"not a slot").unwrap();
+    let missing = tmp.path().join("missing");
+
+    for kind in [
+        ErrorKind::DirectoryNotEmpty,
+        ErrorKind::AlreadyExists,
+        ErrorKind::PermissionDenied,
+        ErrorKind::ResourceBusy,
+    ] {
+        assert!(is_occupied_target(&Error::from(kind), &slot), "{kind:?} over a directory");
+        assert!(!is_occupied_target(&Error::from(kind), &missing), "{kind:?} over nothing");
+        assert!(!is_occupied_target(&Error::from(kind), &file), "{kind:?} over a file");
+    }
+
+    for kind in [ErrorKind::NotADirectory, ErrorKind::CrossesDevices, ErrorKind::Other] {
+        assert!(!is_occupied_target(&Error::from(kind), &slot), "{kind:?} is not conclusive");
+    }
+}
+
 // `fs::copy` overwrites, so only a linking tier can adopt a damaged file and keep it.
 #[test]
 fn safe_to_skip_replaces_a_damaged_file_the_linking_tiers_would_adopt() {
@@ -864,6 +895,38 @@ fn safe_to_skip_repairs_a_slot_damaged_after_it_was_completed() {
     .expect("a damaged slot must be repaired");
 
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+}
+
+// Same size, same leading bytes, damaged near the end: the compare has to run past its first
+// buffer to see it. The copy tier is the one that reads, since it shares no inode with the store.
+#[test]
+fn safe_to_skip_repairs_a_file_that_only_differs_past_the_first_read() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let mut whole = vec![b'a'; 40 * 1024];
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let bundle = write_source(&src_root, "bundle.js", &whole);
+    let cas = cas_map(&[("package.json", pkg_json), ("bundle.js", bundle)]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("package.json"), b"{\"version\":\"1.0.0\"}").unwrap();
+    let last = whole.len() - 1;
+    whole[last] = b'z';
+    fs::write(target.join("bundle.js"), &whole).unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("a damaged slot must be repaired");
+
+    whole[last] = b'a';
+    assert_eq!(fs::read(target.join("bundle.js")).unwrap(), whole);
 }
 
 #[test]

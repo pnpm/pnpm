@@ -393,14 +393,24 @@ fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     cas_paths.keys().map(String::as_str).filter(|path| *path != crate::NEEDS_BUILD_MARKER).min()
 }
 
-// Supported platforms report an occupied directory with different error kinds.
-fn is_occupied_target(error: &io::Error) -> bool {
+/// Whether a failed rename onto `dir_path` means the target is already
+/// there, so it can be adopted or repaired instead of replaced.
+///
+/// Supported platforms report an occupied directory with different
+/// error kinds, and Windows adds `ResourceBusy` for a target another
+/// process holds open — the common case here, since the whole point of
+/// a shared slot is that a second importer may be inside it. None of
+/// those kinds is conclusive on its own, though: `PermissionDenied` and
+/// `ResourceBusy` also cover failures that have nothing to do with the
+/// target, so the target itself has the final say.
+fn is_occupied_target(error: &io::Error, dir_path: &Path) -> bool {
     matches!(
         error.kind(),
         io::ErrorKind::DirectoryNotEmpty
             | io::ErrorKind::AlreadyExists
-            | io::ErrorKind::PermissionDenied,
-    )
+            | io::ErrorKind::PermissionDenied
+            | io::ErrorKind::ResourceBusy,
+    ) && fs::symlink_metadata(dir_path).is_ok_and(|meta| meta.is_dir())
 }
 
 /// Whether `dir_path` already holds exactly this import, pnpm's
@@ -428,7 +438,39 @@ fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool {
         return true;
     }
     target_meta.len() == store_meta.len()
-        && matches!((fs::read(target), fs::read(store_path)), (Ok(target), Ok(store)) if target == store)
+        && files_have_equal_contents(target, store_path).unwrap_or(false)
+}
+
+/// Byte-compare two files without buffering either one.
+///
+/// `populate_dir` runs its entries through rayon, so a repair can be
+/// comparing as many packages as there are workers at once. Reading
+/// both sides whole would hold two allocations the size of the file per
+/// worker, and a store entry for a native binary (`@napi-rs/*`,
+/// `esbuild`) runs to tens of megabytes. Streaming holds one 8 KB
+/// buffer per side instead, and stops at the first differing chunk
+/// rather than reading two files that already disagree in byte one.
+/// `pacquet_fs`'s `file_equals_bytes` streams for the same reason.
+fn files_have_equal_contents(left: &Path, right: &Path) -> io::Result<bool> {
+    use std::io::BufRead;
+
+    let mut left = io::BufReader::new(fs::File::open(left)?);
+    let mut right = io::BufReader::new(fs::File::open(right)?);
+    loop {
+        let left_chunk = left.fill_buf()?;
+        let right_chunk = right.fill_buf()?;
+        // One side ending first means the sizes disagree after all —
+        // the caller's size check can only read stale metadata.
+        if left_chunk.is_empty() || right_chunk.is_empty() {
+            return Ok(left_chunk.is_empty() && right_chunk.is_empty());
+        }
+        let len = left_chunk.len().min(right_chunk.len());
+        if left_chunk[..len] != right_chunk[..len] {
+            return Ok(false);
+        }
+        left.consume(len);
+        right.consume(len);
+    }
 }
 
 /// Whether two stat results name one inode. Windows exposes a file index
@@ -513,10 +555,17 @@ fn stage_and_swap<Reporter: self::Reporter>(
     //    unlinks, so two importers converge on the same tree. Repairing
     //    in place also leaves a nested `node_modules/` where it is,
     //    which is why this runs before the preservation dance below.
+    //
+    //    Every arm returns: a shared slot must never reach the
+    //    `remove_dir_all` in step 5. A rename can fail for reasons that
+    //    say nothing about the target — a sharing violation on Windows,
+    //    a busy mount point — and falling through on those would delete
+    //    the slot out from under whoever holds it, which is the bug
+    //    this branch exists to prevent.
     if safe_to_skip {
         match fs::rename(&stage, dir_path) {
             Ok(()) => return Ok(()),
-            Err(error) if is_occupied_target(&error) => {
+            Err(error) if is_occupied_target(&error, dir_path) => {
                 let _ = fs::remove_dir_all(&stage);
                 return if all_files_match(dir_path, cas_paths) {
                     Ok(())
@@ -530,7 +579,14 @@ fn stage_and_swap<Reporter: self::Reporter>(
                     )
                 };
             }
-            Err(_) => {}
+            Err(error) => {
+                let _ = fs::remove_dir_all(&stage);
+                return Err(ImportIndexedDirError::Swap {
+                    from: stage,
+                    to: dir_path.to_path_buf(),
+                    error,
+                });
+            }
         }
     }
 
