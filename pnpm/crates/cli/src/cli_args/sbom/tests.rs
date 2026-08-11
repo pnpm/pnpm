@@ -1,4 +1,5 @@
 use pacquet_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
+use pacquet_package_is_installable::InstallabilityOptions;
 
 use super::{
     LockfileResolution, base64_to_hex, build_purl, classify_license, confined_importer_dir,
@@ -32,6 +33,15 @@ fn registry_package(
     }
 }
 
+fn host_darwin(current_cpu: &str) -> InstallabilityOptions<'_> {
+    InstallabilityOptions {
+        current_os: "darwin",
+        current_cpu,
+        current_libc: "unknown",
+        ..Default::default()
+    }
+}
+
 #[test]
 fn platform_incompatible_optional_skips_optional_package_for_another_platform() {
     let pkg = registry_package(
@@ -43,10 +53,7 @@ fn platform_incompatible_optional_skips_optional_package_for_another_platform() 
         "@scope/binding",
         true,
         Some(&pkg),
-        None,
-        "darwin",
-        "arm64",
-        "",
+        &host_darwin("arm64"),
     ));
 }
 
@@ -58,10 +65,7 @@ fn platform_incompatible_optional_keeps_optional_package_for_current_platform() 
         "@scope/binding",
         true,
         Some(&pkg),
-        None,
-        "darwin",
-        "x64",
-        "",
+        &host_darwin("x64"),
     ));
 }
 
@@ -69,17 +73,7 @@ fn platform_incompatible_optional_keeps_optional_package_for_current_platform() 
 fn platform_incompatible_optional_ignores_non_optional_packages() {
     let pkg =
         registry_package(Some(vec!["linux".to_string()]), Some(vec!["x64".to_string()]), None);
-    // Non-optional packages are never filtered by platform here, matching the
-    // `pnpm licenses` behavior.
-    assert!(!platform_incompatible_optional(
-        "plain-dep",
-        false,
-        Some(&pkg),
-        None,
-        "darwin",
-        "x64",
-        "",
-    ));
+    assert!(!platform_incompatible_optional("plain-dep", false, Some(&pkg), &host_darwin("x64")));
 }
 
 #[test]

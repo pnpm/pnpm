@@ -1,4 +1,4 @@
-import fs from 'node:fs'
+import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -201,15 +201,15 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
   let storeDir: string
   let storeIndex: StoreIndex
 
-  beforeAll(() => {
-    storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-sbom-installable-test-'))
+  beforeAll(async () => {
+    storeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-sbom-installable-test-'))
     storeIndex = new StoreIndex(storeDir)
 
     // The installable package is present in the store with a declared license.
     const digest = 'abcd1234ef567890'
     const manifestPath = path.join(storeDir, 'files', digest.slice(0, 2), digest.slice(2))
-    fs.mkdirSync(path.dirname(manifestPath), { recursive: true })
-    fs.writeFileSync(manifestPath, JSON.stringify({
+    await fs.mkdir(path.dirname(manifestPath), { recursive: true })
+    await fs.writeFile(manifestPath, JSON.stringify({
       name: 'installable',
       version: '1.0.0',
       license: 'MIT',
@@ -226,9 +226,9 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
     storeIndex.set(storeIndexKey(integrity, 'installable@1.0.0'), filesIndex)
   })
 
-  afterAll(() => {
+  afterAll(async () => {
     storeIndex.close()
-    fs.rmSync(storeDir, { recursive: true, force: true })
+    await fs.rm(storeDir, { recursive: true, force: true })
   })
 
   // Both platform-incompatible packages are constrained to Solaris, which no
@@ -283,8 +283,10 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
     expect(installable?.license).toBe('MIT')
 
     // Optional packages for other platforms are not installed, so they have no
-    // store metadata and are omitted from the SBOM.
+    // store metadata and are omitted from the SBOM — as is the edge pointing
+    // at them, which would otherwise dangle.
     expect(components.find((c) => c.name === 'never-installable')).toBeUndefined()
+    expect(relationships.some((r) => r.to === 'pkg:npm/never-installable@1.0.0')).toBe(false)
 
     // Non-optional packages are not filtered by this optional-platform logic:
     // the component and its relationship stay in the SBOM.

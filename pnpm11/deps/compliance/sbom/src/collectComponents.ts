@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
-import { packageIsInstallable } from '@pnpm/config.package-is-installable'
+import { checkPackageInstallability } from '@pnpm/config.package-is-installable'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, LockfileResolution, TarballResolution } from '@pnpm/lockfile.types'
@@ -209,19 +209,21 @@ async function walkStep (
 
       if (!name || !version) return
 
-      // Skip optional packages pnpm would not install on this platform; their
-      // metadata is not in the store. --lockfile-only keeps the full graph.
-      if (!opts.lockfileOnly && packageIsInstallable(pkgSnapshot.id ?? depPath, {
+      // An optional dependency for another platform is in the lockfile but was
+      // never fetched, so the store holds no metadata to describe it with.
+      // `checkPackageInstallability`, not `packageIsInstallable`: the latter
+      // reports every skip through the install loggers, which reading a
+      // lockfile must not do.
+      if (!opts.lockfileOnly && pkgSnapshot.optional === true && checkPackageInstallability(pkgSnapshot.id ?? depPath, {
         name,
         version,
         cpu: pkgSnapshot.cpu,
         os: pkgSnapshot.os,
         libc: pkgSnapshot.libc,
       }, {
-        optional: pkgSnapshot.optional ?? false,
-        lockfileDir: opts.lockfileDir,
+        optional: true,
         supportedArchitectures: opts.supportedArchitectures,
-      }) === false) {
+      }) != null) {
         return
       }
 

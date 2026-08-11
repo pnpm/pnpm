@@ -995,6 +995,11 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
   const workspaceDir = tempDir()
   f.copy('platform-optional', workspaceDir)
 
+  // Pinning the architecture keeps the expected component the same on every
+  // host the test runs on. `@pnpm.e2e/only-win32-x64` is the only one of the
+  // eight bindings that matches it.
+  const supportedArchitectures = { os: ['win32'], cpu: ['x64'] }
+
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
@@ -1002,6 +1007,7 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
     dir: workspaceDir,
     pnpmHomeDir: '',
     storeDir,
+    supportedArchitectures,
   })
 
   const { output, exitCode } = await sbom.handler({
@@ -1012,6 +1018,7 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
     pnpmHomeDir: '',
     sbomFormat: 'cyclonedx',
     storeDir: path.resolve(storeDir, STORE_VERSION),
+    supportedArchitectures,
   })
 
   expect(exitCode).toBe(0)
@@ -1020,30 +1027,15 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
   expect(parsed.bomFormat).toBe('CycloneDX')
 
   // `@pnpm.e2e/support-different-architectures` declares eight platform
-  // bindings as optionalDependencies. Only the one for the current platform is
-  // installed (and thus present in the store); the others are in the lockfile
-  // but were never fetched, so they are omitted from the SBOM.
+  // bindings as optionalDependencies. Only the supported one is fetched; the
+  // others are in the lockfile but have no metadata to describe.
   // Component names drop the scope, so match on the purl, which keeps the full
   // package name.
   const onlyBindings = parsed.components.filter(
     (c: { name?: string, purl?: string }) => c.purl?.startsWith('pkg:npm/%40pnpm.e2e/only-') === true
   )
   expect(onlyBindings).toHaveLength(1)
-
-  const expected = expectedOnlyBinding(process.platform, process.arch)
-  expect(onlyBindings[0].name).toBe(expected)
+  expect(onlyBindings[0].name).toBe('only-win32-x64')
   // The installed binding carries a resolvable license from its manifest.
   expect(onlyBindings[0].licenses).toEqual([{ license: { id: 'MIT' } }])
 })
-
-function detectLibc (): string {
-  const header = (process.report.getReport() as { header?: { glibcVersionRuntime?: string } }).header
-  return header?.glibcVersionRuntime != null ? 'glibc' : 'musl'
-}
-
-function expectedOnlyBinding (platform: string, arch: string): string {
-  if (platform === 'darwin') return `only-darwin-${arch}`
-  if (platform === 'win32') return `only-win32-${arch}`
-  // linux
-  return `only-linux-${arch}-${detectLibc()}`
-}

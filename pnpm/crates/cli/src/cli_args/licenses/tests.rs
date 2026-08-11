@@ -4,6 +4,7 @@ use super::{
     render_package_name, select_newer_version,
 };
 use pacquet_lockfile::Lockfile;
+use pacquet_package_is_installable::InstallabilityOptions;
 use serde_json::json;
 use tempfile::TempDir;
 
@@ -143,10 +144,12 @@ snapshots:
         &lockfile,
         lockfile.importers.keys(),
         include,
-        None,
-        "linux",
-        "x64",
-        "glibc",
+        &InstallabilityOptions {
+            current_os: "linux",
+            current_cpu: "x64",
+            current_libc: "glibc",
+            ..Default::default()
+        },
     );
 
     assert_eq!(dependencies.len(), 5);

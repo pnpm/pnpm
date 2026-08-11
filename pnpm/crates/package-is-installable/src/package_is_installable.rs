@@ -7,6 +7,7 @@ use crate::{
     },
     check_platform::{
         SupportedArchitectures, UnsupportedPlatformError, WantedPlatformRef, check_platform,
+        platform_is_supported,
     },
     infer_platform_from_package_name::inferred_platform,
 };
@@ -237,4 +238,33 @@ pub fn package_is_installable(
     }
 
     Ok(InstallabilityVerdict::ProceedWithWarning { message: warn.to_string() })
+}
+
+/// [`platform_is_supported`] applied to a package whose declared axes may be
+/// incomplete: each missing one is first filled from the package name (see
+/// [`inferred_platform`]).
+///
+/// This is the check for a package described by a lockfile row rather than by
+/// a manifest — no engines are recorded per snapshot, so only the platform is
+/// evaluated. The `optional` gate stays at the call site: pnpm leaves out only
+/// an optional dependency it cannot install.
+#[must_use]
+pub fn platform_is_supported_with_inference(
+    name: &str,
+    declared: WantedPlatformRef<'_>,
+    options: &InstallabilityOptions<'_>,
+) -> bool {
+    let inferred = inferred_platform(name, declared);
+    let wanted = inferred.as_ref().map_or(declared, |platform| WantedPlatformRef {
+        os: platform.os.as_deref(),
+        cpu: platform.cpu.as_deref(),
+        libc: platform.libc.as_deref(),
+    });
+    platform_is_supported(
+        wanted,
+        options.supported_architectures,
+        options.current_os,
+        options.current_cpu,
+        options.current_libc,
+    )
 }

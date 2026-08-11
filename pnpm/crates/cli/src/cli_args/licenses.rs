@@ -14,7 +14,7 @@ use owo_colors::{OwoColorize, Stream};
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
 use pacquet_package_is_installable::{
-    SupportedArchitectures, WantedPlatformRef, inferred_platform, platform_is_supported,
+    InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
 };
 use pacquet_package_manager::{
     AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
@@ -179,10 +179,13 @@ impl LicensesArgs {
             &lockfile,
             importer_ids,
             include,
-            config.supported_architectures.as_ref(),
-            pacquet_detect_libc::host_platform(),
-            pacquet_detect_libc::host_arch(),
-            pacquet_graph_hasher::host_libc(),
+            &InstallabilityOptions {
+                supported_architectures: config.supported_architectures.as_ref(),
+                current_os: pacquet_detect_libc::host_platform(),
+                current_cpu: pacquet_detect_libc::host_arch(),
+                current_libc: pacquet_graph_hasher::host_libc(),
+                ..Default::default()
+            },
         );
         let allow_build_policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
         let project_manifest = safe_read_package_json_from_dir(dir).into_diagnostic()?;
@@ -338,10 +341,7 @@ fn collect_dependencies(
     lockfile: &Lockfile,
     importer_ids: impl IntoIterator<Item = impl AsRef<str>>,
     include: Include,
-    supported_architectures: Option<&SupportedArchitectures>,
-    current_os: &str,
-    current_cpu: &str,
-    current_libc: &str,
+    installability: &InstallabilityOptions<'_>,
 ) -> HashMap<PackageKey, BelongsTo> {
     let mut belongs_to: HashMap<PackageKey, BelongsTo> = HashMap::new();
     let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
@@ -388,26 +388,14 @@ fn collect_dependencies(
             lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
         if snapshot.is_some_and(|snapshot| snapshot.optional)
             && package.is_some_and(|package| {
-                let declared = WantedPlatformRef {
-                    os: package.os.as_deref(),
-                    cpu: package.cpu.as_deref(),
-                    libc: package.libc.as_deref(),
-                };
-                let inferred =
-                    (declared.os.is_none() || declared.cpu.is_none() || declared.libc.is_none())
-                        .then(|| key.name.to_string())
-                        .and_then(|name| inferred_platform(&name, declared));
-                let wanted = inferred.as_ref().map_or(declared, |platform| WantedPlatformRef {
-                    os: platform.os.as_deref(),
-                    cpu: platform.cpu.as_deref(),
-                    libc: platform.libc.as_deref(),
-                });
-                !platform_is_supported(
-                    wanted,
-                    supported_architectures,
-                    current_os,
-                    current_cpu,
-                    current_libc,
+                !platform_is_supported_with_inference(
+                    &key.name.to_string(),
+                    WantedPlatformRef {
+                        os: package.os.as_deref(),
+                        cpu: package.cpu.as_deref(),
+                        libc: package.libc.as_deref(),
+                    },
+                    installability,
                 )
             })
         {
