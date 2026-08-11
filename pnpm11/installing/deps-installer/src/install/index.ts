@@ -1172,13 +1172,17 @@ export async function mutateModules (
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
           const catalogDepSpecifier = matchCatalogResolveResult(catalog, pickCatalogSpecifier)
 
-          if (
-            !catalogDepSpecifier ||
-            wantedDep.bareSpecifier === catalogBareSpecifier ||
-            semver.valid(wantedDep.bareSpecifier) &&
-            semver.valid(catalogDepSpecifier) &&
-            semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
-          ) {
+          if (!catalogDepSpecifier || wantedDep.bareSpecifier === catalogBareSpecifier) {
+            wantedDep.saveCatalogName = perDepCatalogName
+            continue
+          }
+
+          if (catalogCovers(catalogDepSpecifier, wantedDep.bareSpecifier)) {
+            // The catalog covers the wanted version, so the dependency resolves through the
+            // catalog: every project referencing the entry stays on the one version the entry
+            // resolves to. Keeping the wanted version as the specifier would pin it in the
+            // manifest instead, dropping the project out of the catalog.
+            wantedDep.bareSpecifier = catalogBareSpecifier
             wantedDep.saveCatalogName = perDepCatalogName
             continue
           }
@@ -1600,6 +1604,21 @@ function isWantedDepBareSpecifierSame (
   const nextCatalogEntrySpec = catalogsConfig?.[catalogName]?.[alias]
 
   return prevCatalogEntrySpec === nextCatalogEntrySpec
+}
+
+/**
+ * Whether the catalog entry already covers the wanted specifier, so the dependency can keep
+ * resolving through the catalog: the entry names the same concrete version, or it is a range the
+ * wanted version satisfies.
+ *
+ * The wanted specifier has to be a concrete version. A wanted range is never covered, because the
+ * catalog — not the dependency — decides which version a `catalog:` reference resolves to.
+ */
+function catalogCovers (catalogSpecifier: string, bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null &&
+    semver.valid(bareSpecifier) != null &&
+    semver.validRange(catalogSpecifier) != null &&
+    semver.satisfies(bareSpecifier, catalogSpecifier)
 }
 
 /**

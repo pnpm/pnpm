@@ -58,15 +58,42 @@ fn strict_errors_on_a_concrete_version_mismatch() {
 }
 
 #[test]
-fn strict_errors_when_the_catalog_entry_is_a_range() {
+fn strict_errors_when_the_catalog_range_excludes_the_wanted_version() {
     let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
     let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "1.0.0"))
-        .expect_err("a range catalog entry must error, not panic, under strict mode");
+        .expect_err("a version outside the catalog range must error, not panic, under strict mode");
     assert_eq!(
         err,
         CatalogVersionMismatchError {
             catalog_dep: "is-positive@^2.0.0".to_string(),
             wanted_dep: "is-positive@1.0.0".to_string(),
+        },
+    );
+}
+
+#[test]
+fn strict_uses_the_catalog_when_its_range_covers_the_wanted_version() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "2.1.0")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
+        "a version inside the catalog range reuses the existing catalog entry",
+    );
+}
+
+#[test]
+fn prefer_uses_the_catalog_when_its_range_covers_the_wanted_version() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
+    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("is-positive", "2.1.0")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
         },
     );
 }
