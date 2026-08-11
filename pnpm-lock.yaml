@@ -4989,6 +4989,9 @@ importers:
       '@pnpm/global.commands':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../core/logger
 
   pnpm11/global/packages:
     dependencies:
