@@ -1381,7 +1381,7 @@ fn minimum_release_age_excludes_uses_lowest_published_version_satisfying_range()
     assert_eq!(
         excludes,
         vec!["foo@2.0.1".to_string()],
-        "the lowest published satisfying version is used"
+        "the lowest published satisfying version is used",
     );
 }
 
