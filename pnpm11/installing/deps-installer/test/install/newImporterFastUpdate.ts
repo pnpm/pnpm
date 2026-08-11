@@ -165,6 +165,7 @@ test('a new project that depends on a workspace sibling falls back to the resolv
         manifest: { name: '@pnpm.e2e/foo', version: '1.2.0' },
       }]])],
     ]),
+    resolutionPicksLowest: false,
     projects: [
       { id: 'project-1' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '1.2.0' } } as ProjectManifest },
       { id: 'project-2' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '^1.0.0' } } as ProjectManifest },
