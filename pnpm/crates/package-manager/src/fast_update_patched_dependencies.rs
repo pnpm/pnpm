@@ -235,12 +235,6 @@ fn rewrite_importer_group(group: &mut ResolvedDependencyMap, rekeys: &Rekeys) {
     }
 }
 
-/// Bucket `hashes` the way the resolver buckets configured patches.
-///
-/// The patch file path is left out: nothing here applies a patch, and
-/// the hashes [`Config::patched_dependency_hashes`] already computed are
-/// the only payload the rewrite needs, so no patch file is read twice.
-///
 /// Whether every configured patch still has a package to apply to.
 ///
 /// A patch with none left is `ERR_PNPM_UNUSED_PATCH`, which only a
@@ -272,6 +266,13 @@ pub(crate) fn every_configured_patch_is_applied(
     !all_patch_keys(&groups).any(|key| !applied.contains(key))
 }
 
+/// Bucket `hashes` the way the resolver buckets configured patches.
+///
+/// The patch file path is left out: nothing here applies a patch, and
+/// the hashes [`pacquet_config::Config::patched_dependency_hashes`]
+/// already computed are the only payload the rewrite needs, so no patch
+/// file is read twice.
+///
 /// `None` for a key whose version segment is neither a version nor a
 /// range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
 fn groups_from_hashes(hashes: &BTreeMap<String, String>) -> Option<PatchGroupRecord> {
