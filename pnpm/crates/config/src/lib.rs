@@ -1515,6 +1515,16 @@ pub struct Config {
     /// when set, leaving `ignoredBuilds` empty. Default `false`.
     pub ignore_scripts: bool,
 
+    /// `--ignore-pnpmfile`. When `true`, no pnpmfile hooks run: neither
+    /// the workspace-root `.pnpmfile.{cjs,mjs}` nor the pnpmfiles of
+    /// config-dependency plugins are loaded, so `readPackage`,
+    /// `updateConfig`, `afterAllResolved`, custom resolvers and custom
+    /// fetchers are all skipped. A CLI-only boolean: pnpm excludes
+    /// `ignore-pnpmfile` from its config-file keys, so the yaml / env
+    /// overlay never populates it — the CLI layer sets it from the flag.
+    /// Default `false`.
+    pub ignore_pnpmfile: bool,
+
     /// `gitChecks` (`--no-git-checks`). When `true` (the default),
     /// `pnpm publish` verifies the git working tree is clean, on the
     /// expected branch, and up to date with the remote before publishing.

@@ -1955,6 +1955,53 @@ fn an_unmigrated_package_json_pnpm_field_is_not_reported() {
     drop(root);
 }
 
+/// `--ignore-pnpmfile` disables the hooks the workspace pnpmfile
+/// exports, so an install that passes it resolves the manifest as
+/// written and drops what a `readPackage` hook injected.
+#[test]
+fn ignore_pnpmfile_skips_the_read_package_hook() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = { hooks: { readPackage: (pkg) => {
+            if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+                pkg.dependencies['is-positive'] = '1.0.0';
+            }
+            return pkg;
+        } } }",
+    )
+    .expect("write pnpmfile");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    let hook_applied = || {
+        pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+            .expect("load wanted lockfile")
+            .expect("wanted lockfile")
+            .packages
+            .expect("packages")
+            .keys()
+            .any(|key| key.to_string().starts_with("is-positive@"))
+    };
+
+    pacquet.with_args(["install", "--lockfile-only", "--ignore-pnpmfile"]).assert().success();
+    assert!(!hook_applied(), "--ignore-pnpmfile resolves without the hook's dependency");
+
+    // Resolve the same project again with the hook honored, so the
+    // assertion above cannot pass on a fixture that never worked.
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    assert!(hook_applied(), "without the flag the hook injects its dependency");
+
+    drop((root, mock_instance));
+}
+
 /// `virtualStoreOnly` populates the virtual store and creates no
 /// importer links. `.pnp.cjs` is how a `PnP` project resolves, so it is a
 /// project-level artifact of the same kind and must not be written

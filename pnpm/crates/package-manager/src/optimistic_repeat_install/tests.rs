@@ -127,7 +127,7 @@ fn returns_skipped_when_a_pnpmfile_is_modified() {
         now_millis(),
         current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None),
         projects,
-        current_pnpmfiles(dir.path()),
+        current_pnpmfiles(config, dir.path()),
     );
     sleep(Duration::from_millis(20));
     fs::write(&pnpmfile, "module.exports = { hooks: {} }\n").expect("modify pnpmfile");

@@ -396,6 +396,9 @@ impl EnvInstallerContext {
 /// pnpm's single loaded hooks object.
 #[must_use]
 pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> {
+    if config.ignore_pnpmfile {
+        return Vec::new();
+    }
     let config_modules_dir = root_dir.join("node_modules").join(".pnpm-config");
     let mut pnpmfiles: Vec<PathBuf> = match config.config_dependencies.as_ref() {
         Some(deps) => finder::calc_pnpmfile_paths_of_plugin_deps(
