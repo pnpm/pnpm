@@ -10,6 +10,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DepPath, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
+import { tryComposeFastUpdates } from '../../src/install/tryComposeFastUpdates.js'
 import {
   type FastPatchedDependenciesUpdateOptions,
   tryFastUpdatePatchedDependencies,
@@ -235,6 +236,91 @@ test('the rekeyed lockfile matches what a full resolution writes', async () => {
   }, testDefaults({ patchedDependencies: { 'is-positive@1.0.0': patchPath } }))
 
   expect(rekeyedLockfile).toStrictEqual(resolved.readLockfile())
+})
+
+/**
+ * `parent` is the only thing that reaches the patched `victim`, so dropping it
+ * leaves the patch with nothing to apply to — `ERR_PNPM_UNUSED_PATCH`, which
+ * only a resolution raises.
+ */
+function lockfileWithAPatchedTransitiveDependency (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    patchedDependencies: { 'victim@1.0.0': 'victim-hash' },
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { parent: '^1.0.0', keep: '^2.0.0' },
+        dependencies: { parent: '1.0.0', keep: '2.0.0' },
+      },
+    },
+    packages: {
+      ['parent@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-parent' },
+        dependencies: { victim: '1.0.0(patch_hash=victim-hash)' },
+      },
+      ['victim@1.0.0(patch_hash=victim-hash)' as DepPath]: { resolution: { integrity: 'sha512-victim' } },
+      ['keep@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-keep' } },
+    },
+  } as unknown as LockfileObject
+}
+
+const patchedTransitive: FastPatchedDependenciesUpdateOptions = {
+  patchedDependencies: { 'victim@1.0.0': 'victim-hash' },
+  allowUnusedPatches: false,
+}
+
+test('a manifest removal that leaves a patch unused falls back', async () => {
+  expect(await tryComposeFastUpdates(lockfileWithAPatchedTransitiveDependency(), {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [{ id: '.' as ProjectId, manifest: { dependencies: { keep: '^2.0.0' } } as ProjectManifest }],
+    patchedDependencies: patchedTransitive,
+  })).toBe(false)
+})
+
+test('a removal override that leaves a patch unused falls back', async () => {
+  expect(await tryComposeFastUpdates(lockfileWithAPatchedTransitiveDependency(), {
+    drift: { overrides: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [],
+    patchedDependencies: patchedTransitive,
+    overrides: {
+      overrides: { victim: '-' },
+      parsedOverrides: [{ selector: 'victim', newBareSpecifier: '-', targetPkg: { name: 'victim' } }],
+      isLockfileUpToDate: async () => true,
+      lockfileDir: '/test',
+      registries: { default: 'https://registry.npmjs.org/' },
+      requestPackage: (() => {
+        throw new Error('a removal resolves nothing')
+      }) as never,
+    },
+  })).toBe(false)
+})
+
+test('a removal that keeps the patch applied is still absorbed', async () => {
+  const subject = lockfileWithAPatchedTransitiveDependency()
+
+  expect(await tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [{ id: '.' as ProjectId, manifest: { dependencies: { parent: '^1.0.0' } } as ProjectManifest }],
+    patchedDependencies: patchedTransitive,
+  })).toBe(true)
+  expect(Object.keys(subject.packages!).sort())
+    .toStrictEqual(['parent@1.0.0', 'victim@1.0.0(patch_hash=victim-hash)'])
+})
+
+test('a removal that leaves a patch unused is absorbed under allowUnusedPatches', async () => {
+  expect(await tryComposeFastUpdates(lockfileWithAPatchedTransitiveDependency(), {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [{ id: '.' as ProjectId, manifest: { dependencies: { keep: '^2.0.0' } } as ProjectManifest }],
+    patchedDependencies: { ...patchedTransitive, allowUnusedPatches: true },
+  })).toBe(true)
 })
 
 function updateOptions (

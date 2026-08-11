@@ -42,13 +42,7 @@ export function tryFastUpdatePatchedDependencies (
 
   const groups = groupsFromHashes(current)
   if (groups == null) return false
-  if (!opts.allowUnusedPatches) {
-    const applied = appliedPatchKeys(lockfile, groups)
-    if (applied == null) return false
-    for (const key of allPatchKeys(groups)) {
-      if (!applied.has(key)) return false
-    }
-  }
+  if (!everyConfiguredPatchIsApplied(lockfile, opts)) return false
 
   const rekeys = planRekeys(lockfile, groups)
   if (rekeys == null) return false
@@ -58,6 +52,35 @@ export function tryFastUpdatePatchedDependencies (
     delete lockfile.patchedDependencies
   } else {
     lockfile.patchedDependencies = current
+  }
+  return true
+}
+
+/**
+ * Whether every configured patch still has a package to apply to.
+ *
+ * A patch with none left is `ERR_PNPM_UNUSED_PATCH`, which only a resolution
+ * raises — `verifyPatches` runs from the resolver — so a rewrite that would
+ * produce one has to decline and let the resolver report it. Any handler that
+ * drops an edge can produce one, not only a changed patch configuration.
+ *
+ * `allowUnusedPatches` turns that error into a warning the resolution emits,
+ * which no rewrite reproduces either; as elsewhere in this file, a warning is
+ * not worth a full resolution.
+ */
+export function everyConfiguredPatchIsApplied (
+  lockfile: LockfileObject,
+  opts: FastPatchedDependenciesUpdateOptions
+): boolean {
+  if (opts.allowUnusedPatches) return true
+  const configured = opts.patchedDependencies ?? {}
+  if (Object.keys(configured).length === 0) return true
+  const groups = groupsFromHashes(configured)
+  if (groups == null) return false
+  const applied = appliedPatchKeys(lockfile, groups)
+  if (applied == null) return false
+  for (const key of allPatchKeys(groups)) {
+    if (!applied.has(key)) return false
   }
   return true
 }

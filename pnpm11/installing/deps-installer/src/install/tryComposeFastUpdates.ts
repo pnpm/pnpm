@@ -14,6 +14,7 @@ import {
   tryFastUpdateOverrides,
 } from './tryFastUpdateOverrides.js'
 import {
+  everyConfiguredPatchIsApplied,
   type FastPatchedDependenciesUpdateOptions,
   tryFastUpdatePatchedDependencies,
 } from './tryFastUpdatePatchedDependencies.js'
@@ -119,6 +120,13 @@ export async function tryComposeFastUpdates (
     return false
   }
   if (opts.drift.overrides && !await tryFastUpdateOverrides(candidate, opts.overrides!)) {
+    return false
+  }
+  // Last, over the settled graph: every handler above can drop the last
+  // dependent of a patched package, and the patch left with nothing to apply
+  // to is a state only a resolution reports.
+  if (opts.patchedDependencies != null &&
+    !everyConfiguredPatchIsApplied(candidate, opts.patchedDependencies)) {
     return false
   }
   return true

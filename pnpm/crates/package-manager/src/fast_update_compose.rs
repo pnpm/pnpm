@@ -108,6 +108,14 @@ pub(crate) fn try_compose_fast_updates(
     {
         return None;
     }
+    // Last, over the settled graph: every handler above can drop the last
+    // dependent of a patched package, and the patch left with nothing to
+    // apply to is a state only a resolution reports.
+    if !crate::fast_update_patched_dependencies::every_configured_patch_is_applied(
+        &candidate, config,
+    ) {
+        return None;
+    }
     Some(candidate)
 }
 

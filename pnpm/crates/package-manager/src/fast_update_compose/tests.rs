@@ -200,6 +200,56 @@ fn rekeys_a_patched_survivor_alongside_a_removal() {
     );
 }
 
+/// The patch configuration itself is unchanged here, so the patch handler
+/// never runs — only the removal drifts, and it is what orphans the patch.
+fn lockfile_recording_a_patch_for_bar(config: &Config) -> Lockfile {
+    let keeps_everything = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" },
+        "optionalDependencies": { "opt": "^5.0.0" },
+    }));
+    try_compose_fast_updates(
+        &lockfile(),
+        &[(".".to_string(), &keeps_everything)],
+        &[],
+        config,
+        false,
+    )
+    .expect("the patch rekey alone is absorbed")
+}
+
+#[test]
+fn falls_back_when_a_removal_orphans_a_patch_the_lockfile_already_records() {
+    let dir = workspace(&["bar@2.0.0"]);
+    let config = Config { allow_unused_patches: false, ..patch_config(dir.path(), &["bar@2.0.0"]) };
+    let subject = lockfile_recording_a_patch_for_bar(&config);
+    let drops_bar = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0" },
+        "optionalDependencies": { "opt": "^5.0.0" },
+    }));
+
+    assert!(
+        try_compose_fast_updates(&subject, &[(".".to_string(), &drops_bar)], &[], &config, false)
+            .is_none(),
+        "the patch is left with nothing to apply to, which only a resolution reports",
+    );
+}
+
+#[test]
+fn absorbs_a_removal_that_orphans_a_patch_under_allow_unused_patches() {
+    let dir = workspace(&["bar@2.0.0"]);
+    let config = patch_config(dir.path(), &["bar@2.0.0"]);
+    let subject = lockfile_recording_a_patch_for_bar(&config);
+    let drops_bar = manifest_from(json!({
+        "dependencies": { "foo": "^1.0.0" },
+        "optionalDependencies": { "opt": "^5.0.0" },
+    }));
+
+    let updated =
+        try_compose_fast_updates(&subject, &[(".".to_string(), &drops_bar)], &[], &config, false)
+            .expect("an unused patch is only a warning here");
+    assert!(!snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@")));
+}
+
 #[test]
 fn falls_back_when_an_ignored_optional_is_embedded_in_a_peer_suffix() {
     let mut subject = lockfile();
