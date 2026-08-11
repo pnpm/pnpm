@@ -1164,14 +1164,21 @@ export async function mutateModules (
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
           const catalogDepSpecifier = matchCatalogResolveResult(catalog, pickCatalogSpecifier)
 
+          const wantedVersion = semver.valid(wantedDep.bareSpecifier)
           if (
             !catalogDepSpecifier ||
             wantedDep.bareSpecifier === catalogBareSpecifier ||
-            semver.valid(wantedDep.bareSpecifier) && (
-              semver.valid(catalogDepSpecifier) && semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier) ||
-              semver.validRange(catalogDepSpecifier) && semver.satisfies(wantedDep.bareSpecifier, catalogDepSpecifier)
-            )
+            wantedVersion != null && semver.valid(catalogDepSpecifier) != null && semver.eq(wantedVersion, catalogDepSpecifier)
           ) {
+            wantedDep.saveCatalogName = perDepCatalogName
+            continue
+          }
+
+          if (wantedVersion != null && semver.validRange(catalogDepSpecifier) != null && semver.satisfies(wantedVersion, catalogDepSpecifier)) {
+            // The catalog range covers the wanted version, so the dependency resolves through
+            // the catalog. Keeping the wanted version as the specifier would pin it in the
+            // manifest instead, dropping the project out of the catalog.
+            wantedDep.bareSpecifier = catalogBareSpecifier
             wantedDep.saveCatalogName = perDepCatalogName
             continue
           }
