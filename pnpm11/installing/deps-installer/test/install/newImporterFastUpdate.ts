@@ -154,10 +154,10 @@ test('a range several locked versions satisfy falls back when resolution picks t
   })
 })
 
-test('a new project that depends on a workspace sibling falls back to the resolver', () => {
+test('a new project that depends on a workspace sibling falls back to the resolver', async () => {
   const subject = lockfileWithAnEmptyEntryForANewProject()
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     workspacePackages: new Map([
       ['@pnpm.e2e/foo', new Map([['1.2.0', {
@@ -173,10 +173,10 @@ test('a new project that depends on a workspace sibling falls back to the resolv
   })).toBe(false)
 })
 
-test('a new project that declares a `workspace:` dependency falls back to the resolver', () => {
+test('a new project that declares a `workspace:` dependency falls back to the resolver', async () => {
   const subject = lockfileWithAnEmptyEntryForANewProject()
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -187,10 +187,10 @@ test('a new project that declares a `workspace:` dependency falls back to the re
   })).toBe(false)
 })
 
-test('a new project that declares a `link:` dependency falls back to the resolver', () => {
+test('a new project that declares a `link:` dependency falls back to the resolver', async () => {
   const subject = lockfileWithAnEmptyEntryForANewProject()
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -201,10 +201,10 @@ test('a new project that declares a `link:` dependency falls back to the resolve
   })).toBe(false)
 })
 
-test('a new project that names a dependency the lockfile has never held falls back', () => {
+test('a new project that names a dependency the lockfile has never held falls back', async () => {
   const subject = lockfileWithAnEmptyEntryForANewProject()
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
