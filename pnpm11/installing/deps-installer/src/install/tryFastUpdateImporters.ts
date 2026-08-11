@@ -3,11 +3,13 @@ import path from 'node:path'
 import * as dp from '@pnpm/deps.path'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
 import { type DroppedEdges, recordDroppedEdge } from './droppedEdges.js'
 import type { GraphEdits } from './tryComposeFastUpdates.js'
+import { isDirectoryDependency } from './tryFastUpdateSettings.js'
 
 export interface Project {
   id: ProjectId
@@ -32,6 +34,12 @@ export function hasChangedProjectSpecifiers (
   })
 }
 
+export interface FastImportersUpdateOptions {
+  projects: Project[]
+  pruneLockfileImporters: boolean
+  workspacePackages: WorkspacePackages
+}
+
 /**
  * Mutates `lockfile` in place and may leave it partially rewritten when it
  * returns `false` — the caller passes the coordinator's disposable candidate,
@@ -40,7 +48,7 @@ export function hasChangedProjectSpecifiers (
  */
 export function tryFastUpdateImporters (
   lockfile: LockfileObject,
-  opts: { projects: Project[], pruneLockfileImporters: boolean },
+  opts: FastImportersUpdateOptions,
   edits: GraphEdits
 ): boolean {
   const { projects } = opts
@@ -64,8 +72,16 @@ export function tryFastUpdateImporters (
   for (const project of projects) {
     const importer = lockfile.importers[project.id]
     if (importer == null) return false
-    let editedGroups = false
     const manifestSpecifiers = getManifestSpecifiers(project.manifest)
+    if (hasNoRecordedDependencies(importer) && Object.keys(manifestSpecifiers).length > 0) {
+      if (!writeImporterFromLockedVersions(lockfile, project, opts.workspacePackages)) return false
+      // The only edit that adds reachability, so a package that until now
+      // only optional dependencies reached can have stopped being optional.
+      edits.optionalFlagsAreStale = true
+      changed = true
+      continue
+    }
+    let editedGroups = false
     for (const [alias, specifier] of Object.entries(manifestSpecifiers)) {
       if (importer.specifiers[alias] !== specifier) {
         const recordedIn = recordedDependencyGroup(importer, alias)
@@ -93,7 +109,7 @@ export function tryFastUpdateImporters (
       target[alias] = importer[recordedIn]![alias]
       delete importer[recordedIn]![alias]
       if (recordedIn === 'optionalDependencies' || targetGroup === 'optionalDependencies') {
-        edits.movedAcrossOptional = true
+        edits.optionalFlagsAreStale = true
       }
       editedGroups = true
       changed = true
@@ -117,6 +133,50 @@ export function tryFastUpdateImporters (
     }
   }
   return changed
+}
+
+/**
+ * Whether the lockfile records no dependency of this project. That is what a
+ * project the lockfile has never seen looks like by the time a handler runs:
+ * reading the lockfile seeds every project that has no entry with an empty
+ * one, so a new project arrives as an importer with nothing in it.
+ */
+function hasNoRecordedDependencies (importer: ProjectSnapshot): boolean {
+  return Object.keys(importer.specifiers).length === 0 &&
+    DEPENDENCIES_FIELDS.every((group) => importer[group] == null || Object.keys(importer[group]).length === 0)
+}
+
+/**
+ * Write a project's whole importer entry from the versions the lockfile
+ * already holds.
+ *
+ * `false` when a declared dependency needs the resolver: one that resolves to
+ * a directory rather than to a registry version, one whose specifier is not a
+ * semver range, and one no locked version satisfies.
+ */
+function writeImporterFromLockedVersions (
+  lockfile: LockfileObject,
+  project: Project,
+  workspacePackages: WorkspacePackages
+): boolean {
+  const importer: ProjectSnapshot = { specifiers: {} }
+  for (const [alias, specifier] of Object.entries(getManifestSpecifiers(project.manifest))) {
+    if (isDirectoryDependency(alias, specifier, workspacePackages)) return false
+    if (semver.validRange(specifier) == null) return false
+    const version = highestLockedVersionSatisfying(lockfile, alias, specifier)
+    if (version == null) return false
+    const group = effectiveDependencyGroup(project.manifest, alias)
+    ;(importer[group] ??= {})[alias] = version
+    importer.specifiers[alias] = specifier
+  }
+  if (project.manifest.dependenciesMeta != null) {
+    importer.dependenciesMeta = project.manifest.dependenciesMeta
+  }
+  if (project.manifest.publishConfig?.directory != null) {
+    importer.publishDirectory = project.manifest.publishConfig.directory
+  }
+  lockfile.importers[project.id] = importer
+  return true
 }
 
 /**

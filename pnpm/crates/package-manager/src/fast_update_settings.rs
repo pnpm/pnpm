@@ -182,7 +182,11 @@ fn has_no_injectable_dependencies(
         })
 }
 
-fn is_directory_dependency(
+/// Whether `alias` resolves to a directory rather than to a registry
+/// version: the protocols that name one outright, and a plain range on
+/// a workspace project's name, which `linkWorkspacePackages` turns into
+/// a link.
+pub(crate) fn is_directory_dependency(
     alias: &str,
     bare_specifier: &str,
     workspace_package_names: &HashSet<String>,
@@ -213,7 +217,11 @@ fn declares_injected_dependency(manifest: &PackageManifest) -> bool {
     )
 }
 
-fn workspace_package_names(manifests: &[(PathBuf, &PackageManifest)]) -> HashSet<String> {
+/// The names every workspace project publishes under, which a plain
+/// range on one of them resolves to a directory through.
+pub(crate) fn workspace_package_names(
+    manifests: &[(PathBuf, &PackageManifest)],
+) -> HashSet<String> {
     manifests
         .iter()
         .filter_map(|(_, manifest)| {

@@ -744,6 +744,94 @@ fn moves_to_a_higher_locked_version_even_when_the_locked_one_still_satisfies() {
     );
 }
 
+/// One project with an optional dependency whose child is optional with
+/// it, and a second project the lockfile records nothing for yet.
+const WITH_A_NEW_PROJECT: &str = r"
+lockfileVersion: '9.0'
+importers:
+  pkg-a:
+    optionalDependencies:
+      opt:
+        specifier: ^5.0.0
+        version: 5.0.0
+packages:
+  opt@5.0.0:
+    resolution:
+      integrity: sha512-opt
+  child@3.0.0:
+    resolution:
+      integrity: sha512-child
+snapshots:
+  opt@5.0.0:
+    optional: true
+    dependencies:
+      child: 3.0.0
+  child@3.0.0:
+    optional: true
+";
+
+#[test]
+fn writes_a_new_project_importer_from_locked_versions() {
+    let existing = manifest_from(json!({ "optionalDependencies": { "opt": "^5.0.0" } }));
+    let added = manifest_from(json!({ "devDependencies": { "child": "^3.0.0" } }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_A_NEW_PROJECT),
+        &[("pkg-a".to_string(), &existing), ("pkg-b".to_string(), &added)],
+    )
+    .expect("every version the new project needs is already locked");
+
+    let alias: PkgName = "child".parse().expect("alias");
+    let recorded =
+        &updated.importers["pkg-b"].dev_dependencies.as_ref().expect("devDependencies")[&alias];
+    assert_eq!(
+        (recorded.specifier.as_str(), recorded.version.to_string().as_str()),
+        ("^3.0.0", "3.0.0"),
+    );
+    assert!(
+        !snapshot_optional(&updated, "child@3.0.0"),
+        "the new project reaches it outside optionalDependencies",
+    );
+    assert!(snapshot_optional(&updated, "opt@5.0.0"), "nothing else changed about the old path");
+}
+
+#[test]
+fn rejects_a_new_project_whose_dependency_is_not_locked() {
+    let existing = manifest_from(json!({ "optionalDependencies": { "opt": "^5.0.0" } }));
+    let added = manifest_from(json!({ "dependencies": { "extra": "^1.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_A_NEW_PROJECT),
+            &[("pkg-a".to_string(), &existing), ("pkg-b".to_string(), &added)],
+        )
+        .is_none(),
+        "only the resolver can fetch a version the lockfile does not hold",
+    );
+}
+
+#[test]
+fn rejects_a_new_project_that_depends_on_a_workspace_sibling() {
+    let existing = manifest_from(json!({ "optionalDependencies": { "opt": "^5.0.0" } }));
+    let added = manifest_from(json!({ "dependencies": { "child": "^3.0.0" } }));
+    let sibling = PackageManifest::from_value(
+        PathBuf::from("/workspace/child/package.json"),
+        json!({ "name": "child", "version": "3.0.0" }),
+    );
+
+    assert!(
+        crate::fast_update_compose::try_compose_fast_updates(
+            &parsed_lockfile(WITH_A_NEW_PROJECT),
+            &[("pkg-a".to_string(), &existing), ("pkg-b".to_string(), &added)],
+            &[(PathBuf::from("/workspace/child"), &sibling)],
+            &pacquet_config::Config::default(),
+            false,
+        )
+        .is_none(),
+        "a plain range on a workspace project may resolve to a link, which only the resolver decides",
+    );
+}
+
 #[test]
 fn rejects_a_range_no_locked_version_satisfies() {
     let manifest = manifest_from(json!({ "dependencies": { "foo": "^2.0.0" } }));

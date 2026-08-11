@@ -1,5 +1,6 @@
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 
 import { type DroppedEdges, peerSuffixesAreIndependentOf } from './droppedEdges.js'
 import { pruneUnreferencedCatalogEntries } from './tryFastUpdateCatalogs.js'
@@ -24,10 +25,10 @@ export interface GraphEdits {
   /** What the severed importer or package edges pointed at. */
   dropped: DroppedEdges
   /**
-   * Whether an edge into or out of `optionalDependencies` moved, which
-   * changes the reachability-derived `optional` flags for a subtree.
+   * Whether an edge was added or moved into or out of `optionalDependencies`,
+   * which changes the reachability-derived `optional` flags for a subtree.
    */
-  movedAcrossOptional: boolean
+  optionalFlagsAreStale: boolean
 }
 
 /** The drift dimensions the composed sync handlers can absorb. */
@@ -41,6 +42,7 @@ export interface FastUpdateDrift {
 export interface ComposeFastUpdatesOptions {
   drift: FastUpdateDrift
   projects: Project[]
+  workspacePackages: WorkspacePackages
   /** Whether importers of removed projects are dropped from the lockfile. */
   pruneLockfileImporters?: boolean
   ignoredOptionalDependencies?: string[]
@@ -63,10 +65,11 @@ export function tryComposeFastUpdates (
   candidate: LockfileObject,
   opts: ComposeFastUpdatesOptions
 ): boolean {
-  const edits: GraphEdits = { dropped: new Set(), movedAcrossOptional: false }
+  const edits: GraphEdits = { dropped: new Set(), optionalFlagsAreStale: false }
   if (opts.drift.importers && !tryFastUpdateImporters(candidate, {
     projects: opts.projects,
     pruneLockfileImporters: opts.pruneLockfileImporters ?? false,
+    workspacePackages: opts.workspacePackages,
   }, edits)) {
     return false
   }
@@ -92,7 +95,7 @@ export function tryComposeFastUpdates (
  * rewrite, not a prune — leaves the caller on the full-resolution path.
  */
 function finishGraphEdits (candidate: LockfileObject, edits: GraphEdits): boolean {
-  if (edits.dropped.size > 0 || edits.movedAcrossOptional) {
+  if (edits.dropped.size > 0 || edits.optionalFlagsAreStale) {
     const pruned = pruneSharedLockfile(candidate)
     if (pruned.packages == null) {
       delete candidate.packages

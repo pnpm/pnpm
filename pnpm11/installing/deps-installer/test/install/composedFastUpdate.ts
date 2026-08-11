@@ -13,6 +13,7 @@ test('a removal and a widened ignore list are absorbed in one pass', () => {
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true, ignoredOptionalDependencies: true },
+    workspacePackages: new Map(),
     projects: [project({ dependencies: { bar: '^2.0.0' }, optionalDependencies: { opt: '^5.0.0' } })],
     ignoredOptionalDependencies: ['opt'],
   })).toBe(true)
@@ -29,6 +30,7 @@ test('a group move and a settings change are absorbed in one pass', () => {
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true, settings: true },
+    workspacePackages: new Map(),
     projects: [project({
       devDependencies: { foo: '^1.0.0' },
       dependencies: { bar: '^2.0.0' },
@@ -58,6 +60,7 @@ test('a peer setting is absorbed once the removal drops the last peer dependent'
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true, settings: true },
+    workspacePackages: new Map(),
     projects: [project({
       dependencies: { foo: '^1.0.0', bar: '^2.0.0' },
       optionalDependencies: { opt: '^5.0.0' },
@@ -79,6 +82,7 @@ test('a composed update falls back when one of its changes cannot be absorbed', 
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true, settings: true },
+    workspacePackages: new Map(),
     projects: [project({
       dependencies: { foo: '^9.0.0', bar: '^2.0.0' },
       optionalDependencies: { opt: '^5.0.0' },
@@ -103,6 +107,7 @@ test('an ignored optional embedded in a surviving peer suffix falls back', () =>
 
   expect(tryComposeFastUpdates(subject, {
     drift: { ignoredOptionalDependencies: true },
+    workspacePackages: new Map(),
     projects: [],
     ignoredOptionalDependencies: ['opt'],
   })).toBe(false)
@@ -117,6 +122,7 @@ test('an ignored optional removal recomputes the survivors\' optional flags', ()
 
   expect(tryComposeFastUpdates(subject, {
     drift: { ignoredOptionalDependencies: true },
+    workspacePackages: new Map(),
     projects: [],
     ignoredOptionalDependencies: ['bar'],
   })).toBe(true)

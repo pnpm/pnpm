@@ -12,9 +12,10 @@ use std::collections::{HashSet, VecDeque};
 pub(crate) struct GraphEdits {
     /// What the severed importer or snapshot edges pointed at.
     pub(crate) dropped: DroppedEdges,
-    /// Whether an edge into or out of `optionalDependencies` moved, which
-    /// changes the reachability-derived `optional` flags for a subtree.
-    pub(crate) moved_across_optional: bool,
+    /// Whether an edge was added or moved into or out of
+    /// `optionalDependencies`, which changes the reachability-derived
+    /// `optional` flags for a subtree.
+    pub(crate) optional_flags_are_stale: bool,
 }
 
 /// What the edges a fast update severed pointed at, each written the way
@@ -114,7 +115,7 @@ pub(crate) fn finish_graph_edits(candidate: &mut Lockfile, edits: &GraphEdits) -
         }
         prune_unreferenced_catalog_entries(candidate);
     }
-    if !edits.dropped.is_empty() || edits.moved_across_optional {
+    if !edits.dropped.is_empty() || edits.optional_flags_are_stale {
         recompute_optional_flags(candidate);
     }
     true
