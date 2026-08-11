@@ -183,5 +183,5 @@ jobs:
         if: hashFiles('benchmark-artifact/STABLE_SCENARIO_GATE_FAILED') != ''
         shell: bash
         run: |
-          echo "::error::A stable pacquet benchmark scenario regressed by more than 20%; see the benchmark comment for measurements."
+          echo "::error::The stable-scenario benchmark gate failed; see the benchmark comment and producer workflow logs for details."
           exit 1

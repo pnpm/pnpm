@@ -109,8 +109,6 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
-    #[display("timed out waiting to lock shared package target {path:?}")]
-    LockSharedTargetTimeout { path: PathBuf },
 }
 
 /// Materialize an indexed package's files into `dir_path`, the way
@@ -136,7 +134,11 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
     let _shared_import_lock = if opts.safe_to_skip && opts.force {
-        Some(acquire_shared_import_lock(dir_path)?)
+        acquire_shared_import_lock(
+            dir_path,
+            SHARED_IMPORT_LOCK_WAIT,
+            SHARED_IMPORT_LOCK_ABANDONED_AFTER,
+        )?
     } else {
         None
     };
@@ -198,19 +200,17 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     }
 }
 
-fn acquire_shared_import_lock(dir_path: &Path) -> Result<DirLock, ImportIndexedDirError> {
+fn acquire_shared_import_lock(
+    dir_path: &Path,
+    wait: Duration,
+    abandoned_after: Duration,
+) -> Result<Option<DirLock>, ImportIndexedDirError> {
     let parent = dir_path.parent().unwrap_or_else(|| Path::new("."));
     let name = dir_path.file_name().and_then(|name| name.to_str()).unwrap_or("package");
-    let path = parent.join(format!(".{name}_pacquet-import.lock"));
-    match DirLock::acquire(
-        path.clone(),
-        SHARED_IMPORT_LOCK_WAIT,
-        SHARED_IMPORT_LOCK_ABANDONED_AFTER,
-    ) {
-        Ok(Some(lock)) => Ok(lock),
-        Ok(None) => Err(ImportIndexedDirError::LockSharedTargetTimeout { path }),
-        Err(error) => Err(ImportIndexedDirError::LockSharedTarget { path, error }),
-    }
+    let lock_path = parent.join(format!(".{name}_pacquet-import.lock"));
+    DirLock::acquire(lock_path, wait, abandoned_after).map_err(|error| {
+        ImportIndexedDirError::LockSharedTarget { path: dir_path.to_path_buf(), error }
+    })
 }
 
 /// Fresh-target path: make the parent dir set, then run the parallel

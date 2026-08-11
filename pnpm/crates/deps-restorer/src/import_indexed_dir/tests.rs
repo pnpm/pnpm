@@ -1,4 +1,6 @@
-use super::{ImportIndexedDirError, ImportIndexedDirOpts, import_indexed_dir};
+use super::{
+    ImportIndexedDirError, ImportIndexedDirOpts, acquire_shared_import_lock, import_indexed_dir,
+};
 use pacquet_config::PackageImportMethod;
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -7,6 +9,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::atomic::AtomicU8,
+    time::Duration,
 };
 use tempfile::tempdir;
 
@@ -817,6 +820,37 @@ fn concurrent_importers_of_one_shared_slot_both_succeed() {
         .filter(|name| name != "cas" && name != "slot")
         .collect();
     assert_eq!(strays, Vec::<String>::new(), "neither importer may leak a staging dir");
+}
+
+#[test]
+fn shared_import_lock_timeout_is_non_fatal() {
+    let tmp = tempdir().unwrap();
+    let target = tmp.path().join("slot");
+    let abandoned_after = Duration::from_mins(1);
+    let _held = acquire_shared_import_lock(&target, Duration::ZERO, abandoned_after)
+        .expect("first acquisition should succeed")
+        .expect("first acquisition should take the lock");
+
+    let timed_out = acquire_shared_import_lock(&target, Duration::ZERO, abandoned_after)
+        .expect("a held lock is not an I/O failure");
+
+    assert!(timed_out.is_none(), "a timed-out import proceeds without the advisory lock");
+}
+
+#[test]
+fn shared_import_lock_setup_failure_reports_the_package_target() {
+    let tmp = tempdir().unwrap();
+    let non_directory = tmp.path().join("not-a-directory");
+    fs::write(&non_directory, b"file").unwrap();
+    let target = non_directory.join("slot");
+
+    let error = acquire_shared_import_lock(&target, Duration::ZERO, Duration::from_mins(1))
+        .expect_err("a lock cannot be created below a file");
+
+    match error {
+        ImportIndexedDirError::LockSharedTarget { path, .. } => assert_eq!(path, target),
+        other => panic!("unexpected error: {other}"),
+    }
 }
 
 #[test]

@@ -756,7 +756,7 @@ jobs:
         if: always() && github.event_name != 'pull_request' && steps.stable_scenarios.outcome == 'failure'
         shell: bash
         run: |
-          echo "::error::A stable pacquet benchmark scenario regressed by more than 20%; see the check step for measurements."
+          echo "::error::The stable-scenario benchmark gate failed; see the check step for details."
           exit 1
 
       - name: Re-raise the peer-heavy gate
