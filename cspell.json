@@ -97,6 +97,7 @@
     "endregion",
     "eneedauth",
     "enoent",
+    "enotdir",
     "enotempty",
     "enten",
     "eotp",
