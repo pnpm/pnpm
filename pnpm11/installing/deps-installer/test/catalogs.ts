@@ -1622,6 +1622,66 @@ describe('add', () => {
     })
   })
 
+  test('adding a version the catalog range covers moves a catalog locked on another version', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }, {
+      name: 'project2',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+      catalogMode: 'strict' as const,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Widen the catalog to a range that keeps 1.0.0 locked. The wanted version below is
+    // inside that range but is not the version the catalog currently resolves to.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    const { updatedManifest, updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo@1.1.0'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        allowNew: true,
+      })
+
+    // A cataloged dependency takes its version from the catalog, so the request moves what
+    // the entry resolves to instead of being dropped, and saving re-renders the declared
+    // range onto that version the way it does for a manifest dependency.
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      default: { '@pnpm.e2e/foo': '^1.1.0' },
+    })
+
+    // The entry resolves to the version that was asked for rather than to the version it
+    // was locked on, or to the newest one its range allows.
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.1.0', version: '1.1.0' } } },
+      importers: { project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.1.0' } } } },
+    })
+  })
+
   test('adding mismatched version with catalogMode: prefer will warn and use direct', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
@@ -1837,7 +1897,7 @@ describe('update', () => {
         ...manifest,
         rootDir: path.resolve(id) as ProjectRootDir,
         mutation: 'installSome' as const,
-        dependencySelectors: ['@pnpm.e2e/foo@1.3.0'],
+        dependencySelectors: ['@pnpm.e2e/foo@1.1.0'],
         allowNew: false,
         update: true,
         updatePackageManifest: true,
@@ -1845,17 +1905,25 @@ describe('update', () => {
       mutateOpts
     )
 
+    // Every project on the entry follows it to the version that was asked for — not to the
+    // newest one the range allows — and the declared range is left as the workspace wrote it.
     expect(updatedProjects[0]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
     expect(updatedProjects[1]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+    // Saving an update re-renders the declared range onto the resolved version, as it does
+    // for a manifest dependency.
     expect(updatedCatalogs).toEqual({
-      default: { '@pnpm.e2e/foo': '^1.3.0' },
+      default: { '@pnpm.e2e/foo': '^1.1.0' },
     })
 
     const lockfile = readLockfile()
     expect(lockfile.catalogs).toEqual({
-      default: { '@pnpm.e2e/foo': { specifier: '^1.3.0', version: '1.3.0' } },
+      default: { '@pnpm.e2e/foo': { specifier: '^1.1.0', version: '1.1.0' } },
     })
-    expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@1.3.0'])
+    expect(lockfile.importers).toMatchObject({
+      project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.1.0' } } },
+      project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.1.0' } } },
+    })
+    expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@1.1.0'])
   })
 
   test('overrides that reference a catalog are updated in the lockfile when the catalog is updated', async () => {

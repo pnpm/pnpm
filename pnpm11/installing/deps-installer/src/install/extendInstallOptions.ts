@@ -11,7 +11,7 @@ import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
@@ -397,6 +397,12 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
 
 export interface ProcessedInstallOptions extends StrictInstallOptions {
   readPackageHook?: ReadPackageHook
+  /**
+   * Version preferences layered on top of the seed resolution takes from the lockfile, by
+   * package name. Callers pass them in (an audit fix penalizing vulnerable versions), and
+   * `mutateModules` adds its own for a catalog entry it moves.
+   */
+  preferredVersions?: PreferredVersions
   parsedOverrides: VersionOverride[]
   /**
    * Present when the overrides contain convergence entries (`"pkg@"`). The

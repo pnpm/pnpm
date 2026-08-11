@@ -76,9 +76,10 @@ import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
-import type {
-  PreferredVersions,
-  ResolutionPolicyViolation,
+import {
+  EXISTING_VERSION_SELECTOR_WEIGHT,
+  type PreferredVersions,
+  type ResolutionPolicyViolation,
 } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type {
@@ -974,6 +975,7 @@ export async function mutateModules (
     }
 
     const projectsToInstall = [] as ImporterToUpdate[]
+    const installedProjectIds = new Set<string>(projects.map((project) => ctx.projects[project.rootDir].id))
 
     let preferredSpecs: Record<string, string> | null = null
 
@@ -1182,6 +1184,11 @@ export async function mutateModules (
             // catalog: every project referencing the entry stays on the one version the entry
             // resolves to. Keeping the wanted version as the specifier would pin it in the
             // manifest instead, dropping the project out of the catalog.
+            resolveCatalogEntryTo({
+              alias: wantedDep.alias,
+              catalogName: perDepCatalogName,
+              version: wantedDep.bareSpecifier!,
+            })
             wantedDep.bareSpecifier = catalogBareSpecifier
             wantedDep.saveCatalogName = perDepCatalogName
             continue
@@ -1206,6 +1213,49 @@ export async function mutateModules (
         updateToLatest,
         wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true })),
       } as ImporterToUpdate)
+    }
+
+    /**
+     * Resolve a catalog entry to the version a command asked for, leaving the range the
+     * workspace declared for it alone.
+     *
+     * A cataloged dependency takes its version from the catalog, so a wanted version the
+     * entry covers has to move the entry's resolution — otherwise the lockfile keeps the
+     * version the entry resolved to before and the request is dropped without a word.
+     */
+    function resolveCatalogEntryTo (
+      { alias, catalogName, version }: {
+        alias: string
+        catalogName: string
+        version: string
+      }
+    ): void {
+      if (ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]?.version === version) return
+
+      // Drop the recorded resolution, along with the ones the installed projects took from
+      // it, so the entry is resolved again instead of reused at the version it named before.
+      // Projects outside this install keep theirs until they are installed themselves.
+      delete ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]
+      for (const [id, importer] of Object.entries(ctx.wantedLockfile.importers ?? {})) {
+        if (!installedProjectIds.has(id)) continue
+        const specifier = importer.specifiers?.[alias]
+        if (specifier == null || parseCatalogProtocol(specifier) !== catalogName) continue
+        delete importer.dependencies?.[alias]
+        delete importer.devDependencies?.[alias]
+        delete importer.optionalDependencies?.[alias]
+      }
+
+      // Without this, resolution takes the version the lockfile pins for the package, or the
+      // newest one the entry's range allows — not the one that was asked for. The weight
+      // outranks the pin the lockfile seeds, since naming a version is a request to move off
+      // whatever is currently resolved.
+      opts.preferredVersions = {
+        ...opts.preferredVersions,
+        [alias]: {
+          ...opts.preferredVersions?.[alias],
+          [version]: { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1 },
+        },
+      }
     }
 
     // Unfortunately, the private lockfile may differ from the public one.
