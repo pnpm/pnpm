@@ -124,3 +124,30 @@ fn an_unlisted_script_leaves_the_injected_copies_alone() {
 
     drop((mock_instance, root));
 }
+
+/// The setting reaches a non-workspace project through `PNPM_CONFIG_*`,
+/// which every schema key reads. A script that already succeeded must
+/// not have the run fail behind it.
+#[test]
+fn a_project_outside_a_workspace_still_runs_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "solo",
+            "version": "1.0.0",
+            "scripts": { "build": "node --version" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_env("PNPM_CONFIG_SYNC_INJECTED_DEPS_AFTER_SCRIPTS", r#"["build"]"#)
+        .with_args(["run", "build"])
+        .assert()
+        .success();
+
+    drop(root);
+}

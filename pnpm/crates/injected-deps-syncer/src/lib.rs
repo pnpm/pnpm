@@ -30,10 +30,6 @@ use std::{
 /// Error type for [`sync_injected_deps`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum SyncInjectedDepsError {
-    #[display("Cannot update injected dependencies without workspace dir")]
-    #[diagnostic(code(ERR_PNPM_NO_WORKSPACE_DIR))]
-    NoWorkspaceDir,
-
     #[display("Failed to read the modules manifest: {error}")]
     #[diagnostic(code(ERR_PNPM_INJECTED_DEPS_SYNC_READ_MODULES))]
     ReadModules {
@@ -84,8 +80,17 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
         );
         return Ok(());
     }
+    // Outside a workspace nothing can be injected, so there is nothing
+    // to sync. The setting reaches here anyway because every schema key
+    // also reads from `PNPM_CONFIG_*`, and a script that already ran and
+    // succeeded must not fail the run over it.
     let Some(workspace_dir) = opts.workspace_dir else {
-        return Err(SyncInjectedDepsError::NoWorkspaceDir);
+        tracing::debug!(
+            target: "pacquet::sync_injected_deps",
+            pkg_root_dir = ?opts.pkg_root_dir,
+            "Skipping sync of injected dependencies because there is no workspace",
+        );
+        return Ok(());
     };
 
     let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);

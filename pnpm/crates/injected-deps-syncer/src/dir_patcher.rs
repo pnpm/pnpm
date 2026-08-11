@@ -146,11 +146,10 @@ pub fn diff_dir(old_index: &InodeMap, new_index: &InodeMap) -> DirDiff {
 
 /// Apply a diff produced by [`diff_dir`] to `target_dir`.
 ///
-/// Removals run first, so a path the source turned from a directory
-/// into a file still has its old children under a directory when they
-/// are unlinked. Directories then go in ahead of the files they hold,
-/// so a directory is always empty when it displaces whatever the
-/// target held at its path.
+/// The phase order is load-bearing: removals before changes so that a
+/// path the source turned into a file still has its old children under
+/// a directory, and directories before files so that displacing a
+/// blocking inode never takes a populated directory with it.
 pub fn apply_patch(
     patch: &DirDiff,
     source_dir: &Path,
@@ -211,7 +210,7 @@ fn is_already_exists(error: &PatchError) -> bool {
     matches!(
         error,
         PatchError::CreateDir { error, .. } | PatchError::Link { error, .. }
-            if error.kind() == io::ErrorKind::AlreadyExists
+            if error.kind() == io::ErrorKind::AlreadyExists,
     )
 }
 

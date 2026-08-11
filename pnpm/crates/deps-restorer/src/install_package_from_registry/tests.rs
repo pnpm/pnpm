@@ -135,6 +135,7 @@ fn create_config(
         filter_prod: Vec::new(),
         workspace_root: false,
         test_pattern: Vec::new(),
+        sync_injected_deps_after_scripts: Vec::new(),
         changed_files_ignore_pattern: Vec::new(),
         git_shallow_hosts: pacquet_config::default_git_shallow_hosts(),
         supported_architectures: None,
