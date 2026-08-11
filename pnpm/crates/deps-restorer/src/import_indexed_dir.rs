@@ -5,6 +5,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::PackageImportMethod;
+use pacquet_fs::DirLock;
 use pacquet_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
@@ -12,8 +13,11 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU8, AtomicU64, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+const SHARED_IMPORT_LOCK_WAIT: Duration = Duration::from_mins(5);
+const SHARED_IMPORT_LOCK_ABANDONED_AFTER: Duration = Duration::from_mins(30);
 
 /// Options for [`import_indexed_dir`].
 ///
@@ -99,6 +103,12 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
+    #[display("failed to lock shared package target {path:?}: {error}")]
+    LockSharedTarget {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
 }
 
 /// Materialize an indexed package's files into `dir_path`, the way
@@ -123,6 +133,16 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
+    let _shared_import_lock = if opts.safe_to_skip && opts.force {
+        acquire_shared_import_lock(
+            dir_path,
+            SHARED_IMPORT_LOCK_WAIT,
+            SHARED_IMPORT_LOCK_ABANDONED_AFTER,
+        )?
+    } else {
+        None
+    };
+
     let existing_kind = match fs::symlink_metadata(dir_path) {
         Ok(meta) => Some(meta.file_type()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
@@ -178,6 +198,19 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         )
         .inspect(|()| unquarantine()),
     }
+}
+
+fn acquire_shared_import_lock(
+    dir_path: &Path,
+    wait: Duration,
+    abandoned_after: Duration,
+) -> Result<Option<DirLock>, ImportIndexedDirError> {
+    let parent = dir_path.parent().unwrap_or_else(|| Path::new("."));
+    let name = dir_path.file_name().and_then(|name| name.to_str()).unwrap_or("package");
+    let lock_path = parent.join(format!(".{name}_pacquet-import.lock"));
+    DirLock::acquire(lock_path, wait, abandoned_after).map_err(|error| {
+        ImportIndexedDirError::LockSharedTarget { path: dir_path.to_path_buf(), error }
+    })
 }
 
 /// Fresh-target path: make the parent dir set, then run the parallel

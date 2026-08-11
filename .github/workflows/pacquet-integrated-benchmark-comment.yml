@@ -26,15 +26,14 @@ permissions:
   actions: read
   issues: write
   pull-requests: write
-  checks: write
 
 jobs:
   comment:
     name: Post benchmark comment
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Only post when the upstream benchmark ran on a PR and succeeded.
-    # Same gating as the original in-workflow comment, which only ran
-    # on the success path of the previous steps.
+    # Benchmark-gate failures are carried in the successful run artifact and
+    # re-raised below, after the report is posted. Early benchmark failures do
+    # not have an artifact, so keep skipping them here.
     if: |
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
@@ -134,24 +133,23 @@ jobs:
           body-file: benchmark-artifact/SUMMARY.md
 
       - name: Install Bencher CLI
-        if: hashFiles('benchmark-artifact/bencher-results.json') != ''
+        if: hashFiles('benchmark-artifact/bencher-observations.json') != ''
         uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85 # v0.6.11
 
       - name: Upload PR results to Bencher
         # workflow_run runs in the base-repo privilege context, so
         # BENCHER_API_TOKEN is available even for fork PRs. PR number
         # comes from the trusted workflow_run payload (resolved in
-        # `meta` above), never from the artifact body. `--ci-number`
-        # is required here because Bencher can't infer the PR from a
-        # workflow_run event the way it does on pull_request.
+        # `meta` above), never from the artifact body.
         #
         # One benchmark, two testbeds: `pacquet` (direct install) and
-        # `pnpr` (the accelerated path). Each uploads from its own
-        # bencher-results file produced by the build workflow.
-        if: hashFiles('benchmark-artifact/bencher-results.json') != ''
+        # `pnpr` (the accelerated path). Each uploads from its own observation
+        # file produced by the build workflow. The dedicated
+        # summary above owns the PR comment; Bencher records the cross-run
+        # trends without creating a second comment or check.
+        if: hashFiles('benchmark-artifact/bencher-observations.json') != ''
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.meta.outputs.pr }}
         shell: bash
         run: |
@@ -159,9 +157,9 @@ jobs:
             echo "::notice::BENCHER_API_TOKEN not set, skipping Bencher upload"
             exit 0
           fi
-          # `--start-point-clone-thresholds` so the PR branch inherits the
-          # threshold configured on main; `--err` so the action surfaces
-          # a regression on the PR check.
+          # `--start-point-clone-thresholds` keeps cross-run alerts visible in
+          # Bencher. They are observational; the benchmark workflow owns the
+          # blocking same-run check for its stable scenarios.
           upload() {
             local testbed=$1 file=$2
             if [ ! -f "$file" ]; then
@@ -175,11 +173,22 @@ jobs:
               --start-point main \
               --start-point-reset \
               --start-point-clone-thresholds \
-              --err \
               --adapter json \
-              --file "$file" \
-              --ci-number "$PR_NUMBER" \
-              --github-actions "$GITHUB_TOKEN"
+              --file "$file"
           }
-          upload pacquet benchmark-artifact/bencher-results.json
-          upload pnpr benchmark-artifact/bencher-results-pnpr.json
+          upload pacquet benchmark-artifact/bencher-observations.json
+          upload pnpr benchmark-artifact/bencher-observations-pnpr.json
+
+      - name: Re-raise the stable-scenario gate
+        if: always() && hashFiles('benchmark-artifact/STABLE_SCENARIO_GATE_FAILED') != ''
+        shell: bash
+        run: |
+          echo "::error::The stable-scenario benchmark gate failed; see the benchmark comment and producer workflow logs for details."
+          exit 1
+
+      - name: Re-raise the peer-heavy gate
+        if: always() && hashFiles('benchmark-artifact/PEER_HEAVY_GATE_FAILED') != ''
+        shell: bash
+        run: |
+          echo "::error::The peer-heavy benchmark gate failed; see the benchmark comment and producer workflow logs for details."
+          exit 1
