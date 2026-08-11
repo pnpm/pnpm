@@ -388,6 +388,10 @@ pub struct WorkspaceSettings {
     /// [`Config::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Option<Vec<String>>,
 
+    /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` — see
+    /// [`Config::sync_injected_deps_after_scripts`].
+    pub sync_injected_deps_after_scripts: Option<Vec<String>>,
+
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Drives the
     /// optional-dependency platform check at install time: a
     /// `name: ['darwin'], cpu: ['arm64']` setting tells pacquet to
@@ -891,6 +895,7 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.sync_injected_deps_after_scripts = None;
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
         self.save_peer = None;
@@ -1062,6 +1067,7 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
+            sync_injected_deps_after_scripts,
             resolution_mode, catalog_mode, catalog_prune,
             minimum_release_age_exclude_prune, save_peer, save_exact,
             registry_supports_time_field,

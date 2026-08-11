@@ -61,6 +61,7 @@ pacquet-detect-libc                       = { path = "pnpm/crates/detect-libc" }
 pacquet-diagnostics                       = { path = "pnpm/crates/diagnostics" }
 pacquet-graph-hasher                      = { path = "pnpm/crates/graph-hasher" }
 pacquet-hooks                             = { path = "pnpm/crates/hooks" }
+pacquet-injected-deps-syncer              = { path = "pnpm/crates/injected-deps-syncer" }
 pacquet-store-dir                         = { path = "pnpm/crates/store-dir" }
 pacquet-reporter                          = { path = "pnpm/crates/reporter" }
 pacquet-patching                          = { path = "pnpm/crates/patching" }
