@@ -2,7 +2,8 @@ use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS, Install,
     InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
     decide_catalog_outcome, emit_initial_package_manifest, package_manifest_prefix,
     resolution_policy::{PickPolicy, pick_package_context},
@@ -109,7 +110,7 @@ pub enum AddError {
     CatalogVersionMismatch(#[error(source)] CatalogVersionMismatchError),
 
     /// Writing the auto-cataloged entry back to `pnpm-workspace.yaml`
-    /// (or the `cleanupUnusedCatalogs` pass it runs) failed.
+    /// (or the `catalogPrune` pass it runs) failed.
     #[diagnostic(transparent)]
     WriteWorkspaceManifest(#[error(source)] WriteWorkspaceCatalogsError),
 
@@ -218,7 +219,7 @@ where
         // Write the new catalog entry to `pnpm-workspace.yaml` before the
         // install so the resolver reads it back and the lockfile's
         // `catalogs:` snapshot records the resolved version. The same
-        // write runs the `cleanupUnusedCatalogs` pass when configured.
+        // write runs the `catalogPrune` pass when configured.
         write_workspace_catalogs(
             config,
             Some(&catalog_ctx.workspace_dir),
@@ -287,6 +288,9 @@ where
         .map_err(AddError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
+
+        prune_minimum_release_age_excludes(config, Some(&catalog_ctx.workspace_dir), manifest)
+            .map_err(AddError::WriteWorkspaceManifest)?;
 
         Ok(())
     }
@@ -392,6 +396,9 @@ where
         .map_err(AddError::Install)?;
 
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
+
+        prune_minimum_release_age_excludes(config, Some(&prepared.workspace_dir), manifest)
+            .map_err(AddError::WriteWorkspaceManifest)?;
         Ok(())
     }
 }

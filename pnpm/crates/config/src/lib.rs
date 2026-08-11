@@ -1753,6 +1753,14 @@ pub struct Config {
     /// [`minimum_release_age`]: Self::minimum_release_age
     pub minimum_release_age_exclude: Option<Vec<String>>,
 
+    /// When `true`, `add` / `remove` / `update` prune
+    /// [`Self::minimum_release_age_exclude`] entries in
+    /// `pnpm-workspace.yaml` whose versions the freshly resolved
+    /// lockfile no longer records, once the install has written that
+    /// lockfile. The `minimumReleaseAgeExcludePrune` setting;
+    /// default `false`, matching pnpm.
+    pub minimum_release_age_exclude_prune: bool,
+
     /// When the registry's metadata lacks the per-version `time`
     /// field (some self-hosted registries strip it), the verifier
     /// cannot enforce the maturity cutoff. With this flag set,
@@ -1849,10 +1857,11 @@ pub struct Config {
     pub catalog_mode: CatalogMode,
 
     /// When `true`, commands that persist the workspace manifest
-    /// (`add`, `remove`, `update`) also drop catalog entries that no
-    /// workspace project references. The `cleanupUnusedCatalogs`
-    /// setting; default `false`, matching pnpm.
-    pub cleanup_unused_catalogs: bool,
+    /// (`add`, `remove`, `update`) also drop entries of the `catalog:`
+    /// and `catalogs:` blocks that no workspace project references. The
+    /// `catalogPrune` setting (formerly `cleanupUnusedCatalogs`, still
+    /// accepted); default `false`, matching pnpm.
+    pub catalog_prune: bool,
 
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned

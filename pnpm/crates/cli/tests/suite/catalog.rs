@@ -409,18 +409,16 @@ fn install_reruns_when_catalog_entry_changes() {
     drop((root, anchor));
 }
 
-/// With `cleanupUnusedCatalogs: true`, a manifest-persisting command
-/// (`pnpm add` here) drops the catalog entries no importer references
-/// while keeping the referenced ones.
+/// With `catalogPrune: true`, a manifest-persisting command (`pnpm add`
+/// here) drops the catalog entries no importer references while keeping
+/// the referenced ones.
 #[test]
 fn removes_unused_entries_from_the_workspace_catalog() {
     let (root, workspace, anchor) = setup();
     write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
     append_workspace_yaml(
         &workspace,
-        &format!(
-            "cleanupUnusedCatalogs: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n",
-        ),
+        &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n"),
     );
 
     run_ok(&workspace, &["add", "@pnpm.e2e/peer-a@1.0.0"]);
@@ -433,6 +431,49 @@ fn removes_unused_entries_from_the_workspace_catalog() {
     assert!(
         !workspace_yaml.contains("@pnpm.e2e/bar"),
         "the unreferenced catalog entry must be removed:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
+/// With `minimumReleaseAgeExcludePrune: true`, a
+/// manifest-persisting command (`pnpm add` here) prunes the
+/// `minimumReleaseAgeExclude` entries the freshly resolved lockfile no
+/// longer records: a version union is narrowed to the resolved version,
+/// an entry whose package is absent is dropped, and a glob is kept.
+#[test]
+fn prunes_the_minimum_release_age_excludes() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "minimumReleaseAgeExcludePrune: true\n\
+             minimumReleaseAgeExclude:\n  \
+             - '{FOO}@1.0.0 || 2.0.0'\n  \
+             - '@pnpm.e2e/bar@100.0.0'\n  \
+             - '@pnpm.e2e/*'\n",
+        ),
+    );
+
+    run_ok(&workspace, &["add", &format!("{FOO}@2.0.0")]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("{FOO}@2.0.0")),
+        "the narrowed exclude must keep the resolved version:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("1.0.0"),
+        "the version no longer resolved must be pruned:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the exclude for an absent package must be dropped:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/*"),
+        "a glob exclude must survive:\n{workspace_yaml}",
     );
 
     drop((root, anchor));

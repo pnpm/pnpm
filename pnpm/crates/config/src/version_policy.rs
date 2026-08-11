@@ -144,6 +144,64 @@ where
         .collect())
 }
 
+/// Package name → the exact versions the freshly resolved lockfile
+/// records for it. A package resolved only from a non-semver source
+/// (git, tarball, `file:`) maps to an empty set: its presence can still
+/// be confirmed, but no exact version can. Input of
+/// [`drop_unresolved_package_version_specs`].
+pub type ResolvedPackageVersions =
+    std::collections::BTreeMap<String, std::collections::BTreeSet<String>>;
+
+/// The `minimumReleaseAgeExcludePrune` pass over a
+/// `minimumReleaseAgeExclude` list: prune every spec against `resolved`,
+/// the versions the lockfile written by the just-finished install
+/// records. Entry order is preserved.
+///
+/// - `name@v1 || v2` keeps the resolved versions only; a narrowed entry
+///   is rewritten canonically (semver-sorted, ` || `-joined) via
+///   [`merge_package_version_specs`], an emptied one is dropped.
+/// - A bare `name` (no version part, no `*`) is dropped when the
+///   lockfile no longer resolves the package at all.
+/// - Name patterns carrying `*` and specs that fail parsing are kept
+///   verbatim — the pass never rejects a hand-written entry.
+#[must_use]
+pub fn drop_unresolved_package_version_specs(
+    specs: &[String],
+    resolved: &ResolvedPackageVersions,
+) -> Vec<String> {
+    specs.iter().filter_map(|spec| drop_unresolved_spec(spec, resolved)).collect()
+}
+
+fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Option<String> {
+    let Ok(parsed) = parse_version_policy_rule(spec) else {
+        return Some(spec.to_string());
+    };
+    if parsed.package_name.contains('*') {
+        return Some(spec.to_string());
+    }
+    let resolved_versions = resolved.get(parsed.package_name)?;
+    if parsed.exact_versions.is_empty() {
+        return Some(spec.to_string());
+    }
+    let kept: Vec<&str> = parsed
+        .exact_versions
+        .iter()
+        .map(String::as_str)
+        .filter(|version| resolved_versions.contains(*version))
+        .collect();
+    if kept.is_empty() {
+        return None;
+    }
+    if kept.len() == parsed.exact_versions.len() {
+        return Some(spec.to_string());
+    }
+    let narrowed = format!("{}@{}", parsed.package_name, kept.join(" || "));
+    merge_package_version_specs([&narrowed])
+        .expect("the kept versions already parsed as exact semver")
+        .into_iter()
+        .next()
+}
+
 /// Decision a [`PackageVersionPolicy`] reaches for a given package name.
 ///
 /// - [`PolicyMatch::No`] — no rule matched the name.
