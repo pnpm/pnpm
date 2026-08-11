@@ -135,6 +135,7 @@ impl WorkspaceSettings {
             };
         }
 
+        json_field!(ci, "CI");
         json_field!(hoist, "HOIST");
         tri_array_field!(hoist_pattern, "HOIST_PATTERN");
         tri_array_field!(public_hoist_pattern, "PUBLIC_HOIST_PATTERN");

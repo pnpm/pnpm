@@ -20,6 +20,7 @@ mod cat_file;
 mod cat_index;
 mod catalog;
 mod change;
+mod ci_frozen_lockfile;
 mod clean;
 mod completion;
 mod config_dependencies;

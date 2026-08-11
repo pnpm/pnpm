@@ -403,7 +403,7 @@ fn install_reruns_when_catalog_entry_changes() {
     )
     .expect("rewrite pnpm-workspace.yaml catalog entry");
 
-    run_ok(&workspace, &["install"]);
+    run_ok(&workspace, &["install", "--no-frozen-lockfile"]);
     assert_eq!(catalog_snapshot(&workspace, FOO), ("2.0.0".to_string(), "2.0.0".to_string()));
 
     drop((root, anchor));
