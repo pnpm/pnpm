@@ -111,9 +111,6 @@ fn ignore_manifest_check_flag_parses() {
     assert!(parsed.args.ignore_manifest_check, "flag present → true");
 }
 
-/// `--ignore-pnpmfile` parses to `true`. Absent → `false`. The flag is
-/// folded into `config.ignore_pnpmfile` at the dispatch in
-/// `cli_args.rs`, so the install path reads it off the config.
 #[test]
 fn ignore_pnpmfile_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");

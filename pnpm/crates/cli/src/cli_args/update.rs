@@ -128,7 +128,8 @@ pub struct UpdateArgs {
     #[clap(long = "no-changeset", overrides_with = "changeset")]
     pub no_changeset: bool,
 
-    /// Disable pnpm hooks defined in .pnpmfile.cjs
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
     #[clap(long = "ignore-pnpmfile")]
     pub ignore_pnpmfile: bool,
 }
