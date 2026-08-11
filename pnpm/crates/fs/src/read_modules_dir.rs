@@ -5,10 +5,12 @@ use std::{io, path::Path};
 ///
 /// Counterpart of the TypeScript CLI's `readModulesDir`: dot-prefixed
 /// entries (`.bin`, `.pnpm`, `.ignored`, tool caches such as `.cache`)
-/// and plain files are not packages and are left out. Symlinks are
-/// reported like any other entry — a `link:` dependency is a package as
-/// far as this enumeration goes, and callers that must distinguish them
-/// inspect the entry themselves.
+/// and plain files are not packages and are left out. A symlinked
+/// *package* is reported like any other — a `link:` dependency is a
+/// package as far as this enumeration goes, and callers that must
+/// distinguish them inspect the entry themselves. A symlinked *scope
+/// container* is not, since every name under it would resolve outside
+/// `modules_dir`.
 ///
 /// A missing `modules_dir` yields an empty list; every other read
 /// failure is surfaced.
@@ -41,10 +43,23 @@ fn collect_module_names(
         if name.starts_with('.') {
             continue;
         }
-        if entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            // The entry was removed between the directory read and this call.
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
+        if file_type.is_file() {
             continue;
         }
         if scope.is_none() && name.starts_with('@') {
+            // A scope container is always a real directory; only the packages
+            // inside it are ever symlinks. Reading through a symlinked one
+            // would report names that resolve outside `modules_dir`, which
+            // callers that delete what they enumerate would then follow.
+            if file_type.is_symlink() {
+                continue;
+            }
             collect_module_names(modules_dir, Some(name), names)?;
             continue;
         }

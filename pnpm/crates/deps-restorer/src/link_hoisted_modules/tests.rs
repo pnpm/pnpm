@@ -392,6 +392,45 @@ fn symlinks_and_dot_directories_are_preserved() {
     assert!(tool_cache.exists(), "tool cache at {tool_cache:?}");
 }
 
+/// A scope container is always a real directory in a tree pnpm owns.
+/// Scanning through a symlinked one would surface names that resolve
+/// outside the install root, and the confinement check is lexical, so
+/// removal would follow the symlink straight out of it.
+#[test]
+fn orphan_scan_does_not_delete_through_a_symlinked_scope() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let modules = lockfile_dir.join("node_modules");
+
+    let outside = tmp.path().join("outside");
+    let outside_pkg = outside.join("child");
+    fs::create_dir_all(&outside_pkg).expect("create outside package");
+    fs::create_dir_all(&modules).expect("create modules dir");
+    pnpm_fs::symlink_dir(&outside, &modules.join("@scope")).expect("create scope symlink");
+
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"hi")])],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &logged,
+        requester: lockfile_dir.to_str().expect("requester"),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+
+    assert!(outside_pkg.exists(), "package outside the install root at {outside_pkg:?}");
+}
+
 #[test]
 fn no_prev_graph_still_installs() {
     let tmp = tempfile::tempdir().expect("tempdir");

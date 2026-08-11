@@ -107,15 +107,15 @@ pub enum LinkHoistedModulesError {
     #[diagnostic(code(ERR_PNPM_LINK_HOISTED_MISSING_GRAPH_NODE))]
     MissingGraphNode { dir: PathBuf },
 
-    /// An importer's `node_modules` could not be enumerated for the
-    /// orphan scan. Removal failures are tolerated, but a directory we
-    /// cannot even read would silently leave orphans behind — the same
-    /// distinction pnpm draws between `readModulesDir`, which only
-    /// swallows a missing directory, and `tryRemoveDir`, which swallows
-    /// everything.
-    #[display("Failed to read {modules_dir:?} while scanning for orphaned directories")]
+    /// An importer's `node_modules`, or one entry in it, could not be
+    /// inspected for the orphan scan. Removal failures are tolerated,
+    /// but a path we cannot even read would silently leave orphans
+    /// behind — the same distinction pnpm draws between
+    /// `readModulesDir`, which only swallows a missing directory, and
+    /// `tryRemoveDir`, which swallows everything.
+    #[display("Failed to read {path:?} while scanning for orphaned directories")]
     #[diagnostic(code(ERR_PNPM_LINK_HOISTED_READ_MODULES_DIR))]
-    ReadModulesDir { modules_dir: PathBuf, source: io::Error },
+    ReadModulesDir { path: PathBuf, source: io::Error },
 
     #[diagnostic(transparent)]
     ImportIndexedDir(#[error(source)] ImportIndexedDirError),
@@ -226,14 +226,24 @@ fn find_unplanned_dirs(
 ) -> Result<Vec<PathBuf>, LinkHoistedModulesError> {
     let modules_dir = project_dir.join("node_modules");
     let pkg_names = read_modules_dir(&modules_dir).map_err(|source| {
-        LinkHoistedModulesError::ReadModulesDir { modules_dir: modules_dir.clone(), source }
+        LinkHoistedModulesError::ReadModulesDir { path: modules_dir.clone(), source }
     })?;
-    let unplanned = pkg_names
-        .into_iter()
-        .map(|pkg_name| modules_dir.join(pkg_name))
-        .filter(|dir| !planned_deps.0.contains_key(dir))
-        .filter(|dir| fs::symlink_metadata(dir).is_ok_and(|metadata| metadata.is_dir()))
-        .collect();
+    let mut unplanned = Vec::new();
+    for dir in pkg_names.into_iter().map(|pkg_name| modules_dir.join(pkg_name)) {
+        if planned_deps.0.contains_key(&dir) {
+            continue;
+        }
+        match fs::symlink_metadata(&dir) {
+            Ok(metadata) if metadata.is_dir() => unplanned.push(dir),
+            // A symlink or a file is not a package directory the plan owns.
+            Ok(_) => {}
+            // The entry was removed while the scan was running.
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(source) => {
+                return Err(LinkHoistedModulesError::ReadModulesDir { path: dir, source });
+            }
+        }
+    }
     Ok(unplanned)
 }
 

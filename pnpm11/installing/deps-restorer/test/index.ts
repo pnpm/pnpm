@@ -927,6 +927,11 @@ test('installing in a workspace with node-linker=hoisted removes directories tha
   fs.mkdirSync(toolCache, { recursive: true })
   const linkedDep = path.join(prefix, 'foo/node_modules/linked-dep')
   fs.symlinkSync(path.join(prefix, 'bar'), linkedDep, 'junction')
+  // A symlinked scope container would put every name under it outside the
+  // install root, where the scan must not follow.
+  const outsidePkg = path.join(prefix, '../outside/child')
+  fs.mkdirSync(outsidePkg, { recursive: true })
+  fs.symlinkSync(path.join(prefix, '../outside'), path.join(prefix, 'foo/node_modules/@scope'), 'junction')
 
   await headlessInstall(await testDefaults({
     lockfileDir: prefix,
@@ -942,6 +947,7 @@ test('installing in a workspace with node-linker=hoisted removes directories tha
   }
   expect(fs.existsSync(toolCache)).toBeTruthy()
   expect(fs.lstatSync(linkedDep).isSymbolicLink()).toBeTruthy()
+  expect(fs.existsSync(outsidePkg)).toBeTruthy()
   expect(readPkgVersion(path.join(prefix, 'foo/node_modules/webpack'))).toBe('2.7.0')
 })
 
