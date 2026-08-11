@@ -67,6 +67,21 @@ fn patch_commit_diff_dirs_accepts_paths_that_start_with_dash() {
     assert!(diff.contains("diff --git a/index.js b/index.js"), "diff: {diff}");
 }
 
+#[test]
+fn patch_commit_diff_dirs_accepts_paths_with_non_ascii_characters() {
+    let tmp = tempdir().expect("temp dir");
+    let before = tmp.path().join("한글-before");
+    let after = tmp.path().join("한글-after");
+    fs::create_dir(&before).unwrap();
+    fs::create_dir(&after).unwrap();
+    fs::write(before.join("index.js"), "before\n").unwrap();
+    fs::write(after.join("index.js"), "after\n").unwrap();
+
+    let diff = diff_folders(&before, &after).expect("diff dirs");
+
+    assert!(diff.contains("diff --git a/index.js b/index.js"), "diff: {diff}");
+}
+
 #[cfg(unix)]
 #[test]
 fn patch_commit_diff_temp_files_are_owner_only() {

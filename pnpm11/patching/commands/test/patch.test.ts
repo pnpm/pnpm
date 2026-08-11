@@ -364,6 +364,32 @@ describe('patch and commit', () => {
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
   })
 
+  test('patch and commit with a custom edit dir containing non-ASCII characters', async () => {
+    const editDir = path.join(temporaryDirectory(), '한글')
+
+    const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(patchDir).toBe(editDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git a/index.js b/index.js')
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+  })
+
   test('patch with relative path to custom edit dir and commit with absolute path', async () => {
     const editDir = 'custom-edit-dir'
 
