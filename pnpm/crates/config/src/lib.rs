@@ -1676,6 +1676,12 @@ pub struct Config {
     /// all match, the project is selected without its dependents.
     pub test_pattern: Vec<String>,
 
+    /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` /
+    /// `PNPM_CONFIG_SYNC_INJECTED_DEPS_AFTER_SCRIPTS`. Names the scripts
+    /// after which every injected copy of the package that ran them is
+    /// re-synced from its source.
+    pub sync_injected_deps_after_scripts: Vec<String>,
+
     /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_CHANGED_FILES_IGNORE_PATTERN`, overridable by the
     /// `--changed-files-ignore-pattern` CLI flag. Glob patterns of

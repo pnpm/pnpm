@@ -4,6 +4,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
+use pacquet_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::LogEvent;
@@ -385,6 +386,14 @@ pub(super) fn run_stages(
         {
             return Ok(status);
         }
+    }
+
+    if ctx.config.sync_injected_deps_after_scripts.iter().any(|script| script == name) {
+        sync_injected_deps(&SyncInjectedDeps {
+            pkg_name: ctx.manifest.value().get("name").and_then(Value::as_str),
+            pkg_root_dir: ctx.dir,
+            workspace_dir: ctx.config.workspace_dir.as_deref(),
+        })?;
     }
 
     Ok(main_status)

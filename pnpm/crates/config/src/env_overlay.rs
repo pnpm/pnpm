@@ -225,6 +225,7 @@ impl WorkspaceSettings {
         json_field!(workspace_concurrency, "WORKSPACE_CONCURRENCY");
         json_field!(git_shallow_hosts, "GIT_SHALLOW_HOSTS");
         json_field!(test_pattern, "TEST_PATTERN");
+        json_field!(sync_injected_deps_after_scripts, "SYNC_INJECTED_DEPS_AFTER_SCRIPTS");
         json_field!(changed_files_ignore_pattern, "CHANGED_FILES_IGNORE_PATTERN");
         json_field!(supported_architectures, "SUPPORTED_ARCHITECTURES");
         json_field!(ignored_optional_dependencies, "IGNORED_OPTIONAL_DEPENDENCIES");

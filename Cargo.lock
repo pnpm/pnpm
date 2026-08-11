@@ -4024,6 +4024,7 @@ dependencies = [
  "pacquet-global",
  "pacquet-graph-hasher",
  "pacquet-hooks",
+ "pacquet-injected-deps-syncer",
  "pacquet-lockfile",
  "pacquet-lockfile-verification",
  "pacquet-modules-yaml",
@@ -4517,6 +4518,26 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "pacquet-injected-deps-syncer"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-cmd-shim",
+ "pacquet-directory-fetcher",
+ "pacquet-fs",
+ "pacquet-modules-yaml",
+ "pacquet-package-manifest",
+ "pacquet-testing-utils",
+ "pacquet-workspace",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
