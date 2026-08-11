@@ -68,10 +68,7 @@ mod real_package_name_of {
 
     #[test]
     fn falls_back_to_alias_for_plain_dep() {
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("^1.0.0")).as_deref(),
-            Some("foo"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("^1.0.0")).as_deref(), Some("foo"));
     }
 
     #[test]
@@ -83,18 +80,12 @@ mod real_package_name_of {
     fn parses_real_name_from_npm_alias_with_version_range() {
         // Update targeting is keyed by the real name (matches the depPath
         // recorded in the lockfile, not the install alias).
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("npm:bar@^4")).as_deref(),
-            Some("bar"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:bar@^4")).as_deref(), Some("bar"));
     }
 
     #[test]
     fn parses_real_name_from_npm_alias_without_version() {
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("npm:bar")).as_deref(),
-            Some("bar"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:bar")).as_deref(), Some("bar"));
     }
 
     #[test]
@@ -131,10 +122,7 @@ mod real_package_name_of {
         // not a name. The install alias `foo` is the real package
         // name — without this branch, the range string itself would
         // be returned as the name and update targeting would miss.
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("npm:^1.0.0")).as_deref(),
-            Some("foo"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:^1.0.0")).as_deref(), Some("foo"));
     }
 
     #[test]
@@ -175,10 +163,7 @@ mod real_package_name_of {
         // must not fall back to the install alias — otherwise a broken
         // jsr dep could match an update target by alias and wrongly be
         // treated as one.
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("jsr:foo@^1.0.0")).as_deref(),
-            None,
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("jsr:foo@^1.0.0")).as_deref(), None);
     }
 }
 

@@ -229,10 +229,8 @@ pub(super) fn node_depends_on_changed_direct_dep(
 /// The highest resolved direct-dependency version of `name` strictly
 /// above `pinned` that still satisfies `range`, or `None`. Anchored to
 /// direct deps (the deterministic, resolved-before-the-walk signal).
-/// `direct_versions` is the importer's snapshot, taken once per walk by
-/// [`fn@walk_node_children`].
-///
-/// [`fn@walk_node_children`]: super::walk::walk_node_children
+/// `direct_versions` is the importer's snapshot, taken once per walked
+/// occurrence as it seeds its children.
 pub(super) fn higher_direct_dep_version(
     direct_versions: Option<&DirectDepVersions>,
     name: &str,

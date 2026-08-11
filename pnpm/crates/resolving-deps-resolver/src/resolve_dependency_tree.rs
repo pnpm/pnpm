@@ -39,7 +39,7 @@ pub(crate) use workspace_ctx::SyncCursor;
 
 use reuse::{ReuseSource, record_direct_dep_versions};
 use walk::{
-    NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_node_children,
+    NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,
     warm_children_resolutions,
 };
 
@@ -586,24 +586,10 @@ where
         direct_versions,
     );
     let children_pkg_aliases = parent_pkg_aliases.extend(level_aliases(&seeds));
-    // Phase 2: walk each direct dep's children with the level overlay.
-    let results = seeds
-        .into_iter()
-        .map(|seed| {
-            let overlay = children_overlay.clone();
-            let pkg_aliases = Arc::clone(&children_pkg_aliases);
-            async move {
-                match seed {
-                    NodeSeed::Done(dep) => Ok(dep),
-                    NodeSeed::Pending(pending) => {
-                        walk_node_children(ctx, resolver, *pending, overlay, pkg_aliases).await
-                    }
-                }
-            }
-        })
-        .pipe(future::try_join_all)
-        .await?;
-    let direct: Vec<DirectDep> = results.into_iter().flatten().collect();
+    // Phase 2: settle this level's children ownership and walk the tree
+    // below it a level at a time.
+    let direct =
+        walk_from_seeds(ctx, resolver, seeds, children_overlay, children_pkg_aliases).await?;
     ctx.workspace.record_preferred_version_roots(direct.iter().map(|dep| dep.id.as_str()));
     // Second bump, after every write of this wave (including the roots
     // above) has landed: a `run_preferred_versions` read racing with
