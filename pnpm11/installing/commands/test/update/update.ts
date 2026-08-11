@@ -174,6 +174,45 @@ test('update of a transitive dependency ignores the requested version and resolv
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeFalsy()
 })
 
+test('update a transitive dependency by name when a versioned direct-dep selector is also present', async () => {
+  // Pin the transitive @pnpm.e2e/dep-of-pkg-with-1-dep to 100.0.0 at install
+  // time, so the later update has an older version to bump from.
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  expect(project.readLockfile().packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  // The versioned direct-dep selector `@pnpm.e2e/foo@100.1.0` must not
+  // disable transitive targeting of `@pnpm.e2e/dep-of-pkg-with-1-dep`.
+  // The bare-name selector still matches the transitive package and bumps
+  // it from 100.0.0 to 100.1.0, exactly like the all-bare-name case.
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    save: false,
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep', '@pnpm.e2e/foo@100.1.0'])
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/foo@100.1.0']).toBeTruthy()
+})
+
 test('update with a version on a crafted package name does not pollute Object.prototype', async () => {
   const project = prepare({
     dependencies: {
