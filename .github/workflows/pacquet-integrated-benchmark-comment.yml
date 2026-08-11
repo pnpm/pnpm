@@ -133,7 +133,7 @@ jobs:
           body-file: benchmark-artifact/SUMMARY.md
 
       - name: Install Bencher CLI
-        if: hashFiles('benchmark-artifact/bencher-results.json') != ''
+        if: hashFiles('benchmark-artifact/bencher-observations.json') != ''
         uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85 # v0.6.11
 
       - name: Upload PR results to Bencher
@@ -143,11 +143,11 @@ jobs:
         # `meta` above), never from the artifact body.
         #
         # One benchmark, two testbeds: `pacquet` (direct install) and
-        # `pnpr` (the accelerated path). Each uploads from its own
-        # bencher-results file produced by the build workflow. The dedicated
+        # `pnpr` (the accelerated path). Each uploads from its own observation
+        # file produced by the build workflow. The dedicated
         # summary above owns the PR comment; Bencher records the cross-run
         # trends without creating a second comment or check.
-        if: hashFiles('benchmark-artifact/bencher-results.json') != ''
+        if: hashFiles('benchmark-artifact/bencher-observations.json') != ''
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           PR_NUMBER: ${{ steps.meta.outputs.pr }}
@@ -176,8 +176,8 @@ jobs:
               --adapter json \
               --file "$file"
           }
-          upload pacquet benchmark-artifact/bencher-results.json
-          upload pnpr benchmark-artifact/bencher-results-pnpr.json
+          upload pacquet benchmark-artifact/bencher-observations.json
+          upload pnpr benchmark-artifact/bencher-observations-pnpr.json
 
       - name: Re-raise the stable-scenario gate
         if: hashFiles('benchmark-artifact/STABLE_SCENARIO_GATE_FAILED') != ''

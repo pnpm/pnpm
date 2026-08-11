@@ -683,8 +683,8 @@ jobs:
         run: |
           mkdir -p benchmark-artifact
           cp bench-work-env/SUMMARY.md benchmark-artifact/SUMMARY.md
-          cp bench-work-env/bencher-results.json benchmark-artifact/bencher-results.json
-          cp bench-work-env/bencher-results-pnpr.json benchmark-artifact/bencher-results-pnpr.json
+          cp bench-work-env/bencher-results.json benchmark-artifact/bencher-observations.json
+          cp bench-work-env/bencher-results-pnpr.json benchmark-artifact/bencher-observations-pnpr.json
           if [ "${{ steps.stable_scenarios.outcome }}" = 'failure' ]; then
             touch benchmark-artifact/STABLE_SCENARIO_GATE_FAILED
           fi
