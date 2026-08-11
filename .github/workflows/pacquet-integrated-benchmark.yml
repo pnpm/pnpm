@@ -676,7 +676,7 @@ jobs:
 
       - name: Stage artifact contents
         # The artifact carries the rendered report, the Bencher-shaped JSON,
-        # and a stable-gate failure marker when applicable. The PR number and
+        # and gate-failure markers when applicable. The PR number and
         # runner OS are derived from the trusted workflow_run event payload in
         # the comment workflow, not from fork-controlled artifact contents.
         shell: bash
@@ -687,6 +687,9 @@ jobs:
           cp bench-work-env/bencher-results-pnpr.json benchmark-artifact/bencher-observations-pnpr.json
           if [ "${{ steps.stable_scenarios.outcome }}" = 'failure' ]; then
             touch benchmark-artifact/STABLE_SCENARIO_GATE_FAILED
+          fi
+          if [ "${{ steps.peer_heavy.outcome }}" = 'failure' ]; then
+            touch benchmark-artifact/PEER_HEAVY_GATE_FAILED
           fi
 
       - name: Upload benchmark report
@@ -762,8 +765,9 @@ jobs:
       - name: Re-raise the peer-heavy gate
         # Deferred from the peer-heavy step so its cross-engine assertion
         # cannot abort the job before the run's data points are published.
-        # Runs even when an earlier step failed, so the gate is never skipped.
-        if: always() && steps.peer_heavy.outcome == 'failure'
+        # Pull requests re-raise this marker in the comment workflow, after it
+        # has posted the report. Direct runs have no second-stage workflow.
+        if: always() && github.event_name != 'pull_request' && steps.peer_heavy.outcome == 'failure'
         shell: bash
         run: |
           echo "::error::The peer-heavy benchmark step failed; see its log for the assertion or build error."

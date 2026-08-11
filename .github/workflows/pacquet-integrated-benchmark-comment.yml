@@ -31,7 +31,7 @@ jobs:
   comment:
     name: Post benchmark comment
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Stable-scenario failures are carried in the successful run artifact and
+    # Benchmark-gate failures are carried in the successful run artifact and
     # re-raised below, after the report is posted. Early benchmark failures do
     # not have an artifact, so keep skipping them here.
     if: |
@@ -180,8 +180,15 @@ jobs:
           upload pnpr benchmark-artifact/bencher-observations-pnpr.json
 
       - name: Re-raise the stable-scenario gate
-        if: hashFiles('benchmark-artifact/STABLE_SCENARIO_GATE_FAILED') != ''
+        if: always() && hashFiles('benchmark-artifact/STABLE_SCENARIO_GATE_FAILED') != ''
         shell: bash
         run: |
           echo "::error::The stable-scenario benchmark gate failed; see the benchmark comment and producer workflow logs for details."
+          exit 1
+
+      - name: Re-raise the peer-heavy gate
+        if: always() && hashFiles('benchmark-artifact/PEER_HEAVY_GATE_FAILED') != ''
+        shell: bash
+        run: |
+          echo "::error::The peer-heavy benchmark gate failed; see the benchmark comment and producer workflow logs for details."
           exit 1
