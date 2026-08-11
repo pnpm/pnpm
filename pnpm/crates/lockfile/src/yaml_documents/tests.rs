@@ -49,19 +49,31 @@ fn normalizes_a_single_document_file() {
 /// byte, so each chunk size puts a different one across a boundary.
 #[track_caller]
 fn assert_streams(content: &str, expected: Option<&str>) {
-    eprintln!("EXPECTED ENV DOCUMENT:\n{}\n", expected.unwrap_or("<none>"));
     for chunk_size in [1, 2, 3, 4, 5, 6, 7, 64, READ_BUFFER_SIZE] {
         let read = read_first_yaml_document_in_chunks(content.as_bytes(), chunk_size)
             .expect("read the env document");
-        eprintln!("CHUNK SIZE {chunk_size} READ:\n{}\n", read.as_deref().unwrap_or("<none>"));
-        assert_eq!(read.as_deref(), expected, "chunk size {chunk_size}");
+        assert_documents_eq(read.as_deref(), expected, &format!("chunk size {chunk_size}"));
     }
     let read = read_first_yaml_document(content.as_bytes()).expect("read the env document");
     let extracted = extract_env_document(content);
-    eprintln!("READ:\n{}\n", read.as_deref().unwrap_or("<none>"));
-    eprintln!("EXTRACTED:\n{}\n", extracted.as_deref().unwrap_or("<none>"));
-    assert_eq!(read.as_deref(), expected);
-    assert_eq!(read.as_deref(), extracted.as_deref());
+    assert_documents_eq(read.as_deref(), expected, "default chunk size");
+    assert_documents_eq(read.as_deref(), extracted.as_deref(), "against extract_env_document");
+}
+
+/// Logs both documents with `{}` before failing: `assert_eq!` renders a
+/// multiline document as one escaped line, and the fixtures here run to
+/// six figures of bytes, so logging every comparison would bury the one
+/// that failed.
+#[track_caller]
+fn assert_documents_eq(read: Option<&str>, expected: Option<&str>, context: &str) {
+    if read != expected {
+        eprintln!(
+            "{context}\nREAD:\n{}\n\nEXPECTED:\n{}\n",
+            read.unwrap_or("<none>"),
+            expected.unwrap_or("<none>"),
+        );
+    }
+    assert_eq!(read, expected, "{context}");
 }
 
 #[test]
