@@ -10,9 +10,13 @@ use pacquet_lockfile::{
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
 };
+
+/// The lockfile's `packages:` block, which an absorbed edge reads the
+/// version it points at out of.
+type LockedPackages = HashMap<PackageKey, pacquet_lockfile::PackageMetadata>;
 
 /// Each manifest alias with its specifier and the group it is
 /// effectively declared under. Keyed by [`PkgName`] so membership tests
@@ -122,7 +126,7 @@ pub(crate) fn apply_importers_update(
             }
         }
     }
-    let Lockfile { packages, importers, .. } = candidate;
+    let Lockfile { packages, importers, time, .. } = candidate;
     for (importer_id, manifest, manifest_dependencies) in &plan.manifest_dependencies {
         let records_nothing =
             importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
@@ -146,9 +150,22 @@ pub(crate) fn apply_importers_update(
             return false;
         };
         for (alias, (specifier, target)) in manifest_dependencies {
-            let Some(dependency) = importer_dependency_mut(importer, alias) else {
-                return false;
-            };
+            if importer_dependency(importer, alias).is_none() {
+                if !add_importer_edge(
+                    importer,
+                    alias,
+                    (specifier, *target),
+                    packages.as_ref(),
+                    time.as_ref(),
+                    plan,
+                    edits,
+                ) {
+                    return false;
+                }
+                continue;
+            }
+            let dependency =
+                importer_dependency_mut(importer, alias).expect("looked up just above");
             let specifier_changed = dependency.specifier != *specifier;
             if specifier_changed {
                 let Ok(range) = Range::parse(specifier) else {
@@ -247,6 +264,71 @@ fn importer_from_locked_versions(
     Some(importer)
 }
 
+/// Record `alias` as a direct dependency of `importer` at the version the
+/// lockfile already holds for it, under the group the manifest declares it
+/// in.
+///
+/// Safe without resolving for the same reason a moved range is: the version
+/// and its subtree are already recorded, and a subtree that resolved a peer
+/// from outside itself would have left `alias` peer-suffixed, which
+/// [`locked_version_resolution_would_pick`] refuses.
+///
+/// `false` leaves the caller on the full-resolution path.
+fn add_importer_edge(
+    importer: &mut ProjectSnapshot,
+    alias: &PkgName,
+    declared: (&str, DependencyGroup),
+    packages: Option<&LockedPackages>,
+    time: Option<&BTreeMap<String, String>>,
+    plan: &ImportersPlan<'_, '_>,
+    edits: &mut GraphEdits,
+) -> bool {
+    let (specifier, target) = declared;
+    // A recorded specifier with nothing to point at is a lockfile only the
+    // resolver can make sense of.
+    if importer
+        .specifiers
+        .as_ref()
+        .is_some_and(|specifiers| specifiers.contains_key(&alias.to_string()))
+    {
+        return false;
+    }
+    if is_directory_dependency(&alias.to_string(), specifier, &plan.workspace_package_names) {
+        return false;
+    }
+    let Ok(range) = Range::parse(specifier) else {
+        return false;
+    };
+    let Some(wanted) =
+        locked_version_resolution_would_pick(packages, alias, &range, plan.resolution_picks_lowest)
+    else {
+        return false;
+    };
+    // `time` carries a publish date per direct dependency, and only a
+    // resolution can look up the one for a package this promotes into that
+    // position.
+    if time.is_some_and(|time| !time.contains_key(&format!("{alias}@{wanted}"))) {
+        return false;
+    }
+    let Ok(version) = wanted.to_string().parse() else {
+        return false;
+    };
+    importer_group(importer, target).get_or_insert_default().insert(
+        alias.clone(),
+        ResolvedDependencySpec {
+            specifier: specifier.to_string(),
+            version: ImporterDepVersion::Regular(version),
+        },
+    );
+    if let Some(specifiers) = importer.specifiers.as_mut() {
+        specifiers.insert(alias.to_string(), specifier.to_string());
+    }
+    // A path that does not run through `optionalDependencies` clears the
+    // `optional` flag of everything the new edge reaches.
+    edits.optional_flags_are_stale |= target != DependencyGroup::Optional;
+    true
+}
+
 /// Whether an importer that survives the prune links to `importer_id`.
 fn is_linked_from_a_survivor(lockfile: &Lockfile, importer_id: &str, stale: &[String]) -> bool {
     lockfile.importers.iter().any(|(survivor_id, importer)| {
@@ -310,7 +392,7 @@ fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> bool {
 ///   guess, or a registry-qualified one, whose semver only pins a version
 ///   within its named registry.
 pub(crate) fn locked_version_resolution_would_pick(
-    packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
+    packages: Option<&LockedPackages>,
     alias: &PkgName,
     range: &Range,
     resolution_picks_lowest: bool,

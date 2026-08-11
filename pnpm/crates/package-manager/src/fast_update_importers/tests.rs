@@ -662,12 +662,12 @@ fn moves_several_dependencies_between_groups_in_one_pass() {
 }
 
 #[test]
-fn rejects_a_dependency_the_lockfile_does_not_record() {
+fn rejects_a_dependency_the_lockfile_holds_no_version_of() {
     let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.0.0", "extra": "^1.0.0" } }));
 
     assert!(
         try_fast_update_importers(&lockfile(), &[(".".to_string(), &manifest)]).is_none(),
-        "an added dependency needs the resolver",
+        "only the resolver can fetch a package the lockfile never saw",
     );
 }
 
@@ -1346,5 +1346,149 @@ fn rejects_a_range_when_the_alias_also_has_a_named_registry_key() {
     assert!(
         try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_none(),
         "the alias spans two registries, so a plain reference cannot say which is meant",
+    );
+}
+
+#[test]
+fn adds_a_dependency_at_the_highest_locked_version_satisfying_it() {
+    let subject = with_a_second_locked_child();
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "opt": "^5.0.0", "child": "^3.0.0" } }),
+    );
+    let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
+        .expect("the lockfile already holds a version satisfying the new dependency");
+
+    let dependencies = updated.importers["."].dependencies.as_ref().expect("dependencies");
+    let added = &dependencies[&"child".parse::<PkgName>().expect("alias")];
+    assert_eq!(added.specifier, "^3.0.0");
+    assert_eq!(added.version.to_string(), "3.1.0");
+}
+
+#[test]
+fn adding_a_dependency_clears_the_optional_flag_of_what_it_reaches() {
+    let mut subject = parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD);
+    let importer = subject.importers.get_mut(".").expect("importer");
+    importer.dependencies = None;
+    let snapshots = subject.snapshots.as_mut().expect("snapshots");
+    for key in ["bar@2.0.0", "child@3.0.0"] {
+        snapshots.get_mut(&key.parse().expect("snapshot key")).expect("snapshot").optional = true;
+    }
+    let manifest = manifest_from(json!({
+        "dependencies": { "child": "^3.0.0" },
+        "optionalDependencies": { "opt": "^5.0.0" },
+    }));
+
+    let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
+        .expect("the added dependency is already locked");
+
+    assert!(!snapshot_optional(&updated, "child@3.0.0"), "a prod path now reaches child");
+}
+
+#[test]
+fn adding_an_optional_dependency_leaves_the_flags_alone() {
+    let mut subject = parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD);
+    let importer = subject.importers.get_mut(".").expect("importer");
+    importer.dependencies = None;
+    let snapshots = subject.snapshots.as_mut().expect("snapshots");
+    for key in ["bar@2.0.0", "child@3.0.0"] {
+        snapshots.get_mut(&key.parse().expect("snapshot key")).expect("snapshot").optional = true;
+    }
+    let manifest =
+        manifest_from(json!({ "optionalDependencies": { "opt": "^5.0.0", "child": "^3.0.0" } }));
+
+    let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
+        .expect("the added dependency is already locked");
+
+    assert!(snapshot_optional(&updated, "child@3.0.0"));
+}
+
+#[test]
+fn rejects_adding_a_dependency_no_locked_version_satisfies() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "opt": "^5.0.0", "child": "^4.0.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "only the resolver can fetch a version the lockfile does not hold",
+    );
+}
+
+/// [`WITH_SHARED_OPTIONAL_CHILD`] with a second version of `child` locked, so
+/// which end of a range satisfying both is picked becomes observable.
+fn with_a_second_locked_child() -> Lockfile {
+    let mut subject = parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD);
+    let packages = subject.packages.as_mut().expect("packages");
+    let metadata = packages[&"child@3.0.0".parse::<PackageKey>().expect("package key")].clone();
+    packages.insert("child@3.1.0".parse().expect("package key"), metadata);
+    let snapshots = subject.snapshots.as_mut().expect("snapshots");
+    let snapshot = snapshots[&"child@3.0.0".parse().expect("snapshot key")].clone();
+    snapshots.insert("child@3.1.0".parse().expect("snapshot key"), snapshot);
+    subject
+}
+
+#[test]
+fn rejects_adding_a_dependency_naming_a_workspace_project() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "opt": "^5.0.0", "child": "^3.0.0" } }),
+    );
+    let sibling = manifest_from(json!({ "name": "child" }));
+
+    assert!(
+        crate::fast_update_compose::try_compose_fast_updates(
+            &parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD),
+            &[(".".to_string(), &manifest)],
+            &[(PathBuf::from("/child/package.json"), &sibling)],
+            &pacquet_config::Config::default(),
+            false,
+        )
+        .is_none(),
+        "only the resolver decides whether a workspace project is linked",
+    );
+}
+
+#[test]
+fn rejects_adding_a_dependency_several_locked_versions_satisfy_when_resolution_picks_lowest() {
+    let subject = with_a_second_locked_child();
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "opt": "^5.0.0", "child": "^3.0.0" } }),
+    );
+    let config = pacquet_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
+
+    assert!(
+        crate::fast_update_compose::try_compose_fast_updates(
+            &subject,
+            &[(".".to_string(), &manifest)],
+            &[],
+            &config,
+            false,
+        )
+        .is_none(),
+        "which end of the range a direct dependency takes is not a property of the lockfile",
+    );
+}
+
+#[test]
+fn rejects_adding_a_dependency_to_a_lockfile_that_records_publish_dates() {
+    let mut subject = parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD);
+    subject.time = Some(
+        [
+            ("bar@2.0.0".to_string(), "2020-01-01T00:00:00.000Z".to_string()),
+            ("opt@5.0.0".to_string(), "2020-01-01T00:00:00.000Z".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "opt": "^5.0.0", "child": "^3.0.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_none(),
+        "only a resolution can record the publish date of a new direct dependency",
     );
 }

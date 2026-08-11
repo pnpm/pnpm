@@ -1712,3 +1712,100 @@ fn write_two_member_workspace(workspace: &Path) {
         .expect("write the member package.json");
     }
 }
+
+#[test]
+fn add_command_reuses_a_locked_version_without_resolving() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    // The transitive `^100.0.0` of `@pnpm.e2e/pkg-with-1-dep` locks
+    // `100.1.0`, so promoting it to a direct dependency at that version
+    // changes nothing but the importer edge.
+    let assert = pacquet_at(&workspace)
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"])
+        .assert()
+        .success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "adding an already-locked version needs no resolution",
+    );
+
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json");
+    assert_eq!(manifest["dependencies"]["@pnpm.e2e/dep-of-pkg-with-1-dep"], "100.1.0");
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let added = &wanted.importers["."].dependencies.as_ref().expect("dependencies")
+        [&"@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("alias")];
+    assert_eq!(added.specifier, "100.1.0");
+    assert_eq!(added.version.to_string(), "100.1.0");
+    assert!(
+        workspace.join("node_modules").join("@pnpm.e2e").join("dep-of-pkg-with-1-dep").exists(),
+        "the added dependency is linked into node_modules",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn add_command_resolves_a_version_the_lockfile_does_not_hold() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let assert = pacquet_at(&workspace)
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0"])
+        .assert()
+        .success();
+    assert!(
+        !String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "a version nothing locks has to be fetched",
+    );
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    assert_eq!(
+        wanted.importers["."].dependencies.as_ref().expect("dependencies")
+            [&"@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("alias")]
+            .version
+            .to_string(),
+        "101.0.0",
+    );
+
+    drop((root, mock_instance));
+}
