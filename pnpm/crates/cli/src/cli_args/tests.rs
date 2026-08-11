@@ -806,3 +806,13 @@ fn config_merged_boolean_negations_parse() {
     assert!(args.no_frozen_store);
     assert!(args.no_ignore_scripts);
 }
+
+#[test]
+fn add_ignore_pnpmfile_flag_applies_to_config() {
+    let mut config = pacquet_config::Config::default();
+    add_args(&["pacquet", "add", "foo"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
+
+    add_args(&["pacquet", "add", "foo", "--ignore-pnpmfile"]).apply_cli_config(&mut config);
+    assert!(config.ignore_pnpmfile, "flag present → config set");
+}

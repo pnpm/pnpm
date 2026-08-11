@@ -159,6 +159,9 @@ pub struct AddArgs {
     /// Force-enable lifecycle scripts for this invocation.
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
+    /// Disable pnpm hooks defined in .pnpmfile.cjs
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
     /// Reinstall every package the lockfile names: relink packages an
     /// earlier install already materialized, and install optional
     /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
@@ -174,6 +177,7 @@ impl AddArgs {
             self.no_ignore_scripts,
             config.ignore_scripts,
         );
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
         config.force = self.force || config.force;
     }
 
