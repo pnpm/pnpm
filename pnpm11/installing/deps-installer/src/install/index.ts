@@ -741,11 +741,15 @@ export async function mutateModules (
     let didFastUpdateOverrides = false
     const contextProjects = Object.values(ctx.projects)
     const changedSettingsFields = changedLockfileSettings.filter(isSettingsField)
+    // Typed as required, but a caller that passes it through from its own
+    // optional config leaves it undefined, and this now runs on every
+    // install rather than only when the fast path opens.
+    const configuredOverrides = opts.overrides ?? {}
     // An override whose value is a `catalog:` reference is only meaningful
     // once the catalog rewrite has settled, and the range-only catalog
     // rewrite refuses to run under one. Neither resolver-consulting rewrite
     // composes with that, so both leave the drift to the resolver.
-    const overridesUseCatalogs = Object.values(opts.overrides)
+    const overridesUseCatalogs = Object.values(configuredOverrides)
       .some((specifier) => parseCatalogProtocol(specifier) != null)
     const hasAsyncDrift = changedLockfileSettings.includes('catalogs') ||
       changedLockfileSettings.includes('overrides')
@@ -858,7 +862,7 @@ export async function mutateModules (
             catalogs: rewriteOptions && {
               ...rewriteOptions,
               catalogs: opts.catalogs,
-              overrides: opts.overrides,
+              overrides: configuredOverrides,
               parsedOverrides: opts.parsedOverrides,
             },
             overrides: rewriteOptions && {
