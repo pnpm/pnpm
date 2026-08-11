@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
@@ -209,6 +209,45 @@ test('adding a patch for a locked package rekeys it without resolution', async (
     version: `1.0.0(patch_hash=${patchFileHash})`,
   })
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
+})
+
+test('a removal that orphans an allowed unused patch still reports it', async () => {
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const manifest: ProjectManifest = {
+    dependencies: { 'is-positive': '1.0.0', '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+  }
+  const options = testDefaults({
+    allowUnusedPatches: true,
+    patchedDependencies: { 'is-positive@1.0.0': patchPath },
+  })
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const reporter = jest.fn()
+  const removalOptions = testDefaults({
+    allowUnusedPatches: true,
+    patchedDependencies: { 'is-positive@1.0.0': patchPath },
+    reporter,
+  })
+  const requestedPackages = trackRequestedPackages(removalOptions.storeController)
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-positive'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, removalOptions)
+
+  // The rewrite keeps the fast path, and still says what the resolution it
+  // replaced would have said.
+  expect(requestedPackages).toStrictEqual([])
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: 'The following patches were not used: is-positive@1.0.0',
+  }))
 })
 
 test('the rekeyed lockfile matches what a full resolution writes', async () => {

@@ -266,6 +266,23 @@ pub(crate) fn every_configured_patch_is_applied(
     !all_patch_keys(&groups).any(|key| !applied.contains(key))
 }
 
+/// The configured patches the committed lockfile leaves unused, as the
+/// resolution's own `verify_patches` would report them.
+///
+/// Only non-empty with `allowUnusedPatches` on: with it off,
+/// [`every_configured_patch_is_applied`] declines the rewrite instead, and
+/// the resolution that takes over raises `ERR_PNPM_UNUSED_PATCH`.
+pub(crate) fn unused_patches(
+    lockfile: &Lockfile,
+    hashes: Option<&BTreeMap<String, String>>,
+) -> Option<pacquet_patching::UnusedPatches> {
+    let hashes = hashes.filter(|hashes| !hashes.is_empty())?;
+    let groups = groups_from_hashes(hashes)?;
+    let applied = applied_patch_keys(lockfile, &groups)?;
+    let applied = applied.into_iter().map(str::to_string).collect();
+    pacquet_patching::verify_patches(&groups, &applied, true).ok().flatten()
+}
+
 /// Bucket `hashes` the way the resolver buckets configured patches.
 ///
 /// The patch file path is left out: nothing here applies a patch, and

@@ -6,6 +6,7 @@ import {
   getPatchInfo,
   groupPatchedDependencies,
   type PatchGroupRecord,
+  verifyPatches,
 } from '@pnpm/patching.config'
 import type { DepPath } from '@pnpm/types'
 
@@ -187,6 +188,28 @@ function changedKeys (
 ): string[] {
   const keys = new Set([...Object.keys(recorded), ...Object.keys(current)])
   return [...keys].filter((key) => recorded[key] !== current[key])
+}
+
+/**
+ * Report the patches the committed lockfile leaves unused, the way a
+ * resolution reports them.
+ *
+ * Only reachable with `allowUnusedPatches` on: with it off,
+ * `everyConfiguredPatchIsApplied` declines the rewrite instead, and the
+ * resolution that takes over raises `ERR_PNPM_UNUSED_PATCH`.
+ */
+export function warnUnusedPatches (
+  lockfile: LockfileObject,
+  opts: FastPatchedDependenciesUpdateOptions
+): void {
+  if (!opts.allowUnusedPatches) return
+  const configured = opts.patchedDependencies ?? {}
+  if (Object.keys(configured).length === 0) return
+  const groups = groupsFromHashes(configured)
+  if (groups == null) return
+  const applied = appliedPatchKeys(lockfile, groups)
+  if (applied == null) return
+  verifyPatches({ patchedDependencies: groups, appliedPatches: applied, allowUnusedPatches: true })
 }
 
 /**

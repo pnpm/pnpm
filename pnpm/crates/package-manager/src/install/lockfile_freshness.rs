@@ -24,7 +24,7 @@ pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
 /// the loaded lockfile once it passes every freshness gate, so a
 /// handler that rewrites too much falls back to the resolver instead
 /// of committing.
-pub(super) async fn try_fast_update_lockfile(
+pub(super) async fn try_fast_update_lockfile<Reporter: pacquet_reporter::Reporter>(
     opts: FastUpdateLockfileOptions<'_, '_>,
 ) -> Option<Lockfile> {
     let lockfile = opts.lockfile?;
@@ -49,6 +49,18 @@ pub(super) async fn try_fast_update_lockfile(
     )
     .await
     .ok()?;
+    // Only the committed candidate is worth reporting on: a rewrite the
+    // freshness gates reject is followed by the resolution, which reports it
+    // itself.
+    let hashes = opts.config.patched_dependency_hashes().ok().flatten();
+    if let Some(unused) =
+        crate::fast_update_patched_dependencies::unused_patches(&candidate, hashes.as_ref())
+    {
+        Reporter::emit(&pacquet_reporter::LogEvent::Global(pacquet_reporter::GlobalLog {
+            level: pacquet_reporter::LogLevel::Warn,
+            message: unused.to_string(),
+        }));
+    }
     Some(candidate)
 }
 
