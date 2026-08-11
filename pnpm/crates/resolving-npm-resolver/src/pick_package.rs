@@ -284,8 +284,9 @@ pub struct PickPackageOptions<'a> {
     /// `minimumReleaseAgeExclude` policy. `None` skips exclusion.
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     /// Pick the lowest satisfying version instead of the highest.
-    /// Forced to `false` when `published_by` is active (the maturity
-    /// filter always picks highest then falls back to lowest).
+    /// Honoured under `published_by` too: maturity narrows which
+    /// versions are on offer, and this decides which end of what is
+    /// left to take.
     pub pick_lowest_version: bool,
     /// Compare the spec-pick against a `latest`-tag pick and keep
     /// the higher of the two. Used by `pnpm add` to make sure a
@@ -911,24 +912,27 @@ fn pick_matching_version_final(
     }
 }
 
-/// `publishedBy` is active: try highest mature; if no mature
-/// version satisfies, fall back to lowest (regardless of maturity)
-/// so the orchestrator can report the violation inline and let the
-/// install layer decide what to do.
+/// `publishedBy` is active: pick from the mature versions by
+/// `pickLowestVersion`, since maturity narrows what is on offer and
+/// `resolutionMode` decides which end of the remainder to take. If no
+/// mature version satisfies, fall back to lowest (regardless of
+/// maturity) so the orchestrator can report the violation inline and
+/// let the install layer decide what to do.
 fn pick_respecting_min_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
 ) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     run_picker(picker_opts, spec, |target_spec| {
-        let highest = pick_package_from_meta(
-            pick_version_by_version_range,
-            &meta_opts(picker_opts),
-            meta,
-            target_spec,
-        )?;
-        if highest.is_some() {
-            return Ok(highest);
+        let pick_mature = if picker_opts.pick_lowest_version {
+            pick_lowest_version_by_version_range
+        } else {
+            pick_version_by_version_range
+        };
+        let mature =
+            pick_package_from_meta(pick_mature, &meta_opts(picker_opts), meta, target_spec)?;
+        if mature.is_some() {
+            return Ok(mature);
         }
         // Fall-back lowest pick drops `publishedBy` so the picker
         // can return *something* even if every version is past the

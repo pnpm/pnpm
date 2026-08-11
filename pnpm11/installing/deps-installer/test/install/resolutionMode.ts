@@ -94,3 +94,21 @@ test('the lowest version of a direct dependency is installed when resolution mod
     '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
   })
 })
+
+test('the lowest version of a direct dependency is installed when a minimum release age is also configured', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  // `minimumReleaseAge` narrows the versions on offer to the mature ones. It
+  // does not say which end of what is left to take — that is what
+  // `resolutionMode` says.
+  await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'lowest-direct', minimumReleaseAge: 1 }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeFalsy()
+})

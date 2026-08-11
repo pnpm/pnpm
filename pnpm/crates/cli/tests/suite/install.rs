@@ -1500,6 +1500,39 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
     drop((root, mock_instance));
 }
 
+/// `minimumReleaseAge` narrows the versions on offer to the mature ones;
+/// it does not say which end of what is left to take, which is what
+/// `resolutionMode` says. The pair has to keep working together, since
+/// `minimumReleaseAge` is on by default.
+#[test]
+fn resolution_mode_lowest_direct_applies_under_a_minimum_release_age() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    existing.push_str("resolutionMode: lowest-direct\nminimumReleaseAge: 1\n");
+    fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    assert!(
+        pnpm_dir.join("@pnpm.e2e+foo@100.0.0").exists(),
+        "lowest-direct must still resolve ^100.0.0 to 100.0.0 when a release age is configured",
+    );
+    assert!(!pnpm_dir.join("@pnpm.e2e+foo@100.1.0").exists());
+
+    drop((root, mock_instance));
+}
+
 /// Dropping `time:` would lose the publish dates a re-resolve falls back
 /// on when the registry's abbreviated metadata carries none, changing the
 /// cutoff every subdependency is resolved under.
