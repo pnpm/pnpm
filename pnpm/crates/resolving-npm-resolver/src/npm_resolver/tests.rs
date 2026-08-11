@@ -1001,6 +1001,129 @@ async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
 }
 
 #[tokio::test]
+async fn prefer_workspace_packages_skips_the_registry_entirely() {
+    let mut server = mockito::Server::new_async().await;
+    // The workspace copy wins whatever the registry says, so the request must
+    // not be made at all.
+    let mock = server.mock("GET", "/acme").expect(0).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+    // `latest` comes from registry metadata, so the fast path cannot report it.
+    assert_eq!(result.latest, None);
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_still_consults_registry_for_several_local_copies() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.1.0",
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Two local copies: the registry's picked version decides which one wins,
+    // so the request is still required.
+    let packages = build_workspace_packages_at(
+        "acme",
+        &[("1.0.0", "/repo/packages/acme-1"), ("1.1.0", "/repo/packages/acme-11")],
+    );
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme-11");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_still_consults_registry_for_injected_deps() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.1.0",
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+
+    // Injected deps resolve to `file:`, which is not treated as a local package
+    // downstream, so `latest` stays observable and the request is still needed.
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        injected: Some(true),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_does_not_engage_without_a_matching_local_version() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "2.0.0",
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // The only local copy is outside the wanted range, so the registry decides.
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    assert_eq!(result.resolved_via, "npm-registry");
+    assert_eq!(result.id.as_str(), "acme@2.0.0");
+}
+
+#[tokio::test]
 async fn workspace_higher_version_shadows_registry_pick() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server

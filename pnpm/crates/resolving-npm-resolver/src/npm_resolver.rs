@@ -217,6 +217,39 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             .then_some(opts.workspace_packages.as_ref())
             .flatten();
 
+        // Fast path: skip the registry when the workspace copy is guaranteed
+        // to win. Under `prefer_workspace_packages`, `try_workspace_shadow`
+        // below returns the local package whatever the registry says, so the
+        // request only adds latency — and a workspace package that was never
+        // published costs a 404 on every install, uncached. Mirrors the
+        // TypeScript CLI (`pnpm11/resolving/npm-resolver/src/index.ts`).
+        //
+        // Restricted to a single local copy: with several, the exact-match arm
+        // of `try_workspace_shadow` picks by the registry's version. Injected
+        // deps keep the request because they resolve to `file:`, which is not
+        // treated as a local package downstream, so `latest` stays observable.
+        // `no-downgrade` and `update_checksums` both need registry metadata.
+        if opts.prefer_workspace_packages
+            && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+            && !opts.update_checksums
+            && !opts.inject_workspace_packages
+            && !wanted_dependency.injected.unwrap_or(false)
+            && let Some(workspace_packages) = workspace_packages_active
+            && let Some(matching_name) = workspace_packages.get(spec.name.as_str())
+            && matching_name.len() == 1
+            && let Some(local_version) = pick_matching_local_version_or_null(matching_name, &spec)
+            && let Some(local_package) = matching_name.get(&local_version)
+        {
+            return Ok(Some(resolve_from_local_package(
+                local_package,
+                wanted_dependency,
+                false,
+                opts.project_dir.as_path(),
+                opts.lockfile_dir.as_path(),
+                saved_specifier_options(opts),
+            )));
+        }
+
         let pick_result = self.pick_from_registry(&registry, &spec, opts, optional).await;
         let picked = match pick_result {
             Ok(RegistryPick::Picked(picked)) => picked,
