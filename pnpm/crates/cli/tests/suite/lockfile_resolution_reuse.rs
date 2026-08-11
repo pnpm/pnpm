@@ -425,7 +425,7 @@ fn a_catalog_edit_and_a_removal_override_are_absorbed_in_one_pass() {
     assert!(
         wanted.snapshots.as_ref().is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
     );
-    assert!(wanted.packages.as_ref().is_none_or(|packages| !packages.contains_key(&removed_key)),);
+    assert!(wanted.packages.as_ref().is_none_or(|packages| !packages.contains_key(&removed_key)));
 
     drop((root, mock_instance));
 }
