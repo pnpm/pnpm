@@ -237,3 +237,25 @@ test('parseEnvVars skips keys that end with underscore character', () => {
     pnpm_config_foo_bar_: 'foo bar',
   }))).toStrictEqual({})
 })
+
+test('parseEnvVars works with verify-deps-before-run schema', () => {
+  const schema = [Boolean, 'install', 'warn', 'error', 'prompt']
+  expect(pairsToObject(parseEnvVars(alwaysSchema(schema), {
+    pnpm_config_foo: 'true',
+    pnpm_config_bar: 'false',
+    pnpm_config_baz: 'error',
+    pnpm_config_qux: 'warn',
+    pnpm_config_xyz: 'install',
+    pnpm_config_abc: 'prompt',
+    pnpm_config_invalid: 'invalid-value',
+  }))).toStrictEqual({
+    foo: true,
+    bar: false,
+    baz: 'error',
+    qux: 'warn',
+    xyz: 'install',
+    abc: 'prompt',
+    invalid: undefined,
+  })
+})
+

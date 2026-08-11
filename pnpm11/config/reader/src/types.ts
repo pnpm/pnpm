@@ -128,7 +128,7 @@ export const pnpmTypes = {
   'trust-policy-ignore-after': Number,
   'use-beta-cli': Boolean,
   'use-stderr': Boolean,
-  'verify-deps-before-run': Boolean,
+  'verify-deps-before-run': [Boolean, 'install', 'warn', 'error', 'prompt'],
   'verify-store-integrity': Boolean,
   'frozen-store': Boolean,
   'global-virtual-store-dir': String,
