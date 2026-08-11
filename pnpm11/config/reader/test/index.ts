@@ -3922,12 +3922,19 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   expect(config.registriesByScope.default).toBe('https://registry.example.com/')
 })
 
-test('loads verifyDepsBeforeRun from environment variable pnpm_config_*', async () => {
+test.each([
+  ['install', 'install'],
+  ['warn', 'warn'],
+  ['error', 'error'],
+  ['prompt', 'prompt'],
+  ['true', true],
+  ['false', false],
+])('loads verifyDepsBeforeRun=%s from environment variable pnpm_config_*', async (envValue: string, expectedValue: string | boolean) => {
   prepareEmpty()
   const { config } = await getConfig({
     cliOptions: {},
     env: {
-      PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: 'error',
+      PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: envValue,
     },
     packageManager: {
       name: 'pnpm',
@@ -3935,7 +3942,7 @@ test('loads verifyDepsBeforeRun from environment variable pnpm_config_*', async 
     },
     workspaceDir: process.cwd(),
   })
-  expect(config.verifyDepsBeforeRun).toBe('error')
+  expect(config.verifyDepsBeforeRun).toBe(expectedValue)
 })
 
 test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {
