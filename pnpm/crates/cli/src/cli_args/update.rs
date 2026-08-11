@@ -127,6 +127,11 @@ pub struct UpdateArgs {
     /// changeset generation by default.
     #[clap(long = "no-changeset", overrides_with = "changeset")]
     pub no_changeset: bool,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
 }
 
 /// The option combinations `--workspace` rejects, checked before any
@@ -144,6 +149,10 @@ enum WorkspaceUpdateError {
 }
 
 impl UpdateArgs {
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,

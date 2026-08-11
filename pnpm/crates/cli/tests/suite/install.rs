@@ -1955,6 +1955,154 @@ fn an_unmigrated_package_json_pnpm_field_is_not_reported() {
     drop(root);
 }
 
+/// `--ignore-pnpmfile` disables the hooks the workspace pnpmfile
+/// exports, so an install that passes it resolves the manifest as
+/// written and drops what a `readPackage` hook injected.
+#[test]
+fn ignore_pnpmfile_skips_the_read_package_hook() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_read_package_pnpmfile(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    pacquet.with_args(["install", "--lockfile-only", "--ignore-pnpmfile"]).assert().success();
+    assert!(
+        !read_package_hook_applied(&workspace),
+        "--ignore-pnpmfile resolves without the hook's dependency",
+    );
+
+    // Resolve the same project again with the hook honored, so the
+    // assertion above cannot pass on a fixture that never worked.
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    assert!(
+        read_package_hook_applied(&workspace),
+        "without the flag the hook injects its dependency",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `add` and `update` each merge their own CLI flags into the config,
+/// on a dispatch path `install` never takes.
+#[test]
+fn ignore_pnpmfile_skips_the_read_package_hook_on_add_and_update() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_read_package_pnpmfile(&workspace);
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/pkg-with-1-dep@100.0.0",
+            "--lockfile-only",
+            "--ignore-pnpmfile",
+        ])
+        .assert()
+        .success();
+    assert!(!read_package_hook_applied(&workspace), "add resolves without the hook's dependency");
+
+    pacquet_in(&workspace)
+        .with_args(["update", "@pnpm.e2e/pkg-with-1-dep", "--lockfile-only", "--ignore-pnpmfile"])
+        .assert()
+        .success();
+    assert!(
+        !read_package_hook_applied(&workspace),
+        "update resolves without the hook's dependency",
+    );
+
+    // Re-resolve with the hook honored, so the assertions above cannot
+    // pass on a fixture that never worked.
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    pacquet_in(&workspace)
+        .with_args(["update", "@pnpm.e2e/pkg-with-1-dep", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(
+        read_package_hook_applied(&workspace),
+        "without the flag the hook injects its dependency",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `readPackage` is loaded off the install's own pnpmfile handle, while
+/// `updateConfig` runs earlier, off the pnpmfile set the config layer
+/// resolves. `--ignore-pnpmfile` has to empty that set too, or the
+/// install still runs on a hook-rewritten config.
+#[test]
+fn ignore_pnpmfile_skips_the_update_config_hook() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.autoInstallPeers = false; return config } } }\n",
+    )
+    .expect("write pnpmfile");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    let recorded_auto_install_peers = || {
+        pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+            .expect("load wanted lockfile")
+            .expect("wanted lockfile")
+            .settings
+            .expect("recorded settings")
+            .auto_install_peers
+    };
+
+    pacquet.with_args(["install", "--lockfile-only", "--ignore-pnpmfile"]).assert().success();
+    assert!(recorded_auto_install_peers(), "--ignore-pnpmfile installs on the unhooked config");
+
+    // Resolve the same project again with the hook honored, so the
+    // assertion above cannot pass on a fixture that never worked.
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    assert!(!recorded_auto_install_peers(), "without the flag the hook rewrites the config");
+
+    drop((root, mock_instance));
+}
+
+/// A workspace pnpmfile whose single `readPackage` hook is observable in
+/// the lockfile: it gives `@pnpm.e2e/pkg-with-1-dep` a dependency the
+/// published package doesn't declare.
+fn write_read_package_pnpmfile(workspace: &Path) {
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = { hooks: { readPackage: (pkg) => {
+            if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+                pkg.dependencies['is-positive'] = '1.0.0';
+            }
+            return pkg;
+        } } }",
+    )
+    .expect("write pnpmfile");
+}
+
+fn read_package_hook_applied(workspace: &Path) -> bool {
+    pacquet_lockfile::Lockfile::load_wanted_from_dir(workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile")
+        .packages
+        .expect("packages")
+        .keys()
+        .any(|key| key.to_string().starts_with("is-positive@"))
+}
+
 /// `virtualStoreOnly` populates the virtual store and creates no
 /// importer links. `.pnp.cjs` is how a `PnP` project resolves, so it is a
 /// project-level artifact of the same kind and must not be written

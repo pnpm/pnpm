@@ -563,7 +563,7 @@ pub(crate) fn build_workspace_state(
         )
         .unwrap_or_else(now_millis),
         projects: build_projects_map(project_manifests),
-        pnpmfiles: crate::optimistic_repeat_install::current_pnpmfiles(workspace_root),
+        pnpmfiles: crate::optimistic_repeat_install::current_pnpmfiles(workspace_root, config),
         filtered_install,
         config_dependencies: config.config_dependencies.clone(),
         // Settings construction is shared with

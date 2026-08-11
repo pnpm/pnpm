@@ -158,6 +158,11 @@ pub struct InstallArgs {
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
 
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
+
     /// Which node linker to use: `isolated` (the default, a symlinked
     /// store), `hoisted` (a flat `node_modules`), or `pnp` (Plug'n'Play).
     /// Overrides the configured value.
@@ -268,6 +273,7 @@ impl InstallArgs {
             no_runtime: false,
             ignore_scripts: false,
             no_ignore_scripts: false,
+            ignore_pnpmfile: false,
             node_linker: None,
             offline: false,
             no_offline: false,
@@ -448,13 +454,14 @@ impl InstallArgs {
             verify_deps_before_run_install,
             ignore_manifest_check,
             no_runtime,
-            // The `ignore_scripts` / `offline` / `frozen_store` /
-            // `prefer_offline` flags and their `--no-` inverses are
-            // resolved against config by `apply_install_cli_config` in the
-            // dispatch (`cli_args.rs`), so the install reads them from
-            // `config`, not from here.
+            // The `ignore_scripts` / `ignore_pnpmfile` / `offline` /
+            // `frozen_store` / `prefer_offline` flags and their `--no-`
+            // inverses are resolved against config by
+            // `apply_install_cli_config` in the dispatch (`cli_args.rs`),
+            // so the install reads them from `config`, not from here.
             ignore_scripts: _,
             no_ignore_scripts: _,
+            ignore_pnpmfile: _,
             node_linker,
             offline: _,
             no_offline: _,

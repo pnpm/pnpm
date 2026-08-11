@@ -18,6 +18,7 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
+use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
 use pacquet_modules_yaml::{Host, read_modules_manifest};
 use pacquet_package_manager::{
@@ -38,9 +39,18 @@ use tempfile::NamedTempFile;
 pub struct DedupeArgs {
     #[clap(long)]
     pub check: bool,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
 }
 
 impl DedupeArgs {
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+    }
+
     /// Run the deduplication install pipeline. In `--check` mode the method
     /// receives a pre-computed snapshot (`existing`) and drop guard created by
     /// the caller *before* config-dependency steps, so the gate covers any

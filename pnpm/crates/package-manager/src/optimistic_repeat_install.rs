@@ -283,7 +283,12 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // resolution (readPackage rewrites, custom resolvers, a
     // `shouldRefreshResolution` verdict) without touching any manifest,
     // so it must defeat the mtime fast path.
-    if pnpmfiles_modified_since(workspace_root, &state.pnpmfiles, state.last_validated_timestamp) {
+    if pnpmfiles_modified_since(
+        workspace_root,
+        config,
+        &state.pnpmfiles,
+        state.last_validated_timestamp,
+    ) {
         return Decision::Skipped { reason: "a pnpmfile changed since the last validation" };
     }
 
@@ -564,8 +569,13 @@ fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64
 /// The pnpmfile list recorded in the workspace state and compared by
 /// the freshness check: today just the workspace pnpmfile.
 /// Config-dependency plugin pnpmfiles are tracked via the
-/// `config_dependencies` comparison instead.
-pub(crate) fn current_pnpmfiles(workspace_root: &Path) -> Vec<String> {
+/// `config_dependencies` comparison instead. An install that ignores
+/// the pnpmfile records none, so the next install that honors it again
+/// sees the list change and re-validates.
+pub(crate) fn current_pnpmfiles(workspace_root: &Path, config: &Config) -> Vec<String> {
+    if config.ignore_pnpmfile {
+        return Vec::new();
+    }
     pacquet_hooks::finder::find_pnpmfile(workspace_root)
         .map(|path| path.to_string_lossy().into_owned())
         .into_iter()
@@ -576,15 +586,25 @@ pub(crate) fn current_pnpmfiles(workspace_root: &Path) -> Vec<String> {
 /// recorded pnpmfile list must match the current one, every recorded
 /// pnpmfile must still exist, and none may be newer than the last
 /// validation.
-fn pnpmfiles_modified_since(workspace_root: &Path, previous: &[String], cutoff_ms: i64) -> bool {
-    pnpmfiles_drift(workspace_root, previous, cutoff_ms).is_some()
+fn pnpmfiles_modified_since(
+    workspace_root: &Path,
+    config: &Config,
+    previous: &[String],
+    cutoff_ms: i64,
+) -> bool {
+    pnpmfiles_drift(workspace_root, config, previous, cutoff_ms).is_some()
 }
 
 /// [`pnpmfiles_modified_since`] with the drift spelled out in pnpm's
 /// issue wording, for the verify-deps-before-run gate's user-facing
 /// messages.
-fn pnpmfiles_drift(workspace_root: &Path, previous: &[String], cutoff_ms: i64) -> Option<String> {
-    let current = current_pnpmfiles(workspace_root);
+fn pnpmfiles_drift(
+    workspace_root: &Path,
+    config: &Config,
+    previous: &[String],
+    cutoff_ms: i64,
+) -> Option<String> {
+    let current = current_pnpmfiles(workspace_root, config);
     if current != previous {
         return Some("The list of pnpmfiles changed.".to_string());
     }

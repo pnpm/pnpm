@@ -594,7 +594,11 @@ where
             .await
             .map_err(InstallFrozenLockfileError::LockfileVerification)
         };
-        let custom_fetcher_picker = load_custom_fetcher_picker(workspace_root).await?;
+        let custom_fetcher_picker = if config.ignore_pnpmfile {
+            None
+        } else {
+            load_custom_fetcher_picker(workspace_root).await?
+        };
         let create_virtual_store_fut = async {
             CreateVirtualStore {
                 http_client,

@@ -4,6 +4,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_config::WorkspaceSettings;
 use pacquet_lockfile::EnvLockfile;
+use pacquet_modules_yaml::{Host, NodeLinker, read_modules_manifest};
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 #[cfg(unix)]
 use pacquet_testing_utils::fs::is_symlink_or_junction;
@@ -320,4 +321,53 @@ fn update_config_observes_an_empty_cli_store_dir() {
     );
 
     drop(root);
+}
+
+/// `--ignore-pnpmfile` empties the whole pnpmfile set the config layer
+/// resolves, not just the workspace `.pnpmfile.cjs`: a config
+/// dependency's plugin pnpmfile stops contributing its `updateConfig`
+/// hook too. `@pnpm/plugin-pnpmfile` flips the node linker to
+/// `hoisted`, and the modules manifest records the linker the install
+/// ran with.
+#[test]
+fn ignore_pnpmfile_skips_a_config_dependency_plugin_pnpmfile() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str("\nconfigDependencies:\n  '@pnpm/plugin-pnpmfile': 1.0.0\n");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    let recorded_node_linker = || {
+        read_modules_manifest::<Host>(&workspace.join("node_modules"))
+            .expect("read the modules manifest")
+            .expect("the install wrote a modules manifest")
+            .node_linker
+    };
+
+    pacquet_at(&workspace).with_args(["install", "--ignore-pnpmfile"]).assert().success();
+    assert_eq!(
+        recorded_node_linker(),
+        Some(NodeLinker::Isolated),
+        "the plugin's updateConfig hook must not reach the install",
+    );
+
+    // Install again with the plugin honored, so the assertion above
+    // cannot pass on a fixture whose hook never ran.
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    assert_eq!(
+        recorded_node_linker(),
+        Some(NodeLinker::Hoisted),
+        "without the flag the plugin's updateConfig hook sets the linker",
+    );
+
+    drop((root, mock_instance));
 }

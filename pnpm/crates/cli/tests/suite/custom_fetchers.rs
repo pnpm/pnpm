@@ -130,3 +130,67 @@ fn custom_typed_resolution_without_a_fetcher_fails_the_install() {
 
     drop((root, mock_instance)); // cleanup
 }
+
+/// `pnpm fetch` takes `--ignore-pnpmfile` too, and its frozen path is
+/// the one that loads the custom fetchers. Without a fetcher the
+/// custom-typed resolution the lockfile records cannot be materialized,
+/// so the flag turns a working fetch into the same loud failure a
+/// missing `fetchers` export produces.
+#[test]
+fn ignore_pnpmfile_skips_the_custom_fetcher_on_fetch() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace);
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
+        .expect("write pnpmfile");
+    pacquet.with_arg("install").assert().success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    let output =
+        pacquet_at(&workspace).with_args(["fetch", "--ignore-pnpmfile"]).assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+    assert!(
+        stderr.contains(r#"Cannot fetch dependency with custom resolution type "custom:e2e""#),
+        "stderr: {stderr}",
+    );
+
+    // The same fetch with the pnpmfile honored, so the assertion above
+    // cannot pass on a fixture that could never fetch.
+    pacquet_at(&workspace).with_arg("fetch").assert().success();
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// The resolver half of the same pnpmfile: with `--ignore-pnpmfile` the
+/// custom resolver never claims the dependency, so the install resolves
+/// the version the manifest asks for instead of the one the resolver
+/// substitutes.
+#[test]
+fn ignore_pnpmfile_skips_the_custom_resolver_on_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace);
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
+        .expect("write pnpmfile");
+
+    pacquet.with_args(["install", "--ignore-pnpmfile"]).assert().success();
+    assert_eq!(installed_version(&workspace), "100.0.0");
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        !lockfile.contains("type: custom:e2e"),
+        "the custom resolver must not reach the lockfile: {lockfile}",
+    );
+
+    // Resolve again with the pnpmfile honored, so the assertions above
+    // cannot pass on a fixture whose resolver never worked.
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    assert_eq!(installed_version(&workspace), "100.1.0");
+
+    drop((root, mock_instance)); // cleanup
+}
