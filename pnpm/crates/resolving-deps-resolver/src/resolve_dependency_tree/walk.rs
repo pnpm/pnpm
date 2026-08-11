@@ -15,7 +15,7 @@ use pacquet_resolving_resolver_base::{
 use pipe_trait::Pipe;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
-use std::{borrow::Cow, collections::BTreeMap, path::Path, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use crate::{
     lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
@@ -42,10 +42,10 @@ use super::{
         project_relative_cache_scope,
     },
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, WantedKey, claim_children_owner,
-        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
-        record_children, recorded_children_match, register_peer_dep_names,
-        remember_node_parent_ids,
+        ChildSpec, ChildrenOverlayView, ChildrenOwnerClaim, RecordedChildrenContext, WantedKey,
+        claim_children_owner, insert_tree_node, is_current_children_owner, lazy_children,
+        make_non_owner_nodes_lazy, record_children, recorded_children_match,
+        register_peer_dep_names, remember_node_parent_ids,
     },
 };
 
@@ -559,13 +559,6 @@ where
         current_is_optional,
         prior_key,
     } = pending;
-    // Built on demand: a linked node and a losing occurrence never
-    // reach either the reuse test or the recording.
-    let children_context = || RecordedChildrenContext {
-        peer_shadowed: Arc::clone(&children_owner.peer_shadowed),
-        prior_key: prior_key.clone(),
-        update_active: !matches!(ctx.update_reuse_scope(), super::UpdateReuseScope::All),
-    };
     let (children, others_stale) = if is_link {
         // Linked nodes don't walk their manifest's deps — see the
         // `is_link` comment block above. They get an empty `Realized`
@@ -573,187 +566,155 @@ where
         (crate::resolved_tree::TreeChildren::Realized(BTreeMap::new()), false)
     } else if !children_owner.owns_children {
         (lazy_children(&parent_ancestors), false)
-    } else if !resolves_children_through_catalogs(&result)
-        && recorded_children_match(ctx, &id, &children_context())
-    {
-        // A winning claim means this occurrence outranks the one that
-        // recorded the children, not that the children differ.
-        // Occurrences of one package race for the claim, so walking on
-        // every win costs a redundant subtree walk and a second set of
-        // occurrence nodes per race — enough, down a peer-carrying
-        // chain, to expand exponentially with its depth
-        // (https://github.com/pnpm/pnpm/issues/13574).
-        (lazy_children(&parent_ancestors), false)
     } else {
-        // Look up cached children specs first; only walk the manifest on
-        // a miss. The cache value is held by `Arc` so revisits clone the
-        // refcount instead of the inner `Vec<(String, String, bool)>`.
-        let child_specs = {
-            let cache = lock_recoverable(&ctx.workspace.children_specs_by_id);
-            cache.get(&id).map(Arc::clone)
+        let child_specs = owned_child_specs(ctx, &id, &result, &children_owner.peer_shadowed)?;
+        let children_context = RecordedChildrenContext {
+            peer_shadowed: Arc::clone(&children_owner.peer_shadowed),
+            prior_key: prior_key.clone(),
+            update_active: !matches!(ctx.update_reuse_scope(), super::UpdateReuseScope::All),
+            overlay_view: children_overlay_view(&child_specs, children_overlay.as_deref()),
         };
-        let child_specs = if let Some(specs) = child_specs {
-            specs
+        if !resolves_children_through_catalogs(&result)
+            && recorded_children_match(ctx, &id, &children_context)
+        {
+            // The standing recording resolved its children under this
+            // occurrence's own context, so walking would reach the same
+            // ones. Occurrences of one package race for the claim, so
+            // walking on every win costs a redundant subtree walk and a
+            // second set of occurrence nodes per race — enough, down a
+            // peer-carrying chain, to expand exponentially with its
+            // depth (https://github.com/pnpm/pnpm/issues/13574).
+            (lazy_children(&parent_ancestors), false)
         } else {
-            let specs = Arc::new(extract_children(&result)?);
-            lock_recoverable(&ctx.workspace.children_specs_by_id)
-                .entry(id.clone())
-                .or_insert_with(|| Arc::clone(&specs));
-            specs
-        };
-        // The specs are cached unfiltered because which of them the
-        // package's own `peerDependencies` shadow is a property of the
-        // owner occurrence, not of the manifest.
-        let peer_shadowed = &children_owner.peer_shadowed;
-        let child_specs: Cow<'_, [ChildSpec]> = if peer_shadowed.is_empty() {
-            Cow::Borrowed(child_specs.as_slice())
-        } else {
-            Cow::Owned(
-                child_specs
-                    .iter()
-                    .filter(|(name, _, optional)| *optional || !peer_shadowed.contains(name))
-                    .cloned()
-                    .collect(),
-            )
-        };
-        let child_specs =
-            if result.resolved_via == "workspace" && result.id.as_str().starts_with("file:") {
-                Cow::Owned(
-                    child_specs
-                        .iter()
-                        .map(|(name, range, optional)| {
-                            resolve_catalog_specifier(name.clone(), range.clone(), &ctx.catalogs)
-                                .map(|(name, range)| (name, range, *optional))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
-                )
-            } else {
-                child_specs
-            };
-        // An *updated* parent (one that landed on a different version
-        // than the lockfile recorded, or a new dep) discards its
-        // `resolvedDependencies` child refs, forcing its subtree to
-        // re-resolve. A parent that freshly resolved but landed back on
-        // its previously recorded version keeps the prior child refs
-        // alive (pnpm's non-`parentPkg.updated` arm), and each child
-        // edge re-enters the reuse gate with its recorded key — so a
-        // still-satisfied subtree is reused rather than re-resolved.
-        // Re-resolving those children would re-pick open ranges (`*`)
-        // at their newest versions and churn the lockfile.
-        let prior_children_snapshot = prior_key
-            .as_ref()
-            .filter(|key| landed_on_prior_entry(key, &id))
-            .and_then(|key| ctx.workspace.wanted_lockfile.as_ref()?.snapshots.as_ref()?.get(key));
-        // Phase 1: resolve every child package before any grandchild
-        // walk starts, so the level's resolved versions can feed the
-        // grandchildren's preferred-versions overlay — the
-        // postponed-resolution barrier.
-        // Snapshot this importer's direct-dep versions once for the whole
-        // child fanout instead of locking per edge.
-        let direct_versions = lock_recoverable(&ctx.workspace.direct_dep_versions)
-            .get(&ctx.importer_id)
-            .map(Arc::clone);
-        let declaring_dir = declaring_manifest_dir(ctx, &result);
-        let child_seeds = child_specs
-            .iter()
-            .map(|(child_name, child_range, child_optional)| {
-                let mut child_wanted = WantedDependency {
-                    alias: Some(child_name.clone()),
-                    bare_specifier: Some(child_range.clone()),
-                    optional: Some(*child_optional),
-                    ..WantedDependency::default()
-                };
-                let mut child_prior = prior_children_snapshot
-                    .and_then(|snapshot| prior_child_key(snapshot, child_name, child_range));
-                // Stale-pin refresh: force the edge onto a higher in-range
-                // direct-dep version instead of reusing the pin, so the
-                // pinned version is never resolved or fetched.
-                let forced_version = child_prior
-                    .as_ref()
-                    .and_then(|key| key.suffix.version_semver().cloned())
-                    .zip(child_range.parse::<node_semver::Range>().ok())
-                    .and_then(|(pinned, range)| {
-                        higher_direct_dep_version(
-                            direct_versions.as_deref(),
-                            child_name,
-                            &pinned,
-                            &range,
+            // An *updated* parent (one that landed on a different version
+            // than the lockfile recorded, or a new dep) discards its
+            // `resolvedDependencies` child refs, forcing its subtree to
+            // re-resolve. A parent that freshly resolved but landed back on
+            // its previously recorded version keeps the prior child refs
+            // alive (pnpm's non-`parentPkg.updated` arm), and each child
+            // edge re-enters the reuse gate with its recorded key — so a
+            // still-satisfied subtree is reused rather than re-resolved.
+            // Re-resolving those children would re-pick open ranges (`*`)
+            // at their newest versions and churn the lockfile.
+            let prior_children_snapshot =
+                prior_key.as_ref().filter(|key| landed_on_prior_entry(key, &id)).and_then(|key| {
+                    ctx.workspace.wanted_lockfile.as_ref()?.snapshots.as_ref()?.get(key)
+                });
+            // Phase 1: resolve every child package before any grandchild
+            // walk starts, so the level's resolved versions can feed the
+            // grandchildren's preferred-versions overlay — the
+            // postponed-resolution barrier.
+            // Snapshot this importer's direct-dep versions once for the whole
+            // child fanout instead of locking per edge.
+            let direct_versions = lock_recoverable(&ctx.workspace.direct_dep_versions)
+                .get(&ctx.importer_id)
+                .map(Arc::clone);
+            let declaring_dir = declaring_manifest_dir(ctx, &result);
+            let child_seeds = child_specs
+                .iter()
+                .map(|(child_name, child_range, child_optional)| {
+                    let mut child_wanted = WantedDependency {
+                        alias: Some(child_name.clone()),
+                        bare_specifier: Some(child_range.clone()),
+                        optional: Some(*child_optional),
+                        ..WantedDependency::default()
+                    };
+                    let mut child_prior = prior_children_snapshot
+                        .and_then(|snapshot| prior_child_key(snapshot, child_name, child_range));
+                    // Stale-pin refresh: force the edge onto a higher in-range
+                    // direct-dep version instead of reusing the pin, so the
+                    // pinned version is never resolved or fetched.
+                    let forced_version = child_prior
+                        .as_ref()
+                        .and_then(|key| key.suffix.version_semver().cloned())
+                        .zip(child_range.parse::<node_semver::Range>().ok())
+                        .and_then(|(pinned, range)| {
+                            higher_direct_dep_version(
+                                direct_versions.as_deref(),
+                                child_name,
+                                &pinned,
+                                &range,
+                            )
+                        });
+                    if let Some(higher) = forced_version {
+                        child_wanted.bare_specifier = Some(higher.to_string());
+                        child_prior = None;
+                    }
+                    let next_ancestors = Arc::clone(&next_ancestors);
+                    let pick_overlay = children_overlay.clone();
+                    let declaring_dir = declaring_dir.clone();
+                    let parent_pkg_aliases = &children_pkg_aliases;
+                    async move {
+                        let seed = resolve_node_seed(
+                            ctx,
+                            resolver,
+                            child_wanted,
+                            &next_ancestors,
+                            depth + 1,
+                            current_is_optional,
+                            ReuseSource::Transitive { key: child_prior },
+                            pick_overlay,
+                            declaring_dir.as_deref(),
+                            parent_pkg_aliases,
                         )
-                    });
-                if let Some(higher) = forced_version {
-                    child_wanted.bare_specifier = Some(higher.to_string());
-                    child_prior = None;
-                }
-                let next_ancestors = Arc::clone(&next_ancestors);
-                let pick_overlay = children_overlay.clone();
-                let declaring_dir = declaring_dir.clone();
-                let parent_pkg_aliases = &children_pkg_aliases;
-                async move {
-                    let seed = resolve_node_seed(
-                        ctx,
-                        resolver,
-                        child_wanted,
-                        &next_ancestors,
-                        depth + 1,
-                        current_is_optional,
-                        ReuseSource::Transitive { key: child_prior },
-                        pick_overlay,
-                        declaring_dir.as_deref(),
-                        parent_pkg_aliases,
-                    )
-                    .await?;
-                    warm_children_resolutions(ctx, resolver, &seed).await;
-                    Ok::<NodeSeed, ResolveDependencyTreeError>(seed)
-                }
-            })
-            .pipe(future::try_join_all)
-            .await?;
-        let grandchild_overlay = PreferredVersionsOverlay::layer(
-            children_overlay.clone(),
-            level_versions(ctx, &child_seeds),
-        );
-        let grandchild_pkg_aliases = children_pkg_aliases.extend(level_aliases(&child_seeds));
-        // Phase 2: walk each child's own children with the extended
-        // overlay.
-        let child_results = child_seeds
-            .into_iter()
-            .map(|seed| {
-                let overlay = grandchild_overlay.clone();
-                let pkg_aliases = Arc::clone(&grandchild_pkg_aliases);
-                async move {
-                    match seed {
-                        NodeSeed::Done(dep) => Ok(dep),
-                        NodeSeed::Pending(pending) => {
-                            walk_node_children(ctx, resolver, *pending, overlay, pkg_aliases).await
+                        .await?;
+                        warm_children_resolutions(ctx, resolver, &seed).await;
+                        Ok::<NodeSeed, ResolveDependencyTreeError>(seed)
+                    }
+                })
+                .pipe(future::try_join_all)
+                .await?;
+            let grandchild_overlay = PreferredVersionsOverlay::layer(
+                children_overlay.clone(),
+                level_versions(ctx, &child_seeds),
+            );
+            let grandchild_pkg_aliases = children_pkg_aliases.extend(level_aliases(&child_seeds));
+            // Phase 2: walk each child's own children with the extended
+            // overlay.
+            let child_results = child_seeds
+                .into_iter()
+                .map(|seed| {
+                    let overlay = grandchild_overlay.clone();
+                    let pkg_aliases = Arc::clone(&grandchild_pkg_aliases);
+                    async move {
+                        match seed {
+                            NodeSeed::Done(dep) => Ok(dep),
+                            NodeSeed::Pending(pending) => {
+                                walk_node_children(ctx, resolver, *pending, overlay, pkg_aliases)
+                                    .await
+                            }
                         }
                     }
+                })
+                .pipe(future::try_join_all)
+                .await?;
+            if is_current_children_owner(ctx, &id, &children_owner.owner) {
+                // Build the realized `(alias → NodeId)` map for THIS
+                // occurrence and the per-pkg `children_by_id` entry future
+                // revisits will reuse. `children_by_id` records the resolved
+                // child pkg ids (not NodeIds) plus the `optional` flag so
+                // lazy realisation can thread `current_is_optional` correctly.
+                let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
+                let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
+                let optional_by_alias: HashMap<&str, bool> = child_specs
+                    .iter()
+                    .map(|(name, _, optional)| (name.as_str(), *optional))
+                    .collect();
+                for dep in child_results.into_iter().flatten() {
+                    let optional =
+                        optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+                    by_id.push(crate::resolved_tree::ChildEdge {
+                        alias: dep.alias.clone(),
+                        pkg_id: dep.id.clone(),
+                        optional,
+                    });
+                    realized.insert(dep.alias, dep.node_id);
                 }
-            })
-            .pipe(future::try_join_all)
-            .await?;
-        if is_current_children_owner(ctx, &id, &children_owner.owner) {
-            // Build the realized `(alias → NodeId)` map for THIS
-            // occurrence and the per-pkg `children_by_id` entry future
-            // revisits will reuse. `children_by_id` records the resolved
-            // child pkg ids (not NodeIds) plus the `optional` flag so
-            // lazy realisation can thread `current_is_optional` correctly.
-            let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
-            let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
-            let optional_by_alias: HashMap<&str, bool> =
-                child_specs.iter().map(|(name, _, optional)| (name.as_str(), *optional)).collect();
-            for dep in child_results.into_iter().flatten() {
-                let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
-                by_id.push(crate::resolved_tree::ChildEdge {
-                    alias: dep.alias.clone(),
-                    pkg_id: dep.id.clone(),
-                    optional,
-                });
-                realized.insert(dep.alias, dep.node_id);
+                record_children(ctx, &id, &children_owner.owner, by_id, children_context)
+                    .into_children(realized, &parent_ancestors)
+            } else {
+                (lazy_children(&parent_ancestors), false)
             }
-            record_children(ctx, &id, &children_owner.owner, by_id, children_context())
-                .into_children(realized, &parent_ancestors)
-        } else {
-            (lazy_children(&parent_ancestors), false)
         }
     };
 
@@ -776,6 +737,92 @@ where
     }
 
     Ok(Some(DirectDep { alias, node_id, id }))
+}
+
+/// The child edges a package's children owner walks: the manifest's
+/// `dependencies` plus `optionalDependencies`, less the names the
+/// package's own `peerDependencies` shadow, with a workspace project's
+/// catalog specifiers resolved.
+///
+/// Only the manifest's own specs are cached per package id — which of
+/// them are shadowed follows from the owner occurrence's parent scope,
+/// not from the manifest.
+fn owned_child_specs(
+    ctx: &TreeCtx,
+    pkg_id: &str,
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+    peer_shadowed: &HashSet<String>,
+) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
+    let cached = lock_recoverable(&ctx.workspace.children_specs_by_id).get(pkg_id).map(Arc::clone);
+    let specs = if let Some(specs) = cached {
+        specs
+    } else {
+        let specs = Arc::new(extract_children(result)?);
+        lock_recoverable(&ctx.workspace.children_specs_by_id)
+            .entry(pkg_id.to_string())
+            .or_insert_with(|| Arc::clone(&specs));
+        specs
+    };
+    let specs = if peer_shadowed.is_empty() {
+        specs
+    } else {
+        specs
+            .iter()
+            .filter(|(name, _, optional)| *optional || !peer_shadowed.contains(name))
+            .cloned()
+            .collect::<Vec<ChildSpec>>()
+            .pipe(Arc::new)
+    };
+    if !resolves_children_through_catalogs(result) {
+        return Ok(specs);
+    }
+    specs
+        .iter()
+        .map(|(name, range, optional)| {
+            resolve_catalog_specifier(name.clone(), range.clone(), &ctx.catalogs)
+                .map(|(name, range)| (name, range, *optional))
+        })
+        .collect::<Result<Vec<ChildSpec>, ResolveDependencyTreeError>>()
+        .map(Arc::new)
+}
+
+/// What the walk's preferred-versions overlay offers a package's child
+/// edges: for every name such an edge looks the overlay up under (see
+/// [`fn@overlay_lookup_names`]), the versions the chain prefers for it.
+/// Names no level resolved are left out, which keeps the view empty for
+/// most packages.
+///
+/// This is the whole of the overlay chain a child edge's version pick
+/// can read — it is what joins the per-wanted resolve cache key — so
+/// two occurrences of one package that agree on it resolve their
+/// children to the same packages. See
+/// [`RecordedChildrenContext::overlay_view`].
+fn children_overlay_view(
+    specs: &[ChildSpec],
+    overlay: Option<&PreferredVersionsOverlay>,
+) -> ChildrenOverlayView {
+    let mut view = ChildrenOverlayView::new();
+    let Some(overlay) = overlay else { return view };
+    for (child_name, child_range, _) in specs {
+        let wanted = WantedDependency {
+            alias: Some(child_name.clone()),
+            bare_specifier: Some(child_range.clone()),
+            ..WantedDependency::default()
+        };
+        for name in overlay_lookup_names(&wanted) {
+            if view.contains_key(&name) {
+                continue;
+            }
+            let mut versions: Vec<String> =
+                overlay.versions_for(&name).into_iter().map(str::to_string).collect();
+            if versions.is_empty() {
+                continue;
+            }
+            versions.sort_unstable();
+            view.insert(name, versions);
+        }
+    }
+    view
 }
 
 /// Whether the `parent → child` edge closes a dependency cycle's

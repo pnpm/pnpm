@@ -77,6 +77,78 @@ impl Resolver for DelayedAliasResolver {
     }
 }
 
+/// Stub resolver fed from a `name` → versions table, picking the way
+/// the npm resolver does: the highest version the range admits, except
+/// that a version the walk's preferred-versions overlay carries wins
+/// over it. Lets a test vary one edge's pick by the level it resolves
+/// under. `delayed_alias` is held back so the branch behind it walks
+/// second.
+struct OverlayPickResolver {
+    versions: HashMap<String, Vec<ResolveResult>>,
+    delayed_alias: String,
+}
+
+impl Resolver for OverlayPickResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let name = wanted.alias.clone().unwrap_or_default();
+        let range = node_semver::Range::from_str(wanted.bare_specifier.as_deref().unwrap_or("*"))
+            .expect("test range");
+        let preferred: Vec<&str> = opts
+            .preferred_versions_overlay
+            .as_ref()
+            .map(|overlay| overlay.versions_for(&name))
+            .unwrap_or_default();
+        let satisfying: Vec<&ResolveResult> = self
+            .versions
+            .get(&name)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .filter(|result| {
+                result.name_ver.as_ref().is_some_and(|name_ver| range.satisfies(&name_ver.suffix))
+            })
+            .collect();
+        let highest = |from: Vec<&ResolveResult>| {
+            from.into_iter()
+                .max_by(|left, right| {
+                    version_of(left).partial_cmp(version_of(right)).expect("comparable versions")
+                })
+                .cloned()
+        };
+        let result = highest(
+            satisfying
+                .iter()
+                .copied()
+                .filter(|result| preferred.contains(&version_of(result).to_string().as_str()))
+                .collect(),
+        )
+        .or_else(|| highest(satisfying));
+        let delayed = name == self.delayed_alias;
+        Box::pin(async move {
+            if delayed {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            Ok::<_, ResolveError>(result)
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+fn version_of(result: &ResolveResult) -> &node_semver::Version {
+    &result.name_ver.as_ref().expect("test result carries a name and version").suffix
+}
+
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
     use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
     let name_ver = PkgNameVer::new(
@@ -241,6 +313,139 @@ async fn passes_optional_flag_to_the_resolver() {
     .expect("resolve optional dependency");
 
     assert_eq!(*resolver.optional.lock().unwrap(), vec![Some(true)]);
+}
+
+/// Which occurrence of a package walks its children first is a race,
+/// and the levels they sit under offer their children different
+/// preferred versions — so the children a package records must follow
+/// the occurrence that owns them, not the one that got there first
+/// (<https://github.com/pnpm/pnpm/issues/13685>).
+///
+/// Here `shared` is reached at depth 2 under `wrap`, whose level pins
+/// `pin@1.0.0`, and at depth 3 under `nested`, whose levels pin
+/// nothing. `wrap` resolves slowly, so the depth-3 occurrence always
+/// records `pin@1.5.0` first and the depth-2 occurrence claims the
+/// children afterwards.
+#[tokio::test]
+async fn deeper_occurrences_children_are_rewalked_by_the_owner() {
+    let resolver = OverlayPickResolver {
+        versions: HashMap::from_iter([
+            (
+                "slow".to_string(),
+                vec![fake_result(
+                    "slow",
+                    "1.0.0",
+                    serde_json::json!({
+                        "name": "slow",
+                        "version": "1.0.0",
+                        "dependencies": { "wrap": "1.0.0" }
+                    }),
+                )],
+            ),
+            (
+                "wrap".to_string(),
+                vec![fake_result(
+                    "wrap",
+                    "1.0.0",
+                    serde_json::json!({
+                        "name": "wrap",
+                        "version": "1.0.0",
+                        "dependencies": { "pin": "1.0.0", "shared": "^1.0.0" }
+                    }),
+                )],
+            ),
+            (
+                "deep".to_string(),
+                vec![fake_result(
+                    "deep",
+                    "1.0.0",
+                    serde_json::json!({
+                        "name": "deep",
+                        "version": "1.0.0",
+                        "dependencies": { "mid": "1.0.0" }
+                    }),
+                )],
+            ),
+            (
+                "mid".to_string(),
+                vec![fake_result(
+                    "mid",
+                    "1.0.0",
+                    serde_json::json!({
+                        "name": "mid",
+                        "version": "1.0.0",
+                        "dependencies": { "nested": "1.0.0" }
+                    }),
+                )],
+            ),
+            (
+                "nested".to_string(),
+                vec![fake_result(
+                    "nested",
+                    "1.0.0",
+                    serde_json::json!({
+                        "name": "nested",
+                        "version": "1.0.0",
+                        "dependencies": { "shared": "^1.0.0" }
+                    }),
+                )],
+            ),
+            (
+                "shared".to_string(),
+                vec![fake_result(
+                    "shared",
+                    "1.0.0",
+                    serde_json::json!({
+                        "name": "shared",
+                        "version": "1.0.0",
+                        "dependencies": { "pin": "^1.0.0" }
+                    }),
+                )],
+            ),
+            (
+                "pin".to_string(),
+                vec![
+                    fake_result(
+                        "pin",
+                        "1.0.0",
+                        serde_json::json!({ "name": "pin", "version": "1.0.0" }),
+                    ),
+                    fake_result(
+                        "pin",
+                        "1.5.0",
+                        serde_json::json!({ "name": "pin", "version": "1.5.0" }),
+                    ),
+                ],
+            ),
+        ]),
+        delayed_alias: "wrap".to_string(),
+    };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "deep": "1.0.0",
+        "slow": "1.0.0"
+    }));
+
+    let tree = resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            overrides_hook: None,
+            pnpmfile_hook: None,
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .unwrap();
+
+    let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
+    dbg!(shared_children);
+    assert_eq!(shared_children.len(), 1);
+    assert_eq!(shared_children[0].pkg_id, "pin@1.0.0");
 }
 
 #[tokio::test]
