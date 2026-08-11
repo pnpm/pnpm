@@ -35,12 +35,22 @@ export interface ImportIndexedDirOptions {
   resolvedFrom?: ResolvedFrom
 }
 
+// What one call to importIndexedDir is importing, threaded to the helpers that
+// need all of it — including the retries, which re-enter with a rewritten map.
+interface IndexedDirImport {
+  importer: Importer
+  newDir: string
+  filenames: Map<string, string>
+  opts: ImportIndexedDirOptions
+}
+
 export function importIndexedDir (
   importer: Importer,
   newDir: string,
   filenames: Map<string, string>,
   opts: ImportIndexedDirOptions
 ): void {
+  const dirImport: IndexedDirImport = { importer, newDir, filenames, opts }
   // Content-addressed target (e.g. global virtual store): the path is shared
   // across projects, so concurrent importers are expected and the directory
   // must never be removed or swapped out from under them.  It is populated in
@@ -52,7 +62,7 @@ export function importIndexedDir (
   // contents can change without the lockfile changing and the path pins
   // nothing.  Such a target is rebuilt below rather than adopted or repaired.
   if (opts.safeToSkip && opts.resolvedFrom !== 'local-dir') {
-    importIntoSharedDir(importer, newDir, filenames, opts)
+    importIntoSharedDir(dirImport)
     return
   }
   // Fast path: import directly without staging.  Callers already verified
@@ -80,7 +90,7 @@ export function importIndexedDir (
     try {
       rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
-    if (retryWithFixedFileMap(err, importer, newDir, filenames, opts)) return
+    if (retryWithFixedFileMap(err, dirImport)) return
     throw err
   }
   try {
@@ -104,12 +114,8 @@ export function importIndexedDir (
 // that adopts what it finds keeps a file truncated by an interrupted copy, and
 // then puts the completion marker on top of it — after which the directory
 // looks finished to every later install and is never repaired.
-function importIntoSharedDir (
-  importer: Importer,
-  newDir: string,
-  filenames: Map<string, string>,
-  opts: ImportIndexedDirOptions
-): void {
+function importIntoSharedDir (dirImport: IndexedDirImport): void {
+  const { importer, newDir, filenames } = dirImport
   fs.mkdirSync(path.dirname(newDir), { recursive: true })
   let created = false
   try {
@@ -123,7 +129,7 @@ function importIntoSharedDir (
       tryImportIndexedDir(importer, newDir, filenames)
       return
     } catch (err: unknown) {
-      if (retryWithFixedFileMap(err, importer, newDir, filenames, opts)) return
+      if (retryWithFixedFileMap(err, dirImport)) return
       // Our own write stopped partway. Another importer may already be reading
       // what did land, so finish the directory in place instead of staging a
       // replacement for it.
@@ -131,9 +137,9 @@ function importIntoSharedDir (
   }
   if (allFilesMatch(newDir, filenames)) return
   try {
-    repairIndexedDir(importer, newDir, filenames)
+    repairIndexedDir(dirImport)
   } catch (err: unknown) {
-    if (retryWithFixedFileMap(err, importer, newDir, filenames, opts)) return
+    if (retryWithFixedFileMap(err, dirImport)) return
     throw err
   }
 }
@@ -142,11 +148,7 @@ function importIntoSharedDir (
 // entry. Files the package does not declare are left alone: a build output
 // belongs to whoever put it there, and a slot other installs are reading is
 // not somewhere to delete from speculatively.
-function repairIndexedDir (
-  importer: Importer,
-  newDir: string,
-  filenames: Map<string, string>
-): void {
+function repairIndexedDir ({ importer, newDir, filenames }: IndexedDirImport): void {
   makeFileMapDirs(newDir, filenames, { clearBlockers: true })
   let packageJsonSrc: string | undefined
   for (const [f, src] of filenames) {
@@ -220,13 +222,8 @@ function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
 // outright. Both are recovered by rewriting the map and importing again.
 // Returns false for anything else, which the caller must treat as a real
 // failure.
-function retryWithFixedFileMap (
-  err: unknown,
-  importer: Importer,
-  newDir: string,
-  filenames: Map<string, string>,
-  opts: ImportIndexedDirOptions
-): boolean {
+function retryWithFixedFileMap (err: unknown, dirImport: IndexedDirImport): boolean {
+  const { importer, newDir, filenames, opts } = dirImport
   if (!util.types.isNativeError(err) || !('code' in err)) return false
   if (err.code === 'EEXIST') {
     const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
@@ -245,7 +242,7 @@ function retryWithFixedFileMap (
     return true
   }
   if (err.code === 'ENOENT') {
-    return retryWithSanitizedFilenames(importer, newDir, filenames, opts)
+    return retryWithSanitizedFilenames(dirImport)
   }
   return false
 }
@@ -291,14 +288,23 @@ function tryExclusiveImport (
 }
 
 function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
+  // The completion marker is written last, so its absence settles the common
+  // case — a directory another importer is still filling — in one stat,
+  // wherever the map happens to hold it.
+  const markerSrc = filenames.get('package.json')
+  if (markerSrc !== undefined && !fileMatches(dir, 'package.json', markerSrc)) return false
   for (const [f, src] of filenames) {
-    const reason = mismatchReason(path.join(dir, f), src)
-    if (reason !== undefined) {
-      globalInfo(`Re-importing "${dir}" because file "${f}" ${reason}`)
-      return false
-    }
+    if (f === 'package.json') continue
+    if (!fileMatches(dir, f, src)) return false
   }
   return true
+}
+
+function fileMatches (dir: string, f: string, src: string): boolean {
+  const reason = mismatchReason(path.join(dir, f), src)
+  if (reason === undefined) return true
+  globalInfo(`Re-importing "${dir}" because file "${f}" ${reason}`)
+  return false
 }
 
 // Why `target` is not the store file at `src`, or undefined when it already
@@ -317,12 +323,7 @@ function mismatchReason (target: string, src: string): string | undefined {
   }
 }
 
-function retryWithSanitizedFilenames (
-  importer: Importer,
-  newDir: string,
-  filenames: Map<string, string>,
-  opts: ImportIndexedDirOptions
-): boolean {
+function retryWithSanitizedFilenames ({ importer, newDir, filenames, opts }: IndexedDirImport): boolean {
   const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
   if (invalidFilenames.length === 0) return false
   globalWarn(`\

@@ -7,18 +7,6 @@ import { tempDir } from '@pnpm/prepare'
 
 import { importIndexedDir } from '../src/importIndexedDir.js'
 
-// The hardlink and clone importers treat an existing target as already
-// imported, which is why a repair cannot rely on them to replace a file.
-function linkAdoptingExisting (src: string, dest: string): void {
-  try {
-    fs.linkSync(src, dest)
-  } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
-  }
-}
-
-const linkingImporter = { importFile: linkAdoptingExisting, importFileAtomic: linkAdoptingExisting }
-
 test('importIndexedDir() keepModulesDir merges node_modules', async () => {
   const tmp = tempDir()
   fs.mkdirSync(path.join(tmp, 'src/node_modules/a'), { recursive: true })
@@ -167,3 +155,15 @@ test('importIndexedDir() safeToSkip repairs a directory holding a nested node_mo
   expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('module.exports = 1')
   expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"pkg"}')
 })
+
+// The hardlink and clone importers treat an existing target as already
+// imported, which is why a repair cannot rely on them to replace a file.
+function linkAdoptingExisting (src: string, dest: string): void {
+  try {
+    fs.linkSync(src, dest)
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+  }
+}
+
+const linkingImporter = { importFile: linkAdoptingExisting, importFileAtomic: linkAdoptingExisting }
