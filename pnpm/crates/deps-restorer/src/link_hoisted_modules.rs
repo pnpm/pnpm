@@ -1,6 +1,6 @@
 //! Hoisted-linker. Produces the on-disk `node_modules/` tree
 //! described by Slice 4's [`crate::LockfileToDepGraphResult`]:
-//! removes orphaned directories from the previous install,
+//! removes orphaned directories the new plan doesn't place,
 //! imports each graph node into its computed directory via
 //! [`crate::import_indexed_dir()`], and links bins under every
 //! parent's `node_modules/.bin`.
@@ -25,11 +25,12 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{Host, LinkBinsError, link_bins};
 use pnpm_config::PackageImportMethod;
+use pnpm_fs::read_modules_dir;
 use pnpm_lockfile::PkgIdWithPatchHash;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use rayon::prelude::*;
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     fs, io,
     path::{Path, PathBuf},
     sync::atomic::AtomicU8,
@@ -54,8 +55,9 @@ pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HashMap<String, PathBuf>>
 #[derive(Debug)]
 pub struct LinkHoistedModulesOpts<'a> {
     pub graph: &'a DependenciesGraph,
-    /// Diffed against `graph` to compute orphans. `None` for a
-    /// fresh install (no prior lockfile) — no orphans to remove.
+    /// Diffed against `graph` to compute orphans. `None` for a fresh
+    /// install (no prior lockfile); the on-disk scan still runs, since
+    /// that is exactly the state an interrupted install leaves behind.
     pub prev_graph: Option<&'a DependenciesGraph>,
     /// Per-importer directory hierarchies, keyed by importer
     /// root. Single-importer installs have one entry keyed by
@@ -105,6 +107,16 @@ pub enum LinkHoistedModulesError {
     #[diagnostic(code(ERR_PNPM_LINK_HOISTED_MISSING_GRAPH_NODE))]
     MissingGraphNode { dir: PathBuf },
 
+    /// An importer's `node_modules` could not be enumerated for the
+    /// orphan scan. Removal failures are tolerated, but a directory we
+    /// cannot even read would silently leave orphans behind — the same
+    /// distinction pnpm draws between `readModulesDir`, which only
+    /// swallows a missing directory, and `tryRemoveDir`, which swallows
+    /// everything.
+    #[display("Failed to read {modules_dir:?} while scanning for orphaned directories")]
+    #[diagnostic(code(ERR_PNPM_LINK_HOISTED_READ_MODULES_DIR))]
+    ReadModulesDir { modules_dir: PathBuf, source: io::Error },
+
     #[diagnostic(transparent)]
     ImportIndexedDir(#[error(source)] ImportIndexedDirError),
 
@@ -114,11 +126,13 @@ pub enum LinkHoistedModulesError {
 
 /// Produce the on-disk hoisted tree from a Slice 4 walk result.
 ///
-/// 1. **Orphan removal.** Every directory in `prev_graph` but
-///    not in `graph` is silently `rimraf`'d. Removal happens
-///    *before* any insert so the linker doesn't race against
-///    itself when a directory name is reused for a different
-///    package version.
+/// 1. **Orphan removal.** Every directory the previous install
+///    placed but the new plan doesn't, plus every package
+///    directory found in an importer's `node_modules` that the
+///    new plan doesn't place, is silently `rimraf`'d. Removal
+///    happens *before* any insert so the linker doesn't race
+///    against itself when a directory name is reused for a
+///    different package version.
 /// 2. **Per-node import.** The hierarchy is walked top-down,
 ///    parallel at each level. For every node the linker calls
 ///    [`import_indexed_dir()`] with `force: true,
@@ -129,7 +143,7 @@ pub enum LinkHoistedModulesError {
 pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
-    let removed = remove_orphans(opts.graph, opts.prev_graph, opts.confine_root);
+    let removed = remove_orphans(opts)?;
     // The hoisted linker owns the install's `pnpm:stats` `removed`
     // emission — pnpm emits it from `linkHoistedModules` with the
     // orphan-directory count, and the isolated linker's count comes
@@ -153,29 +167,35 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     Ok(())
 }
 
-/// Phase 1: rimraf every directory that was in the previous
-/// install's graph but isn't in the new one. Errors are swallowed
-/// silently with the same `EPERM`/`EBUSY` tolerance — a directory
-/// we can't remove right now is no worse than leaving a stale
-/// entry, and the next install will retry. Returns the orphan count
-/// (attempted, not necessarily removed — the same number pnpm's
-/// `dirsToRemove.length` reports).
-fn remove_orphans(
-    graph: &DependenciesGraph,
-    prev_graph: Option<&DependenciesGraph>,
-    confine_root: &Path,
-) -> u64 {
-    let Some(prev) = prev_graph else { return 0 };
-    let orphan_dirs: Vec<&PathBuf> = prev
-        .keys()
-        .filter(|dir| !graph.contains_key(*dir))
+/// Phase 1: rimraf every directory the previous install placed that
+/// the new plan doesn't, together with every package directory that
+/// physically sits in an importer's `node_modules` without the new
+/// plan placing it there. Removal errors are swallowed silently with
+/// the same `EPERM`/`EBUSY` tolerance — a directory we can't remove
+/// right now is no worse than leaving a stale entry, and the next
+/// install will retry. Returns the orphan count (attempted, not
+/// necessarily removed — the same number pnpm's `dirsToRemove.length`
+/// reports).
+fn remove_orphans(opts: &LinkHoistedModulesOpts<'_>) -> Result<u64, LinkHoistedModulesError> {
+    let from_prev_graph = opts
+        .prev_graph
+        .into_iter()
+        .flatten()
+        .map(|(dir, _)| dir.clone())
+        .filter(|dir| !opts.graph.contains_key(dir));
+    let mut unplanned = Vec::new();
+    for (project_dir, planned_deps) in opts.hierarchy {
+        unplanned.extend(find_unplanned_dirs(project_dir, planned_deps)?);
+    }
+    let orphan_dirs: BTreeSet<PathBuf> = from_prev_graph
+        .chain(unplanned)
         .filter(|dir| {
-            let confined = dir.starts_with(confine_root)
+            let confined = dir.starts_with(opts.confine_root)
                 && dir.components().all(|part| !matches!(part, std::path::Component::ParentDir));
             if !confined {
                 tracing::warn!(
                     ?dir,
-                    ?confine_root,
+                    confine_root = ?opts.confine_root,
                     "refusing to remove an orphan directory outside the install root",
                 );
             }
@@ -185,7 +205,36 @@ fn remove_orphans(
     orphan_dirs.par_iter().for_each(|dir| {
         let _ = try_remove_dir(dir);
     });
-    orphan_dirs.len() as u64
+    Ok(orphan_dirs.len() as u64)
+}
+
+/// Package directories that physically exist inside `project_dir`'s
+/// `node_modules` but that the new hoisting plan does not place there.
+///
+/// The previous-graph diff cannot see them: an install interrupted
+/// before the current lockfile and `.modules.yaml` are written leaves
+/// nested copies on disk while the next install starts without a
+/// previous graph, so nothing ever reclaims them
+/// (<https://github.com/pnpm/pnpm/issues/13676>).
+///
+/// Only real directories are reported. Symlinks are how workspace
+/// packages and `link:` dependencies are attached, and they are absent
+/// from the graph by design.
+fn find_unplanned_dirs(
+    project_dir: &Path,
+    planned_deps: &DepHierarchy,
+) -> Result<Vec<PathBuf>, LinkHoistedModulesError> {
+    let modules_dir = project_dir.join("node_modules");
+    let pkg_names = read_modules_dir(&modules_dir).map_err(|source| {
+        LinkHoistedModulesError::ReadModulesDir { modules_dir: modules_dir.clone(), source }
+    })?;
+    let unplanned = pkg_names
+        .into_iter()
+        .map(|pkg_name| modules_dir.join(pkg_name))
+        .filter(|dir| !planned_deps.0.contains_key(dir))
+        .filter(|dir| fs::symlink_metadata(dir).is_ok_and(|metadata| metadata.is_dir()))
+        .collect();
+    Ok(unplanned)
 }
 
 /// Single-directory rimraf with error-swallowing semantics.

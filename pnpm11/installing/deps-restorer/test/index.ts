@@ -907,6 +907,44 @@ test('installing in a workspace with node-linker=hoisted', async () => {
   expect(readPkgVersion(path.join(prefix, 'node_modules/express'))).toBe('2.5.11')
 })
 
+// An install interrupted before the current lockfile and `.modules.yaml` are
+// written leaves nested copies on disk that no later install could see, because
+// the next run starts from an empty previous graph. See
+// https://github.com/pnpm/pnpm/issues/13676
+test('installing in a workspace with node-linker=hoisted removes directories that the hoisting plan does not place', async () => {
+  const prefix = f.prepare('workspace2')
+
+  const orphans = [
+    path.join(prefix, 'node_modules/orphan'),
+    path.join(prefix, 'foo/node_modules/orphan'),
+    path.join(prefix, 'bar/node_modules/@scope/orphan'),
+  ]
+  for (const orphan of orphans) {
+    fs.mkdirSync(orphan, { recursive: true })
+    fs.writeFileSync(path.join(orphan, 'package.json'), JSON.stringify({ name: 'orphan', version: '1.0.0' }))
+  }
+  const toolCache = path.join(prefix, 'foo/node_modules/.cache')
+  fs.mkdirSync(toolCache, { recursive: true })
+  const linkedDep = path.join(prefix, 'foo/node_modules/linked-dep')
+  fs.symlinkSync(path.join(prefix, 'bar'), linkedDep, 'junction')
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    nodeLinker: 'hoisted',
+    projects: [
+      path.join(prefix, 'foo'),
+      path.join(prefix, 'bar'),
+    ],
+  }))
+
+  for (const orphan of orphans) {
+    expect(fs.existsSync(orphan)).toBeFalsy()
+  }
+  expect(fs.existsSync(toolCache)).toBeTruthy()
+  expect(fs.lstatSync(linkedDep).isSymbolicLink()).toBeTruthy()
+  expect(readPkgVersion(path.join(prefix, 'foo/node_modules/webpack'))).toBe('2.7.0')
+})
+
 function readPkgVersion (dir: string): string {
   return loadJsonFileSync<{ version: string }>(path.join(dir, 'package.json')).version
 }

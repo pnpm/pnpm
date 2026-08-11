@@ -305,8 +305,95 @@ fn missing_cas_for_optional_dep_skips_silently() {
     assert!(!dir.exists(), "optional dir with no CAS not created");
 }
 
+/// An install interrupted before the current lockfile and
+/// `.modules.yaml` are written leaves nested copies on disk that the
+/// previous-graph diff can never see, because the next install starts
+/// without a previous graph. See
+/// <https://github.com/pnpm/pnpm/issues/13676>.
 #[test]
-fn no_prev_graph_skips_orphan_pass() {
+fn unplanned_directory_in_importer_modules_is_removed() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let modules = lockfile_dir.join("node_modules");
+
+    let unplanned = modules.join("stale");
+    let scoped_unplanned = modules.join("@scope/stale");
+    for dir in [&unplanned, &scoped_unplanned] {
+        fs::create_dir_all(dir).expect("create unplanned dir");
+        fs::write(dir.join("package.json"), r#"{"name":"stale","version":"1.0.0"}"#)
+            .expect("write unplanned manifest");
+    }
+
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"hi")])],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &logged,
+        requester: lockfile_dir.to_str().expect("requester"),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+
+    assert!(!unplanned.exists(), "unplanned dir at {unplanned:?}");
+    assert!(!scoped_unplanned.exists(), "unplanned scoped dir at {scoped_unplanned:?}");
+    assert!(modules.join("a").join("package").join("index.js").exists());
+}
+
+/// Symlinks are how workspace packages and `link:` dependencies are
+/// attached, and dot-directories hold `.bin`, `.pnpm`, and third-party
+/// tool caches. Neither is a hoisted package directory, so the orphan
+/// scan must leave both alone.
+#[test]
+fn symlinks_and_dot_directories_are_preserved() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let modules = lockfile_dir.join("node_modules");
+
+    let link_target = tmp.path().join("sibling");
+    fs::create_dir_all(&link_target).expect("create link target");
+    fs::create_dir_all(&modules).expect("create modules dir");
+    let linked_dep = modules.join("linked");
+    pnpm_fs::symlink_dir(&link_target, &linked_dep).expect("create symlink");
+    let tool_cache = modules.join(".cache");
+    fs::create_dir_all(&tool_cache).expect("create tool cache");
+
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"hi")])],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &logged,
+        requester: lockfile_dir.to_str().expect("requester"),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+
+    assert!(fs::symlink_metadata(&linked_dep).is_ok(), "symlink at {linked_dep:?}");
+    assert!(link_target.exists(), "symlink target at {link_target:?}");
+    assert!(tool_cache.exists(), "tool cache at {tool_cache:?}");
+}
+
+#[test]
+fn no_prev_graph_still_installs() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let cas_root = tmp.path().join("cas");
     let lockfile_dir = tmp.path().join("repo");
