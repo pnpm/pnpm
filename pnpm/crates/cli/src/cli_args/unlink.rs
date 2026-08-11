@@ -12,9 +12,18 @@ use std::path::Path;
 #[derive(Debug, Args)]
 pub struct UnlinkArgs {
     pub package_names: Vec<String>,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
 }
 
 impl UnlinkArgs {
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+    }
+
     /// Strip the matching `link:` overrides from `config` (in memory) and
     /// from `pnpm-workspace.yaml`, returning whether the caller should
     /// reinstall.

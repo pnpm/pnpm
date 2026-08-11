@@ -323,6 +323,7 @@ pub(super) fn dedupe<'a>(ctx: &RunCtx<'a>, args: DedupeArgs) -> miette::Result<C
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
@@ -420,6 +421,7 @@ pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<C
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        args.apply_cli_config(cfg);
         // Strip the matching `link:` overrides; stop early when there is
         // nothing to unlink.
         if !args.strip_link_overrides(cfg, manifest_path)? {
