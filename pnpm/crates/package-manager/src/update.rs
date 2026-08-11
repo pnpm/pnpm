@@ -287,6 +287,22 @@ impl Update<'_> {
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;
 
+        let workspace_root_for_hooks = config.workspace_dir.as_ref().map_or_else(
+            || {
+                manifest
+                    .path()
+                    .parent()
+                    .expect("manifest path always has a parent dir")
+                    .to_path_buf()
+            },
+            Clone::clone,
+        );
+        let read_package_hook = (!save)
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root_for_hooks))
+            .flatten();
+        if let Some((hook, log)) = read_package_hook.as_ref() {
+            apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
+        }
         let lockfile_specifier_project_manifests = (!save).then(|| {
             vec![(
                 manifest
@@ -390,7 +406,7 @@ impl Update<'_> {
             deps_requiring_build_sink: None,
             catalogs_override,
             disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
+            pnpmfile_hook_override: read_package_hook.as_ref().map(|(hook, _)| Arc::clone(hook)),
             workspace_projects_override: None,
         };
         match lockfile_specifier_project_manifests {
@@ -474,11 +490,25 @@ impl Update<'_> {
         if selected_indices.is_empty() {
             return Ok(());
         }
-        let workspace_root = &crate::install::lockfile_root_dir(
+        let workspace_root = crate::install::lockfile_root_dir(
             config,
             manifest.path().parent().expect("manifest path always has a parent dir"),
         )
         .map_err(UpdateError::FindWorkspaceDir)?;
+        let read_package_hook =
+            (!save).then(|| update_read_package_hook::<Reporter>(&workspace_root)).flatten();
+        if let Some((hook, log)) = read_package_hook.as_ref() {
+            let mut hooked_manifest_paths = HashSet::new();
+            for project in projects.iter_mut() {
+                if hooked_manifest_paths.insert(project.manifest.path().to_path_buf()) {
+                    apply_read_package_hook_to_update_manifest(&mut project.manifest, hook, log)
+                        .await?;
+                }
+            }
+            if hooked_manifest_paths.insert(manifest.path().to_path_buf()) {
+                apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
+            }
+        }
         let lockfile_specifier_project_manifests = (!save).then(|| {
             selected_indices
                 .iter()
@@ -488,7 +518,7 @@ impl Update<'_> {
         let mut prepared = prepare_selected_manifests::<Reporter>(
             projects,
             &selected_indices,
-            workspace_root,
+            &workspace_root,
             &http_client_arc,
             config,
             lockfile,
@@ -508,7 +538,7 @@ impl Update<'_> {
         }
         if save {
             let workspace_dir =
-                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
+                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
             write_workspace_catalogs_selected(
                 config,
                 workspace_dir,
@@ -558,7 +588,7 @@ impl Update<'_> {
             deps_requiring_build_sink: None,
             catalogs_override: prepared.catalogs_override,
             disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
+            pnpmfile_hook_override: read_package_hook.as_ref().map(|(hook, _)| Arc::clone(hook)),
             workspace_projects_override: None,
         };
         let selection = WorkspaceInstallSelection {
@@ -592,7 +622,7 @@ impl Update<'_> {
         if let Some(applied) = applied.as_ref() {
             for (index, project) in projects.iter_mut().enumerate() {
                 let importer_id =
-                    pnpm_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir);
+                    pnpm_workspace::importer_id_from_root_dir(&workspace_root, &project.root_dir);
                 let Some(bumped) = applied.manifests.get(&importer_id) else { continue };
                 let already_persisting = persist_indices.contains(&index);
                 if apply_bumped_manifest_specs::<Reporter>(
@@ -610,14 +640,14 @@ impl Update<'_> {
             && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
         {
             let workspace_dir =
-                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
+                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
             write_workspace_catalogs_selected(config, workspace_dir, &applied.catalogs, projects)
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
         if save {
             let workspace_dir =
-                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
+                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
             prune_minimum_release_age_excludes(config, Some(workspace_dir), manifest)
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
@@ -647,6 +677,38 @@ struct SelectedUpdatePreparation {
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
     any_work: bool,
+}
+
+fn update_read_package_hook<Reporter: self::Reporter>(
+    workspace_root: &Path,
+) -> Option<(Arc<dyn pnpm_hooks::PnpmfileHooks>, pnpm_hooks::LogFn)> {
+    let hook = pnpm_hooks::finder::load_pnpmfile(workspace_root)?;
+    let log = hook.source_path().map_or_else(
+        || Arc::new(|_| {}) as pnpm_hooks::LogFn,
+        |from| {
+            crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+                workspace_root,
+                from,
+                "readPackage",
+            )
+        },
+    );
+    Some((hook, log))
+}
+
+async fn apply_read_package_hook_to_update_manifest(
+    manifest: &mut PackageManifest,
+    hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
+    log: &pnpm_hooks::LogFn,
+) -> Result<(), UpdateError> {
+    let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
+    let value = hook
+        .read_package(manifest.value().clone(), ctx)
+        .await
+        .map_err(InstallError::ReadPackageHook)
+        .map_err(UpdateError::Install)?;
+    *manifest.value_mut() = (*value).clone();
+    Ok(())
 }
 
 #[expect(

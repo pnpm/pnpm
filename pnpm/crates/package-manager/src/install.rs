@@ -832,6 +832,11 @@ struct InstallRunOptions<'install, 'selection> {
     /// manifest rewrite but must serialize importer specifiers from the
     /// manifest the user kept on disk.
     lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
+    /// `pacquet update --no-save` applies `readPackage` before preparing its
+    /// in-memory resolution rewrite, so the install layer must not run the
+    /// project-manifest hook again. Dependency manifests still flow through the
+    /// resolver's hook path.
+    project_manifests_are_read_package_hooked: bool,
     /// pnpm's `saveLockfile`: whether the resolved graph may be written
     /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
     /// whose resolution belongs to a project other than the one that
@@ -852,6 +857,7 @@ impl Default for InstallRunOptions<'_, '_> {
             selection: None,
             root_manifest_as_workspace_root: false,
             lockfile_specifier_project_manifests: None,
+            project_manifests_are_read_package_hooked: false,
             save_lockfile: true,
             manifest_spec_bumps: None,
             prompt_eligibility_override: None,
@@ -876,6 +882,7 @@ where
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             lockfile_specifier_project_manifests: Some(lockfile_specifier_project_manifests),
+            project_manifests_are_read_package_hooked: true,
             ..Default::default()
         }))
         .await
@@ -925,6 +932,7 @@ where
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             selection: Some(selection),
             lockfile_specifier_project_manifests: Some(lockfile_specifier_project_manifests),
+            project_manifests_are_read_package_hooked: true,
             ..Default::default()
         }))
         .await

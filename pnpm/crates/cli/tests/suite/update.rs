@@ -1582,6 +1582,45 @@ fn update_no_save_applies_read_package_to_kept_importer_specifier() {
     drop((root, anchor));
 }
 
+#[test]
+fn update_no_save_runs_read_package_once_for_kept_importer_specifier() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            "const fs = require('fs');\nconst path = require('path');\nmodule.exports = {{ hooks: {{ readPackage (pkg) {{\n  if (pkg.name === 'test-update') {{\n    fs.appendFileSync(path.join(__dirname, 'read-package.log'), `${{pkg.dependencies && pkg.dependencies[{DEP:?}]}}\\n`);\n  }}\n  if (pkg.name === 'test-update' && pkg.dependencies && pkg.dependencies[{DEP:?}]) {{\n    pkg.dependencies[{DEP:?}] = '100.1.0';\n  }}\n  return pkg;\n}} }} }}\n",
+        ),
+    )
+    .expect("write pnpmfile");
+
+    let output =
+        pacquet(&workspace, ["update", "--no-save", "--lockfile-only", &format!("{DEP}@100.1.0")])
+            .output()
+            .expect("run update --no-save");
+    assert!(output.status.success(), "update --no-save failed: {output:?}");
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    let hook_log =
+        fs::read_to_string(workspace.join("read-package.log")).expect("read readPackage log");
+    let root_hook_inputs = hook_log.lines().collect::<Vec<_>>();
+    assert_eq!(
+        root_hook_inputs,
+        vec!["^100.0.0"],
+        "readPackage should see the kept importer manifest exactly once",
+    );
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lock.contains("specifier: 100.1.0"),
+        "the lockfile importer entry must use the transformed kept specifier: {lock}",
+    );
+
+    drop((root, anchor));
+}
+
 /// A requested range names no version until resolution runs, so the specifier
 /// the manifest keeps decides — `>=101.0.0` cannot pull the lockfile past
 /// `^100.0.0`. Regression test for
