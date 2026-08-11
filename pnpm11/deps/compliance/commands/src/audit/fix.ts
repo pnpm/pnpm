@@ -85,8 +85,9 @@ export interface CreateMinimumReleaseAgeExcludesOptions {
  * is used instead — that is the version the override actually resolves to.
  * A version published at or before the cutoff doesn't need a bypass, and a
  * version whose publish time is unknown keeps its entry so a genuinely fresh
- * fix stays installable. A version missing from a successfully fetched
- * packument was never published — no fix has shipped — so it gets no entry.
+ * fix stays installable. A version absent from a successfully fetched
+ * packument is not available — whether it was never published, skipped, or
+ * yanked — so it gets no entry.
  */
 export async function createMinimumReleaseAgeExcludes (
   advisories: AuditAdvisory[],
@@ -103,17 +104,19 @@ export async function createMinimumReleaseAgeExcludes (
     if (times == null) return spec
     // The theoretical range minimum may not exist on the registry; use the
     // lowest published version that satisfies the range, which is what the
-    // override actually resolves to.
+    // override actually resolves to. The original key is retained because
+    // the registry may use a non-normalized form (e.g. `v1.2.3`) that the
+    // parsed SemVer drops.
     const published = Object.keys(times)
       .filter((key) => key !== 'created' && key !== 'modified')
-      .map((key) => semver.parse(key, { loose: true }))
-      .filter((v): v is semver.SemVer => v != null)
-      .filter((v) => semver.satisfies(v, patchedVersions))
-      .sort(semver.compare)
+      .map((key) => ({ key, parsed: semver.parse(key, { loose: true }) }))
+      .filter((entry): entry is { key: string, parsed: semver.SemVer } => entry.parsed != null)
+      .filter((entry) => semver.satisfies(entry.parsed, patchedVersions))
+      .sort((a, b) => semver.compare(a.parsed, b.parsed))
     const lowest = published[0]
     if (!lowest) return undefined
-    const lowestSpec = `${advisory.module_name}@${lowest.version}`
-    const publishTime: unknown = times[lowest.version]
+    const lowestSpec = `${advisory.module_name}@${lowest.parsed.version}`
+    const publishTime: unknown = times[lowest.key]
     // The time map comes from an untrusted registry response: only a string
     // can carry a real timestamp; anything else is treated as unknown.
     if (typeof publishTime !== 'string') return lowestSpec

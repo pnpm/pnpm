@@ -164,9 +164,10 @@ async fn resolve_minimum_release_age_excludes(
 /// that satisfies the range is used instead — that is the version the
 /// override actually resolves to. A version published at or before the cutoff
 /// doesn't need a bypass, and a version whose publish time is unknown keeps
-/// its entry so a genuinely fresh fix stays installable. A version missing
-/// from a successfully fetched packument was never published — no fix has
-/// shipped — so it gets no entry. Ports pnpm's `createMinimumReleaseAgeExcludes`.
+/// its entry so a genuinely fresh fix stays installable. A version absent
+/// from a successfully fetched packument is not available — whether it was
+/// never published, skipped, or yanked — so it gets no entry. Ports pnpm's
+/// `createMinimumReleaseAgeExcludes`.
 pub(crate) fn minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
     publish_times: &HashMap<String, Option<HashMap<String, String>>>,
@@ -185,20 +186,22 @@ pub(crate) fn minimum_release_age_excludes(
             };
             // The theoretical range minimum may not exist on the registry;
             // use the lowest published version that satisfies the range,
-            // which is what the override actually resolves to.
+            // which is what the override actually resolves to. The original
+            // key is retained because the registry may use a non-normalized
+            // form (e.g. `v1.2.3`) that the parsed Version drops.
             let range = patched.parse::<Range>().ok()?;
             let lowest = times
                 .keys()
                 .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
-                .filter_map(|version| version.parse::<Version>().ok())
-                .filter(|version| satisfies_including_prerelease(version, &range))
-                .min()?;
-            let raw = times.get(lowest.to_string().as_str())?;
+                .filter_map(|key| key.parse::<Version>().ok().map(|parsed| (key, parsed)))
+                .filter(|(_, parsed)| satisfies_including_prerelease(parsed, &range))
+                .min_by(|(_, a), (_, b)| a.cmp(b))?;
+            let raw = times.get(lowest.0)?;
             match parse_packument_timestamp(raw) {
                 Some(published_at) if published_at <= cutoff => None,
                 // A present-but-unparsable timestamp fails open like unknown
                 // publish times.
-                _ => Some(format!("{name}@{lowest}")),
+                _ => Some(format!("{name}@{}", lowest.1)),
             }
         })
         .collect();
