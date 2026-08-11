@@ -58,11 +58,19 @@ pub(crate) fn try_compose_fast_updates(
             Drift::Resolve => return None,
             drift => drift,
         };
-    let patched =
-        match crate::fast_update_patched_dependencies::detect_patched_drift(lockfile, config) {
-            Drift::Resolve => return None,
-            drift => drift,
-        };
+    // Reading and hashing the patch files is the only I/O this pipeline
+    // does, and both the drift check and the guard at the end need the
+    // result.
+    let Ok(patch_hashes) = config.patched_dependency_hashes() else {
+        return None;
+    };
+    let patched = match crate::fast_update_patched_dependencies::detect_patched_drift(
+        lockfile,
+        patch_hashes.as_ref(),
+    ) {
+        Drift::Resolve => return None,
+        drift => drift,
+    };
     let settings_drift =
         match crate::fast_update_settings::detect_settings_drift(lockfile, &settings) {
             Drift::Resolve => return None,
@@ -111,7 +119,9 @@ pub(crate) fn try_compose_fast_updates(
         return None;
     }
     if !crate::fast_update_patched_dependencies::every_configured_patch_is_applied(
-        &candidate, config,
+        &candidate,
+        patch_hashes.as_ref(),
+        config.allow_unused_patches,
     ) {
         return None;
     }

@@ -1,5 +1,4 @@
 use crate::fast_update_compose::Drift;
-use pacquet_config::Config;
 use pacquet_deps_path::{index_of_dep_path_suffix, remove_suffix};
 use pacquet_lockfile::{
     ImporterDepVersion, Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap,
@@ -29,16 +28,16 @@ pub(crate) struct PatchedPlan {
 }
 
 /// Whether `patchedDependencies` drifted from what the lockfile
-/// records. [`Drift::Resolve`] when a patch file cannot be read or
-/// hashed, or a key's version segment parses as neither a version nor a
-/// range — the resolver reports those.
-pub(crate) fn detect_patched_drift(lockfile: &Lockfile, config: &Config) -> Drift<PatchedPlan> {
+/// records, against the hashes of the configured patch files.
+/// [`Drift::Resolve`] when a key's version segment parses as neither a
+/// version nor a range — the resolver reports that.
+pub(crate) fn detect_patched_drift(
+    lockfile: &Lockfile,
+    hashes: Option<&BTreeMap<String, String>>,
+) -> Drift<PatchedPlan> {
     let empty = BTreeMap::new();
-    let Ok(hashes) = config.patched_dependency_hashes() else {
-        return Drift::Resolve;
-    };
     let recorded = lockfile.patched_dependencies.as_ref().unwrap_or(&empty);
-    let current = hashes.as_ref().unwrap_or(&empty);
+    let current = hashes.unwrap_or(&empty);
     if recorded == current {
         return Drift::Clean;
     }
@@ -253,19 +252,18 @@ fn rewrite_importer_group(group: &mut ResolvedDependencyMap, rekeys: &Rekeys) {
 /// `allowUnusedPatches` turns that error into a warning the resolution
 /// emits, which no rewrite reproduces either; as elsewhere in this module,
 /// a warning is not worth a full resolution.
-pub(crate) fn every_configured_patch_is_applied(lockfile: &Lockfile, config: &Config) -> bool {
-    if config.allow_unused_patches {
+pub(crate) fn every_configured_patch_is_applied(
+    lockfile: &Lockfile,
+    hashes: Option<&BTreeMap<String, String>>,
+    allow_unused_patches: bool,
+) -> bool {
+    if allow_unused_patches {
         return true;
     }
-    let hashes = match config.patched_dependency_hashes() {
-        Ok(Some(hashes)) => hashes,
-        Ok(None) => return true,
-        Err(_) => return false,
+    let Some(hashes) = hashes.filter(|hashes| !hashes.is_empty()) else {
+        return true;
     };
-    if hashes.is_empty() {
-        return true;
-    }
-    let Some(groups) = groups_from_hashes(&hashes) else {
+    let Some(groups) = groups_from_hashes(hashes) else {
         return false;
     };
     let Some(applied) = applied_patch_keys(lockfile, &groups) else {
