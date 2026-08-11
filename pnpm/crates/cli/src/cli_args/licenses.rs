@@ -389,7 +389,7 @@ fn collect_dependencies(
         if snapshot.is_some_and(|snapshot| snapshot.optional)
             && package.is_some_and(|package| {
                 !platform_is_supported_with_inference(
-                    &key.name.to_string(),
+                    &key.name.bare,
                     WantedPlatformRef {
                         os: package.os.as_deref(),
                         cpu: package.cpu.as_deref(),

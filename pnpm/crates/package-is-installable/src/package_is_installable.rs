@@ -248,6 +248,10 @@ pub fn package_is_installable(
 /// a manifest — no engines are recorded per snapshot, so only the platform is
 /// evaluated. The `optional` gate stays at the call site: pnpm leaves out only
 /// an optional dependency it cannot install.
+///
+/// `name` may be given with or without its scope: the inference reads the
+/// bare name's tokens either way, so a caller holding the two parts
+/// separately can pass the bare one and skip joining them.
 #[must_use]
 pub fn platform_is_supported_with_inference(
     name: &str,

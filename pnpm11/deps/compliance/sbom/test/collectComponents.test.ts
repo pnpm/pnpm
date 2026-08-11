@@ -205,7 +205,6 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
     storeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-sbom-installable-test-'))
     storeIndex = new StoreIndex(storeDir)
 
-    // The installable package is present in the store with a declared license.
     const digest = 'abcd1234ef567890'
     const manifestPath = path.join(storeDir, 'files', digest.slice(0, 2), digest.slice(2))
     await fs.mkdir(path.dirname(manifestPath), { recursive: true })
@@ -231,8 +230,10 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
     await fs.rm(storeDir, { recursive: true, force: true })
   })
 
-  // Both platform-incompatible packages are constrained to Solaris, which no
-  // test matrix platform matches, so they are never installable anywhere.
+  // Pinning the architecture keeps the verdict on the two Solaris packages the
+  // same on every host the test runs on.
+  const supportedArchitectures = { os: ['linux'], cpu: ['x64'], libc: ['glibc'] }
+
   function lockfileWithIncompatiblePackages (): LockfileObject {
     return {
       lockfileVersion: '9.0',
@@ -275,6 +276,7 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
       registries,
       lockfileDir: '/tmp/project',
       storeDir,
+      supportedArchitectures,
       lockfileOnly: false,
     })
 
@@ -305,6 +307,7 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
       registries,
       lockfileDir: '/tmp/project',
       storeDir,
+      supportedArchitectures,
       lockfileOnly: true,
     })
 

@@ -703,7 +703,7 @@ fn walk_snapshot(
         // the whole lockfile graph, platform-independently.
         if ctx.virtual_store_dir.is_some()
             && platform_incompatible_optional(
-                &name,
+                &key.name.bare,
                 ctx.snapshots.is_some_and(|snapshots| {
                     snapshots.get(&key).is_some_and(|snapshot| snapshot.optional)
                 }),
