@@ -229,10 +229,8 @@ pub(super) fn node_depends_on_changed_direct_dep(
 /// The highest resolved direct-dependency version of `name` strictly
 /// above `pinned` that still satisfies `range`, or `None`. Anchored to
 /// direct deps (the deterministic, resolved-before-the-walk signal).
-/// `direct_versions` is the importer's snapshot, taken once per walk by
-/// [`fn@walk_node_children`].
-///
-/// [`fn@walk_node_children`]: super::walk::walk_node_children
+/// `direct_versions` is the importer's snapshot, taken once per walked
+/// occurrence as it seeds its children.
 pub(super) fn higher_direct_dep_version(
     direct_versions: Option<&DirectDepVersions>,
     name: &str,
@@ -366,20 +364,21 @@ pub(crate) fn unwrap_package_name<'a>(
     }
 }
 
-/// Resolve the *real* package name a [`WantedDependency`] targets — the
-/// name update targeting matches against, not the local install alias,
-/// which an `npm:` alias or a `jsr:` specifier can differ from. The
-/// picker and the lockfile snapshots key on this name.
+/// Resolve the *real* package name an `(alias, bare_specifier)` edge
+/// targets — the name update targeting matches against, not the local
+/// install alias, which an `npm:` alias or a `jsr:` specifier can
+/// differ from. The picker and the lockfile snapshots key on this name.
 /// `walk::overlay_lookup_names` builds its candidate set from it.
 ///
 /// `None` when no name can be recovered; the caller reads that as "not
 /// a targeted update", since update targets are keyed by package name.
-pub(super) fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
-    let bare = wanted.bare_specifier.as_deref()?;
+pub(super) fn real_package_name_of<'edge>(
+    alias: Option<&'edge str>,
+    bare_specifier: Option<&'edge str>,
+) -> Option<Cow<'edge, str>> {
+    let bare = bare_specifier?;
     if let Some(rest) = bare.strip_prefix("npm:") {
-        let alias_keeps_name = wanted
-            .alias
-            .as_deref()
+        let alias_keeps_name = alias
             .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
         if !alias_keeps_name {
             let last_at =
@@ -392,15 +391,12 @@ pub(super) fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, 
         }
     }
     if bare.starts_with("jsr:") {
-        let spec = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
-            bare,
-            wanted.alias.as_deref(),
-        )
-        .ok()
-        .flatten()?;
+        let spec = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(bare, alias)
+            .ok()
+            .flatten()?;
         return Some(Cow::Owned(spec.npm_pkg_name));
     }
-    wanted.alias.as_deref().map(Cow::Borrowed)
+    alias.map(Cow::Borrowed)
 }
 
 /// Whether `wanted` is one of the packages the user asked to update,
@@ -419,7 +415,8 @@ pub(super) fn is_update_target(
     match scope.reuse {
         UpdateReuseScope::All | UpdateReuseScope::None => false,
         UpdateReuseScope::Except(_) => {
-            real_package_name_of(wanted).is_some_and(|n| update_excludes(scope, n.as_ref(), depth))
+            real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
+                .is_some_and(|name| update_excludes(scope, name.as_ref(), depth))
         }
     }
 }

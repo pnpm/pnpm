@@ -240,6 +240,12 @@ pub struct WorkspaceTreeCtx {
     pub(super) resolved_by_wanted:
         Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
     pub(super) children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
+    /// Package ids whose children have already been speculatively
+    /// resolved. A package is warmed once, however many occurrences of
+    /// it a level seeds — see [`fn@warm_children_resolutions`].
+    ///
+    /// [`fn@warm_children_resolutions`]: super::walk::warm_children_resolutions
+    warmed_children_by_id: Mutex<HashSet<String>>,
     pub(super) children_by_id: Mutex<HashMap<String, RecordedChildren>>,
     children_owner_by_id: Mutex<HashMap<String, ChildrenOwnerEntry>>,
     node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
@@ -471,6 +477,7 @@ impl Default for WorkspaceTreeCtx {
             applied_patches: Mutex::new(HashSet::default()),
             resolved_by_wanted: Mutex::new(HashMap::default()),
             children_specs_by_id: Mutex::new(HashMap::default()),
+            warmed_children_by_id: Mutex::new(HashSet::default()),
             children_by_id: Mutex::new(HashMap::default()),
             children_owner_by_id: Mutex::new(HashMap::default()),
             node_parent_ids_by_id: Mutex::new(HashMap::default()),
@@ -1273,6 +1280,17 @@ pub(super) fn claim_children_owner(
         }
     }
     ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
+}
+
+/// Whether this occurrence is the first to offer to warm its package's
+/// children, so the speculative resolutions run once per package
+/// rather than once per occurrence of it.
+pub(super) fn claim_children_warmup(ctx: &TreeCtx, pkg_id: &str) -> bool {
+    let mut warmed = lock_recoverable(&ctx.workspace.warmed_children_by_id);
+    // Every occurrence of a package offers, and all but the first are
+    // turned away, so the owned key is built only for the one that
+    // takes the warmup.
+    !warmed.contains(pkg_id) && warmed.insert(pkg_id.to_string())
 }
 
 /// Whether this package's recorded children were resolved under

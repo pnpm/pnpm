@@ -77,6 +77,249 @@ impl Resolver for DelayedAliasResolver {
     }
 }
 
+/// Stub resolver fed from a `name` → versions table, picking the way
+/// the npm resolver does: the highest version the range admits, except
+/// that a version the walk's preferred-versions overlay carries wins
+/// over it. Lets a test vary one edge's pick by the level it resolves
+/// under. `delayed` holds back one `(alias, range)` edge, so the
+/// occurrence behind it reaches a shared package second.
+struct OverlayPickResolver {
+    versions: HashMap<String, Vec<ResolveResult>>,
+    delayed: (String, String),
+}
+
+impl Resolver for OverlayPickResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let name = wanted.alias.clone().unwrap_or_default();
+        let bare = wanted.bare_specifier.clone().unwrap_or_default();
+        let range = node_semver::Range::from_str(&bare).expect("test range");
+        let preferred: Vec<&str> = opts
+            .preferred_versions_overlay
+            .as_ref()
+            .map(|overlay| overlay.versions_for(&name))
+            .unwrap_or_default();
+        let satisfying: Vec<&ResolveResult> = self
+            .versions
+            .get(&name)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .filter(|result| {
+                result.name_ver.as_ref().is_some_and(|name_ver| range.satisfies(&name_ver.suffix))
+            })
+            .collect();
+        let highest = |from: Vec<&ResolveResult>| {
+            from.into_iter()
+                .max_by(|left, right| {
+                    version_of(left).partial_cmp(version_of(right)).expect("comparable versions")
+                })
+                .cloned()
+        };
+        let result = highest(
+            satisfying
+                .iter()
+                .copied()
+                .filter(|result| preferred.contains(&version_of(result).to_string().as_str()))
+                .collect(),
+        )
+        .or_else(|| highest(satisfying));
+        let delayed = (name, bare) == self.delayed;
+        Box::pin(async move {
+            if delayed {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            Ok::<_, ResolveError>(result)
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+fn version_of(result: &ResolveResult) -> &node_semver::Version {
+    &result.name_ver.as_ref().expect("test result carries a name and version").suffix
+}
+
+/// The versions table both settlement tests resolve against: `pin` in
+/// two versions, and a `shared` package whose own `pin` edge the level
+/// it is reached from decides.
+fn settlement_versions(
+    extra: impl IntoIterator<Item = (String, Vec<ResolveResult>)>,
+) -> HashMap<String, Vec<ResolveResult>> {
+    let mut versions: HashMap<String, Vec<ResolveResult>> = HashMap::from_iter([
+        (
+            "shared".to_string(),
+            vec![fake_result(
+                "shared",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "shared",
+                    "version": "1.0.0",
+                    "dependencies": { "pin": "^1.0.0" }
+                }),
+            )],
+        ),
+        (
+            "pin".to_string(),
+            vec![
+                fake_result(
+                    "pin",
+                    "1.0.0",
+                    serde_json::json!({ "name": "pin", "version": "1.0.0" }),
+                ),
+                fake_result(
+                    "pin",
+                    "1.5.0",
+                    serde_json::json!({ "name": "pin", "version": "1.5.0" }),
+                ),
+            ],
+        ),
+    ]);
+    versions.extend(extra);
+    versions
+}
+
+fn dependency_result(name: &str, dependencies: &serde_json::Value) -> (String, Vec<ResolveResult>) {
+    (
+        name.to_string(),
+        vec![fake_result(
+            name,
+            "1.0.0",
+            serde_json::json!({ "name": name, "version": "1.0.0", "dependencies": dependencies }),
+        )],
+    )
+}
+
+async fn resolve_settlement_tree(
+    resolver: &OverlayPickResolver,
+    root_deps: serde_json::Value,
+) -> crate::ResolvedTree {
+    let (_tmp, manifest) = fake_manifest(root_deps);
+    resolve_dependency_tree(
+        resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            overrides_hook: None,
+            pnpmfile_hook: None,
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .unwrap()
+}
+
+/// A package's children follow the occurrence that owns them — the
+/// shallowest, here the one under `wrap`, whose level prefers
+/// `pin@1.0.0` — however slowly that occurrence resolves
+/// (<https://github.com/pnpm/pnpm/issues/13685>).
+#[tokio::test(start_paused = true)]
+async fn children_follow_the_shallowest_occurrence_however_late_it_resolves() {
+    let resolver = OverlayPickResolver {
+        versions: settlement_versions([
+            dependency_result("slow", &serde_json::json!({ "wrap": "1.0.0" })),
+            dependency_result("wrap", &serde_json::json!({ "pin": "1.0.0", "shared": "^1.0.0" })),
+            dependency_result("deep", &serde_json::json!({ "mid": "1.0.0" })),
+            dependency_result("mid", &serde_json::json!({ "nested": "1.0.0" })),
+            dependency_result("nested", &serde_json::json!({ "shared": "^1.0.0" })),
+        ]),
+        delayed: ("wrap".to_string(), "1.0.0".to_string()),
+    };
+
+    let tree =
+        resolve_settlement_tree(&resolver, serde_json::json!({ "deep": "1.0.0", "slow": "1.0.0" }))
+            .await;
+
+    let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
+    assert_eq!(shared_children.len(), 1);
+    assert_eq!(shared_children[0].pkg_id, "pin@1.0.0");
+}
+
+/// The winning occurrence's peer-shadowed set is the one that filters
+/// the package's children: `shared` declares `pin` as both a
+/// dependency and a peer, so the edge survives only where the scope
+/// reaching it cannot supply the peer itself. Down `a-parent`, which
+/// resolves `pin` beside the node that depends on `shared`, it does
+/// not — and `a-parent` sorts first.
+#[tokio::test(start_paused = true)]
+async fn peer_shadowing_follows_the_occurrence_that_wins_the_level() {
+    let shadowing_shared = fake_result(
+        "shared",
+        "1.0.0",
+        serde_json::json!({
+            "name": "shared",
+            "version": "1.0.0",
+            "dependencies": { "pin": "1.0.0" },
+            "peerDependencies": { "pin": "^1.0.0" }
+        }),
+    );
+    // `shared` is reached at the same depth down both paths, and its
+    // own peer-shadowing scope is the level of the parent that reaches
+    // it: only `a-parent`'s level resolves `pin`.
+    let mut versions = settlement_versions([
+        dependency_result("a-parent", &serde_json::json!({ "mid-a": "1.0.0", "pin": "1.0.0" })),
+        dependency_result("mid-a", &serde_json::json!({ "shared": "^1.0.0" })),
+        dependency_result("b-parent", &serde_json::json!({ "mid-b": "1.0.0" })),
+        dependency_result("mid-b", &serde_json::json!({ "shared": "1.0.0" })),
+    ]);
+    versions.insert("shared".to_string(), vec![shadowing_shared]);
+    let resolver =
+        OverlayPickResolver { versions, delayed: ("shared".to_string(), "^1.0.0".to_string()) };
+
+    let tree = resolve_settlement_tree(
+        &resolver,
+        serde_json::json!({ "a-parent": "1.0.0", "b-parent": "1.0.0" }),
+    )
+    .await;
+
+    let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
+    eprintln!("SHARED CHILDREN:\n{shared_children:#?}\n");
+    assert!(shared_children.is_empty());
+}
+
+/// Occurrences at the same depth are settled by their parent path, so
+/// the one under `a-parent` decides even when the one under `b-parent`
+/// resolves first.
+#[tokio::test(start_paused = true)]
+async fn same_depth_occurrences_are_settled_by_parent_path() {
+    let resolver = OverlayPickResolver {
+        versions: settlement_versions([
+            dependency_result(
+                "a-parent",
+                &serde_json::json!({ "pin": "1.0.0", "shared": "^1.0.0" }),
+            ),
+            dependency_result(
+                "b-parent",
+                &serde_json::json!({ "pin": "1.5.0", "shared": "1.0.0" }),
+            ),
+        ]),
+        delayed: ("shared".to_string(), "^1.0.0".to_string()),
+    };
+
+    let tree = resolve_settlement_tree(
+        &resolver,
+        serde_json::json!({ "a-parent": "1.0.0", "b-parent": "1.0.0" }),
+    )
+    .await;
+
+    let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
+    assert_eq!(shared_children.len(), 1);
+    assert_eq!(shared_children[0].pkg_id, "pin@1.0.0");
+}
+
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
     use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
     let name_ver = PkgNameVer::new(
