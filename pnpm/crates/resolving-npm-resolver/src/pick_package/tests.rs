@@ -1314,6 +1314,79 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
     full_mock.assert_async().await;
 }
 
+/// A same-install checksum refresh can replace an abbreviated packument while
+/// retaining its cache key. A prior document's `304` marker must not suppress
+/// the full-metadata check for that new response.
+#[tokio::test]
+async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
+    let mut server = mockito::Server::new_async().await;
+    let first_full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("if-none-match", r#""acme-etag""#)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+    let abbreviated_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_header("etag", r#""acme-etag-2""#)
+        .with_body(ABBREVIATED_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let second_full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("if-none-match", r#""acme-etag-2""#)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let mut seeded: pacquet_registry::Package =
+        serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
+    seeded.etag = Some(r#""acme-etag""#.to_string());
+    meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: true,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
+
+    let update_opts = PickPackageOptions { update_checksums: true, ..opts };
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &update_opts)
+        .await
+        .expect("checksum-refresh pick");
+
+    first_full_mock.assert_async().await;
+    abbreviated_mock.assert_async().await;
+    second_full_mock.assert_async().await;
+}
+
 /// Fully excluded packages (`minimumReleaseAgeExclude: ['acme']`) must bypass
 /// the publishedBy file-mtime cache shortcut, otherwise a stale abbreviated
 /// mirror can pin resolution to an old latest forever until the cutoff window

@@ -51,7 +51,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use dashmap::{DashMap, DashSet};
+use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
@@ -155,12 +155,26 @@ pub trait PackageMetaCache: Send + Sync {
 /// different forms of the same packument don't accidentally serialize — the
 /// `metaDir` differentiator is embedded in the key. Release-age upgrade 304s
 /// are tracked alongside the limits because they have the same install
-/// lifetime; keeping that marker out of [`Package`] prevents a caller-owned
-/// metadata cache from leaking it into a later install.
+/// lifetime. Each marker retains the exact [`Package`] document that was
+/// revalidated, so a newer abbreviated response under the same cache key is
+/// checked independently. Keeping the marker out of [`Package`] also prevents
+/// a caller-owned metadata cache from leaking it into a later install.
 #[derive(Debug, Default)]
 pub struct PackumentFetchState {
     limits: DashMap<String, Arc<Semaphore>>,
-    release_age_upgrade_checked: DashSet<String>,
+    release_age_upgrade_checked: DashMap<String, Arc<Package>>,
+}
+
+impl PackumentFetchState {
+    fn release_age_upgrade_was_checked(&self, cache_key: &str, meta: &Arc<Package>) -> bool {
+        self.release_age_upgrade_checked
+            .get(cache_key)
+            .is_some_and(|checked| Arc::ptr_eq(checked.value(), meta))
+    }
+
+    fn mark_release_age_upgrade_checked(&self, cache_key: &str, meta: &Arc<Package>) {
+        self.release_age_upgrade_checked.insert(cache_key.to_string(), Arc::clone(meta));
+    }
 }
 
 pub type PackumentFetchLocker = Arc<PackumentFetchState>;
@@ -1229,7 +1243,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     opts: &PickPackageOptions<'_>,
     full_metadata: bool,
     cache_key: &str,
-    meta: Arc<Package>,
+    mut meta: Arc<Package>,
 ) -> Result<UpgradeOutcome, PickPackageError> {
     if ctx.offline || full_metadata {
         return Ok(UpgradeOutcome { meta, upgraded: false });
@@ -1238,7 +1252,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         return Ok(UpgradeOutcome { meta, upgraded: false });
     };
     if has_all_version_publish_times(&meta)
-        || ctx.fetch_locker.release_age_upgrade_checked.contains(cache_key)
+        || ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta)
     {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
@@ -1274,14 +1288,17 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     );
     let _permit =
         limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
-    if let Some(cached) = ctx.meta_cache.get(cache_key) {
+    if !opts.update_checksums
+        && let Some(cached) = ctx.meta_cache.get(cache_key)
+    {
         let cached_meta = cached.meta;
         if has_all_version_publish_times(&cached_meta)
-            || ctx.fetch_locker.release_age_upgrade_checked.contains(cache_key)
+            || ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &cached_meta)
         {
             return Ok(UpgradeOutcome { meta: cached_meta, upgraded: false });
         }
-    } else if ctx.fetch_locker.release_age_upgrade_checked.contains(cache_key) {
+        meta = cached_meta;
+    } else if ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta) {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     let fetch_opts = FetchFullMetadataOptions {
@@ -1306,7 +1323,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         // the shared metadata cache as verified without carrying the marker
         // into a later install.
         FetchFullMetadataOutcome::NotModified => {
-            ctx.fetch_locker.release_age_upgrade_checked.insert(cache_key.to_string());
+            ctx.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
             if !opts.dry_run {
                 ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
             }
