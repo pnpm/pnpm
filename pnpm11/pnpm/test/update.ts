@@ -33,6 +33,35 @@ test('update <dep>', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^101.0.0')
 })
 
+test('update <pkg>@<version> stays targeted and leaves unselected transitive deps unchanged', async () => {
+  await addDistTag('@pnpm.e2e/foo', '100.0.0', 'latest')
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  const lockfileBefore = project.readLockfile()
+  expect(lockfileBefore.packages).toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
+  expect(lockfileBefore.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+
+  await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm(['update', '--no-save', '@pnpm.e2e/foo@100.1.0', '--lockfile-only'])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+})
+
 test('update --no-save', async () => {
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
   const project = prepare({

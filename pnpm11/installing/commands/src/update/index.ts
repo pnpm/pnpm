@@ -436,10 +436,7 @@ async function update (
   if (opts.packageVulnerabilityAudit != null) {
     updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
   } else if ((packageDependencies.length > 0) && depth > 0 && !opts.latest) {
-    // `createMatcher` strips any `@version` from each selector before
-    // matching, so versioned selectors (`foo@1.2.3`) target the named
-    // packages like bare ones — not the whole graph.
-    updateMatching = createMatcher(packageDependencies)
+    updateMatching = createMatcher(packageDependencies.map((dep) => parseUpdateParam(dep).pattern))
   }
   const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
   const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined
