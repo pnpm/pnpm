@@ -375,7 +375,7 @@ fn a_catalog_edit_and_a_removal_override_are_absorbed_in_one_pass() {
     assert_eq!(entry.version, "1.0.0");
     let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
     assert!(
-        wanted.snapshots.as_ref().is_none_or(|snapshots| !snapshots.contains_key(&removed_key))
+        wanted.snapshots.as_ref().is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
     );
 
     drop((root, mock_instance));
