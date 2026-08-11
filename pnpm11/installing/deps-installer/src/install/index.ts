@@ -842,6 +842,7 @@ export async function mutateModules (
                 drift: syncDrift,
                 projects: contextProjects,
                 workspacePackages: ctx.workspacePackages,
+                resolutionPicksLowest: opts.resolutionMode !== 'highest',
                 pruneLockfileImporters: opts.pruneLockfileImporters,
                 ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
                 patchedDependencies: {

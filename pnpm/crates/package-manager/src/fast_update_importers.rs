@@ -28,6 +28,9 @@ pub(crate) struct ImportersPlan<'a, 'manifest> {
     /// Importers no project claims, to drop before the rest replays.
     stale: Vec<String>,
     workspace_package_names: HashSet<String>,
+    /// Whether `resolutionMode` resolves a direct dependency to its
+    /// lowest satisfying version rather than its highest.
+    resolution_picks_lowest: bool,
 }
 
 /// Whether the importers' records diverge from the manifests, without
@@ -38,6 +41,7 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
     manifests: &'a [(String, &'manifest PackageManifest)],
     project_manifests: &[(PathBuf, &PackageManifest)],
     prune_stale_importers: bool,
+    resolution_picks_lowest: bool,
 ) -> Drift<ImportersPlan<'a, 'manifest>> {
     let mut manifest_dependencies: Vec<(&String, &PackageManifest, ManifestDependencies<'_>)> =
         Vec::new();
@@ -75,6 +79,7 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
             manifest_dependencies,
             stale,
             workspace_package_names: workspace_package_names(project_manifests),
+            resolution_picks_lowest,
         })
     } else {
         Drift::Clean
@@ -120,13 +125,13 @@ pub(crate) fn apply_importers_update(
     let Lockfile { packages, importers, .. } = candidate;
     for (importer_id, manifest, manifest_dependencies) in &plan.manifest_dependencies {
         let records_nothing =
-            importers.get(importer_id.as_str()).is_none_or(has_no_recorded_dependencies);
+            importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
         if records_nothing && !manifest_dependencies.is_empty() {
             let Some(new_importer) = importer_from_locked_versions(
                 packages.as_ref(),
                 manifest,
                 manifest_dependencies,
-                &plan.workspace_package_names,
+                plan,
             ) else {
                 return false;
             };
@@ -155,9 +160,12 @@ pub(crate) fn apply_importers_update(
                 let Some(version) = ver_peer.version_semver() else {
                     return false;
                 };
-                let Some(wanted) =
-                    highest_locked_version_satisfying(packages.as_ref(), alias, &range)
-                else {
+                let Some(wanted) = locked_version_resolution_would_pick(
+                    packages.as_ref(),
+                    alias,
+                    &range,
+                    plan.resolution_picks_lowest,
+                ) else {
                     return false;
                 };
                 if wanted != *version {
@@ -184,10 +192,10 @@ pub(crate) fn apply_importers_update(
     true
 }
 
-/// Whether the lockfile records no dependency of this project. Together
-/// with a missing entry, that is what a project the lockfile has never
-/// seen looks like.
-fn has_no_recorded_dependencies(importer: &ProjectSnapshot) -> bool {
+/// Whether the lockfile records no dependency of this project — the
+/// shape a project it has never seen arrives in, alongside an absent
+/// entry.
+fn records_no_dependencies(importer: &ProjectSnapshot) -> bool {
     [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
         .into_iter()
         .flatten()
@@ -204,16 +212,21 @@ fn importer_from_locked_versions(
     packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
     manifest: &PackageManifest,
     manifest_dependencies: &ManifestDependencies<'_>,
-    workspace_package_names: &HashSet<String>,
+    plan: &ImportersPlan<'_, '_>,
 ) -> Option<ProjectSnapshot> {
     let mut importer = ProjectSnapshot::default();
     let mut specifiers = HashMap::new();
     for (alias, (specifier, group)) in manifest_dependencies {
-        if is_directory_dependency(&alias.to_string(), specifier, workspace_package_names) {
+        if is_directory_dependency(&alias.to_string(), specifier, &plan.workspace_package_names) {
             return None;
         }
         let range = Range::parse(specifier).ok()?;
-        let version = highest_locked_version_satisfying(packages, alias, &range)?;
+        let version = locked_version_resolution_would_pick(
+            packages,
+            alias,
+            &range,
+            plan.resolution_picks_lowest,
+        )?;
         let dependency = ResolvedDependencySpec {
             specifier: (*specifier).to_string(),
             version: ImporterDepVersion::Regular(version.to_string().parse().ok()?),
@@ -284,17 +297,25 @@ fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> bool {
 /// record — for a widened range as much as for one the locked version
 /// cannot satisfy at all.
 ///
-/// `None` when nothing present satisfies (only the resolver can fetch a
-/// new version), or when the alias appears under a key this cannot turn
-/// back into a plain reference: a peer-suffixed one, where picking a
-/// variant would be a guess, or a registry-qualified one, whose semver
-/// only pins a version within its named registry.
-pub(crate) fn highest_locked_version_satisfying(
+/// `None` when the pick cannot be read off the lockfile:
+///
+/// - nothing present satisfies, so only the resolver can fetch a version;
+/// - `resolution_picks_lowest` and more than one locked version
+///   satisfies. Those resolution modes take the lowest preferred version
+///   for a direct dependency, but only when the run leaves the manifest
+///   alone, so which end of the range applies is not a property of the
+///   lockfile;
+/// - the alias appears under a key this cannot turn back into a plain
+///   reference: a peer-suffixed one, where picking a variant would be a
+///   guess, or a registry-qualified one, whose semver only pins a version
+///   within its named registry.
+pub(crate) fn locked_version_resolution_would_pick(
     packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
     alias: &PkgName,
     range: &Range,
+    resolution_picks_lowest: bool,
 ) -> Option<Version> {
-    let mut highest: Option<Version> = None;
+    let mut satisfying: Vec<Version> = Vec::new();
     for key in packages?.keys() {
         if &key.name != alias {
             continue;
@@ -303,11 +324,14 @@ pub(crate) fn highest_locked_version_satisfying(
             return None;
         }
         let Some(version) = key.suffix.version_semver() else { continue };
-        if version.satisfies(range) && highest.as_ref().is_none_or(|best| version > best) {
-            highest = Some(version.clone());
+        if version.satisfies(range) {
+            satisfying.push(version.clone());
         }
     }
-    highest
+    if satisfying.len() > 1 && resolution_picks_lowest {
+        return None;
+    }
+    satisfying.into_iter().max()
 }
 
 /// Whether the importer's record differs from the manifest in a way the

@@ -23,9 +23,9 @@ export function hasChangedProjectSpecifiers (
 ): boolean {
   if (pruneLockfileImporters && staleImporterIds(lockfile, projects).length > 0) return true
   return projects.some((project) => {
-    const importer = lockfile.importers[project.id]
-    if (importer == null) return false
     const manifestSpecifiers = getManifestSpecifiers(project.manifest)
+    const importer = lockfile.importers[project.id]
+    if (importer == null) return Object.keys(manifestSpecifiers).length > 0
     return Object.entries(manifestSpecifiers)
       .some(([alias, specifier]) =>
         importer.specifiers[alias] !== specifier ||
@@ -38,6 +38,11 @@ export interface FastImportersUpdateOptions {
   projects: Project[]
   pruneLockfileImporters: boolean
   workspacePackages: WorkspacePackages
+  /**
+   * Whether `resolutionMode` resolves a direct dependency to its lowest
+   * satisfying version rather than its highest.
+   */
+  resolutionPicksLowest: boolean
 }
 
 /**
@@ -71,16 +76,16 @@ export function tryFastUpdateImporters (
   }
   for (const project of projects) {
     const importer = lockfile.importers[project.id]
-    if (importer == null) return false
     const manifestSpecifiers = getManifestSpecifiers(project.manifest)
-    if (hasNoRecordedDependencies(importer) && Object.keys(manifestSpecifiers).length > 0) {
-      if (!writeImporterFromLockedVersions(lockfile, project, opts.workspacePackages)) return false
+    if (recordsNoDependencies(importer) && Object.keys(manifestSpecifiers).length > 0) {
+      if (!writeImporterFromLockedVersions(lockfile, project, opts)) return false
       // The only edit that adds reachability, so a package that until now
       // only optional dependencies reached can have stopped being optional.
       edits.optionalFlagsAreStale = true
       changed = true
       continue
     }
+    if (importer == null) return false
     let editedGroups = false
     for (const [alias, specifier] of Object.entries(manifestSpecifiers)) {
       if (importer.specifiers[alias] !== specifier) {
@@ -90,7 +95,10 @@ export function tryFastUpdateImporters (
         if (semver.validRange(specifier) == null || version == null || semver.valid(version) == null) {
           return false
         }
-        const wanted = highestLockedVersionSatisfying(lockfile, alias, specifier)
+        const wanted = lockedVersionResolutionWouldPick(lockfile, alias, {
+          specifier,
+          resolutionPicksLowest: opts.resolutionPicksLowest,
+        })
         if (wanted == null) return false
         if (wanted !== version) {
           // Safe without resolving because the target version is already in
@@ -136,12 +144,12 @@ export function tryFastUpdateImporters (
 }
 
 /**
- * Whether the lockfile records no dependency of this project. That is what a
- * project the lockfile has never seen looks like by the time a handler runs:
- * reading the lockfile seeds every project that has no entry with an empty
- * one, so a new project arrives as an importer with nothing in it.
+ * Whether the lockfile records no dependency of this project — the shape a
+ * project it has never seen arrives in. Usually an empty entry rather than an
+ * absent one, since reading the lockfile seeds every project that has none.
  */
-function hasNoRecordedDependencies (importer: ProjectSnapshot): boolean {
+function recordsNoDependencies (importer: ProjectSnapshot | undefined): boolean {
+  if (importer == null) return true
   return Object.keys(importer.specifiers).length === 0 &&
     DEPENDENCIES_FIELDS.every((group) => importer[group] == null || Object.keys(importer[group]).length === 0)
 }
@@ -157,13 +165,16 @@ function hasNoRecordedDependencies (importer: ProjectSnapshot): boolean {
 function writeImporterFromLockedVersions (
   lockfile: LockfileObject,
   project: Project,
-  workspacePackages: WorkspacePackages
+  opts: FastImportersUpdateOptions
 ): boolean {
   const importer: ProjectSnapshot = { specifiers: {} }
   for (const [alias, specifier] of Object.entries(getManifestSpecifiers(project.manifest))) {
-    if (isDirectoryDependency(alias, specifier, workspacePackages)) return false
+    if (isDirectoryDependency(alias, specifier, opts.workspacePackages)) return false
     if (semver.validRange(specifier) == null) return false
-    const version = highestLockedVersionSatisfying(lockfile, alias, specifier)
+    const version = lockedVersionResolutionWouldPick(lockfile, alias, {
+      specifier,
+      resolutionPicksLowest: opts.resolutionPicksLowest,
+    })
     if (version == null) return false
     const group = effectiveDependencyGroup(project.manifest, alias)
     ;(importer[group] ??= {})[alias] = version
@@ -187,16 +198,22 @@ function writeImporterFromLockedVersions (
  * the registry, so reusing what is present is what it would record — for a
  * widened range as much as for one the locked version cannot satisfy at all.
  *
- * `null` when nothing present satisfies (only the resolver can fetch a new
- * version), or when the alias appears under a key this cannot turn back
- * into a plain importer reference: a peer-suffixed one, where picking a
- * variant would be a guess, or a registry-qualified one, whose semver only
- * pins a version within its named registry.
+ * `null` when the pick cannot be read off the lockfile:
+ *
+ * - nothing present satisfies, so only the resolver can fetch a version;
+ * - `resolutionPicksLowest` and more than one locked version satisfies. Those
+ *   resolution modes take the lowest preferred version for a direct
+ *   dependency, but only when the run leaves the manifest alone, so which end
+ *   of the range applies is not a property of the lockfile;
+ * - the alias appears under a key this cannot turn back into a plain importer
+ *   reference: a peer-suffixed one, where picking a variant would be a guess,
+ *   or a registry-qualified one, whose semver only pins a version within its
+ *   named registry.
  */
-function highestLockedVersionSatisfying (
+function lockedVersionResolutionWouldPick (
   lockfile: LockfileObject,
   alias: string,
-  specifier: string
+  wanted: { specifier: string, resolutionPicksLowest: boolean }
 ): string | null {
   const versions = new Set<string>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
@@ -204,11 +221,12 @@ function highestLockedVersionSatisfying (
     if (name !== alias) continue
     if (nonSemverVersion != null) continue
     if (registryName != null || dp.parseDepPath(depPath).peerDepGraphHash !== '') return null
-    if (semver.valid(version) != null && semver.satisfies(version, specifier)) {
+    if (semver.valid(version) != null && semver.satisfies(version, wanted.specifier)) {
       versions.add(version)
     }
   }
   if (versions.size === 0) return null
+  if (versions.size > 1 && wanted.resolutionPicksLowest) return null
   return [...versions].sort(semver.rcompare)[0]
 }
 

@@ -357,5 +357,5 @@ function trackRequestedPackages (storeController: StoreController): string[] {
 }
 /** The composed pipeline restricted to manifest drift. */
 function tryFastUpdateImporters (lockfile: LockfileObject, projects: Project[]): boolean {
-  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects, workspacePackages: new Map() })
+  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects, workspacePackages: new Map(), resolutionPicksLowest: false })
 }

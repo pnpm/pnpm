@@ -43,6 +43,11 @@ export interface ComposeFastUpdatesOptions {
   drift: FastUpdateDrift
   projects: Project[]
   workspacePackages: WorkspacePackages
+  /**
+   * Whether `resolutionMode` resolves a direct dependency to its lowest
+   * satisfying version rather than its highest.
+   */
+  resolutionPicksLowest: boolean
   /** Whether importers of removed projects are dropped from the lockfile. */
   pruneLockfileImporters?: boolean
   ignoredOptionalDependencies?: string[]
@@ -70,6 +75,7 @@ export function tryComposeFastUpdates (
     projects: opts.projects,
     pruneLockfileImporters: opts.pruneLockfileImporters ?? false,
     workspacePackages: opts.workspacePackages,
+    resolutionPicksLowest: opts.resolutionPicksLowest,
   }, edits)) {
     return false
   }

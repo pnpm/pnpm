@@ -351,5 +351,5 @@ test('removing the last catalog referent drops the catalogs section from the loc
 })
 /** The composed pipeline restricted to manifest drift. */
 function tryFastUpdateImporters (lockfile: LockfileObject, projects: Project[]): boolean {
-  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects, workspacePackages: new Map() })
+  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects, workspacePackages: new Map(), resolutionPicksLowest: false })
 }

@@ -34,12 +34,10 @@ test('adding a workspace package whose dependencies are locked resolves nothing'
 
 test('a new project reuses the highest locked version its range admits', async () => {
   const { install, readLockfile } = prepareWorkspace()
-  await install([
-    { name: 'project-1', dependencies: { '@pnpm.e2e/foo': '1.2.0' } },
-  ])
+  await install(TWO_LOCKED_VERSIONS)
 
   const requestedPackages = await install([
-    { name: 'project-1', dependencies: { '@pnpm.e2e/foo': '1.2.0' } },
+    ...TWO_LOCKED_VERSIONS,
     { name: 'project-2', devDependencies: { '@pnpm.e2e/foo': '^1.0.0' } },
   ])
 
@@ -48,7 +46,10 @@ test('a new project reuses the highest locked version its range admits', async (
   expect(lockfile.importers['project-2' as ProjectId].devDependencies).toStrictEqual({
     '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.2.0' },
   })
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/foo@1.2.0'])
+  expect(Object.keys(lockfile.packages ?? {}).sort()).toStrictEqual([
+    '@pnpm.e2e/foo@1.0.0',
+    '@pnpm.e2e/foo@1.2.0',
+  ])
 })
 
 test('a new project with a dependency no locked version satisfies falls back to the resolver', async () => {
@@ -87,7 +88,8 @@ test("a new project's plain dependency clears the optional flag it inherited", a
 test('the fast path writes the lockfile a full resolution would', async () => {
   const { install, readLockfile } = prepareWorkspace()
   const initial: WorkspaceProject[] = [
-    { name: 'project-1', optionalDependencies: { 'is-positive': '1.0.0' }, dependencies: { '@pnpm.e2e/foo': '1.2.0' } },
+    ...TWO_LOCKED_VERSIONS,
+    { name: 'project-1', optionalDependencies: { 'is-positive': '1.0.0' } },
   ]
   const extended: WorkspaceProject[] = [
     ...initial,
@@ -113,15 +115,14 @@ test('a new project on a time-based lockfile writes what a full resolution would
   const initial: WorkspaceProject[] = [
     { name: 'project-1', dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } },
   ]
-  const extended: WorkspaceProject[] = [
-    ...initial,
-    // Only a transitive dependency until now, so the lockfile has no publish
-    // date for it, and it becomes a direct one the `time` section covers.
-    { name: 'project-2', dependencies: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0' } },
-  ]
 
   await install(initial)
   expect(Object.keys(readLockfile().time)).toStrictEqual(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+  // Transitive-only until now, so `time` carries no publish date for it.
+  const extended: WorkspaceProject[] = [
+    ...initial,
+    { name: 'project-2', dependencies: { '@pnpm.e2e/dep-of-pkg-with-1-dep': lockedTransitiveVersion() } },
+  ]
   expect(await install(extended)).toStrictEqual([])
   const fastUpdated = readLockfile()
 
@@ -129,10 +130,32 @@ test('a new project on a time-based lockfile writes what a full resolution would
   await install(extended, { forceFullResolution: true })
 
   expect(fastUpdated).toStrictEqual(readLockfile())
+
+  function lockedTransitiveVersion (): string {
+    const prefix = '@pnpm.e2e/dep-of-pkg-with-1-dep@'
+    const depPath = Object.keys(readLockfile().packages).find((key) => key.startsWith(prefix))
+    return depPath!.slice(prefix.length)
+  }
+})
+
+test('a range several locked versions satisfy falls back when resolution picks the lowest', async () => {
+  const { install, readLockfile } = prepareWorkspace({ resolutionMode: 'lowest-direct' })
+  const extended: WorkspaceProject[] = [
+    ...TWO_LOCKED_VERSIONS,
+    { name: 'project-2', dependencies: { '@pnpm.e2e/foo': '^1.0.0' } },
+  ]
+
+  await install(TWO_LOCKED_VERSIONS)
+  const requestedPackages = await install(extended)
+
+  expect(requestedPackages).not.toStrictEqual([])
+  expect(readLockfile().importers['project-2' as ProjectId].dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+  })
 })
 
 test('a new project that depends on a workspace sibling falls back to the resolver', () => {
-  const subject = lockfileWithSeededImporter()
+  const subject = lockfileWithAnEmptyEntryForANewProject()
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true },
@@ -149,12 +172,41 @@ test('a new project that depends on a workspace sibling falls back to the resolv
   })).toBe(false)
 })
 
-test('a new project that names a dependency the lockfile has never held falls back', () => {
-  const subject = lockfileWithSeededImporter()
+test('a new project that declares a `workspace:` dependency falls back to the resolver', () => {
+  const subject = lockfileWithAnEmptyEntryForANewProject()
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true },
     workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [
+      { id: 'project-1' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '1.2.0' } } as ProjectManifest },
+      { id: 'project-2' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': 'workspace:^' } } as ProjectManifest },
+    ],
+  })).toBe(false)
+})
+
+test('a new project that declares a `link:` dependency falls back to the resolver', () => {
+  const subject = lockfileWithAnEmptyEntryForANewProject()
+
+  expect(tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [
+      { id: 'project-1' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '1.2.0' } } as ProjectManifest },
+      { id: 'project-2' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': 'link:../foo' } } as ProjectManifest },
+    ],
+  })).toBe(false)
+})
+
+test('a new project that names a dependency the lockfile has never held falls back', () => {
+  const subject = lockfileWithAnEmptyEntryForANewProject()
+
+  expect(tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
     projects: [
       { id: 'project-1' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '1.2.0' } } as ProjectManifest },
       { id: 'project-2' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/bar': '1.0.0' } } as ProjectManifest },
@@ -162,11 +214,7 @@ test('a new project that names a dependency the lockfile has never held falls ba
   })).toBe(false)
 })
 
-/**
- * The shape a new project reaches a handler in: reading the lockfile seeds an
- * empty importer entry for every project that has none.
- */
-function lockfileWithSeededImporter (): LockfileObject {
+function lockfileWithAnEmptyEntryForANewProject (): LockfileObject {
   return {
     lockfileVersion: '9.0',
     importers: {
@@ -182,6 +230,12 @@ function lockfileWithSeededImporter (): LockfileObject {
   }
 }
 
+/** Two projects between them lock two versions a `^1.0.0` range admits. */
+const TWO_LOCKED_VERSIONS: WorkspaceProject[] = [
+  { name: 'project-1', dependencies: { '@pnpm.e2e/foo': '1.0.0' } },
+  { name: 'project-3', dependencies: { '@pnpm.e2e/foo': '1.2.0' } },
+]
+
 interface WorkspaceProject {
   name: string
   dependencies?: Record<string, string>
@@ -189,8 +243,8 @@ interface WorkspaceProject {
   optionalDependencies?: Record<string, string>
 }
 
-function prepareWorkspace (sharedOptions?: { resolutionMode: 'time-based' }) {
-  const locations = ['project-1', 'project-2']
+function prepareWorkspace (sharedOptions?: { resolutionMode: 'time-based' | 'lowest-direct' }) {
+  const locations = ['project-1', 'project-2', 'project-3']
   preparePackages(locations.map((name) => ({ location: name, package: { name } })))
   const install = async (
     projects: WorkspaceProject[],

@@ -229,6 +229,7 @@ function tryFastUpdateIgnoredOptionalDependencies (
   return tryComposeFastUpdates(lockfile, {
     drift: { ignoredOptionalDependencies: true },
     workspacePackages: new Map(),
+    resolutionPicksLowest: false,
     projects: [],
     ignoredOptionalDependencies,
   })
