@@ -591,3 +591,116 @@ async fn a_range_override_no_locked_version_satisfies_falls_back() {
     );
     assert_eq!(resolver.calls.load(Ordering::Relaxed), 0, "and it bails before resolving");
 }
+
+/// `parent` and `other` both depend on `target@1.0.0`, so a selector
+/// naming only `parent` has to leave `other` where it is.
+fn lockfile_with_two_dependents() -> Lockfile {
+    let mut lockfile = lockfile();
+    lockfile.overrides = None;
+    lockfile.packages.as_mut().expect("packages").insert(
+        "other@1.0.0".parse().expect("package key"),
+        serde_json::from_value(json!({ "resolution": { "integrity": "sha512-other" } }))
+            .expect("package"),
+    );
+    lockfile.snapshots.as_mut().expect("snapshots").insert(
+        "other@1.0.0".parse().expect("snapshot key"),
+        serde_json::from_value(json!({ "dependencies": { "target": "1.0.0" } })).expect("snapshot"),
+    );
+    lockfile
+        .importers
+        .get_mut(".")
+        .expect("importer")
+        .dependencies
+        .as_mut()
+        .expect("dependencies")
+        .insert(
+            "other".parse().expect("alias"),
+            serde_json::from_value(json!({ "specifier": "1.0.0", "version": "1.0.0" }))
+                .expect("dependency"),
+        );
+    lockfile
+}
+
+fn parent_scoped_override() -> Vec<VersionOverride> {
+    vec![VersionOverride {
+        selector: "parent>target".to_string(),
+        parent_pkg: Some(PackageSelector { name: "parent".to_string(), bare_specifier: None }),
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        new_bare_specifier: "2.0.0".to_string(),
+        converge: false,
+    }]
+}
+
+#[tokio::test]
+async fn a_parent_scoped_override_moves_only_that_parents_edge() {
+    let lockfile = lockfile_with_two_dependents();
+    let overrides = IndexMap::from([("parent>target".to_string(), "2.0.0".to_string())]);
+    let resolver = StubResolver {
+        calls: AtomicUsize::new(0),
+        manifest: json!({ "name": "target", "version": "2.0.0", "dependencies": { "child": "^1.0.0" } }),
+    };
+
+    let updated = try_update(&lockfile, &parent_scoped_override(), &overrides, &resolver)
+        .await
+        .expect("moving one parent's edge needs no resolution");
+
+    let target: PkgName = "target".parse().expect("package name");
+    let edge_of = |owner: &str| {
+        updated
+            .snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(&owner.parse().expect("snapshot key")))
+            .and_then(|snapshot| snapshot.dependencies.as_ref())
+            .and_then(|dependencies| dependencies.get(&target))
+            .map(ToString::to_string)
+    };
+    assert_eq!(edge_of("parent@1.0.0").as_deref(), Some("2.0.0"), "the named parent moves");
+    assert_eq!(edge_of("other@1.0.0").as_deref(), Some("1.0.0"), "the other dependent does not");
+    let mut keys: Vec<_> = updated
+        .snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .filter(|key| key.starts_with("target@"))
+        .collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        vec!["target@1.0.0".to_string(), "target@2.0.0".to_string()],
+        "both versions survive, one per dependent",
+    );
+}
+
+#[tokio::test]
+async fn a_parent_scoped_override_prunes_the_old_version_when_nothing_else_holds_it() {
+    let mut lockfile = lockfile_with_two_dependents();
+    // `other` no longer reaches `target`, so the named parent is its last
+    // dependent and the version it leaves becomes unreachable.
+    lockfile
+        .snapshots
+        .as_mut()
+        .expect("snapshots")
+        .get_mut(&"other@1.0.0".parse().expect("snapshot key"))
+        .expect("other snapshot")
+        .dependencies = None;
+    let overrides = IndexMap::from([("parent>target".to_string(), "2.0.0".to_string())]);
+    let resolver = StubResolver {
+        calls: AtomicUsize::new(0),
+        manifest: json!({ "name": "target", "version": "2.0.0", "dependencies": { "child": "^1.0.0" } }),
+    };
+
+    let updated = try_update(&lockfile, &parent_scoped_override(), &overrides, &resolver)
+        .await
+        .expect("moving one parent's edge needs no resolution");
+
+    let keys: Vec<_> = updated
+        .snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .filter(|key| key.starts_with("target@"))
+        .collect();
+    assert_eq!(keys, vec!["target@2.0.0".to_string()], "the version it left is unreachable");
+}

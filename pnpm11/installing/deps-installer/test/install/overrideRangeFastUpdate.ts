@@ -79,3 +79,82 @@ test('an exact override still names the version it was given', async () => {
 
   expect(requested).toStrictEqual(['1.3.0'])
 })
+
+/**
+ * `parent` and `other` both depend on `target@1.0.0`, so a selector naming
+ * only `parent` has to leave `other` where it is.
+ */
+function makeSharedDependencyLockfile (): LockfileObject {
+  return {
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { parent: '1.0.0', other: '1.0.0' },
+        specifiers: { parent: '1.0.0', other: '1.0.0' },
+      },
+    },
+    packages: {
+      ['parent@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-parent' },
+        dependencies: { target: '1.0.0' },
+      },
+      ['other@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-other' },
+        dependencies: { target: '1.0.0' },
+      },
+      ['target@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-target' } },
+    },
+  } as unknown as LockfileObject
+}
+
+/** Resolves `target` at whatever version is asked for, with no dependencies. */
+const resolveTarget = (async (wanted: { alias?: string, bareSpecifier?: string }) => ({
+  body: {
+    id: `${wanted.alias!}@${wanted.bareSpecifier!}`,
+    isLocal: false as const,
+    manifest: { name: wanted.alias!, version: wanted.bareSpecifier! },
+    resolution: { integrity: 'sha512-CCCC' },
+    resolvedVia: 'npm-registry',
+  },
+})) as unknown as RequestPackageFunction
+
+function parentScopedOpts (requestPackage: RequestPackageFunction) {
+  return {
+    lockfileDir: '/test',
+    overrides: { 'parent>target': '2.0.0' },
+    parsedOverrides: [{
+      selector: 'parent>target',
+      newBareSpecifier: '2.0.0',
+      targetPkg: { name: 'target' },
+      parentPkg: { name: 'parent' },
+    }],
+    registries,
+    requestPackage,
+    isLockfileUpToDate: async () => true,
+  } as never
+}
+
+test('a parent-scoped override moves only that parent\'s edge', async () => {
+  const lockfile = makeSharedDependencyLockfile()
+
+  expect(await tryFastUpdateOverrides(lockfile, parentScopedOpts(resolveTarget))).toBe(true)
+
+  expect(lockfile.packages!['parent@1.0.0' as DepPath].dependencies)
+    .toStrictEqual({ target: '2.0.0' })
+  expect(lockfile.packages!['other@1.0.0' as DepPath].dependencies)
+    .toStrictEqual({ target: '1.0.0' })
+  expect(Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('target@')).sort())
+    .toStrictEqual(['target@1.0.0', 'target@2.0.0'])
+})
+
+test('a parent-scoped override prunes the version it leaves when nothing else holds it', async () => {
+  const lockfile = makeSharedDependencyLockfile()
+  // `other` no longer reaches `target`, so the named parent is its last
+  // dependent and the version it leaves becomes unreachable.
+  delete lockfile.packages!['other@1.0.0' as DepPath].dependencies
+
+  expect(await tryFastUpdateOverrides(lockfile, parentScopedOpts(resolveTarget))).toBe(true)
+
+  expect(Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('target@')))
+    .toStrictEqual(['target@2.0.0'])
+})
