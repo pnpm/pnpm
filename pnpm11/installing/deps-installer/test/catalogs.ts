@@ -1534,7 +1534,6 @@ describe('add', () => {
     ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_CATALOG_VERSION_MISMATCH' }))
   })
 
-  // Regression test for https://github.com/pnpm/pnpm/issues/13715
   test('adding the version a named catalog pins exactly keeps the named catalog with catalogMode: strict', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
@@ -1569,6 +1568,7 @@ describe('add', () => {
     })
   })
 
+  // Regression test for https://github.com/pnpm/pnpm/issues/13715
   test('adding a version within the catalog range uses the catalog with catalogMode: strict', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
