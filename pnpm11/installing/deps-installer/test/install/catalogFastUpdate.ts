@@ -252,8 +252,9 @@ test('a catalog edit and a removal override are absorbed in one pass', async () 
   })
   expect(written.snapshots['@pnpm.e2e/pkg-with-good-optional@1.0.0'].optionalDependencies)
     .toBeUndefined()
-  expect(Object.keys(written.snapshots).some((depPath) => depPath.startsWith('is-positive@')))
-    .toBe(false)
+  for (const section of [written.snapshots, written.packages]) {
+    expect(Object.keys(section).some((depPath) => depPath.startsWith('is-positive@'))).toBe(false)
+  }
 })
 
 test.each(['catalog:', 'catalog:default'])('a default catalog snapshot referenced as %s is not removed', (specifier) => {
