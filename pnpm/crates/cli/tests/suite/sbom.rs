@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_testing_utils::command_env::CommandTestExt;
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
@@ -42,6 +43,8 @@ fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) 
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
+        .with_env("PNPM_CONFIG_REGISTRY", "https://registry.npmjs.org/")
         .with_args(args)
 }
 
