@@ -133,25 +133,22 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
   const newDirs = changes.filter(item => item.newValue === DIR).sort((a, b) => comparePaths(a.path, b.path))
   const newFiles = changes.filter(item => item.newValue !== DIR)
 
-  // Every directory is in place, shallowest first, before anything is linked
-  // into it, so that a directory is always empty when it displaces what the
-  // target held at its path: a removal landing late would otherwise take out
+  // The phase order is load-bearing twice over. Removals go first, so a path
+  // the source turned from a directory into a file still has a directory in it
+  // when its dropped children are unlinked. Directories then go in ahead of the
+  // files they hold, so a directory is always empty when it displaces what the
+  // target held at its path — otherwise a removal landing late would take out
   // files a sibling had already linked. A path the target holds as a file and
   // the source as a directory lands in `modified` rather than `added`, so both
-  // arrays feed this pass.
-  const changing = (async () => {
-    for (const item of newDirs) {
-      await applyChange(item) // eslint-disable-line no-await-in-loop
-    }
-    await Promise.all(newFiles.map(applyChange))
-  })()
-
-  const removing = Promise.all(optimizedDirPatch.removed.map(async item => {
-    const targetPath = path.join(targetDir, item.path)
-    await removeRecursive(targetPath)
+  // arrays feed the directory pass.
+  await Promise.all(optimizedDirPatch.removed.map(async item => {
+    await removeRecursive(path.join(targetDir, item.path))
   }))
 
-  await Promise.all([changing, removing])
+  for (const item of newDirs) {
+    await applyChange(item) // eslint-disable-line no-await-in-loop
+  }
+  await Promise.all(newFiles.map(applyChange))
 }
 
 export type ExtendFilesMapStats = Pick<fs.Stats, 'ino' | 'isFile' | 'isDirectory'>

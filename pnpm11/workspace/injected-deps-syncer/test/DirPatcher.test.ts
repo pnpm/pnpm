@@ -327,3 +327,28 @@ testOnPosix('keeps the files linked into a directory that replaced a blocking in
 
   expect(fs.readdirSync('target/blocked').sort()).toStrictEqual(fileNames.sort())
 })
+
+test('removes what the source dropped before replacing the directory that held it', async () => {
+  prepareEmpty()
+
+  createFile('source/became-a-file', 'now a file')
+  createFile('target/became-a-file/dropped.txt', 'was a dir')
+
+  // `became-a-file` is a modification, `became-a-file/dropped.txt` a
+  // removal. Hold the removal back so it would land after the
+  // modification has linked a file over its parent — at which point
+  // the path it was given no longer has a directory in it.
+  let delayNextRemoval = true
+  fs.promises.rm = (async (target: fs.PathLike, options?: fs.RmOptions) => {
+    if (delayNextRemoval && String(target).endsWith('dropped.txt')) {
+      delayNextRemoval = false
+      await delay(30)
+    }
+    return originalRm(target, options)
+  }) as typeof fs.promises.rm
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.readFileSync('target/became-a-file', 'utf8')).toBe('now a file')
+})
