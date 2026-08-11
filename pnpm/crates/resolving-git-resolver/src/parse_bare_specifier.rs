@@ -141,18 +141,21 @@ fn correct_url(input: &str) -> String {
     // that the URL parser cannot consume. Convert the last colon in
     // the host into a `/`, unless it's followed by a numeric port.
     let host = auth.rsplit_once('@').map_or(auth, |(_, host)| host);
-    let port_pattern_present = host.rfind(':').is_some_and(|idx| {
-        host[idx + 1..].chars().all(|byte| byte.is_ascii_digit()) && !host[idx + 1..].is_empty()
+    // The colons of a bracketed IPv6 literal belong to the address.
+    let after_host = if host.starts_with('[') {
+        host.find(']').map_or(host, |idx| &host[idx + 1..])
+    } else {
+        host
+    };
+    let port_pattern_present = after_host.rfind(':').is_some_and(|idx| {
+        after_host[idx + 1..].chars().all(|byte| byte.is_ascii_digit())
+            && !after_host[idx + 1..].is_empty()
     });
-    let host_has_colon = host.contains(':');
+    let host_has_colon = after_host.contains(':');
     if host_has_colon && !port_pattern_present {
-        let auth_parts: Vec<&str> = auth.split(':').collect();
         let protocol = "ssh";
-        // `auth_parts[..-1] join ':' + '/' + auth_parts[-1]`
-        let new_auth = if auth_parts.len() >= 2 {
-            let last = auth_parts[auth_parts.len() - 1];
-            let rest = auth_parts[..auth_parts.len() - 1].join(":");
-            format!("{rest}/{last}")
+        let new_auth = if let Some(separator) = auth.rfind(':') {
+            format!("{}/{}", &auth[..separator], &auth[separator + 1..])
         } else {
             auth.to_string()
         };

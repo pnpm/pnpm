@@ -61,6 +61,19 @@ fn correct_url_keeps_numeric_port() {
 }
 
 #[test]
+fn correct_url_keeps_bracketed_ipv6_host() {
+    assert_eq!(correct_url("ssh://[::1]/repo.git"), "ssh://[::1]/repo.git");
+    assert_eq!(
+        correct_url("ssh://[2001:db8::1]/team/repo.git"),
+        "ssh://[2001:db8::1]/team/repo.git",
+    );
+    assert_eq!(correct_url("ssh://[::1]:2222/repo.git"), "ssh://[::1]:2222/repo.git");
+    assert_eq!(correct_url("ssh://[::1]:team/repo.git"), "ssh://[::1]/team/repo.git");
+    assert_eq!(correct_url("ssh://git@[::1]/repo.git"), "ssh://git@[::1]/repo.git");
+    assert_eq!(correct_url("ssh://git@[::1]:team/repo.git"), "ssh://git@[::1]/team/repo.git");
+}
+
+#[test]
 fn finalize_direct_returns_spec_unchanged() {
     let kind = parse_bare_specifier("git+https://example.com/repo.git#abc").expect("direct");
     let spec = kind.finalize();
@@ -175,7 +188,40 @@ fn fetch_spec_for_scp_style_inputs() {
     }
 }
 
-// Ported `parsePref.test.ts` path-extraction cases.
+#[test]
+fn fetch_spec_for_inputs_without_user_info() {
+    let cases: &[(&str, &str)] = &[
+        ("ssh://git.example.com/team/repo.git", "ssh://git.example.com/team/repo.git"),
+        ("ssh://git.example.com:2222/team/repo.git", "ssh://git.example.com:2222/team/repo.git"),
+        ("ssh://git.example.com:team/repo.git", "ssh://git.example.com/team/repo.git"),
+        ("ssh://git.example.com:repo.git", "ssh://git.example.com/repo.git"),
+        ("git+ssh://git.example.com/team/repo.git", "ssh://git.example.com/team/repo.git"),
+        ("git+ssh://git.example.com:team/repo.git", "ssh://git.example.com/team/repo.git"),
+    ];
+    for (input, expected) in cases {
+        let kind = parse_bare_specifier(input).expect("parse claims input");
+        let spec = kind.finalize();
+        assert_eq!(spec.fetch_spec, *expected, "input {input}");
+    }
+}
+
+#[test]
+fn fetch_spec_for_bracketed_ipv6_hosts() {
+    let cases: &[(&str, &str)] = &[
+        ("ssh://[::1]/repo.git", "ssh://[::1]/repo.git"),
+        ("ssh://[2001:db8::1]/team/repo.git", "ssh://[2001:db8::1]/team/repo.git"),
+        ("ssh://[::1]:2222/repo.git", "ssh://[::1]:2222/repo.git"),
+        ("ssh://[::1]:team/repo.git", "ssh://[::1]/team/repo.git"),
+        ("ssh://git@[::1]/repo.git", "ssh://git@[::1]/repo.git"),
+        ("ssh://git@[::1]:team/repo.git", "ssh://git@[::1]/team/repo.git"),
+    ];
+    for (input, expected) in cases {
+        let kind = parse_bare_specifier(input).expect("parse claims input");
+        let spec = kind.finalize();
+        assert_eq!(spec.fetch_spec, *expected, "input {input}");
+    }
+}
+
 #[test]
 fn path_extracted_from_scp_style_inputs() {
     let cases: &[(&str, Option<&str>)] = &[
