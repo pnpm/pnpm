@@ -180,10 +180,13 @@ fn overridden_version(lockfile: &Lockfile, name: &PkgName, value: &str) -> Optio
         return Some(version);
     }
     let range = Range::parse(value).ok()?;
-    crate::fast_update_importers::highest_locked_version_satisfying(
+    // `resolutionMode` only moves direct dependencies to the low end of
+    // their range, and an override names a package at any depth.
+    crate::fast_update_importers::locked_version_resolution_would_pick(
         lockfile.packages.as_ref(),
         name,
         &range,
+        false,
     )
 }
 

@@ -795,8 +795,6 @@ export async function mutateModules (
       !ctx.lockfileHadConflicts &&
       ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
       !isEmptyLockfile(ctx.wantedLockfile) &&
-      // Extra importers are drift the handler absorbs; a missing one is not.
-      contextProjects.every((project) => ctx.wantedLockfile.importers[project.id] != null) &&
       // `time` records publish dates for the importers' direct dependencies
       // and is pruned back to them whenever the lockfile is written, so a
       // rewrite that introduces no new version needs no maintenance of it.
@@ -856,6 +854,8 @@ export async function mutateModules (
               return tryComposeFastUpdates(candidate, {
                 drift: syncDrift,
                 projects: contextProjects,
+                workspacePackages: ctx.workspacePackages,
+                resolutionPicksLowest: opts.resolutionMode !== 'highest',
                 pruneLockfileImporters: opts.pruneLockfileImporters,
                 ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
                 patchedDependencies: {

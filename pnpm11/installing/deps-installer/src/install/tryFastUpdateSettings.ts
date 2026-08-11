@@ -111,7 +111,12 @@ function hasNoInjectableDependencies (
   )
 }
 
-function isDirectoryDependency (
+/**
+ * Whether `alias` resolves to a directory rather than to a registry version:
+ * the protocols that name one outright, and a plain range on a workspace
+ * project's name, which `linkWorkspacePackages` turns into a link.
+ */
+export function isDirectoryDependency (
   alias: string,
   bareSpecifier: string,
   workspacePackages: WorkspacePackages

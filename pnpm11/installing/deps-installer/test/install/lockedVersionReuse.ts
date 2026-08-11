@@ -122,6 +122,8 @@ test('a higher version that exists only under a named registry falls back', () =
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
     projects: [{
       id: '.' as ProjectId,
       manifest: { dependencies: { '@pnpm.e2e/foo': '^1.1.0' } } as ProjectManifest,
@@ -134,6 +136,8 @@ test('a higher version under a plain key is reused', () => {
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
     projects: [{
       id: '.' as ProjectId,
       manifest: { dependencies: { '@pnpm.e2e/foo': '^1.1.0' } } as ProjectManifest,
@@ -149,6 +153,8 @@ test('a moved range keeps a package whose peer suffix names the version it moves
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
     projects: [{
       id: '.' as ProjectId,
       manifest: { dependencies: { '@pnpm.e2e/foo': '^1.1.0', '@pnpm.e2e/qux': '^5.0.0' } } as ProjectManifest,
@@ -169,6 +175,8 @@ test('a moved range falls back when a peer suffix names the version it moves off
 
   expect(tryComposeFastUpdates(subject, {
     drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
     projects: [{
       id: '.' as ProjectId,
       manifest: {

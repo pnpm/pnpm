@@ -41,7 +41,9 @@ pub(crate) fn try_compose_fast_updates(
     let importers = match crate::fast_update_importers::detect_importers_drift(
         lockfile,
         manifests,
+        project_manifests,
         prune_stale_importers,
+        config.resolution_mode.picks_lowest_direct(),
     ) {
         Drift::Resolve => return None,
         drift => drift,

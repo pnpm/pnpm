@@ -1,11 +1,18 @@
-use crate::{fast_update_compose::Drift, fast_update_lockfile::GraphEdits};
+use crate::{
+    fast_update_compose::Drift,
+    fast_update_lockfile::GraphEdits,
+    fast_update_settings::{is_directory_dependency, workspace_package_names},
+};
 use node_semver::{Range, Version};
 use pacquet_lockfile::{
     ImporterDepVersion, Lockfile, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 /// Each manifest alias with its specifier and the group it is
 /// effectively declared under. Keyed by [`PkgName`] so membership tests
@@ -16,9 +23,14 @@ type ManifestDependencies<'manifest> = HashMap<PkgName, (&'manifest str, Depende
 /// importer's manifest map, built once so detection and application share
 /// the parsed aliases.
 pub(crate) struct ImportersPlan<'a, 'manifest> {
-    manifest_dependencies: Vec<(&'a String, ManifestDependencies<'manifest>)>,
+    manifest_dependencies:
+        Vec<(&'a String, &'manifest PackageManifest, ManifestDependencies<'manifest>)>,
     /// Importers no project claims, to drop before the rest replays.
     stale: Vec<String>,
+    workspace_package_names: HashSet<String>,
+    /// Whether `resolutionMode` resolves a direct dependency to its
+    /// lowest satisfying version rather than its highest.
+    resolution_picks_lowest: bool,
 }
 
 /// Whether the importers' records diverge from the manifests, without
@@ -27,9 +39,12 @@ pub(crate) struct ImportersPlan<'a, 'manifest> {
 pub(crate) fn detect_importers_drift<'a, 'manifest>(
     lockfile: &Lockfile,
     manifests: &'a [(String, &'manifest PackageManifest)],
+    project_manifests: &[(PathBuf, &PackageManifest)],
     prune_stale_importers: bool,
+    resolution_picks_lowest: bool,
 ) -> Drift<ImportersPlan<'a, 'manifest>> {
-    let mut manifest_dependencies: Vec<(&String, ManifestDependencies<'_>)> = Vec::new();
+    let mut manifest_dependencies: Vec<(&String, &PackageManifest, ManifestDependencies<'_>)> =
+        Vec::new();
     for (importer_id, manifest) in manifests {
         // Later groups overwrite, so each alias ends at the group
         // `satisfies_package_manifest` expects it recorded under when it
@@ -43,7 +58,7 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
                 dependencies.insert(name, (specifier, group));
             }
         }
-        manifest_dependencies.push((importer_id, dependencies));
+        manifest_dependencies.push((importer_id, *manifest, dependencies));
     }
     let stale: Vec<String> = if prune_stale_importers {
         lockfile
@@ -56,11 +71,16 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
         Vec::new()
     };
     if !stale.is_empty()
-        || manifest_dependencies.iter().any(|(importer_id, dependencies)| {
+        || manifest_dependencies.iter().any(|(importer_id, _, dependencies)| {
             importer_diverges(lockfile, importer_id, dependencies)
         })
     {
-        Drift::Absorb(ImportersPlan { manifest_dependencies, stale })
+        Drift::Absorb(ImportersPlan {
+            manifest_dependencies,
+            stale,
+            workspace_package_names: workspace_package_names(project_manifests),
+            resolution_picks_lowest,
+        })
     } else {
         Drift::Clean
     }
@@ -103,7 +123,25 @@ pub(crate) fn apply_importers_update(
         }
     }
     let Lockfile { packages, importers, .. } = candidate;
-    for (importer_id, manifest_dependencies) in &plan.manifest_dependencies {
+    for (importer_id, manifest, manifest_dependencies) in &plan.manifest_dependencies {
+        let records_nothing =
+            importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
+        if records_nothing && !manifest_dependencies.is_empty() {
+            let Some(new_importer) = importer_from_locked_versions(
+                packages.as_ref(),
+                manifest,
+                manifest_dependencies,
+                plan,
+            ) else {
+                return false;
+            };
+            importers.insert((*importer_id).clone(), new_importer);
+            // The only edit that adds reachability, so a package that until
+            // now only optional dependencies reached can have stopped being
+            // optional.
+            edits.optional_flags_are_stale = true;
+            continue;
+        }
         let Some(importer) = importers.get_mut(importer_id.as_str()) else {
             return false;
         };
@@ -122,9 +160,12 @@ pub(crate) fn apply_importers_update(
                 let Some(version) = ver_peer.version_semver() else {
                     return false;
                 };
-                let Some(wanted) =
-                    highest_locked_version_satisfying(packages.as_ref(), alias, &range)
-                else {
+                let Some(wanted) = locked_version_resolution_would_pick(
+                    packages.as_ref(),
+                    alias,
+                    &range,
+                    plan.resolution_picks_lowest,
+                ) else {
                     return false;
                 };
                 if wanted != *version {
@@ -142,13 +183,68 @@ pub(crate) fn apply_importers_update(
                 dependency.specifier = (*specifier).to_string();
             }
             if let Some(source) = move_dependency(importer, alias, *target) {
-                edits.moved_across_optional |=
+                edits.optional_flags_are_stale |=
                     source == DependencyGroup::Optional || *target == DependencyGroup::Optional;
             }
         }
         remove_dependencies_absent_from(importer, manifest_dependencies, edits);
     }
     true
+}
+
+/// Whether the lockfile records no dependency of this project — the
+/// shape a project it has never seen arrives in, alongside an absent
+/// entry.
+fn records_no_dependencies(importer: &ProjectSnapshot) -> bool {
+    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        .into_iter()
+        .flatten()
+        .all(HashMap::is_empty)
+}
+
+/// A project's whole importer entry, built from the versions the
+/// lockfile already holds.
+///
+/// `None` when a declared dependency needs the resolver: one that
+/// resolves to a directory rather than to a registry version, one whose
+/// specifier is not a semver range, and one no locked version satisfies.
+fn importer_from_locked_versions(
+    packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
+    manifest: &PackageManifest,
+    manifest_dependencies: &ManifestDependencies<'_>,
+    plan: &ImportersPlan<'_, '_>,
+) -> Option<ProjectSnapshot> {
+    let mut importer = ProjectSnapshot::default();
+    let mut specifiers = HashMap::new();
+    for (alias, (specifier, group)) in manifest_dependencies {
+        if is_directory_dependency(&alias.to_string(), specifier, &plan.workspace_package_names) {
+            return None;
+        }
+        let range = Range::parse(specifier).ok()?;
+        let version = locked_version_resolution_would_pick(
+            packages,
+            alias,
+            &range,
+            plan.resolution_picks_lowest,
+        )?;
+        let dependency = ResolvedDependencySpec {
+            specifier: (*specifier).to_string(),
+            version: ImporterDepVersion::Regular(version.to_string().parse().ok()?),
+        };
+        importer_group(&mut importer, *group)
+            .get_or_insert_default()
+            .insert(alias.clone(), dependency);
+        specifiers.insert(alias.to_string(), (*specifier).to_string());
+    }
+    importer.specifiers = Some(specifiers);
+    importer.dependencies_meta = manifest.value().get("dependenciesMeta").cloned();
+    importer.publish_directory = manifest
+        .value()
+        .get("publishConfig")
+        .and_then(|publish_config| publish_config.get("directory"))
+        .and_then(serde_json::Value::as_str)
+        .map(ToString::to_string);
+    Some(importer)
 }
 
 /// Whether an importer that survives the prune links to `importer_id`.
@@ -201,17 +297,26 @@ fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> bool {
 /// record — for a widened range as much as for one the locked version
 /// cannot satisfy at all.
 ///
-/// `None` when nothing present satisfies (only the resolver can fetch a
-/// new version), or when the alias appears under a key this cannot turn
-/// back into a plain reference: a peer-suffixed one, where picking a
-/// variant would be a guess, or a registry-qualified one, whose semver
-/// only pins a version within its named registry.
-pub(crate) fn highest_locked_version_satisfying(
+/// `None` when the pick cannot be read off the lockfile:
+///
+/// - nothing present satisfies, so only the resolver can fetch a version;
+/// - `resolution_picks_lowest` and more than one locked version
+///   satisfies. Those resolution modes take the lowest preferred version
+///   for a direct dependency, but only when the run leaves the manifest
+///   alone, so which end of the range applies is not a property of the
+///   lockfile;
+/// - the alias appears under a key this cannot turn back into a plain
+///   reference: a peer-suffixed one, where picking a variant would be a
+///   guess, or a registry-qualified one, whose semver only pins a version
+///   within its named registry.
+pub(crate) fn locked_version_resolution_would_pick(
     packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
     alias: &PkgName,
     range: &Range,
+    resolution_picks_lowest: bool,
 ) -> Option<Version> {
     let mut highest: Option<Version> = None;
+    let mut satisfying = 0_usize;
     for key in packages?.keys() {
         if &key.name != alias {
             continue;
@@ -220,9 +325,15 @@ pub(crate) fn highest_locked_version_satisfying(
             return None;
         }
         let Some(version) = key.suffix.version_semver() else { continue };
-        if version.satisfies(range) && highest.as_ref().is_none_or(|best| version > best) {
-            highest = Some(version.clone());
+        if version.satisfies(range) {
+            satisfying += 1;
+            if highest.as_ref().is_none_or(|best| version > best) {
+                highest = Some(version.clone());
+            }
         }
+    }
+    if satisfying > 1 && resolution_picks_lowest {
+        return None;
     }
     highest
 }
@@ -238,7 +349,7 @@ fn importer_diverges(
     manifest_dependencies: &ManifestDependencies<'_>,
 ) -> bool {
     let Some(importer) = lockfile.importers.get(importer_id) else {
-        return false;
+        return !manifest_dependencies.is_empty();
     };
     let recorded_but_undeclared = [
         importer.dependencies.as_ref(),

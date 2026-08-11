@@ -218,5 +218,5 @@ function lockfile (): LockfileObject {
 }
 /** The composed pipeline restricted to manifest drift. */
 function tryFastUpdateImporters (lockfile: LockfileObject, projects: ImporterProject[]): boolean {
-  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects })
+  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects, workspacePackages: new Map(), resolutionPicksLowest: false })
 }
