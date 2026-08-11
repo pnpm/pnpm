@@ -249,15 +249,12 @@ where
             // lockfile, the virtual store, and `node_modules`.
             dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
-            // `pacquet add` mutates the manifest, so the lockfile is
-            // necessarily stale by the time the install dispatch
-            // runs — short-circuit the prefer-frozen fast path so we
-            // always re-resolve. `None` would fall back to
-            // `config.prefer_frozen_lockfile`, which is `true` by
-            // default and the dispatch would discover the staleness
-            // anyway; explicit `Some(false)` keeps `pacquet add`
-            // behaviour self-evident at the call site.
-            prefer_frozen_lockfile: Some(false),
+            // `None` defers to `config.prefer_frozen_lockfile`, which is
+            // what lets the fast lockfile update absorb the manifest edit
+            // `prepare_manifest` just made. It only absorbs an addition the
+            // lockfile already holds a satisfying version for; anything else
+            // fails the freshness gate and reaches the resolver.
+            prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
@@ -361,7 +358,8 @@ where
                 // set.
                 dependency_groups: DIRECT_GROUPS,
                 frozen_lockfile: false,
-                prefer_frozen_lockfile: Some(false),
+                // See the `prefer_frozen_lockfile` comment in [`Self::run`].
+                prefer_frozen_lockfile: None,
                 ignore_manifest_check: false,
                 skip_runtimes: config.skip_runtimes,
                 trust_lockfile: config.trust_lockfile,

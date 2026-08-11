@@ -91,10 +91,16 @@ export function tryFastUpdateImporters (
       if (importer.specifiers[alias] !== specifier) {
         const recordedIn = recordedDependencyGroup(importer, alias)
         const reference = recordedIn == null ? undefined : importer[recordedIn]![alias]
-        const version = reference == null ? null : dp.removeSuffix(reference)
-        if (semver.validRange(specifier) == null || version == null || semver.valid(version) == null) {
-          return false
+        if (semver.validRange(specifier) == null) return false
+        if (reference == null) {
+          if (!addImporterEdge(lockfile, { importer, alias, specifier, project, opts }, edits)) {
+            return false
+          }
+          changed = true
+          continue
         }
+        const version = dp.removeSuffix(reference)
+        if (semver.valid(version) == null) return false
         const wanted = lockedVersionResolutionWouldPick(lockfile, alias, {
           specifier,
           resolutionPicksLowest: opts.resolutionPicksLowest,
@@ -191,6 +197,52 @@ function writeImporterFromLockedVersions (
 }
 
 /**
+ * Record `alias` as a direct dependency of `importer` at the version the
+ * lockfile already holds for it, under the group the manifest declares it in.
+ *
+ * Safe without resolving for the same reason a moved range is: the version
+ * and its subtree are already recorded, and a subtree that resolved a peer
+ * from outside itself would have left `alias` peer-suffixed, which
+ * {@link lockedVersionResolutionWouldPick} refuses.
+ *
+ * `false` leaves the caller on the full-resolution path.
+ */
+function addImporterEdge (
+  lockfile: LockfileObject,
+  edge: {
+    importer: ProjectSnapshot
+    alias: string
+    specifier: string
+    project: Project
+    opts: FastImportersUpdateOptions
+  },
+  edits: GraphEdits
+): boolean {
+  const { importer, alias, specifier, project, opts } = edge
+  // A recorded specifier with nothing to point at is a lockfile only the
+  // resolver can make sense of.
+  if (importer.specifiers[alias] != null) return false
+  if (isDirectoryDependency(alias, specifier, opts.workspacePackages)) return false
+  const wanted = lockedVersionResolutionWouldPick(lockfile, alias, {
+    specifier,
+    resolutionPicksLowest: opts.resolutionPicksLowest,
+  })
+  if (wanted == null) return false
+  // `time` carries a publish date per direct dependency, and only a
+  // resolution can look up the one for a package this promotes into that
+  // position.
+  if (lockfile.time != null && lockfile.time[`${alias}@${wanted}`] == null) return false
+  const targetGroup = effectiveDependencyGroup(project.manifest, alias)
+  const target = importer[targetGroup] ??= {}
+  target[alias] = wanted
+  importer.specifiers[alias] = specifier
+  // A path that does not run through `optionalDependencies` clears the
+  // `optional` flag of everything the new edge reaches.
+  edits.optionalFlagsAreStale ||= targetGroup !== 'optionalDependencies'
+  return true
+}
+
+/**
  * The version resolution would settle on for `alias` under `specifier`: the
  * highest version of it the lockfile already holds that satisfies the range.
  *
@@ -210,7 +262,7 @@ function writeImporterFromLockedVersions (
  *   or a registry-qualified one, whose semver only pins a version within its
  *   named registry.
  */
-function lockedVersionResolutionWouldPick (
+export function lockedVersionResolutionWouldPick (
   lockfile: LockfileObject,
   alias: string,
   wanted: { specifier: string, resolutionPicksLowest: boolean }

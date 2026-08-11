@@ -7708,6 +7708,9 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.8.5
+      semver-utils:
+        specifier: 'catalog:'
+        version: 1.1.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -8889,9 +8892,6 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.8.5
-      semver-utils:
-        specifier: 'catalog:'
-        version: 1.1.4
       ssri:
         specifier: 'catalog:'
         version: 13.0.1

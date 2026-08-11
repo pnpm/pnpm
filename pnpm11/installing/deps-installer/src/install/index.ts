@@ -18,6 +18,7 @@ import {
 } from '@pnpm/constants'
 import {
   ignoredScriptsLogger,
+  packageManifestLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
@@ -109,6 +110,7 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { type AddedManifests, tryAddLockedVersions } from './tryAddLockedVersions.js'
 import { tryComposeFastUpdates } from './tryComposeFastUpdates.js'
 import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
@@ -365,11 +367,15 @@ export async function mutateModules (
   }
 
   const installsOnly = allMutationsAreInstalls(projects)
-  // Removals may take the fast lockfile update and the frozen-like
-  // install; an explicitly frozen run keeps its stricter behavior.
+  // Removals, and additions the lockfile already holds a version for, may
+  // take the fast lockfile update and the frozen-like install; an explicitly
+  // frozen run keeps its stricter behavior. An addition also has to have had
+  // its manifest edit committed, which only a rewrite that passed its gates
+  // does — see `addedManifests`.
   const installsAndUninstallsOnly = installsOnly ||
     projects.every((project) => (
-      project.mutation === 'install' && !project.update && !project.updateMatching
+      (project.mutation === 'install' || project.mutation === 'installSome') &&
+      !project.update && !project.updateMatching
     ) || project.mutation === 'uninstallSome')
   if (!installsOnly) opts.strictPeerDependencies = false
   const rootProjectManifest = opts.allProjects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
@@ -709,6 +715,35 @@ export async function mutateModules (
         ctxProject.originalManifest = await _removeDeps(ctxProject.originalManifest)
       }
     }))
+    // `time-based` and `lowest-direct` resolve a direct dependency to its
+    // lowest satisfying version, so the lockfile alone does not say which end
+    // of a range a rewrite should reuse.
+    const resolutionPicksLowest = opts.resolutionMode !== 'highest'
+    // `installSome` cannot edit the manifests in place the way `uninstallSome`
+    // does: the resolution path reads them to tell a new dependency from a
+    // re-added one, and reads them again to pick the range style it saves. So
+    // the additions the lockfile can answer on its own are staged on copies
+    // here, handed to the fast update and its freshness gates below, and
+    // committed to the context only once that rewrite succeeds.
+    const installSomeProjects = projects.filter((project) => project.mutation === 'installSome')
+    const addedManifests = installSomeProjects.length === 0
+      ? new Map<ProjectRootDir, AddedManifests>()
+      : tryAddLockedVersions(ctx.wantedLockfile, {
+        added: installSomeProjects.map((project) => ({
+          ...project,
+          manifest: ctx.projects[project.rootDir].manifest,
+          originalManifest: ctx.projects[project.rootDir].originalManifest,
+        })),
+        autoInstallPeers: opts.autoInstallPeers,
+        catalogs: opts.catalogs,
+        catalogMode: opts.catalogMode,
+        ignoreCurrentSpecifiers: opts.ignoreCurrentSpecifiers,
+        parsedOverrides: opts.parsedOverrides,
+        resolutionPicksLowest,
+        saveCatalogName: opts.saveCatalogName,
+        workspacePackages: ctx.workspacePackages,
+      })
+    let addedManifestsAreCommitted = installSomeProjects.length === 0
     let changedLockfileSettings: ChangedField[] = []
     const overridesMap = createOverridesMapFromParsed(opts.parsedOverrides)
     const wantedLockfileSettings = {
@@ -739,7 +774,10 @@ export async function mutateModules (
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let didFastUpdateOverrides = false
-    const contextProjects = Object.values(ctx.projects)
+    const contextProjects = Object.values(ctx.projects).map((project) => {
+      const added = addedManifests?.get(project.rootDir)
+      return added == null ? project : { ...project, ...added }
+    })
     const changedSettingsFields = changedLockfileSettings.filter(isSettingsField)
     // Typed as required, but a caller that passes it through from its own
     // optional config leaves it undefined, and this now runs on every
@@ -779,6 +817,7 @@ export async function mutateModules (
       // manifests every recorded dependency would read as removed.
       !opts.ignorePackageManifest &&
       installsAndUninstallsOnly &&
+      addedManifests != null &&
       !isCheckOnlyInstall(opts) &&
       opts.preferFrozenLockfile &&
       opts.useLockfile &&
@@ -811,7 +850,7 @@ export async function mutateModules (
       (ctx.wantedLockfile.time == null || !hasAsyncDrift)
     if (canTryFastUpdateLockfile) {
       await verifyLockfilePromise
-      const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(Object.values(ctx.projects), {
+      const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(contextProjects, {
         catalogs: opts.catalogs,
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -846,7 +885,7 @@ export async function mutateModules (
             drift,
             projects: contextProjects,
             workspacePackages: ctx.workspacePackages,
-            resolutionPicksLowest: opts.resolutionMode !== 'highest',
+            resolutionPicksLowest,
             pruneLockfileImporters: opts.pruneLockfileImporters,
             ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
             patchedDependencies: {
@@ -878,6 +917,18 @@ export async function mutateModules (
         outdatedLockfileSettingName = null
         ctx.wantedLockfileIsModified = true
         didFastUpdateOverrides = drift.overrides
+        for (const [rootDir, added] of addedManifests!) {
+          const project = ctx.projects[rootDir]
+          project.manifest = added.manifest
+          if (added.originalManifest != null) {
+            project.originalManifest = added.originalManifest
+          }
+          packageManifestLogger.debug({
+            prefix: rootDir,
+            updated: added.manifest,
+          })
+        }
+        addedManifestsAreCommitted = true
       }
     }
     const outdatedLockfileSettings = outdatedLockfileSettingName != null
@@ -899,6 +950,7 @@ export async function mutateModules (
     }
 
     const frozenInstallResult = await tryFrozenInstall({
+      addedManifestsAreCommitted,
       didFastUpdateOverrides,
       frozenLockfile,
       needsFullResolution,
@@ -1201,12 +1253,20 @@ export async function mutateModules (
    * not change recorded dependency resolutions.
    */
   async function tryFrozenInstall ({
+    addedManifestsAreCommitted,
     didFastUpdateOverrides,
     frozenLockfile,
     needsFullResolution,
     patchGroups,
     upToDateLockfileMajorVersion,
   }: {
+    /**
+     * Whether every `installSome` mutation's manifest edit has been applied
+     * to the context. Without it the up-to-date check would not see the
+     * requested dependencies, and a frozen-like install would leave them
+     * uninstalled.
+     */
+    addedManifestsAreCommitted: boolean
     didFastUpdateOverrides: boolean
     frozenLockfile: boolean
     needsFullResolution: boolean
@@ -1225,7 +1285,7 @@ export async function mutateModules (
       // frozen path would skip resolution and/or perform a real install.
       !isCheckOnlyInstall(opts) &&
 
-      (installsOnly || (installsAndUninstallsOnly && !frozenLockfile)) &&
+      (installsOnly || (installsAndUninstallsOnly && addedManifestsAreCommitted && !frozenLockfile)) &&
       (
         // If the user explicitly requested a frozen lockfile install, attempt
         // to perform one. An error will be thrown if updates are required.

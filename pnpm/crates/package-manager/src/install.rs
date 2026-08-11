@@ -209,10 +209,14 @@ impl ProjectMutation {
 
     /// Whether the run may absorb its manifest drift by rewriting the
     /// loaded lockfile instead of resolving. `pacquet remove` qualifies
-    /// because its only drift is the importer edges it deleted.
+    /// because its only drift is the importer edges it deleted, and
+    /// `pacquet add` because it pins the manifest before the install runs,
+    /// leaving the same importer-edge drift — one the rewrite absorbs only
+    /// when the lockfile already holds a version satisfying it.
     #[must_use]
     pub fn may_fast_update_lockfile(self) -> bool {
-        self.is_full_install() || matches!(self, ProjectMutation::UninstallSome)
+        self.is_full_install()
+            || matches!(self, ProjectMutation::UninstallSome | ProjectMutation::InstallSome)
     }
 }
 

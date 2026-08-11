@@ -9,7 +9,7 @@ import type {
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
-import { rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { calcVersionRange, inferRangeSpecStyle, rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -52,7 +52,6 @@ import versionSelectorType from 'version-selector-type'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
-import { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
@@ -131,7 +130,6 @@ export {
   workspacePrefToNpm,
 }
 export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
-export { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 export {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
@@ -945,14 +943,13 @@ function calcSpecifier ({
   return `npm:${spec.name}@${range}`
 }
 
+/** The manifest range `version` is saved as; see {@link calcVersionRange}. */
 function calcRange (version: string, wantedDependency: WantedDependency, defaultRangeSpecStyle?: RangeSpecStyle): string {
-  if (semver.parse(version)?.prerelease.length) {
-    return version
-  }
-  const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ??
-    (wantedDependency.bareSpecifier ? inferRangeSpecStyle(wantedDependency.bareSpecifier) : undefined) ??
-    defaultRangeSpecStyle
-  return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
+  return calcVersionRange(version, {
+    prevSpecifier: wantedDependency.prevSpecifier,
+    bareSpecifier: wantedDependency.bareSpecifier,
+    defaultRangeSpecStyle,
+  })
 }
 
 function tryResolveFromWorkspace (
