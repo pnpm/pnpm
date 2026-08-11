@@ -97,7 +97,14 @@ fn read_first_yaml_document_in_chunks(
     let mut byte_order_mark_pending = true;
     let mut scan_from = YAML_DOCUMENT_START.len();
     loop {
-        let read = reader.read(&mut chunk)?;
+        let read = match reader.read(&mut chunk) {
+            Ok(read) => read,
+            // `Read::read_to_string`, which this replaces on the lockfile
+            // read path, retries a signal-interrupted read rather than
+            // failing the command.
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
         if read == 0 {
             // A withheld carriage return is then the file's last byte,
             // and no separator ends in one, so it cannot complete one.

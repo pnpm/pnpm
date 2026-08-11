@@ -140,6 +140,16 @@ fn stops_reading_a_lockfile_without_an_env_document_after_one_chunk() {
 }
 
 #[test]
+fn retries_a_signal_interrupted_read() {
+    let content = "---\nfoo: bar\n---\nlockfileVersion: 9.0\n";
+    let reader = InterruptingReader { content: content.as_bytes(), interrupt_next: true };
+
+    let env = read_first_yaml_document_in_chunks(reader, 4).expect("read the env document");
+
+    assert_eq!(env.as_deref(), Some("foo: bar"));
+}
+
+#[test]
 fn reports_an_env_document_that_is_not_utf8() {
     let mut content = b"---\nfoo: ".to_vec();
     content.extend_from_slice(&[0xff, 0xfe]);
@@ -148,6 +158,23 @@ fn reports_an_env_document_that_is_not_utf8() {
     let error = read_first_yaml_document(content.as_slice()).expect_err("invalid UTF-8 must fail");
 
     assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+}
+
+/// Interrupts every other read, as a signal arriving mid-read does.
+struct InterruptingReader<'a> {
+    content: &'a [u8],
+    interrupt_next: bool,
+}
+
+impl Read for InterruptingReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.interrupt_next {
+            self.interrupt_next = false;
+            return Err(io::Error::from(io::ErrorKind::Interrupted));
+        }
+        self.interrupt_next = true;
+        self.content.read(buf)
+    }
 }
 
 struct CountingReader<'a> {
