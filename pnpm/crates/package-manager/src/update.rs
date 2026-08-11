@@ -287,6 +287,16 @@ impl Update<'_> {
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;
 
+        let lockfile_specifier_project_manifests = (!save).then(|| {
+            vec![(
+                manifest
+                    .path()
+                    .parent()
+                    .expect("manifest path always has a parent dir")
+                    .to_path_buf(),
+                manifest.clone(),
+            )]
+        });
         let mut latest_chain = None;
         let Some(prepared) = prepare_manifest::<Reporter>(
             manifest,
@@ -383,9 +393,14 @@ impl Update<'_> {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
         };
-        match bumps.as_ref() {
-            Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
-            None => install.run::<Reporter>().await,
+        match lockfile_specifier_project_manifests {
+            Some(manifests) => {
+                install.run_with_lockfile_specifier_project_manifests::<Reporter>(manifests).await
+            }
+            None => match bumps.as_ref() {
+                Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
+                None => install.run::<Reporter>().await,
+            },
         }
         .map_err(UpdateError::Install)?;
 
@@ -464,6 +479,12 @@ impl Update<'_> {
             manifest.path().parent().expect("manifest path always has a parent dir"),
         )
         .map_err(UpdateError::FindWorkspaceDir)?;
+        let lockfile_specifier_project_manifests = (!save).then(|| {
+            selected_indices
+                .iter()
+                .map(|&index| (projects[index].root_dir.clone(), projects[index].manifest.clone()))
+                .collect::<Vec<_>>()
+        });
         let mut prepared = prepare_selected_manifests::<Reporter>(
             projects,
             &selected_indices,
@@ -547,11 +568,22 @@ impl Update<'_> {
             selected_dirs,
             active_manifest_is_standin,
         };
-        match bumps.as_ref() {
-            Some(bumps) => {
-                install.run_selected_with_manifest_spec_bumps::<Reporter>(selection, bumps).await
+        match lockfile_specifier_project_manifests {
+            Some(manifests) => {
+                install
+                    .run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
+                        selection, manifests,
+                    )
+                    .await
             }
-            None => install.run_selected::<Reporter>(selection).await,
+            None => match bumps.as_ref() {
+                Some(bumps) => {
+                    install
+                        .run_selected_with_manifest_spec_bumps::<Reporter>(selection, bumps)
+                        .await
+                }
+                None => install.run_selected::<Reporter>(selection).await,
+            },
         }
         .map_err(UpdateError::Install)?;
 

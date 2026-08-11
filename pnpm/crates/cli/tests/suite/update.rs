@@ -1516,6 +1516,39 @@ fn update_no_save_skips_version_outside_kept_range() {
     drop((root, anchor));
 }
 
+/// A versioned selector under `--no-save` can drive an in-range lockfile bump,
+/// but the importer entry must keep the manifest's specifier. Regression test
+/// for <https://github.com/pnpm/pnpm/issues/13526>.
+#[test]
+fn update_no_save_keeps_importer_specifier_for_admitted_version() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+
+    let output =
+        pacquet(&workspace, ["update", "--no-save", "--lockfile-only", &format!("{DEP}@100.1.0")])
+            .output()
+            .expect("run update --no-save");
+    assert!(output.status.success(), "update --no-save failed: {output:?}");
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(lock.contains("version: 100.1.0"), "the requested admitted version must be resolved");
+    assert!(
+        lock.contains("specifier: ^100.0.0"),
+        "the lockfile importer entry must keep the manifest's specifier: {lock}",
+    );
+    assert!(
+        !lock.contains("specifier: 100.1.0"),
+        "the requested version must not replace the importer specifier: {lock}",
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
 /// A requested range names no version until resolution runs, so the specifier
 /// the manifest keeps decides — `>=101.0.0` cannot pull the lockfile past
 /// `^100.0.0`. Regression test for
