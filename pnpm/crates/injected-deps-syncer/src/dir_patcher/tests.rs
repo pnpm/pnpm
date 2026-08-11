@@ -1,4 +1,4 @@
-use super::{DirPatcher, InodeMap, Value, extend_files_map, inode_of};
+use super::{DirPatcher, InodeMap, Value, extend_files_map, file_inode};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
@@ -37,7 +37,8 @@ fn extend_files_map_names_every_ancestor() {
     let map = extend_files_map(&files_map(dir.path(), &["distribution/index.js"]))
         .expect("build inode map");
 
-    let inode = inode_of(&fs::metadata(dir.path().join("distribution/index.js")).expect("stat"));
+    let index_js = dir.path().join("distribution/index.js");
+    let inode = file_inode(&index_js, &fs::metadata(&index_js).expect("stat")).expect("inode");
     assert_eq!(
         map,
         InodeMap::from([
@@ -137,7 +138,11 @@ fn sync_shares_inodes_with_the_source() {
 
     sync(&source, &target);
 
-    let source_stat = fs::metadata(source.join("lib/index.js")).expect("stat source");
-    let target_stat = fs::metadata(target.join("lib/index.js")).expect("stat target");
-    assert_eq!(inode_of(&source_stat), inode_of(&target_stat));
+    let (source_path, target_path) = (source.join("lib/index.js"), target.join("lib/index.js"));
+    let source_stat = fs::metadata(&source_path).expect("stat source");
+    let target_stat = fs::metadata(&target_path).expect("stat target");
+    assert_eq!(
+        file_inode(&source_path, &source_stat).expect("source inode"),
+        file_inode(&target_path, &target_stat).expect("target inode"),
+    );
 }

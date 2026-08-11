@@ -248,7 +248,7 @@ pub fn extend_files_map(files_map: &HashMap<String, PathBuf>) -> Result<InodeMap
             continue;
         };
         let value = if metadata.is_file() {
-            Value::File(inode_of(&metadata))
+            Value::File(file_inode(real_path, &metadata)?)
         } else if metadata.is_dir() {
             Value::Dir
         } else {
@@ -280,25 +280,51 @@ fn add_inode_and_ancestors(result: &mut InodeMap, relative_path: &str, value: Va
     }
 }
 
-/// Node reports 0 for a file whose index Windows will not hand over, and
-/// the TypeScript syncer compares that value as-is; matching it keeps
-/// the two implementations agreeing on what counts as unchanged.
-fn inode_of(metadata: &fs::Metadata) -> u64 {
+/// The file's identity: two paths share one exactly when they are the
+/// same inode, which is what makes an already-hardlinked file free to
+/// skip.
+///
+/// Windows has no stable way to read the file index from
+/// [`fs::Metadata`] — `MetadataExt::file_index` is still unstable — so
+/// the index comes from a handle instead, the same call libuv makes to
+/// fill Node's `Stats.ino`.
+fn file_inode(path: &Path, metadata: &fs::Metadata) -> Result<u64, PatchError> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt as _;
-        metadata.ino()
+        let _ = path;
+        Ok(metadata.ino())
     }
     #[cfg(windows)]
     {
-        use std::os::windows::fs::MetadataExt as _;
-        metadata.file_index().unwrap_or(0)
+        let _ = metadata;
+        windows_file_index(path)
+            .map_err(|error| PatchError::Stat { path: path.to_path_buf(), error })
     }
     #[cfg(not(any(unix, windows)))]
     {
-        let _ = metadata;
-        0
+        let _ = (path, metadata);
+        Ok(0)
     }
+}
+
+#[cfg(windows)]
+fn windows_file_index(path: &Path) -> io::Result<u64> {
+    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use windows_sys::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    };
+
+    let file = fs::File::open(path)?;
+    let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
+    // SAFETY: `file` owns a valid handle for this call and `info` points to
+    // writable storage of the exact structure the API initializes.
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle() as _, info.as_mut_ptr()) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.
+    let info = unsafe { info.assume_init() };
+    Ok((u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow))
 }
 
 #[cfg(test)]

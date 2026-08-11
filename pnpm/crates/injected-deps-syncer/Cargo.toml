@@ -23,6 +23,9 @@ miette      = { workspace = true }
 serde_json  = { workspace = true }
 tracing     = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }
 
