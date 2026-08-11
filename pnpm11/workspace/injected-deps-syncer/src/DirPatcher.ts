@@ -119,19 +119,31 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     }
   }
 
-  // Directories are created before the files they hold, shallowest first, so
-  // that clearing a blocking inode can only ever hit an empty directory: were
-  // a directory cleared concurrently with its files, a removal that lands late
-  // would take out files a sibling had already linked.
-  const adding = (async () => {
-    for (const item of optimizedDirPatch.added) {
-      if (item.newValue !== DIR) continue
-      await addRecursive(path.join(sourceDir, item.path), path.join(targetDir, item.path), item.newValue) // eslint-disable-line no-await-in-loop
+  async function applyChange (item: AddedItem | ModifiedItem): Promise<void> {
+    const sourcePath = path.join(sourceDir, item.path)
+    const targetPath = path.join(targetDir, item.path)
+    if (item.oldValue !== undefined) {
+      await removeRecursive(targetPath)
     }
-    await Promise.all(optimizedDirPatch.added.map(async item => {
-      if (item.newValue === DIR) return
-      await addRecursive(path.join(sourceDir, item.path), path.join(targetDir, item.path), item.newValue)
-    }))
+    await addRecursive(sourcePath, targetPath, item.newValue)
+  }
+
+  const changes: Array<AddedItem | ModifiedItem> = [...optimizedDirPatch.added, ...optimizedDirPatch.modified]
+    .filter(item => item.oldValue !== item.newValue)
+  const newDirs = changes.filter(item => item.newValue === DIR).sort((a, b) => comparePaths(a.path, b.path))
+  const newFiles = changes.filter(item => item.newValue !== DIR)
+
+  // Every directory is in place, shallowest first, before anything is linked
+  // into it, so that a directory is always empty when it displaces what the
+  // target held at its path: a removal landing late would otherwise take out
+  // files a sibling had already linked. A path the target holds as a file and
+  // the source as a directory lands in `modified` rather than `added`, so both
+  // arrays feed this pass.
+  const changing = (async () => {
+    for (const item of newDirs) {
+      await applyChange(item) // eslint-disable-line no-await-in-loop
+    }
+    await Promise.all(newFiles.map(applyChange))
   })()
 
   const removing = Promise.all(optimizedDirPatch.removed.map(async item => {
@@ -139,15 +151,7 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     await removeRecursive(targetPath)
   }))
 
-  const modifying = Promise.all(optimizedDirPatch.modified.map(async item => {
-    const sourcePath = path.join(sourceDir, item.path)
-    const targetPath = path.join(targetDir, item.path)
-    if (item.oldValue === item.newValue) return
-    await removeRecursive(targetPath)
-    await addRecursive(sourcePath, targetPath, item.newValue)
-  }))
-
-  await Promise.all([adding, removing, modifying])
+  await Promise.all([changing, removing])
 }
 
 export type ExtendFilesMapStats = Pick<fs.Stats, 'ino' | 'isFile' | 'isDirectory'>

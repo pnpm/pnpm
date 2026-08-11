@@ -235,6 +235,21 @@ test('multiple patchers', async () => {
   expect(Array.from(targetFetchResultAfter3.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
 })
 
+test('replaces a target entry whose inode type changed in the source', async () => {
+  prepareEmpty()
+
+  createFile('source/became-a-dir/index.js', 'inner')
+  createFile('source/became-a-file', 'now a file')
+  createFile('target/became-a-dir', 'was a file')
+  createFile('target/became-a-file/index.js', 'was a dir')
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.readFileSync('target/became-a-dir/index.js', 'utf8')).toBe('inner')
+  expect(fs.readFileSync('target/became-a-file', 'utf8')).toBe('now a file')
+})
+
 testOnPosix('removes what the target holds where the source has a skipped inode, but leaves a skipped inode of its own alone', async () => {
   prepareEmpty()
 
