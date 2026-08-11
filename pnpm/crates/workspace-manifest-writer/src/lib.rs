@@ -98,14 +98,6 @@ pub enum UpdateWorkspaceManifestError {
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_INVALID_CONTROL_CHARACTER))]
     InvalidControlCharacter { path: std::path::PathBuf, value: String },
-
-    #[display("Invalid package version policy spec being merged into {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_VERSION_POLICY))]
-    VersionPolicy {
-        path: std::path::PathBuf,
-        #[error(source)]
-        source: pacquet_config::version_policy::VersionPolicyError,
-    },
 }
 
 /// Whether `value` holds a character YAML treats as a line break: a
@@ -131,32 +123,25 @@ fn has_control_char(value: &str) -> bool {
 pub struct UpdateWorkspaceManifestOptions<'a> {
     /// Catalog entries to merge into the `catalog:` / `catalogs:` blocks.
     pub updated_catalogs: Option<&'a Catalogs>,
-    /// Run the `cleanupUnusedCatalogs` pass after the merge: drop catalog
+    /// Run the `catalogPrune` pass after the merge: drop catalog
     /// entries no manifest in [`Self::all_projects`] references.
-    pub cleanup_unused_catalogs: bool,
+    pub catalog_prune: bool,
     /// Every workspace project manifest (with in-memory dependency edits
     /// applied), consulted by the cleanup pass to decide which catalog
     /// entries are still referenced. An empty list disables the cleanup
     /// pass, mirroring upstream's `allProjects ?? []` guard.
     pub all_projects: &'a [&'a PackageManifest],
-    /// Run the `cleanupOutdatedMinimumReleaseAgeExcludes` pass: prune
-    /// `minimumReleaseAgeExclude:` entries against the freshly resolved
-    /// versions in [`Self::resolved_package_versions`].
-    pub cleanup_outdated_minimum_release_age_excludes: bool,
-    /// Package name → versions the freshly resolved lockfile records,
-    /// consulted by the `cleanupOutdatedMinimumReleaseAgeExcludes` pass.
-    /// `None` disables the pass, mirroring the [`Self::all_projects`]
-    /// guard of `cleanupUnusedCatalogs`.
+    /// Package name → the versions the freshly resolved lockfile
+    /// records. Present only under `minimumReleaseAgeExcludePrune`, and
+    /// only when the lockfile covers every project
+    /// `minimumReleaseAgeExclude` governs; `None` disables that pass,
+    /// mirroring the [`Self::all_projects`] guard of
+    /// `catalogPrune`.
     pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
-    /// Entries to merge into the `minimumReleaseAgeExclude:` block (via
-    /// `pacquet_config::version_policy::merge_package_version_specs`).
-    /// Runs after the cleanup passes, so entries added in the same write
-    /// are never pruned. Upstream's `addedMinimumReleaseAgeExcludes`.
-    pub added_minimum_release_age_excludes: Option<&'a [String]>,
 }
 
 /// Merge `opts.updated_catalogs` into `dir`'s `pnpm-workspace.yaml` and run
-/// the `cleanupUnusedCatalogs` pass when requested, writing the file back
+/// the `catalogPrune` pass when requested, writing the file back
 /// only when something actually changed (and removing it when the edits
 /// empty the document).
 pub fn update_workspace_manifest(
@@ -188,22 +173,12 @@ pub fn update_workspace_manifest(
         }
         None => false,
     };
-    if opts.cleanup_unused_catalogs && !opts.all_projects.is_empty() {
+    if opts.catalog_prune && !opts.all_projects.is_empty() {
         let references = collect_catalog_references(opts.all_projects, &manifest);
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
     }
-    if opts.cleanup_outdated_minimum_release_age_excludes
-        && let Some(resolved) = opts.resolved_package_versions
-    {
-        changed |= edit::remove_outdated_minimum_release_age_excludes(&mut manifest, resolved);
-    }
-    if let Some(added) = opts.added_minimum_release_age_excludes
-        && !added.is_empty()
-    {
-        changed |=
-            edit::add_minimum_release_age_excludes(&mut manifest, added).map_err(|source| {
-                UpdateWorkspaceManifestError::VersionPolicy { path: path.clone(), source }
-            })?;
+    if let Some(resolved) = opts.resolved_package_versions {
+        changed |= edit::prune_minimum_release_age_excludes(&mut manifest, resolved);
     }
     if !changed {
         return Ok(());

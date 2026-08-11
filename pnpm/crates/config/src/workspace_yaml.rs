@@ -448,6 +448,11 @@ pub struct WorkspaceSettings {
     /// `minimumReleaseAgeExclude` from `pnpm-workspace.yaml`.
     pub minimum_release_age_exclude: Option<Vec<String>>,
 
+    /// `minimumReleaseAgeExcludePrune` from `pnpm-workspace.yaml`.
+    /// See [`Config::minimum_release_age_exclude_prune`]. Default
+    /// `false`.
+    pub minimum_release_age_exclude_prune: Option<bool>,
+
     /// `minimumReleaseAgeIgnoreMissingTime` from `pnpm-workspace.yaml`.
     pub minimum_release_age_ignore_missing_time: Option<bool>,
 
@@ -519,15 +524,13 @@ pub struct WorkspaceSettings {
     /// `catalogMode` from `pnpm-workspace.yaml`. See [`CatalogMode`].
     pub catalog_mode: Option<CatalogMode>,
 
-    /// `cleanupUnusedCatalogs` from `pnpm-workspace.yaml`. See
-    /// [`Config::cleanup_unused_catalogs`]. Default `false`.
-    pub cleanup_unused_catalogs: Option<bool>,
+    /// `catalogPrune` from `pnpm-workspace.yaml`. See
+    /// [`Config::catalog_prune`]. Default `false`.
+    pub catalog_prune: Option<bool>,
 
-    /// `cleanupOutdatedMinimumReleaseAgeExcludes` from
-    /// `pnpm-workspace.yaml`. See
-    /// [`Config::cleanup_outdated_minimum_release_age_excludes`].
-    /// Default `false`.
-    pub cleanup_outdated_minimum_release_age_excludes: Option<bool>,
+    /// `catalogPrune`'s former name, still accepted. [`Self::catalog_prune`]
+    /// wins when a file carries both.
+    pub cleanup_unused_catalogs: Option<bool>,
 
     /// `saveCatalogName` from `pnpm-workspace.yaml`. See
     /// [`Config::save_catalog_name`].
@@ -1010,6 +1013,12 @@ impl WorkspaceSettings {
         let audit_level_in_yaml = self.audit_level.is_some();
         let audit_config_in_yaml = self.audit_config.is_some();
 
+        // `catalogPrune`'s former name, applied before the macro so the
+        // canonical key wins when a file carries both.
+        if let Some(v) = self.cleanup_unused_catalogs {
+            config.catalog_prune = v;
+        }
+
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
                 if let Some(v) = self.$field {
@@ -1052,8 +1061,8 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
-            resolution_mode, catalog_mode, cleanup_unused_catalogs,
-            cleanup_outdated_minimum_release_age_excludes, save_peer, save_exact,
+            resolution_mode, catalog_mode, catalog_prune,
+            minimum_release_age_exclude_prune, save_peer, save_exact,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,

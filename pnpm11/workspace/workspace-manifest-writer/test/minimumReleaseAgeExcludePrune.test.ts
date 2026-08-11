@@ -19,7 +19,6 @@ test('remove a versioned entry whose version is not resolved', async () => {
     minimumReleaseAgeExclude: ['foo@1.0.0', 'bar@2.0.0'],
   })
   await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'] }),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -34,7 +33,6 @@ test('keep entries that are resolved', async () => {
     minimumReleaseAgeExclude: ['foo@1.0.0', '@foo/bar@2.0.0'],
   })
   await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'], '@foo/bar': ['2.0.0'] }),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -49,7 +47,6 @@ test('rewrite a multi-version entry keeping only the resolved versions', async (
     minimumReleaseAgeExclude: ['foo@1.0.0 || 2.0.0'],
   })
   await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({ foo: ['2.0.0'] }),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -64,7 +61,6 @@ test('rewrite a narrowed union in canonical semver order', async () => {
     minimumReleaseAgeExclude: ['foo@3.0.0 || 1.0.0 || 2.0.0'],
   })
   await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({ foo: ['3.0.0', '1.0.0'] }),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -79,7 +75,6 @@ test('remove a bare-name entry whose package is absent, keep one whose package i
     minimumReleaseAgeExclude: ['foo', 'bar@1.0.0'],
   })
   await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({ bar: ['1.0.0'] }),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -94,7 +89,6 @@ test('keep glob entries even when nothing matches them', async () => {
     minimumReleaseAgeExclude: ['@babel/*'],
   })
   await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({}),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -102,7 +96,7 @@ test('keep glob entries even when nothing matches them', async () => {
   })
 })
 
-test('remove the field when every entry is outdated', async () => {
+test('remove the field when no entry survives', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFileSync(filePath, {
@@ -110,7 +104,6 @@ test('remove the field when every entry is outdated', async () => {
     minimumReleaseAgeExclude: ['foo@1.0.0'],
   })
   await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({}),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -125,21 +118,18 @@ test('delete the file when the removed field was the only content', async () => 
     minimumReleaseAgeExclude: ['foo@1.0.0'],
   })
   await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({}),
   })
   expect(fs.existsSync(filePath)).toBeFalsy()
 })
 
-test('no cleanup when resolvedPackageVersions is not provided', async () => {
+test('no cleanup when resolvedPackageVersions is absent', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFileSync(filePath, {
     minimumReleaseAgeExclude: ['foo@1.0.0', 'bar'],
   })
-  await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
-  })
+  await updateWorkspaceManifest(dir, {})
   expect(readYamlFileSync(filePath)).toStrictEqual({
     minimumReleaseAgeExclude: ['foo@1.0.0', 'bar'],
   })
@@ -152,7 +142,6 @@ test('keep entries that fail to parse', async () => {
     minimumReleaseAgeExclude: ['foo@not-a-version', 'bar@1.0.0'],
   })
   await updateWorkspaceManifest(dir, {
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({}),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -168,7 +157,6 @@ test('entries added in the same write survive the cleanup', async () => {
   })
   await updateWorkspaceManifest(dir, {
     addedMinimumReleaseAgeExcludes: ['foo@2.0.0'],
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({ foo: ['2.0.0'] }),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -184,7 +172,6 @@ test('entries added in the same write are never pruned, even when absent from th
   })
   await updateWorkspaceManifest(dir, {
     addedMinimumReleaseAgeExcludes: ['bar@9.9.9'],
-    cleanupOutdatedMinimumReleaseAgeExcludes: true,
     resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'] }),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({

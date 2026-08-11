@@ -55,7 +55,7 @@ import {
   type RecursiveOptions,
   type UpdateDepsMatcher,
 } from './recursive.js'
-import { resolvedPackageVersionsIfCleanup } from './resolvedPackageVersionsIfCleanup.js'
+import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 import { makeRunPacquet } from './runPacquet.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
@@ -71,8 +71,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'catalogMode'
-| 'cleanupUnusedCatalogs'
-| 'cleanupOutdatedMinimumReleaseAgeExcludes'
+| 'catalogPrune'
+| 'minimumReleaseAgeExcludePrune'
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'depth'
@@ -88,6 +88,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'ignoreScripts'
 | 'optimisticRepeatInstall'
 | 'linkWorkspacePackages'
+| 'lockfile'
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'pnprServer'
@@ -429,9 +430,8 @@ export async function installDeps (
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
-          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-          cleanupOutdatedMinimumReleaseAgeExcludes: opts.cleanupOutdatedMinimumReleaseAgeExcludes,
-          resolvedPackageVersions: resolvedPackageVersionsIfCleanup(opts, newLockfile),
+          catalogPrune: opts.catalogPrune,
+          resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
           allProjects: opts.allProjects,
           ...policyUpdates,
         }),
@@ -467,9 +467,8 @@ export async function installDeps (
         writeProjectManifest(updatedManifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
-          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-          cleanupOutdatedMinimumReleaseAgeExcludes: opts.cleanupOutdatedMinimumReleaseAgeExcludes,
-          resolvedPackageVersions: resolvedPackageVersionsIfCleanup(opts, newLockfile),
+          catalogPrune: opts.catalogPrune,
+          resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
           allProjects,
           ...policyUpdates,
         }),

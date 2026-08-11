@@ -44,7 +44,7 @@ fn run_with(original: Option<&str>, opts: &UpdateWorkspaceManifestOptions<'_>) -
 }
 
 /// [`run_with`] for the cleanup cases: merge `updated` (when `Some`), then
-/// run the `cleanupUnusedCatalogs` pass over `projects`.
+/// run the `catalogPrune` pass over `projects`.
 fn run_cleanup(
     original: Option<&str>,
     updated: Option<&Catalogs>,
@@ -54,7 +54,7 @@ fn run_cleanup(
         original,
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: updated,
-            cleanup_unused_catalogs: true,
+            catalog_prune: true,
             all_projects: projects,
             ..Default::default()
         },
@@ -1312,10 +1312,10 @@ mod remove_unused_catalogs {
     }
 }
 
-/// The `cleanupOutdatedMinimumReleaseAgeExcludes` pass: entries of
+/// The `minimumReleaseAgeExcludePrune` pass: entries of
 /// `minimumReleaseAgeExclude` are pruned against the versions the
 /// freshly resolved lockfile records.
-mod cleanup_outdated_minimum_release_age_excludes {
+mod minimum_release_age_exclude_prune {
     use crate::ResolvedPackageVersions;
 
     use super::{UpdateWorkspaceManifestOptions, run_with};
@@ -1336,7 +1336,6 @@ mod cleanup_outdated_minimum_release_age_excludes {
         run_with(
             original,
             &UpdateWorkspaceManifestOptions {
-                cleanup_outdated_minimum_release_age_excludes: true,
                 resolved_package_versions: resolved,
                 ..Default::default()
             },
@@ -1422,26 +1421,6 @@ mod cleanup_outdated_minimum_release_age_excludes {
         let original = "minimumReleaseAgeExclude:\n  - foo@>=1.0.0\n";
         let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
         assert_eq!(out.as_deref(), Some(original));
-    }
-
-    #[test]
-    fn does_not_clean_entries_added_in_the_same_write() {
-        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - stale@1.0.0\n";
-        let resolved = resolved(&[("foo", &["1.0.0"])]);
-        let added = vec!["bar@9.9.9".to_string()];
-        let out = run_with(
-            Some(original),
-            &UpdateWorkspaceManifestOptions {
-                cleanup_outdated_minimum_release_age_excludes: true,
-                resolved_package_versions: Some(&resolved),
-                added_minimum_release_age_excludes: Some(&added),
-                ..Default::default()
-            },
-        );
-        assert_eq!(
-            out.as_deref(),
-            Some("minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - bar@9.9.9\n"),
-        );
     }
 }
 

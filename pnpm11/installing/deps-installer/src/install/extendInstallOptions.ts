@@ -34,8 +34,8 @@ export interface StrictInstallOptions {
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
-  cleanupUnusedCatalogs: boolean
-  cleanupOutdatedMinimumReleaseAgeExcludes: boolean
+  catalogPrune: boolean
+  minimumReleaseAgeExcludePrune: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   frozenStore: boolean
@@ -366,8 +366,8 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       !process.setgid ||
       process.getuid?.() !== 0,
     catalogMode: 'manual',
-    cleanupUnusedCatalogs: false,
-    cleanupOutdatedMinimumReleaseAgeExcludes: false,
+    catalogPrune: false,
+    minimumReleaseAgeExcludePrune: false,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,

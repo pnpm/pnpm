@@ -1,12 +1,12 @@
 //! Shared workspace-manifest persistence for the manifest-mutating
 //! commands (`add`, `update`, `remove`): merge freshly resolved catalog
-//! entries and, under `cleanupUnusedCatalogs`, drop the entries no
+//! entries and, under `catalogPrune`, drop the entries no
 //! workspace project references anymore. One write covers both, the
 //! same single read-modify-write upstream's `updateWorkspaceManifest`
 //! performs.
 //!
 //! A second, post-install write runs the
-//! `cleanupOutdatedMinimumReleaseAgeExcludes` pass: it needs the lockfile
+//! `minimumReleaseAgeExcludePrune` pass: it needs the lockfile
 //! the install just wrote (the catalog write happens before the install
 //! so the resolver reads the new entries back), so it cannot ride along.
 
@@ -57,24 +57,21 @@ pub(crate) fn write_workspace_catalogs(
     updated_catalogs: &Catalogs,
     current_manifest: &PackageManifest,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
-    if updated_catalogs.is_empty() && !config.cleanup_unused_catalogs {
+    if updated_catalogs.is_empty() && !config.catalog_prune {
         return Ok(());
     }
     let workspace_dir = match workspace_dir {
         Some(dir) => dir.to_path_buf(),
         None => derive_workspace_dir(current_manifest)?,
     };
-    let projects = if config.cleanup_unused_catalogs {
-        load_cleanup_projects(&workspace_dir)?
-    } else {
-        Vec::new()
-    };
+    let projects =
+        if config.catalog_prune { load_cleanup_projects(&workspace_dir)? } else { Vec::new() };
     let all_projects = manifest_refs_with_current(&projects, current_manifest);
     update_workspace_manifest(
         &workspace_dir,
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: Some(updated_catalogs),
-            cleanup_unused_catalogs: config.cleanup_unused_catalogs,
+            catalog_prune: config.catalog_prune,
             all_projects: &all_projects,
             ..Default::default()
         },
@@ -90,7 +87,7 @@ pub(crate) fn write_workspace_catalogs_selected(
     updated_catalogs: &Catalogs,
     projects: &[Project],
 ) -> Result<(), WriteWorkspaceCatalogsError> {
-    if updated_catalogs.is_empty() && !config.cleanup_unused_catalogs {
+    if updated_catalogs.is_empty() && !config.catalog_prune {
         return Ok(());
     }
     let all_projects: Vec<&PackageManifest> =
@@ -99,7 +96,7 @@ pub(crate) fn write_workspace_catalogs_selected(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: Some(updated_catalogs),
-            cleanup_unused_catalogs: config.cleanup_unused_catalogs,
+            catalog_prune: config.catalog_prune,
             all_projects: &all_projects,
             ..Default::default()
         },
@@ -121,40 +118,36 @@ fn derive_workspace_dir(
     Ok(workspace_dir)
 }
 
-/// Post-install pass under `cleanupOutdatedMinimumReleaseAgeExcludes`:
-/// prune `minimumReleaseAgeExclude` entries whose versions the lockfile
-/// written by the just-finished install no longer records. The lockfile
-/// is read from the directory the install anchored it at — the workspace
-/// dir, or the active project's dir under dedicated per-project
-/// lockfiles (`sharedWorkspaceLockfile: false`, pnpm's `lockfileDir =
-/// sharedWorkspaceLockfile ? workspaceDir : projectDir`) — while the
-/// manifest write always targets `pnpm-workspace.yaml` at the workspace
-/// dir. No-ops when the setting is off, when lockfile persistence is
-/// disabled (`lockfile: false` — the on-disk lockfile would be stale),
-/// or when no lockfile exists, mirroring the `all_projects` guard of the
-/// catalog cleanup.
-pub(crate) fn cleanup_outdated_minimum_release_age_excludes(
+/// Post-install pass under `minimumReleaseAgeExcludePrune`: prune
+/// `minimumReleaseAgeExclude` entries whose versions the lockfile written
+/// by the just-finished install no longer records.
+///
+/// The pass may only drop an entry it can prove nothing resolves, so it
+/// needs a lockfile covering every project `minimumReleaseAgeExclude`
+/// governs — only a workspace-shared one does. Under dedicated
+/// per-project lockfiles (`sharedWorkspaceLockfile: false`, pnpm's
+/// `lockfileDir = sharedWorkspaceLockfile ? workspaceDir : projectDir`)
+/// every entry a sibling project needs would look unresolved, so the pass
+/// no-ops. It also no-ops when the setting is off, when lockfile
+/// persistence is disabled (`lockfile: false` — the on-disk lockfile
+/// would be stale), and when no lockfile exists, mirroring the
+/// `all_projects` guard of the catalog cleanup.
+pub(crate) fn prune_minimum_release_age_excludes(
     config: &Config,
     workspace_dir: Option<&Path>,
     current_manifest: &PackageManifest,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
-    if !config.cleanup_outdated_minimum_release_age_excludes || !config.lockfile {
+    if !config.minimum_release_age_exclude_prune
+        || !config.lockfile
+        || !config.shared_workspace_lockfile
+    {
         return Ok(());
     }
     let workspace_dir = match workspace_dir {
         Some(dir) => dir.to_path_buf(),
         None => derive_workspace_dir(current_manifest)?,
     };
-    let lockfile_dir = if config.shared_workspace_lockfile {
-        workspace_dir.clone()
-    } else {
-        current_manifest
-            .path()
-            .parent()
-            .expect("manifest path always has a parent dir")
-            .to_path_buf()
-    };
-    let Some(lockfile) = Lockfile::load_wanted_from_dir(&lockfile_dir)
+    let Some(lockfile) = Lockfile::load_wanted_from_dir(&workspace_dir)
         .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
     else {
         return Ok(());
@@ -163,7 +156,6 @@ pub(crate) fn cleanup_outdated_minimum_release_age_excludes(
     update_workspace_manifest(
         &workspace_dir,
         &UpdateWorkspaceManifestOptions {
-            cleanup_outdated_minimum_release_age_excludes: true,
             resolved_package_versions: Some(&resolved),
             ..Default::default()
         },

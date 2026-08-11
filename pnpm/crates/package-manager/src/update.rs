@@ -3,8 +3,8 @@ use crate::{
     ImporterUpdateSeedPolicy, Install, InstallError, ProjectMutation, ResolvedPackages,
     UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, cleanup_outdated_minimum_release_age_excludes,
-        write_workspace_catalogs, write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
     decide_catalog, emit_initial_package_manifest, package_manifest_prefix,
     resolution_policy::PickPolicy,
@@ -371,7 +371,7 @@ impl Update<'_> {
         }
 
         if save {
-            cleanup_outdated_minimum_release_age_excludes(
+            prune_minimum_release_age_excludes(
                 config,
                 workspace_dir_for_catalogs.as_deref(),
                 manifest,
@@ -506,7 +506,7 @@ impl Update<'_> {
         if save {
             let workspace_dir =
                 prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
-            cleanup_outdated_minimum_release_age_excludes(config, Some(workspace_dir), manifest)
+            prune_minimum_release_age_excludes(config, Some(workspace_dir), manifest)
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
         Ok(())

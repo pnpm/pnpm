@@ -2919,28 +2919,49 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
 }
 
 #[test]
-pub fn cleanup_unused_catalogs_from_workspace_yaml() {
+pub fn catalog_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
-    assert!(!config.cleanup_unused_catalogs);
+    assert!(!config.catalog_prune);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "catalogPrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.catalog_prune);
+}
+
+/// `catalogPrune` was released as `cleanupUnusedCatalogs`, which every
+/// `pnpm-workspace.yaml` written since pnpm 10.15 may still carry.
+#[test]
+pub fn catalog_prune_from_its_former_name_in_workspace_yaml() {
+    let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "cleanupUnusedCatalogs: true\n")
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-    assert!(config.cleanup_unused_catalogs);
+    assert!(config.catalog_prune);
 }
 
+/// The canonical name wins, whichever order the two appear in.
 #[test]
-pub fn cleanup_outdated_minimum_release_age_excludes_from_workspace_yaml() {
+pub fn catalog_prune_overrides_its_former_name() {
     let tmp = tempdir().unwrap();
-    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
-    assert!(!config.cleanup_outdated_minimum_release_age_excludes);
     fs::write(
         tmp.path().join("pnpm-workspace.yaml"),
-        "cleanupOutdatedMinimumReleaseAgeExcludes: true\n",
+        "cleanupUnusedCatalogs: true\ncatalogPrune: false\n",
     )
     .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-    assert!(config.cleanup_outdated_minimum_release_age_excludes);
+    assert!(!config.catalog_prune);
+}
+
+#[test]
+pub fn minimum_release_age_exclude_prune_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.minimum_release_age_exclude_prune);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAgeExcludePrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.minimum_release_age_exclude_prune);
 }
 
 #[test]

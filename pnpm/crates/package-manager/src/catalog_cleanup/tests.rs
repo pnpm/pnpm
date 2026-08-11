@@ -1,4 +1,4 @@
-use super::{cleanup_outdated_minimum_release_age_excludes, resolved_package_versions};
+use super::{prune_minimum_release_age_excludes, resolved_package_versions};
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manifest::PackageManifest;
@@ -44,23 +44,20 @@ fn registers_the_version_of_a_registry_qualified_key() {
 }
 
 /// With `sharedWorkspaceLockfile: false` the install anchors the wanted
-/// lockfile at the active project, so the cleanup pass reads it from the
-/// project dir — not the workspace dir — while still writing
-/// `pnpm-workspace.yaml` at the workspace dir. Pruning `foo@1.0.0` here
-/// proves the project's lockfile (`bar@2.0.0` only) was the data source:
-/// the workspace dir holds no lockfile, so a workspace-anchored read
-/// would no-op and leave the entry in place.
+/// lockfile at the active project, so it records that project's
+/// dependencies only — while `minimumReleaseAgeExclude` in
+/// `pnpm-workspace.yaml` governs every project. `foo@1.0.0` may well be a
+/// sibling project's dependency, so the pass must not prune it off one
+/// project's lockfile.
 #[test]
-fn reads_the_project_lockfile_when_the_workspace_lockfile_is_not_shared() {
+fn skips_the_pass_when_the_workspace_lockfile_is_not_shared() {
     let tmp = tempdir().expect("temp dir");
     let workspace_dir = tmp.path();
     let project_dir = workspace_dir.join("project");
     std::fs::create_dir_all(&project_dir).expect("create project dir");
-    std::fs::write(
-        workspace_dir.join("pnpm-workspace.yaml"),
-        "minimumReleaseAgeExclude:\n  - foo@1.0.0\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    let workspace_yaml = workspace_dir.join("pnpm-workspace.yaml");
+    std::fs::write(&workspace_yaml, "minimumReleaseAgeExclude:\n  - foo@1.0.0\n")
+        .expect("write pnpm-workspace.yaml");
     std::fs::write(
         project_dir.join("pnpm-lock.yaml"),
         "lockfileVersion: '9.0'\nsnapshots:\n  bar@2.0.0: {}\n",
@@ -71,10 +68,42 @@ fn reads_the_project_lockfile_when_the_workspace_lockfile_is_not_shared() {
         serde_json::json!({ "name": "project", "version": "1.0.0" }),
     );
     let mut config = Config::new();
-    config.cleanup_outdated_minimum_release_age_excludes = true;
+    config.minimum_release_age_exclude_prune = true;
     config.shared_workspace_lockfile = false;
 
-    cleanup_outdated_minimum_release_age_excludes(&config, Some(workspace_dir), &manifest)
+    prune_minimum_release_age_excludes(&config, Some(workspace_dir), &manifest)
+        .expect("cleanup runs");
+
+    assert_eq!(
+        std::fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml"),
+        "minimumReleaseAgeExclude:\n  - foo@1.0.0\n",
+    );
+}
+
+/// The shared lockfile covers every project, so an entry no snapshot
+/// records is pruned — here down to an empty manifest, which is deleted.
+#[test]
+fn prunes_against_the_shared_workspace_lockfile() {
+    let tmp = tempdir().expect("temp dir");
+    let workspace_dir = tmp.path();
+    std::fs::write(
+        workspace_dir.join("pnpm-workspace.yaml"),
+        "minimumReleaseAgeExclude:\n  - foo@1.0.0\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    std::fs::write(
+        workspace_dir.join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nsnapshots:\n  bar@2.0.0: {}\n",
+    )
+    .expect("write pnpm-lock.yaml");
+    let manifest = PackageManifest::from_value(
+        workspace_dir.join("package.json"),
+        serde_json::json!({ "name": "project", "version": "1.0.0" }),
+    );
+    let mut config = Config::new();
+    config.minimum_release_age_exclude_prune = true;
+
+    prune_minimum_release_age_excludes(&config, Some(workspace_dir), &manifest)
         .expect("cleanup runs");
 
     assert!(

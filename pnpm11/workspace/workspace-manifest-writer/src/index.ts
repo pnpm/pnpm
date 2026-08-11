@@ -49,9 +49,14 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   updatedOverrides?: Record<string, string>
   addedMinimumReleaseAgeExcludes?: string[]
   fileName?: FileName
-  cleanupUnusedCatalogs?: boolean
+  catalogPrune?: boolean
   allProjects?: Project[]
-  cleanupOutdatedMinimumReleaseAgeExcludes?: boolean
+  /**
+   * Package name → the versions the freshly resolved lockfile records.
+   * Present only under `minimumReleaseAgeExcludePrune`, and only when the
+   * lockfile covers every project `minimumReleaseAgeExclude` governs;
+   * absent, the cleanup pass does not run.
+   */
   resolvedPackageVersions?: ReadonlyMap<string, ReadonlySet<string>>
 }): Promise<void> {
   const fileName = opts.fileName ?? DEFAULT_FILENAME
@@ -69,7 +74,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   const originalKeyOrder = captureKeyOrder(manifest)
 
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
-  if (opts.cleanupUnusedCatalogs) {
+  if (opts.catalogPrune) {
     shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
   }
 
@@ -94,8 +99,8 @@ export async function updateWorkspaceManifest (dir: string, opts: {
       }
     }
   }
-  if (opts.cleanupOutdatedMinimumReleaseAgeExcludes) {
-    shouldBeUpdated = removeOutdatedMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+  if (opts.resolvedPackageVersions != null) {
+    shouldBeUpdated = pruneMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
   }
   // Merged after the cleanup pass so entries approved during this install
   // are never pruned by it in the same write.
@@ -262,18 +267,19 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
   packageReferences[pkgName].add(version)
 }
 
-// An entry is outdated when the freshly resolved lockfile no longer contains
-// what it names: exact versions that were not resolved are dropped (the entry
-// goes away once none remain), and a bare-name entry goes away when the
-// package is absent entirely. Glob patterns always stay — they are
-// forward-looking and can't be proven outdated. Entries that fail to parse
-// stay untouched so cleanup never breaks an install.
-function removeOutdatedMinimumReleaseAgeExcludes (
+// The `minimumReleaseAgeExcludePrune` pass. An entry is dropped when the
+// freshly resolved lockfile no longer contains what it names: exact versions
+// that were not resolved are dropped (the entry goes away once none remain),
+// and a bare-name entry goes away when the package is absent entirely. Glob
+// patterns always stay — they are forward-looking and can't be proven stale.
+// Entries that fail to parse stay untouched so cleanup never breaks an
+// install.
+function pruneMinimumReleaseAgeExcludes (
   manifest: Partial<WorkspaceManifest> & { minimumReleaseAgeExclude?: string[] },
-  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>> | undefined
+  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
 ): boolean {
   const excludes = manifest.minimumReleaseAgeExclude
-  if (resolvedPackageVersions == null || excludes == null || excludes.length === 0) {
+  if (excludes == null || excludes.length === 0) {
     return false
   }
   const survivingSpecs: string[] = []

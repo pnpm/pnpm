@@ -152,7 +152,7 @@ where
 pub type ResolvedPackageVersions =
     std::collections::BTreeMap<String, std::collections::BTreeSet<String>>;
 
-/// The `cleanupOutdatedMinimumReleaseAgeExcludes` pass over a
+/// The `minimumReleaseAgeExcludePrune` pass over a
 /// `minimumReleaseAgeExclude` list: prune every spec against `resolved`,
 /// the versions the lockfile written by the just-finished install
 /// records. Entry order is preserved.
