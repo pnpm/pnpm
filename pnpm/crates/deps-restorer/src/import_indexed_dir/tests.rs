@@ -1,4 +1,6 @@
-use super::{ImportIndexedDirError, ImportIndexedDirOpts, import_indexed_dir, is_occupied_target};
+use super::{
+    ImportIndexedDirError, ImportIndexedDirOpts, claim_dir, import_indexed_dir, is_occupied_target,
+};
 use pacquet_config::PackageImportMethod;
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -29,6 +31,10 @@ const FORCE_ONLY: ImportIndexedDirOpts =
     ImportIndexedDirOpts { force: true, keep_modules_dir: false, safe_to_skip: false };
 const FORCE_SHARED: ImportIndexedDirOpts =
     ImportIndexedDirOpts { force: true, keep_modules_dir: false, safe_to_skip: true };
+// The shape the isolated linker uses for a shared slot: no force, since a warm slot is
+// short-circuited by its marker before the import runs.
+const SHARED: ImportIndexedDirOpts =
+    ImportIndexedDirOpts { force: false, keep_modules_dir: false, safe_to_skip: true };
 // The shape the isolated linker uses for a shared slot whose build was interrupted.
 const FORCE_SHARED_KEEP: ImportIndexedDirOpts =
     ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip: true };
@@ -1012,6 +1018,94 @@ fn safe_to_skip_repairs_a_slot_holding_a_nested_node_modules_in_place() {
     assert_eq!(fs::metadata(&target).unwrap().ino(), occupied);
     assert_eq!(fs::read(bundled.join("index.js")).unwrap(), b"bundled dependency");
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+}
+
+// Both stacks let the exclusive mkdir, not the earlier stat, decide who imports a shared slot.
+#[test]
+fn claim_dir_reports_only_the_creating_call() {
+    let tmp = tempdir().unwrap();
+    let slot = tmp.path().join("nested").join("slot");
+
+    assert!(claim_dir(&slot).unwrap(), "the call that creates the slot owns it");
+    assert!(!claim_dir(&slot).unwrap(), "a later call finds it taken");
+}
+
+#[test]
+fn safe_to_skip_imports_into_an_absent_shared_slot() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("lib/index.js", index)]);
+
+    let target = tmp.path().join("nested").join("slot");
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        SHARED,
+    )
+    .expect("an absent shared slot must be created and filled");
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("lib/index.js")).unwrap(), b"module.exports = 1");
+}
+
+// The isolated linker imports without `force`, so the marker-less repair is where a shared slot
+// left half-written by an importer that died is met on the next install.
+#[test]
+fn shared_slot_repair_without_force_replaces_a_damaged_file() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("index.js"), b"half-written").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        SHARED,
+    )
+    .expect("a marker-less shared slot must be repaired");
+
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+}
+
+// A private slot holds only this install's own interrupted work, so its repair keeps adopting.
+#[test]
+fn private_slot_repair_without_force_adopts_what_is_there() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("index.js"), b"half-written").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("a marker-less private slot must be repaired");
+
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"half-written");
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
 }
 

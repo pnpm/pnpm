@@ -120,6 +120,14 @@ enum Placement {
     Repair,
 }
 
+impl Placement {
+    /// How much an import into an occupied target may assume about what
+    /// is already there, given whether the target is shared.
+    fn for_target(safe_to_skip: bool) -> Self {
+        if safe_to_skip { Placement::Repair } else { Placement::Fresh }
+    }
+}
+
 /// Materialize an indexed package's files into `dir_path`, the way
 /// pnpm v11's `importIndexedDir` does at
 /// `fs/indexed-pkg-importer/src/importIndexedDir.ts`. The same function
@@ -160,6 +168,14 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
+        // An absent shared target says nothing: another importer can create it
+        // between the stat above and the first file written below, and then two
+        // importers are populating one directory each believing it owns it.
+        // Ownership is settled by an exclusive `mkdir` instead.
+        (None, _) if opts.safe_to_skip => {
+            import_into_shared_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+                .inspect(|()| unquarantine())
+        }
         (None, _) => populate_dir::<Reporter>(
             logged_methods,
             import_method,
@@ -172,10 +188,13 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         // (pnpm's `pkgExistsAtTargetDir`, which checks `package.json`),
         // not on mere directory existence. A marker-less directory is a
         // partial import; repair it by re-running the non-destructive
-        // `populate_dir`. Ported from pnpm/pnpm#12204 (cbfeeef328), whose
-        // repair adopts an existing dirent rather than replacing it —
-        // pnpm's own fast path does, and a private slot has no second
-        // importer racing this one.
+        // `populate_dir`. Ported from pnpm/pnpm#12204 (cbfeeef328).
+        //
+        // Whose partial import it is decides how much the repair may
+        // assume: a private target holds this install's own interrupted
+        // work, so an existing dirent is this package's file and is
+        // adopted, while a shared one may hold a file an importer died
+        // halfway through writing, which only a replacement heals.
         (Some(file_type), false) if file_type.is_dir() => {
             if marker_present(dir_path, cas_paths) {
                 Ok(())
@@ -185,7 +204,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
                     import_method,
                     dir_path,
                     cas_paths,
-                    Placement::Fresh,
+                    Placement::for_target(opts.safe_to_skip),
                 )
                 .inspect(|()| unquarantine())
             }
@@ -217,6 +236,52 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             opts.safe_to_skip,
         )
         .inspect(|()| unquarantine()),
+    }
+}
+
+/// Import into a target whose path is shared with the installs running
+/// in other projects, without ever removing anything from it.
+///
+/// The importer that creates the directory populates it; the others heal
+/// what is there, because a slot that exists is either finished, being
+/// filled right now, or left behind by an importer that died mid-file —
+/// and the three are indistinguishable from the outside.
+fn import_into_shared_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> Result<(), ImportIndexedDirError> {
+    if claim_dir(dir_path)? {
+        return populate_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            Placement::Fresh,
+        );
+    }
+    if all_files_match(dir_path, cas_paths) {
+        return Ok(());
+    }
+    populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths, Placement::Repair)
+}
+
+/// Create `dir_path`, reporting whether this call is the one that created
+/// it. `create_dir_all` cannot answer that — it succeeds either way.
+fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
+    if let Some(parent) = dir_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| ImportIndexedDirError::CreateDir {
+            dirname: parent.to_path_buf(),
+            error,
+        })?;
+    }
+    match fs::create_dir(dir_path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(false),
+        Err(error) => {
+            Err(ImportIndexedDirError::CreateDir { dirname: dir_path.to_path_buf(), error })
+        }
     }
 }
 
@@ -419,22 +484,40 @@ fn is_occupied_target(error: &io::Error, dir_path: &Path) -> bool {
 /// after the import finished still exists, and treating that slot as
 /// done would leave it broken for every later install. The needs-build
 /// marker is transient and does not identify package contents.
+///
+/// The marker is checked first, and `cas_paths` iterates in no
+/// particular order: a slot another importer is still filling is the
+/// common case here, and one `stat` settles it without comparing the
+/// files that did land.
 fn all_files_match(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
-    cas_paths
-        .iter()
-        .filter(|(entry, _)| entry.as_str() != crate::NEEDS_BUILD_MARKER)
-        .all(|(entry, store_path)| file_matches_store_entry(&dir_path.join(entry), store_path))
+    marker_present(dir_path, cas_paths)
+        && cas_paths
+            .iter()
+            .filter(|(entry, _)| entry.as_str() != crate::NEEDS_BUILD_MARKER)
+            .all(|(entry, store_path)| file_matches_store_entry(&dir_path.join(entry), store_path))
 }
 
 /// Whether `target` already carries `store_path`'s content. Imports that
-/// hardlink or reflink share the store inode, which settles it without a
+/// hardlink or reflink share the store file, which settles it without a
 /// read; the copy tier falls back to comparing size and then bytes, the
 /// way pnpm's `allFilesMatch` does.
 fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool {
     let (Ok(target_meta), Ok(store_meta)) = (fs::metadata(target), fs::metadata(store_path)) else {
         return false;
     };
-    if is_same_file(&target_meta, &store_meta) {
+    // Unix carries the file's identity in the stat results already.
+    // Windows keeps it behind an open handle, which `same-file` opens —
+    // worth two handles to spare a hardlinked package a full read on the
+    // platform where hardlinking is the default tier.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if target_meta.ino() == store_meta.ino() && target_meta.dev() == store_meta.dev() {
+            return true;
+        }
+    }
+    #[cfg(windows)]
+    if same_file::is_same_file(target, store_path).unwrap_or(false) {
         return true;
     }
     target_meta.len() == store_meta.len()
@@ -471,19 +554,6 @@ fn files_have_equal_contents(left: &Path, right: &Path) -> io::Result<bool> {
         left.consume(len);
         right.consume(len);
     }
-}
-
-/// Whether two stat results name one inode. Windows exposes a file index
-/// only through an open handle, so it always compares content there.
-#[cfg(unix)]
-fn is_same_file(left: &fs::Metadata, right: &fs::Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    left.ino() == right.ino() && left.dev() == right.dev()
-}
-
-#[cfg(not(unix))]
-fn is_same_file(_left: &fs::Metadata, _right: &fs::Metadata) -> bool {
-    false
 }
 
 /// Whether `dir_path` holds the completion marker. An empty map has no

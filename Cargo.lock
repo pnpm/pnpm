@@ -4241,6 +4241,7 @@ dependencies = [
  "rayon",
  "reflink-copy",
  "rustc-hash 2.1.2",
+ "same-file",
  "serde",
  "serde-saphyr",
  "serde_json",
