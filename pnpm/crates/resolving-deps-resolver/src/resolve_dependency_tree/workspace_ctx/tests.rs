@@ -499,6 +499,7 @@ fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChild
             peer_shadowed: Arc::default(),
             prior_key: None,
             update_active: false,
+            overlay_view: super::ChildrenOverlayView::new(),
         },
     }
 }
@@ -509,8 +510,8 @@ fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChild
 fn recorded_children_match_only_under_the_recording_context() {
     use super::super::{UpdateReuseScope, tree_ctx::TreeCtx};
     use super::{
-        ChildrenRecording, RecordedChildrenContext, claim_children_owner, record_children,
-        recorded_children_match,
+        ChildrenOverlayView, ChildrenRecording, RecordedChildrenContext, claim_children_owner,
+        record_children, recorded_children_match,
     };
     use std::sync::Arc;
 
@@ -521,6 +522,7 @@ fn recorded_children_match_only_under_the_recording_context() {
         peer_shadowed: Arc::default(),
         prior_key: None,
         update_active: false,
+        overlay_view: ChildrenOverlayView::new(),
     };
     assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &context()), "nothing recorded yet");
     assert_ne!(
@@ -550,7 +552,8 @@ fn recorded_children_match_only_under_the_recording_context() {
 fn children_are_published_only_by_the_standing_owner() {
     use super::super::tree_ctx::TreeCtx;
     use super::{
-        ChildrenRecording, RecordedChildrenContext, claim_children_owner, record_children,
+        ChildrenOverlayView, ChildrenRecording, RecordedChildrenContext, claim_children_owner,
+        record_children,
     };
     use std::sync::Arc;
 
@@ -560,6 +563,7 @@ fn children_are_published_only_by_the_standing_owner() {
         peer_shadowed: Arc::default(),
         prior_key: None,
         update_active: false,
+        overlay_view: ChildrenOverlayView::new(),
     };
     let deep = claim_children_owner(&ctx, "pkg@1.0.0", 5, &[], HashSet::default());
     let shallow = claim_children_owner(&ctx, "pkg@1.0.0", 0, &[], HashSet::default());
@@ -586,7 +590,8 @@ fn children_are_published_only_by_the_standing_owner() {
 fn re_recording_reports_whether_the_child_edges_moved() {
     use super::super::tree_ctx::TreeCtx;
     use super::{
-        ChildrenRecording, RecordedChildrenContext, claim_children_owner, record_children,
+        ChildrenOverlayView, ChildrenRecording, RecordedChildrenContext, claim_children_owner,
+        record_children,
     };
     use std::sync::Arc;
 
@@ -596,6 +601,7 @@ fn re_recording_reports_whether_the_child_edges_moved() {
         peer_shadowed: Arc::default(),
         prior_key: None,
         update_active: false,
+        overlay_view: ChildrenOverlayView::new(),
     };
     let edges = |pkg_id: &str| {
         vec![crate::resolved_tree::ChildEdge {

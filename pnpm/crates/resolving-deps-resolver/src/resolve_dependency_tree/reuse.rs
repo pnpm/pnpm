@@ -29,9 +29,9 @@ use super::{
     tree_ctx::TreeCtx,
     walk::{node_alias, parent_ids_contain_sequence, resolve_node},
     workspace_ctx::{
-        DirectDepVersions, RecordedChildrenContext, claim_children_owner, insert_tree_node,
-        is_current_children_owner, lazy_children, make_non_owner_nodes_lazy, record_children,
-        remember_node_parent_ids,
+        ChildrenOverlayView, DirectDepVersions, RecordedChildrenContext, claim_children_owner,
+        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
+        record_children, remember_node_parent_ids,
     },
 };
 
@@ -659,6 +659,10 @@ where
                     peer_shadowed: Arc::clone(&children_owner.peer_shadowed),
                     prior_key: Some(key.clone()),
                     update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
+                    // The snapshot pins every child to an exact
+                    // version, so no preferred-versions overlay entry
+                    // can move this recording's edges.
+                    overlay_view: ChildrenOverlayView::new(),
                 },
             );
             recording.into_children(realized, ancestor_ids)
