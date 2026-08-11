@@ -443,7 +443,7 @@ fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool {
 
 /// Byte-compare two files without buffering either one.
 ///
-/// `populate_dir` runs its entries through rayon, so a repair can be
+/// [`populate_dir`] runs its entries through rayon, so a repair can be
 /// comparing as many packages as there are workers at once. Reading
 /// both sides whole would hold two allocations the size of the file per
 /// worker, and a store entry for a native binary (`@napi-rs/*`,
