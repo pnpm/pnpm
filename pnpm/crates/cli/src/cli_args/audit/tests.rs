@@ -1361,6 +1361,31 @@ fn minimum_release_age_excludes_drops_versions_missing_from_the_packument() {
 }
 
 #[test]
+fn minimum_release_age_excludes_uses_lowest_published_version_satisfying_range() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "foo",
+        "<2.0.0",
+        Some(">=2.0.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    // 2.0.0 was never published; 2.0.1 is the lowest published version
+    // satisfying >=2.0.0 and it is fresh enough to need the bypass.
+    let times = publish_times("foo", &[("2.0.1", "2026-06-01T00:00:00Z")]);
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec!["foo@2.0.1".to_string()],
+        "the lowest published satisfying version is used"
+    );
+}
+
+#[test]
 fn classify_for_update_routes_unparsable_ranges_to_remaining() {
     let advisories = report_of(vec![
         fix_advisory(1, "ok", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),

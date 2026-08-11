@@ -158,12 +158,15 @@ async fn resolve_minimum_release_age_excludes(
 
 /// The `minimumReleaseAgeExclude` entries needed to keep the age gate from
 /// blocking the patched versions: one `name@minVersion` spec per fixable
-/// advisory whose minimum patched version is younger than `cutoff`. A version
-/// published at or before the cutoff doesn't need a bypass, and a version
-/// whose publish time is unknown keeps its entry so a genuinely fresh fix
-/// stays installable. A version missing from a successfully fetched packument
-/// was never published — no fix has shipped — so it gets no entry. Ports
-/// pnpm's `createMinimumReleaseAgeExcludes`.
+/// advisory whose minimum published version satisfying the patched range is
+/// younger than `cutoff`. The theoretical range minimum may never have been
+/// published (a skipped or yanked release), so the lowest published version
+/// that satisfies the range is used instead — that is the version the
+/// override actually resolves to. A version published at or before the cutoff
+/// doesn't need a bypass, and a version whose publish time is unknown keeps
+/// its entry so a genuinely fresh fix stays installable. A version missing
+/// from a successfully fetched packument was never published — no fix has
+/// shipped — so it gets no entry. Ports pnpm's `createMinimumReleaseAgeExcludes`.
 pub(crate) fn minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
     publish_times: &HashMap<String, Option<HashMap<String, String>>>,
@@ -180,12 +183,22 @@ pub(crate) fn minimum_release_age_excludes(
             let Some(times) = publish_times.get(name).and_then(Option::as_ref) else {
                 return Some(format!("{name}@{min}"));
             };
-            let raw = times.get(min.to_string().as_str())?;
+            // The theoretical range minimum may not exist on the registry;
+            // use the lowest published version that satisfies the range,
+            // which is what the override actually resolves to.
+            let range = patched.parse::<Range>().ok()?;
+            let lowest = times
+                .keys()
+                .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
+                .filter_map(|version| version.parse::<Version>().ok())
+                .filter(|version| satisfies_including_prerelease(version, &range))
+                .min()?;
+            let raw = times.get(lowest.to_string().as_str())?;
             match parse_packument_timestamp(raw) {
                 Some(published_at) if published_at <= cutoff => None,
                 // A present-but-unparsable timestamp fails open like unknown
                 // publish times.
-                _ => Some(format!("{name}@{min}")),
+                _ => Some(format!("{name}@{lowest}")),
             }
         })
         .collect();

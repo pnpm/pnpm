@@ -368,6 +368,23 @@ describe('createMinimumReleaseAgeExcludes', () => {
     expect(excludes).toEqual([])
   })
 
+  test('uses the lowest published version satisfying the patched range', async () => {
+    const advisories = [
+      advisory('axios', '<=0.18.0', '>=0.18.1'),
+    ]
+    // 0.18.1 was never published; 0.18.2 is the lowest published version
+    // satisfying >=0.18.1 and it is fresh enough to need the bypass.
+    const publishTimes: Record<string, Record<string, string>> = {
+      axios: { '0.18.2': '2026-01-07T23:30:00.000Z' },
+    }
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async (pkgName) => publishTimes[pkgName],
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual(['axios@0.18.2'])
+  })
+
   test('omits entries for patched versions published exactly at the cutoff', async () => {
     const advisories = [
       advisory('axios', '<=0.18.0', '>=0.18.1'),
