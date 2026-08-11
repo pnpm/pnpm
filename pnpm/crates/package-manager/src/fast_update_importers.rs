@@ -315,7 +315,8 @@ pub(crate) fn locked_version_resolution_would_pick(
     range: &Range,
     resolution_picks_lowest: bool,
 ) -> Option<Version> {
-    let mut satisfying: Vec<Version> = Vec::new();
+    let mut highest: Option<Version> = None;
+    let mut satisfying = 0_usize;
     for key in packages?.keys() {
         if &key.name != alias {
             continue;
@@ -325,13 +326,16 @@ pub(crate) fn locked_version_resolution_would_pick(
         }
         let Some(version) = key.suffix.version_semver() else { continue };
         if version.satisfies(range) {
-            satisfying.push(version.clone());
+            satisfying += 1;
+            if highest.as_ref().is_none_or(|best| version > best) {
+                highest = Some(version.clone());
+            }
         }
     }
-    if satisfying.len() > 1 && resolution_picks_lowest {
+    if satisfying > 1 && resolution_picks_lowest {
         return None;
     }
-    satisfying.into_iter().max()
+    highest
 }
 
 /// Whether the importer's record differs from the manifest in a way the
