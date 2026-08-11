@@ -123,7 +123,10 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
             "name": "app",
             "version": "1.0.0",
             "files": ["index.js"],
-            "dependencies": { "lib": "workspace:*" },
+            "dependencies": {
+                "lib": "workspace:*",
+                "@pnpm.e2e/support-different-architectures": "1.0.0",
+            },
             "devDependencies": { "dev-only": "workspace:*" },
             "optionalDependencies": { "optional-only": "workspace:*" },
         }),
@@ -163,6 +166,12 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
             "default deploy lock graph should include {included}: {graph_keys:#?}",
         );
     }
+    let optional_edges = deploy_optional_edges(&with_optional);
+    assert!(
+        optional_edges.iter().any(|(key, names)| key.contains("lib@file:")
+            && names.iter().any(|name| name == "@pnpm.e2e/qar")),
+        "default deploy should keep the optional edge on the retained production dependency: {optional_edges:#?}",
+    );
 
     pacquet_cmd(&workspace)
         .with_args([
@@ -196,18 +205,10 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
         );
     }
 
-    let deploy_lockfile = Lockfile::load_wanted_from_dir(&without_optional).unwrap().unwrap();
-    let retained_optional_edges = deploy_lockfile
-        .snapshots
-        .iter()
-        .flatten()
-        .filter_map(|(key, snapshot)| {
-            snapshot.optional_dependencies.as_ref().map(|deps| (key.to_string(), deps))
-        })
-        .collect::<Vec<_>>();
+    let retained_optional_edges = deploy_optional_edges(&without_optional);
     assert!(
         retained_optional_edges.is_empty(),
-        "retained production snapshots must not keep pruned optional edges: {retained_optional_edges:?}",
+        "retained production snapshots must not keep pruned optional edges: {retained_optional_edges:#?}",
     );
 
     drop((root, mock_instance));
@@ -643,6 +644,22 @@ fn deploy_graph_keys(deploy_dir: &Path) -> Vec<String> {
         .flatten()
         .map(|(key, _)| key.to_string())
         .chain(deploy_lockfile.snapshots.iter().flatten().map(|(key, _)| key.to_string()))
+        .collect()
+}
+
+/// Every snapshot of the deployed lockfile that still carries optional edges,
+/// as `(snapshot key, optional dependency names)`.
+fn deploy_optional_edges(deploy_dir: &Path) -> Vec<(String, Vec<String>)> {
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(deploy_dir).unwrap().unwrap();
+    deploy_lockfile
+        .snapshots
+        .iter()
+        .flatten()
+        .filter_map(|(key, snapshot)| {
+            let names =
+                snapshot.optional_dependencies.as_ref()?.keys().map(ToString::to_string).collect();
+            Some((key.to_string(), names))
+        })
         .collect()
 }
 

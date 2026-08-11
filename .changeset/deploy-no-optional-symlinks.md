@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-Fix `pnpm deploy --no-optional` creating dangling symlinks for transitive optional dependencies.
+`pnpm deploy --no-optional` no longer writes a lockfile whose snapshots reference optional dependencies that the deploy excluded.
