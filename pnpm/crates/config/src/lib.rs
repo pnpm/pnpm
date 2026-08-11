@@ -56,6 +56,17 @@ pub use workspace_yaml::{
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds, workspace_root_or,
 };
 
+fn default_ci<Sys: EnvVar>() -> bool {
+    let ci = Sys::var("CI");
+    if ci.as_deref() == Some("false") {
+        return false;
+    }
+
+    matches!(ci.as_deref(), Some("true" | "1" | "woodpecker"))
+        || Sys::var("GITHUB_ACTIONS").is_some()
+        || is_ci::cached()
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {
@@ -735,6 +746,12 @@ pub enum PackageImportMethod {
 /// (project-structural settings).
 #[derive(Debug, Clone, SmartDefault)]
 pub struct Config {
+    /// Whether pnpm is running in a continuous-integration environment.
+    /// Defaults to automatic CI detection and may be overridden through
+    /// configuration.
+    #[default(_code = "default_ci::<Host>()")]
+    pub ci: bool,
+
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
     /// This makes unlisted dependencies accessible to all packages inside `node_modules`.
     #[default = true]
@@ -2683,6 +2700,10 @@ impl Config {
             // writes it) never runs.
             self.workspace_dir = Some(base_dir.clone());
             if let Some(mut settings) = settings {
+                // CI detection is process state. A repository-controlled
+                // manifest must not be able to turn it off; trusted global
+                // config and PNPM_CONFIG_CI are applied in their own layers.
+                settings.ci = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml

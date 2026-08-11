@@ -509,6 +509,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         return Ok(());
     }
     let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
+    let changed_prefer_frozen_lockfile = delta.get("preferFrozenLockfile").cloned();
     let changed_virtual_store_dir = delta.get("virtualStoreDir").cloned();
     let changed_global_virtual_store_dir = delta.get("globalVirtualStoreDir").cloned();
     let virtual_store_dir_cleared = changed_virtual_store_dir.as_ref().is_some_and(Value::is_null);
@@ -541,6 +542,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         config.virtual_store_dir = base_dir.join("node_modules/.pnpm");
     }
     for (key, value) in [
+        ("preferFrozenLockfile", changed_prefer_frozen_lockfile),
         ("virtualStoreDir", changed_virtual_store_dir),
         ("globalVirtualStoreDir", changed_global_virtual_store_dir),
     ] {

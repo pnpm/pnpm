@@ -4107,6 +4107,7 @@ dependencies = [
  "derive_more",
  "home",
  "indexmap 2.14.0",
+ "is_ci",
  "libc",
  "miette 7.6.0",
  "node-semver",

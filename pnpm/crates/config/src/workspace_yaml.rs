@@ -96,6 +96,7 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
+    pub ci: Option<bool>,
     pub hoist: Option<bool>,
 
     /// Tri-state `hoistPattern` — see `deserialize_double_option`.
@@ -1013,7 +1014,7 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            hoist, shamefully_hoist,
+            ci, hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,

@@ -1,6 +1,6 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, fs,
+    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, default_ci, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -57,6 +57,27 @@ fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
     let subscriber = tracing_subscriber::registry().with(CaptureLayer(messages_clone));
     tracing::subscriber::with_default(subscriber, f);
     Arc::try_unwrap(messages).unwrap().into_inner().unwrap()
+}
+
+#[test]
+fn ci_false_disables_github_actions_detection() {
+    struct GithubActionsWithCiFalse;
+
+    impl EnvVar for GithubActionsWithCiFalse {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CI" => Some("false".to_string()),
+                "GITHUB_ACTIONS" => Some("true".to_string()),
+                _ => None,
+            }
+        }
+
+        fn vars() -> Vec<(String, String)> {
+            Vec::new()
+        }
+    }
+
+    assert!(!default_ci::<GithubActionsWithCiFalse>());
 }
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage

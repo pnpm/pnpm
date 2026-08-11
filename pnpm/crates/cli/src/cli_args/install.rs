@@ -94,7 +94,8 @@ pub struct InstallArgs {
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
 
-    /// Don't generate a lockfile, and fail if an update to it is needed.
+    /// Don't generate a lockfile, and fail if an update to it is needed. This
+    /// setting is enabled by default in CI when a lockfile is present.
     #[clap(long, overrides_with = "no_frozen_lockfile")]
     pub frozen_lockfile: bool,
 
@@ -387,11 +388,17 @@ impl InstallArgs {
     /// `--frozen-lockfile` / `--no-frozen-lockfile` layered over the
     /// `frozenLockfile` setting.
     pub(crate) fn effective_frozen_lockfile(&self, config: &pacquet_config::Config) -> bool {
-        resolve_bool_override(
-            self.frozen_lockfile,
-            self.no_frozen_lockfile,
-            config.frozen_lockfile.unwrap_or(false),
-        )
+        self.configured_frozen_lockfile(config).unwrap_or(false)
+    }
+
+    fn configured_frozen_lockfile(&self, config: &pacquet_config::Config) -> Option<bool> {
+        if self.frozen_lockfile {
+            Some(true)
+        } else if self.no_frozen_lockfile {
+            Some(false)
+        } else {
+            config.frozen_lockfile
+        }
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
@@ -411,9 +418,20 @@ impl InstallArgs {
         state: State,
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
+        let frozen_lockfile = match self.configured_frozen_lockfile(state.config) {
+            Some(value) => value,
+            None if state.config.ci
+                && !self.lockfile_only
+                && !self.prefer_frozen_lockfile
+                && !self.no_prefer_frozen_lockfile
+                && !state.config.explicit_settings.contains_key("preferFrozenLockfile") =>
+            {
+                state.lockfile.get()?.is_some_and(|lockfile| !lockfile.is_empty())
+            }
+            None => false,
+        };
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
-        let frozen_lockfile = self.effective_frozen_lockfile(config);
         let InstallArgs {
             dependency_options,
             supported_architectures,

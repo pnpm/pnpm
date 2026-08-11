@@ -6,6 +6,36 @@ use pacquet_reporter::SilentReporter;
 use super::{resolve_pnpm_version, run_update_config_hooks};
 
 #[tokio::test]
+async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
+    for prefer_value in [true, false] {
+        let root = tempfile::tempdir().expect("workspace tempdir");
+        fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+        fs::write(
+            root.path().join(".pnpmfile.cjs"),
+            format!(
+                "module.exports = {{ hooks: {{ updateConfig (config) {{ config.preferFrozenLockfile = {prefer_value}; return config }} }} }}",
+            ),
+        )
+        .expect("write pnpmfile");
+        let mut config =
+            Config::default().current::<Host>(root.path()).expect("load configuration");
+
+        run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+            .await
+            .expect("run updateConfig hook");
+
+        assert_eq!(config.prefer_frozen_lockfile, prefer_value);
+        assert_eq!(
+            config
+                .explicit_settings
+                .get("preferFrozenLockfile")
+                .and_then(serde_json::Value::as_bool),
+            Some(prefer_value),
+        );
+    }
+}
+
+#[tokio::test]
 async fn update_config_null_clears_virtual_store_dir() {
     let root = tempfile::tempdir().expect("workspace tempdir");
     fs::write(root.path().join("pnpm-workspace.yaml"), "virtualStoreDir: pinned-virtual\n")
