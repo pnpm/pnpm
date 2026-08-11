@@ -25,6 +25,23 @@ fn patch_commit_diff_dirs_strips_absolute_temp_paths() {
 }
 
 #[test]
+fn patch_commit_diff_dirs_supports_non_ascii_paths() {
+    let root = tempdir().expect("root dir");
+    let before = root.path().join("이전");
+    let after = root.path().join("이후");
+    fs::create_dir(&before).unwrap();
+    fs::create_dir(&after).unwrap();
+    fs::write(before.join("index.js"), "module.exports = false\n").unwrap();
+    fs::write(after.join("index.js"), "module.exports = true\n").unwrap();
+
+    let diff = diff_folders(&before, &after).expect("diff dirs");
+
+    assert!(diff.contains("diff --git a/index.js b/index.js"), "diff: {diff}");
+    assert!(!diff.contains(&before.display().to_string()), "diff: {diff}");
+    assert!(!diff.contains(&after.display().to_string()), "diff: {diff}");
+}
+
+#[test]
 fn patch_commit_diff_dirs_filters_ds_store_diffs() {
     let before = tempdir().expect("before dir");
     let after = tempdir().expect("after dir");
