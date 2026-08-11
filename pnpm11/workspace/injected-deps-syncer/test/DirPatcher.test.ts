@@ -1,12 +1,20 @@
+// cspell:ignore mkfifo
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import isWindows from 'is-windows'
 
 import { DirPatcher } from '../src/DirPatcher.js'
+
+// `mkfifo` has no Windows equivalent, and neither has any other inode type
+// that `extendFilesMap` skips.
+const testOnPosix = isWindows() ? test.skip : test
 
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
@@ -43,6 +51,12 @@ function createFile (filePath: string, content: string = ''): void {
 function createHardlink (existingPath: string, newPath: string): void {
   createDir(path.dirname(newPath))
   fs.linkSync(existingPath, newPath)
+}
+
+/** Stands in for every inode type `extendFilesMap` skips. */
+function createFifo (fifoPath: string): void {
+  createDir(path.dirname(fifoPath))
+  execFileSync('mkfifo', [path.resolve(fifoPath)])
 }
 
 const inodeNumber = (filePath: string): number => fs.lstatSync(filePath).ino
@@ -219,4 +233,97 @@ test('multiple patchers', async () => {
   expect(Array.from(targetFetchResultAfter1.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
   expect(Array.from(targetFetchResultAfter2.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
   expect(Array.from(targetFetchResultAfter3.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
+})
+
+test('replaces a target entry whose inode type changed in the source', async () => {
+  prepareEmpty()
+
+  createFile('source/became-a-dir/index.js', 'inner')
+  createFile('source/became-a-file', 'now a file')
+  createFile('target/became-a-dir', 'was a file')
+  createFile('target/became-a-file/index.js', 'was a dir')
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.readFileSync('target/became-a-dir/index.js', 'utf8')).toBe('inner')
+  expect(fs.readFileSync('target/became-a-file', 'utf8')).toBe('now a file')
+})
+
+testOnPosix('removes what the target holds where the source has a skipped inode, but leaves a skipped inode of its own alone', async () => {
+  prepareEmpty()
+
+  createFile('source/keep.txt')
+  createFile('target/keep.txt')
+  // The source turned this path into a FIFO while the target still holds the
+  // file that used to be there.
+  createFifo('source/replaced.env')
+  createFile('target/replaced.env', 'stale')
+  // A FIFO the target holds on its own.
+  createFifo('target/own.env')
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.existsSync('target/replaced.env')).toBe(false)
+  expect(fs.lstatSync('target/own.env').isFIFO()).toBe(true)
+  expect(fs.existsSync('target/keep.txt')).toBe(true)
+})
+
+testOnPosix.each([
+  ['a file', (sourcePath: string) => {
+    createFile(sourcePath, 'real')
+  }],
+  ['a directory', (sourcePath: string) => {
+    createFile(path.join(sourcePath, 'inner.txt'))
+  }],
+])('replaces a skipped inode in the target when the source has %s there', async (_label, createSource) => {
+  prepareEmpty()
+
+  createSource('source/config.env')
+  createFile('source/other.txt')
+  // The target holds an inode the map skips, so the diff cannot schedule it
+  // for removal and adding over it would fail with EEXIST.
+  createFifo('target/config.env')
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  const sourceStats = fs.lstatSync('source/config.env')
+  const targetStats = fs.lstatSync('target/config.env')
+  expect(targetStats.isFile()).toBe(sourceStats.isFile())
+  expect(targetStats.isDirectory()).toBe(sourceStats.isDirectory())
+  if (sourceStats.isDirectory()) {
+    expect(fs.readdirSync('target/config.env')).toStrictEqual(fs.readdirSync('source/config.env'))
+  }
+  expect(fs.existsSync('target/other.txt')).toBe(true)
+})
+
+testOnPosix('keeps the files linked into a directory that replaced a blocking inode', async () => {
+  prepareEmpty()
+
+  const fileNames = Array.from({ length: 20 }, (_, index) => `file${index}.txt`)
+  for (const fileName of fileNames) {
+    createFile(`source/blocked/${fileName}`)
+  }
+  createDir('target')
+  createFifo('target/blocked')
+
+  // Widen the window between clearing the blocking inode and linking into the
+  // directory that replaces it. Were the directory created concurrently with
+  // its files, this removal would land after a sibling had linked and take
+  // those files with it.
+  let delayNextRemoval = true
+  fs.promises.rm = (async (target: fs.PathLike, options?: fs.RmOptions) => {
+    if (delayNextRemoval) {
+      delayNextRemoval = false
+      await delay(30)
+    }
+    return originalRm(target, options)
+  }) as typeof fs.promises.rm
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.readdirSync('target/blocked').sort()).toStrictEqual(fileNames.sort())
 })
