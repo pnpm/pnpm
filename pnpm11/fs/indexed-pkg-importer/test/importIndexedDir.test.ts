@@ -3,6 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { expect, jest, test } from '@jest/globals'
+import gfs from '@pnpm/fs.graceful-fs'
 import { tempDir } from '@pnpm/prepare'
 
 import { importIndexedDir } from '../src/importIndexedDir.js'
@@ -111,6 +112,39 @@ test('importIndexedDir() safeToSkip replaces a symlink to matching content', asy
 
   expect(fs.lstatSync(path.join(newDir, 'index.js')).isSymbolicLink()).toBe(false)
   expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('module.exports = 1')
+})
+
+test('importIndexedDir() does not treat zero file IDs as the same file', () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(src, { recursive: true })
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(src, 'index.js'), 'source')
+  fs.writeFileSync(path.join(newDir, 'index.js'), 'target')
+
+  const originalLstatSync = fs.lstatSync
+  const originalStatSync = gfs.statSync
+  const lstatSync = jest.spyOn(fs, 'lstatSync').mockImplementation(((filePath: fs.PathLike) => Object.assign(
+    originalLstatSync(filePath, { bigint: true }), {
+      dev: 0n,
+      ino: 0n,
+    })) as typeof fs.lstatSync)
+  const statSync = jest.spyOn(gfs, 'statSync').mockImplementation(((filePath: fs.PathLike) => Object.assign(
+    originalStatSync(filePath, { bigint: true }), {
+      dev: 0n,
+      ino: 0n,
+    })) as typeof gfs.statSync)
+  try {
+    importIndexedDir(linkingImporter, newDir, new Map([
+      ['index.js', path.join(src, 'index.js')],
+    ]), { safeToSkip: true })
+  } finally {
+    lstatSync.mockRestore()
+    statSync.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('source')
 })
 
 test('importIndexedDir() adopts a matching file placed by a concurrent repair', async () => {

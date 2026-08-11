@@ -348,10 +348,14 @@ function fileMatches (dir: string, f: string, src: string): boolean {
 // settles it without a read; the copy tier compares size first, then content.
 function mismatchReason (target: string, src: string): string | undefined {
   try {
-    const targetStat = fs.lstatSync(target)
+    const targetStat = fs.lstatSync(target, { bigint: true })
     if (!targetStat.isFile()) return 'is not a regular file'
-    const srcStat = gfs.statSync(src)
-    if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) return undefined
+    const srcStat = gfs.statSync(src, { bigint: true })
+    const hasSameFileIdentity = targetStat.ino !== 0n &&
+      targetStat.dev !== 0n &&
+      targetStat.ino === srcStat.ino &&
+      targetStat.dev === srcStat.dev
+    if (hasSameFileIdentity) return undefined
     if (targetStat.size !== srcStat.size) return 'has a different size'
     if (!filesHaveEqualContents(target, src)) return 'has different content'
     return undefined
