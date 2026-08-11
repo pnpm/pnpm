@@ -110,11 +110,8 @@ import {
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { tryComposeFastUpdates } from './tryComposeFastUpdates.js'
-import { tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
-import { tryFastUpdateCatalogVersions } from './tryFastUpdateCatalogVersions.js'
 import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
-import { tryFastUpdateOverrides } from './tryFastUpdateOverrides.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
@@ -138,7 +135,9 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
 const COMPOSABLE_CHANGED_FIELDS = new Set<ChangedField>([
+  'catalogs',
   'ignoredOptionalDependencies',
+  'overrides',
   'patchedDependencies',
 ])
 
@@ -742,30 +741,35 @@ export async function mutateModules (
     let didFastUpdateOverrides = false
     const contextProjects = Object.values(ctx.projects)
     const changedSettingsFields = changedLockfileSettings.filter(isSettingsField)
-    const allChangedFieldsAreComposable = changedLockfileSettings.every((field) =>
-      isSettingsField(field) || COMPOSABLE_CHANGED_FIELDS.has(field))
-    const changedFieldIsAsync = changedLockfileSettings.length === 1 &&
-      (changedLockfileSettings[0] === 'catalogs' || changedLockfileSettings[0] === 'overrides')
+    // An override whose value is a `catalog:` reference is only meaningful
+    // once the catalog rewrite has settled, and the range-only catalog
+    // rewrite refuses to run under one. Neither resolver-consulting rewrite
+    // composes with that, so both leave the drift to the resolver.
+    const overridesUseCatalogs = Object.values(opts.overrides)
+      .some((specifier) => parseCatalogProtocol(specifier) != null)
+    const hasAsyncDrift = changedLockfileSettings.includes('catalogs') ||
+      changedLockfileSettings.includes('overrides')
+    const allChangedFieldsAreComposable =
+      !(hasAsyncDrift && overridesUseCatalogs) &&
+      changedLockfileSettings.every((field) =>
+        isSettingsField(field) || COMPOSABLE_CHANGED_FIELDS.has(field))
     // A changed field nothing can absorb forces a resolution, so the
     // workspace-wide specifier scan would be wasted.
-    const hasChangedSpecifiers = (allChangedFieldsAreComposable || changedFieldIsAsync) &&
+    const hasChangedSpecifiers = allChangedFieldsAreComposable &&
       hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects, opts.pruneLockfileImporters)
-    // The async rewrites (catalogs, overrides) consult the resolver and stay
-    // outside the composed pipeline, so they require being the only change.
-    const asyncChangedSetting = changedFieldIsAsync && !hasChangedSpecifiers
-      ? changedLockfileSettings[0]
-      : null
-    const syncDrift = {
+    const drift = {
       importers: hasChangedSpecifiers,
       ignoredOptionalDependencies: changedLockfileSettings.includes('ignoredOptionalDependencies'),
       patchedDependencies: changedLockfileSettings.includes('patchedDependencies'),
       settings: changedSettingsFields.length > 0,
+      catalogs: changedLockfileSettings.includes('catalogs'),
+      overrides: changedLockfileSettings.includes('overrides'),
     }
-    const composableSyncDrift =
+    const composableDrift =
       (hasChangedSpecifiers || changedLockfileSettings.length > 0) &&
       allChangedFieldsAreComposable
     const canTryFastUpdateLockfile =
-      (asyncChangedSetting != null || composableSyncDrift) &&
+      composableDrift &&
       !frozenLockfile &&
       // `pnpm fetch` installs from the lockfile alone; with its empty
       // manifests every recorded dependency would read as removed.
@@ -800,11 +804,9 @@ export async function mutateModules (
       // rewrite that introduces no new version needs no maintenance of it.
       // The resolver-consulting rewrites do introduce versions, whose dates
       // only a resolution can record.
-      (ctx.wantedLockfile.time == null || asyncChangedSetting == null)
+      (ctx.wantedLockfile.time == null || !hasAsyncDrift)
     if (canTryFastUpdateLockfile) {
       await verifyLockfilePromise
-      const overridesUseCatalogs = Object.values(opts.overrides)
-        .some((specifier) => parseCatalogProtocol(specifier) != null)
       const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(Object.values(ctx.projects), {
         catalogs: opts.catalogs,
         autoInstallPeers: opts.autoInstallPeers,
@@ -815,87 +817,63 @@ export async function mutateModules (
         workspacePackages: ctx.workspacePackages,
         lockfileDir: opts.lockfileDir,
       })
+      // Built only for the rewrites that consult the resolver: deriving the
+      // policies rejects a malformed pattern, which is the resolver's error
+      // to report on a run that has no use for them.
+      const rewriteOptions = hasAsyncDrift
+        ? {
+          ...getPublishedByPolicy(opts),
+          isLockfileUpToDate,
+          lockfileDir: opts.lockfileDir,
+          lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+          readPackageHook: opts.readPackageHook,
+          registries: ctx.registries,
+          requestPackage: opts.storeController.requestPackage,
+          trustPolicy: opts.trustPolicy,
+          trustPolicyExclude: opts.trustPolicyExclude
+            ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+            : undefined,
+          trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+        }
+        : undefined
       if (
-        (asyncChangedSetting === 'catalogs' || !overridesUseCatalogs) &&
         await tryFastUpdateLockfile(ctx.wantedLockfile, {
-          update: async (candidate) => {
-            if (asyncChangedSetting === 'catalogs') {
-              // The range-only rewrite keeps the entries it cannot handle, so a
-              // mixed update still leaves an exact move for the rewrite below.
-              const rewroteRanges = tryFastUpdateCatalogs(candidate, {
-                catalogs: opts.catalogs,
-                overrides: opts.overrides,
-              })
-              if (overridesUseCatalogs) return rewroteRanges
-              const catalogPolicy = getPublishedByPolicy(opts)
-              const rewrite = await tryFastUpdateCatalogVersions(candidate, {
-                catalogs: opts.catalogs,
-                lockfileDir: opts.lockfileDir,
-                lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
-                readPackageHook: opts.readPackageHook,
-                registries: ctx.registries,
-                requestPackage: opts.storeController.requestPackage,
-                publishedBy: catalogPolicy.publishedBy,
-                publishedByExclude: catalogPolicy.publishedByExclude,
-                trustPolicy: opts.trustPolicy,
-                trustPolicyExclude: opts.trustPolicyExclude
-                  ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
-                  : undefined,
-                trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-                isLockfileUpToDate,
-              })
-              // Only the "nothing moved" outcome may fall back on the
-              // range-only result. A move this cannot express has to reach the
-              // resolver, even though the range-only rewrite succeeded.
-              if (rewrite === 'applied') return true
-              return rewrite === 'nothing-to-move' && rewroteRanges
-            }
-            if (asyncChangedSetting == null) {
-              return tryComposeFastUpdates(candidate, {
-                drift: syncDrift,
-                projects: contextProjects,
-                workspacePackages: ctx.workspacePackages,
-                resolutionPicksLowest: opts.resolutionMode !== 'highest',
-                pruneLockfileImporters: opts.pruneLockfileImporters,
-                ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
-                patchedDependencies: {
-                  patchedDependencies,
-                  allowUnusedPatches: opts.allowUnusedPatches,
-                },
-                settings: {
-                  changedSettings: changedSettingsFields,
-                  projects: contextProjects,
-                  settings: wantedLockfileSettings,
-                  workspacePackages: ctx.workspacePackages,
-                },
-              })
-            }
-            const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
-            return tryFastUpdateOverrides(candidate, {
-              lockfileDir: opts.lockfileDir,
-              lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+          update: async (candidate) => tryComposeFastUpdates(candidate, {
+            drift,
+            projects: contextProjects,
+            workspacePackages: ctx.workspacePackages,
+            resolutionPicksLowest: opts.resolutionMode !== 'highest',
+            pruneLockfileImporters: opts.pruneLockfileImporters,
+            ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+            patchedDependencies: {
+              patchedDependencies,
+              allowUnusedPatches: opts.allowUnusedPatches,
+            },
+            settings: {
+              changedSettings: changedSettingsFields,
+              projects: contextProjects,
+              settings: wantedLockfileSettings,
+              workspacePackages: ctx.workspacePackages,
+            },
+            catalogs: rewriteOptions && {
+              ...rewriteOptions,
+              catalogs: opts.catalogs,
+              overrides: opts.overrides,
+              parsedOverrides: opts.parsedOverrides,
+            },
+            overrides: rewriteOptions && {
+              ...rewriteOptions,
               overrides: overridesMap,
               parsedOverrides: opts.parsedOverrides,
-              readPackageHook: opts.readPackageHook,
-              registries: ctx.registries,
-              requestPackage: opts.storeController.requestPackage,
-              publishedBy,
-              publishedByExclude,
-              trustPolicy: opts.trustPolicy,
-              trustPolicyExclude: opts.trustPolicyExclude
-                ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
-                : undefined,
-              trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-              isLockfileUpToDate,
-            })
-          },
+            },
+          }),
           isLockfileUpToDate,
           verifyLockfile: (lockfile) => verifyLockfileResolutions(lockfile, []),
         })
       ) {
         outdatedLockfileSettingName = null
         ctx.wantedLockfileIsModified = true
-        didFastUpdateOverrides = asyncChangedSetting === 'overrides'
+        didFastUpdateOverrides = drift.overrides
       }
     }
     const outdatedLockfileSettings = outdatedLockfileSettingName != null

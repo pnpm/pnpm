@@ -30,6 +30,7 @@ function lockfile (): LockfileObject {
 function updateOptions (childRange: string, catalogSpecifier = '2.0.0') {
   return {
     catalogs: { default: { target: catalogSpecifier } },
+    parsedOverrides: [],
     lockfileDir: '/project',
     registries: { default: 'https://registry.npmjs.org/' },
     requestPackage: async () => ({
@@ -112,6 +113,16 @@ test('a satisfied range rides along with an exact move in one pass', async () =>
   )).toBe('applied')
   expect(subject.catalogs!.default.child).toStrictEqual({ specifier: '^1.1.0', version: '1.1.0' })
   expect(subject.catalogs!.default.target).toStrictEqual({ specifier: '2.0.0', version: '2.0.0' })
+})
+
+test('a move on a package an override pins falls back', async () => {
+  const opts = updateOptions('^1.0.0') as unknown as Record<string, unknown>
+  opts.parsedOverrides = [{ selector: 'target', newBareSpecifier: '1.0.0', targetPkg: { name: 'target' } }]
+
+  expect(await tryFastUpdateCatalogVersions(
+    lockfile(),
+    opts as unknown as Parameters<typeof tryFastUpdateCatalogVersions>[1]
+  )).toBe('unsupported')
 })
 
 test('a range the locked version still satisfies moves no package', async () => {

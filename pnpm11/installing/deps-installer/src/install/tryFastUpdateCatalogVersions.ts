@@ -1,5 +1,6 @@
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import type { VersionOverride } from '@pnpm/config.parse-overrides'
 import type { LockfileObject, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import semver from 'semver'
 
@@ -34,7 +35,7 @@ export type CatalogVersionRewrite =
 
 export async function tryFastUpdateCatalogVersions (
   lockfile: LockfileObject,
-  opts: FastRewriteOptions & { catalogs: Catalogs }
+  opts: FastRewriteOptions & { catalogs: Catalogs, parsedOverrides: VersionOverride[] }
 ): Promise<CatalogVersionRewrite> {
   // The same gate the range-only path opens with: an importer pointing at a
   // catalog entry with nothing recorded for it needs the resolver, and this
@@ -55,8 +56,6 @@ export async function tryFastUpdateCatalogVersions (
       if (semver.valid(entry.version) == null) return 'unsupported'
       // A specifier the locked version still satisfies moves nothing but the
       // specifier, exactly as the range-only path would.
-      // A specifier the locked version still satisfies moves nothing but the
-      // specifier, exactly as the range-only path would.
       if (semver.validRange(specifier) != null && semver.satisfies(entry.version, specifier)) {
         catalogs[catalogName][alias] = { specifier, version: entry.version }
         continue
@@ -64,6 +63,7 @@ export async function tryFastUpdateCatalogVersions (
       const wanted = semver.valid(specifier)
       if (wanted == null) return 'unsupported'
       if (!catalogEntryIsSoleReference(lockfile, catalogName, alias)) return 'unsupported'
+      if (isOverridden(alias, opts.parsedOverrides)) return 'unsupported'
       fastOverrides.push({ name: alias, newVersion: wanted, oldVersion: entry.version })
       catalogs[catalogName][alias] = { specifier, version: wanted }
     }
@@ -73,6 +73,16 @@ export async function tryFastUpdateCatalogVersions (
   return await applyFastRewrite(lockfile, fastOverrides, opts, { catalogs })
     ? 'applied'
     : 'unsupported'
+}
+
+/**
+ * Whether an override decides `alias`'s version, making the catalog specifier
+ * no longer the last word on it. A `parent>child` selector names no importer
+ * edge, and only importer edges are what a catalog entry resolves.
+ */
+function isOverridden (alias: string, parsedOverrides: VersionOverride[]): boolean {
+  return parsedOverrides.some((override) =>
+    override.parentPkg == null && override.targetPkg.name === alias)
 }
 
 /** Whether the catalog entry is the only thing in the lockfile that reaches `alias`. */

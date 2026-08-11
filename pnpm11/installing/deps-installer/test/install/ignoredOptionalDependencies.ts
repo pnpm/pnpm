@@ -104,7 +104,7 @@ test('removing an ignored optional dependency falls back to resolution', async (
   expect(project.readLockfile().packages).toHaveProperty(['is-positive@1.0.0'])
 })
 
-test('fast update prunes only optional packages that become unreachable', () => {
+test('fast update prunes only optional packages that become unreachable', async () => {
   const lockfile = {
     importers: {
       '.': {
@@ -149,7 +149,7 @@ test('fast update prunes only optional packages that become unreachable', () => 
     },
   } as LockfileObject
 
-  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, [
+  expect(await tryFastUpdateIgnoredOptionalDependencies(lockfile, [
     'root-only',
     'shared',
     'unique',
@@ -165,7 +165,7 @@ test('fast update prunes only optional packages that become unreachable', () => 
   expect(lockfile.packages).not.toHaveProperty(['unique@1.0.0'])
 })
 
-test('fast update prunes a catalog entry its last referent was ignored', () => {
+test('fast update prunes a catalog entry its last referent was ignored', async () => {
   const lockfile = {
     catalogs: {
       default: {
@@ -188,28 +188,28 @@ test('fast update prunes a catalog entry its last referent was ignored', () => {
     },
   } as unknown as LockfileObject
 
-  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, ['is-positive'])).toBe(true)
+  expect(await tryFastUpdateIgnoredOptionalDependencies(lockfile, ['is-positive'])).toBe(true)
   expect(lockfile.catalogs).toBeUndefined()
 })
 
-test('fast update rejects a new exclusion pattern', () => {
+test('fast update rejects a new exclusion pattern', async () => {
   const lockfile = {
     ignoredOptionalDependencies: ['*'],
     importers: {},
     lockfileVersion: '9.0',
   } as LockfileObject
 
-  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, ['*', '!is-positive'])).toBe(false)
+  expect(await tryFastUpdateIgnoredOptionalDependencies(lockfile, ['*', '!is-positive'])).toBe(false)
 })
 
-test('fast update rejects adding an include to exclusion-only patterns', () => {
+test('fast update rejects adding an include to exclusion-only patterns', async () => {
   const lockfile = {
     ignoredOptionalDependencies: ['!foo'],
     importers: {},
     lockfileVersion: '9.0',
   } as LockfileObject
 
-  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, ['!foo', 'bar'])).toBe(false)
+  expect(await tryFastUpdateIgnoredOptionalDependencies(lockfile, ['!foo', 'bar'])).toBe(false)
 })
 
 function trackRequestedPackages (storeController: StoreController): string[] {
@@ -222,10 +222,10 @@ function trackRequestedPackages (storeController: StoreController): string[] {
   return requestedPackages
 }
 /** The composed pipeline restricted to `ignoredOptionalDependencies` drift. */
-function tryFastUpdateIgnoredOptionalDependencies (
+async function tryFastUpdateIgnoredOptionalDependencies (
   lockfile: LockfileObject,
   ignoredOptionalDependencies: string[]
-): boolean {
+): Promise<boolean> {
   return tryComposeFastUpdates(lockfile, {
     drift: { ignoredOptionalDependencies: true },
     workspacePackages: new Map(),

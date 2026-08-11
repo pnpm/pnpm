@@ -8,10 +8,10 @@ import type { DepPath, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/
 import { tryComposeFastUpdates } from '../../src/install/tryComposeFastUpdates.js'
 import { testDefaults } from '../utils/index.js'
 
-test('a removal and a widened ignore list are absorbed in one pass', () => {
+test('a removal and a widened ignore list are absorbed in one pass', async () => {
   const subject = lockfile()
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true, ignoredOptionalDependencies: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -25,11 +25,11 @@ test('a removal and a widened ignore list are absorbed in one pass', () => {
   expect(importer.dependencies).toStrictEqual({ bar: '2.0.0' })
 })
 
-test('a group move and a settings change are absorbed in one pass', () => {
+test('a group move and a settings change are absorbed in one pass', async () => {
   const subject = lockfile()
   subject.settings = { autoInstallPeers: true, excludeLinksFromLockfile: false }
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true, settings: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -50,7 +50,7 @@ test('a group move and a settings change are absorbed in one pass', () => {
   expect(subject.settings).toStrictEqual({ autoInstallPeers: false, excludeLinksFromLockfile: false })
 })
 
-test('a peer setting is absorbed once the removal drops the last peer dependent', () => {
+test('a peer setting is absorbed once the removal drops the last peer dependent', async () => {
   const subject = lockfile()
   subject.settings = { autoInstallPeers: true, excludeLinksFromLockfile: false }
   subject.importers['.' as ProjectId].dependencies!['has-peer'] = '6.0.0'
@@ -60,7 +60,7 @@ test('a peer setting is absorbed once the removal drops the last peer dependent'
     peerDependencies: { foo: '^1.0.0' },
   }
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true, settings: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -79,11 +79,11 @@ test('a peer setting is absorbed once the removal drops the last peer dependent'
   expect(subject.packages!['has-peer@6.0.0' as DepPath]).toBeUndefined()
 })
 
-test('a composed update falls back when one of its changes cannot be absorbed', () => {
+test('a composed update falls back when one of its changes cannot be absorbed', async () => {
   const subject = lockfile()
   subject.settings = { autoInstallPeers: true, excludeLinksFromLockfile: false }
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true, settings: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -100,7 +100,7 @@ test('a composed update falls back when one of its changes cannot be absorbed', 
   })).toBe(false)
 })
 
-test('an ignored optional embedded in a surviving peer suffix falls back', () => {
+test('an ignored optional embedded in a surviving peer suffix falls back', async () => {
   const subject = lockfile()
   subject.importers['.' as ProjectId].dependencies!.baz = '4.0.0(opt@5.0.0)'
   subject.importers['.' as ProjectId].specifiers.baz = '^4.0.0'
@@ -109,7 +109,7 @@ test('an ignored optional embedded in a surviving peer suffix falls back', () =>
     dependencies: { opt: '5.0.0' },
   }
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { ignoredOptionalDependencies: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -118,14 +118,14 @@ test('an ignored optional embedded in a surviving peer suffix falls back', () =>
   })).toBe(false)
 })
 
-test('an ignored optional removal recomputes the survivors\' optional flags', () => {
+test('an ignored optional removal recomputes the survivors\' optional flags', async () => {
   const subject = lockfile()
   const importer = subject.importers['.' as ProjectId]
   importer.optionalDependencies!.bar = importer.dependencies!.bar
   delete importer.dependencies!.bar
   subject.packages!['bar@2.0.0' as DepPath].optional = true
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { ignoredOptionalDependencies: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -178,6 +178,122 @@ test('an install with combined manifest and ignore-list drift requests no packag
   project.has('is-positive')
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })
+
+test('an override change and a removal are absorbed in one pass', async () => {
+  const project = prepareEmpty()
+  await installOverrideFixture(testDefaults())
+
+  const options = testDefaults({ overrides: { '@pnpm.e2e/bar': '100.1.0' } })
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  await mutateModulesInSingleProject({
+    dependencyNames: ['@pnpm.e2e/pkg-with-1-dep'],
+    manifest: overrideFixtureManifest(),
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  // Only the version the override names is resolved; the removal and the
+  // rest of the graph come from the lockfile.
+  expect(requestedPackages).toStrictEqual(['@pnpm.e2e/bar'])
+  expect(project.readLockfile()).toStrictEqual(await resolveTheSameChanges())
+})
+
+test('a catalog change and a removal are absorbed in one pass', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      'is-positive': 'catalog:',
+    },
+  }
+  const options = testDefaults({ catalogs: { default: { 'is-positive': '1.0.0' } } })
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  options.catalogs = { default: { 'is-positive': '>=1.0.0 <2' } }
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  await mutateModulesInSingleProject({
+    dependencyNames: ['@pnpm.e2e/pkg-with-1-dep'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages).toStrictEqual([])
+  const written = project.readLockfile()
+  expect(written.catalogs.default['is-positive']).toStrictEqual({
+    specifier: '>=1.0.0 <2',
+    version: '1.0.0',
+  })
+  expect(Object.keys(written.snapshots)).toStrictEqual(['is-positive@1.0.0'])
+})
+
+test('an override moving a cataloged package falls back', async () => {
+  const subject = lockfile()
+  subject.catalogs = { default: { bar: { specifier: '^2.0.0', version: '2.0.0' } } }
+  subject.importers['.' as ProjectId].specifiers.bar = 'catalog:'
+
+  // The catalog entry records the version the importer resolved to, so the
+  // move would have to carry it along — which only the catalog rewrite does.
+  expect(await tryComposeFastUpdates(subject, {
+    drift: { overrides: true },
+    projects: [],
+    overrides: {
+      overrides: { bar: '2.1.0' },
+      parsedOverrides: [{ selector: 'bar', newBareSpecifier: '2.1.0', targetPkg: { name: 'bar' } }],
+      isLockfileUpToDate: async () => true,
+      lockfileDir: '/test',
+      registries: { default: 'https://registry.npmjs.org/' },
+      requestPackage: (() => {
+        throw new Error('the fast path must not resolve anything')
+      }) as never,
+    },
+  })).toBe(false)
+})
+
+/** The two changes a resolution away, in their own project. */
+async function resolveTheSameChanges (): Promise<unknown> {
+  const previousCwd = process.cwd()
+  try {
+    const project = prepareEmpty()
+    await installOverrideFixture(testDefaults())
+    await mutateModulesInSingleProject({
+      dependencyNames: ['@pnpm.e2e/pkg-with-1-dep'],
+      manifest: overrideFixtureManifest(),
+      mutation: 'uninstallSome',
+      rootDir: process.cwd() as ProjectRootDir,
+    }, testDefaults({
+      forceFullResolution: true,
+      overrides: { '@pnpm.e2e/bar': '100.1.0' },
+    }))
+    return project.readLockfile()
+  } finally {
+    // `prepareEmpty` moves the process into the new project, so a throw here
+    // would otherwise leave every later test in this worker there.
+    process.chdir(previousCwd)
+  }
+}
+
+/** `@pnpm.e2e/foobarqar` reaches `@pnpm.e2e/bar`, the package the override moves. */
+function overrideFixtureManifest (): ProjectManifest {
+  return {
+    dependencies: {
+      '@pnpm.e2e/foobarqar': '1.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+}
+
+async function installOverrideFixture (options: ReturnType<typeof testDefaults>): Promise<void> {
+  await mutateModulesInSingleProject({
+    manifest: overrideFixtureManifest(),
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+}
 
 function trackRequestedPackages (storeController: StoreController): string[] {
   const requestedPackages: string[] = []

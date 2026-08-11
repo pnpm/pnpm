@@ -115,12 +115,12 @@ function trackRequestedPackages (storeController: StoreController): string[] {
   return requestedPackages
 }
 
-test('a higher version that exists only under a named registry falls back', () => {
+test('a higher version that exists only under a named registry falls back', async () => {
   // A registry-qualified key's semver only pins a version inside that named
   // registry, so it cannot become a plain importer reference.
   const subject = lockfileWithHigherVersionKeyedAs('@pnpm.e2e/foo@work:1.2.0' as DepPath)
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -131,10 +131,10 @@ test('a higher version that exists only under a named registry falls back', () =
   })).toBe(false)
 })
 
-test('a higher version under a plain key is reused', () => {
+test('a higher version under a plain key is reused', async () => {
   const subject = lockfileWithHigherVersionKeyedAs('@pnpm.e2e/foo@1.2.0' as DepPath)
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -148,10 +148,10 @@ test('a higher version under a plain key is reused', () => {
   })
 })
 
-test('a moved range keeps a package whose peer suffix names the version it moves to', () => {
+test('a moved range keeps a package whose peer suffix names the version it moves to', async () => {
   const subject = lockfileWithPeerDependentUnderQux()
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,
@@ -164,7 +164,7 @@ test('a moved range keeps a package whose peer suffix names the version it moves
   expect(Object.keys(subject.packages ?? {}).filter(isFoo)).toStrictEqual(['@pnpm.e2e/foo@1.2.0'])
 })
 
-test('a moved range falls back when a peer suffix names the version it moves off', () => {
+test('a moved range falls back when a peer suffix names the version it moves off', async () => {
   const subject = lockfileWithPeerDependentUnderQux()
   subject.importers['.' as ProjectId].specifiers['@pnpm.e2e/baz'] = '^4.0.0'
   subject.importers['.' as ProjectId].dependencies!['@pnpm.e2e/baz'] = '4.0.0(@pnpm.e2e/foo@1.0.0)'
@@ -173,7 +173,7 @@ test('a moved range falls back when a peer suffix names the version it moves off
     dependencies: { '@pnpm.e2e/foo': '1.0.0' },
   }
 
-  expect(tryComposeFastUpdates(subject, {
+  expect(await tryComposeFastUpdates(subject, {
     drift: { importers: true },
     workspacePackages: new Map(),
     resolutionPicksLowest: false,

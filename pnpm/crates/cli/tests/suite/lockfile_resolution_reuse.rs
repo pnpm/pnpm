@@ -312,6 +312,75 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
     drop((root, mock_instance));
 }
 
+/// Both resolver-consulting rewrites in one edit: the catalog rewrite
+/// settles the widened range and the override rewrite replays the removal
+/// onto its result, so neither has to be the only change.
+#[test]
+fn a_catalog_edit_and_a_removal_override_are_absorbed_in_one_pass() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let manifest_path = workspace.join("package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-good-optional": "catalog:"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}trustLockfile: true\nfetchRetries: 0\nfetchTimeout: 1000\ncatalog:\n  '@pnpm.e2e/pkg-with-good-optional': ^1.0.0\n",
+        ),
+    )
+    .expect("write initial catalog");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read initial catalog");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{}overrides:\n  is-positive: '-'\n",
+            workspace_yaml.replace(
+                "'@pnpm.e2e/pkg-with-good-optional': ^1.0.0",
+                "'@pnpm.e2e/pkg-with-good-optional': '>=1.0.0 <2'",
+            ),
+        ),
+    )
+    .expect("widen the catalog range and add the removal override");
+    let dead_registry = dead_registry_url();
+    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let npmrc = npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let entry = &wanted.catalogs.as_ref().expect("catalog snapshots")["default"]["@pnpm.e2e/pkg-with-good-optional"];
+    assert_eq!(entry.specifier, ">=1.0.0 <2");
+    assert_eq!(entry.version, "1.0.0");
+    let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
+    assert!(
+        wanted.snapshots.as_ref().is_none_or(|snapshots| !snapshots.contains_key(&removed_key))
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn adding_and_removing_an_ignored_optional_dependency_uses_the_safe_path() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
