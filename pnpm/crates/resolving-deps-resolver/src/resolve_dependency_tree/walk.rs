@@ -790,13 +790,8 @@ fn owned_child_specs(
 /// edges: for every name such an edge looks the overlay up under (see
 /// [`fn@overlay_lookup_names`]), the versions the chain prefers for it.
 /// Names no level resolved are left out, which keeps the view empty for
-/// most packages.
-///
-/// This is the whole of the overlay chain a child edge's version pick
-/// can read — it is what joins the per-wanted resolve cache key — so
-/// two occurrences of one package that agree on it resolve their
-/// children to the same packages. See
-/// [`RecordedChildrenContext::overlay_view`].
+/// most packages. See [`RecordedChildrenContext::overlay_view`] for
+/// what the projection settles.
 fn children_overlay_view(
     specs: &[ChildSpec],
     overlay: Option<&PreferredVersionsOverlay>,

@@ -315,18 +315,10 @@ async fn passes_optional_flag_to_the_resolver() {
     assert_eq!(*resolver.optional.lock().unwrap(), vec![Some(true)]);
 }
 
-/// Which occurrence of a package walks its children first is a race,
-/// and the levels they sit under offer their children different
-/// preferred versions — so the children a package records must follow
-/// the occurrence that owns them, not the one that got there first
-/// (<https://github.com/pnpm/pnpm/issues/13685>).
-///
-/// Here `shared` is reached at depth 2 under `wrap`, whose level pins
-/// `pin@1.0.0`, and at depth 3 under `nested`, whose levels pin
-/// nothing. `wrap` resolves slowly, so the depth-3 occurrence always
-/// records `pin@1.5.0` first and the depth-2 occurrence claims the
-/// children afterwards.
-#[tokio::test]
+/// Delaying `wrap` puts the deeper occurrence of `shared` — the one
+/// whose levels prefer no `pin` version — in front of the occurrence
+/// that owns the children (<https://github.com/pnpm/pnpm/issues/13685>).
+#[tokio::test(start_paused = true)]
 async fn deeper_occurrences_children_are_rewalked_by_the_owner() {
     let resolver = OverlayPickResolver {
         versions: HashMap::from_iter([
@@ -443,7 +435,6 @@ async fn deeper_occurrences_children_are_rewalked_by_the_owner() {
     .unwrap();
 
     let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
-    dbg!(shared_children);
     assert_eq!(shared_children.len(), 1);
     assert_eq!(shared_children[0].pkg_id, "pin@1.0.0");
 }
