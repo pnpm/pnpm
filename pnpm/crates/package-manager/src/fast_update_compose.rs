@@ -22,7 +22,9 @@ pub(crate) enum Drift<Plan> {
 /// the shared graph epilogue
 /// ([`crate::fast_update_lockfile::finish_graph_edits`]), then patch
 /// rekeying — after the prune, so its guards see the packages a full
-/// resolution would see — and the settings block last.
+/// resolution would see — and the settings block last. What survives is
+/// then held to
+/// [`crate::fast_update_patched_dependencies::every_configured_patch_is_applied`].
 ///
 /// `None` — no drift, or drift some handler cannot express — leaves the
 /// caller on the full-resolution path; the caller still validates the
@@ -108,9 +110,6 @@ pub(crate) fn try_compose_fast_updates(
     {
         return None;
     }
-    // Last, over the settled graph: every handler above can drop the last
-    // dependent of a patched package, and the patch left with nothing to
-    // apply to is a state only a resolution reports.
     if !crate::fast_update_patched_dependencies::every_configured_patch_is_applied(
         &candidate, config,
     ) {

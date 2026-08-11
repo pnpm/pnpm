@@ -200,8 +200,8 @@ fn rekeys_a_patched_survivor_alongside_a_removal() {
     );
 }
 
-/// The patch configuration itself is unchanged here, so the patch handler
-/// never runs — only the removal drifts, and it is what orphans the patch.
+/// Records the patch so a later pass sees it already configured, leaving the
+/// removal as the only drift.
 fn lockfile_recording_a_patch_for_bar(config: &Config) -> Lockfile {
     let keeps_everything = manifest_from(json!({
         "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" },
