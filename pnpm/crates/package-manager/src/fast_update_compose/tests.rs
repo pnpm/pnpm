@@ -233,7 +233,7 @@ fn lockfile_recording_a_patch_for_bar(config: &Config) -> Lockfile {
         &[(".".to_string(), &keeps_everything)],
         &[],
         config,
-        patch_hashes(&config).as_ref(),
+        patch_hashes(config).as_ref(),
         false,
     )
     .expect("the patch rekey alone is absorbed")
