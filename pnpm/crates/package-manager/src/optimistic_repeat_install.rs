@@ -572,7 +572,7 @@ fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64
 /// `config_dependencies` comparison instead. An install that ignores
 /// the pnpmfile records none, so the next install that honors it again
 /// sees the list change and re-validates.
-pub(crate) fn current_pnpmfiles(config: &Config, workspace_root: &Path) -> Vec<String> {
+pub(crate) fn current_pnpmfiles(workspace_root: &Path, config: &Config) -> Vec<String> {
     if config.ignore_pnpmfile {
         return Vec::new();
     }
@@ -604,7 +604,7 @@ fn pnpmfiles_drift(
     previous: &[String],
     cutoff_ms: i64,
 ) -> Option<String> {
-    let current = current_pnpmfiles(config, workspace_root);
+    let current = current_pnpmfiles(workspace_root, config);
     if current != previous {
         return Some("The list of pnpmfiles changed.".to_string());
     }
