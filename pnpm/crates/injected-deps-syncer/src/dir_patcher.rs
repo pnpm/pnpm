@@ -11,15 +11,26 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// A file's identity. An inode number is only unique within one
+/// filesystem, so the volume it came from is part of the identity:
+/// without it two unrelated files on different volumes can collide and
+/// be mistaken for the same one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileId {
+    pub device: u64,
+    pub inode: u64,
+}
+
 /// What a path in an [`InodeMap`] holds.
 ///
-/// A file carries its inode number because that is all a hardlink
-/// comparison needs: two paths hold the same content exactly when they
-/// share an inode, so an unchanged file costs no filesystem work.
+/// A file carries its identity rather than its content, because that is
+/// all a hardlink comparison needs: two paths hold the same bytes
+/// exactly when they are the same file, so an unchanged file costs no
+/// filesystem work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
     Dir,
-    File(u64),
+    File(FileId),
 }
 
 /// Relative path → inode type, for every file and directory in a tree.
@@ -248,7 +259,7 @@ pub fn extend_files_map(files_map: &HashMap<String, PathBuf>) -> Result<InodeMap
             continue;
         };
         let value = if metadata.is_file() {
-            Value::File(file_inode(real_path, &metadata)?)
+            Value::File(file_id(real_path, &metadata)?)
         } else if metadata.is_dir() {
             Value::Dir
         } else {
@@ -280,36 +291,33 @@ fn add_inode_and_ancestors(result: &mut InodeMap, relative_path: &str, value: Va
     }
 }
 
-/// The file's identity: two paths share one exactly when they are the
-/// same inode, which is what makes an already-hardlinked file free to
-/// skip.
+/// Read a file's [`FileId`].
 ///
 /// Windows has no stable way to read the file index from
 /// [`fs::Metadata`] — `MetadataExt::file_index` is still unstable — so
-/// the index comes from a handle instead, the same call libuv makes to
-/// fill Node's `Stats.ino`.
-fn file_inode(path: &Path, metadata: &fs::Metadata) -> Result<u64, PatchError> {
+/// it comes from a handle instead, the same call libuv makes to fill
+/// Node's `Stats.ino`.
+fn file_id(path: &Path, metadata: &fs::Metadata) -> Result<FileId, PatchError> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt as _;
         let _ = path;
-        Ok(metadata.ino())
+        Ok(FileId { device: metadata.dev(), inode: metadata.ino() })
     }
     #[cfg(windows)]
     {
         let _ = metadata;
-        windows_file_index(path)
-            .map_err(|error| PatchError::Stat { path: path.to_path_buf(), error })
+        windows_file_id(path).map_err(|error| PatchError::Stat { path: path.to_path_buf(), error })
     }
     #[cfg(not(any(unix, windows)))]
     {
         let _ = (path, metadata);
-        Ok(0)
+        Ok(FileId { device: 0, inode: 0 })
     }
 }
 
 #[cfg(windows)]
-fn windows_file_index(path: &Path) -> io::Result<u64> {
+fn windows_file_id(path: &Path) -> io::Result<FileId> {
     use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
     use windows_sys::Win32::Storage::FileSystem::{
         BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
@@ -324,7 +332,10 @@ fn windows_file_index(path: &Path) -> io::Result<u64> {
     }
     // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.
     let info = unsafe { info.assume_init() };
-    Ok((u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow))
+    Ok(FileId {
+        device: u64::from(info.dwVolumeSerialNumber),
+        inode: (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow),
+    })
 }
 
 #[cfg(test)]

@@ -10,7 +10,7 @@
 mod dir_patcher;
 
 pub use dir_patcher::{
-    Change, DirDiff, DirPatcher, InodeMap, PatchError, Value, apply_patch, diff_dir,
+    Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, Value, apply_patch, diff_dir,
     extend_files_map,
 };
 
