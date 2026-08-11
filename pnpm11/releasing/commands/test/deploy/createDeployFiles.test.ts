@@ -74,3 +74,61 @@ test('createDeployFiles keeps local tarball package names when rewriting file UR
   expect(deployLockfile.packages?.[outputDepPath]).toBeDefined()
   expect(deployLockfile.packages?.[outputDepPathWithTarballFilename]).toBeUndefined()
 })
+
+test('createDeployFiles drops optional edges of retained packages when optional dependencies are excluded', () => {
+  const lockfileDir = path.resolve('workspace')
+  const deployDir = path.join(lockfileDir, 'out')
+  const projectId = '.' as ProjectId
+  const keptDepPath = 'kept@1.0.0' as DepPath
+  const optionalDepPath = 'opt@1.0.0' as DepPath
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+    },
+    importers: {
+      [projectId]: {
+        specifiers: { kept: '1.0.0' },
+        dependencies: { kept: '1.0.0' },
+      },
+    },
+    packages: {
+      [keptDepPath]: {
+        resolution: { integrity: 'sha512-kept' },
+        version: '1.0.0',
+        optionalDependencies: { opt: '1.0.0' },
+      },
+      [optionalDepPath]: {
+        resolution: { integrity: 'sha512-opt' },
+        version: '1.0.0',
+      },
+    },
+  }
+  const commonOpts = {
+    allProjects: [{
+      rootDirRealPath: lockfileDir as ProjectRootDirRealPath,
+      manifest: { name: 'app', version: '1.0.0' },
+    }],
+    deployDir,
+    lockfile,
+    lockfileDir,
+    selectedProjectManifest: { name: 'app', version: '1.0.0' },
+    projectId,
+    rootProjectManifestDir: lockfileDir,
+  }
+
+  const withOptional = createDeployFiles({
+    ...commonOpts,
+    include: { dependencies: true, devDependencies: true, optionalDependencies: true },
+  }).lockfile
+  expect(withOptional.packages?.[keptDepPath].optionalDependencies).toStrictEqual({ opt: '1.0.0' })
+  expect(withOptional.packages?.[optionalDepPath]).toBeDefined()
+
+  const withoutOptional = createDeployFiles({
+    ...commonOpts,
+    include: { dependencies: true, devDependencies: true, optionalDependencies: false },
+  }).lockfile
+  expect(withoutOptional.packages?.[optionalDepPath]).toBeUndefined()
+  expect(withoutOptional.packages?.[keptDepPath].optionalDependencies).toBeUndefined()
+})

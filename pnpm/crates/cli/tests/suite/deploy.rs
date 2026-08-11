@@ -123,9 +123,22 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
             "name": "app",
             "version": "1.0.0",
             "files": ["index.js"],
-            "dependencies": { "lib": "workspace:*" },
+            "dependencies": {
+                "lib": "workspace:*",
+                "@pnpm.e2e/support-different-architectures": "1.0.0",
+            },
             "devDependencies": { "dev-only": "workspace:*" },
             "optionalDependencies": { "optional-only": "workspace:*" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "optionalDependencies": { "@pnpm.e2e/qar": "100.0.0" },
         }),
     );
     write_project(
@@ -135,7 +148,7 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
             "name": "optional-only",
             "version": "1.0.0",
             "files": ["index.js"],
-            "dependencies": { "@pnpm.e2e/qar": "100.0.0" },
+            "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
         }),
     );
 
@@ -146,8 +159,18 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
         .success();
     let with_optional = workspace.join("deploy-with-optional");
     assert!(with_optional.join("node_modules/optional-only").exists());
+    let graph_keys = deploy_graph_keys(&with_optional);
+    for included in ["@pnpm.e2e/qar@100.0.0", "@pnpm.e2e/foo@100.0.0"] {
+        assert!(
+            graph_keys.iter().any(|key| key.contains(included)),
+            "default deploy lock graph should include {included}: {graph_keys:#?}",
+        );
+    }
+    let optional_edges = deploy_optional_edges(&with_optional);
     assert!(
-        deploy_graph_keys(&with_optional).iter().any(|key| key.contains("@pnpm.e2e/qar@100.0.0")),
+        optional_edges.iter().any(|(key, names)| key.contains("lib@file:")
+            && names.iter().any(|name| name == "@pnpm.e2e/qar")),
+        "default deploy should keep the optional edge on the retained production dependency: {optional_edges:#?}",
     );
 
     pacquet_cmd(&workspace)
@@ -162,16 +185,30 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
         .assert()
         .success();
     let without_optional = workspace.join("deploy-without-optional");
-    assert!(!without_optional.join("node_modules/optional-only").exists());
     assert!(
-        !deploy_graph_keys(&without_optional)
-            .iter()
-            .any(|key| key.contains("optional-only@file:") || key.contains("@pnpm.e2e/qar@")),
+        without_optional.join("node_modules/lib").exists(),
+        "the production dependency carrying the optional edges should still be deployed",
     );
+    assert!(!without_optional.join("node_modules/optional-only").exists());
+    let graph_keys = deploy_graph_keys(&without_optional);
+    for excluded in ["optional-only@file:", "@pnpm.e2e/qar@", "@pnpm.e2e/foo@"] {
+        assert!(
+            !graph_keys.iter().any(|key| key.contains(excluded)),
+            "no-optional deploy lock graph should exclude {excluded}: {graph_keys:#?}",
+        );
+    }
+    let virtual_store_entries = virtual_store_entries(&without_optional);
+    for excluded in ["optional-only@file+", "@pnpm.e2e+qar@", "@pnpm.e2e+foo@"] {
+        assert!(
+            !virtual_store_entries.iter().any(|entry| entry.contains(excluded)),
+            "no-optional deploy virtual store should exclude {excluded}: {virtual_store_entries:#?}",
+        );
+    }
+
+    let retained_optional_edges = deploy_optional_edges(&without_optional);
     assert!(
-        !virtual_store_entries(&without_optional)
-            .iter()
-            .any(|entry| entry.contains("optional-only@file+") || entry.contains("@pnpm.e2e+qar@")),
+        retained_optional_edges.is_empty(),
+        "retained production snapshots must not keep pruned optional edges: {retained_optional_edges:#?}",
     );
 
     drop((root, mock_instance));
@@ -607,6 +644,22 @@ fn deploy_graph_keys(deploy_dir: &Path) -> Vec<String> {
         .flatten()
         .map(|(key, _)| key.to_string())
         .chain(deploy_lockfile.snapshots.iter().flatten().map(|(key, _)| key.to_string()))
+        .collect()
+}
+
+/// Every snapshot of the deployed lockfile that still carries optional edges,
+/// as `(snapshot key, optional dependency names)`.
+fn deploy_optional_edges(deploy_dir: &Path) -> Vec<(String, Vec<String>)> {
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(deploy_dir).unwrap().unwrap();
+    deploy_lockfile
+        .snapshots
+        .iter()
+        .flatten()
+        .filter_map(|(key, snapshot)| {
+            let names =
+                snapshot.optional_dependencies.as_ref()?.keys().map(ToString::to_string).collect();
+            Some((key.to_string(), names))
+        })
         .collect()
 }
 

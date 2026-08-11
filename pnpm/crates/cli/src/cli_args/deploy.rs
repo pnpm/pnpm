@@ -948,6 +948,12 @@ fn prune_deploy_lockfile_graph(lockfile: &mut Lockfile, dependency_groups: &[Dep
     let reachable_metadata = reachable.iter().map(PackageKey::without_peer).collect::<HashSet<_>>();
     if let Some(snapshots) = lockfile.snapshots.as_mut() {
         snapshots.retain(|key, _| reachable.contains(key));
+        if !include_optional {
+            // A retained snapshot's optional edges point at packages this prune just dropped.
+            for snapshot in snapshots.values_mut() {
+                snapshot.optional_dependencies = None;
+            }
+        }
         if snapshots.is_empty() {
             lockfile.snapshots = None;
         }
