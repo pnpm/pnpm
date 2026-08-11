@@ -20,7 +20,7 @@ use pacquet_config::{Config, SaveWorkspaceProtocol};
 use pacquet_engine_runtime_node_resolver::{NodeResolver, NodeResolverError};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
-use pacquet_network::ThrottledClient;
+use pacquet_network::{ThrottledClient, redact_and_sanitize};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
@@ -836,9 +836,11 @@ async fn resolve_aliasless_git(
     .await
     .map_err(|source| match source.downcast::<GitResolveError>() {
         Ok(git_resolve) => AddError::GitResolve(*git_resolve),
-        Err(source) => AddError::ResolveGit { specifier: specifier.to_string(), source },
+        // A specifier can carry `user:pass@` credentials, and every error here
+        // echoes it back.
+        Err(source) => AddError::ResolveGit { specifier: redact_and_sanitize(specifier), source },
     })?
-    .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
+    .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
     let package_name = result
         .manifest
         .as_ref()
@@ -846,10 +848,10 @@ async fn resolve_aliasless_git(
         .and_then(serde_json::Value::as_str)
         .map(str::to_string)
         .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.project))
-        .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
+        .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
     if !is_valid_dependency_alias(&package_name) {
         return Err(AddError::InvalidGitPackageName {
-            specifier: specifier.to_string(),
+            specifier: redact_and_sanitize(specifier),
             name: package_name,
         });
     }

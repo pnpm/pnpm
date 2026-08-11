@@ -174,7 +174,7 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
       if (commits.length === 1) {
         commitId = commits[0]
       } else {
-        throw new Error(`Could not resolve ${ref} to a commit of ${repo}.`)
+        throw new Error(`Could not resolve ${ref} to a commit of ${redactAndSanitize(repo)}.`)
       }
     }
 
@@ -197,7 +197,7 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
         refs[`refs/tags/${refVTag}`])
 
     if (!commitId) {
-      throw new Error(`Could not resolve ${range} to a commit of ${repo}. Available versions are: ${vTags.join(', ')}`)
+      throw new Error(`Could not resolve ${range} to a commit of ${redactAndSanitize(repo)}. Available versions are: ${vTags.join(', ')}`)
     }
 
     return commitId

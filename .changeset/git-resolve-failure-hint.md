@@ -8,4 +8,6 @@ A git dependency whose `git ls-remote` fails now reports the `ERR_PNPM_GIT_RESOL
 
 A missing `git` executable is reported as one, instead of surfacing the raw failure to start the process.
 
+Credentials embedded in a git specifier are redacted from the "Could not resolve \<ref\> to a commit of \<repo\>" errors too.
+
 Resolving a public repository makes one `git ls-remote` round-trip instead of two.

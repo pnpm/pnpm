@@ -122,3 +122,17 @@ fn parse_ls_remote_ignores_blank_lines() {
     assert_eq!(refs.len(), 1);
     assert_eq!(refs.get("refs/heads/main").map(String::as_str), Some("abc"));
 }
+
+#[tokio::test]
+async fn an_unknown_ref_redacts_the_credentials_the_repository_url_carries() {
+    let err = resolve_ref(
+        &stub(""),
+        "https://hunter2:x-oauth-basic@github.com/foo/bar.git",
+        "no-such-branch",
+        None,
+    )
+    .await
+    .expect_err("unknown ref");
+
+    assert!(!err.to_string().contains("hunter2"), "{err}");
+}

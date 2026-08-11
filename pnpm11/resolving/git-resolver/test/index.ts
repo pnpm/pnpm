@@ -628,6 +628,14 @@ test('an unreachable remote redacts the credentials git echoes back', async () =
   expect(err.hint).not.toContain('hunter2')
 })
 
+test('an unresolvable ref redacts the credentials the repository URL carries', async () => {
+  mockGit(async () => ({ stdout: `${'0'.repeat(40)}\tHEAD` }))
+  mockFetchAsPrivate()
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+https://hunter2:x-oauth-basic@github.com/foo/bar.git#no-such-branch' }))
+  expect(err.message).toContain('Could not resolve no-such-branch to a commit of')
+  expect(err.message).not.toContain('hunter2')
+})
+
 test('a missing git binary is reported as one', async () => {
   mockGit(async () => {
     throw Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })
