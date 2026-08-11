@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
 
 import { importIndexedDir } from '../src/importIndexedDir.js'
@@ -68,6 +68,63 @@ test('importIndexedDir() safeToSkip repairs a directory damaged after it was com
   importIndexedDir(linkingImporter, newDir, filenames, { safeToSkip: true })
 
   expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('module.exports = 1')
+})
+
+test('importIndexedDir() adopts a matching file placed by a concurrent repair', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(src, 'index.js'), 'module.exports = 1')
+
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(newDir, 'index.js'), 'damaged')
+
+  const renameSync = jest.spyOn(fs, 'renameSync').mockImplementationOnce((tmpFile, dest) => {
+    fs.copyFileSync(tmpFile, dest)
+    throw Object.assign(new Error('another importer won'), { code: 'EEXIST' })
+  })
+  try {
+    importIndexedDir(linkingImporter, newDir, new Map([
+      ['index.js', path.join(src, 'index.js')],
+      ['package.json', path.join(src, 'package.json')],
+    ]), { safeToSkip: true })
+  } finally {
+    renameSync.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('module.exports = 1')
+  expect(fs.readdirSync(newDir).sort()).toEqual(['index.js', 'package.json'])
+})
+
+test('importIndexedDir() keeps a mismatching destination when its repair rename fails', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(src, 'index.js'), 'module.exports = 1')
+
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(newDir, 'index.js'), 'damaged')
+
+  const renameSync = jest.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+    throw Object.assign(new Error('rename failed'), { code: 'EEXIST' })
+  })
+  try {
+    expect(() => importIndexedDir(linkingImporter, newDir, new Map([
+      ['index.js', path.join(src, 'index.js')],
+      ['package.json', path.join(src, 'package.json')],
+    ]), { safeToSkip: true })).toThrow('rename failed')
+  } finally {
+    renameSync.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('damaged')
+  expect(fs.readdirSync(newDir).sort()).toEqual(['index.js', 'package.json'])
 })
 
 test('importIndexedDir() safeToSkip clears a file where the package needs a directory', async () => {

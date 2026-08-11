@@ -1,6 +1,4 @@
-use super::{
-    ImportIndexedDirError, ImportIndexedDirOpts, claim_dir, import_indexed_dir, is_occupied_target,
-};
+use super::{ImportIndexedDirError, ImportIndexedDirOpts, claim_dir, import_indexed_dir};
 use pacquet_config::PackageImportMethod;
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -705,8 +703,9 @@ fn safe_to_skip_keeps_a_target_a_concurrent_importer_already_completed() {
     fs::write(target.join("package.json"), b"{\"version\":\"1.0.0\"}").unwrap();
     fs::write(target.join("index.js"), b"module.exports = 1").unwrap();
 
+    let logged_methods = AtomicU8::new(0);
     import_indexed_dir::<SilentReporter>(
-        &AtomicU8::new(0),
+        &logged_methods,
         PackageImportMethod::Copy,
         &target,
         &cas,
@@ -716,6 +715,11 @@ fn safe_to_skip_keeps_a_target_a_concurrent_importer_already_completed() {
 
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+    assert_eq!(
+        logged_methods.load(std::sync::atomic::Ordering::Relaxed),
+        0,
+        "an already matching shared slot must not be imported into a throwaway stage",
+    );
     let strays: Vec<_> = fs::read_dir(tmp.path())
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
@@ -811,37 +815,6 @@ fn safe_to_skip_repairs_an_incomplete_target_without_replacing_it() {
     assert_eq!(fs::metadata(&target).unwrap().ino(), occupied);
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
-}
-
-// The classifier decides whether a failed swap adopts the target or gives up on it, and giving
-// up is the only safe answer for an error that says nothing about the target: the alternative
-// used to be a fall-through to `remove_dir_all`, which deletes a slot another importer holds.
-// A Windows sharing violation arrives as `ResourceBusy` and would have taken exactly that path.
-#[test]
-fn only_a_present_directory_counts_as_an_occupied_target() {
-    use std::io::{Error, ErrorKind};
-
-    let tmp = tempdir().unwrap();
-    let slot = tmp.path().join("slot");
-    fs::create_dir_all(&slot).unwrap();
-    let file = tmp.path().join("file");
-    fs::write(&file, b"not a slot").unwrap();
-    let missing = tmp.path().join("missing");
-
-    for kind in [
-        ErrorKind::DirectoryNotEmpty,
-        ErrorKind::AlreadyExists,
-        ErrorKind::PermissionDenied,
-        ErrorKind::ResourceBusy,
-    ] {
-        assert!(is_occupied_target(&Error::from(kind), &slot), "{kind:?} over a directory");
-        assert!(!is_occupied_target(&Error::from(kind), &missing), "{kind:?} over nothing");
-        assert!(!is_occupied_target(&Error::from(kind), &file), "{kind:?} over a file");
-    }
-
-    for kind in [ErrorKind::NotADirectory, ErrorKind::CrossesDevices, ErrorKind::Other] {
-        assert!(!is_occupied_target(&Error::from(kind), &slot), "{kind:?} is not conclusive");
-    }
 }
 
 // `fs::copy` overwrites, so only a linking tier can adopt a damaged file and keep it.
@@ -1109,8 +1082,6 @@ fn private_slot_repair_without_force_adopts_what_is_there() {
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
 }
 
-// Windows needs retry handling while a competing importer holds file handles.
-#[cfg(unix)]
 #[test]
 fn concurrent_importers_of_one_shared_slot_both_succeed() {
     use std::sync::{Arc, Barrier};

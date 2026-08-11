@@ -227,13 +227,19 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             )
             .inspect(|()| unquarantine())
         }
+        // A forced refresh of a shared slot still works in place. Building a
+        // complete stage first would duplicate every write before the rename
+        // inevitably discovers that the shared directory already exists.
+        (Some(file_type), true) if file_type.is_dir() && opts.safe_to_skip => {
+            import_into_shared_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+                .inspect(|()| unquarantine())
+        }
         (Some(_), true) => stage_and_swap::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
             cas_paths,
             opts.keep_modules_dir,
-            opts.safe_to_skip,
         )
         .inspect(|()| unquarantine()),
     }
@@ -458,26 +464,6 @@ fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     cas_paths.keys().map(String::as_str).filter(|path| *path != crate::NEEDS_BUILD_MARKER).min()
 }
 
-/// Whether a failed rename onto `dir_path` means the target is already
-/// there, so it can be adopted or repaired instead of replaced.
-///
-/// Supported platforms report an occupied directory with different
-/// error kinds, and Windows adds `ResourceBusy` for a target another
-/// process holds open — the common case here, since the whole point of
-/// a shared slot is that a second importer may be inside it. None of
-/// those kinds is conclusive on its own, though: `PermissionDenied` and
-/// `ResourceBusy` also cover failures that have nothing to do with the
-/// target, so the target itself has the final say.
-fn is_occupied_target(error: &io::Error, dir_path: &Path) -> bool {
-    matches!(
-        error.kind(),
-        io::ErrorKind::DirectoryNotEmpty
-            | io::ErrorKind::AlreadyExists
-            | io::ErrorKind::PermissionDenied
-            | io::ErrorKind::ResourceBusy,
-    ) && fs::symlink_metadata(dir_path).is_ok_and(|meta| meta.is_dir())
-}
-
 /// Whether `dir_path` already holds exactly this import, pnpm's
 /// `allFilesMatch`. Existence is not enough: the completion marker goes
 /// down last, but a file truncated by an interrupted copy or damaged
@@ -570,10 +556,10 @@ pub fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> 
 /// private temp sibling, then rename onto `target` so it is never
 /// observed half-written, and so a stale copy is replaced in one step
 /// under a reader. pacquet picks its import tier at runtime, so it
-/// always stages rather than predicting whether the import will copy. A
-/// concurrent importer that got there first surfaces as `AlreadyExists`
-/// or is replaced atomically; the content is content-addressed either
-/// way, so we just drop our temp.
+/// always stages rather than predicting whether the import will copy.
+/// A failed rename is accepted only when the destination now matches the
+/// store entry, which means a concurrent importer won the race with the
+/// same content.
 fn import_atomic<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
@@ -581,11 +567,15 @@ fn import_atomic<Reporter: self::Reporter>(
     target: &Path,
 ) -> Result<(), ImportIndexedDirError> {
     let temp = pick_stage_path(target);
-    import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, &temp)
-        .map_err(ImportIndexedDirError::LinkFile)?;
-    match fs::rename(&temp, target) {
+    if let Err(error) =
+        import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, &temp)
+    {
+        let _ = fs::remove_file(&temp);
+        return Err(ImportIndexedDirError::LinkFile(error));
+    }
+    match pacquet_fs::rename_with_retry(&temp, target) {
         Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+        Err(_) if file_matches_store_entry(target, store_path) => {
             let _ = fs::remove_file(&temp);
             Ok(())
         }
@@ -602,7 +592,6 @@ fn stage_and_swap<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     keep_modules_dir: bool,
-    safe_to_skip: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let stage = pick_stage_path(dir_path);
     let target_modules = dir_path.join("node_modules");
@@ -618,53 +607,11 @@ fn stage_and_swap<Reporter: self::Reporter>(
         return Err(error);
     }
 
-    // 2. A content-addressed target is never removed: other importers,
-    //    in this process or another install, may be populating or
-    //    reading it. Adopt it when it already matches, and otherwise
-    //    repair it entry by entry, which adds and replaces but never
-    //    unlinks, so two importers converge on the same tree. Repairing
-    //    in place also leaves a nested `node_modules/` where it is,
-    //    which is why this runs before the preservation dance below.
-    //
-    //    Every arm returns: a shared slot must never reach the
-    //    `remove_dir_all` in step 5. A rename can fail for reasons that
-    //    say nothing about the target — a sharing violation on Windows,
-    //    a busy mount point — and falling through on those would delete
-    //    the slot out from under whoever holds it, which is the bug
-    //    this branch exists to prevent.
-    if safe_to_skip {
-        match fs::rename(&stage, dir_path) {
-            Ok(()) => return Ok(()),
-            Err(error) if is_occupied_target(&error, dir_path) => {
-                let _ = fs::remove_dir_all(&stage);
-                return if all_files_match(dir_path, cas_paths) {
-                    Ok(())
-                } else {
-                    populate_dir::<Reporter>(
-                        logged_methods,
-                        import_method,
-                        dir_path,
-                        cas_paths,
-                        Placement::Repair,
-                    )
-                };
-            }
-            Err(error) => {
-                let _ = fs::remove_dir_all(&stage);
-                return Err(ImportIndexedDirError::Swap {
-                    from: stage,
-                    to: dir_path.to_path_buf(),
-                    error,
-                });
-            }
-        }
-    }
-
-    // 3. Inspect the existing `node_modules/` so nested deps survive
+    // 2. Inspect the existing `node_modules/` so nested deps survive
     //    the swap. Only `NotFound` is benign — `PermissionDenied` and
     //    other transient I/O failures must surface, otherwise the
     //    user's nested deps get silently clobbered when the directory
-    //    is removed in step 5.
+    //    is removed in step 4.
     let nm_kind = if keep_modules_dir {
         match fs::symlink_metadata(&target_modules) {
             Ok(meta) => Some(meta.file_type()),
@@ -678,8 +625,8 @@ fn stage_and_swap<Reporter: self::Reporter>(
         None
     };
 
-    // 4. Preserve `node_modules/` if it's a real directory. Track the
-    //    move so steps 5 and 6 can rescue it on failure.
+    // 3. Preserve `node_modules/` if it's a real directory. Track the
+    //    move so steps 4 and 5 can rescue it on failure.
     //
     //    Indexed file maps for npm tarballs never contain
     //    `node_modules/` entries (npm and pnpm strip them at pack
@@ -707,7 +654,7 @@ fn stage_and_swap<Reporter: self::Reporter>(
         Some(_) | None => false,
     };
 
-    // 5. Remove the old contents. If this fails after step 4, the
+    // 4. Remove the old contents. If this fails after step 3, the
     //    staged copy of `node_modules/` is the user's only copy —
     //    try to move it back into place before bailing, and leak
     //    the staging directory if the move can't run.
@@ -716,11 +663,11 @@ fn stage_and_swap<Reporter: self::Reporter>(
         return Err(ImportIndexedDirError::RemoveExisting { path: dir_path.to_path_buf(), error });
     }
 
-    // 6. Move the staged tree into place. There's a brief window
+    // 5. Move the staged tree into place. There's a brief window
     //    between `remove_dir_all` and `rename` where `dir_path` does
     //    not exist on disk — acceptable for a slot only this install
-    //    can reach, which is why a shared one returns at step 2. If
-    //    the rename fails, recreate
+    //    can reach; a shared slot never enters this function. If the
+    //    rename fails, recreate
     //    `dir_path` so the rescued `node_modules/` has somewhere to
     //    land.
     if let Err(error) = fs::rename(&stage, dir_path) {
@@ -738,7 +685,7 @@ fn stage_and_swap<Reporter: self::Reporter>(
     Ok(())
 }
 
-/// Combined post-failure cleanup for steps 5 and 6: restore the
+/// Combined post-failure cleanup for steps 4 and 5: restore the
 /// preserved `node_modules/` if it was moved, then rimraf the
 /// staging directory — but only if the restore actually ran.
 /// Leaving the staging directory on disk after a failed restore is
