@@ -781,7 +781,7 @@ snapshots:
   child@3.1.0: {}
 ";
 
-/// The projects `WITH_A_NEW_PROJECT` already records, alongside the
+/// The projects [`WITH_A_NEW_PROJECT`] already records, alongside the
 /// `pkg-b` the tests add.
 fn projects_of_a_new_project_lockfile<'a>(
     existing: &'a PackageManifest,
