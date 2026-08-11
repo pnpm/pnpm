@@ -99,9 +99,8 @@ fn read_first_yaml_document_in_chunks(
     loop {
         let read = match reader.read(&mut chunk) {
             Ok(read) => read,
-            // `Read::read_to_string`, which this replaces on the lockfile
-            // read path, retries a signal-interrupted read rather than
-            // failing the command.
+            // A signal interrupting the read is transient, and no command
+            // should fail over one.
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
             Err(error) => return Err(error),
         };
