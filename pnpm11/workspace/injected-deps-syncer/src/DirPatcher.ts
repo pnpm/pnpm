@@ -184,10 +184,7 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
       addInodeAndAncestors(relativePath, DIR)
     }
     // Anything else — a FIFO, a socket, a device — cannot be hardlinked into
-    // the injected copy, so it is left out of the map. The diff then treats
-    // that path as absent on whichever side skipped it: an entry the target
-    // holds where the source skips is removed, and one the target skips is
-    // left alone until the source has something to put there.
+    // the injected copy, so it is left out of the map.
   }))
 
   return result
