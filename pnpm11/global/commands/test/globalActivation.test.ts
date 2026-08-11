@@ -717,6 +717,38 @@ test('removes stale bins and the old install without removing the active hash li
   expect(await fs.realpath(hashLink)).toBe(await fs.realpath(activeInstallDir))
 })
 
+test('drops the hash link of a group replaced by a different package set, keeping its relinked bins', async () => {
+  const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
+  const oldHashLink = path.join(globalDir, 'old-hash')
+  await replaceDirectorySymlink(oldInstallDir, oldHashLink)
+  // `shared` is provided by the replaced group and by the group that just
+  // took its place; `dropped` only by the replaced one.
+  const sharedSlot = path.join(globalBinDir, 'shared')
+  const droppedSlot = path.join(globalBinDir, 'dropped')
+  await Promise.all([
+    fs.writeFile(sharedSlot, 'relinked at the new hash\n'),
+    fs.writeFile(droppedSlot, 'dropped\n'),
+  ])
+  getInstalledBinNames.mockResolvedValue(['shared', 'dropped'])
+
+  await cleanupReplacedGlobalInstalls({
+    groups: [{ dependencies: { old: '1.0.0' }, hash: 'old-hash', installDir: oldInstallDir }],
+    globalDir,
+    globalBinDir,
+    activeHash: 'new-hash',
+    activatedBins: new Set(['shared']),
+    protectedBins: new Set(),
+  })
+
+  // Changing the set of packages changes the hash, so `shared` was rewritten
+  // to point at the new one just before this ran — unlinking the group it
+  // used to belong to must not take it away again.
+  expect(await fs.readFile(sharedSlot, 'utf8')).toBe('relinked at the new hash\n')
+  await expect(fs.lstat(droppedSlot)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(existsSync(oldHashLink)).toBe(false)
+  expect(existsSync(oldInstallDir)).toBe(false)
+})
+
 test('does not delete an install directory outside the global directory', async () => {
   const { root, globalDir, globalBinDir } = await createCleanupFixture()
   const outsideInstallDir = path.join(root, 'outside-install')

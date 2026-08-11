@@ -582,6 +582,44 @@ fn cleanup_after_activation_preserves_current_state_and_external_install() {
 }
 
 #[test]
+fn replacing_a_group_with_a_different_package_set_keeps_its_relinked_bins() {
+    let root = tempfile::tempdir().expect("create cleanup fixture");
+    let global_pkg_dir = root.path().join("global");
+    let global_bin_dir = root.path().join("bin");
+    let old_install_dir = global_pkg_dir.join("old-install");
+    fs::create_dir_all(&global_bin_dir).expect("create global bin directory");
+    // `shared` is provided by the replaced group and by the group that just
+    // took its place; `dropped` only by the replaced one.
+    let replaced = global_package_with_bins(&old_install_dir, "old-hash", &["shared", "dropped"]);
+    for bin_name in ["shared", "dropped"] {
+        fs::write(global_bin_dir.join(bin_name), b"bin\n").expect("seed global bin");
+    }
+    let old_hash_link = pacquet_global::get_hash_link(&global_pkg_dir, "old-hash");
+    force_symlink_dir(&old_install_dir, &old_hash_link).expect("seed old hash link");
+
+    cleanup_replaced_global_installs(
+        &global_pkg_dir,
+        &global_bin_dir,
+        &[replaced],
+        "new-hash",
+        &HashSet::from(["shared".to_string()]),
+        &HashSet::new(),
+    )
+    .expect("clean up the replaced group");
+
+    // Changing the set of packages changes the hash, so `shared` was
+    // rewritten to point at the new one just before this ran — unlinking the
+    // group it used to belong to must not take it away again.
+    assert!(global_bin_dir.join("shared").exists());
+    assert!(!global_bin_dir.join("dropped").exists());
+    assert_eq!(
+        fs::symlink_metadata(&old_hash_link).expect_err("the old hash link is gone").kind(),
+        io::ErrorKind::NotFound,
+    );
+    assert!(!old_install_dir.exists());
+}
+
+#[test]
 fn cleanup_removes_the_other_bins_but_keeps_a_group_whose_bin_removal_failed() {
     let root = tempfile::tempdir().expect("create cleanup error fixture");
     let global_pkg_dir = root.path().join("global");
