@@ -625,15 +625,24 @@ test('an unreachable remote redacts the credentials git echoes back', async () =
   })
   const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+https://hunter2:x-oauth-basic@github.com/foo/bar.git' }))
   expect(err.message).not.toContain('hunter2')
+  expect(err.message).not.toContain('x-oauth-basic')
   expect(err.hint).not.toContain('hunter2')
 })
 
-test('an unresolvable ref redacts the credentials the repository URL carries', async () => {
+test.each([
+  ['an unresolvable ref', 'no-such-branch', 'Could not resolve no-such-branch to a commit of'],
+  ['a range matching no tag', 'semver:^1.0.0', 'Could not resolve ^1.0.0 to a commit of'],
+])('%s redacts the credentials the repository URL carries', async (_name, committish, expected) => {
   mockGit(async () => ({ stdout: `${'0'.repeat(40)}\tHEAD` }))
   mockFetchAsPrivate()
-  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+https://hunter2:x-oauth-basic@github.com/foo/bar.git#no-such-branch' }))
-  expect(err.message).toContain('Could not resolve no-such-branch to a commit of')
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: `git+https://hunter2:x-oauth-basic@github.com/foo/bar.git#${committish}` }))
+  expect(err.message).toContain(expected)
+  // The whole `user:pass@` goes, not just one half of it — a GitHub token is
+  // the *user* in `<token>:x-oauth-basic@` — while the part of the URL that
+  // tells the reader which repository failed stays.
   expect(err.message).not.toContain('hunter2')
+  expect(err.message).not.toContain('x-oauth-basic')
+  expect(err.message).toContain('https://github.com/foo/bar.git')
 })
 
 test('a missing git binary is reported as one', async () => {
