@@ -312,6 +312,54 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
     drop((root, mock_instance));
 }
 
+/// An override on a cataloged package replaces the `catalog:` specifier
+/// outright, so the entry is dropped rather than moved. The seed only
+/// feeds the resolver — the catalogs section is rebuilt from what the
+/// resolution recorded — so the rewrite needs no guard for this.
+#[test]
+fn an_override_on_a_cataloged_package_drops_the_catalog_entry() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let manifest_path = fixture.workspace.join("package.json");
+    let workspace_yaml_path = fixture.workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "catalog:"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}catalog:\n  '@pnpm.e2e/pkg-with-1-dep': 100.0.0\n"),
+    )
+    .expect("write initial catalog");
+    pacquet_at(&fixture.workspace).with_arg("install").assert().success();
+
+    let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read initial catalog");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}overrides:\n  '@pnpm.e2e/pkg-with-1-dep': 100.1.0\n"),
+    )
+    .expect("add the override");
+    pacquet_at(&fixture.workspace).with_arg("install").assert().success();
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    assert!(wanted.catalogs.is_none());
+    let name = "@pnpm.e2e/pkg-with-1-dep".parse().expect("package name");
+    let dependency = &wanted.importers["."].dependencies.as_ref().expect("dependencies")[&name];
+    assert_eq!(dependency.specifier, "100.1.0");
+    assert_eq!(dependency.version.to_string(), "100.1.0");
+
+    drop(fixture);
+}
+
 /// Both resolver-consulting rewrites in one edit: the catalog rewrite
 /// settles the widened range and the override rewrite replays the removal
 /// onto its result, so neither has to be the only change.

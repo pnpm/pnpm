@@ -254,6 +254,38 @@ test('an override moving a cataloged package falls back', async () => {
   })).toBe(false)
 })
 
+test('an override on a cataloged package is left to the resolver', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: { '@pnpm.e2e/pkg-with-1-dep': 'catalog:' },
+  }
+  const options = testDefaults({
+    catalogs: { default: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } },
+  })
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  options.overrides = { '@pnpm.e2e/pkg-with-1-dep': '100.1.0' }
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  // The override replaces the `catalog:` specifier outright, so the entry is
+  // not moved but dropped — a rewrite that only moves packages around cannot
+  // express it.
+  const written = project.readLockfile()
+  expect(written.catalogs).toBeUndefined()
+  expect(written.importers['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']).toStrictEqual({
+    specifier: '100.1.0',
+    version: '100.1.0',
+  })
+})
+
 /** The two changes a resolution away, in their own project. */
 async function resolveTheSameChanges (): Promise<unknown> {
   const previousCwd = process.cwd()
