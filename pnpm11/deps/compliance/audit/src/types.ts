@@ -35,6 +35,10 @@ export interface AuditAdvisory {
   // Inferred from vulnerable_versions. Undefined when inference fails —
   // `audit --fix` and `--ignore-unfixable` treat that as "no fix available".
   patched_versions?: string
+  // True when `patched_versions` was inferred but then dropped because no
+  // published version satisfies it. Distinguishes "no fix shipped yet" from
+  // "no fix could be inferred" in the report.
+  patched_versions_unpublished?: boolean
   severity: AuditLevelString
   cwe: string
   github_advisory_id: string

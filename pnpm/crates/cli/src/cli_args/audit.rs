@@ -36,8 +36,9 @@ mod request;
 mod version_ranges;
 
 pub(crate) use fix::{
-    AuditFixObserver, VulnerabilityGuard, filter_advisories_for_fix, fix_override, fix_with_update,
-    format_fix_with_update_output, ignore_vulnerabilities, interactive_select,
+    AuditFixObserver, VulnerabilityGuard, fetch_publish_times, filter_advisories_for_fix,
+    fix_override, fix_with_update, format_fix_with_update_output, ignore_vulnerabilities,
+    interactive_select,
 };
 pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
 pub(crate) use render::{
@@ -210,7 +211,7 @@ impl AuditArgs {
         // `--fix update` path can re-borrow `state` mutably. Registry errors
         // are swallowed (per `--ignore-registry-errors`) the same way for
         // every path, matching pnpm's catch around the `audit()` call.
-        let report = {
+        let mut report = {
             let lockfile = state
                 .lockfile
                 .get()
@@ -243,6 +244,16 @@ impl AuditArgs {
                 Err(err) => return Err(err.into()),
             }
         };
+        // The inferred patched range is syntactic: verify a published version
+        // actually satisfies it before the report and any fix flow can claim
+        // one. The fetched publish-time maps are reused by the fix flows for
+        // the age-gate exclusion check.
+        let publish_times = drop_unsatisfiable_patched_versions(
+            &mut report,
+            state.config,
+            state.http_client.as_ref(),
+        )
+        .await;
 
         if let Some(fix_method) = fix_method {
             // Pre-filter by audit-level and ignored GHSAs so the interactive
@@ -260,13 +271,9 @@ impl AuditArgs {
             };
             return match fix_method {
                 FixMethod::Override => {
-                    let output = fix_override(
-                        &filtered,
-                        &settings_dir,
-                        state.config,
-                        state.http_client.as_ref(),
-                    )
-                    .await?;
+                    let output =
+                        fix_override(&filtered, &settings_dir, state.config, &publish_times)
+                            .await?;
                     print!("{output}");
                     let _ = std::io::stdout().flush();
                     Ok(AuditOutcome::Clean)
@@ -277,6 +284,7 @@ impl AuditArgs {
                         &filtered,
                         &lockfile_dir,
                         &settings_dir,
+                        &publish_times,
                     )
                     .await?;
                     let mut output = format_fix_with_update_output(&fixed, &remaining, &filtered);
@@ -312,7 +320,6 @@ impl AuditArgs {
             return Ok(AuditOutcome::Clean);
         }
 
-        let mut report = report;
         let total_vulnerability_count = report.metadata.vulnerabilities.total();
         let ignored = filter_ignored_advisories(&mut report, state.config);
 
@@ -473,6 +480,54 @@ fn retry_opts_from_config(config: &Config) -> RetryOpts {
         min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
         max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
     }
+}
+
+/// Drops inferred `patched_versions` ranges that no published version
+/// satisfies: the inference from `vulnerable_versions` is purely syntactic,
+/// so an advisory can claim a patch (e.g. `>=2.0.3`) that was never released.
+/// A failed packument lookup leaves the range untouched (fail open). The
+/// publish-time map's keys double as the published version list; `created`
+/// and `modified` are metadata, not versions. Ports pnpm's
+/// `dropUnsatisfiablePatchedVersions`.
+///
+/// Returns the fetched publish-time maps so the fix flows can reuse them for
+/// the age-gate exclusion check instead of re-fetching each packument.
+async fn drop_unsatisfiable_patched_versions(
+    report: &mut AuditReport,
+    config: &Config,
+    http_client: &pacquet_network::ThrottledClient,
+) -> HashMap<String, Option<HashMap<String, String>>> {
+    let names: HashSet<&str> = report
+        .advisories
+        .values()
+        .filter(|advisory| advisory.patched_versions.is_some())
+        .map(|advisory| advisory.module_name.trim())
+        .collect();
+    if names.is_empty() {
+        return HashMap::new();
+    }
+    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let mut time_maps: HashMap<String, Option<HashMap<String, String>>> = HashMap::new();
+    for name in names {
+        let registry = pick_registry_for_package(&registries, name, None);
+        let times = fetch_publish_times(name, &registry, config, http_client).await;
+        time_maps.insert(name.to_string(), times);
+    }
+    for advisory in report.advisories.values_mut() {
+        let Some(patched) = advisory.patched_versions.as_deref() else { continue };
+        let Some(Some(times)) = time_maps.get(advisory.module_name.trim()) else { continue };
+        let Ok(range) = patched.parse::<Range>() else { continue };
+        let fix_published = times
+            .keys()
+            .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
+            .filter_map(|version| version.parse::<Version>().ok())
+            .any(|version| satisfies_including_prerelease(&version, &range));
+        if !fix_published {
+            advisory.patched_versions = None;
+            advisory.patched_versions_unpublished = Some(true);
+        }
+    }
+    time_maps
 }
 
 impl<'a> AuditGraph<'a> {

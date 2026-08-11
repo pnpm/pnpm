@@ -729,9 +729,11 @@ fn audit_fix_override_skips_age_exclude_when_patched_version_is_old() {
     )
     .create();
     // The patched version predates the cutoff, so the age gate would not
-    // block it and no exclusion entry is needed.
+    // block it and no exclusion entry is needed. The packument is fetched
+    // once: validation and the age-gate check share the same publish-time map.
     let packument_mock = registry
         .mock("GET", "/vulnerable")
+        .expect(1)
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(r#"{"time":{"2.0.0":"2020-01-01T00:00:00.000Z"}}"#)
@@ -763,10 +765,49 @@ fn audit_fix_override_skips_age_exclude_when_patched_version_is_old() {
 }
 
 #[test]
+fn audit_fix_override_makes_no_changes_when_patched_version_is_unpublished() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    // The packument names no 2.0.0: the patched release was never published,
+    // so the inferred range is dropped and nothing is written.
+    let packument_mock = registry
+        .mock("GET", "/vulnerable")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"time":{"1.0.0":"2020-01-01T00:00:00.000Z"}}"#)
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "minimumReleaseAge: 1440\n");
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert!(
+        stdout(&output).contains("No fixes were made"),
+        "an unpublished patch has no fix to apply:\n{}",
+        stdout(&output),
+    );
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(!manifest.contains("overrides:"), "manifest should hold no override:\n{manifest}");
+    assert!(
+        !manifest.contains("minimumReleaseAgeExclude:"),
+        "manifest should hold no exclusion:\n{manifest}",
+    );
+    mock.assert();
+    packument_mock.assert();
+}
+
+#[test]
 fn audit_fix_override_writes_age_exclude_when_patched_version_is_within_the_window() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
-    // Two advisories on one package: the packument is fetched once.
+    // Two advisories on one package: the packument is fetched once and shared
+    // between validation and the age-gate check.
     let mock = audit_mock(
         &mut registry,
         r#"{
@@ -1013,10 +1054,10 @@ fn audit_fix_update_moves_to_a_non_vulnerable_version() {
 }
 
 /// `--fix update` with `minimumReleaseAge`: the inferred patched version
-/// (3.0.0) has no entry in the packument's `time` map, so its publish time is
-/// unknown and the exclusion fails open — it must be written and reported.
+/// (3.0.0) has no entry in the packument's `time` map because it was never
+/// published, so no exclusion entry is written for it.
 #[test]
-fn audit_fix_update_writes_age_exclude_when_patched_publish_time_is_unknown() {
+fn audit_fix_update_skips_age_exclude_when_patched_version_is_unpublished() {
     const PKG: &str = "@pnpm.e2e/audit-multi-version";
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -1068,15 +1109,14 @@ fn audit_fix_update_writes_age_exclude_when_patched_publish_time_is_unknown() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("vulnerability was fixed"), "stdout should report the fix:\n{stdout}");
     assert!(
-        stdout.contains("entries were added to minimumReleaseAgeExclude"),
-        "stdout should report the exclusion:\n{stdout}",
+        !stdout.contains("entries were added to minimumReleaseAgeExclude"),
+        "no exclusion should be reported:\n{stdout}",
     );
     let manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
     assert!(
-        manifest.contains("minimumReleaseAgeExclude:")
-            && manifest.contains("@pnpm.e2e/audit-multi-version@3.0.0"),
-        "manifest should hold the patched-version exclusion:\n{manifest}",
+        !manifest.contains("minimumReleaseAgeExclude:"),
+        "manifest should hold no exclusion:\n{manifest}",
     );
     mock.assert();
     drop((root, npmrc_info));

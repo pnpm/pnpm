@@ -1,4 +1,5 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { type AuditAdvisory, satisfiesSafe } from '@pnpm/deps.compliance.audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
@@ -58,4 +59,31 @@ export function createPublishTimesFetcher (opts: AuditOptions): (pkgName: string
       return undefined
     }
   }
+}
+
+/**
+ * Drops inferred `patched_versions` ranges that no published version
+ * satisfies: the inference from `vulnerable_versions` is purely syntactic,
+ * so an advisory can claim a patch (e.g. `>=2.0.3`) that was never released.
+ * A failed packument lookup leaves the range untouched (fail open). The
+ * publish-time map's keys double as the published version list; `created`
+ * and `modified` are metadata, not versions.
+ */
+export async function dropUnsatisfiablePatchedVersions (
+  advisories: Record<string, AuditAdvisory>,
+  getPublishTimes: (pkgName: string) => Promise<Record<string, string> | undefined>
+): Promise<void> {
+  await Promise.all(Object.values(advisories).map(async (advisory) => {
+    const patched = advisory.patched_versions
+    if (patched == null) return
+    const times = await getPublishTimes(advisory.module_name)
+    if (times == null) return
+    const fixPublished = Object.keys(times)
+      .filter((key) => key !== 'created' && key !== 'modified')
+      .some((version) => satisfiesSafe(version, patched))
+    if (!fixPublished) {
+      advisory.patched_versions = undefined
+      advisory.patched_versions_unpublished = true
+    }
+  }))
 }

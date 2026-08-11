@@ -1,3 +1,4 @@
+import { existsSync as fsExistsSync } from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
@@ -91,6 +92,45 @@ test('no minimumReleaseAgeExclude entries are added for patched versions publish
   const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
   expect(manifest.minimumReleaseAgeExclude).toBeUndefined()
+})
+
+test('no overrides or minimumReleaseAgeExclude entries are added when the inferred patched version was never published', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, {
+      axios: [
+        {
+          id: 1,
+          title: 'vulnerability in axios',
+          severity: 'high',
+          vulnerable_versions: '<=0.18.0',
+          url: 'https://github.com/advisories/GHSA-mock-mock-mock',
+        },
+      ],
+    })
+  // The packument names no version satisfying the inferred `>=0.18.1` patch:
+  // the fix was never released, so there is nothing to fix with.
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/axios', method: 'GET' })
+    .reply(200, {
+      name: 'axios',
+      time: { '0.18.0': '2020-01-01T00:00:00.000Z' },
+    })
+
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    minimumReleaseAge: 1440,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toBe('No fixes were made')
+  expect(fsExistsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBe(false)
 })
 
 test('minimumReleaseAgeExclude entries are added for patched versions published after the cutoff', async () => {
@@ -309,13 +349,15 @@ describe('createMinimumReleaseAgeExcludes', () => {
     expect(excludes).toEqual(['lodash@4.17.21'])
   })
 
-  test('keeps entries whose publish time is missing from the packument', async () => {
+  test('omits entries for patched versions missing from the packument', async () => {
     const advisories = [
       advisory('axios', '<=0.18.0', '>=0.18.1'),
       advisory('lodash', '<4.17.21', '>=4.17.21'),
     ]
     const publishTimes: Record<string, Record<string, string>> = {
       axios: { '0.18.1': '2026-01-01T00:00:00.000Z' },
+      // The packument was fetched but names no 4.17.21: the patched release
+      // was never published, so it gets no bypass entry.
       lodash: {},
     }
     const excludes = await createMinimumReleaseAgeExcludes(advisories, {
@@ -323,7 +365,7 @@ describe('createMinimumReleaseAgeExcludes', () => {
       minimumReleaseAge: 60,
       now: new Date('2026-01-08T00:00:00.000Z').getTime(),
     })
-    expect(excludes).toEqual(['lodash@4.17.21'])
+    expect(excludes).toEqual([])
   })
 
   test('omits entries for patched versions published exactly at the cutoff', async () => {

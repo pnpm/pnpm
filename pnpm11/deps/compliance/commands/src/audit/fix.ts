@@ -18,7 +18,7 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
   const addedAgeExcludes = opts.minimumReleaseAge
     ? await createMinimumReleaseAgeExcludes(fixableAdvisories, {
-      getPublishTimes: createPublishTimesFetcher(opts),
+      getPublishTimes: opts.getPublishTimes ?? createPublishTimesFetcher(opts),
       minimumReleaseAge: opts.minimumReleaseAge,
     })
     : []
@@ -65,7 +65,8 @@ export function caretRangeForPatched (patchedRange: string): string {
 export interface CreateMinimumReleaseAgeExcludesOptions {
   /**
    * Publish-time lookup (the packument's `time` map) per package name.
-   * `undefined` means the publish times are unknown.
+   * `undefined` means the publish times are unknown; a resolved map that
+   * lacks a version means that version was never published.
    */
   getPublishTimes: (pkgName: string) => Promise<Record<string, string> | undefined>
   /**
@@ -81,6 +82,8 @@ export interface CreateMinimumReleaseAgeExcludesOptions {
  * patched version is younger than the cutoff. A version published at or
  * before the cutoff doesn't need a bypass, and a version whose publish time
  * is unknown keeps its entry so a genuinely fresh fix stays installable.
+ * A version missing from a successfully fetched packument was never
+ * published — no fix has shipped — so it gets no entry.
  */
 export async function createMinimumReleaseAgeExcludes (
   advisories: AuditAdvisory[],
@@ -93,7 +96,10 @@ export async function createMinimumReleaseAgeExcludes (
     const minVersion = semver.minVersion(patchedVersions)
     if (!minVersion) return undefined
     const spec = `${advisory.module_name}@${minVersion.version}`
-    const publishTime: unknown = (await opts.getPublishTimes(advisory.module_name))?.[minVersion.version]
+    const times = await opts.getPublishTimes(advisory.module_name)
+    if (times == null) return spec
+    if (!Object.hasOwn(times, minVersion.version)) return undefined
+    const publishTime: unknown = times[minVersion.version]
     // The time map comes from an untrusted registry response: only a string
     // can carry a real timestamp; anything else is treated as unknown.
     if (typeof publishTime !== 'string') return spec
