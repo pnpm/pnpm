@@ -280,7 +280,7 @@ test('an override on a cataloged package is left to the resolver', async () => {
   // express it.
   const written = project.readLockfile()
   expect(written.catalogs).toBeUndefined()
-  expect(written.importers['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']).toStrictEqual({
+  expect(written.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toStrictEqual({
     specifier: '100.1.0',
     version: '100.1.0',
   })
