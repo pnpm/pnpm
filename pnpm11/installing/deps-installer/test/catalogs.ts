@@ -1535,6 +1535,40 @@ describe('add', () => {
   })
 
   // Regression test for https://github.com/pnpm/pnpm/issues/13715
+  test('adding the version a named catalog pins exactly keeps the named catalog with catalogMode: strict', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo@1.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          foo: { '@pnpm.e2e/foo': '1.0.0' },
+        },
+        catalogMode: 'strict',
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    })
+    expect(readLockfile()).toMatchObject({
+      catalogs: { foo: { '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:foo', version: '1.0.0' } } } },
+    })
+  })
+
   test('adding a version within the catalog range uses the catalog with catalogMode: strict', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
