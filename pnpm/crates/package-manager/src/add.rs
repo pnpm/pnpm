@@ -20,7 +20,7 @@ use pacquet_config::{Config, SaveWorkspaceProtocol};
 use pacquet_engine_runtime_node_resolver::{NodeResolver, NodeResolverError};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
-use pacquet_network::ThrottledClient;
+use pacquet_network::{ThrottledClient, redact_and_sanitize};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
@@ -34,7 +34,7 @@ use pacquet_resolving_npm_resolver::{
     parse_bare_specifier, pick_matching_local_version_or_null, pick_package,
     pick_registry_for_package, shared_packument_fetch_locker,
 };
-use pacquet_resolving_resolver_base::WorkspacePackages;
+use pacquet_resolving_resolver_base::{GitResolveError, WorkspacePackages};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
@@ -138,6 +138,12 @@ pub enum AddError {
         #[error(source)]
         source: pacquet_resolving_resolver_base::ResolveError,
     },
+
+    /// The git dependency's `git ls-remote` failed. Kept as the diagnostic the
+    /// resolver raised, which already names the specifier and carries the
+    /// `ERR_PNPM_GIT_RESOLVE_FAILED` code and its remediation.
+    #[diagnostic(transparent)]
+    GitResolve(#[error(source)] GitResolveError),
 
     #[display("Could not determine the package name of git dependency {specifier:?}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_GIT_PACKAGE_NAME))]
@@ -828,8 +834,13 @@ async fn resolve_aliasless_git(
         &pacquet_resolving_resolver_base::ResolveOptions::default(),
     )
     .await
-    .map_err(|source| AddError::ResolveGit { specifier: specifier.to_string(), source })?
-    .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
+    .map_err(|source| match source.downcast::<GitResolveError>() {
+        Ok(git_resolve) => AddError::GitResolve(*git_resolve),
+        // A specifier can carry `user:pass@` credentials, and every error here
+        // echoes it back.
+        Err(source) => AddError::ResolveGit { specifier: redact_and_sanitize(specifier), source },
+    })?
+    .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
     let package_name = result
         .manifest
         .as_ref()
@@ -837,10 +848,10 @@ async fn resolve_aliasless_git(
         .and_then(serde_json::Value::as_str)
         .map(str::to_string)
         .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.project))
-        .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
+        .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
     if !is_valid_dependency_alias(&package_name) {
         return Err(AddError::InvalidGitPackageName {
-            specifier: specifier.to_string(),
+            specifier: redact_and_sanitize(specifier),
             name: package_name,
         });
     }

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use pacquet_network::ThrottledClient;
 
-use super::{RealGitProbe, ls_remote_command};
-use crate::git_resolver::GitProbe;
+use super::{RealGitProbe, RealGitRunner, ls_remote_command};
+use crate::{git_resolver::GitProbe, resolve_ref::GitCommandRunner};
 
 fn args(ref_: Option<&str>) -> Vec<String> {
     ls_remote_command(None, "--upload-pack=malicious", ref_)
@@ -85,4 +85,19 @@ async fn head_probe_retries_transient_statuses_to_exhaustion() {
         server.mock("HEAD", "/foo/bar/tar.gz/abc").with_status(429).expect(3).create_async().await;
     assert!(!real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url())).await);
     mock.assert_async().await;
+}
+
+// Every production `RealGitRunner` leaves `git_bin` unset and spawns `git`
+// from `PATH`, so a configured missing path is the portable way to make the
+// spawn fail; the message asserted here is the one a user without git gets.
+#[tokio::test]
+async fn a_missing_git_binary_is_reported_as_one() {
+    let runner = RealGitRunner { git_bin: Some("/nonexistent/git".into()) };
+
+    let err = runner.ls_remote("https://github.com/foo/bar.git", None).await.unwrap_err();
+
+    assert_eq!(
+        err.to_string(),
+        "git ls-remote failed: `git` executable not found on PATH. Install git to resolve git-hosted packages.",
+    );
 }

@@ -9,8 +9,8 @@ use pacquet_lockfile::{GitResolution, LockfileResolution, TarballResolution};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_reporter::SilentReporter;
 use pacquet_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    GitResolveError, LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture,
+    ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 use pacquet_store_dir::{StoreDir, StoreIndexWriter};
 use pacquet_tarball::{FetchTarballForResolution, RetryOpts};
@@ -19,7 +19,7 @@ use crate::{
     create_git_hosted_pkg_id::create_git_hosted_pkg_id,
     hosted_git::HostedOpts,
     parse_bare_specifier::{HostedPackageSpec, parse_bare_specifier},
-    resolve_ref::{GitCommandRunner, resolve_ref},
+    resolve_ref::{GitCommandRunner, GitResolveRefError, resolve_ref},
 };
 
 /// Boxed-future return type used by [`GitProbe`]. Same shape as the
@@ -145,7 +145,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
             spec,
             self.probe.as_ref(),
             self.runner.as_ref(),
-            wanted_dependency.alias.as_deref(),
+            wanted_dependency,
         )
         .await?;
         self.read_package_metadata(&mut result).await?;
@@ -240,7 +240,7 @@ async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner
     spec: HostedPackageSpec,
     probe: &Probe,
     runner: &Runner,
-    alias: Option<&str>,
+    wanted_dependency: &WantedDependency,
 ) -> Result<ResolveResult, ResolveError> {
     let ref_for_ls_remote = match spec.git_committish.as_deref() {
         Some(committish) if !committish.is_empty() => committish,
@@ -249,7 +249,7 @@ async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner
     let commit =
         resolve_ref(runner, &spec.fetch_spec, ref_for_ls_remote, spec.git_range.as_deref())
             .await
-            .map_err(|err| Box::new(err) as ResolveError)?;
+            .map_err(|err| ref_resolution_error(err, wanted_dependency, &spec.fetch_spec))?;
 
     let resolution = pick_resolution(&spec, probe, &commit).await;
 
@@ -277,9 +277,27 @@ async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner
         resolution,
         resolved_via: "git-repository".to_string(),
         normalized_bare_specifier: Some(spec.normalized_bare_specifier),
-        alias: alias.map(str::to_string),
+        alias: wanted_dependency.alias.clone(),
         policy_violation: None,
     })
+}
+
+/// Box a ref-resolution failure as a [`ResolveError`], naming the dependency
+/// when the `git ls-remote` invocation itself failed.
+///
+/// [`GitResolveError`] has to be the outermost box for the tree walker's
+/// downcast to find it, which is what keeps its code and help alive across
+/// the type-erased resolver seam.
+fn ref_resolution_error(
+    err: GitResolveRefError,
+    wanted_dependency: &WantedDependency,
+    repo: &str,
+) -> ResolveError {
+    let GitResolveRefError::Runner(ls_remote) = &err else {
+        return Box::new(err) as ResolveError;
+    };
+    let specifier = wanted_dependency.bare_specifier.as_deref().unwrap_or_default();
+    Box::new(GitResolveError::new(specifier, repo, &ls_remote.to_string())) as ResolveError
 }
 
 /// Pick between a tarball and a git resolution — see [`GitProbe`] for

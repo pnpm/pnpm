@@ -7,8 +7,8 @@ use pacquet_hooks::PnpmfileHooks;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError};
 use pacquet_resolving_resolver_base::{
-    NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError, ResolveOptions,
-    Resolver, WantedDependency,
+    GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
+    ResolveOptions, Resolver, WantedDependency,
 };
 use pipe_trait::Pipe;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
@@ -233,6 +233,11 @@ pub enum ResolveDependencyTreeError {
     /// raised with the matching `ERR_PNPM_FETCH_<status>` code.
     #[diagnostic(transparent)]
     RegistryResponse(#[error(source)] RegistryResponseError),
+
+    /// A git dependency's `git ls-remote` failed, raised with the
+    /// `ERR_PNPM_GIT_RESOLVE_FAILED` code.
+    #[diagnostic(transparent)]
+    GitResolve(#[error(source)] GitResolveError),
 
     /// An optional dependency failed to resolve while the wanted
     /// lockfile still holds a package entry satisfying the wanted
