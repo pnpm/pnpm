@@ -35,6 +35,14 @@ impl From<String> for DepPath {
     }
 }
 
+impl From<Arc<str>> for DepPath {
+    /// Free: [`DepPath`] already wraps an `Arc<str>`, so a caller that
+    /// holds one hands over the refcount instead of copying the string.
+    fn from(value: Arc<str>) -> Self {
+        DepPath(value)
+    }
+}
+
 impl From<&str> for DepPath {
     fn from(value: &str) -> DepPath {
         DepPath(Arc::from(value))

@@ -13,6 +13,7 @@ use crate::{
 use pacquet_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 /// See [`PeersCacheItem`] for why a cache hit reports no providers.
 #[test]
@@ -40,13 +41,13 @@ fn cached_subtree_reuse_reports_no_peer_providers() {
             },
         ],
         packages: HashMap::from_iter([
-            ("peerx@1.0.0".to_string(), package("peerx", "1.0.0", &[], true)),
-            ("peerpkg@2.0.0".to_string(), package("peerpkg", "2.0.0", &[], true)),
+            ("peerx@1.0.0".into(), package("peerx", "1.0.0", &[], true)),
+            ("peerpkg@2.0.0".into(), package("peerpkg", "2.0.0", &[], true)),
             (
-                "consumer@1.0.0".to_string(),
+                Arc::from("consumer@1.0.0".to_string()),
                 package("consumer", "1.0.0", &[("peerpkg", "*"), ("peerx", "*")], false),
             ),
-            ("mid@1.0.0".to_string(), package("mid", "1.0.0", &[], false)),
+            ("mid@1.0.0".into(), package("mid", "1.0.0", &[], false)),
         ]),
         dependencies_tree: HashMap::from_iter([
             (peerx, tree_node("peerx@1.0.0", BTreeMap::new(), 0)),

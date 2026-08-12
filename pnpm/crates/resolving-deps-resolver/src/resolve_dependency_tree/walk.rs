@@ -443,7 +443,7 @@ where
     // [`fn@install_owner_peer_dependencies`]. Seeding only has to fill
     // a package nothing has resolved yet.
     let mut packages = lock_recoverable(&ctx.workspace.packages);
-    let package_is_new = if let Some(existing) = packages.get_mut(&id) {
+    let package_is_new = if let Some(existing) = packages.get_mut(id.as_str()) {
         existing.optional = existing.optional && current_is_optional;
         false
     } else {
@@ -455,9 +455,9 @@ where
         register_peer_dep_names(ctx, &peer_dependencies);
         ctx.workspace.record_package_write(&id);
         packages.insert(
-            id.clone(),
+            Arc::from(id.clone()),
             ResolvedPackage {
-                id: id.clone(),
+                id: Arc::from(id.clone()),
                 result: Arc::clone(&result),
                 peer_dependencies,
                 optional: current_is_optional,
@@ -639,7 +639,7 @@ fn install_owner_peer_dependencies(
     }
     let peer_dependencies = extract_peer_dependencies(&pending.result, &claim.peer_shadowed);
     let mut packages = lock_recoverable(&ctx.workspace.packages);
-    let Some(existing) = packages.get_mut(&pending.id) else { return };
+    let Some(existing) = packages.get_mut(pending.id.as_str()) else { return };
     if existing.peer_dependencies == peer_dependencies {
         return;
     }
@@ -756,7 +756,7 @@ fn record_walked_children(
         let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
         by_id.push(crate::resolved_tree::ChildEdge {
             alias: dep.alias.clone(),
-            pkg_id: dep.id,
+            pkg_id: Arc::from(dep.id),
             optional,
         });
         realized.insert(dep.alias, dep.node_id);
@@ -835,13 +835,14 @@ where
     // it is cached unfiltered because which of the specs the package's
     // own `peerDependencies` shadow is a property of the owner
     // occurrence, not of the manifest.
-    let cached = lock_recoverable(&ctx.workspace.children_specs_by_id).get(&pending.id).cloned();
+    let cached =
+        lock_recoverable(&ctx.workspace.children_specs_by_id).get(pending.id.as_str()).cloned();
     let child_specs = if let Some(specs) = cached {
         specs
     } else {
         let specs = Arc::new(extract_children(&pending.result)?);
         lock_recoverable(&ctx.workspace.children_specs_by_id)
-            .entry(pending.id.clone())
+            .entry(Arc::from(pending.id.clone()))
             .or_insert_with(|| Arc::clone(&specs));
         specs
     };
@@ -1283,7 +1284,7 @@ pub(super) fn level_versions(ctx: &TreeCtx, seeds: &[NodeSeed]) -> BTreeMap<Stri
         let name_ver = match seed {
             NodeSeed::Pending(pending) => pending.result.name_ver.as_ref(),
             NodeSeed::Done(Some(dep)) => {
-                packages.get(&dep.id).and_then(|pkg| pkg.result.name_ver.as_ref())
+                packages.get(dep.id.as_str()).and_then(|pkg| pkg.result.name_ver.as_ref())
             }
             NodeSeed::Done(None) => None,
         };
@@ -1309,7 +1310,7 @@ fn pkgs_info_from_ids(
     ancestor_ids
         .iter()
         .map(|id| {
-            let name_ver = packages.get(id).and_then(|pkg| pkg.result.name_ver.as_ref());
+            let name_ver = packages.get(id.as_str()).and_then(|pkg| pkg.result.name_ver.as_ref());
             SkippedOptionalDependencyParent {
                 id: id.clone(),
                 name: name_ver.map(|name_ver| name_ver.name.to_string()).unwrap_or_default(),

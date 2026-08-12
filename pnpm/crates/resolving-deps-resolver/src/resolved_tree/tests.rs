@@ -27,12 +27,12 @@ fn detects_cycle_sequences_across_base_and_appended_ids() {
 /// hundred megabytes. Wanted-lockfile carry-over lives behind
 /// [`super::LockedResolution`] for that reason; keep it there.
 ///
-/// 56 bytes is the current layout on a 64-bit target, not a budget with
+/// 48 bytes is the current layout on a 64-bit target, not a budget with
 /// room in it: inlining one more `Option<String>` would cost 24.
 #[test]
 fn tree_node_keeps_its_per_occurrence_footprint_small() {
     assert!(
-        size_of::<super::DependenciesTreeNode>() <= 56,
+        size_of::<super::DependenciesTreeNode>() <= 48,
         "DependenciesTreeNode grew to {} bytes; box rarely-set state instead of inlining it",
         size_of::<super::DependenciesTreeNode>(),
     );
@@ -41,7 +41,7 @@ fn tree_node_keeps_its_per_occurrence_footprint_small() {
 #[test]
 fn locked_resolution_is_unallocated_until_written() {
     let mut node = super::DependenciesTreeNode::new(
-        "a@1.0.0".to_string(),
+        Arc::from("a@1.0.0".to_string()),
         super::TreeChildren::Realized(Arc::new(std::collections::BTreeMap::new())),
         0,
         true,
@@ -62,4 +62,24 @@ fn locked_resolution_is_unallocated_until_written() {
         "the accessor reads back what `locked_mut` wrote",
     );
     assert!(node.has_no_locked_peers(), "a previous depPath is not a locked peer");
+}
+
+/// Every occurrence node names its package, but a workspace has a few
+/// thousand distinct package ids and the walk realizes millions of
+/// occurrences. The id is shared from [`super::ChildEdge::pkg_id`]
+/// rather than copied, so realizing a child costs a refcount bump.
+#[test]
+fn realizing_an_occurrence_shares_the_package_id() {
+    let edge_id: Arc<str> = "a@1.0.0".into();
+    let node = super::DependenciesTreeNode::new(
+        Arc::clone(&edge_id),
+        super::TreeChildren::Realized(Arc::new(std::collections::BTreeMap::new())),
+        0,
+        true,
+    );
+
+    assert!(
+        Arc::ptr_eq(&edge_id, &node.resolved_package_id),
+        "the node points at the edge's id instead of owning a copy of it",
+    );
 }

@@ -26,7 +26,7 @@ pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;
 #[derive(Debug, Default, Clone)]
 pub struct ResolvedTree {
     pub direct: Vec<DirectDep>,
-    pub packages: HashMap<String, ResolvedPackage>,
+    pub packages: HashMap<Arc<str>, ResolvedPackage>,
     pub dependencies_tree: DependenciesTree,
     pub all_peer_dep_names: HashSet<String>,
     pub policy_violations: Vec<ResolutionPolicyViolation>,
@@ -42,7 +42,7 @@ pub struct ResolvedTree {
     /// entry. The peer-resolver's `realize_children` walks this to
     /// allocate per-occurrence `NodeId`s for a
     /// [`TreeChildren::Lazy`] node.
-    pub children_by_id: HashMap<String, Arc<Vec<ChildEdge>>>,
+    pub children_by_id: HashMap<Arc<str>, Arc<Vec<ChildEdge>>>,
 }
 
 /// One entry on [`ResolvedTree::children_by_id`] — the resolved
@@ -52,8 +52,10 @@ pub struct ChildEdge {
     /// Install alias in `node_modules` (the manifest key under
     /// `dependencies` / `optionalDependencies`).
     pub alias: String,
-    /// Resolved `pkgIdWithPatchHash` the alias points at.
-    pub pkg_id: String,
+    /// Resolved `pkgIdWithPatchHash` the alias points at. Shared: the
+    /// peer walk copies this onto every occurrence node it realizes,
+    /// millions of them for a few thousand distinct ids.
+    pub pkg_id: Arc<str>,
     /// `true` when the edge came from `optionalDependencies`. Used
     /// to thread `current_is_optional` correctly through lazy
     /// realisation so the [`ResolvedPackage::optional`] AND-fold
@@ -144,7 +146,7 @@ pub struct DirectDep {
 /// [`ResolvedPackage`] is the dedup-shared *envelope*, not a tree node.
 #[derive(Debug, Clone)]
 pub struct ResolvedPackage {
-    pub id: String,
+    pub id: Arc<str>,
     /// Held as `Arc` so cloning a [`ResolvedPackage`] (which the
     /// per-occurrence tree walk does on every snapshot, and which
     /// the peer-resolution pass does when it carves
@@ -234,8 +236,9 @@ pub struct LockedResolution {
 /// One per-occurrence node in the dependencies tree.
 #[derive(Debug, Clone)]
 pub struct DependenciesTreeNode {
-    /// Key into [`ResolvedTree::packages`].
-    pub resolved_package_id: String,
+    /// Key into [`ResolvedTree::packages`]. Shared rather than owned —
+    /// see [`ChildEdge::pkg_id`], which is where most of these come from.
+    pub resolved_package_id: Arc<str>,
     /// `alias → child NodeId` edges, possibly deferred.
     pub children: TreeChildren,
     /// Distance from the root importer (root = 0). A `depth = -1` marks
@@ -257,7 +260,7 @@ impl DependenciesTreeNode {
     /// Node with no wanted-lockfile carry-over (a fresh resolution).
     #[must_use]
     pub fn new(
-        resolved_package_id: String,
+        resolved_package_id: Arc<str>,
         children: TreeChildren,
         depth: i32,
         installable: bool,

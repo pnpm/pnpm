@@ -196,7 +196,7 @@ impl Walker<'_> {
             })
             .or_insert(DependenciesGraphNode {
                 dep_path: dep_path.clone(),
-                resolved_package_id: pkg.id.clone(),
+                resolved_package_id: std::sync::Arc::<str>::clone(&pkg.id).to_string(),
                 resolve_result: Arc::clone(&pkg.result),
                 children: graph_children,
                 optional_children: optional_child_aliases,
@@ -396,7 +396,7 @@ impl Walker<'_> {
             if peers.is_empty() {
                 continue;
             }
-            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.as_str();
+            let pkg_id = &*self.tree.dependencies_tree[node_id].resolved_package_id;
             let edges = edges_of_pkg.entry(pkg_id).or_default();
             for peer_alias in peers.keys() {
                 edges.insert(peer_alias.as_str());
@@ -628,7 +628,9 @@ impl Walker<'_> {
         for (node_id, record) in &self.node_records {
             let dep_path = record_dep_paths[node_id].clone();
             let depth = min_depth.get(&dep_path).copied().unwrap_or(record.depth);
-            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.clone();
+            let pkg_id = std::sync::Arc::<str>::clone(
+                &self.tree.dependencies_tree[node_id].resolved_package_id,
+            );
             let pkg = &self.tree.packages[&pkg_id];
             let mut children: BTreeMap<String, DepPath> = BTreeMap::new();
             for (alias, edge_node_id) in &record.edges {
@@ -642,7 +644,7 @@ impl Walker<'_> {
                 .unwrap_or_default();
             let mut candidate = DependenciesGraphNode {
                 dep_path: dep_path.clone(),
-                resolved_package_id: pkg_id.clone(),
+                resolved_package_id: std::sync::Arc::<str>::clone(&pkg_id).to_string(),
                 resolve_result: Arc::clone(&pkg.result),
                 children,
                 optional_children: record.optional_child_aliases.clone(),
