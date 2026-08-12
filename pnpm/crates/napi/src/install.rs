@@ -493,6 +493,7 @@ fn run_install_inner(
                 dry_run: matches!(mode, EngineMode::PeerIssues(_)),
                 persist_policy_excludes: false,
                 update_seed_policy,
+                preferred_versions_override: None,
                 auth_override: None,
                 resolution_observer: None,
                 peer_issues_sink: match &mode {

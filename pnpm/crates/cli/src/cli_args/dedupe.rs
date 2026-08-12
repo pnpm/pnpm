@@ -122,6 +122,7 @@ impl DedupeArgs {
             // minimumReleaseAge picks out of `pnpm-workspace.yaml`.
             persist_policy_excludes: !self.check,
             update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter> {
                 requester: lockfile_path

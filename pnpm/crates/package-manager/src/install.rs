@@ -398,6 +398,11 @@ where
     /// short-circuit is also bypassed so an `update` that finds newer
     /// in-range versions isn't skipped as "already up to date".
     pub update_seed_policy: UpdateSeedPolicy,
+    /// Preferences layered onto the preferred-versions seed, by package
+    /// name. `add` / `update` put a version named on the command line here
+    /// so the re-resolve lands on it rather than on the highest version its
+    /// range allows. Forwarded to [`InstallWithFreshLockfile`].
+    pub preferred_versions_override: Option<pacquet_resolving_resolver_base::PreferredVersions>,
     /// Per-invocation `Authorization`-header override for resolve/verify;
     /// `None` (every local install) uses `config.auth_headers`. The pnpr
     /// resolver threads request-scoped [`AuthHeaders`] here so it

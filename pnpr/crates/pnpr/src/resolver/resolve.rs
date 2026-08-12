@@ -219,6 +219,7 @@ pub async fn resolve(
         dry_run: false,
         persist_policy_excludes: false,
         update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         // Resolve as the caller (forwarded credentials) without baking
         // per-user auth into the interned `&'static Config`.
         auth_override: Some(Arc::clone(auth_headers)),
