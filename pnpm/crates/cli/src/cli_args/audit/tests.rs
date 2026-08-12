@@ -2,9 +2,9 @@ use super::{
     BTreeMap, Config, ConfigAuditLevel, HashMap, MAX_PATHS_PER_FINDING, PackageVersionGuard,
     PackageVersionGuardDecision, Range, SnapshotDepRef, filter_ignored_advisories,
     fix::{
-        InstalledPackages, VulnerabilityGuard, classify_for_update, create_overrides,
-        filter_advisories_for_fix, format_fix_with_update_output, minimum_release_age_excludes,
-        report_fixed_remaining,
+        InstalledPackages, PackumentPublishInfo, VulnerabilityGuard, classify_for_update,
+        create_overrides, filter_advisories_for_fix, format_fix_with_update_output,
+        minimum_release_age_excludes, report_fixed_remaining,
     },
     paths::{AuditPathIndex, PathInfo, build_audit_path_index},
     render::{render_json_report, render_text_report},
@@ -1244,12 +1244,16 @@ fn age_cutoff() -> DateTime<Utc> {
 fn publish_times(
     package: &str,
     entries: &[(&str, &str)],
-) -> HashMap<String, Option<HashMap<String, String>>> {
+) -> HashMap<String, Option<PackumentPublishInfo>> {
     HashMap::from([(
         package.to_string(),
-        Some(
-            entries.iter().map(|(version, time)| (version.to_string(), time.to_string())).collect(),
-        ),
+        Some(PackumentPublishInfo {
+            time: entries
+                .iter()
+                .map(|(version, time)| (version.to_string(), time.to_string()))
+                .collect(),
+            deprecated: HashSet::new(),
+        }),
     )])
 }
 
@@ -1279,11 +1283,17 @@ fn minimum_release_age_excludes_drops_versions_older_than_the_cutoff() {
     let times = HashMap::from([
         (
             "old".to_string(),
-            Some(HashMap::from([("2.0.0".to_string(), "2020-01-01T00:00:00Z".to_string())])),
+            Some(PackumentPublishInfo {
+                time: HashMap::from([("2.0.0".to_string(), "2020-01-01T00:00:00Z".to_string())]),
+                deprecated: HashSet::new(),
+            }),
         ),
         (
             "fresh".to_string(),
-            Some(HashMap::from([("3.0.0".to_string(), "2026-06-01T00:00:00Z".to_string())])),
+            Some(PackumentPublishInfo {
+                time: HashMap::from([("3.0.0".to_string(), "2026-06-01T00:00:00Z".to_string())]),
+                deprecated: HashSet::new(),
+            }),
         ),
     ]);
 
@@ -1323,7 +1333,10 @@ fn minimum_release_age_excludes_keeps_versions_with_unknown_publish_times() {
         // The timestamp does not parse.
         (
             "garbled".to_string(),
-            Some(HashMap::from([("3.0.0".to_string(), "not-a-date".to_string())])),
+            Some(PackumentPublishInfo {
+                time: HashMap::from([("3.0.0".to_string(), "not-a-date".to_string())]),
+                deprecated: HashSet::new(),
+            }),
         ),
         // The fetch failed outright.
         ("unfetchable".to_string(), None),
@@ -1382,6 +1395,35 @@ fn minimum_release_age_excludes_uses_lowest_published_version_satisfying_range()
         excludes,
         vec!["foo@2.0.1".to_string()],
         "the lowest published satisfying version is used",
+    );
+}
+
+#[test]
+fn minimum_release_age_excludes_skips_deprecated_versions() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "lodash-es",
+        "<4.18.0",
+        Some(">=4.18.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    // 4.18.0 is deprecated; 4.18.1 is the lowest non-deprecated published
+    // version satisfying >=4.18.0.
+    let mut info = publish_times(
+        "lodash-es",
+        &[("4.18.0", "2026-06-01T00:00:00Z"), ("4.18.1", "2026-06-01T01:00:00Z")],
+    );
+    info.get_mut("lodash-es").unwrap().as_mut().unwrap().deprecated.insert("4.18.0".to_string());
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &info, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec!["lodash-es@4.18.1".to_string()],
+        "the deprecated version is skipped in favor of the next non-deprecated one",
     );
 }
 

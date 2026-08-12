@@ -57,13 +57,13 @@ pub(crate) fn create_overrides(
 
 /// Write the override-method fixes to `pnpm-workspace.yaml` and return the
 /// user-facing summary. Mirrors the override branch of pnpm's audit handler.
-/// `publish_times` reuses the packument maps the report validation already
-/// fetched so the age-gate check doesn't request them again.
+/// `publish_infos` reuses the packument data the report validation already
+/// fetched so the age-gate check doesn't request it again.
 pub(crate) async fn fix_override(
     advisories: &BTreeMap<String, AuditAdvisory>,
     settings_dir: &std::path::Path,
     config: &Config,
-    publish_times: &HashMap<String, Option<HashMap<String, String>>>,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
 ) -> miette::Result<String> {
     let overrides = create_overrides(advisories);
     if overrides.is_empty() {
@@ -80,7 +80,7 @@ pub(crate) async fn fix_override(
     );
     if let Some(minimum_release_age) = config.resolved_minimum_release_age() {
         let added =
-            resolve_minimum_release_age_excludes(advisories, publish_times, minimum_release_age)
+            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)
                 .await?;
         if !added.is_empty() {
             write_age_excludes(settings_dir, config, &added)?;
@@ -95,20 +95,39 @@ pub(crate) async fn fix_override(
     Ok(output)
 }
 
-/// The packument `time` map of one package: version to raw publish timestamp,
-/// or `None` when the publish times are unknown — the request failed, the
-/// registry answered non-200, or the packument carries no usable `time` field.
-/// Ports pnpm's `createPublishTimesFetcher`; `None` must read as "no
-/// information", not "old", so a genuinely fresh fix keeps its exclusion.
+/// The packument publish info of one package: the `time` map plus the set of
+/// deprecated versions, or `None` when the packument could not be fetched or
+/// carries no usable `time` field. Ports pnpm's `PackumentPublishInfo`.
+#[derive(Debug, Clone)]
+pub(crate) struct PackumentPublishInfo {
+    /// The packument `time` map: version → raw publish timestamp. Includes
+    /// the `created` and `modified` metadata keys alongside version keys.
+    pub(crate) time: HashMap<String, String>,
+    /// Versions the packument marks as deprecated. Deprecated versions are
+    /// excluded from patched-version validation — a deprecated release is
+    /// not a viable fix even though it exists on the registry.
+    pub(crate) deprecated: HashSet<String>,
+}
+
+/// The packument publish info of one package, or `None` when the packument
+/// could not be fetched or carries no usable `time` field. Ports pnpm's
+/// `createPublishTimesFetcher`; `None` must read as "no information", not
+/// "old", so a genuinely fresh fix keeps its exclusion.
 pub(crate) async fn fetch_publish_times(
     name: &str,
     registry: &str,
     config: &Config,
     http_client: &pnpm_network::ThrottledClient,
-) -> Option<HashMap<String, String>> {
+) -> Option<PackumentPublishInfo> {
     #[derive(Deserialize)]
     struct PackumentTimes {
         time: Option<HashMap<String, String>>,
+        versions: Option<HashMap<String, PackumentVersion>>,
+    }
+
+    #[derive(Deserialize)]
+    struct PackumentVersion {
+        deprecated: Option<String>,
     }
 
     let registry = normalize_registry(registry);
@@ -132,7 +151,16 @@ pub(crate) async fn fetch_publish_times(
     if response.status().as_u16() != 200 {
         return None;
     }
-    response.json::<PackumentTimes>().await.ok()?.time
+    let body = response.json::<PackumentTimes>().await.ok()?;
+    let time = body.time?;
+    let deprecated = body
+        .versions
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(_, manifest)| manifest.deprecated.is_some())
+        .map(|(version, _)| version)
+        .collect();
+    Some(PackumentPublishInfo { time, deprecated })
 }
 
 /// Compute the age-gate exclusions for `advisories` using the publish-time
@@ -141,7 +169,7 @@ pub(crate) async fn fetch_publish_times(
 /// Ports the publish-time lookup of pnpm's `createMinimumReleaseAgeExcludes`.
 async fn resolve_minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
-    publish_times: &HashMap<String, Option<HashMap<String, String>>>,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
     minimum_release_age: u64,
 ) -> miette::Result<Vec<String>> {
     // On overflow leave the cutoff uncomputable, as `PickPolicy::from_config`
@@ -153,24 +181,25 @@ async fn resolve_minimum_release_age_excludes(
     else {
         return Ok(Vec::new());
     };
-    minimum_release_age_excludes(advisories, publish_times, cutoff)
+    minimum_release_age_excludes(advisories, publish_infos, cutoff)
 }
 
 /// The `minimumReleaseAgeExclude` entries needed to keep the age gate from
 /// blocking the patched versions: one `name@minVersion` spec per fixable
-/// advisory whose minimum published version satisfying the patched range is
-/// younger than `cutoff`. The theoretical range minimum may never have been
-/// published (a skipped or yanked release), so the lowest published version
-/// that satisfies the range is used instead — that is the version the
-/// override actually resolves to. A version published at or before the cutoff
-/// doesn't need a bypass, and a version whose publish time is unknown keeps
-/// its entry so a genuinely fresh fix stays installable. A version absent
-/// from a successfully fetched packument is not available — whether it was
-/// never published, skipped, or yanked — so it gets no entry. Ports pnpm's
+/// advisory whose minimum non-deprecated published version satisfying the
+/// patched range is younger than `cutoff`. The theoretical range minimum may
+/// not exist on the registry (a skipped, yanked, or deprecated release), so
+/// the lowest non-deprecated published version that satisfies the range is
+/// used instead — that is the version the override actually resolves to. A
+/// version published at or before the cutoff doesn't need a bypass, and a
+/// version whose publish time is unknown keeps its entry so a genuinely fresh
+/// fix stays installable. A version absent from a successfully fetched
+/// packument is not available — whether it was never published, skipped,
+/// yanked, or deprecated — so it gets no entry. Ports pnpm's
 /// `createMinimumReleaseAgeExcludes`.
 pub(crate) fn minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
-    publish_times: &HashMap<String, Option<HashMap<String, String>>>,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
     cutoff: DateTime<Utc>,
 ) -> miette::Result<Vec<String>> {
     let specs: Vec<String> = advisories
@@ -181,22 +210,24 @@ pub(crate) fn minimum_release_age_excludes(
                 .strip_prefix(">=")
                 .and_then(|version| version.trim().parse::<Version>().ok())?;
             let name = advisory.module_name.trim();
-            let Some(times) = publish_times.get(name).and_then(Option::as_ref) else {
+            let Some(info) = publish_infos.get(name).and_then(Option::as_ref) else {
                 return Some(format!("{name}@{min}"));
             };
             // The theoretical range minimum may not exist on the registry;
-            // use the lowest published version that satisfies the range,
-            // which is what the override actually resolves to. The original
-            // key is retained because the registry may use a non-normalized
-            // form (e.g. `v1.2.3`) that the parsed Version drops.
+            // use the lowest non-deprecated published version that satisfies
+            // the range, which is what the override actually resolves to. The
+            // original key is retained because the registry may use a
+            // non-normalized form (e.g. `v1.2.3`) that the parsed Version drops.
             let range = patched.parse::<Range>().ok()?;
-            let lowest = times
+            let lowest = info
+                .time
                 .keys()
                 .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
+                .filter(|key| !info.deprecated.contains(key.as_str()))
                 .filter_map(|key| key.parse::<Version>().ok().map(|parsed| (key, parsed)))
                 .filter(|(_, parsed)| satisfies_including_prerelease(parsed, &range))
                 .min_by(|(_, a), (_, b)| a.cmp(b))?;
-            let raw = times.get(lowest.0)?;
+            let raw = info.time.get(lowest.0)?;
             match parse_packument_timestamp(raw) {
                 Some(published_at) if published_at <= cutoff => None,
                 // A present-but-unparsable timestamp fails open like unknown
@@ -414,7 +445,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     advisories: &BTreeMap<String, AuditAdvisory>,
     lockfile_dir: &std::path::Path,
     settings_dir: &std::path::Path,
-    publish_times: &HashMap<String, Option<HashMap<String, String>>>,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
 ) -> miette::Result<(Vec<u64>, Vec<u64>, Vec<String>)> {
     let UpdateClassification { vulnerabilities, unfixable, unparsable } =
         classify_for_update(advisories);
@@ -427,7 +458,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
         state.config.resolved_minimum_release_age()
     {
         let added =
-            resolve_minimum_release_age_excludes(advisories, publish_times, minimum_release_age)
+            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)
                 .await?;
         if !added.is_empty() {
             write_age_excludes(settings_dir, state.config, &added)?;

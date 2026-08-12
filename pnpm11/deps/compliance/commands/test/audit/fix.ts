@@ -269,6 +269,10 @@ describe('createMinimumReleaseAgeExcludes', () => {
   // The publish times are unknown: every entry is kept.
   const unknownPublishTimes = async (): Promise<undefined> => undefined
 
+  function publishInfo (time: Record<string, string>, deprecated: string[] = []) {
+    return { time, deprecated: new Set(deprecated) }
+  }
+
   test('combines multiple advisories for the same module into a single sorted entry', async () => {
     const advisories = [
       advisory('axios', '<0.21.2', '>=0.21.2'),
@@ -342,7 +346,7 @@ describe('createMinimumReleaseAgeExcludes', () => {
       lodash: { '4.17.21': '2026-01-07T23:30:00.000Z' },
     }
     const excludes = await createMinimumReleaseAgeExcludes(advisories, {
-      getPublishTimes: async (pkgName) => publishTimes[pkgName],
+      getPublishTimes: async (pkgName) => publishTimes[pkgName] ? publishInfo(publishTimes[pkgName]) : undefined,
       minimumReleaseAge: 60,
       now: new Date('2026-01-08T00:00:00.000Z').getTime(),
     })
@@ -361,7 +365,7 @@ describe('createMinimumReleaseAgeExcludes', () => {
       lodash: {},
     }
     const excludes = await createMinimumReleaseAgeExcludes(advisories, {
-      getPublishTimes: async (pkgName) => publishTimes[pkgName],
+      getPublishTimes: async (pkgName) => publishTimes[pkgName] ? publishInfo(publishTimes[pkgName]) : undefined,
       minimumReleaseAge: 60,
       now: new Date('2026-01-08T00:00:00.000Z').getTime(),
     })
@@ -378,11 +382,30 @@ describe('createMinimumReleaseAgeExcludes', () => {
       axios: { '0.18.2': '2026-01-07T23:30:00.000Z' },
     }
     const excludes = await createMinimumReleaseAgeExcludes(advisories, {
-      getPublishTimes: async (pkgName) => publishTimes[pkgName],
+      getPublishTimes: async (pkgName) => publishTimes[pkgName] ? publishInfo(publishTimes[pkgName]) : undefined,
       minimumReleaseAge: 60,
       now: new Date('2026-01-08T00:00:00.000Z').getTime(),
     })
     expect(excludes).toEqual(['axios@0.18.2'])
+  })
+
+  test('skips deprecated versions when selecting the lowest published fix', async () => {
+    const advisories = [
+      advisory('lodash-es', '<4.18.0', '>=4.18.0'),
+    ]
+    // 4.18.0 is deprecated; 4.18.1 is the lowest non-deprecated published
+    // version satisfying >=4.18.0.
+    const publishTimes: Record<string, Record<string, string>> = {
+      'lodash-es': { '4.18.0': '2026-01-07T23:00:00.000Z', '4.18.1': '2026-01-07T23:30:00.000Z' },
+    }
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async (pkgName) => publishTimes[pkgName]
+        ? publishInfo(publishTimes[pkgName], ['4.18.0'])
+        : undefined,
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual(['lodash-es@4.18.1'])
   })
 
   test('omits entries for patched versions published exactly at the cutoff', async () => {
@@ -390,7 +413,7 @@ describe('createMinimumReleaseAgeExcludes', () => {
       advisory('axios', '<=0.18.0', '>=0.18.1'),
     ]
     const excludes = await createMinimumReleaseAgeExcludes(advisories, {
-      getPublishTimes: async () => ({ '0.18.1': '2026-01-07T23:00:00.000Z' }),
+      getPublishTimes: async () => publishInfo({ '0.18.1': '2026-01-07T23:00:00.000Z' }),
       minimumReleaseAge: 60,
       now: new Date('2026-01-08T00:00:00.000Z').getTime(),
     })
@@ -412,7 +435,7 @@ describe('createMinimumReleaseAgeExcludes', () => {
       underscore: { '1.13.1': '0' },
     }
     const excludes = await createMinimumReleaseAgeExcludes(advisories, {
-      getPublishTimes: async (pkgName) => publishTimes[pkgName],
+      getPublishTimes: async (pkgName) => publishTimes[pkgName] ? publishInfo(publishTimes[pkgName]) : undefined,
       minimumReleaseAge: 60,
       now: new Date('2026-01-08T00:00:00.000Z').getTime(),
     })

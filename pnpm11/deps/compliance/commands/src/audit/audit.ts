@@ -17,7 +17,7 @@ import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
-import { createPublishTimesFetcher, dropUnsatisfiablePatchedVersions } from './publishTimes.js'
+import { createPublishTimesFetcher, correctInferredPatchedVersions, type PublishTimesFetcher } from './publishTimes.js'
 import { auditSignatures } from './signatures.js'
 
 const AUDIT_LEVEL_NUMBER = {
@@ -158,7 +158,7 @@ export function help (): string {
   })
 }
 
-export type PublishTimesFetcher = (pkgName: string) => Promise<Record<string, string> | undefined>
+export type { PublishTimesFetcher } from './publishTimes.js'
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   fix?: boolean | 'override' | 'update'
@@ -259,7 +259,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
   // One fetcher is shared with the fix flows below so each affected package
   // is requested at most once.
   const getPublishTimes = createPublishTimesFetcher(opts)
-  await dropUnsatisfiablePatchedVersions(auditReport.advisories, getPublishTimes)
+  await correctInferredPatchedVersions(auditReport.advisories, getPublishTimes)
   let fixMethod: 'update' | 'override' | undefined
   if (opts.fix === 'update' || opts.fix === 'override') {
     fixMethod = opts.fix

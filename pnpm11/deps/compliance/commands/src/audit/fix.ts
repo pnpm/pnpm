@@ -5,7 +5,7 @@ import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import semver from 'semver'
 
 import type { AuditOptions } from './audit.js'
-import { createPublishTimesFetcher } from './publishTimes.js'
+import { createPublishTimesFetcher, type PublishTimesFetcher } from './publishTimes.js'
 
 export interface FixResult {
   vulnOverrides: Record<string, string>
@@ -64,11 +64,10 @@ export function caretRangeForPatched (patchedRange: string): string {
 
 export interface CreateMinimumReleaseAgeExcludesOptions {
   /**
-   * Publish-time lookup (the packument's `time` map) per package name.
-   * `undefined` means the publish times are unknown; a resolved map that
-   * lacks a version means that version was never published.
+   * Publish-time lookup (the packument's `time` map plus deprecated version
+   * set) per package name. `undefined` means the publish info is unknown.
    */
-  getPublishTimes: (pkgName: string) => Promise<Record<string, string> | undefined>
+  getPublishTimes: PublishTimesFetcher
   /**
    * In minutes, same unit as the `minimumReleaseAge` setting.
    */
@@ -100,15 +99,15 @@ export async function createMinimumReleaseAgeExcludes (
     const minVersion = semver.minVersion(patchedVersions)
     if (!minVersion) return undefined
     const spec = `${advisory.module_name}@${minVersion.version}`
-    const times = await opts.getPublishTimes(advisory.module_name)
-    if (times == null) return spec
+    const publishInfo = await opts.getPublishTimes(advisory.module_name)
+    if (publishInfo == null) return spec
     // The theoretical range minimum may not exist on the registry; use the
-    // lowest published version that satisfies the range, which is what the
-    // override actually resolves to. The original key is retained because
-    // the registry may use a non-normalized form (e.g. `v1.2.3`) that the
-    // parsed SemVer drops.
-    const published = Object.keys(times)
-      .filter((key) => key !== 'created' && key !== 'modified')
+    // lowest non-deprecated published version that satisfies the range, which
+    // is what the override actually resolves to. The original key is retained
+    // because the registry may use a non-normalized form (e.g. `v1.2.3`) that
+    // the parsed SemVer drops.
+    const published = Object.keys(publishInfo.time)
+      .filter((key) => key !== 'created' && key !== 'modified' && !publishInfo.deprecated.has(key))
       .map((key) => ({ key, parsed: semver.parse(key, { loose: true }) }))
       .filter((entry): entry is { key: string, parsed: semver.SemVer } => entry.parsed != null)
       .filter((entry) => semver.satisfies(entry.parsed, patchedVersions))
@@ -116,7 +115,7 @@ export async function createMinimumReleaseAgeExcludes (
     const lowest = published[0]
     if (!lowest) return undefined
     const lowestSpec = `${advisory.module_name}@${lowest.parsed.version}`
-    const publishTime: unknown = times[lowest.key]
+    const publishTime: unknown = publishInfo.time[lowest.key]
     // The time map comes from an untrusted registry response: only a strict
     // ISO 8601 timestamp counts; anything else (including bare numbers and
     // non-ISO strings the Date constructor would accept) is treated as unknown.
