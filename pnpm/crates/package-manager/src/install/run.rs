@@ -15,6 +15,7 @@ use super::{
     materialize, prepare_modules_state, run_dev_preinstall, selected_manifest_freshness_inputs,
     try_fast_update_lockfile, unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
+use pacquet_config::Config;
 use pacquet_executor::DEV_PREINSTALL_STAGE;
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
@@ -454,6 +455,23 @@ where
         // The optimistic repeat-install check above stays on the on-disk
         // manifests on purpose: it is the one gate that must not spawn
         // the Node worker.
+        // `packageExtensions` runs ahead of the pnpmfile's `readPackage`,
+        // the order the resolver applies them in. The freshness gates below
+        // compare against these, because the lockfile they check was written
+        // from the extended manifests too — a peer an extension injects into
+        // a workspace project is auto-installed and recorded, so a check that
+        // read the file on disk would see it as a dependency that vanished.
+        let extended_project_manifests: Vec<(PathBuf, PackageManifest)> =
+            extend_project_manifests(config, &project_manifests)?;
+        let project_manifests: Vec<(PathBuf, &PackageManifest)> =
+            if extended_project_manifests.is_empty() {
+                project_manifests
+            } else {
+                extended_project_manifests
+                    .iter()
+                    .map(|(project_dir, manifest)| (project_dir.clone(), manifest))
+                    .collect()
+            };
         let hooked_project_manifests: Vec<(PathBuf, PackageManifest)> = match pnpmfile_hook.as_ref()
         {
             Some(hook) => {
@@ -995,4 +1013,40 @@ where
         })
         .await
     }
+}
+
+/// `project_manifests` with `packageExtensions` applied — pnpm's built-in
+/// compatibility set and the user's, in that order, matching what the
+/// resolver hands the rest of the install.
+///
+/// Empty when no extension applies, so the caller keeps using the manifests
+/// it read from disk rather than a set of identical clones.
+fn extend_project_manifests(
+    config: &Config,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+) -> Result<Vec<(PathBuf, PackageManifest)>, InstallError> {
+    let compat_extender = (!config.ignore_compatibility_db)
+        .then(crate::compat_package_extensions::compat_package_extender);
+    let extender = match config.package_extensions.as_ref() {
+        Some(extensions) => crate::PackageExtender::new(extensions)
+            .map(|extender| (!extender.is_empty()).then_some(extender))
+            .map_err(InstallError::InvalidPackageExtensionSelector)?,
+        None => None,
+    };
+    if compat_extender.is_none() && extender.is_none() {
+        return Ok(Vec::new());
+    }
+    Ok(project_manifests
+        .iter()
+        .map(|(project_dir, manifest)| {
+            let mut extended = (*manifest).clone();
+            if let Some(compat_extender) = compat_extender {
+                compat_extender.apply(extended.value_mut());
+            }
+            if let Some(extender) = extender.as_ref() {
+                extender.apply(extended.value_mut());
+            }
+            (project_dir.clone(), extended)
+        })
+        .collect())
 }
