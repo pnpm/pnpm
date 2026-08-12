@@ -32,6 +32,8 @@
   },
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/bins.remover": "workspace:*",
+    "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",

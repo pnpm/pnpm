@@ -393,6 +393,8 @@ pub(super) fn run_stages(
             pkg_name: ctx.manifest.value().get("name").and_then(Value::as_str),
             pkg_root_dir: ctx.dir,
             workspace_dir: ctx.config.workspace_dir.as_deref(),
+            // Read before the script ran, so a bin it drops can still be named.
+            manifest_before_scripts: Some(ctx.manifest.value()),
         })?;
     }
 

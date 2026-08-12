@@ -9749,6 +9749,12 @@ importers:
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
+      '@pnpm/bins.remover':
+        specifier: workspace:*
+        version: link:../../bins/remover
+      '@pnpm/bins.resolver':
+        specifier: workspace:*
+        version: link:../../bins/resolver
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

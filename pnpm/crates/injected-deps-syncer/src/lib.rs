@@ -16,13 +16,17 @@ pub use dir_patcher::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::{LinkBinsError, PackageBinSource, link_bins, link_bins_of_packages};
+use pacquet_cmd_shim::{
+    LinkBinsError, PackageBinSource, get_bins_from_package_manifest, link_bins,
+    link_bins_of_packages, remove_bin,
+};
 use pacquet_modules_yaml::{ReadModulesError, read_modules_manifest};
 use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
 use pacquet_workspace::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects_no_check,
 };
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -56,6 +60,14 @@ pub enum SyncInjectedDepsError {
     #[diagnostic(transparent)]
     Patch(PatchError),
 
+    #[display("Failed to remove the bin link at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_INJECTED_DEPS_SYNC_REMOVE_BIN))]
+    RemoveBin {
+        path: PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
+
     #[display("{_0}")]
     #[diagnostic(transparent)]
     LinkBins(LinkBinsError),
@@ -68,6 +80,11 @@ pub struct SyncInjectedDeps<'a> {
     pub pkg_name: Option<&'a str>,
     pub pkg_root_dir: &'a Path,
     pub workspace_dir: Option<&'a Path>,
+    /// The package's manifest as it was before the scripts ran. A script
+    /// that drops a bin leaves its shim behind, and the copies cannot say
+    /// which bins they used to have: their `package.json` is hardlinked to
+    /// the source, so an in-place rewrite has already reached them.
+    pub manifest_before_scripts: Option<&'a serde_json::Value>,
 }
 
 /// Bring every injected copy of `pkg_root_dir` back in step with it.
@@ -125,7 +142,23 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
         patcher.apply().map_err(SyncInjectedDepsError::Patch)?;
     }
 
-    sync_bin_links(&pkg_root_dir, &resolved_targets, workspace_dir)
+    let previous_bin_names = opts.manifest_before_scripts.map_or_else(Vec::new, |manifest| {
+        get_bins_from_package_manifest::<pacquet_cmd_shim::Host>(manifest, &pkg_root_dir)
+            .into_iter()
+            .map(|command| command.name)
+            .collect()
+    });
+    // The install hoists bins into the virtual store's own `.bin` as well.
+    let hoisted_bin_dir = modules.as_ref().map(|modules| {
+        workspace_dir.join(&modules.virtual_store_dir).join("node_modules").join(".bin")
+    });
+    sync_bin_links(&SyncBinLinks {
+        pkg_root_dir: &pkg_root_dir,
+        resolved_targets: &resolved_targets,
+        workspace_dir,
+        previous_bin_names: &previous_bin_names,
+        hoisted_bin_dir: hoisted_bin_dir.as_deref(),
+    })
 }
 
 /// The key `.modules.yaml` files an injected dependency under: the
@@ -138,26 +171,63 @@ fn injected_dep_key(workspace_dir: &Path, pkg_root_dir: &Path) -> String {
 /// Re-link the bins of a package whose files just changed: a build
 /// script can add, remove, or rewrite a bin, and the shims in the
 /// consuming projects have to follow.
-fn sync_bin_links(
-    pkg_root_dir: &Path,
-    resolved_targets: &[PathBuf],
-    workspace_dir: &Path,
-) -> Result<(), SyncInjectedDepsError> {
+struct SyncBinLinks<'a> {
+    pkg_root_dir: &'a Path,
+    resolved_targets: &'a [PathBuf],
+    workspace_dir: &'a Path,
+    previous_bin_names: &'a [String],
+    hoisted_bin_dir: Option<&'a Path>,
+}
+
+fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> {
+    let SyncBinLinks {
+        pkg_root_dir,
+        resolved_targets,
+        workspace_dir,
+        previous_bin_names,
+        hoisted_bin_dir,
+    } = *opts;
     let manifest = safe_read_package_json_from_dir(pkg_root_dir).map_err(|error| {
         SyncInjectedDepsError::ReadManifest { dir: pkg_root_dir.to_path_buf(), error }
     })?;
-    let has_bin_and_name = manifest
-        .as_ref()
-        .is_some_and(|manifest| manifest.get("bin").is_some() && manifest.get("name").is_some());
-    if !has_bin_and_name {
+    let Some(manifest) = manifest.filter(|manifest| manifest.get("name").is_some()) else {
         return Ok(());
-    }
-    let manifest = Arc::new(manifest.expect("checked above"));
+    };
+
+    // `link_bins` only ever creates shims, so a bin the script dropped keeps
+    // its shim, pointing at a command that is no longer there.
+    let current_bin_names: HashSet<String> =
+        get_bins_from_package_manifest::<pacquet_cmd_shim::Host>(&manifest, pkg_root_dir)
+            .into_iter()
+            .map(|command| command.name)
+            .collect();
+    let stale_bin_names: Vec<&String> =
+        previous_bin_names.iter().filter(|name| !current_bin_names.contains(*name)).collect();
+
+    let has_bins = manifest.get("bin").is_some();
+    let manifest = Arc::new(manifest);
 
     for target_dir in resolved_targets {
         let Some(parent_modules_dir) = target_dir.parent() else {
             continue;
         };
+        // The installer writes an injected package's own bins inside the
+        // copy, while this function writes them beside it. A dropped bin has
+        // to be cleared from both, or the one this function never wrote
+        // survives.
+        let bin_dirs =
+            [parent_modules_dir.join(".bin"), target_dir.join("node_modules").join(".bin")];
+        for bin_dir in bin_dirs.iter().map(PathBuf::as_path).chain(hoisted_bin_dir) {
+            for name in &stale_bin_names {
+                remove_bin(&bin_dir.join(name.as_str())).map_err(|error| {
+                    SyncInjectedDepsError::RemoveBin { path: bin_dir.join(name.as_str()), error }
+                })?;
+            }
+        }
+
+        if !has_bins {
+            continue;
+        }
         let packages = [PackageBinSource::new(target_dir.clone(), Arc::clone(&manifest))];
         link_bins_of_packages::<pacquet_cmd_shim::Host>(
             &packages,
@@ -175,6 +245,18 @@ fn sync_bin_links(
             .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
     for project in projects {
         let project_modules_dir = project.root_dir.join("node_modules");
+        // A stale name another package legitimately owns is put back by the
+        // relink below, so removing first costs nothing and catches the shim
+        // this package left behind.
+        let project_bin_dir = project_modules_dir.join(".bin");
+        for name in &stale_bin_names {
+            remove_bin(&project_bin_dir.join(name.as_str())).map_err(|error| {
+                SyncInjectedDepsError::RemoveBin {
+                    path: project_bin_dir.join(name.as_str()),
+                    error,
+                }
+            })?;
+        }
         link_bins::<pacquet_cmd_shim::Host>(
             &project_modules_dir,
             &project_modules_dir.join(".bin"),
