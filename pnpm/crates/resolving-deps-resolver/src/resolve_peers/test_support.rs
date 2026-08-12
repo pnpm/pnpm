@@ -17,7 +17,12 @@ pub(super) fn tree_node(
     children: BTreeMap<String, NodeId>,
     depth: i32,
 ) -> DependenciesTreeNode {
-    DependenciesTreeNode::new(pkg_id.to_string(), TreeChildren::Realized(Arc::new(children)), depth, true)
+    DependenciesTreeNode::new(
+        pkg_id.to_string(),
+        TreeChildren::Realized(Arc::new(children)),
+        depth,
+        true,
+    )
 }
 
 pub(super) fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {

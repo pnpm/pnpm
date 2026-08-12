@@ -1788,3 +1788,95 @@ fn peer_id_pair_leaves_an_ordinary_registry_package_bare() {
     assert_eq!(name, "foo");
     assert_eq!(version, "1.0.0");
 }
+
+/// A parent reached through many occurrences enqueues the identical
+/// `(parent_dep_path, alias, child_node_id)` triple over and over —
+/// millions of times on a cyclic peer graph. Replaying a repeat is a
+/// no-op, because it resolves the same `DepPath` and `or_insert`s a
+/// slot that is already filled, so the buffer keeps only the first.
+/// Distinct triples must still all be kept: dedup is by whole triple,
+/// never by `(parent, alias)` slot, or the first-resolvable-wins
+/// behaviour of `patch_pending_peer_edges` would change.
+#[test]
+fn repeated_pending_peer_edges_are_buffered_once() {
+    let mut tree = ResolvedTree::default();
+    let mut walker = walker_for_tests(&mut tree);
+
+    let parent = DepPath::from("parent@1.0.0");
+    let first_child = NodeId::next();
+    let second_child = NodeId::next();
+    let mut graph_children = BTreeMap::new();
+
+    for _ in 0..3 {
+        walker.add_graph_child_or_pending(
+            &mut graph_children,
+            &parent,
+            "child".to_string(),
+            first_child.clone(),
+        );
+    }
+
+    assert!(graph_children.is_empty(), "the child has no depPath yet, so nothing is a graph edge");
+    assert_eq!(walker.pending_peer_edges.len(), 1, "the same triple is buffered once");
+
+    // Same slot, different child: a distinct triple, so it is kept.
+    walker.add_graph_child_or_pending(
+        &mut graph_children,
+        &parent,
+        "child".to_string(),
+        second_child,
+    );
+    assert_eq!(walker.pending_peer_edges.len(), 2, "dedup is by triple, not by (parent, alias)");
+}
+
+/// The membership guard lives and dies with the buffer: once the edges
+/// are drained into the graph, a triple enqueued again describes a
+/// graph that has moved on and must be replayed.
+#[test]
+fn pending_peer_edges_replay_after_a_drain() {
+    let mut tree = ResolvedTree::default();
+    let mut walker = walker_for_tests(&mut tree);
+
+    let parent = DepPath::from("parent@1.0.0");
+    let child = NodeId::next();
+    let mut graph_children = BTreeMap::new();
+
+    walker.add_graph_child_or_pending(
+        &mut graph_children,
+        &parent,
+        "child".to_string(),
+        child.clone(),
+    );
+    walker.patch_pending_peer_edges();
+    assert!(walker.pending_peer_edges.is_empty(), "the drain empties the buffer");
+
+    walker.add_graph_child_or_pending(&mut graph_children, &parent, "child".to_string(), child);
+    assert_eq!(walker.pending_peer_edges.len(), 1, "the guard cleared with the buffer");
+}
+
+/// Every revisit of an already-realized node hands back the same map
+/// rather than a copy of it. The walk revisits nodes millions of times
+/// on a cyclic peer graph, and the map owns a `String` per child alias,
+/// so cloning here is what the shared `Arc` exists to avoid.
+#[test]
+fn realized_children_are_shared_across_visits() {
+    let parent = NodeId::next();
+    let mut children = BTreeMap::new();
+    children.insert("child".to_string(), NodeId::leaf("child@1.0.0"));
+
+    let mut tree = ResolvedTree::default();
+    tree.dependencies_tree.insert(parent.clone(), tree_node("parent@1.0.0", children, 0));
+    let mut walker = walker_for_tests(&mut tree);
+
+    let (first, first_undo) = walker.realize_children_with(&parent, None);
+    let (second, second_undo) = walker.realize_children_with(&parent, None);
+
+    assert!(
+        std::sync::Arc::ptr_eq(&first, &second),
+        "a revisit reuses the realized map instead of cloning it",
+    );
+    assert!(
+        first_undo.is_none() && second_undo.is_none(),
+        "an already-realized node realizes nothing, so there is nothing to undo",
+    );
+}

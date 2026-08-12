@@ -136,7 +136,6 @@ pub(super) struct Walker<'tree> {
 }
 
 impl<'tree> Walker<'tree> {
-
     pub(super) fn new(
         tree: &'tree mut ResolvedTree,
         opts: ResolvePeersOptions,
@@ -590,7 +589,8 @@ impl Walker<'_> {
 
         let fast_cached = {
             let tree_node = &self.tree.dependencies_tree[node_id];
-            tree_node.has_no_locked_peers()
+            tree_node
+                .has_no_locked_peers()
                 .then(|| {
                     self.find_fast_hit(node_id, parent_parent_refs, &tree_node.resolved_package_id)
                 })
@@ -1161,9 +1161,7 @@ impl Walker<'_> {
             let Some(parent_node) = self.tree.dependencies_tree.get(parent_node_id) else {
                 continue;
             };
-            let Some(must_win) =
-                parent_node.must_win_dependency_names()
-            else {
+            let Some(must_win) = parent_node.must_win_dependency_names() else {
                 continue;
             };
             // Ancestors on the walk path always have realized children.

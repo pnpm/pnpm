@@ -1,5 +1,5 @@
 ---
-"pnpm": patch
+"pacquet": patch
 ---
 
-Reduced the memory the dependency resolver holds while resolving peer dependencies. Workspaces whose peer dependency graph contains many cycles realize millions of per-occurrence tree nodes, and each one was carrying more state than it needed.
+Reduced peak memory usage while resolving peer dependencies. Workspaces with large, deeply peer-dependent dependency graphs could need gigabytes to install; the same install now needs meaningfully less.

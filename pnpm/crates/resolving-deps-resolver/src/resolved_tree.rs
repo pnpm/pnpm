@@ -200,7 +200,7 @@ pub struct PeerDep {
 ///
 /// Split out of the node so the common case — a fresh resolution, with
 /// none of these set — costs one null pointer instead of four `Option`s.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct LockedResolution {
     /// `DepPath` this occurrence's package resolved to in the wanted
     /// lockfile, when its resolution was reused from it. Feeds the
@@ -262,13 +262,7 @@ impl DependenciesTreeNode {
         depth: i32,
         installable: bool,
     ) -> Self {
-        DependenciesTreeNode {
-            resolved_package_id,
-            children,
-            depth,
-            installable,
-            locked: None,
-        }
+        DependenciesTreeNode { resolved_package_id, children, depth, installable, locked: None }
     }
 
     /// Wanted-lockfile `DepPath` for this occurrence, if it carried one.

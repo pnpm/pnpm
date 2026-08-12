@@ -169,8 +169,6 @@ impl Walker<'_> {
         })
     }
 
-    
-
     /// Compare two `NodeId`s' recorded parent peer contexts:
     /// both nodes' contexts must have the same set of peer-relevant
     /// names, every name must resolve to the same version or
