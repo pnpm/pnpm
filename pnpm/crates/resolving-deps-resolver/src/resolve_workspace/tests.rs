@@ -459,7 +459,7 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
         let parent_children =
             result.merged_tree.children_by_id.get("parent@1.0.0").expect("parent children");
         assert_eq!(parent_children.len(), 1);
-        assert_eq!(parent_children[0].pkg_id, "pkg@100.1.0");
+        assert_eq!(&*parent_children[0].pkg_id, "pkg@100.1.0");
         // Recording the winner's children is not enough on its own: the
         // occurrence that ran first realized the ones it resolved, and
         // only the handover makes it re-read them.
@@ -635,7 +635,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
         .expect("injected workspace package children");
     assert_eq!(children.len(), 1);
     assert_eq!(children[0].alias, "is-positive");
-    assert_eq!(children[0].pkg_id, "is-positive@1.0.0");
+    assert_eq!(&*children[0].pkg_id, "is-positive@1.0.0");
     assert!(!children[0].optional);
 }
 
@@ -3096,7 +3096,7 @@ async fn a_pinned_subtree_keeps_its_children_against_a_fresh_walk() {
             .get("shared@1.0.0")
             .expect("shared children")
             .iter()
-            .map(|edge| edge.pkg_id.as_str())
+            .map(|edge| &*edge.pkg_id)
             .collect();
         assert_eq!(recorded, ["pin@1.0.0"], "the pins stand, held back: {slow:?}");
         assert!(

@@ -27,12 +27,12 @@ fn detects_cycle_sequences_across_base_and_appended_ids() {
 /// hundred megabytes. Wanted-lockfile carry-over lives behind
 /// [`super::LockedResolution`] for that reason; keep it there.
 ///
-/// 56 bytes is the current layout on a 64-bit target, not a budget with
+/// 48 bytes is the current layout on a 64-bit target, not a budget with
 /// room in it: inlining one more `Option<String>` would cost 24.
 #[test]
 fn tree_node_keeps_its_per_occurrence_footprint_small() {
     assert!(
-        size_of::<super::DependenciesTreeNode>() <= 56,
+        size_of::<super::DependenciesTreeNode>() <= 48,
         "DependenciesTreeNode grew to {} bytes; box rarely-set state instead of inlining it",
         size_of::<super::DependenciesTreeNode>(),
     );
@@ -41,7 +41,7 @@ fn tree_node_keeps_its_per_occurrence_footprint_small() {
 #[test]
 fn locked_resolution_is_unallocated_until_written() {
     let mut node = super::DependenciesTreeNode::new(
-        "a@1.0.0".to_string(),
+        Arc::from("a@1.0.0".to_string()),
         super::TreeChildren::Realized(Arc::new(std::collections::BTreeMap::new())),
         0,
         true,

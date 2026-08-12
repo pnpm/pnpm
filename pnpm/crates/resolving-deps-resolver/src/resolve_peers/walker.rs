@@ -158,7 +158,7 @@ impl<'tree> Walker<'tree> {
             peer_provider_index_peer_names.clone_from(&tree.all_peer_dep_names);
         }
         for (pkg_id, children) in &tree.children_by_id {
-            if peer_provider_children_by_pkg_id.contains_key(pkg_id) {
+            if peer_provider_children_by_pkg_id.contains_key(&**pkg_id) {
                 continue;
             }
             let mut providers = PeerProviderChildren::default();
@@ -182,7 +182,8 @@ impl<'tree> Walker<'tree> {
                     providers.edge_indices_by_name.entry(real_name).or_default().push(edge_index);
                 }
             }
-            peer_provider_children_by_pkg_id.insert(pkg_id.clone(), providers);
+            peer_provider_children_by_pkg_id
+                .insert(std::sync::Arc::<str>::clone(pkg_id).to_string(), providers);
         }
         Walker {
             tree,
@@ -451,7 +452,7 @@ impl Walker<'_> {
         for (node_id, missing) in &self.node_missing_peers_of_children {
             let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
             missing_names_by_pkg
-                .entry(tree_node.resolved_package_id.clone())
+                .entry(std::sync::Arc::<str>::clone(&tree_node.resolved_package_id).to_string())
                 .or_default()
                 .extend(missing.keys().cloned());
         }
@@ -536,10 +537,10 @@ impl Walker<'_> {
                 if tree_node.depth == -1 {
                     return Some((
                         tree_node.depth,
-                        DepPath::from(tree_node.resolved_package_id.clone()),
+                        DepPath::from(std::sync::Arc::<str>::clone(&tree_node.resolved_package_id)),
                     ));
                 }
-                let dep_path = self.pure_pkgs.get(&tree_node.resolved_package_id)?;
+                let dep_path = self.pure_pkgs.get(&*tree_node.resolved_package_id)?;
                 if !self.tree.packages[&tree_node.resolved_package_id].peer_dependencies.is_empty()
                     || (!self.discovery
                         && self
@@ -578,7 +579,7 @@ impl Walker<'_> {
             let tree_node = &self.tree.dependencies_tree[node_id];
             let pkg = &self.tree.packages[&tree_node.resolved_package_id];
             return NodeOutput {
-                dep_path: DepPath::from(pkg.id.clone()),
+                dep_path: DepPath::from(std::sync::Arc::<str>::clone(&pkg.id)),
                 external_resolved_peers: Arc::clone(&self.empty_resolved_peers),
                 auto_install_resolved_peers: HashMap::default(),
                 missing_peers: Arc::clone(&self.empty_missing_peers),
@@ -613,7 +614,7 @@ impl Walker<'_> {
         let (pkg_id, tree_node_depth, tree_node_installable, locked_peer_names) = {
             let tree_node = &self.tree.dependencies_tree[node_id];
             (
-                tree_node.resolved_package_id.clone(),
+                std::sync::Arc::<str>::clone(&tree_node.resolved_package_id),
                 tree_node.depth,
                 tree_node.installable,
                 tree_node.locked_peer_names().cloned(),
@@ -678,8 +679,8 @@ impl Walker<'_> {
             let node = &self.tree.dependencies_tree[node_id];
             if let TreeChildren::Lazy { parent_ids } = &node.children {
                 Some((
-                    self.tree.children_by_id.get(&pkg.id).cloned().unwrap_or_default(),
-                    parent_ids.pushed(pkg.id.clone()),
+                    self.tree.children_by_id.get(&*pkg.id).cloned().unwrap_or_default(),
+                    parent_ids.pushed(std::sync::Arc::<str>::clone(&pkg.id).to_string()),
                 ))
             } else {
                 None
@@ -694,10 +695,10 @@ impl Walker<'_> {
         };
         let realize_undo = merge_realize_undo(preview_undo, realize_undo);
         let current_parent_node_ids = parent_node_ids.pushed(node_id.clone());
-        let child_parent_pkg_ids_chain = if parent_pkg_ids_chain.contains(&pkg.id) {
+        let child_parent_pkg_ids_chain = if parent_pkg_ids_chain.contains_str(&pkg.id) {
             parent_pkg_ids_chain.clone()
         } else {
-            parent_pkg_ids_chain.pushed(pkg.id.clone())
+            parent_pkg_ids_chain.pushed(std::sync::Arc::<str>::clone(&pkg.id).to_string())
         };
         let child_chain_names = parent_chain_names.pushed(pkg_name.clone());
 
@@ -800,7 +801,7 @@ impl Walker<'_> {
         self.remember_resolved_node(node_id, &dep_path);
 
         let own_missing = (!missing_from_children.is_empty())
-            .then(|| (pkg.id.clone(), missing_from_children.keys().cloned().collect()));
+            .then(|| (pkg.id.to_string(), missing_from_children.keys().cloned().collect()));
         let subtree_missing_by_pkg = match (own_missing, missing_summaries.len()) {
             (None, 0) => None,
             (None, 1) => missing_summaries.pop(),
@@ -833,22 +834,26 @@ impl Walker<'_> {
         // that can see the full subtree, dropping their
         // `transitivePeerDependencies` depending on traversal order and
         // churning the lockfile (https://github.com/pnpm/pnpm/issues/5108).
-        let resolved_through_cycle = parent_pkg_ids_chain.contains(&pkg.id);
+        let resolved_through_cycle = parent_pkg_ids_chain.contains_str(&pkg.id);
         if resolved_through_cycle {
             // Leave both caches untouched so later occurrences re-resolve (or
             // hit the authoritative entry of the same package) instead of
             // reusing this partial one.
         } else if is_pure {
-            self.pure_pkgs.insert(pkg.id.clone(), dep_path.clone());
+            self.pure_pkgs
+                .insert(std::sync::Arc::<str>::clone(&pkg.id).to_string(), dep_path.clone());
         } else {
             self.retained_peer_node_ids.extend(all_resolved_peers.values().cloned());
-            self.peers_cache.entry(pkg.id.clone()).or_default().push(PeersCacheItem {
-                dep_path: dep_path.clone(),
-                resolved_peers: Arc::clone(&all_resolved_peers),
-                missing_peers: Arc::clone(&all_missing_peers),
-                missing_peers_of_children: Arc::clone(&missing_from_children),
-                subtree_missing_by_pkg: subtree_missing_by_pkg.clone(),
-            });
+            self.peers_cache
+                .entry(std::sync::Arc::<str>::clone(&pkg.id).to_string())
+                .or_default()
+                .push(PeersCacheItem {
+                    dep_path: dep_path.clone(),
+                    resolved_peers: Arc::clone(&all_resolved_peers),
+                    missing_peers: Arc::clone(&all_missing_peers),
+                    missing_peers_of_children: Arc::clone(&missing_from_children),
+                    subtree_missing_by_pkg: subtree_missing_by_pkg.clone(),
+                });
         }
 
         if !self.discovery {
@@ -1023,7 +1028,7 @@ impl Walker<'_> {
         }
 
         let dep_path = if all_resolved.is_empty() {
-            DepPath::from(pkg.id.clone())
+            DepPath::from(std::sync::Arc::<str>::clone(&pkg.id))
         } else {
             let peer_ids: Vec<PeerId> = all_resolved
                 .iter()
@@ -1319,7 +1324,7 @@ impl Walker<'_> {
             return dep_path;
         }
         let pkg_id = &self.tree.dependencies_tree[node_id].resolved_package_id;
-        DepPath::from(self.tree.packages[pkg_id].id.clone())
+        DepPath::from(std::sync::Arc::<str>::clone(&self.tree.packages[pkg_id].id))
     }
 
     pub(super) fn remember_parent_context_if_peer_provider(

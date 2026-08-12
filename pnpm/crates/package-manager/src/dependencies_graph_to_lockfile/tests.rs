@@ -1242,21 +1242,21 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         "dependencies": { "outer": "^1.0.0" },
     }));
 
-    let outer_id = "outer@1.0.0".to_string();
-    let inner_id = "inner@1.0.0".to_string();
+    let outer_id: Arc<str> = "outer@1.0.0".into();
+    let inner_id: Arc<str> = "inner@1.0.0".into();
     let outer_node_id = NodeId::next();
 
     let mut tree = ResolvedTree {
         direct: vec![DirectDep {
             alias: "outer".to_string(),
             node_id: outer_node_id.clone(),
-            id: outer_id.clone(),
+            id: outer_id.to_string(),
         }],
         packages: HashMap::from_iter([
             (
-                outer_id.clone(),
+                Arc::<str>::clone(&outer_id),
                 ResolvedPackage {
-                    id: outer_id.clone(),
+                    id: Arc::<str>::clone(&outer_id),
                     result: Arc::new(make_resolve_result(
                         "outer",
                         "1.0.0",
@@ -1268,9 +1268,9 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
                 },
             ),
             (
-                inner_id.clone(),
+                Arc::<str>::clone(&inner_id),
                 ResolvedPackage {
-                    id: inner_id.clone(),
+                    id: Arc::<str>::clone(&inner_id),
                     result: Arc::new(make_resolve_result(
                         "inner",
                         "1.0.0",
@@ -1285,7 +1285,7 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         dependencies_tree: HashMap::from_iter([(
             outer_node_id,
             DependenciesTreeNode::new(
-                outer_id.clone(),
+                Arc::<str>::clone(&outer_id),
                 TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
                 0,
                 true,

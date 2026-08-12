@@ -245,7 +245,7 @@ async fn children_follow_the_shallowest_occurrence_however_late_it_resolves() {
 
     let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
     assert_eq!(shared_children.len(), 1);
-    assert_eq!(shared_children[0].pkg_id, "pin@1.0.0");
+    assert_eq!(&*shared_children[0].pkg_id, "pin@1.0.0");
 }
 
 /// The winning occurrence's peer-shadowed set is the one that filters
@@ -317,7 +317,7 @@ async fn same_depth_occurrences_are_settled_by_parent_path() {
 
     let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
     assert_eq!(shared_children.len(), 1);
-    assert_eq!(shared_children[0].pkg_id, "pin@1.0.0");
+    assert_eq!(&*shared_children[0].pkg_id, "pin@1.0.0");
 }
 
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
@@ -418,7 +418,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
     assert_eq!(foo_tree_node.children.realized().len(), 1);
     let bar_node_id = foo_tree_node.children.realized().get("bar").unwrap();
     let bar_tree_node = tree.dependencies_tree.get(bar_node_id).unwrap();
-    assert_eq!(bar_tree_node.resolved_package_id, "bar@2.3.0");
+    assert_eq!(&*bar_tree_node.resolved_package_id, "bar@2.3.0");
     assert!(tree.policy_violations.is_empty());
 }
 
@@ -563,7 +563,7 @@ async fn shallower_revisit_takes_over_shared_children_context() {
     let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
     assert_eq!(shared_children.len(), 1);
     assert_eq!(shared_children[0].alias, "cycle");
-    assert_eq!(shared_children[0].pkg_id, "cycle@1.0.0");
+    assert_eq!(&*shared_children[0].pkg_id, "cycle@1.0.0");
 }
 
 #[tokio::test]
@@ -634,8 +634,11 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
     let shared_via_a = a_tree.children.realized().get("shared").unwrap();
     let shared_via_b = b_tree.children.realized().get("shared").unwrap();
     assert_eq!(shared_via_a, shared_via_b);
-    let shared_occurrences =
-        tree.dependencies_tree.values().filter(|n| n.resolved_package_id == "shared@1.0.0").count();
+    let shared_occurrences = tree
+        .dependencies_tree
+        .values()
+        .filter(|n| n.resolved_package_id == "shared@1.0.0".into())
+        .count();
     assert_eq!(shared_occurrences, 1);
 }
 
@@ -2284,7 +2287,7 @@ mod peers {
         let peer_only_node_ids: Vec<&NodeId> = tree
             .dependencies_tree
             .iter()
-            .filter(|(_, node)| node.resolved_package_id == "peer-only@1.0.0")
+            .filter(|(_, node)| node.resolved_package_id == "peer-only@1.0.0".into())
             .map(|(id, _)| id)
             .collect();
         assert!(!peer_only_node_ids.is_empty(), "expected at least one tree entry for peer-only");
@@ -2380,7 +2383,7 @@ mod peers {
         let pure_pre: Vec<(&crate::node_id::NodeId, bool)> = tree
             .dependencies_tree
             .iter()
-            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0")
+            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0".into())
             .map(|(id, node)| (id, matches!(node.children, TreeChildren::Lazy { .. })))
             .collect();
         assert_eq!(pure_pre.len(), 2, "expected two occurrences of pure, got {pure_pre:?}");
@@ -2401,7 +2404,7 @@ mod peers {
         let still_lazy = tree
             .dependencies_tree
             .iter()
-            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0")
+            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0".into())
             .filter(|(_, node)| matches!(node.children, TreeChildren::Lazy { .. }))
             .count();
         assert_eq!(
