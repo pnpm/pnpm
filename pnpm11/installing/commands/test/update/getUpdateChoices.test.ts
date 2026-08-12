@@ -86,15 +86,15 @@ test('getUpdateChoices()', () => {
         message: 'dependencies',
         choices: [
           {
-            name: 'Package                                                    Current   Target            URL              ',
-            message: 'Package                                                    Current   Target            URL              ',
+            name: 'Package                                                    Current   Target            URL                                            ',
+            message: 'Package                                                    Current   Target            URL                                            ',
             disabled: true,
             hint: '',
             short: '',
             value: '',
           },
           {
-            message: `foo                                                          1.0.0 ❯ ${chalk.redBright.bold('2.0.0')}             https://pnpm.io/ `,
+            message: `foo                                                          1.0.0 ❯ ${chalk.redBright.bold('2.0.0')}             https://npmx.dev/package-changelog/foo/v/2.0.0 `,
             value: 'foo',
             name: 'foo',
             short: 'foo',
@@ -106,27 +106,27 @@ test('getUpdateChoices()', () => {
         message: 'devDependencies',
         choices: [
           {
-            name: 'Package                                                    Current   Target            URL ',
-            message: 'Package                                                    Current   Target            URL ',
+            name: 'Package                                                    Current   Target            URL                                            ',
+            message: 'Package                                                    Current   Target            URL                                            ',
             disabled: true,
             hint: '',
             short: '',
             value: '',
           },
           {
-            message: `qar                                                          1.0.0 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
+            message: `qar                                                          1.0.0 ❯ 1.${chalk.yellowBright.bold('2.0')}             https://npmx.dev/package-changelog/qar/v/1.2.0 `,
             name: 'qar',
             short: 'qar',
             value: 'qar',
           },
           {
-            message: `zoo                                                          1.1.0 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
+            message: `zoo                                                          1.1.0 ❯ 1.${chalk.yellowBright.bold('2.0')}             https://npmx.dev/package-changelog/zoo/v/1.2.0 `,
             name: 'zoo',
             short: 'zoo',
             value: 'zoo',
           },
           {
-            message: `foo                                                          1.0.1 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
+            message: `foo                                                          1.0.1 ❯ 1.${chalk.yellowBright.bold('2.0')}             https://npmx.dev/package-changelog/foo/v/1.2.0 `,
             name: 'foo',
             short: 'foo',
             value: 'foo',
@@ -138,15 +138,15 @@ test('getUpdateChoices()', () => {
         message: 'optionalDependencies',
         choices: [
           {
-            name: 'Package                                                    Current   Target            URL ',
-            message: 'Package                                                    Current   Target            URL ',
+            name: 'Package                                                    Current   Target            URL                                            ',
+            message: 'Package                                                    Current   Target            URL                                            ',
             disabled: true,
             hint: '',
             short: '',
             value: '',
           },
           {
-            message: `qaz                                                          1.0.1 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
+            message: `qaz                                                          1.0.1 ❯ 1.${chalk.yellowBright.bold('2.0')}             https://npmx.dev/package-changelog/qaz/v/1.2.0 `,
             name: 'qaz',
             short: 'qaz',
             value: 'qaz',
@@ -186,6 +186,7 @@ test('getUpdateChoices() handles long version strings without wrapping', () => {
   // within the version string, which would break a plain substring match
   // when chalk has colors enabled.
   expect(stripVTControlCharacters(dataRow.message)).toContain('7.0.0-dev.20251214.1')
+  expect(dataRow.message).toContain('https://npmx.dev/package-changelog/@typescript/native-preview/v/7.0.0-dev.20251214.1')
 })
 
 test('getUpdateChoices() sizes the version columns by their rendered width', () => {
@@ -229,6 +230,7 @@ test('getUpdateChoices() groups GitHub Actions separately', () => {
   expect(choices).toHaveLength(1)
   expect(choices[0].message).toBe('GitHub Actions')
   expect(choices[0].choices[1]).toMatchObject({ name: 'actions/checkout', value: 'actions/checkout' })
+  expect(stripVTControlCharacters(choices[0].choices[1].message)).toContain('https://github.com/actions/checkout')
 })
 
 test('getUpdateChoices() names every workspace a collapsed choice came from', () => {
@@ -278,7 +280,8 @@ test('getUpdateChoices() strips control and formatting characters from labels it
   expect(cells).not.toContain('\u001b')
   expect(dataRow.message).not.toContain('\n')
   expect(dataRow.message).not.toMatch(/[\u202E\u2066\u2069]/u)
-  expect(dataRow.message).toContain('https://example.test/')
+  expect(dataRow.message).toContain('https://npmx.dev/package-changelog/foo/v/2.0.0')
+  expect(dataRow.message).not.toContain('https://example.test/')
   expect(dataRow.value).toBe('foo\u202E')
   expect(dataRow.short).toBe('foo')
 })
