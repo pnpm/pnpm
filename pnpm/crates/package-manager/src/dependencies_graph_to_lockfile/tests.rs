@@ -2835,10 +2835,8 @@ fn an_unresolvable_alias_keeps_the_tarball_url() {
     }
 }
 
-/// Registries can serve a `deprecated` flag that comes and goes
-/// upstream (pnpm/pnpm#13846). An entry whose resolution is unchanged
-/// never loses a recorded deprecation to that drift; a changed
-/// resolution takes the freshly served metadata.
+/// pnpm/pnpm#13846: registries serve `deprecated` inconsistently for
+/// the same published version.
 #[test]
 fn unchanged_resolutions_keep_their_previous_package_metadata() {
     let (_tmp, manifest) = write_manifest(json!({

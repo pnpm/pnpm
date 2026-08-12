@@ -94,15 +94,6 @@ function toLockfileDependency (
     }
   }
 
-  // `deprecated` is the one registry-mutable field of a published
-  // version, and registries have been observed serving it
-  // inconsistently (pnpm/pnpm#13846). An unchanged resolution never
-  // loses a recorded deprecation to such drift; a genuinely new
-  // deprecation still flows in through the fresh metadata.
-  const prevDeprecated = opts.prevSnapshot != null && equals(opts.prevSnapshot.resolution, lockfileResolution)
-    ? opts.prevSnapshot.deprecated
-    : undefined
-
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
     opts.depGraph
@@ -185,8 +176,15 @@ function toLockfileDependency (
   }
   if (pkg.additionalInfo.deprecated) {
     result['deprecated'] = pkg.additionalInfo.deprecated
-  } else if (prevDeprecated != null) {
-    result['deprecated'] = prevDeprecated
+  } else if (
+    // `deprecated` is the only registry-mutable field of a published
+    // version; an unchanged resolution must not lose a recorded
+    // deprecation to a registry serving it inconsistently
+    // (pnpm/pnpm#13846).
+    opts.prevSnapshot?.deprecated != null &&
+    equals(opts.prevSnapshot.resolution, lockfileResolution)
+  ) {
+    result['deprecated'] = opts.prevSnapshot.deprecated
   }
   if (pkg.hasBin) {
     result['hasBin'] = true

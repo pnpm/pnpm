@@ -723,12 +723,10 @@ fn build_packages_and_snapshots(
                 None => (sources.registry, sources.lockfile_include_tarball_url),
             };
             let mut metadata = build_package_metadata(node, key, registry, include_tarball_url);
-            // `deprecated` is the one registry-mutable field of a
-            // published version, and registries have been observed
-            // serving it inconsistently. An unchanged resolution never
-            // loses a recorded deprecation to such drift; a genuinely
-            // new deprecation still flows in through the fresh
-            // metadata.
+            // `deprecated` is the only registry-mutable field of a
+            // published version; an unchanged resolution must not lose
+            // a recorded deprecation to a registry serving it
+            // inconsistently (pnpm/pnpm#13846).
             if metadata.deprecated.is_none()
                 && let Some(previous) = sources.previous_packages.and_then(|prev| prev.get(key))
                 && previous.resolution == metadata.resolution
