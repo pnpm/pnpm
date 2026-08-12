@@ -1544,14 +1544,23 @@ test('use version from the registry if it is newer than the local one', async ()
 })
 
 test('preferWorkspacePackages: use version from the workspace even if there is newer version in the registry', async () => {
+  // The interceptor is registered deliberately. Omitting it does NOT prove the request was
+  // skipped: an unmocked request throws, resolveNpm catches request errors and falls back to
+  // tryResolveFromWorkspacePackages, and that path also returns no `latest` — so the test
+  // would pass either way. With a live interceptor, any request would populate `latest` from
+  // `dist-tags`, so asserting `latest === undefined` is what proves the registry was skipped.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registriesByScope,
   })
-  // No registry interceptor is registered on purpose: with preferWorkspacePackages the
-  // workspace copy wins regardless of what the registry says, so the resolver must not
-  // make the request at all. Any request would fail the test via the mock agent.
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
     bareSpecifier: '^3.0.0',
@@ -1577,9 +1586,6 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
       id: 'link:is-positive',
     })
   )
-  // `latest` comes from the registry metadata, so the fast path cannot report it. It is only
-  // consumed for registry packages: local packages return from resolveDependency before
-  // outdatedDependencies is populated.
   expect(resolveResult!.latest).toBeUndefined()
 })
 
