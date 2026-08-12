@@ -595,7 +595,7 @@ fn add_moves_a_catalog_with_a_per_project_lockfile() {
     append_workspace_yaml(
         &workspace,
         &format!(
-            "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\ncatalogMode: strict\ncatalog:\n  '{FOO}': 1.0.0\n"
+            "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\ncatalogMode: strict\ncatalog:\n  '{FOO}': 1.0.0\n",
         ),
     );
     let project = workspace.join("packages/a");
