@@ -1782,6 +1782,54 @@ fn set_dir_modes(path: &std::path::Path, mode: u32) {
 /// headless install `--frozen-lockfile` does, and `--no-frozen-lockfile`
 /// overrides it back off.
 #[test]
+fn frozen_lockfile_accepts_a_peer_package_extensions_injected() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str(concat!(
+        "autoInstallPeers: true\n",
+        "packageExtensions:\n",
+        "  root:\n",
+        "    peerDependencies:\n",
+        "      '@pnpm.e2e/foo': ^100.0.0\n",
+    ));
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    // The extension made `@pnpm.e2e/foo` a peer of the project, so
+    // `autoInstallPeers` recorded it as a dependency of the importer. The
+    // freshness check has to see the same peer, or it reads that entry as a
+    // dependency the manifest dropped.
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    assert!(
+        wanted.importers["."].dependencies.as_ref().is_some_and(
+            |dependencies| dependencies.contains_key(&"@pnpm.e2e/foo".parse().expect("alias"))
+        ),
+        "the injected peer is auto-installed into the importer",
+    );
+
+    new_pacquet_command(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn frozen_lockfile_setting_drives_the_headless_install() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
