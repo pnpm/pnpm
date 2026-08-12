@@ -1941,3 +1941,44 @@ fn realized_children_are_shared_across_visits() {
         "an already-realized node realizes nothing, so there is nothing to undo",
     );
 }
+
+/// The peer walk realizes one occurrence node per distinct
+/// root-to-package path — millions of them on a large graph — and each
+/// names its package. Realization must hand the child edge's `Arc` to
+/// the node rather than copy the id into it, so this asserts pointer
+/// equality through `realize_children_with`, the path that creates
+/// those millions, rather than through the constructor alone.
+#[test]
+fn realizing_children_shares_the_edge_package_id() {
+    let parent = NodeId::next();
+    let edge_id: Arc<str> = "child@1.0.0".into();
+
+    let mut tree = ResolvedTree::default();
+    tree.children_by_id.insert(
+        "parent@1.0.0".into(),
+        Arc::new(vec![crate::resolved_tree::ChildEdge {
+            alias: "child".to_string(),
+            pkg_id: Arc::<str>::clone(&edge_id),
+            optional: false,
+        }]),
+    );
+    tree.dependencies_tree.insert(
+        parent.clone(),
+        crate::resolved_tree::DependenciesTreeNode::new(
+            "parent@1.0.0".into(),
+            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
+            0,
+            true,
+        ),
+    );
+
+    let mut walker = walker_for_tests(&mut tree);
+    let (children, _) = walker.realize_children_with(&parent, None);
+    let child_node_id = children.get("child").expect("the edge is realized into a child node");
+    let realized = &walker.tree.dependencies_tree[child_node_id];
+
+    assert!(
+        Arc::ptr_eq(&edge_id, &realized.resolved_package_id),
+        "the occurrence points at the edge's id instead of owning a copy of it",
+    );
+}
