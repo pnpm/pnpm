@@ -32,6 +32,7 @@ where
             selection,
             root_manifest_as_workspace_root,
             save_lockfile,
+            manifest_spec_bumps,
             prompt_eligibility_override,
         } = options;
         let Install {
@@ -970,6 +971,7 @@ where
             deps_requiring_build_sink,
             pnpmfile_hook,
             save_lockfile,
+            manifest_spec_bumps,
             catalogs: &catalogs,
             prefix: &prefix,
         })

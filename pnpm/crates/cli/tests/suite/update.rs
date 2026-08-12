@@ -145,7 +145,86 @@ fn update_bumps_within_range() {
         virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
         "update should have bumped the dependency to the highest version in range",
     );
-    // Compatible updates do not rewrite the manifest range.
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.1.0"));
+
+    // The rewritten range is what the lockfile importer records, so the
+    // lockfile is still frozen-installable.
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// A compatible update keeps the range operator the dependency already
+/// declared, the same way `--latest` does. An exact pin has no room to move,
+/// so it stands.
+#[test]
+fn update_preserves_the_declared_range_operator() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(
+        &workspace,
+        &format!(
+            r#"{{ "@pnpm.e2e/bravo-dep": "~1.0.0", "{FOO}": "1.0.0", "{PARENT}": "^100.0.0" }}"#,
+        ),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "@pnpm.e2e/bravo-dep").as_deref(), Some("~1.0.1"));
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("1.0.0"));
+    assert_eq!(dep_spec(&workspace, PARENT).as_deref(), Some("^100.1.0"));
+
+    drop((root, anchor));
+}
+
+/// A dist-tag names no version of its own, so the version behind it moving
+/// leaves the manifest entry saying exactly what the user asked for.
+#[test]
+fn update_keeps_a_dist_tag_specifier() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "latest" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("latest"));
+
+    drop((root, anchor));
+}
+
+/// A package selector scopes the manifest rewrite to the dependency it
+/// matched; the rest keep their declared ranges even when a newer version
+/// is in range.
+#[test]
+fn update_with_selector_only_rewrites_the_matched_dependency() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", DEP]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.1.0"));
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^1.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--no-save` keeps `package.json` authoritative: the lockfile still moves
+/// within the declared range, but the range itself is left alone.
+#[test]
+fn update_no_save_keeps_the_declared_range() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["update", "--no-save"]).assert().success();
+
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
 
     drop((root, anchor));
@@ -333,6 +412,23 @@ fn update_latest_preserves_tilde() {
     pacquet(&workspace, ["update", "--latest"]).assert().success();
 
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("~101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// A dist-tag reaches the latest version on its own, so `--latest` leaves
+/// the declaration tracking the tag rather than pinning what it points at
+/// today.
+#[test]
+fn update_latest_keeps_a_dist_tag_specifier() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "latest" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("latest"));
 
     drop((root, anchor));
 }
@@ -948,6 +1044,27 @@ fn update_latest_catalog_preserves_reference_and_operator() {
     let yaml = read_workspace_yaml(&workspace);
     assert!(yaml.contains("~101.0.0"), "catalog entry should be bumped to ~101.0.0: {yaml}");
     assert!(!yaml.contains("100.0.0"), "stale catalog entry should be gone: {yaml}");
+
+    drop((root, anchor));
+}
+
+/// A compatible update moves a `catalog:` dependency the same way
+/// `--latest` does: the catalog entry owns the range, so the entry is what
+/// gets rewritten, within the range it already declares.
+#[test]
+fn update_catalog_bumps_the_entry_within_its_range() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "grp1", &[(DEP, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(yaml.contains("^100.1.0"), "catalog entry should be bumped to ^100.1.0: {yaml}");
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, anchor));
 }

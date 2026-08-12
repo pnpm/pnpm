@@ -6,7 +6,9 @@ use crate::{
         WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    decide_catalog, emit_initial_package_manifest, package_manifest_prefix,
+    decide_catalog, emit_initial_package_manifest,
+    manifest_spec_bumps::ManifestSpecBumps,
+    package_manifest_prefix,
     resolution_policy::PickPolicy,
     selected_project_indices,
 };
@@ -26,6 +28,7 @@ use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
+use pacquet_lockfile_preferred_versions::get_version_selector_type;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::RangeSpecStyle;
@@ -39,15 +42,15 @@ use pacquet_resolving_npm_resolver::{
     merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pacquet_resolving_resolver_base::{
-    PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, WantedDependency,
-    WorkspacePackages, WorkspacePackagesByVersion,
+    PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType,
+    WantedDependency, WorkspacePackages, WorkspacePackagesByVersion,
 };
 use pacquet_tarball::MemCache;
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 /// Everything `pacquet update` (alias `up` / `upgrade`) does.
@@ -58,19 +61,25 @@ use std::{
 /// * **Compatible bump** (no `--latest`): the matched names have their
 ///   lockfile pins withheld from the preferred-versions seed
 ///   ([`UpdateSeedPolicy`]) so the resolver re-picks the highest version
-///   satisfying the manifest range. `package.json` is left untouched —
-///   the manifest is only rewritten for deps marked `updateSpec`, which
-///   compatible updates are not.
+///   satisfying the manifest range, and each matched *direct* dependency's
+///   declared range is moved onto the version the install settled on
+///   ([`crate::ManifestSpecBumps`]).
 /// * **`--latest`**: each matched *direct* dependency's `latest` tag is
-///   fetched and written into `package.json`, reusing the range operator
-///   the dependency already pinned (`^` stays `^`, `~` stays `~`, an exact
-///   pin stays exact) and falling back to the configured default
-///   otherwise. The follow-up install then resolves the new range.
+///   fetched and written into `package.json` before resolving, since the
+///   tag reaches past the declared range. The follow-up install then
+///   resolves the new range.
 /// * **`--workspace`** ([`Update::workspace_packages`]): each matched
 ///   direct dependency that a workspace project publishes is re-pointed
 ///   at the local copy through the `workspace:` protocol, with
 ///   `saveWorkspaceProtocol` deciding whether the linked version is
 ///   written out or only its range operator.
+///
+/// A compatible bump and `--latest` both keep the range operator the
+/// dependency already pinned (`^` stays `^`, `~` stays `~`, an exact pin
+/// stays exact), fall back to the configured default otherwise, and leave a
+/// dependency declared through a dist-tag or a non-registry protocol alone.
+/// A `catalog:` reference moves the catalog entry instead of the manifest
+/// entry.
 ///
 /// Selector handling:
 /// bare-name selectors (`foo`, `@scope/bar-*`) with `depth > 0` and no
@@ -322,9 +331,21 @@ impl Update<'_> {
             persist_manifest: should_persist_manifest,
             catalogs_override,
             workspace_dir_for_catalogs,
+            bump_targets,
             ..
         } = prepared;
-        Install {
+        let manifest_dir =
+            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+        let importer_id = pacquet_workspace::importer_id_from_root_dir(
+            config.workspace_dir.as_deref().unwrap_or(&manifest_dir),
+            &manifest_dir,
+        );
+        let bumps = (!bump_targets.is_empty()).then(|| ManifestSpecBumps {
+            targets: BTreeMap::from([(importer_id.clone(), bump_targets)]),
+            range_spec_style: RangeSpecStyle::from_save_options(save_exact, None),
+            applied: Mutex::default(),
+        });
+        let install = Install {
             tarball_mem_cache,
             http_client,
             http_client_arc,
@@ -363,13 +384,31 @@ impl Update<'_> {
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+        };
+        match bumps.as_ref() {
+            Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
+            None => install.run::<Reporter>().await,
         }
-        .run::<Reporter>()
-        .await
         .map_err(UpdateError::Install)?;
 
-        if should_persist_manifest {
+        let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
+        let bumped_manifest = applied
+            .as_ref()
+            .and_then(|applied| applied.manifests.get(&importer_id))
+            .is_some_and(|bumped| apply_bumped_manifest_specs(manifest, bumped));
+        if should_persist_manifest || bumped_manifest {
             persist_manifest::<Reporter>(manifest)?;
+        }
+        if save
+            && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
+        {
+            write_workspace_catalogs(
+                config,
+                workspace_dir_for_catalogs.as_deref(),
+                &applied.catalogs,
+                manifest,
+            )
+            .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
         if save {
@@ -423,7 +462,7 @@ impl Update<'_> {
         let workspace_root = config.workspace_dir.as_deref().unwrap_or_else(|| {
             manifest.path().parent().expect("manifest path always has a parent dir")
         });
-        let prepared = prepare_selected_manifests::<Reporter>(
+        let mut prepared = prepare_selected_manifests::<Reporter>(
             projects,
             &selected_indices,
             workspace_root,
@@ -456,7 +495,12 @@ impl Update<'_> {
             .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
-        Install {
+        let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
+            targets: std::mem::take(&mut prepared.bump_targets),
+            range_spec_style: RangeSpecStyle::from_save_options(save_exact, None),
+            applied: Mutex::default(),
+        });
+        let install = Install {
             tarball_mem_cache,
             http_client,
             http_client_arc,
@@ -493,18 +537,45 @@ impl Update<'_> {
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
-        }
-        .run_selected::<Reporter>(WorkspaceInstallSelection {
+        };
+        let selection = WorkspaceInstallSelection {
             all_projects: projects,
             ordered_groups,
             ordered_dirs,
             selected_dirs,
             active_manifest_is_standin,
-        })
-        .await
+        };
+        match bumps.as_ref() {
+            Some(bumps) => {
+                install.run_selected_with_manifest_spec_bumps::<Reporter>(selection, bumps).await
+            }
+            None => install.run_selected::<Reporter>(selection).await,
+        }
         .map_err(UpdateError::Install)?;
 
-        persist_selected_manifests::<Reporter>(projects, &prepared.persist_indices)?;
+        let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
+        let mut persist_indices = prepared.persist_indices;
+        if let Some(applied) = applied.as_ref() {
+            for (index, project) in projects.iter_mut().enumerate() {
+                let importer_id =
+                    pacquet_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir);
+                let Some(bumped) = applied.manifests.get(&importer_id) else { continue };
+                if apply_bumped_manifest_specs(&mut project.manifest, bumped)
+                    && !persist_indices.contains(&index)
+                {
+                    persist_indices.push(index);
+                }
+            }
+        }
+        persist_selected_manifests::<Reporter>(projects, &persist_indices)?;
+        if save
+            && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
+        {
+            let workspace_dir =
+                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
+            write_workspace_catalogs_selected(config, workspace_dir, &applied.catalogs, projects)
+                .map_err(UpdateError::WriteWorkspaceManifest)?;
+        }
 
         if save {
             let workspace_dir =
@@ -520,6 +591,9 @@ struct UpdatePreparation {
     seed_policy: UpdateSeedPolicy,
     preferred_versions_override: PreferredVersions,
     persist_manifest: bool,
+    /// Direct dependencies whose declared range the install may move onto
+    /// the version it resolves. See [`crate::ManifestSpecBumps`].
+    bump_targets: HashSet<String>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -529,6 +603,8 @@ struct SelectedUpdatePreparation {
     seed_policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
     preferred_versions_override: PreferredVersions,
     persist_indices: Vec<usize>,
+    /// [`UpdatePreparation::bump_targets`] per importer id.
+    bump_targets: BTreeMap<String, HashSet<String>>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -592,6 +668,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         .transpose()?;
     let mut drop_names = HashSet::new();
     let mut rewrites = Vec::new();
+    // A compatible bump cannot name its version before the resolve, so the
+    // matched names are collected here and the install reports back what it
+    // settled on.
+    let mut bump_targets = HashSet::new();
     let max_depth = UpdateDepth::new(depth);
     // Bare-name selectors with depth update matching names at any depth.
     let use_name_matcher = !selectors.is_empty()
@@ -655,6 +735,9 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             {
                 rewrites.push((name.clone(), *group, specifier));
             }
+            if save && !latest {
+                bump_targets.insert(name.clone());
+            }
             drop_names.insert(name.clone());
         }
         if updates_all_groups && ignore_patterns.is_empty() {
@@ -680,6 +763,9 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         let matcher = create_matcher(&patterns);
         for (name, _, _) in &direct {
             if matcher.matches(name) {
+                if save {
+                    bump_targets.insert(name.clone());
+                }
                 drop_names.insert(name.clone());
             }
         }
@@ -794,6 +880,9 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                             }
                         }
                     } else {
+                        if save && requested.is_none() {
+                            bump_targets.insert(name.clone());
+                        }
                         requested
                     }
                 };
@@ -883,6 +972,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         seed_policy,
         preferred_versions_override,
         persist_manifest,
+        bump_targets,
         updated_catalogs,
         catalogs_override,
         workspace_dir_for_catalogs,
@@ -915,6 +1005,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     let mut latest_chain = None;
     let mut seed_policies = BTreeMap::new();
     let mut persist_indices = Vec::new();
+    let mut bump_targets = BTreeMap::new();
     let mut preferred_versions_override = PreferredVersions::new();
     let mut updated_catalogs = Catalogs::new();
     let mut catalogs_override = None;
@@ -948,6 +1039,9 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
             pacquet_workspace::importer_id_from_root_dir(workspace_root, &projects[index].root_dir);
         for (name, selectors) in prepared.preferred_versions_override {
             preferred_versions_override.entry(name).or_default().extend(selectors);
+        }
+        if !prepared.bump_targets.is_empty() {
+            bump_targets.insert(importer_id.clone(), prepared.bump_targets);
         }
         match prepared.seed_policy {
             UpdateSeedPolicy::KeepAll => {}
@@ -984,6 +1078,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         seed_policies,
         preferred_versions_override,
         persist_indices,
+        bump_targets,
         updated_catalogs,
         catalogs_override,
         workspace_dir_for_catalogs,
@@ -998,6 +1093,34 @@ fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
             catalog.insert(dependency.clone(), specifier.clone());
         }
     }
+}
+
+/// Write the ranges the install settled on into `manifest`, reporting
+/// whether anything changed. The alias keeps the group it is declared under:
+/// an update moves a range, it never moves a dependency between groups.
+fn apply_bumped_manifest_specs(
+    manifest: &mut PackageManifest,
+    bumped: &BTreeMap<String, String>,
+) -> bool {
+    let groups = bumped
+        .keys()
+        .filter_map(|alias| Some((alias.as_str(), declared_group(manifest, alias)?)))
+        .collect::<Vec<_>>();
+    if groups.is_empty() {
+        return false;
+    }
+    for (alias, group) in groups {
+        manifest
+            .add_dependency(alias, &bumped[alias], group)
+            .expect("the alias is already declared");
+    }
+    true
+}
+
+fn declared_group(manifest: &PackageManifest, alias: &str) -> Option<DependencyGroup> {
+    DIRECT_GROUPS
+        .into_iter()
+        .find(|&group| manifest.dependencies([group]).any(|(name, _)| name == alias))
 }
 
 fn persist_selected_manifests<Reporter: self::Reporter>(
@@ -1304,6 +1427,12 @@ async fn latest_specifier(
     // spec it answers only against the install's workspace-package map,
     // which manifest preparation has not built.
     if effective.starts_with("workspace:") {
+        return Ok(None);
+    }
+    // A dist-tag names no version of its own, so the version behind it moving
+    // leaves the declaration saying exactly what was asked for. Rewriting it
+    // to that version would drop the instruction to track the tag.
+    if get_version_selector_type(&effective) == Some(VersionSelectorType::Tag) {
         return Ok(None);
     }
     let chain = ensure_latest_resolver_chain(chain, ctx)?;
