@@ -61,14 +61,15 @@ impl AppliedSpecBumps {
 /// carry the same text, and the version recorded against it satisfies it by
 /// construction.
 pub(crate) fn apply_manifest_spec_bumps(lockfile: &mut Lockfile, bumps: &ManifestSpecBumps) {
-    let mut manifests: BTreeMap<String, HashMap<PkgName, String>> = BTreeMap::new();
+    let mut manifests: BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, String)>> =
+        BTreeMap::new();
     let mut cataloged: HashSet<(String, PkgName)> = HashSet::new();
 
     for (importer_id, aliases) in &bumps.targets {
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
         for alias in aliases {
             let Ok(alias) = PkgName::parse(alias.as_str()) else { continue };
-            let Some(declared) = declared_dependency(importer, &alias) else { continue };
+            let Some((group, declared)) = declared_dependency(importer, &alias) else { continue };
             if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
                 cataloged.insert((catalog_name.to_string(), alias));
                 continue;
@@ -76,7 +77,7 @@ pub(crate) fn apply_manifest_spec_bumps(lockfile: &mut Lockfile, bumps: &Manifes
             if let Some(bumped) =
                 bumped_range(&declared.specifier, &declared.version, bumps.range_spec_style)
             {
-                manifests.entry(importer_id.clone()).or_default().insert(alias, bumped);
+                manifests.entry(importer_id.clone()).or_default().insert(alias, (group, bumped));
             }
         }
     }
@@ -100,11 +101,10 @@ pub(crate) fn apply_manifest_spec_bumps(lockfile: &mut Lockfile, bumps: &Manifes
 
     for (importer_id, bumped) in &manifests {
         let Some(importer) = lockfile.importers.get_mut(importer_id) else { continue };
-        for group in dependency_maps_mut(importer) {
-            for (alias, specifier) in bumped {
-                if let Some(declared) = group.get_mut(alias) {
-                    declared.specifier.clone_from(specifier);
-                }
+        let mut groups = dependency_maps_mut(importer);
+        for (alias, (group, specifier)) in bumped {
+            if let Some(declared) = groups[*group].as_mut().and_then(|map| map.get_mut(alias)) {
+                declared.specifier.clone_from(specifier);
             }
         }
     }
@@ -122,19 +122,20 @@ pub(crate) fn apply_manifest_spec_bumps(lockfile: &mut Lockfile, bumps: &Manifes
     }
 
     let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
-    applied.manifests = render_aliases(manifests);
-    applied.catalogs = render_aliases(catalogs);
+    applied.manifests = render_aliases(manifests, |(_, specifier)| specifier);
+    applied.catalogs = render_aliases(catalogs, |specifier| specifier);
 }
 
-fn render_aliases(
-    bumped: BTreeMap<String, HashMap<PkgName, String>>,
+fn render_aliases<Bumped>(
+    bumped: BTreeMap<String, HashMap<PkgName, Bumped>>,
+    specifier: impl Fn(Bumped) -> String,
 ) -> BTreeMap<String, BTreeMap<String, String>> {
     bumped
         .into_iter()
         .map(|(owner, aliases)| {
             let aliases = aliases
                 .into_iter()
-                .map(|(alias, specifier)| (alias.to_string(), specifier))
+                .map(|(alias, bumped)| (alias.to_string(), specifier(bumped)))
                 .collect();
             (owner, aliases)
         })
@@ -144,11 +145,10 @@ fn render_aliases(
 /// The range that pins `version` for a dependency that currently declares
 /// `declared`, or `None` when the declaration is not a range this may move.
 ///
-/// The declared range operator is kept — `^` stays `^`, `~` stays `~`, an
-/// exact pin stays exact — falling back to `default_style` when the
-/// declaration pins none, and an `npm:` alias is re-wrapped so the entry
-/// keeps pointing at the same package. Mirrors the npm resolver's
-/// `calc_specifier`, which does the same for a version it has just picked.
+/// The operator the declaration already pins wins over `default_style`, so
+/// an update never widens or narrows what the manifest asked for. Mirrors
+/// the npm resolver's `calc_specifier`, which decides the same text for a
+/// version it has just picked.
 fn bumped_range(
     declared: &str,
     version: &ImporterDepVersion,
@@ -195,26 +195,29 @@ fn split_npm_alias(declared: &str) -> Option<(&str, &str)> {
     Some((&declared[..prefix_len], &declared[prefix_len..]))
 }
 
+/// Index into an importer's dependency maps, in the order
+/// [`declared_dependency`] and [`dependency_maps_mut`] both lay them out:
+/// `dependencies`, `devDependencies`, `optionalDependencies`. Carried so a
+/// dependency declared in more than one group only has the range that was
+/// read rewritten.
+type DependencyGroupIndex = usize;
+
 fn declared_dependency<'a>(
     importer: &'a ProjectSnapshot,
     alias: &PkgName,
-) -> Option<&'a ResolvedDependencySpec> {
+) -> Option<(DependencyGroupIndex, &'a ResolvedDependencySpec)> {
     [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
         .into_iter()
-        .flatten()
-        .find_map(|group| group.get(alias))
+        .enumerate()
+        .find_map(|(index, group)| Some((index, group.as_ref()?.get(alias)?)))
 }
 
-fn dependency_maps_mut(
-    importer: &mut ProjectSnapshot,
-) -> impl Iterator<Item = &mut ResolvedDependencyMap> {
+fn dependency_maps_mut(importer: &mut ProjectSnapshot) -> [Option<&mut ResolvedDependencyMap>; 3] {
     [
         importer.dependencies.as_mut(),
         importer.dev_dependencies.as_mut(),
         importer.optional_dependencies.as_mut(),
     ]
-    .into_iter()
-    .flatten()
 }
 
 #[cfg(test)]

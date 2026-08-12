@@ -154,9 +154,7 @@ fn update_bumps_within_range() {
     drop((root, anchor));
 }
 
-/// A compatible update keeps the range operator the dependency already
-/// declared, the same way `--latest` does. An exact pin has no room to move,
-/// so it stands.
+/// An exact pin is included because it has no room to move.
 #[test]
 fn update_preserves_the_declared_range_operator() {
     let (root, workspace, anchor) = setup();
@@ -178,8 +176,7 @@ fn update_preserves_the_declared_range_operator() {
     drop((root, anchor));
 }
 
-/// A dist-tag names no version of its own, so the version behind it moving
-/// leaves the manifest entry saying exactly what the user asked for.
+/// A dist-tag names no version of its own, so there is nothing to rewrite.
 #[test]
 fn update_keeps_a_dist_tag_specifier() {
     let (root, workspace, anchor) = setup();
@@ -194,9 +191,8 @@ fn update_keeps_a_dist_tag_specifier() {
     drop((root, anchor));
 }
 
-/// A package selector scopes the manifest rewrite to the dependency it
-/// matched; the rest keep their declared ranges even when a newer version
-/// is in range.
+/// The unmatched dependency also has a newer version in range, so its
+/// untouched declaration is the selector's doing rather than a no-op.
 #[test]
 fn update_with_selector_only_rewrites_the_matched_dependency() {
     let (root, workspace, anchor) = setup();
@@ -212,8 +208,8 @@ fn update_with_selector_only_rewrites_the_matched_dependency() {
     drop((root, anchor));
 }
 
-/// `--no-save` keeps `package.json` authoritative: the lockfile still moves
-/// within the declared range, but the range itself is left alone.
+/// `--no-save` keeps `package.json` authoritative, so the lockfile moves
+/// within the declared range while the range itself stands.
 #[test]
 fn update_no_save_keeps_the_declared_range() {
     let (root, workspace, anchor) = setup();
@@ -416,9 +412,8 @@ fn update_latest_preserves_tilde() {
     drop((root, anchor));
 }
 
-/// A dist-tag reaches the latest version on its own, so `--latest` leaves
-/// the declaration tracking the tag rather than pinning what it points at
-/// today.
+/// A dist-tag already reaches the latest version, so `--latest` has nothing
+/// to rewrite either.
 #[test]
 fn update_latest_keeps_a_dist_tag_specifier() {
     let (root, workspace, anchor) = setup();
@@ -1048,9 +1043,8 @@ fn update_latest_catalog_preserves_reference_and_operator() {
     drop((root, anchor));
 }
 
-/// A compatible update moves a `catalog:` dependency the same way
-/// `--latest` does: the catalog entry owns the range, so the entry is what
-/// gets rewritten, within the range it already declares.
+/// The catalog entry owns the range a `catalog:` dependency declares, so it
+/// is the entry that moves and the entry that bounds the bump.
 #[test]
 fn update_catalog_bumps_the_entry_within_its_range() {
     let (root, workspace, anchor) = setup();

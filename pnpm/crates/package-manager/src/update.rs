@@ -74,12 +74,10 @@ use std::{
 ///   `saveWorkspaceProtocol` deciding whether the linked version is
 ///   written out or only its range operator.
 ///
-/// A compatible bump and `--latest` both keep the range operator the
-/// dependency already pinned (`^` stays `^`, `~` stays `~`, an exact pin
-/// stays exact), fall back to the configured default otherwise, and leave a
-/// dependency declared through a dist-tag or a non-registry protocol alone.
-/// A `catalog:` reference moves the catalog entry instead of the manifest
-/// entry.
+/// A compatible bump and `--latest` write the same way: the operator the
+/// dependency already pinned wins over the configured default, a dist-tag or
+/// a non-registry protocol is left alone, and a `catalog:` reference moves
+/// the catalog entry rather than the manifest entry.
 ///
 /// Selector handling:
 /// bare-name selectors (`foo`, `@scope/bar-*`) with `depth > 0` and no
