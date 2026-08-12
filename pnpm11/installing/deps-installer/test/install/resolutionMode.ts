@@ -117,14 +117,27 @@ test('a hoisted peer of a transitive dependency is resolved to its highest satis
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
   const project = prepareEmpty()
 
-  // A hoisted (auto-installed) peer is not a dependency the user declared,
-  // so the direct-dep pick of lowest-direct must not apply to it even though
-  // it is installed at the importer level.
+  // A hoisted peer is not a dependency the user declared, so the direct-dep pick must not apply to it.
   await install({
     dependencies: {
       '@pnpm.e2e/abc-parent-with-missing-peers': '1.0.0',
     },
   }, testDefaults({ resolutionMode: 'lowest-direct', autoInstallPeers: true }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.0']).toBeFalsy()
+})
+
+test('a hoisted peer of a transitive dependency is resolved to its highest satisfying version when resolution mode is time-based', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/abc-parent-with-missing-peers': '1.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'time-based', autoInstallPeers: true }))
 
   const lockfile = project.readLockfile()
   expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()

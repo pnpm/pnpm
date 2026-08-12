@@ -1567,11 +1567,7 @@ fn resolution_mode_time_based_applies_under_a_minimum_release_age() {
 
 /// A hoisted (auto-installed) peer is not a dependency the user
 /// declared, so the direct-dep pick of `lowest-direct` must not apply
-/// to it even though it lands at the importer level: like any
-/// transitive dep, it resolves to the highest satisfying version.
-/// `@pnpm.e2e/abc-parent-with-missing-peers` pulls in `@pnpm.e2e/abc`,
-/// whose `@pnpm.e2e/peer-a: ^1.0.0` peer nothing provides; the
-/// auto-install must land on `1.0.1`, not `1.0.0`.
+/// to it even though it installs at the importer level.
 #[test]
 fn resolution_mode_lowest_direct_resolves_hoisted_peers_to_highest() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -1596,6 +1592,38 @@ fn resolution_mode_lowest_direct_resolves_hoisted_peers_to_highest() {
     assert!(
         pnpm_dir.join("@pnpm.e2e+peer-a@1.0.1").exists(),
         "the hoisted peer must resolve to the highest satisfying version under lowest-direct",
+    );
+    assert!(!pnpm_dir.join("@pnpm.e2e+peer-a@1.0.0").exists());
+
+    drop((root, mock_instance));
+}
+
+/// `time-based` shares the hoisted-peer rule with `lowest-direct`: the
+/// hoist resolves like a transitive dep — highest satisfying, under the
+/// subdep publish-date cutoff.
+#[test]
+fn resolution_mode_time_based_resolves_hoisted_peers_to_highest() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    existing.push_str("resolutionMode: time-based\nminimumReleaseAge: 0\nautoInstallPeers: true\n");
+    fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/abc-parent-with-missing-peers": "1.0.0" },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    assert!(
+        pnpm_dir.join("@pnpm.e2e+peer-a@1.0.1").exists(),
+        "the hoisted peer must resolve to the highest satisfying version under time-based",
     );
     assert!(!pnpm_dir.join("@pnpm.e2e+peer-a@1.0.0").exists());
 

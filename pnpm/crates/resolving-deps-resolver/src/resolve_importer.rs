@@ -502,8 +502,6 @@ impl ImporterHoistState {
         .await?;
         ctx.workspace().set_direct_locked_peer_names(&direct, &locked_peer_names_by_alias);
         parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
-        // Everything extend_tree walks from here on is a hoisted peer;
-        // see [`TreeCtx::resolve_new_direct_deps_as_subdeps`].
         ctx.resolve_new_direct_deps_as_subdeps();
         Ok(ImporterHoistState {
             importer_id: importer_id.to_string(),
