@@ -1091,6 +1091,10 @@
   dir: pnpr/npm/pnpr
   intents:
     - pnpr-catalog-overrides
+"@pnpm/pnpr@0.1.0-alpha.6":
+  dir: pnpr/npm/pnpr
+  intents:
+    - secure-catalogs-route
 "@pnpm/prepare-temp-dir@1100.0.1":
   dir: pnpm11/__utils__/prepare-temp-dir
   intents:
@@ -1852,6 +1856,56 @@ pacquet@12.0.0-rc.3:
   dir: pnpm/npm/pnpm
   intents:
     - shim-exec-preserves-signals
+pacquet@12.0.0-rc.4:
+  dir: pnpm/npm/pnpm
+  intents:
+    - add-command-fast-path
+    - atomic-global-install-activation
+    - audit-fix-age-excludes-only-when-needed
+    - bound-pnpmfile-worker-requests
+    - catalog-strict-range-satisfies
+    - ci-frozen-lockfile-default
+    - composed-catalog-and-override-rewrites
+    - composed-fast-updates
+    - cycle-verdict-cache
+    - dedupe-missing-peer-ranges
+    - dedupe-removes-redundant-project-links
+    - deploy-injects-workspace-packages-again
+    - deploy-no-optional-symlinks
+    - deploy-the-workspace-root
+    - deterministic-children-ownership-handover
+    - fast-update-single-staging
+    - frozen-lockfile-package-extensions-peer
+    - git-fetch-failure-hint
+    - git-resolution-integrity-parses
+    - git-resolve-failure-hint
+    - group-moves-fast-update
+    - ignore-pnpmfile-flag
+    - injected-syncer-stale-bins
+    - level-synchronous-children-ownership
+    - locked-version-reuse
+    - lockfile-time-section-round-trips
+    - lowest-direct-under-minimum-release-age
+    - minimum-release-age-exclude-prune
+    - new-importer-fast-update
+    - override-range-fast-update
+    - pacquet-catalog-locked-version-noop
+    - pacquet-sync-injected-deps-after-scripts
+    - parent-scoped-overrides
+    - peer-resolution-memory
+    - peer-suffix-version-precision
+    - pinned-children-survive-a-fresh-walk
+    - pnpmfile-hooks-project-specifiers
+    - prune-reports-workspace-scope
+    - prune-stale-importers
+    - remove-command-fast-path
+    - repair-shared-slot-in-place
+    - sbom-exclude-uninstallable-platform-packages
+    - shallow-pacquet-links
+    - shared-package-ids
+    - ssh-git-url-without-user-info
+    - stream-env-lockfile-document
+    - unused-patch-after-removal
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
