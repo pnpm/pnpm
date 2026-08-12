@@ -33,6 +33,7 @@ for (const suffix of [
 ]) {
   delete process.env[`npm_config_${suffix}`]
   delete process.env[`pnpm_config_${suffix}`]
+  delete process.env[`PNPM_CONFIG_${suffix.toUpperCase()}`]
 }
 
 const env = {
@@ -100,6 +101,63 @@ test('nodeVersion from config takes priority over devEngines.runtime', async () 
   const { config } = await getConfig({
     cliOptions: {
       'node-version': '20.0.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe('20.0.0')
+})
+
+test('nodeVersion is read from pnpm_config_* environment variables', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_NODE_VERSION: '20.0.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe('20.0.0')
+})
+
+test('nodeVersion from pnpm_config_* environment variables takes priority over devEngines.runtime', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '22.20.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_NODE_VERSION: '20.0.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe('20.0.0')
+})
+
+test('nodeVersion from config takes priority over pnpm_config_* environment variables', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'node-version': '20.0.0',
+    },
+    env: {
+      PNPM_CONFIG_NODE_VERSION: '22.20.0',
     },
     packageManager: {
       name: 'pnpm',
