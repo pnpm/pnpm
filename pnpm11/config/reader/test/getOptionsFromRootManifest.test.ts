@@ -170,6 +170,97 @@ test('getOptionsFromPnpmSettings() rejects a non-object package extension', () =
   }))
 })
 
+test('getOptionsFromPnpmSettings() rejects a non-object dependency field in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        dependencies: [],
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].dependencies" setting should be an object, but got array',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-string range in optionalDependencies of packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        optionalDependencies: {
+          bar: 1,
+        },
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].optionalDependencies.bar" setting should be a string, but got number',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-object peerDependenciesMeta in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        peerDependenciesMeta: 'bar',
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].peerDependenciesMeta" setting should be an object, but got string',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-object peerDependenciesMeta entry in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        peerDependenciesMeta: {
+          bar: true,
+        },
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].peerDependenciesMeta.bar" setting should be an object, but got boolean',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects non-object packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: false,
+  } as unknown as Record<string, unknown>)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions" setting should be an object, but got boolean',
+  }))
+})
+
+// A key left empty in pnpm-workspace.yaml parses to null. pacquet reads the same
+// shapes into `Option` fields, where null and an absent key are the same thing.
+test('getOptionsFromPnpmSettings() treats null packageExtensions fields as unset', () => {
+  expect(getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        dependencies: null,
+        peerDependenciesMeta: {
+          bar: {
+            optional: null,
+          },
+        },
+      },
+    },
+  } as unknown as Record<string, unknown>).packageExtensions).toStrictEqual({
+    'foo@*': {
+      dependencies: null,
+      peerDependenciesMeta: {
+        bar: {
+          optional: null,
+        },
+      },
+    },
+  })
+})
+
 test('getOptionsFromPnpmSettings() accepts valid packageExtensions', () => {
   expect(getOptionsFromPnpmSettings(process.cwd(), {
     packageExtensions: {

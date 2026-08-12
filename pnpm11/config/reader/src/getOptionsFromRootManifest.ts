@@ -59,7 +59,7 @@ export function getOptionsFromPnpmSettings (
       }
     }
   }
-  if (settings.packageExtensions) {
+  if (settings.packageExtensions != null) {
     assertValidPackageExtensions(settings.packageExtensions)
   }
   if (pnpmSettings.patchedDependencies) {
@@ -172,6 +172,9 @@ const PACKAGE_EXTENSION_DEPENDENCY_FIELDS = ['dependencies', 'optionalDependenci
 // merges the value onto the manifest as is, and it only surfaces once peer
 // resolution tries to read a version out of it, far away from the setting that
 // produced it.
+//
+// A `null` field counts as absent rather than malformed — that is what a key
+// left empty in YAML parses to, and what pacquet's `Option` fields accept.
 function assertValidPackageExtensions (packageExtensions: unknown): asserts packageExtensions is Record<string, PackageExtension> {
   assertObjectSetting(packageExtensions, 'packageExtensions')
   for (const [selector, extension] of Object.entries(packageExtensions as Record<string, unknown>)) {
