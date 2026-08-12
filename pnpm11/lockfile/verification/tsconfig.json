@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {

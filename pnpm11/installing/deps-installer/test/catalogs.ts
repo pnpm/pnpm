@@ -1792,6 +1792,54 @@ describe('update', () => {
   // is-positive since public packages can release new versions and break the
   // tests here.
 
+  test('a project left behind by a catalog update follows the entry on its next install', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }, {
+      name: 'project2',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Update one project. The other keeps the version the entry resolved to before, which
+    // the bumped entry no longer admits.
+    const { updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        update: true,
+      })
+    expect(updatedCatalogs).toEqual({ default: { '@pnpm.e2e/foo': '^1.3.0' } })
+    catalogs.default['@pnpm.e2e/foo'] = '^1.3.0'
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // A catalog entry resolves to one version for every project that references it.
+    expect(readLockfile().importers).toMatchObject({
+      project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.3.0' } } },
+      project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.3.0' } } },
+    })
+  })
+
   test('update works on cataloged dependency', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',

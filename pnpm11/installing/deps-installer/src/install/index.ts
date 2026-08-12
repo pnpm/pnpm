@@ -71,7 +71,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
-import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, catalogResolutionIsStale, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
@@ -773,7 +773,6 @@ export async function mutateModules (
       }
     }
     let outdatedLockfileSettingName: ChangedField | null = changedLockfileSettings[0] ?? null
-    const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let didFastUpdateOverrides = false
     const contextProjects = Object.values(ctx.projects).map((project) => {
@@ -1068,7 +1067,11 @@ export async function mutateModules (
       }
 
       if (ctx.wantedLockfile?.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
+        forgetResolutionsOfPrevWantedDeps(wantedDependencies, {
+          importer: ctx.wantedLockfile.importers[project.id],
+          prevCatalogs: ctx.wantedLockfile.catalogs,
+          catalogsConfig: opts.catalogs,
+        })
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
         (project.manifest.scripts.preinstall != null ||
@@ -1577,22 +1580,30 @@ function pkgHasDependencies (manifest: ProjectManifest): boolean {
 // If the specifier is new, the old resolution probably does not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
 function forgetResolutionsOfPrevWantedDeps (
-  importer: ProjectSnapshot,
   wantedDeps: WantedDependency[],
-  isWantedDepBareSpecifierSame: (alias: string, prevBareSpecifier: string | undefined, nextBareSpecifier: string) => boolean
+  ctx: {
+    importer: ProjectSnapshot
+    prevCatalogs: CatalogSnapshots | undefined
+    catalogsConfig: Catalogs | undefined
+  }
 ): void {
+  const { importer, prevCatalogs, catalogsConfig } = ctx
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies ?? {}
   importer.devDependencies = importer.devDependencies ?? {}
   importer.optionalDependencies = importer.optionalDependencies ?? {}
   for (const { alias, bareSpecifier } of wantedDeps) {
-    if (alias && !isWantedDepBareSpecifierSame(alias, importer.specifiers[alias], bareSpecifier)) {
-      if (!importer.dependencies[alias]?.startsWith('link:')) {
-        delete importer.dependencies[alias]
-      }
-      delete importer.devDependencies[alias]
-      delete importer.optionalDependencies[alias]
+    if (!alias) continue
+    const prevBareSpecifier = importer.specifiers[alias]
+    if (
+      isWantedDepBareSpecifierSame(prevCatalogs, catalogsConfig, alias, prevBareSpecifier, bareSpecifier) &&
+      !catalogResolutionIsStale({ importer, catalogs: prevCatalogs, alias, specifier: prevBareSpecifier })
+    ) continue
+    if (!importer.dependencies[alias]?.startsWith('link:')) {
+      delete importer.dependencies[alias]
     }
+    delete importer.devDependencies[alias]
+    delete importer.optionalDependencies[alias]
   }
 }
 
@@ -2520,7 +2531,6 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           updateWorkspaceDependencies: false,
           injectWorkspacePackages: opts.injectWorkspacePackages,
         }
-        const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
         for (const project of allProjectsLocatedInsideWorkspace) {
           if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
             // This code block mirrors the installCase() function in
@@ -2528,7 +2538,11 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             // deduplicate code.
             const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
               .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
-            forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
+            forgetResolutionsOfPrevWantedDeps(wantedDependencies, {
+              importer: ctx.wantedLockfile.importers[project.id],
+              prevCatalogs: ctx.wantedLockfile.catalogs,
+              catalogsConfig: opts.catalogs,
+            })
             newProjects.push({
               mutation: 'install',
               ...project,
