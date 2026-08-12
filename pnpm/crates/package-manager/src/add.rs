@@ -227,13 +227,20 @@ where
             manifest,
         )
         .map_err(AddError::WriteWorkspaceManifest)?;
+        let (dropped_pins, preferred_versions_override) = catalog_version_requests(
+            package_names,
+            manifest,
+            &catalog_ctx.catalogs,
+            lockfile,
+            config,
+            save_catalog_name.as_deref(),
+        );
         let catalogs_override = (!updated_catalogs.is_empty()).then(|| {
             let mut catalogs = catalog_ctx.catalogs;
             merge_catalogs(&mut catalogs, &updated_catalogs);
             catalogs
         });
 
-        let (dropped_pins, preferred_versions_override) = explicit_version_requests(package_names);
         // A `catalog:` dependency's manifest specifier doesn't change when the version
         // behind it does, so the freshness gate would hold and the install would never
         // reach the resolver.
@@ -281,7 +288,10 @@ where
             } else {
                 UpdateSeedPolicy::DropOnly {
                     names: dropped_pins,
-                    max_depth: UpdateDepth::UNLIMITED,
+                    // A catalog entry governs direct dependencies, so the pin is
+                    // withheld there and transitive occurrences of the same package
+                    // keep theirs.
+                    max_depth: UpdateDepth::new(0),
                 }
             },
             preferred_versions_override: Some(preferred_versions_override),
@@ -357,7 +367,22 @@ where
         )
         .map_err(AddError::WriteWorkspaceManifest)?;
 
-        let (dropped_pins, preferred_versions_override) = explicit_version_requests(package_names);
+        let mut dropped_pins = HashSet::new();
+        let mut preferred_versions_override = PreferredVersions::new();
+        for &index in &selected_indices {
+            let (names, preferred) = catalog_version_requests(
+                package_names,
+                &projects[index].manifest,
+                &prepared.catalogs,
+                lockfile,
+                config,
+                save_catalog_name.as_deref(),
+            );
+            dropped_pins.extend(names);
+            for (name, selectors) in preferred {
+                preferred_versions_override.entry(name).or_default().extend(selectors);
+            }
+        }
         // A `catalog:` dependency's manifest specifier doesn't change when the version
         // behind it does, so the freshness gate would hold and the install would never
         // reach the resolver.
@@ -397,7 +422,8 @@ where
                 } else {
                     UpdateSeedPolicy::DropOnly {
                         names: dropped_pins,
-                        max_depth: UpdateDepth::UNLIMITED,
+                        // See the sibling `DropOnly` in [`Self::run`].
+                        max_depth: UpdateDepth::new(0),
                     }
                 },
                 preferred_versions_override: Some(preferred_versions_override),
@@ -430,28 +456,58 @@ where
 }
 
 /// The lockfile pins to withhold, and the preferences to layer on the seed,
-/// for the versions an `add` named outright.
+/// for a version an `add` named that its catalog entry resolves past.
 ///
-/// A version named on the command line has to reach the lockfile even when
-/// the specifier that lands in the manifest doesn't carry it — the
-/// `catalog:` case, where the version lives in the catalog entry. Without
-/// this the entry's recorded resolution is reused and the request is
-/// dropped without a word.
-fn explicit_version_requests(package_selectors: &[String]) -> (HashSet<String>, PreferredVersions) {
+/// A cataloged dependency writes `catalog:` to the manifest and keeps its
+/// version in the catalog entry, so a version named on the command line has
+/// nowhere else to land: without this the entry's recorded resolution is
+/// reused and the request is dropped in silence. Every other `add` — a
+/// dependency that isn't cataloged, a catalog entry that already resolves to
+/// the wanted version, one the wanted version falls outside of — is left
+/// alone, so an add that needs no resolution still skips it.
+fn catalog_version_requests(
+    package_selectors: &[String],
+    manifest: &PackageManifest,
+    catalogs: &Catalogs,
+    lockfile: Option<&Lockfile>,
+    config: &Config,
+    save_catalog_name: Option<&str>,
+) -> (HashSet<String>, PreferredVersions) {
     let mut names = HashSet::new();
     let mut preferred = PreferredVersions::new();
+    if config.catalog_mode == pacquet_config::CatalogMode::Manual && save_catalog_name.is_none() {
+        return (names, preferred);
+    }
     for selector in package_selectors {
         let parsed = pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency(selector);
-        let (Some(alias), Some(bare_specifier)) = (parsed.alias, parsed.bare_specifier) else {
+        let (Some(alias), Some(wanted)) = (parsed.alias, parsed.bare_specifier) else {
             continue;
         };
-        if node_semver::Version::parse(&bare_specifier).is_err() {
+        if node_semver::Version::parse(&wanted).is_err() {
+            continue;
+        }
+        let previous = manifest
+            .dependencies(DIRECT_GROUPS)
+            .find_map(|(name, specifier)| (name == alias).then_some(specifier));
+        let catalog_name = crate::per_dep_catalog_name(previous, save_catalog_name);
+        let Some(entry) = catalogs.get(catalog_name).and_then(|catalog| catalog.get(&alias)) else {
+            continue;
+        };
+        if !crate::catalog_covers(entry, &wanted) {
+            continue;
+        }
+        let resolved = lockfile
+            .and_then(|lockfile| lockfile.catalogs.as_ref())
+            .and_then(|catalogs| catalogs.get(catalog_name))
+            .and_then(|catalog| catalog.get(&alias))
+            .map(|entry| entry.version.as_str());
+        if resolved == Some(wanted.as_str()) {
             continue;
         }
         crate::install_with_fresh_lockfile::prefer_requested_version(
             &mut preferred,
             &alias,
-            &bare_specifier,
+            &wanted,
         );
         names.insert(alias);
     }
@@ -465,6 +521,7 @@ struct AddCatalogCtx {
 }
 
 struct SelectedAddPreparation {
+    catalogs: Catalogs,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir: PathBuf,
@@ -526,8 +583,9 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         merge_catalogs(&mut updated_catalogs, &updates);
     }
 
-    let catalogs_override = (!updated_catalogs.is_empty()).then_some(catalogs);
+    let catalogs_override = (!updated_catalogs.is_empty()).then_some(catalogs.clone());
     Ok(SelectedAddPreparation {
+        catalogs,
         updated_catalogs,
         catalogs_override,
         workspace_dir: catalog_ctx.workspace_dir,

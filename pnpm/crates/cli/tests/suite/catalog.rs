@@ -479,10 +479,7 @@ fn prunes_the_minimum_release_age_excludes() {
     drop((root, anchor));
 }
 
-/// A version named on the command line reaches the lockfile even when the
-/// catalog entry it resolves through names a different one. Without this the
-/// entry's recorded resolution is reused and the request is dropped in
-/// silence — no install, no error ([pnpm#13715](https://github.com/pnpm/pnpm/issues/13715)).
+/// Regression test for [pnpm#13715](https://github.com/pnpm/pnpm/issues/13715).
 #[test]
 fn add_moves_a_catalog_locked_on_another_version() {
     let (root, workspace, anchor) = setup();
@@ -508,8 +505,6 @@ fn add_moves_a_catalog_locked_on_another_version() {
     drop((root, anchor));
 }
 
-/// The same for `update`, where the requested version is older than the one
-/// the entry resolves to but still inside its range.
 #[test]
 fn update_moves_a_catalog_to_an_older_in_range_version() {
     let (root, workspace, anchor) = setup();

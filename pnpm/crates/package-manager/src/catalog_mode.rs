@@ -194,14 +194,14 @@ pub(crate) fn decide_catalog_outcome(
 /// The wanted specifier has to be a concrete version. A wanted range is
 /// never covered, because the catalog — not the dependency — decides which
 /// version a `catalog:` reference resolves to.
-fn catalog_covers(entry: &str, wanted: &str) -> bool {
+pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
     matches!((Range::parse(entry), Version::parse(wanted)), (Ok(entry), Ok(wanted)) if entry.satisfies(&wanted))
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`
 /// specifier pins the named group; otherwise the global `--save-catalog-name`,
 /// falling back to the default catalog.
-fn per_dep_catalog_name<'a>(
+pub(crate) fn per_dep_catalog_name<'a>(
     prev_specifier: Option<&'a str>,
     save_catalog_name: Option<&'a str>,
 ) -> &'a str {
