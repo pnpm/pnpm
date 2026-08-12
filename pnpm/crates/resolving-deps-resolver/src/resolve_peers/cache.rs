@@ -169,6 +169,8 @@ impl Walker<'_> {
         })
     }
 
+    
+
     /// Compare two `NodeId`s' recorded parent peer contexts:
     /// both nodes' contexts must have the same set of peer-relevant
     /// names, every name must resolve to the same version or
@@ -505,8 +507,8 @@ impl Walker<'_> {
                 .get(parent_node_id)
                 .is_some_and(|node| node.resolved_package_id == current_pkg_id);
             if same_pkg {
-                for (alias, child_node_id) in self.realize_children(parent_node_id).0 {
-                    children.entry(alias).or_insert(child_node_id);
+                for (alias, child_node_id) in self.realize_children(parent_node_id).0.iter() {
+                    children.entry(alias.clone()).or_insert_with(|| child_node_id.clone());
                 }
             }
         }
@@ -609,7 +611,7 @@ impl Walker<'_> {
     fn realize_children(
         &mut self,
         node_id: &NodeId,
-    ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
+    ) -> (Arc<BTreeMap<String, NodeId>>, Option<UndoRealize>) {
         self.realize_children_with(node_id, None)
     }
 
@@ -617,13 +619,14 @@ impl Walker<'_> {
         &mut self,
         node_id: &NodeId,
         previewed: Option<&BTreeMap<String, NodeId>>,
-    ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
+    ) -> (Arc<BTreeMap<String, NodeId>>, Option<UndoRealize>) {
         // Snapshot the bits we need; we'll mutate `self.tree` below
         // and can't hold a borrow on the entry across the mutation.
         let (parent_ids, pkg_id, depth) = {
             let node = &self.tree.dependencies_tree[node_id];
             match &node.children {
-                TreeChildren::Realized(map) => return (map.clone(), None),
+                // Cheap: the realized map is shared, not copied per revisit.
+                TreeChildren::Realized(map) => return (Arc::clone(map), None),
                 TreeChildren::Lazy { parent_ids } => {
                     (parent_ids.clone(), node.resolved_package_id.clone(), node.depth)
                 }
@@ -677,10 +680,11 @@ impl Walker<'_> {
             }
             realized.insert(edge.alias.clone(), child_node_id);
         }
+        let realized = Arc::new(realized);
         // Replace this node's `Lazy` with `Realized` so future
         // visitors reuse the work.
         if let Some(node) = self.tree.dependencies_tree.get_mut(node_id) {
-            node.children = TreeChildren::Realized(realized.clone());
+            node.children = TreeChildren::Realized(Arc::clone(&realized));
         }
         (realized, Some(UndoRealize { newly_inserted, prev_parent_ids: parent_ids }))
     }

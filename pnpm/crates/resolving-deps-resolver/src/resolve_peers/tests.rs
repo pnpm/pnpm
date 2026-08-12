@@ -1633,11 +1633,11 @@ mod locked_peer_provider_preferences {
     /// binding `peer` to `peer@2.0.0`.
     fn locked_provider_tree(ids: &LockedTreeIds, peer_range: &str) -> ResolvedTree {
         let mut current_peer_node = tree_node("peer@1.0.0", BTreeMap::new(), 0);
-        current_peer_node.previous_dep_path = Some(DepPath::from("peer@1.0.0"));
+        current_peer_node.locked_mut().previous_dep_path = Some(DepPath::from("peer@1.0.0"));
         let mut retained_peer_node = tree_node("peer@2.0.0", BTreeMap::new(), 1);
-        retained_peer_node.previous_dep_path = Some(DepPath::from("peer@2.0.0"));
+        retained_peer_node.locked_mut().previous_dep_path = Some(DepPath::from("peer@2.0.0"));
         let mut consumer_node = tree_node("consumer@1.0.0", BTreeMap::new(), 1);
-        consumer_node.locked_peer_context =
+        consumer_node.locked_mut().locked_peer_context =
             Some(BTreeMap::from([("peer".to_string(), DepPath::from("peer@2.0.0"))]));
         ResolvedTree {
             direct: vec![

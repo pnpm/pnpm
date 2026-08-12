@@ -1068,7 +1068,7 @@ impl WorkspaceTreeCtx {
                 continue;
             };
             if let Some(node) = tree.get_mut(&dep.node_id) {
-                node.locked_peer_names = Some(Arc::clone(names));
+                node.locked_mut().locked_peer_names = Some(Arc::clone(names));
             }
         }
     }
@@ -1351,10 +1351,10 @@ impl ChildrenRecording {
         match self {
             ChildrenRecording::Declined => (lazy_children(parent_ids), false),
             ChildrenRecording::Published => {
-                (crate::resolved_tree::TreeChildren::Realized(realized), false)
+                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), false)
             }
             ChildrenRecording::PublishedOverStale => {
-                (crate::resolved_tree::TreeChildren::Realized(realized), true)
+                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), true)
             }
         }
     }

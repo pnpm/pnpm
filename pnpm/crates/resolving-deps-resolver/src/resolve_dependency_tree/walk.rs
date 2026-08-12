@@ -674,7 +674,7 @@ fn settle_seeds(
             insert_walked_node(
                 ctx,
                 &pending,
-                crate::resolved_tree::TreeChildren::Realized(BTreeMap::new()),
+                crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(BTreeMap::new())),
             );
             continue;
         }

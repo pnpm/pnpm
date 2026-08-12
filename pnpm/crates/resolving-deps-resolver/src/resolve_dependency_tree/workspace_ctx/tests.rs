@@ -25,7 +25,7 @@ fn importer_snapshot_excludes_other_importers_occurrence_nodes() {
             root.clone(),
             DependenciesTreeNode::new(
                 "root@1.0.0".to_string(),
-                TreeChildren::Realized(BTreeMap::from([("child".to_string(), child.clone())])),
+                TreeChildren::Realized(BTreeMap::from([("child".to_string(), child.clone())]).into()),
                 0,
                 true,
             ),
