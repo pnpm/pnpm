@@ -1033,7 +1033,14 @@ fn extend_project_manifests(
             .map_err(InstallError::InvalidPackageExtensionSelector)?,
         None => None,
     };
-    if compat_extender.is_none() && extender.is_none() {
+    let selects = |manifest: &PackageManifest| {
+        compat_extender.is_some_and(|extender| extender.matches(manifest.value()))
+            || extender.as_ref().is_some_and(|extender| extender.matches(manifest.value()))
+    };
+    // A workspace project is rarely named by an extension — pnpm's
+    // compatibility set names published packages — so this usually finds
+    // nothing and the caller keeps the manifests it read from disk.
+    if !project_manifests.iter().any(|(_, manifest)| selects(manifest)) {
         return Ok(Vec::new());
     }
     Ok(project_manifests

@@ -113,6 +113,23 @@ impl PackageExtender {
         self.by_pkg_name.is_empty()
     }
 
+    /// Whether any extension entry selects `manifest` — the name bucket
+    /// and the per-entry range both. Callers use it to skip the deep
+    /// clone for a manifest nothing extends; the cost scales with the
+    /// actual hit count rather than with the number of manifests.
+    #[must_use]
+    pub fn matches(&self, manifest: &Value) -> bool {
+        if self.is_empty() {
+            return false;
+        }
+        let Some(map) = manifest.as_object() else { return false };
+        let Some(name) = map.get("name").and_then(Value::as_str) else { return false };
+        let Some(entries) = self.by_pkg_name.get(name) else { return false };
+        let version =
+            map.get("version").and_then(Value::as_str).and_then(|raw| raw.parse::<Version>().ok());
+        entries.iter().any(|entry| entry_matches(&entry.range, version.as_ref()))
+    }
+
     /// Apply extensions in place to a single manifest.
     pub fn apply(&self, manifest: &mut Value) {
         let Some(map) = manifest.as_object_mut() else { return };
@@ -138,24 +155,14 @@ impl PackageExtender {
     /// consumer a fresh manifest without paying the deep-clone tax
     /// when nothing changed.
     ///
-    /// The name-bucket check on its own is not enough — a selector
-    /// `is-positive@^1` against a `2.0.0` manifest shares the bucket
-    /// but never matches, so a per-entry range pre-check happens
-    /// before the deep-clone. The result is the only allocation site
-    /// on the resolve hot path; an over-eager clone here would scale
-    /// with package count instead of with the actual extension hit
-    /// count.
+    /// [`Self::matches`] does the pre-check, range included: a selector
+    /// `is-positive@^1` against a `2.0.0` manifest shares the name
+    /// bucket but never matches. This is the only allocation site on
+    /// the resolve hot path; an over-eager clone here would scale with
+    /// package count instead of with the actual extension hit count.
+    #[must_use]
     pub fn apply_to_arc(&self, manifest: Arc<Value>) -> Arc<Value> {
-        if self.is_empty() {
-            return manifest;
-        }
-        let Some(map) = manifest.as_object() else { return manifest };
-        let Some(name) = map.get("name").and_then(Value::as_str) else { return manifest };
-        let Some(entries) = self.by_pkg_name.get(name) else { return manifest };
-        let version =
-            map.get("version").and_then(Value::as_str).and_then(|raw| raw.parse::<Version>().ok());
-        let has_match = entries.iter().any(|entry| entry_matches(&entry.range, version.as_ref()));
-        if !has_match {
+        if !self.matches(&manifest) {
             return manifest;
         }
         let mut cloned: Value = Value::clone(&manifest);
