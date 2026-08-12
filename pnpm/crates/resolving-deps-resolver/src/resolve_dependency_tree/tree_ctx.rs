@@ -217,6 +217,22 @@ impl TreeCtx {
         self
     }
 
+    /// Resolve the depth-0 walks that follow with the subdep options.
+    ///
+    /// The importer orchestrator calls this once the manifest-declared
+    /// direct deps have seeded: every later [`extend_tree`] on this ctx
+    /// installs hoisted peers, which pnpm resolves like transitive deps
+    /// (highest satisfying version, under the subdep publish-date
+    /// cutoff) even though they land at the importer level — a hoisted
+    /// peer is not a dependency the user declared, so the direct-dep
+    /// pick of `resolutionMode: lowest-direct` / `time-based` must not
+    /// apply to it.
+    ///
+    /// [`extend_tree`]: super::extend_tree
+    pub fn resolve_new_direct_deps_as_subdeps(&mut self) {
+        self.direct_opts = self.subdep_opts.clone();
+    }
+
     /// The [`ResolveOptions`] to hand the resolver for a node at the
     /// given `depth`: importer-level deps (`depth == 0`) use
     /// [`Self::direct_opts`]; everything below uses
