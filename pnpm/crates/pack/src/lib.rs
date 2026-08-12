@@ -846,7 +846,7 @@ fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
 }
 
 /// Whether a packed path looks like a license file, matching upstream's
-/// `/LICEN[CS]E(?:\..+)?$/i` presence test.
+/// `/(?:^|[\\/])LICEN[CS]E(?:\..+)?$/i` presence test.
 fn contains_license(path: &Path) -> bool {
     if let Some(file_name) = path.file_name() {
         return is_license_filename(&file_name.to_string_lossy());

@@ -115,6 +115,8 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
   const workspaceDir = process.cwd()
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
+  fs.writeFileSync('project-1/sublicense.txt', 'project-1 this is not a license', 'utf8')
+  fs.writeFileSync('project-1/licenseX.json', '"project-1 JSON content"', 'utf8')
   fs.writeFileSync('project-2/LICENSE', 'project-2 license', 'utf8')
 
   process.chdir('project-1')
