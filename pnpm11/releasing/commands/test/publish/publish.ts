@@ -150,6 +150,10 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
 
   expect(fs.existsSync('node_modules/project-1/LICENSE')).toBeTruthy()
   expect(fs.readFileSync('node_modules/project-1/LICENSE', 'utf8')).toBe('workspace license')
+  expect(fs.existsSync('node_modules/project-1/sublicense.txt')).toBeTruthy()
+  expect(fs.readFileSync('node_modules/project-1/sublicense.txt', 'utf8')).toBe('project-1 this is not a license')
+  expect(fs.existsSync('node_modules/project-1/licenseX.json')).toBeTruthy()
+  expect(fs.readFileSync('node_modules/project-1/licenseX.json', 'utf8')).toBe('"project-1 JSON content"')
   expect(fs.existsSync('node_modules/project-2/LICENSE')).toBeTruthy()
   expect(fs.readFileSync('node_modules/project-2/LICENSE', 'utf8')).toBe('project-2 license')
 
