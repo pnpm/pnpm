@@ -117,6 +117,8 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
   fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
   fs.writeFileSync('project-1/sublicense.txt', 'project-1 this is not a license', 'utf8')
   fs.writeFileSync('project-1/licenseX.json', '"project-1 JSON content"', 'utf8')
+  fs.mkdirSync('project-1/LICENSE.foo')
+  fs.writeFileSync('project-1/LICENSE.foo/README', 'test', 'utf8')
   fs.writeFileSync('project-2/LICENSE', 'project-2 license', 'utf8')
 
   process.chdir('project-1')
@@ -154,6 +156,7 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
   expect(fs.readFileSync('node_modules/project-1/sublicense.txt', 'utf8')).toBe('project-1 this is not a license')
   expect(fs.existsSync('node_modules/project-1/licenseX.json')).toBeTruthy()
   expect(fs.readFileSync('node_modules/project-1/licenseX.json', 'utf8')).toBe('"project-1 JSON content"')
+  expect(fs.existsSync('node_modules/project-1/LICENSE.foo/README')).toBeTruthy()
   expect(fs.existsSync('node_modules/project-2/LICENSE')).toBeTruthy()
   expect(fs.readFileSync('node_modules/project-2/LICENSE', 'utf8')).toBe('project-2 license')
 
