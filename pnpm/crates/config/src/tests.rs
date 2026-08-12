@@ -3506,7 +3506,7 @@ pub fn global_config_yaml_kebab_case_key_is_reported() {
         [format!(
             r#"The following settings in the global config file ("{}") were ignored because they are not written in camelCase: "store-dir" (use "storeDir")."#,
             config_file.display(),
-        )]
+        )],
     );
 }
 
@@ -3531,7 +3531,7 @@ pub fn global_config_yaml_keys_it_cannot_set_are_reported() {
         [format!(
             r#"The following settings cannot be set in the global config file ("{}") and were ignored: "nodeLinker", "packages". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
             config_file.display(),
-        )]
+        )],
     );
 }
 
@@ -3561,6 +3561,6 @@ pub fn global_config_yaml_null_key_is_silent_and_both_warnings_are_ordered() {
                 r#"The following settings in the global config file ("{}") were ignored because they are not written in camelCase: "store-dir" (use "storeDir")."#,
                 config_file.display(),
             ),
-        ]
+        ],
     );
 }
