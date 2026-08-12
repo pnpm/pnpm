@@ -220,7 +220,7 @@ fn update_rewrites_the_range_with_dedicated_lockfiles() {
     fs::write(
         project.join("package.json"),
         format!(
-            r#"{{ "name": "a", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#
+            r#"{{ "name": "a", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
         ),
     )
     .expect("write project package.json");
