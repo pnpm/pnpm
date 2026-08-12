@@ -999,17 +999,17 @@ impl WorkspaceSettings {
 
         let path = path.display();
         if !ignored.is_empty() {
+            let ignored = ignored.join(", ");
             tracing::warn!(
                 target: "pacquet::config",
-                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
-                ignored.join(", "),
+                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {ignored}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
             );
         }
         if !kebab_case.is_empty() {
+            let kebab_case = kebab_case.join(", ");
             tracing::warn!(
                 target: "pacquet::config",
-                r#"The following settings in the global config file ("{path}") were ignored because they are not written in camelCase: {}."#,
-                kebab_case.join(", "),
+                r#"The following settings in the global config file ("{path}") were ignored because they are not written in camelCase: {kebab_case}."#,
             );
         }
     }

@@ -3490,11 +3490,9 @@ pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
 #[test]
 pub fn global_config_yaml_kebab_case_key_is_reported() {
     let config_dir = tempdir().expect("config tempdir");
-    fs::write(
-        config_dir.path().join("config.yaml"),
-        "store-dir: /kebab-store\nstoreDir: /camel-store\n",
-    )
-    .expect("write global config.yaml");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "store-dir: /kebab-store\nstoreDir: /camel-store\n")
+        .expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
         let settings = WorkspaceSettings::load_global(config_dir.path())
@@ -3507,7 +3505,7 @@ pub fn global_config_yaml_kebab_case_key_is_reported() {
         warnings,
         [format!(
             r#"The following settings in the global config file ("{}") were ignored because they are not written in camelCase: "store-dir" (use "storeDir")."#,
-            config_dir.path().join("config.yaml").display(),
+            config_file.display(),
         )]
     );
 }
@@ -3517,7 +3515,8 @@ pub fn global_config_yaml_kebab_case_key_is_reported() {
 #[test]
 pub fn global_config_yaml_keys_it_cannot_set_are_reported() {
     let config_dir = tempdir().expect("config tempdir");
-    fs::write(config_dir.path().join("config.yaml"), "nodeLinker: hoisted\npackages:\n  - lib/*\n")
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "nodeLinker: hoisted\npackages:\n  - lib/*\n")
         .expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
@@ -3531,7 +3530,7 @@ pub fn global_config_yaml_keys_it_cannot_set_are_reported() {
         warnings,
         [format!(
             r#"The following settings cannot be set in the global config file ("{}") and were ignored: "nodeLinker", "packages". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
-            config_dir.path().join("config.yaml").display(),
+            config_file.display(),
         )]
     );
 }
