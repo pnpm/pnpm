@@ -196,21 +196,12 @@ pub struct PeerDep {
     pub optional: bool,
 }
 
-/// One per-occurrence node in the dependencies tree.
-#[derive(Debug, Clone)]
-pub struct DependenciesTreeNode {
-    /// Key into [`ResolvedTree::packages`].
-    pub resolved_package_id: String,
-    /// `alias → child NodeId` edges, possibly deferred.
-    pub children: TreeChildren,
-    /// Distance from the root importer (root = 0). A `depth = -1` marks
-    /// linked / pruned nodes; pacquet doesn't emit `-1` today because
-    /// workspace-link resolution hasn't been implemented.
-    pub depth: i32,
-    /// Whether the package may be skipped when an optional dep fails
-    /// for its host platform. Always `true` for the npm-shaped slice
-    /// pacquet currently exposes.
-    pub installable: bool,
+/// The wanted-lockfile carry-over a [`DependenciesTreeNode`] may hold.
+///
+/// Split out of the node so the common case — a fresh resolution, with
+/// none of these set — costs one null pointer instead of four `Option`s.
+#[derive(Debug, Default, Clone)]
+pub struct LockedResolution {
     /// `DepPath` this occurrence's package resolved to in the wanted
     /// lockfile, when its resolution was reused from it. Feeds the
     /// reverse index that locked-peer-provider reuse looks providers
@@ -240,6 +231,28 @@ pub struct DependenciesTreeNode {
     pub locked_peer_names: Option<Arc<HashSet<String>>>,
 }
 
+/// One per-occurrence node in the dependencies tree.
+#[derive(Debug, Clone)]
+pub struct DependenciesTreeNode {
+    /// Key into [`ResolvedTree::packages`].
+    pub resolved_package_id: String,
+    /// `alias → child NodeId` edges, possibly deferred.
+    pub children: TreeChildren,
+    /// Distance from the root importer (root = 0). A `depth = -1` marks
+    /// linked / pruned nodes; pacquet doesn't emit `-1` today because
+    /// workspace-link resolution hasn't been implemented.
+    pub depth: i32,
+    /// Whether the package may be skipped when an optional dep fails
+    /// for its host platform. Always `true` for the npm-shaped slice
+    /// pacquet currently exposes.
+    pub installable: bool,
+    /// Wanted-lockfile carry-over for this occurrence, boxed because it
+    /// is `None` for every fresh resolution — which is every node the
+    /// resolver produces today. Inline, its four rarely-set fields cost
+    /// ~88 bytes on each of the millions of nodes the peer walk realizes.
+    pub locked: Option<Box<LockedResolution>>,
+}
+
 impl DependenciesTreeNode {
     /// Node with no wanted-lockfile carry-over (a fresh resolution).
     #[must_use]
@@ -249,16 +262,45 @@ impl DependenciesTreeNode {
         depth: i32,
         installable: bool,
     ) -> Self {
-        DependenciesTreeNode {
-            resolved_package_id,
-            children,
-            depth,
-            installable,
-            previous_dep_path: None,
-            locked_peer_context: None,
-            dependency_names_whose_current_provider_must_win: None,
-            locked_peer_names: None,
-        }
+        DependenciesTreeNode { resolved_package_id, children, depth, installable, locked: None }
+    }
+
+    /// Wanted-lockfile `DepPath` for this occurrence, if it carried one.
+    #[must_use]
+    pub fn previous_dep_path(&self) -> Option<&DepPath> {
+        self.locked.as_ref()?.previous_dep_path.as_ref()
+    }
+
+    /// Locked `peer name → provider DepPath` bindings, if any.
+    #[must_use]
+    pub fn locked_peer_context(&self) -> Option<&BTreeMap<String, DepPath>> {
+        self.locked.as_ref()?.locked_peer_context.as_ref()
+    }
+
+    /// Child aliases whose current provider must win over a locked one.
+    #[must_use]
+    pub fn must_win_dependency_names(&self) -> Option<&HashSet<String>> {
+        self.locked.as_ref()?.dependency_names_whose_current_provider_must_win.as_ref()
+    }
+
+    /// Peer names from this direct dependency's wanted-lockfile suffix.
+    #[must_use]
+    pub fn locked_peer_names(&self) -> Option<&Arc<HashSet<String>>> {
+        self.locked.as_ref()?.locked_peer_names.as_ref()
+    }
+
+    /// `true` when neither locked peer names nor a locked peer context is
+    /// recorded — the fast-cache precondition.
+    #[must_use]
+    pub fn has_no_locked_peers(&self) -> bool {
+        self.locked.as_ref().is_none_or(|locked| {
+            locked.locked_peer_names.is_none() && locked.locked_peer_context.is_none()
+        })
+    }
+
+    /// The carry-over slot, allocated on first write.
+    pub fn locked_mut(&mut self) -> &mut LockedResolution {
+        self.locked.get_or_insert_with(Box::default)
     }
 }
 
@@ -276,7 +318,9 @@ pub enum TreeChildren {
     /// `alias → child NodeId` map, fully populated. `BTreeMap` keeps
     /// iteration order stable so downstream peer-suffix construction
     /// is deterministic.
-    Realized(BTreeMap<String, NodeId>),
+    /// Shared: a node's realized children are immutable once built, and
+    /// the peer walk hands the same map to every revisit of the node.
+    Realized(Arc<BTreeMap<String, NodeId>>),
     /// Children are known by spec only. `parent_ids` is the chain of
     /// `pkgIdWithPatchHash` ancestors this occurrence reached the
     /// node through, excluding the node itself. The reader appends the
@@ -295,7 +339,7 @@ impl TreeChildren {
     /// to construct an empty `BTreeMap` themselves.
     #[must_use]
     pub fn empty() -> Self {
-        TreeChildren::Realized(BTreeMap::new())
+        TreeChildren::Realized(Arc::new(BTreeMap::new()))
     }
 
     /// Borrow the realized children map.
