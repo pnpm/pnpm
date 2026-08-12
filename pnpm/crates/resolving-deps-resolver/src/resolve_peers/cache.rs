@@ -274,7 +274,15 @@ impl Walker<'_> {
                 return false;
             }
             for (name, cached_node_id) in item.resolved_peers.iter() {
-                let Some(current_ref) = parent_refs.get(name) else {
+                // An importer-hoisted name resolves against the importer
+                // context wherever the occurrence sits, so that is the
+                // context it must be compared in.
+                let refs = if self.peer_name_is_hoisted(pkg_id, name) {
+                    &self.importer_refs
+                } else {
+                    parent_refs
+                };
+                let Some(current_ref) = refs.get(name) else {
                     return false;
                 };
                 if !self.parent_ref_matches_cached(current_ref, cached_node_id) {
@@ -282,11 +290,25 @@ impl Walker<'_> {
                 }
             }
             for missing_name in item.missing_peers.keys() {
-                if parent_refs.contains_key(missing_name) {
+                let refs = if self.peer_name_is_hoisted(pkg_id, missing_name) {
+                    &self.importer_refs
+                } else {
+                    parent_refs
+                };
+                if refs.contains_key(missing_name) {
                     return false;
                 }
             }
             true
+        })
+    }
+
+    /// Whether `name` reaches `pkg_id` only through its own strongly
+    /// connected component, and so resolves against the importer
+    /// context; see [`super::walker::StaticPeerNames`].
+    fn peer_name_is_hoisted(&self, pkg_id: &str, name: &str) -> bool {
+        self.static_peer_names_of(pkg_id).is_some_and(|sets| {
+            sets.closure.contains(name) && (sets.in_cyclic_region || !sets.acyclic.contains(name))
         })
     }
 
@@ -406,6 +428,14 @@ impl Walker<'_> {
     ) -> FastCacheMatch {
         let mut ambiguous = false;
         for (name, cached_node_id) in item.resolved_peers.iter() {
+            if self.peer_name_is_hoisted(pkg_id, name) {
+                match self.importer_refs.get(name) {
+                    Some(current_ref)
+                        if self.parent_ref_matches_cached(current_ref, cached_node_id) => {}
+                    _ => return FastCacheMatch::NoMatch,
+                }
+                continue;
+            }
             match self.fast_provider_for_name(parent_ids, parent_refs, pkg_id, name) {
                 FastProvider::Missing => return FastCacheMatch::NoMatch,
                 FastProvider::Inherited(current_ref) => {
@@ -434,6 +464,12 @@ impl Walker<'_> {
             }
         }
         for name in item.missing_peers.keys() {
+            if self.peer_name_is_hoisted(pkg_id, name) {
+                if self.importer_refs.contains_key(name) {
+                    return FastCacheMatch::NoMatch;
+                }
+                continue;
+            }
             match self.fast_provider_for_name(parent_ids, parent_refs, pkg_id, name) {
                 FastProvider::Missing => {}
                 FastProvider::Inherited(_) | FastProvider::Child(_) => {
@@ -505,7 +541,7 @@ impl Walker<'_> {
             );
             let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id.to_string());
             for (peer_name, info) in output.missing_peers.iter() {
-                if self.missing_issue_suppressed(&chain_with_self, peer_name) {
+                if info.hoisted || self.missing_issue_suppressed(&chain_with_self, peer_name) {
                     continue;
                 }
                 self.record_missing_issue(

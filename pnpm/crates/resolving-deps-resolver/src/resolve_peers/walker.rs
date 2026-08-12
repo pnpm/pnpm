@@ -144,14 +144,16 @@ pub(super) struct Walker<'tree> {
     /// finished walk folds its frame into its parent's, so an outer
     /// frame covers the outer walk's whole subtree.
     consulted_stack: Vec<ConsultedPkgs>,
-    /// Per-`pkgIdWithPatchHash` static peer-name closure: the least
-    /// fixpoint of `names(P) = (ownPeers(P) ∪ ⋃_c names(c) ∖
-    /// childAliases(P)) ∖ {name(P)}` over the dependency graph. Cycles
-    /// close the fixpoint instead of truncating it, which is what makes
-    /// the set a property of the package rather than of the occurrence
-    /// (pnpm/pnpm#13865). Built lazily once per walker; the tree's
-    /// children are frozen for the walker's lifetime.
-    static_peer_names: std::cell::OnceCell<HashMap<Arc<str>, Arc<HashSet<String>>>>,
+    /// Per-`pkgIdWithPatchHash` static peer-name sets (closure and its
+    /// acyclic subset); see [`StaticPeerNames`]. Built lazily once per
+    /// walker; the tree's children are frozen for the walker's
+    /// lifetime.
+    static_peer_names: std::cell::OnceCell<HashMap<Arc<str>, StaticPeerNames>>,
+    /// The current importer's root-level peer providers — the
+    /// deterministic context cyclic-arriving peer names resolve
+    /// against, regardless of where the occurrence sits. Swapped per
+    /// importer by the walk drivers.
+    pub(super) importer_refs: Arc<ParentRefs>,
     /// Dedupes the consulted sets stored on cycle-truncation keys.
     consulted_sets: HashSet<Arc<ConsultedPkgs>>,
     pub(super) empty_resolved_peers: Arc<HashMap<String, NodeId>>,
@@ -240,6 +242,7 @@ impl<'tree> Walker<'tree> {
             consulted_bit_by_pkg,
             consulted_stack: Vec::new(),
             static_peer_names: std::cell::OnceCell::new(),
+            importer_refs: Arc::new(ParentRefs::default()),
             consulted_sets,
             empty_resolved_peers: Arc::new(HashMap::default()),
             empty_missing_peers: Arc::new(HashMap::default()),
@@ -286,9 +289,9 @@ impl<'tree> Walker<'tree> {
         }
     }
 
-    /// The static peer-name closure for `pkg_id`; see
+    /// The static peer-name sets for `pkg_id`; see
     /// [`Walker::static_peer_names`].
-    fn static_peer_names_of(&self, pkg_id: &str) -> Option<&Arc<HashSet<String>>> {
+    pub(super) fn static_peer_names_of(&self, pkg_id: &str) -> Option<&StaticPeerNames> {
         self.static_peer_names.get_or_init(|| build_static_peer_names(self.tree)).get(pkg_id)
     }
 
@@ -366,6 +369,10 @@ pub(super) struct MissingPeerInfo {
     pub(super) range: String,
     #[allow(dead_code, reason = "future peersCache validation")]
     pub(super) optional: bool,
+    /// `true` for a miss recorded by the hoisted-context normalization
+    /// rather than by a walk reaching a consumer: it scopes cache
+    /// matching but is not a user-facing issue.
+    pub(super) hoisted: bool,
 }
 
 /// Persistent summary of missing peers in a subtree. Child summaries
@@ -479,6 +486,7 @@ struct NodePeersContext<'a> {
 impl Walker<'_> {
     pub(super) fn walk(mut self) -> ResolvePeersResult {
         let importer_parents = Arc::new(self.build_importer_parents());
+        self.importer_refs = Arc::clone(&importer_parents);
         let parent_chain_names = SharedChain::default();
         let parent_node_ids = SharedChain::default();
         let parent_pkg_ids_chain = SharedChain::default();
@@ -561,7 +569,9 @@ impl Walker<'_> {
             missing_names_by_pkg
                 .entry(std::sync::Arc::<str>::clone(&tree_node.resolved_package_id).to_string())
                 .or_default()
-                .extend(missing.keys().cloned());
+                .extend(
+                    missing.iter().filter(|(_, info)| !info.hoisted).map(|(name, _)| name.clone()),
+                );
         }
         ResolvePeersResult {
             graph,
@@ -934,8 +944,16 @@ impl Walker<'_> {
         // this node's depPath).
         self.remember_resolved_node(node_id, &dep_path);
 
-        let own_missing = (!missing_from_children.is_empty())
-            .then(|| (pkg.id.to_string(), missing_from_children.keys().cloned().collect()));
+        // Hoisted misses are cache-scoping data, not hoist-loop input:
+        // feeding them back would have auto-install churn the importer
+        // context every round.
+        let reportable_missing: HashSet<String> = missing_from_children
+            .iter()
+            .filter(|(_, info)| !info.hoisted)
+            .map(|(name, _)| name.clone())
+            .collect();
+        let own_missing =
+            (!reportable_missing.is_empty()).then(|| (pkg.id.to_string(), reportable_missing));
         let subtree_missing_by_pkg = match (own_missing, missing_summaries.len()) {
             (None, 0) => None,
             (None, 1) => missing_summaries.pop(),
@@ -1188,32 +1206,39 @@ impl Walker<'_> {
             all_missing.insert(peer_alias.clone(), info.clone());
         }
 
-        // Top the verdict up to the package's static peer-name closure:
-        // names a truncated subtree never surfaced resolve against the
-        // same context an intact walk would have used, so every verdict
-        // of this package carries the same name set and the peers cache
-        // can never conflate differently truncated occurrences
-        // (pnpm/pnpm#13865). Missing top-ups feed the context checks
-        // only; the walk that actually reaches a consumer reports the
-        // user-facing issue.
-        if let Some(static_names) = self.static_peer_names_of(&pkg.id).cloned() {
-            for name in static_names.iter() {
-                if name == pkg_name
-                    || all_resolved.contains_key(name)
-                    || all_missing.contains_key(name)
-                {
+        // Normalize the verdict to the package's static peer-name
+        // closure (pnpm/pnpm#5108 requires every occurrence to carry
+        // it). Inside a cyclic region — where cache-collapsed subtrees
+        // mean an occurrence's context can come from whichever walk
+        // materialized it first — every name resolves against the
+        // importer context; outside, only names arriving through a
+        // strongly connected component do, and acyclically arriving
+        // names keep the walk's position resolution, which no
+        // occurrence chain can disturb (pnpm/pnpm#13865). Either way a
+        // package's verdict is a function of (package, context) alone.
+        // Hoisted misses feed the context checks only; the walk that
+        // actually reaches a consumer reports the user-facing issue.
+        if !self.tree.children_by_id.is_empty()
+            && let Some(static_names) = self.static_peer_names_of(&pkg.id)
+        {
+            let closure = Arc::clone(&static_names.closure);
+            let acyclic = Arc::clone(&static_names.acyclic);
+            let region = static_names.in_cyclic_region;
+            for name in closure.iter() {
+                if name == pkg_name || (!region && acyclic.contains(name)) {
                     continue;
                 }
-                match parent_refs.get(name).and_then(|parent| parent.node_id.clone()) {
-                    Some(provider) => {
-                        all_resolved.insert(name.clone(), provider);
-                    }
-                    None => {
-                        all_missing.insert(
-                            name.clone(),
-                            MissingPeerInfo { range: "*".to_string(), optional: true },
-                        );
-                    }
+                if let Some(provider) =
+                    self.importer_refs.get(name).and_then(|parent| parent.node_id.clone())
+                {
+                    all_missing.remove(name);
+                    all_resolved.insert(name.clone(), provider);
+                } else {
+                    all_resolved.remove(name);
+                    all_missing.insert(
+                        name.clone(),
+                        MissingPeerInfo { range: "*".to_string(), optional: true, hoisted: true },
+                    );
                 }
             }
         }
@@ -1428,7 +1453,11 @@ impl Walker<'_> {
             None => {
                 missing.insert(
                     peer_name.to_string(),
-                    MissingPeerInfo { range: range_for_match.to_string(), optional },
+                    MissingPeerInfo {
+                        range: range_for_match.to_string(),
+                        optional,
+                        hoisted: false,
+                    },
                 );
                 if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
                     self.record_missing_issue(
@@ -1579,13 +1608,89 @@ impl<'a> MissingNames<'a> {
     }
 }
 
-/// Build [`Walker::static_peer_names`]: a worklist least-fixpoint of
-/// `names(P) = (ownPeers(P) ∪ ⋃_c names(c) ∖ childAliases(P)) ∖
-/// {name(P)}` over the recorded children graph. Cycles close the
-/// fixpoint instead of truncating it, which is what makes the set a
-/// property of the package rather than of the occurrence
+/// The two static peer-name sets of a package.
+///
+/// `closure` is the least fixpoint of `names(P) = (ownPeers(P) ∪ ⋃_c
+/// names(c) ∖ childAliases(P)) ∖ {name(P)}` over the recorded children
+/// graph — cycles close it instead of truncating it, so it is the name
+/// set pnpm/pnpm#5108 requires every occurrence to carry. `acyclic` is
+/// the same fixpoint with intra-component edges excluded: the names
+/// that reach the package through structure no occurrence chain can
+/// cut, and so the names whose walk-time resolution is already
+/// position-independent. Names in `closure ∖ acyclic` arrive only
+/// through the package's own strongly connected component; they resolve
+/// against the importer's root context instead, which is what makes
+/// every verdict of a package a function of (package, context) alone
 /// (pnpm/pnpm#13865).
-fn build_static_peer_names(tree: &ResolvedTree) -> HashMap<Arc<str>, Arc<HashSet<String>>> {
+pub(super) struct StaticPeerNames {
+    pub(super) closure: Arc<HashSet<String>>,
+    pub(super) acyclic: Arc<HashSet<String>>,
+    /// Whether the package sits in a cyclic region — inside a strongly
+    /// connected component or reachable from one. Occurrences there can
+    /// be reached through shared, cache-collapsed subtrees, so every
+    /// peer name resolves against the importer context to keep the
+    /// region's verdicts independent of which walk materialized them.
+    pub(super) in_cyclic_region: bool,
+}
+
+/// Build [`Walker::static_peer_names`]: both fixpoints of
+/// [`StaticPeerNames`], sharing one Tarjan pass and one worklist shape.
+fn build_static_peer_names(tree: &ResolvedTree) -> HashMap<Arc<str>, StaticPeerNames> {
+    let scc_of = children_scc_ids(tree);
+    let closure = peer_name_fixpoint(tree, None);
+    let acyclic = peer_name_fixpoint(tree, Some(&scc_of));
+    let region = cyclic_region(tree, &scc_of);
+    closure
+        .into_iter()
+        .map(|(pkg_id, closure_set)| {
+            let acyclic_set =
+                acyclic.get(&pkg_id).cloned().unwrap_or_else(|| Arc::new(HashSet::default()));
+            let in_cyclic_region = region.contains(&pkg_id);
+            (
+                pkg_id,
+                StaticPeerNames { closure: closure_set, acyclic: acyclic_set, in_cyclic_region },
+            )
+        })
+        .collect()
+}
+
+/// The packages inside a strongly connected component of the children
+/// graph, plus everything reachable from one.
+fn cyclic_region(tree: &ResolvedTree, scc_of: &HashMap<Arc<str>, usize>) -> HashSet<Arc<str>> {
+    let mut scc_sizes: HashMap<usize, u32> = HashMap::default();
+    for scc in scc_of.values() {
+        *scc_sizes.entry(*scc).or_default() += 1;
+    }
+    let mut region: HashSet<Arc<str>> = HashSet::default();
+    let mut worklist: Vec<Arc<str>> = Vec::new();
+    for (pkg_id, scc) in scc_of {
+        let self_edge = tree
+            .children_by_id
+            .get(&**pkg_id)
+            .is_some_and(|children| children.iter().any(|edge| edge.pkg_id == *pkg_id));
+        if scc_sizes.get(scc).copied().unwrap_or(0) > 1 || self_edge {
+            region.insert(Arc::clone(pkg_id));
+            worklist.push(Arc::clone(pkg_id));
+        }
+    }
+    while let Some(pkg_id) = worklist.pop() {
+        let Some(children) = tree.children_by_id.get(&*pkg_id) else { continue };
+        for edge in children.iter() {
+            if region.insert(Arc::clone(&edge.pkg_id)) {
+                worklist.push(Arc::clone(&edge.pkg_id));
+            }
+        }
+    }
+    region
+}
+
+/// One peer-name fixpoint over the recorded children graph. With
+/// `exclude_intra_scc`, edges inside a strongly connected component
+/// contribute nothing, yielding the acyclic subset.
+fn peer_name_fixpoint(
+    tree: &ResolvedTree,
+    exclude_intra_scc: Option<&HashMap<Arc<str>, usize>>,
+) -> HashMap<Arc<str>, Arc<HashSet<String>>> {
     let mut own_names: HashMap<Arc<str>, String> = HashMap::default();
     let mut names: HashMap<Arc<str>, HashSet<String>> = HashMap::default();
     for (pkg_id, pkg) in &tree.packages {
@@ -1603,7 +1708,14 @@ fn build_static_peer_names(tree: &ResolvedTree) -> HashMap<Arc<str>, Arc<HashSet
             aliases.insert(edge.alias.as_str());
         }
         for edge in children.iter() {
-            if edge.pkg_id != *pkg_id {
+            let contributes = match exclude_intra_scc {
+                Some(scc_of) => match (scc_of.get(pkg_id), scc_of.get(&edge.pkg_id)) {
+                    (Some(parent_scc), Some(child_scc)) => parent_scc != child_scc,
+                    _ => edge.pkg_id != *pkg_id,
+                },
+                None => edge.pkg_id != *pkg_id,
+            };
+            if contributes {
                 parents_of.entry(Arc::clone(&edge.pkg_id)).or_default().push(Arc::clone(pkg_id));
             }
         }
@@ -1636,6 +1748,89 @@ fn build_static_peer_names(tree: &ResolvedTree) -> HashMap<Arc<str>, Arc<HashSet
         }
     }
     names.into_iter().map(|(pkg_id, set)| (pkg_id, Arc::new(set))).collect()
+}
+
+/// Strongly-connected-component ids over the recorded children graph.
+/// Iterative Tarjan, mirroring the peer-graph variant in the finalize
+/// pass, so deep graphs cannot overflow the call stack.
+fn children_scc_ids(tree: &ResolvedTree) -> HashMap<Arc<str>, usize> {
+    let mut node_ids: Vec<Arc<str>> = Vec::new();
+    let mut index_by_id: HashMap<Arc<str>, usize> = HashMap::default();
+    let mut intern = |id: &Arc<str>, node_ids: &mut Vec<Arc<str>>| -> usize {
+        if let Some(index) = index_by_id.get(id) {
+            return *index;
+        }
+        let index = node_ids.len();
+        node_ids.push(Arc::clone(id));
+        index_by_id.insert(Arc::clone(id), index);
+        index
+    };
+    let mut adjacency: Vec<Vec<usize>> = Vec::new();
+    for (pkg_id, edges) in &tree.children_by_id {
+        let node = intern(pkg_id, &mut node_ids);
+        if adjacency.len() <= node {
+            adjacency.resize_with(node + 1, Vec::new);
+        }
+        let targets: Vec<usize> =
+            edges.iter().map(|edge| intern(&edge.pkg_id, &mut node_ids)).collect();
+        adjacency[node] = targets;
+    }
+    adjacency.resize_with(node_ids.len(), Vec::new);
+
+    let node_count = node_ids.len();
+    let mut discovery = vec![u32::MAX; node_count];
+    let mut lowlink = vec![0u32; node_count];
+    let mut on_stack = vec![false; node_count];
+    let mut tarjan_stack: Vec<usize> = Vec::new();
+    let mut next_index = 0u32;
+    let mut scc_of_index = vec![usize::MAX; node_count];
+    let mut next_scc = 0usize;
+
+    for root in 0..node_count {
+        if discovery[root] != u32::MAX {
+            continue;
+        }
+        // Explicit DFS stack of (node, edge cursor) so deep dependency
+        // graphs don't overflow the call stack.
+        let mut work: Vec<(usize, usize)> = vec![(root, 0)];
+        'dfs: while let Some(&mut (node, ref mut cursor)) = work.last_mut() {
+            if *cursor == 0 {
+                discovery[node] = next_index;
+                lowlink[node] = next_index;
+                next_index += 1;
+                on_stack[node] = true;
+                tarjan_stack.push(node);
+            }
+            while *cursor < adjacency[node].len() {
+                let child = adjacency[node][*cursor];
+                *cursor += 1;
+                if discovery[child] == u32::MAX {
+                    work.push((child, 0));
+                    continue 'dfs;
+                }
+                if on_stack[child] {
+                    lowlink[node] = lowlink[node].min(discovery[child]);
+                }
+            }
+            if lowlink[node] == discovery[node] {
+                loop {
+                    let member = tarjan_stack.pop().expect("Tarjan stack holds the open SCC");
+                    on_stack[member] = false;
+                    scc_of_index[member] = next_scc;
+                    if member == node {
+                        break;
+                    }
+                }
+                next_scc += 1;
+            }
+            work.pop();
+            if let Some(&mut (parent, _)) = work.last_mut() {
+                lowlink[parent] = lowlink[parent].min(lowlink[node]);
+            }
+        }
+    }
+
+    node_ids.into_iter().zip(scc_of_index).filter(|(_, scc)| *scc != usize::MAX).collect()
 }
 
 /// Index the per-package missing-peer names `roots` reported, borrowing/// Index the per-package missing-peer names `roots` reported, borrowing

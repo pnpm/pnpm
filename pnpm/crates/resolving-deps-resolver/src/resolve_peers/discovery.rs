@@ -170,6 +170,7 @@ fn discover_peers(
         Walker::new(tree, opts, HashMap::default(), current_provider_sources, caches, true);
 
     let importer_parents = Arc::new(walker.build_importer_parents_from(parents_direct));
+    walker.importer_refs = Arc::clone(&importer_parents);
     let parent_chain_names = SharedChain::default();
     let parent_node_ids = SharedChain::default();
     let parent_pkg_ids_chain = SharedChain::default();

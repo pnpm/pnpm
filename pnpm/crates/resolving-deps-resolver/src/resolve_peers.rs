@@ -392,6 +392,7 @@ pub fn resolve_peers_workspace(
             } else {
                 walker.build_importer_parents_from(&importer.direct)
             });
+        walker.importer_refs = Arc::clone(&importer_parents);
         let parent_chain_names = SharedChain::default();
         let parent_node_ids = SharedChain::default();
         let parent_pkg_ids_chain = SharedChain::default();

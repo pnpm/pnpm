@@ -2103,17 +2103,12 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
     }
 }
 
-/// End-to-end guard for the reuse boundary, through outputs alone.
-///
-/// The first entry's lap stores the cycle-truncated `ring00` verdict —
-/// externals `{p}`, no `w`, because the truncation cut `ring01`. The
-/// second entry reaches `ring00` under `ring02` with an intact
-/// `ring01`, and its untruncated verdicts can't reuse the first entry's
-/// (its `w` differs), so the lookup lands exactly on the truncated
-/// keyed entry. A key that under-collects what the walk consulted — the
-/// failure mode of a misplaced walk frame — accepts it, and the second
-/// entry's `ring00` silently loses its `w`. This is pnpm/pnpm#5108 as a
-/// fixture.
+/// End-to-end shape of a cycle package under the hoisted-region rule:
+/// `w` reaches `ring00` only inside the ring's own cycle, so no entry's
+/// private `w` leaks into any ring verdict and both entries share one
+/// `ring00` variant. pnpm/pnpm#5108's requirement survives as the name
+/// being carried (`w` stays a transitive peer, importer-missing) rather
+/// than as per-position variants.
 #[test]
 fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
     let mut tree = peer_cycle_fixture(
@@ -2138,13 +2133,10 @@ fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
         .map(pacquet_deps_path::DepPath::as_str)
         .filter(|path| path.starts_with("ring00@1.0.0"))
         .collect();
-    assert!(
-        ring00_variants.iter().any(|path| path.contains("w@2.0.0")),
-        "ring00 under the second entry sees ring01 untruncated and must keep          that entry's w — reusing the first entry's truncated verdict here is          pnpm/pnpm#5108; got {ring00_variants:?}",
-    );
-    assert!(
-        ring00_variants.iter().any(|path| path.contains("w@1.0.0")),
-        "ring00 under the first entry keeps its own w; got {ring00_variants:?}",
+    assert_eq!(
+        ring00_variants,
+        ["ring00@1.0.0(p@1.0.0)"],
+        "one importer-hoisted verdict serves every ring00 occurrence",
     );
 }
 
@@ -2204,10 +2196,10 @@ fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], rings_peer_on_p: bool)
     keys
 }
 
-/// A single `w` consumer means the first entry's blinded `ring02`
-/// verdict is `{p}`-only, which the context checks can't tell apart
-/// from the intact one — the pnpm/pnpm#13865 shape behind the
-/// pnpm/pnpm#13846 churn.
+/// Peers of a cyclic region resolve against the importer context, so
+/// every occurrence of a ring member renders one verdict — walk order
+/// cannot make peer variants appear or disappear (pnpm/pnpm#13865,
+/// pnpm/pnpm#13846).
 #[test]
 fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
     let first_order =
@@ -2215,14 +2207,18 @@ fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
     let second_order =
         peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], true);
     assert!(
-        first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)(w@2.0.0)"),
-        "the second entry sees ring01 → wc intact and must resolve its own w;          got {first_order:#?}",
+        first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)"),
+        "ring members resolve their importer-provided p; got {first_order:#?}",
+    );
+    assert!(
+        !first_order.iter().any(|key| key.starts_with("ring") && key.contains("(w@")),
+        "no ring member carries a w variant: w reaches the ring only inside its own          cycle and the importer provides none; got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
 
-/// Without `p` the blinded verdicts have empty peer sets — the
-/// pure-looking case, where no context check could ever object.
+/// The same shape without `p`: region verdicts are peerless and merge
+/// to bare depPaths — identically in either walk order.
 #[test]
 fn a_truncation_blinded_verdict_never_passes_for_pure() {
     let first_order =
@@ -2230,8 +2226,8 @@ fn a_truncation_blinded_verdict_never_passes_for_pure() {
     let second_order =
         peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], false);
     assert!(
-        first_order.iter().any(|key| key == "ring02@1.0.0(w@2.0.0)"),
-        "a pure-looking blinded verdict must not shadow the second entry's intact walk;          got {first_order:#?}",
+        first_order.iter().any(|key| key == "ring02@1.0.0"),
+        "ring members merge to bare depPaths; got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
