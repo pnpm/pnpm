@@ -323,6 +323,14 @@ impl<'tree> Walker<'tree> {
             .chain(ids.appended_ids())
             .any(|id| self.consulted_bit_by_pkg.get(id).is_some_and(|bit| frame.contains(*bit)))
     }
+
+    /// Fold a reused verdict's consulted set into the innermost walk
+    /// frame; see [`super::cache::CachedNodeOutput::reused_frame`].
+    pub(super) fn fold_into_current_frame(&mut self, consulted: &ConsultedPkgs) {
+        if let Some(frame) = self.consulted_stack.last_mut() {
+            frame.or(consulted);
+        }
+    }
 }
 
 /// Output of [`Walker::resolve_node`] — the per-node result the parent
@@ -767,21 +775,14 @@ impl Walker<'_> {
         // The cache lookup uses `child_parent_refs` (the augmented
         // view) because a node's own children count as parents for
         // its own descendants' peer resolution.
-        let cached =
-            self.find_hit(&child_parent_refs, &pkg.id, truncation_ids.as_ref()).map(|item| {
-                (
-                    item.to_cached_node_output(),
-                    item.cycle_key.as_ref().map(|key| Arc::clone(key.consulted())),
-                )
-            });
-        if let Some((cached, consulted)) = cached {
-            // The reused verdict's chain-dependence becomes the caller's:
-            // whatever the recorded walk weighed, the walks above this
-            // node now transitively depend on.
-            let mut frame = self.consulted_stack.pop().unwrap_or_default();
-            if let Some(consulted) = consulted {
-                frame.or(&consulted);
-            }
+        let cached = self
+            .find_hit(&child_parent_refs, &pkg.id, truncation_ids.as_ref())
+            .map(PeersCacheItem::to_cached_node_output);
+        if let Some(cached) = cached {
+            // This walk's own frame folds into the parent's here; the
+            // reused verdict's consulted set follows inside
+            // `finish_cache_hit`.
+            let frame = self.consulted_stack.pop().unwrap_or_default();
             if let Some(parent) = self.consulted_stack.last_mut() {
                 parent.or(&frame);
             }

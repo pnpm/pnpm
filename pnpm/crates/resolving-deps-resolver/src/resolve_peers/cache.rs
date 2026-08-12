@@ -191,6 +191,12 @@ impl PeersCacheItem {
         CachedNodeOutput {
             output: self.to_node_output(),
             missing_peers_of_children: Arc::clone(&self.missing_peers_of_children),
+            reused_frame: self
+                .cycle_key
+                .as_ref()
+                .map(CycleTruncationKey::consulted)
+                .or(self.partial_frame.as_ref())
+                .map(Arc::clone),
         }
     }
 }
@@ -198,6 +204,12 @@ impl PeersCacheItem {
 pub(super) struct CachedNodeOutput {
     output: NodeOutput,
     missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
+    /// The reused verdict's consulted set, when it recorded one. Folded
+    /// into the reusing walk's innermost frame: whatever the recorded
+    /// walk weighed, the walks above the reuse now transitively depend
+    /// on — otherwise a parent cached after a nested truncated hit
+    /// would omit the nested chain dependence and match intact chains.
+    reused_frame: Option<Arc<ConsultedPkgs>>,
 }
 
 enum DeferredChildResolution {
@@ -523,6 +535,9 @@ impl Walker<'_> {
             preview_undo,
         } = context;
         let output = cached.output;
+        if let Some(frame) = &cached.reused_frame {
+            self.fold_into_current_frame(frame);
+        }
         self.undo_realize(node_id, preview_undo, None);
 
         if !output.missing_peers.is_empty() {
@@ -607,7 +622,12 @@ impl Walker<'_> {
                 missing_peers: Arc::clone(&self.empty_missing_peers),
                 subtree_missing_by_pkg: None,
             },
-            DeferredChildResolution::Cached(cached) => cached.output,
+            DeferredChildResolution::Cached(cached) => {
+                if let Some(frame) = &cached.reused_frame {
+                    self.fold_into_current_frame(frame);
+                }
+                cached.output
+            }
             DeferredChildResolution::Materialize(pkg_id) => {
                 self.tree.dependencies_tree.insert(
                     node_id.clone(),
