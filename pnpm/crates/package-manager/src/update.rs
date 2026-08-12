@@ -1112,31 +1112,29 @@ fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
 /// only a manifest this is the first to touch needs it.
 fn apply_bumped_manifest_specs<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
-    bumped: &BTreeMap<String, String>,
+    bumped: &BTreeMap<String, (DependencyGroup, String)>,
     announce_initial: bool,
 ) -> bool {
-    let groups = bumped
-        .keys()
-        .filter_map(|alias| Some((alias.as_str(), declared_group(manifest, alias)?)))
+    let declared = bumped
+        .iter()
+        .filter(|(alias, (group, _))| {
+            manifest.dependencies([*group]).any(|(name, _)| name == alias.as_str())
+        })
         .collect::<Vec<_>>();
-    if groups.is_empty() {
+    if declared.is_empty() {
         return false;
     }
     if announce_initial {
         emit_initial_package_manifest::<Reporter>(manifest);
     }
-    for (alias, group) in groups {
-        manifest
-            .add_dependency(alias, &bumped[alias], group)
-            .expect("the alias is already declared");
+    for (alias, (group, specifier)) in declared {
+        // Written in place rather than through `add_dependency`, which
+        // moves the alias into the target group by deleting it from the
+        // others. An update moves a range, never a dependency.
+        manifest.value_mut()[<&str>::from(*group)][alias] =
+            serde_json::Value::String(specifier.clone());
     }
     true
-}
-
-fn declared_group(manifest: &PackageManifest, alias: &str) -> Option<DependencyGroup> {
-    DIRECT_GROUPS
-        .into_iter()
-        .find(|&group| manifest.dependencies([group]).any(|(name, _)| name == alias))
 }
 
 fn persist_selected_manifests<Reporter: self::Reporter>(

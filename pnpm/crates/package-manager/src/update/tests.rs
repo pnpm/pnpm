@@ -1,7 +1,7 @@
 use super::{
-    KeptRangeVerdict, is_workspace_local_path_specifier, judge_against_kept_range,
-    parse_update_param, persist_selected_manifests, prepare_selected_manifests,
-    selected_project_indices,
+    KeptRangeVerdict, apply_bumped_manifest_specs, is_workspace_local_path_specifier,
+    judge_against_kept_range, parse_update_param, persist_selected_manifests,
+    prepare_selected_manifests, selected_project_indices,
 };
 use pacquet_config::{CatalogMode, Config};
 use pacquet_network::ThrottledClient;
@@ -9,7 +9,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::SilentReporter;
 use pacquet_workspace::Project;
 use serde_json::json;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use tempfile::tempdir;
 
 #[test]
@@ -90,6 +90,65 @@ fn workspace_range_specifiers_are_not_local_paths() {
     ] {
         assert!(!is_workspace_local_path_specifier(spec), "expected {spec} not to be a local path");
     }
+}
+
+// The group travels with the range from the lockfile entry that was
+// rewritten, so an alias declared in several groups cannot have the
+// manifest move one group while the lockfile moved another.
+#[test]
+fn a_bumped_range_lands_in_the_group_it_was_read_from() {
+    let dir = tempdir().expect("create tempdir");
+    let package_json = dir.path().join("package.json");
+    std::fs::write(
+        &package_json,
+        json!({
+            "name": "a",
+            "dependencies": { "foo": "1.0.0" },
+            "optionalDependencies": { "foo": "^1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let mut manifest = PackageManifest::from_path(package_json).expect("read package.json");
+
+    let bumped =
+        BTreeMap::from([("foo".to_string(), (DependencyGroup::Optional, "^1.2.0".to_string()))]);
+    assert!(apply_bumped_manifest_specs::<SilentReporter>(&mut manifest, &bumped, false));
+
+    assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"), Some("1.0.0"));
+    assert_eq!(
+        dependency_specifier_in(&manifest, DependencyGroup::Optional, "foo"),
+        Some("^1.2.0"),
+    );
+}
+
+/// An alias the manifest no longer declares under the group the lockfile
+/// read it from is left alone rather than added back.
+#[test]
+fn a_bump_for_an_undeclared_group_writes_nothing() {
+    let dir = tempdir().expect("create tempdir");
+    let package_json = dir.path().join("package.json");
+    std::fs::write(
+        &package_json,
+        json!({ "name": "a", "dependencies": { "foo": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    let mut manifest = PackageManifest::from_path(package_json).expect("read package.json");
+
+    let bumped =
+        BTreeMap::from([("foo".to_string(), (DependencyGroup::Dev, "^1.2.0".to_string()))]);
+    assert!(!apply_bumped_manifest_specs::<SilentReporter>(&mut manifest, &bumped, false));
+
+    assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"), Some("1.0.0"));
+    assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Dev, "foo"), None);
+}
+
+fn dependency_specifier_in<'a>(
+    manifest: &'a PackageManifest,
+    group: DependencyGroup,
+    alias: &str,
+) -> Option<&'a str> {
+    manifest.dependencies([group]).find(|(name, _)| *name == alias).map(|(_, spec)| spec)
 }
 
 #[tokio::test]

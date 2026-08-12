@@ -7,6 +7,7 @@ use pacquet_lockfile::{
     ResolvedDependencySpec,
 };
 use pacquet_lockfile_preferred_versions::get_version_selector_type;
+use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::RangeSpecStyle;
 use pacquet_resolving_npm_resolver::infer_range_spec_style;
 use pacquet_resolving_resolver_base::VersionSelectorType;
@@ -37,9 +38,11 @@ pub struct ManifestSpecBumps {
 /// The ranges [`ManifestSpecBumps`] moved, split by where they are declared.
 #[derive(Debug, Default)]
 pub struct AppliedSpecBumps {
-    /// Importer id → alias → new range, for a dependency whose manifest
-    /// declares the range itself.
-    pub manifests: BTreeMap<String, BTreeMap<String, String>>,
+    /// Importer id → alias → the group the range is declared under and the
+    /// new range. The group travels with the range so the manifest rewrites
+    /// the entry the lockfile rewrote, rather than re-deriving it from the
+    /// alias and risking a different pick.
+    pub manifests: BTreeMap<String, BTreeMap<String, (DependencyGroup, String)>>,
     /// Catalog name → alias → new range, for a dependency declared through
     /// `catalog:`, where the entry owns the range.
     pub catalogs: BTreeMap<String, BTreeMap<String, String>>,
@@ -122,14 +125,15 @@ pub(crate) fn apply_manifest_spec_bumps(lockfile: &mut Lockfile, bumps: &Manifes
     }
 
     let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
-    applied.manifests = render_aliases(manifests, |(_, specifier)| specifier);
+    applied.manifests =
+        render_aliases(manifests, |(group, specifier)| (IMPORTER_GROUPS[group], specifier));
     applied.catalogs = render_aliases(catalogs, |specifier| specifier);
 }
 
-fn render_aliases<Bumped>(
+fn render_aliases<Bumped, Rendered>(
     bumped: BTreeMap<String, HashMap<PkgName, Bumped>>,
-    specifier: impl Fn(Bumped) -> String,
-) -> BTreeMap<String, BTreeMap<String, String>> {
+    specifier: impl Fn(Bumped) -> Rendered,
+) -> BTreeMap<String, BTreeMap<String, Rendered>> {
     bumped
         .into_iter()
         .map(|(owner, aliases)| {
@@ -196,11 +200,15 @@ fn split_npm_alias(declared: &str) -> Option<(&str, &str)> {
 }
 
 /// Index into an importer's dependency maps, in the order
-/// [`declared_dependency`] and [`dependency_maps_mut`] both lay them out:
-/// `dependencies`, `devDependencies`, `optionalDependencies`. Carried so a
-/// dependency declared in more than one group only has the range that was
-/// read rewritten.
+/// [`declared_dependency`] and [`dependency_maps_mut`] both lay them out.
+/// Carried so a dependency declared in more than one group only has the
+/// range that was read rewritten.
 type DependencyGroupIndex = usize;
+
+/// The manifest group each of an importer's dependency maps is built from,
+/// in [`DependencyGroupIndex`] order.
+const IMPORTER_GROUPS: [DependencyGroup; 3] =
+    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
 
 fn declared_dependency<'a>(
     importer: &'a ProjectSnapshot,
