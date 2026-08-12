@@ -1,6 +1,7 @@
 use crate::{
-    CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS, Install,
-    InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
+    CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS,
+    ImporterUpdateSeedPolicy, Install, InstallError, ProjectMutation, ResolvedPackages,
+    UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
         write_workspace_catalogs_selected,
@@ -39,7 +40,11 @@ use pacquet_resolving_resolver_base::{GitResolveError, PreferredVersions, Worksp
 use pacquet_tarball::MemCache;
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
-use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 #[must_use]
 pub struct Add<'a, DependencyGroupList>
@@ -235,6 +240,19 @@ where
             config,
             save_catalog_name.as_deref(),
         );
+        // Scoped to this project's importer: a sibling that declares the same package
+        // keeps its pin, so its resolution stands.
+        let seed_policies = if dropped_pins.is_empty() {
+            BTreeMap::new()
+        } else {
+            let manifest_dir =
+                manifest.path().parent().expect("manifest path always has a parent dir");
+            let workspace_root = config.workspace_dir.as_deref().unwrap_or(manifest_dir);
+            BTreeMap::from([(
+                pacquet_workspace::importer_id_from_root_dir(workspace_root, manifest_dir),
+                ImporterUpdateSeedPolicy::DropOnly(dropped_pins),
+            )])
+        };
         let catalogs_override = (!updated_catalogs.is_empty()).then(|| {
             let mut catalogs = catalog_ctx.catalogs;
             merge_catalogs(&mut catalogs, &updated_catalogs);
@@ -244,7 +262,7 @@ where
         // A `catalog:` dependency's manifest specifier doesn't change when the version
         // behind it does, so the freshness gate would hold and the install would never
         // reach the resolver.
-        let named_a_version = !dropped_pins.is_empty();
+        let named_a_version = !seed_policies.is_empty();
 
         Install {
             tarball_mem_cache,
@@ -283,11 +301,11 @@ where
             // `add` keeps every lockfile pin; the freshly-added range
             // is the only thing that re-resolves. `update`'s bump is a
             // separate operation.
-            update_seed_policy: if dropped_pins.is_empty() {
+            update_seed_policy: if seed_policies.is_empty() {
                 UpdateSeedPolicy::KeepAll
             } else {
-                UpdateSeedPolicy::DropOnly {
-                    names: dropped_pins,
+                UpdateSeedPolicy::ByImporter {
+                    policies: seed_policies,
                     // A catalog entry governs direct dependencies, so the pin is
                     // withheld there and transitive occurrences of the same package
                     // keep theirs.
@@ -367,7 +385,12 @@ where
         )
         .map_err(AddError::WriteWorkspaceManifest)?;
 
-        let mut dropped_pins = HashSet::new();
+        // Scoped per importer: a project that wasn't selected keeps its pins, so its
+        // resolutions stand even when it declares the same package directly.
+        let workspace_root = config.workspace_dir.as_deref().unwrap_or_else(|| {
+            manifest.path().parent().expect("manifest path always has a parent dir")
+        });
+        let mut seed_policies = BTreeMap::new();
         let mut preferred_versions_override = PreferredVersions::new();
         for &index in &selected_indices {
             let (names, preferred) = catalog_version_requests(
@@ -378,7 +401,14 @@ where
                 config,
                 save_catalog_name.as_deref(),
             );
-            dropped_pins.extend(names);
+            if names.is_empty() {
+                continue;
+            }
+            let importer_id = pacquet_workspace::importer_id_from_root_dir(
+                workspace_root,
+                &projects[index].root_dir,
+            );
+            seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
             for (name, selectors) in preferred {
                 preferred_versions_override.entry(name).or_default().extend(selectors);
             }
@@ -386,7 +416,7 @@ where
         // A `catalog:` dependency's manifest specifier doesn't change when the version
         // behind it does, so the freshness gate would hold and the install would never
         // reach the resolver.
-        let named_a_version = !dropped_pins.is_empty();
+        let named_a_version = !seed_policies.is_empty();
 
         Box::pin(
             Install {
@@ -417,12 +447,12 @@ where
                 lockfile_only,
                 dry_run: false,
                 persist_policy_excludes: true,
-                update_seed_policy: if dropped_pins.is_empty() {
+                update_seed_policy: if seed_policies.is_empty() {
                     UpdateSeedPolicy::KeepAll
                 } else {
-                    UpdateSeedPolicy::DropOnly {
-                        names: dropped_pins,
-                        // See the sibling `DropOnly` in [`Self::run`].
+                    UpdateSeedPolicy::ByImporter {
+                        policies: seed_policies,
+                        // See the `DropOnly` in [`Self::run`].
                         max_depth: UpdateDepth::new(0),
                     }
                 },

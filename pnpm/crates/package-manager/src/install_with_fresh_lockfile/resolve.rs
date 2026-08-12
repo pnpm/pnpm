@@ -66,7 +66,12 @@ pub(super) fn preferred_versions_seeds(
         }
     };
 
-    merge_preferred_versions(&mut workspace_seed, overrides);
+    // A per-importer policy carries its own overrides below. Layering them onto the
+    // workspace seed as well would reach the importers that policy left out, moving
+    // dependencies in projects the command never named.
+    if !matches!(update_seed_policy, UpdateSeedPolicy::ByImporter { .. }) {
+        merge_preferred_versions(&mut workspace_seed, overrides);
+    }
 
     let mut by_importer = BTreeMap::new();
     if let UpdateSeedPolicy::ByImporter { policies, .. } = update_seed_policy {

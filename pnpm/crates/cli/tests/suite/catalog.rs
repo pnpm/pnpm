@@ -2,7 +2,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, PkgName};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
@@ -523,4 +523,65 @@ fn update_moves_a_catalog_to_an_older_in_range_version() {
     assert_eq!(catalog_snapshot(&workspace, FOO).1, "1.0.0");
 
     drop((root, anchor));
+}
+
+/// A filtered add moves the entry for the project it targets. A project that
+/// declares the same package directly, and wasn't targeted, keeps its own
+/// resolution.
+#[test]
+fn add_moving_a_catalog_leaves_an_untargeted_project_alone() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!("packages:\n  - 'packages/*'\ncatalogMode: strict\ncatalog:\n  '{FOO}': 1.0.0\n"),
+    );
+    for (name, spec) in [("a", "catalog:"), ("b", "^1.0.0")] {
+        let dir = workspace.join("packages").join(name);
+        std::fs::create_dir_all(&dir).expect("create the package dir");
+        std::fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { FOO: spec },
+            })
+            .to_string(),
+        )
+        .expect("write the package manifest");
+    }
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    let widened = read(&workspace, "pnpm-workspace.yaml").replace("': 1.0.0", "': ^1.0.0");
+    std::fs::write(workspace.join("pnpm-workspace.yaml"), widened).expect("widen the catalog");
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    let untargeted_before = importer_dep_version(&workspace, "packages/b", FOO);
+
+    run_ok(&workspace, &["--dir", "packages/a", "add", "--lockfile-only", &format!("{FOO}@1.1.0")]);
+
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.0.0".to_string(), "1.1.0".to_string()));
+    assert_eq!(importer_dep_version(&workspace, "packages/a", FOO), "1.1.0");
+    assert_eq!(
+        importer_dep_version(&workspace, "packages/b", FOO),
+        untargeted_before,
+        "the project the add didn't target keeps its resolution",
+    );
+
+    drop((root, anchor));
+}
+
+/// The version `importer` resolved `name` to, read back from the lockfile.
+fn importer_dep_version(workspace: &Path, importer: &str, name: &str) -> String {
+    let lockfile: Lockfile =
+        serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
+    lockfile
+        .importers
+        .get(importer)
+        .and_then(|snapshot| snapshot.dependencies.as_ref())
+        .and_then(|dependencies| {
+            dependencies.get(&PkgName::parse(name).expect("parse the package name"))
+        })
+        .map_or_else(
+            || panic!("{importer} has no resolved {name}"),
+            |dependency| dependency.version.to_string(),
+        )
 }
