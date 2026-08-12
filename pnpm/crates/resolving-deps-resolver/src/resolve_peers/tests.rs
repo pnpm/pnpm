@@ -2204,16 +2204,10 @@ fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], rings_peer_on_p: bool)
     keys
 }
 
-/// The pnpm/pnpm#13865 shape: one `w` consumer in the whole ring,
-/// hanging off `ring01`. Inside the first entry's lap, `ring02`'s
-/// subtree reaches `ring00` again and the re-entry is truncated, so
-/// that `ring02` verdict never sees `wc` — externals `{p}` only — while
-/// `ring02` itself is not re-entered, leaving the verdict in the cache
-/// keyless. The second entry then reaches `ring02` with an intact
-/// subtree and a context those `{p}`-only peer sets match vacuously.
-/// Reusing the blinded verdict there drops every `w@2.0.0` peer variant
-/// from the graph — and which entry walks first decides it, which is
-/// the lockfile churn of pnpm/pnpm#13846.
+/// A single `w` consumer means the first entry's blinded `ring02`
+/// verdict is `{p}`-only, which the context checks can't tell apart
+/// from the intact one — the pnpm/pnpm#13865 shape behind the
+/// pnpm/pnpm#13846 churn.
 #[test]
 fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
     let first_order =
@@ -2227,12 +2221,8 @@ fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
 
-/// The same shape without `p`: the blinded `ring02`/`ring03` verdicts
-/// then have empty peer sets — indistinguishable from pure. `pure_pkgs`
-/// is reused unconditionally, so storing one there would hand every
-/// later occurrence the bare depPath and no context check could ever
-/// object. The store must divert such verdicts to the peers cache,
-/// where the partial-view guard applies.
+/// Without `p` the blinded verdicts have empty peer sets — the
+/// pure-looking case, where no context check could ever object.
 #[test]
 fn a_truncation_blinded_verdict_never_passes_for_pure() {
     let first_order =
@@ -2246,10 +2236,8 @@ fn a_truncation_blinded_verdict_never_passes_for_pure() {
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
 
-/// The store-side half of the pure guard: a blinded verdict whose peer
-/// sets came out empty is indistinguishable from pure by content, and
-/// `pure_pkgs` reuse has no context checks at all — so the store must
-/// divert it to the peers cache, carrying its partial view.
+/// The store-side half of the pure guard: `pure_pkgs` reuse has no
+/// context checks at all, so the diversion must happen at the store.
 #[test]
 fn a_blinded_pure_looking_verdict_is_cached_with_its_partial_view() {
     let mut tree = peer_cycle_fixture(
@@ -2276,9 +2264,6 @@ fn a_blinded_pure_looking_verdict_is_cached_with_its_partial_view() {
         );
     }
 
-    // ring02's only walk ran under entry00 → ring00 → ring01, whose lap
-    // truncation cut the subtree holding `wc`: empty peer sets, but not
-    // authoritative for the package.
     assert!(
         !walker.pure_pkgs.contains_key("ring02@1.0.0"),
         "a verdict blinded by its ancestors' truncation must not enter pure_pkgs",
