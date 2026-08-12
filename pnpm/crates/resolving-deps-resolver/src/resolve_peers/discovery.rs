@@ -117,8 +117,7 @@ pub(crate) struct PeerDiscoveryCaches {
     pub(super) consulted_bit_by_pkg: HashMap<std::sync::Arc<str>, u32>,
     /// Dedupes the consulted sets those keys hold; walks of one package
     /// overwhelmingly weigh the same packages.
-    pub(super) consulted_sets:
-        HashMap<super::cache::ConsultedPkgs, std::sync::Arc<super::cache::ConsultedPkgs>>,
+    pub(super) consulted_sets: HashSet<std::sync::Arc<super::cache::ConsultedPkgs>>,
 }
 
 /// What one peer-hoist discovery pass reports back to the hoist loop —

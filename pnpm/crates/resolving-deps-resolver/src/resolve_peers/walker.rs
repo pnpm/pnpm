@@ -143,7 +143,7 @@ pub(super) struct Walker<'tree> {
     /// frame covers the outer walk's whole subtree.
     consulted_stack: Vec<ConsultedPkgs>,
     /// Dedupes the consulted sets stored on cycle-truncation keys.
-    consulted_sets: HashMap<ConsultedPkgs, Arc<ConsultedPkgs>>,
+    consulted_sets: HashSet<Arc<ConsultedPkgs>>,
     pub(super) empty_resolved_peers: Arc<HashMap<String, NodeId>>,
     pub(super) empty_missing_peers: Arc<HashMap<String, MissingPeerInfo>>,
 }
@@ -275,27 +275,36 @@ impl<'tree> Walker<'tree> {
     /// the occurrence's ancestor chain restricted to what the walk's
     /// gate weighed.
     fn build_cycle_key(&mut self, ids: &AncestorIds, frame: &ConsultedPkgs) -> CycleTruncationKey {
-        let consulted = |bit_by_pkg: &HashMap<Arc<str>, u32>, id: &str| {
-            bit_by_pkg.get(id).is_some_and(|bit| frame.contains(*bit))
-        };
         let mut chain: Vec<Arc<str>> = Vec::new();
         let mut base_len = 0u32;
-        for id in ids.base_ids() {
-            if consulted(&self.consulted_bit_by_pkg, id) {
-                chain.push(Arc::from(id));
-                base_len += 1;
+        {
+            let bit_by_pkg = &self.consulted_bit_by_pkg;
+            // The bit index already owns an `Arc` for every consulted id,
+            // so the chain shares those instead of allocating copies.
+            let push_if_consulted = |chain: &mut Vec<Arc<str>>, id: &str| {
+                let Some((interned, bit)) = bit_by_pkg.get_key_value(id) else {
+                    return false;
+                };
+                if !frame.contains(*bit) {
+                    return false;
+                }
+                chain.push(Arc::clone(interned));
+                true
+            };
+            for id in ids.base_ids() {
+                if push_if_consulted(&mut chain, id) {
+                    base_len += 1;
+                }
             }
-        }
-        for id in ids.appended_ids() {
-            if consulted(&self.consulted_bit_by_pkg, id) {
-                chain.push(Arc::from(id));
+            for id in ids.appended_ids() {
+                push_if_consulted(&mut chain, id);
             }
         }
         let shared = if let Some(hit) = self.consulted_sets.get(frame) {
             Arc::clone(hit)
         } else {
             let arc = Arc::new(frame.clone());
-            self.consulted_sets.insert(frame.clone(), Arc::clone(&arc));
+            self.consulted_sets.insert(Arc::clone(&arc));
             arc
         };
         CycleTruncationKey::new(shared, chain, base_len)

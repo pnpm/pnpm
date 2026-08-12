@@ -385,8 +385,10 @@ impl Walker<'_> {
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
         self.peers_cache.get(pkg_id)?.iter().find(|item| {
-            // The fast paths have no ancestor chain to compare, so they
-            // stay on the entries that never needed one.
+            // Keyed entries are deliberately left to `find_hit`: this
+            // path could validate them against `parent_ids`, but it
+            // skips them to keep the fast path's matching unchanged.
+            // Skipping only loses hits, never correctness.
             item.cycle_key.is_none()
                 && matches!(
                     self.fast_cache_item_matches(parent_ids, parent_refs, pkg_id, item),

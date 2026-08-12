@@ -74,12 +74,13 @@ fn previously_resolved_children_prefers_closest_same_package_ancestor() {
 
 fn keyed_item(
     walker: &mut crate::resolve_peers::walker::Walker<'_>,
-    chain: &[&str],
+    base: &[&str],
+    appended: &[&str],
 ) -> PeersCacheItem {
-    // Consulted set = exactly the ids in `chain`, registered through the
+    // Consulted set = exactly the recorded ids, registered through the
     // walker's bit index the way a real walk would.
     let mut bits = ConsultedPkgs::default();
-    for id in chain {
+    for id in base.iter().chain(appended) {
         let next = walker.consulted_bit_by_pkg.len() as u32;
         let bit = *walker.consulted_bit_by_pkg.entry(Arc::from(*id)).or_insert(next);
         bits.set(bit);
@@ -92,8 +93,8 @@ fn keyed_item(
         subtree_missing_by_pkg: None,
         cycle_key: Some(CycleTruncationKey::new(
             Arc::new(bits),
-            chain.iter().map(|id| Arc::from(*id)).collect(),
-            0,
+            base.iter().chain(appended).map(|id| Arc::from(*id)).collect(),
+            base.len() as u32,
         )),
     }
 }
@@ -107,14 +108,11 @@ fn ancestors(base: &[&str], appended: &[&str]) -> crate::resolved_tree::Ancestor
     )
 }
 
-/// The heart of the cycle-verdict cache: a truncated verdict is handed
-/// back exactly to the occurrences whose ancestors truncate the subtree
-/// the same way — same consulted ids, same order — and to no others.
 #[test]
 fn a_cycle_verdict_is_scoped_to_ancestors_that_truncate_identically() {
     let mut tree = ResolvedTree::default();
     let mut walker = walker_for_tests(&mut tree);
-    let item = keyed_item(&mut walker, &["cyclic@1.0.0", "dep@1.0.0"]);
+    let item = keyed_item(&mut walker, &[], &["cyclic@1.0.0", "dep@1.0.0"]);
     walker.peers_cache.insert("cyclic@1.0.0".to_string(), vec![item]);
     let refs = HashMap::default();
 
@@ -156,6 +154,35 @@ fn a_cycle_verdict_is_scoped_to_ancestors_that_truncate_identically() {
     assert!(
         walker.find_hit(&refs, "cyclic@1.0.0", None).is_none(),
         "without ancestor ids there is nothing to validate the truncation against",
+    );
+}
+
+/// `build_cycle_key` records `base_len > 0` whenever a consulted id sits
+/// in the dependency walk's base half, so mixed keys occur in real walks.
+#[test]
+fn a_mixed_base_and_appended_key_pins_the_boundary() {
+    let mut tree = ResolvedTree::default();
+    let mut walker = walker_for_tests(&mut tree);
+    let item = keyed_item(&mut walker, &["cyclic@1.0.0"], &["dep@1.0.0"]);
+    walker.peers_cache.insert("cyclic@1.0.0".to_string(), vec![item]);
+    let refs = HashMap::default();
+
+    let hit = |walker: &crate::resolve_peers::walker::Walker<'_>,
+               ids: &crate::resolved_tree::AncestorIds| {
+        walker.find_hit(&refs, "cyclic@1.0.0", Some(ids)).is_some()
+    };
+
+    assert!(
+        hit(&walker, &ancestors(&["root@1.0.0", "cyclic@1.0.0"], &["noise@1.0.0", "dep@1.0.0"])),
+        "the same split, padded with unconsulted ids on both halves, matches",
+    );
+    assert!(
+        !hit(&walker, &ancestors(&[], &["cyclic@1.0.0", "dep@1.0.0"])),
+        "the same ids entirely in the appended half are a different truncation",
+    );
+    assert!(
+        !hit(&walker, &ancestors(&["cyclic@1.0.0", "dep@1.0.0"], &[])),
+        "and entirely in the base half likewise",
     );
 }
 
