@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from '@jest/globals'
+import type { PackageExtension } from '@pnpm/types'
 
 import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
 
@@ -124,4 +125,81 @@ test('getOptionsFromPnpmSettings() rejects non-object overrides values', () => {
     code: 'ERR_PNPM_INVALID_OVERRIDES',
     message: 'The overrides field should be an object, but got array',
   }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-string range in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'officeparser@*': {
+        peerDependencies: {
+          puppeteer: null,
+        },
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'officeparser@*\'].peerDependencies.puppeteer" setting should be a string, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-boolean optional flag in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'officeparser@*': {
+        peerDependenciesMeta: {
+          puppeteer: {
+            optional: 'yes',
+          },
+        },
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'officeparser@*\'].peerDependenciesMeta.puppeteer.optional" setting should be a boolean, but got string',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-object package extension', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'officeparser@*': [],
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'officeparser@*\']" setting should be an object, but got array',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts valid packageExtensions', () => {
+  expect(getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'officeparser@*': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        peerDependencies: {
+          puppeteer: '*',
+        },
+        peerDependenciesMeta: {
+          puppeteer: {
+            optional: true,
+          },
+        },
+      },
+    },
+  }).packageExtensions).toStrictEqual({
+    'officeparser@*': {
+      dependencies: {
+        foo: '1.0.0',
+      },
+      peerDependencies: {
+        puppeteer: '*',
+      },
+      peerDependenciesMeta: {
+        puppeteer: {
+          optional: true,
+        },
+      },
+    },
+  })
 })

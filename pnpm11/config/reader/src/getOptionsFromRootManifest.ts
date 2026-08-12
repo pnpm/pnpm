@@ -59,6 +59,9 @@ export function getOptionsFromPnpmSettings (
       }
     }
   }
+  if (settings.packageExtensions) {
+    assertValidPackageExtensions(settings.packageExtensions)
+  }
   if (pnpmSettings.patchedDependencies) {
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {
@@ -163,6 +166,38 @@ function assertValidOverrides (overrides: unknown): asserts overrides is Record<
   }
 }
 
+const PACKAGE_EXTENSION_DEPENDENCY_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
+
+// A malformed range here is not caught by anything downstream: the extender
+// merges the value onto the manifest as is, and it only surfaces once peer
+// resolution tries to read a version out of it, far away from the setting that
+// produced it.
+function assertValidPackageExtensions (packageExtensions: unknown): asserts packageExtensions is Record<string, PackageExtension> {
+  assertObjectSetting(packageExtensions, 'packageExtensions')
+  for (const [selector, extension] of Object.entries(packageExtensions as Record<string, unknown>)) {
+    const extensionPath = `packageExtensions['${selector}']`
+    assertObjectSetting(extension, extensionPath)
+    for (const field of PACKAGE_EXTENSION_DEPENDENCY_FIELDS) {
+      const deps = (extension as Record<string, unknown>)[field]
+      if (deps == null) continue
+      assertObjectSetting(deps, `${extensionPath}.${field}`)
+      for (const [depName, range] of Object.entries(deps as Record<string, unknown>)) {
+        assertString(range, `${extensionPath}.${field}.${depName}`)
+      }
+    }
+    const peerDependenciesMeta = (extension as Record<string, unknown>).peerDependenciesMeta
+    if (peerDependenciesMeta == null) continue
+    assertObjectSetting(peerDependenciesMeta, `${extensionPath}.peerDependenciesMeta`)
+    for (const [depName, meta] of Object.entries(peerDependenciesMeta as Record<string, unknown>)) {
+      const metaPath = `${extensionPath}.peerDependenciesMeta.${depName}`
+      assertObjectSetting(meta, metaPath)
+      const optional = (meta as Record<string, unknown>).optional
+      if (optional == null) continue
+      assertBoolean(optional, `${metaPath}.optional`)
+    }
+  }
+}
+
 function renderReceivedType (value: unknown): string {
   if (value === null) return 'null'
   if (Array.isArray(value)) return 'array'
@@ -171,7 +206,7 @@ function renderReceivedType (value: unknown): string {
 
 const AUDIT_LEVELS = new Set(['info', 'low', 'moderate', 'high', 'critical'])
 
-// The `update` and `audit` sections come from repo-controlled
+// The `update`, `audit` and `packageExtensions` sections come from repo-controlled
 // pnpm-workspace.yaml, which is parsed untyped — so their fields are validated
 // here (the Rust config reader rejects the same malformed shapes at parse
 // time). An invalid `audit.level` is especially worth catching: it would leave
