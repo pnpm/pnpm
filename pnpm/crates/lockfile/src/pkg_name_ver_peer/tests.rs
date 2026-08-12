@@ -269,6 +269,10 @@ fn parse_legacy_leading_slash_key() {
     case("/undici-types@6.21.0", name_peer_ver("undici-types", "6.21.0"));
     case("/@types/node@18.7.19", name_peer_ver("@types/node", "18.7.19"));
     case("/react-dom@17.0.2(react@17.0.2)", name_peer_ver("react-dom", "17.0.2(react@17.0.2)"));
+    case(
+        "/foo@1.0.0(patch_hash=0000)(bar@2.0.0)",
+        name_peer_ver("foo", "1.0.0(patch_hash=0000)(bar@2.0.0)"),
+    );
     // Only one slash is dropped, so a doubled prefix stays in the name
     // and is rejected downstream as an invalid dependency name.
     case("//undici-types@6.21.0", name_peer_ver("/undici-types", "6.21.0"));

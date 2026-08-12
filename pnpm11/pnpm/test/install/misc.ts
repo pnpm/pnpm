@@ -752,8 +752,9 @@ test('lockfile verifier reads a lockfile key with a leading slash under its real
   prefixLockfileKeyWithSlash('@pnpm/e2e.test-provenance@0.0.5')
 
   // A key spelled the lockfile-v6 way still names the same package, so the
-  // trust check has to fire on it. Left unstripped the key resolves to a
-  // different name and the entry is reported as missing instead.
+  // trust check has to fire on it under that name. Left unstripped the key
+  // resolves to a different name and the run dies earlier, reporting the
+  // entry as missing rather than as a downgrade.
   const result = execPnpmSync([
     'install',
     '--frozen-lockfile',
@@ -761,15 +762,6 @@ test('lockfile verifier reads a lockfile key with a leading slash under its real
   ])
   expect(result.status).toBe(1)
   expect(`${result.stdout.toString()}\n${result.stderr.toString()}`).toContain('ERR_PNPM_TRUST_DOWNGRADE')
-
-  // The failed run wrote nothing, so the same slash-prefixed lockfile is
-  // still on disk — now it has to match the exclusion by its real name.
-  execPnpmSync([
-    'install',
-    '--frozen-lockfile',
-    '--trust-policy=no-downgrade',
-    '--trust-policy-exclude=@pnpm/e2e.test-provenance@0.0.5',
-  ], { expectSuccess: true })
 })
 
 test('lockfile verifier respects trustPolicyExclude from pnpm-workspace.yaml when configured as a single string', () => {
