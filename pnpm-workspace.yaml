@@ -110,7 +110,7 @@ catalog:
   '@commitlint/cli': ^21.2.1
   '@commitlint/config-conventional': ^21.2.0
   '@commitlint/prompt-cli': ^21.2.0
-  '@cyclonedx/cyclonedx-library': 10.1.0
+  '@cyclonedx/cyclonedx-library': 10.1.1
   '@eslint/js': ^10.0.1
   '@inquirer/prompts': ^8.5.2
   '@jest/globals': 30.4.1
@@ -172,7 +172,7 @@ catalog:
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/zkochan__table': npm:@types/table@6.3.2
-  '@typescript-eslint/utils': ^8.66.0
+  '@typescript-eslint/utils': ^8.67.0
   '@typescript/native-preview': 7.0.0-dev.20260707.2
   '@yarnpkg/core': 4.9.1
   '@yarnpkg/extensions': 2.0.7
@@ -363,7 +363,7 @@ catalog:
   # yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940); the
   # 7.x compiler ships separately as @typescript/native-preview (tsgo).
   typescript: 6.0.3
-  typescript-eslint: ^8.66.0
+  typescript-eslint: ^8.67.0
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
   undici: ^7.27.2
