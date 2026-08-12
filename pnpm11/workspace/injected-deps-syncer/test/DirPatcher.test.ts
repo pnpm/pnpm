@@ -59,7 +59,10 @@ function createFifo (fifoPath: string): void {
   execFileSync('mkfifo', [path.resolve(fifoPath)])
 }
 
-const inodeNumber = (filePath: string): number => fs.lstatSync(filePath).ino
+const fileId = (filePath: string): string => {
+  const stats = fs.lstatSync(filePath)
+  return `${stats.dev}:${stats.ino}`
+}
 
 test('optimally synchronizes source and target', async () => {
   prepareEmpty()
@@ -124,11 +127,11 @@ test('optimally synchronizes source and target', async () => {
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
-      .map(inodeNumber)
+      .map(fileId)
   ).not.toStrictEqual(
     filesToModify
       .map(suffix => path.resolve(sourceDir, suffix))
-      .map(inodeNumber)
+      .map(fileId)
   )
 
   let fsMethods = mockFsPromises()
@@ -150,11 +153,11 @@ test('optimally synchronizes source and target', async () => {
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
-      .map(inodeNumber)
+      .map(fileId)
   ).toStrictEqual(
     filesToModify
       .map(suffix => path.resolve(sourceDir, suffix))
-      .map(inodeNumber)
+      .map(fileId)
   )
 
   // does not touch filesToKeep
