@@ -1647,8 +1647,8 @@ describe('add', () => {
 
     await mutateModules(installProjects(projects), mutateOpts)
 
-    // Widen the catalog to a range that keeps 1.0.0 locked. The wanted version below is
-    // inside that range but is not the version the catalog currently resolves to.
+    // Widen the catalog to a range that keeps 1.0.0 locked, so the wanted version below is
+    // inside the range but is not what the entry resolves to.
     catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
     await mutateModules(installProjects(projects), mutateOpts)
 
@@ -1661,9 +1661,6 @@ describe('add', () => {
         allowNew: true,
       })
 
-    // A cataloged dependency takes its version from the catalog, so the request moves what
-    // the entry resolves to instead of being dropped, and saving re-renders the declared
-    // range onto that version the way it does for a manifest dependency.
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
@@ -1674,12 +1671,17 @@ describe('add', () => {
       default: { '@pnpm.e2e/foo': '^1.1.0' },
     })
 
-    // The entry resolves to the version that was asked for rather than to the version it
-    // was locked on, or to the newest one its range allows.
-    expect(readLockfile()).toMatchObject({
+    // project2 was not part of the add, so it keeps the version the entry resolved to
+    // before until it is installed itself.
+    const lockfile = readLockfile()
+    expect(lockfile).toMatchObject({
       catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.1.0', version: '1.1.0' } } },
-      importers: { project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.1.0' } } } },
+      importers: {
+        project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.1.0' } } },
+        project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.0.0' } } },
+      },
     })
+    expect(Object.keys(lockfile.snapshots).sort()).toEqual(['@pnpm.e2e/foo@1.0.0', '@pnpm.e2e/foo@1.1.0'])
   })
 
   test('adding mismatched version with catalogMode: prefer will warn and use direct', async () => {
@@ -1905,12 +1907,8 @@ describe('update', () => {
       mutateOpts
     )
 
-    // Every project on the entry follows it to the version that was asked for — not to the
-    // newest one the range allows — and the declared range is left as the workspace wrote it.
     expect(updatedProjects[0]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
     expect(updatedProjects[1]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
-    // Saving an update re-renders the declared range onto the resolved version, as it does
-    // for a manifest dependency.
     expect(updatedCatalogs).toEqual({
       default: { '@pnpm.e2e/foo': '^1.1.0' },
     })

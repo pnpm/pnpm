@@ -1219,9 +1219,11 @@ export async function mutateModules (
      * Resolve a catalog entry to the version a command asked for, leaving the range the
      * workspace declared for it alone.
      *
-     * A cataloged dependency takes its version from the catalog, so a wanted version the
-     * entry covers has to move the entry's resolution — otherwise the lockfile keeps the
-     * version the entry resolved to before and the request is dropped without a word.
+     * A cataloged dependency takes its version from the catalog, so the entry's recorded
+     * resolution is what a wanted version has to move. Reusing it instead drops the request
+     * without a word. Only the projects in this install follow the entry to the new version;
+     * the rest keep their resolutions until they are installed, as they do for any other
+     * catalog change.
      */
     function resolveCatalogEntryTo (
       { alias, catalogName, version }: {
@@ -1232,9 +1234,6 @@ export async function mutateModules (
     ): void {
       if (ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]?.version === version) return
 
-      // Drop the recorded resolution, along with the ones the installed projects took from
-      // it, so the entry is resolved again instead of reused at the version it named before.
-      // Projects outside this install keep theirs until they are installed themselves.
       delete ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]
       for (const [id, importer] of Object.entries(ctx.wantedLockfile.importers ?? {})) {
         if (!installedProjectIds.has(id)) continue
@@ -1245,17 +1244,15 @@ export async function mutateModules (
         delete importer.optionalDependencies?.[alias]
       }
 
-      // Without this, resolution takes the version the lockfile pins for the package, or the
-      // newest one the entry's range allows — not the one that was asked for. The weight
-      // outranks the pin the lockfile seeds, since naming a version is a request to move off
-      // whatever is currently resolved.
-      opts.preferredVersions = {
-        ...opts.preferredVersions,
-        [alias]: {
-          ...opts.preferredVersions?.[alias],
-          [version]: { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1 },
-        },
-      }
+      // Outranks the pin the lockfile seeds for the package: naming a version is a request to
+      // move off whatever is resolved now, and without that the pin wins.
+      // Null-prototype merge targets so a package named `__proto__` lands as a plain own key
+      // instead of invoking the prototype setter.
+      const preferredVersions: PreferredVersions = Object.assign(Object.create(null), opts.preferredVersions)
+      preferredVersions[alias] = Object.assign(Object.create(null), preferredVersions[alias], {
+        [version]: { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1 },
+      })
+      opts.preferredVersions = preferredVersions
     }
 
     // Unfortunately, the private lockfile may differ from the public one.
