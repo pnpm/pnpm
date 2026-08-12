@@ -740,43 +740,35 @@ test('lockfile verifier fails on a transitive downgraded lockfile entry when tru
     '--lockfile-only',
   ])
   expect(result.status).toBe(1)
-  expect(result.stdout.toString()).toContain('ERR_PNPM_TRUST_DOWNGRADE')
+  expect(`${result.stdout.toString()}\n${result.stderr.toString()}`).toContain('ERR_PNPM_TRUST_DOWNGRADE')
 })
 
-test('lockfile verifier respects trustPolicyExclude from pnpm-workspace.yaml when package key has a leading slash', () => {
+test('lockfile verifier reads a lockfile key with a leading slash under its real package name', () => {
   prepare()
   execPnpmSync(
     ['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'],
     { expectSuccess: true }
   )
+  prefixLockfileKeyWithSlash('@pnpm/e2e.test-provenance@0.0.5')
 
-  const lockfile = readYamlFileSync<Record<string, unknown>>('pnpm-lock.yaml')
-  const oldKey = '@pnpm/e2e.test-provenance@0.0.5'
-  const newKey = '/@pnpm/e2e.test-provenance@0.0.5'
-  const packages = lockfile.packages as Record<string, unknown> | undefined
-  if (packages?.[oldKey]) {
-    packages[newKey] = packages[oldKey]
-    delete packages[oldKey]
-  }
-  const snapshots = lockfile.snapshots as Record<string, unknown> | undefined
-  if (snapshots?.[oldKey]) {
-    snapshots[newKey] = snapshots[oldKey]
-    delete snapshots[oldKey]
-  }
-  const importers = lockfile.importers as Record<string, Record<string, Record<string, Record<string, string>>>> | undefined
-  if (importers?.['.']?.dependencies?.['@pnpm/e2e.test-provenance']) {
-    importers['.'].dependencies['@pnpm/e2e.test-provenance'].version = newKey
-  }
-  writeYamlFileSync('pnpm-lock.yaml', lockfile)
+  // A key spelled the lockfile-v6 way still names the same package, so the
+  // trust check has to fire on it. Left unstripped the key resolves to a
+  // different name and the entry is reported as missing instead.
+  const result = execPnpmSync([
+    'install',
+    '--frozen-lockfile',
+    '--trust-policy=no-downgrade',
+  ])
+  expect(result.status).toBe(1)
+  expect(`${result.stdout.toString()}\n${result.stderr.toString()}`).toContain('ERR_PNPM_TRUST_DOWNGRADE')
 
-  writeYamlFileSync('pnpm-workspace.yaml', {
-    trustPolicy: 'no-downgrade',
-    trustPolicyExclude: ['@pnpm/e2e.test-provenance@0.0.5'],
-  })
-
+  // The failed run wrote nothing, so the same slash-prefixed lockfile is
+  // still on disk — now it has to match the exclusion by its real name.
   execPnpmSync([
     'install',
-    '--lockfile-only',
+    '--frozen-lockfile',
+    '--trust-policy=no-downgrade',
+    '--trust-policy-exclude=@pnpm/e2e.test-provenance@0.0.5',
   ], { expectSuccess: true })
 })
 
@@ -799,3 +791,35 @@ test('lockfile verifier respects trustPolicyExclude from pnpm-workspace.yaml whe
 })
 
 
+interface RawLockfileImporter {
+  dependencies?: Record<string, { version: string }>
+  devDependencies?: Record<string, { version: string }>
+  optionalDependencies?: Record<string, { version: string }>
+}
+
+interface RawLockfile {
+  importers: Record<string, RawLockfileImporter>
+  packages?: Record<string, unknown>
+  snapshots?: Record<string, unknown>
+}
+
+/** Rewrites `depPath` in the lockfile to the format-v6 `/<depPath>` spelling. */
+function prefixLockfileKeyWithSlash (depPath: string): void {
+  const lockfile = readYamlFileSync<RawLockfile>(WANTED_LOCKFILE)
+  const prefixed = `/${depPath}`
+  for (const section of [lockfile.packages, lockfile.snapshots]) {
+    if (section?.[depPath] == null) {
+      throw new Error(`${depPath} is missing from the lockfile`)
+    }
+    section[prefixed] = section[depPath]
+    delete section[depPath]
+  }
+  for (const importer of Object.values(lockfile.importers)) {
+    for (const deps of [importer.dependencies, importer.devDependencies, importer.optionalDependencies]) {
+      for (const dep of Object.values(deps ?? {})) {
+        if (dep.version === depPath) dep.version = prefixed
+      }
+    }
+  }
+  writeYamlFileSync(WANTED_LOCKFILE, lockfile)
+}

@@ -48,8 +48,10 @@ pub enum ParsePkgNameSuffixError<ParseSuffixError> {
 impl<Suffix: FromStr> FromStr for PkgNameSuffix<Suffix> {
     type Err = ParsePkgNameSuffixError<Suffix::Err>;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let value =
-            if value.starts_with('/') && !value.starts_with("//") { &value[1..] } else { value };
+        // Lockfile format 6 spelled registry keys with a leading slash
+        // (`/foo@1.0.0`, `/@scope/foo@1.0.0`). Drop it so the name matches the
+        // slashless spelling every consumer compares against.
+        let value = value.strip_prefix('/').unwrap_or(value);
         // The parsing code of PkgName is insufficient for this, so the code have to be duplicated for now.
         // TODO: use parser combinator pattern to enable code reuse
         let (name, suffix) = match value.split_first_char() {

@@ -187,9 +187,11 @@ export function parse (dependencyPath: string): DependencyPath {
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
-  const cleanDependencyPath = dependencyPath.startsWith('/') && !dependencyPath.startsWith('//')
-    ? dependencyPath.substring(1)
-    : dependencyPath
+  // Lockfile format 6 spelled registry keys with a leading slash
+  // (`/foo@1.0.0`, `/@scope/foo@1.0.0`). Drop it the same way
+  // `depPathToFilenameUnescaped` does, so the name this returns matches
+  // the identity the package is installed and verified under.
+  const cleanDependencyPath = dependencyPath[0] === '/' ? dependencyPath.substring(1) : dependencyPath
   const sepIndex = cleanDependencyPath.indexOf('@', 1)
   if (sepIndex === -1) {
     return {}

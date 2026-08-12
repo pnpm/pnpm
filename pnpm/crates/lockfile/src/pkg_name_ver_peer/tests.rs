@@ -253,3 +253,23 @@ fn pkg_id_strips_the_name_prefix_from_non_registry_keys() {
     // keeps the prefix there.
     case("node@runtime:22.0.0", "node@runtime:22.0.0");
 }
+
+/// Lockfile format 6 keyed registry packages with a leading slash. The
+/// key still has to yield the slashless name, or nothing that compares
+/// against a package name — `trustPolicyExclude`, `allowBuilds`, the
+/// resolution verifiers — recognizes the package.
+#[test]
+fn parse_legacy_leading_slash_key() {
+    fn case(input: &'static str, expected: PkgNameVerPeer) {
+        eprintln!("CASE: {input:?}");
+        let received: PkgNameVerPeer = input.parse().unwrap();
+        assert_eq!(&received, &expected);
+    }
+
+    case("/undici-types@6.21.0", name_peer_ver("undici-types", "6.21.0"));
+    case("/@types/node@18.7.19", name_peer_ver("@types/node", "18.7.19"));
+    case("/react-dom@17.0.2(react@17.0.2)", name_peer_ver("react-dom", "17.0.2(react@17.0.2)"));
+    // Only one slash is dropped, so a doubled prefix stays in the name
+    // and is rejected downstream as an invalid dependency name.
+    case("//undici-types@6.21.0", name_peer_ver("/undici-types", "6.21.0"));
+}

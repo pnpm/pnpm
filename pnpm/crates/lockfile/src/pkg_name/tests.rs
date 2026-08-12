@@ -103,3 +103,14 @@ fn try_from_owned_and_cow_route_through_parse() {
         PkgName::try_from(Cow::Owned(String::new())).expect_err("empty cow must fail validation");
     assert!(matches!(cow_err, ParsePkgNameError::EmptyName));
 }
+
+/// A leading slash is a lockfile *key* spelling, not part of a package
+/// name, so it survives here — the lockfile verifier's dependency-name
+/// check needs to see it and reject the alias, exactly as the
+/// TypeScript CLI's `isValidDependencyAlias` does. Stripping happens
+/// one level up, in `PkgNameSuffix`, which parses the whole key.
+#[test]
+fn parse_keeps_a_leading_slash() {
+    let parsed = PkgName::parse("/undici-types").expect("parse a slash-prefixed alias");
+    assert_eq!(parsed, PkgName { scope: None, bare: "/undici-types".to_string() });
+}

@@ -3,9 +3,19 @@ import { PnpmError } from '@pnpm/error'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
+/**
+ * Builds a matcher from `minimumReleaseAgeExclude` / `trustPolicyExclude`
+ * style patterns.
+ *
+ * A lone string is accepted because those settings are declared as
+ * `[String, Array]` (see `@pnpm/config.reader`): a single `.npmrc` line,
+ * env var, or YAML scalar arrives unwrapped. Iterating such a value would
+ * build one rule per character, and a `*` anywhere in it would then match
+ * every package — silently switching the whole policy off.
+ */
 export function createPackageVersionPolicy (patterns: string[] | string): PackageVersionPolicy {
   const rules: VersionPolicyRule[] = []
-  const patternList = Array.isArray(patterns) ? patterns : [patterns]
+  const patternList = typeof patterns === 'string' ? [patterns] : patterns
   for (const pattern of patternList) {
     const parsed = parseVersionPolicyRule(pattern)
     rules.push({ nameMatcher: createMatcher(parsed.packageName), exactVersions: parsed.exactVersions })
