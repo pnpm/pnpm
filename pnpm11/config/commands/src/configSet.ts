@@ -51,18 +51,13 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   switch (configFileName) {
     case GLOBAL_CONFIG_YAML_FILENAME:
     case WORKSPACE_MANIFEST_FILENAME: {
-      // `castField` is what decides a removal: `pnpm config delete` arrives
-      // with a null value, and `pnpm config set <key> null` casts to one. Both
-      // are how a file that already carries one of these gets fixed, so the
-      // result of the cast — not the raw parameter — gates every refusal
-      // below. The key only selects a type here, and normalizing it does not
-      // change that.
+      // `pnpm config set <key> null` casts to a removal, so the cast decides
+      // this rather than the raw parameter. Casting before the key is
+      // normalized is safe: the key only selects a numeric type.
       const castValue = castField(value, kebabCase(key))
-      // A removal skips both key checks. Validation exists to stop a write
-      // landing in a file that will not read it back, and nothing reads back a
-      // key being deleted. Both readers warn about every key their file does
-      // not accept, so a delete has to reach all of them rather than the
-      // subset each validator happens to admit.
+      // Validation stops a write landing in a file that will not read it back,
+      // and nothing reads back a key being deleted. Both readers warn about
+      // every key their file rejects, so a removal skips the checks entirely.
       const isRemoval = castValue == null
       if (configFileName === GLOBAL_CONFIG_YAML_FILENAME && !isRemoval) {
         key = validateYamlConfigKey(key)
