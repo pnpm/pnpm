@@ -6,9 +6,15 @@ import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory
 
 export const DIR: unique symbol = Symbol('Path is a directory')
 
-// symbols and numbers are used instead of discriminated union because
+// symbols and strings are used instead of discriminated union because
 // it's faster and simpler to compare primitives than to deep compare objects
-export type File = number // representing the file's inode, which is sufficient for hardlinks
+/**
+ * A file's identity, as `<device>:<inode>`. An inode number is only unique
+ * within one filesystem, so the device it came from is part of the identity:
+ * without it two unrelated files on different devices can collide and be
+ * taken for the same file, leaving the injected copy stale.
+ */
+export type File = string
 export type Dir = typeof DIR
 
 export type Value = File | Dir
@@ -83,7 +89,7 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
   async function addRecursive (sourcePath: string, targetPath: string, value: Value): Promise<void> {
     if (value === DIR) {
       await retryOverBlockingInode(targetPath, async () => fs.promises.mkdir(targetPath, { recursive: true }))
-    } else if (typeof value === 'number') {
+    } else if (typeof value === 'string') {
       fs.mkdirSync(path.dirname(targetPath), { recursive: true })
       await retryOverBlockingInode(targetPath, async () => fs.promises.link(sourcePath, targetPath))
     } else {
@@ -151,7 +157,7 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
   await Promise.all(newFiles.map(applyChange))
 }
 
-export type ExtendFilesMapStats = Pick<fs.Stats, 'ino' | 'isFile' | 'isDirectory'>
+export type ExtendFilesMapStats = Pick<fs.Stats, 'dev' | 'ino' | 'isFile' | 'isDirectory'>
 
 export interface ExtendFilesMapOptions {
   /** Map relative path of each file to their real path */
@@ -180,7 +186,7 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
   await Promise.all(Array.from(filesMap.entries()).map(async ([relativePath, realPath]) => {
     const stats = filesStats?.[relativePath] ?? await fs.promises.stat(realPath)
     if (stats.isFile()) {
-      addInodeAndAncestors(relativePath, stats.ino)
+      addInodeAndAncestors(relativePath, fileId(stats))
     } else if (stats.isDirectory()) {
       addInodeAndAncestors(relativePath, DIR)
     }
@@ -190,6 +196,8 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
 
   return result
 }
+
+const fileId = (stats: Pick<ExtendFilesMapStats, 'dev' | 'ino'>): File => `${stats.dev}:${stats.ino}`
 
 export class DirPatcher {
   private readonly sourceDir: string
