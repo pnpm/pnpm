@@ -2055,9 +2055,9 @@ fn peer_cycle_fixture(
     let mut dependencies_tree = HashMap::default();
     let mut direct = Vec::new();
     let add_direct = |id: &str,
-                          alias: &str,
-                          dependencies_tree: &mut HashMap<NodeId, _>,
-                          direct: &mut Vec<DirectDep>| {
+                      alias: &str,
+                      dependencies_tree: &mut HashMap<NodeId, _>,
+                      direct: &mut Vec<DirectDep>| {
         let node_id = NodeId::next();
         dependencies_tree.insert(
             node_id.clone(),
