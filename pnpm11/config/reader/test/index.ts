@@ -819,7 +819,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
    * manifest supplying any other type used to take down every command that
    * reads config — a repository could stop pnpm from running at all.
    */
-  test('a manifest cannot overwrite the reader own bookkeeping', async () => {
+  test("a manifest cannot overwrite the reader's own bookkeeping", async () => {
     prepareEmpty()
 
     const cliOptions = {}
