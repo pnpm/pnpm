@@ -335,7 +335,8 @@ impl Update<'_> {
         let manifest_dir =
             manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
         let importer_id = pacquet_workspace::importer_id_from_root_dir(
-            config.workspace_dir.as_deref().unwrap_or(&manifest_dir),
+            &crate::install::lockfile_root_dir(config, &manifest_dir)
+                .map_err(UpdateError::FindWorkspaceDir)?,
             &manifest_dir,
         );
         let bumps = (!bump_targets.is_empty()).then(|| ManifestSpecBumps {
@@ -393,7 +394,9 @@ impl Update<'_> {
         let bumped_manifest = applied
             .as_ref()
             .and_then(|applied| applied.manifests.get(&importer_id))
-            .is_some_and(|bumped| apply_bumped_manifest_specs(manifest, bumped));
+            .is_some_and(|bumped| {
+                apply_bumped_manifest_specs::<Reporter>(manifest, bumped, !should_persist_manifest)
+            });
         if should_persist_manifest || bumped_manifest {
             persist_manifest::<Reporter>(manifest)?;
         }
@@ -457,9 +460,11 @@ impl Update<'_> {
         if selected_indices.is_empty() {
             return Ok(());
         }
-        let workspace_root = config.workspace_dir.as_deref().unwrap_or_else(|| {
-            manifest.path().parent().expect("manifest path always has a parent dir")
-        });
+        let workspace_root = &crate::install::lockfile_root_dir(
+            config,
+            manifest.path().parent().expect("manifest path always has a parent dir"),
+        )
+        .map_err(UpdateError::FindWorkspaceDir)?;
         let mut prepared = prepare_selected_manifests::<Reporter>(
             projects,
             &selected_indices,
@@ -558,8 +563,12 @@ impl Update<'_> {
                 let importer_id =
                     pacquet_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir);
                 let Some(bumped) = applied.manifests.get(&importer_id) else { continue };
-                if apply_bumped_manifest_specs(&mut project.manifest, bumped)
-                    && !persist_indices.contains(&index)
+                let already_persisting = persist_indices.contains(&index);
+                if apply_bumped_manifest_specs::<Reporter>(
+                    &mut project.manifest,
+                    bumped,
+                    !already_persisting,
+                ) && !already_persisting
                 {
                     persist_indices.push(index);
                 }
@@ -1096,9 +1105,15 @@ fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
 /// Write the ranges the install settled on into `manifest`, reporting
 /// whether anything changed. The alias keeps the group it is declared under:
 /// an update moves a range, it never moves a dependency between groups.
-fn apply_bumped_manifest_specs(
+///
+/// `announce_initial` emits the manifest's pre-rewrite shape, which the
+/// reporter pairs with the one [`persist_manifest`] emits. Manifest
+/// preparation already announced a manifest it rewrote before resolving, so
+/// only a manifest this is the first to touch needs it.
+fn apply_bumped_manifest_specs<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
     bumped: &BTreeMap<String, String>,
+    announce_initial: bool,
 ) -> bool {
     let groups = bumped
         .keys()
@@ -1106,6 +1121,9 @@ fn apply_bumped_manifest_specs(
         .collect::<Vec<_>>();
     if groups.is_empty() {
         return false;
+    }
+    if announce_initial {
+        emit_initial_package_manifest::<Reporter>(manifest);
     }
     for (alias, group) in groups {
         manifest

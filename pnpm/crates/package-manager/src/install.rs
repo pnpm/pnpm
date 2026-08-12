@@ -84,7 +84,6 @@ use modules_state::{
 use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
 };
-pub(crate) use workspace_state::build_workspace_state;
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
     build_selected_project_manifests_list, configured_or_discovered_workspace_dir,
@@ -94,6 +93,7 @@ pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
     check_deps_status_before_run_at, install_already_up_to_date,
 };
+pub(crate) use workspace_state::{build_workspace_state, lockfile_root_dir};
 
 #[cfg(test)]
 mod tests;

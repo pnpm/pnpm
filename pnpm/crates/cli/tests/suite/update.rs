@@ -208,6 +208,32 @@ fn update_with_selector_only_rewrites_the_matched_dependency() {
     drop((root, anchor));
 }
 
+/// Dedicated per-project lockfiles anchor importer ids at the project
+/// rather than the workspace root, so the range rewrite has to derive them
+/// the same way the install does or it silently matches no importer.
+#[test]
+fn update_rewrites_the_range_with_dedicated_lockfiles() {
+    let (root, workspace, anchor) = setup();
+    append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", false);
+    add_workspace_package(&workspace, "a", "1.0.0");
+    let project = workspace.join("a");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "a", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#
+        ),
+    )
+    .expect("write project package.json");
+
+    pacquet(&project, ["install"]).assert().success();
+    pacquet(&project, ["update"]).assert().success();
+
+    assert_eq!(dep_spec(&project, DEP).as_deref(), Some("^100.1.0"));
+    pacquet(&project, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
 /// `--no-save` keeps `package.json` authoritative, so the lockfile moves
 /// within the declared range while the range itself stands.
 #[test]
