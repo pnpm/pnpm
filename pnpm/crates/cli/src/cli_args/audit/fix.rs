@@ -97,7 +97,7 @@ pub(crate) async fn fix_override(
 
 /// The packument publish info of one package: the `time` map plus the set of
 /// deprecated versions, or `None` when the packument could not be fetched or
-/// carries no usable `time` field. Ports pnpm's `PackumentPublishInfo`.
+/// carries no usable `time` field. Ports pnpm's publish-info structure.
 #[derive(Debug, Clone)]
 pub(crate) struct PackumentPublishInfo {
     /// The packument `time` map: version → raw publish timestamp. Includes

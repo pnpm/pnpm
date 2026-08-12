@@ -17,7 +17,7 @@ import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
-import { createPublishTimesFetcher, correctInferredPatchedVersions, type PublishTimesFetcher } from './publishTimes.js'
+import { correctInferredPatchedVersions, createPublishTimesFetcher, type PublishTimesFetcher } from './publishTimes.js'
 import { auditSignatures } from './signatures.js'
 
 const AUDIT_LEVEL_NUMBER = {
