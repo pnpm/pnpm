@@ -5,7 +5,7 @@ use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_modules_yaml::{Host, write_modules_manifest};
 use pnpm_package_manager::allow_build_key_from_ignored_build;
-use pnpm_workspace_manifest_writer::set_allow_builds;
+use pnpm_workspace_manifest_writer::{remove_legacy_build_settings, set_allow_builds};
 use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
@@ -141,6 +141,7 @@ impl ApproveBuildsArgs {
             decisions.iter().map(|(pkg, &value)| (pkg.as_str(), value)),
         )
         .into_diagnostic()?;
+        remove_legacy_build_settings(&settings_dir).into_diagnostic()?;
 
         clear_decided_ignored_builds(
             scan.modules_manifest,

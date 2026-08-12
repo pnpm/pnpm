@@ -747,6 +747,18 @@ fn run_remove_overrides(original: Option<&str>, selectors: &[&str]) -> Option<St
     fs::read_to_string(&path).ok()
 }
 
+/// Run `remove_legacy_build_settings` against `original` and return the
+/// resulting file contents, or `None` when no file exists afterward.
+fn run_remove_legacy_build_settings(original: Option<&str>) -> Option<String> {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    if let Some(text) = original {
+        fs::write(&path, text).expect("seed manifest");
+    }
+    crate::remove_legacy_build_settings(dir.path()).expect("remove succeeds");
+    fs::read_to_string(&path).ok()
+}
+
 #[test]
 fn overrides_block_is_created() {
     let out = run_overrides(None, &overrides(&[("foo@<1.0.1", "^1.0.1")])).expect("written");
@@ -1083,6 +1095,31 @@ fn remove_overrides_keeps_block_when_only_non_string_entry_remains() {
     let original = "overrides:\n  foo: link:../foo\n  bar:\n    nested: value\n";
     let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
     assert!(out.contains("bar:"), "non-string override must survive: {out}");
+}
+
+#[test]
+fn remove_legacy_build_settings_drops_every_known_key() {
+    let original = "packages:\n  - '*'\nonlyBuiltDependencies:\n  - esbuild\nignoredBuiltDependencies:\n  - foo\nallowBuilds:\n  esbuild: true\n";
+    let out = run_remove_legacy_build_settings(Some(original)).expect("file kept");
+    assert_eq!(out, "packages:\n  - '*'\nallowBuilds:\n  esbuild: true\n");
+}
+
+#[test]
+fn remove_legacy_build_settings_deletes_the_file_when_nothing_remains() {
+    let original = "onlyBuiltDependencies:\n  - esbuild\n";
+    assert_eq!(run_remove_legacy_build_settings(Some(original)), None);
+}
+
+#[test]
+fn remove_legacy_build_settings_is_a_noop_when_absent() {
+    let original = "packages:\n  - '*'\nallowBuilds:\n  esbuild: true\n";
+    let out = run_remove_legacy_build_settings(Some(original)).expect("file kept");
+    assert_eq!(out, original);
+}
+
+#[test]
+fn remove_legacy_build_settings_is_a_noop_when_the_manifest_is_missing() {
+    assert_eq!(run_remove_legacy_build_settings(None), None);
 }
 
 #[test]

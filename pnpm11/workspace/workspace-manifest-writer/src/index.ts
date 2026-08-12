@@ -48,6 +48,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   updatedCatalogs?: Catalogs
   updatedOverrides?: Record<string, string>
   addedMinimumReleaseAgeExcludes?: string[]
+  deletedLegacyKeys?: string[]
   fileName?: FileName
   catalogPrune?: boolean
   allProjects?: Project[]
@@ -93,6 +94,13 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     if (equals(manifest[key as keyof WorkspaceManifest], value)) continue
     shouldBeUpdated = true
     manifest[key as keyof WorkspaceManifest] = value
+  }
+  const untypedManifest = manifest as Record<string, unknown>
+  for (const key of opts.deletedLegacyKeys ?? []) {
+    if (key in untypedManifest) {
+      delete untypedManifest[key]
+      shouldBeUpdated = true
+    }
   }
   if (opts.updatedOverrides) {
     manifest.overrides ??= {}

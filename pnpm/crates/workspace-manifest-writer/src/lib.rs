@@ -564,6 +564,42 @@ pub fn remove_overrides(
     write_or_remove_manifest(&path, manifest)
 }
 
+/// Top-level `pnpm-workspace.yaml` settings replaced by `allowBuilds:` in
+/// pnpm v11. Left behind by an untouched manifest, they are dead config.
+pub const LEGACY_BUILD_SETTINGS: &[&str] = &[
+    "onlyBuiltDependencies",
+    "onlyBuiltDependenciesFile",
+    "neverBuiltDependencies",
+    "ignoredBuiltDependencies",
+];
+
+/// Delete [`LEGACY_BUILD_SETTINGS`] from `dir`'s `pnpm-workspace.yaml`,
+/// preserving the rest of the document's formatting and writing back only
+/// when something actually changed. A missing file is a no-op. Used by
+/// `pnpm approve-builds`.
+pub fn remove_legacy_build_settings(dir: &Path) -> Result<(), UpdateWorkspaceManifestError> {
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(Some(&original))
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    let mut changed = false;
+    for key in LEGACY_BUILD_SETTINGS {
+        changed |= edit::remove_top_level_field(&mut manifest, key);
+    }
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
 /// Set or delete an arbitrary top-level field in the YAML manifest at `path`
 /// (a `pnpm-workspace.yaml` or a global `config.yaml`), preserving the rest of
 /// the document's formatting and writing back only when something changed.
