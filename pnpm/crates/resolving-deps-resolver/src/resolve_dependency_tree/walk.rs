@@ -454,10 +454,11 @@ where
         };
         register_peer_dep_names(ctx, &peer_dependencies);
         ctx.workspace.record_package_write(&id);
+        let shared_id: Arc<str> = Arc::from(id.as_str());
         packages.insert(
-            Arc::from(id.clone()),
+            Arc::<str>::clone(&shared_id),
             ResolvedPackage {
-                id: Arc::from(id.clone()),
+                id: shared_id,
                 result: Arc::clone(&result),
                 peer_dependencies,
                 optional: current_is_optional,
@@ -842,7 +843,7 @@ where
     } else {
         let specs = Arc::new(extract_children(&pending.result)?);
         lock_recoverable(&ctx.workspace.children_specs_by_id)
-            .entry(Arc::from(pending.id.clone()))
+            .entry(Arc::from(pending.id.as_str()))
             .or_insert_with(|| Arc::clone(&specs));
         specs
     };

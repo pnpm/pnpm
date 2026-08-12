@@ -577,10 +577,11 @@ where
                 }
             }
             ctx.workspace.record_package_write(&id);
+            let shared_id: Arc<str> = Arc::from(id.as_str());
             packages.insert(
-                Arc::from(id.clone()),
+                Arc::<str>::clone(&shared_id),
                 ResolvedPackage {
-                    id: Arc::from(id.clone()),
+                    id: shared_id,
                     result: Arc::clone(&result),
                     peer_dependencies,
                     optional: current_is_optional,
@@ -642,7 +643,7 @@ where
                 let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
                 by_id.push(crate::resolved_tree::ChildEdge {
                     alias: dep.alias.clone(),
-                    pkg_id: Arc::from(dep.id.clone()),
+                    pkg_id: Arc::from(dep.id),
                     optional,
                 });
                 realized.insert(dep.alias, dep.node_id);

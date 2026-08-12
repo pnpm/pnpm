@@ -4194,6 +4194,7 @@ dependencies = [
 name = "pacquet-deps-path"
 version = "0.0.1"
 dependencies = [
+ "derive_more",
  "node-semver",
  "pacquet-crypto-hash",
 ]

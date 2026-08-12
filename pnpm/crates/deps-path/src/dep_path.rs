@@ -12,7 +12,11 @@ use std::sync::Arc;
 /// resolver crate) so that lower-level helpers (peer-id construction,
 /// suffix scanning, filename escaping) can speak in depPath terms
 /// without forcing a back-dependency from `deps-path` to the resolver.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// `From<Arc<str>>` is derived: [`DepPath`] already wraps an `Arc<str>`,
+/// so a caller holding one hands over the refcount instead of copying the
+/// string. The `String` and `&str` conversions stay handwritten because
+/// they allocate.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::From)]
 pub struct DepPath(Arc<str>);
 
 impl DepPath {
@@ -32,14 +36,6 @@ impl std::fmt::Display for DepPath {
 impl From<String> for DepPath {
     fn from(value: String) -> DepPath {
         DepPath(Arc::from(value))
-    }
-}
-
-impl From<Arc<str>> for DepPath {
-    /// Free: [`DepPath`] already wraps an `Arc<str>`, so a caller that
-    /// holds one hands over the refcount instead of copying the string.
-    fn from(value: Arc<str>) -> Self {
-        DepPath(value)
     }
 }
 

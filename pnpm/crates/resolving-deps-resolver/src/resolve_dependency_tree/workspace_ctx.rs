@@ -1283,7 +1283,7 @@ pub(super) fn claim_children_owner(
                     existing.is_some_and(|entry| *entry.peer_shadowed == peer_shadowed);
                 let peer_shadowed = Arc::new(peer_shadowed);
                 owners.insert(
-                    Arc::from(pkg_id.to_string()),
+                    Arc::from(pkg_id),
                     ChildrenOwnerEntry {
                         owner: owner.clone(),
                         peer_shadowed: Arc::clone(&peer_shadowed),
