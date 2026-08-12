@@ -1,6 +1,8 @@
 import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { removeBin } from '@pnpm/bins.remover'
+import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { logger as createLogger } from '@pnpm/logger'
@@ -23,6 +25,13 @@ export interface SyncInjectedDepsOptions {
   pkgName: string | undefined
   pkgRootDir: string
   workspaceDir: string | undefined
+  /**
+   * The package's manifest as it was before the scripts ran. A script that
+   * drops a bin leaves its shim behind, and the copies cannot say which bins
+   * they used to have: their `package.json` is hardlinked to the source, so
+   * an in-place rewrite has already reached them.
+   */
+  manifestBeforeScripts?: DependencyManifest
 }
 
 export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<void> {
@@ -58,33 +67,69 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
     })
     return
   }
-  const patchers = await DirPatcher.fromMultipleTargets(
-    pkgRootDir,
-    targetDirs.map(targetDir => path.resolve(opts.workspaceDir!, targetDir))
-  )
+  const resolvedTargetDirs = targetDirs.map(targetDir => path.resolve(opts.workspaceDir!, targetDir))
+  const patchers = await DirPatcher.fromMultipleTargets(pkgRootDir, resolvedTargetDirs)
+
   await Promise.all(patchers.map(patcher => patcher.apply()))
 
-  // After syncing files, also sync bin links if the package has binaries
-  await syncBinLinks(pkgRootDir, targetDirs, opts.workspaceDir)
+  await syncBinLinks({
+    // The install hoists bins into the virtual store's own `.bin` as well.
+    hoistedBinDir: modules.virtualStoreDir == null
+      ? undefined
+      : path.join(path.resolve(opts.workspaceDir, modules.virtualStoreDir), 'node_modules', '.bin'),
+    pkgRootDir,
+    previousBinNames: opts.manifestBeforeScripts == null
+      ? []
+      : (await getBinsFromPackageManifest(opts.manifestBeforeScripts, pkgRootDir)).map(command => command.name),
+    resolvedTargetDirs,
+    workspaceDir: opts.workspaceDir,
+  })
 }
 
-async function syncBinLinks (
-  pkgRootDir: string,
-  targetDirs: string[],
-  workspaceDir: string
-): Promise<void> {
-  const manifest = await safeReadPackageJsonFromDir(pkgRootDir) as DependencyManifest | undefined
+/** The commands a package declares, or none when it declares no bins. */
+async function readBinNames (pkgDir: string): Promise<string[]> {
+  const manifest = await safeReadPackageJsonFromDir(pkgDir) as DependencyManifest | undefined
+  if (!manifest?.name) return []
+  const commands = await getBinsFromPackageManifest(manifest, pkgDir)
+  return commands.map(command => command.name)
+}
 
-  if (!manifest?.bin || !manifest?.name) {
+interface SyncBinLinksOptions {
+  hoistedBinDir: string | undefined
+  pkgRootDir: string
+  previousBinNames: string[]
+  resolvedTargetDirs: string[]
+  workspaceDir: string
+}
+
+async function syncBinLinks (opts: SyncBinLinksOptions): Promise<void> {
+  const manifest = await safeReadPackageJsonFromDir(opts.pkgRootDir) as DependencyManifest | undefined
+
+  if (!manifest?.name) {
     return
   }
 
+  // A script can drop a bin as easily as it can add one. `linkBins` only ever
+  // creates shims, so without this the shim for a dropped bin survives and
+  // points at a command that is no longer there.
+  const currentBinNames = new Set(await readBinNames(opts.pkgRootDir))
+  const staleBinNames = opts.previousBinNames.filter(name => !currentBinNames.has(name))
+
   // Step 1: Link bins in .pnpm virtual store
-  const binLinkPromises = targetDirs.map(async (targetDir) => {
-    const resolvedTargetDir = path.resolve(workspaceDir, targetDir)
+  const binLinkPromises = opts.resolvedTargetDirs.map(async (resolvedTargetDir) => {
     const parentNodeModulesDir = path.dirname(resolvedTargetDir)
     const binDir = path.join(parentNodeModulesDir, '.bin')
 
+    // The installer writes an injected package's own bins inside the copy,
+    // while this function writes them beside it. A dropped bin has to be
+    // cleared from both, or the one this function never wrote survives.
+    const binDirs = [binDir, path.join(resolvedTargetDir, 'node_modules', '.bin')]
+    if (opts.hoistedBinDir != null) binDirs.push(opts.hoistedBinDir)
+    await Promise.all(binDirs.flatMap(
+      dir => staleBinNames.map(async name => removeBin(path.join(dir, name)))
+    ))
+
+    if (manifest.bin == null) return
     await linkBinsOfPackages(
       [{
         manifest,
@@ -99,11 +144,16 @@ async function syncBinLinks (
   // We need to relink bins for all workspace projects because injected deps
   // can be used by any project in the workspace. We relink all bins (not just
   // this package) to ensure consistency.
-  const allProjects = await findWorkspaceProjectsNoCheck(workspaceDir, {})
+  const allProjects = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {})
 
   const consumerLinkPromises = allProjects.map(async (project) => {
     const projectNodeModules = path.join(project.rootDir, 'node_modules')
     const projectBinDir = path.join(projectNodeModules, '.bin')
+
+    // A stale name another package legitimately owns is put back by the
+    // relink below, so removing first costs nothing and catches the shim
+    // this package left behind.
+    await Promise.all(staleBinNames.map(async name => removeBin(path.join(projectBinDir, name))))
 
     // Relink all bins in the project's node_modules
     await linkBins(projectNodeModules, projectBinDir, {

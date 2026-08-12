@@ -46,6 +46,7 @@ pub(super) fn preferred_versions_seeds(
     update_seed_policy: &UpdateSeedPolicy,
     wanted_lockfile: Option<&Lockfile>,
     importer_manifests: &BTreeMap<String, &PackageManifest>,
+    overrides: Option<&PreferredVersions>,
 ) -> (Arc<PreferredVersions>, BTreeMap<String, Arc<PreferredVersions>>) {
     use pacquet_lockfile_preferred_versions::{
         get_preferred_versions_from_lockfile_and_manifests as from_lockfile,
@@ -55,7 +56,7 @@ pub(super) fn preferred_versions_seeds(
     let manifests: Vec<&PackageManifest> = importer_manifests.values().copied().collect();
     let snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
 
-    let workspace_seed = match update_seed_policy {
+    let mut workspace_seed = match update_seed_policy {
         UpdateSeedPolicy::KeepAll
         | UpdateSeedPolicy::KeepAllResolveAll
         | UpdateSeedPolicy::ByImporter { .. } => from_lockfile(snapshots, manifests.as_slice()),
@@ -65,27 +66,41 @@ pub(super) fn preferred_versions_seeds(
         }
     };
 
+    // A per-importer policy carries its own overrides below. Layering them onto the
+    // workspace seed as well would reach the importers that policy left out, moving
+    // dependencies in projects the command never named.
+    if !matches!(update_seed_policy, UpdateSeedPolicy::ByImporter { .. }) {
+        merge_preferred_versions(&mut workspace_seed, overrides);
+    }
+
     let mut by_importer = BTreeMap::new();
     if let UpdateSeedPolicy::ByImporter { policies, .. } = update_seed_policy {
         let mut drop_all_seed = None;
         let mut drop_only_seeds = HashMap::new();
         for (importer_id, policy) in policies {
             let seed = match policy {
-                ImporterUpdateSeedPolicy::DropAll => Arc::clone(
-                    drop_all_seed
-                        .get_or_insert_with(|| Arc::new(from_lockfile(None, manifests.as_slice()))),
-                ),
+                ImporterUpdateSeedPolicy::DropAll => {
+                    Arc::clone(drop_all_seed.get_or_insert_with(|| {
+                        let mut seed = from_lockfile(None, manifests.as_slice());
+                        merge_preferred_versions(&mut seed, overrides);
+                        Arc::new(seed)
+                    }))
+                }
                 ImporterUpdateSeedPolicy::DropOnly(names) => {
                     let mut cache_key = names.iter().cloned().collect::<Vec<_>>();
                     cache_key.sort_unstable();
                     if let Some(seed) = drop_only_seeds.get(&cache_key) {
                         Arc::clone(seed)
                     } else {
-                        let seed = Arc::new(from_lockfile_excluding(
-                            snapshots,
-                            manifests.as_slice(),
-                            &excluded_names(names),
-                        ));
+                        let seed = Arc::new({
+                            let mut seed = from_lockfile_excluding(
+                                snapshots,
+                                manifests.as_slice(),
+                                &excluded_names(names),
+                            );
+                            merge_preferred_versions(&mut seed, overrides);
+                            seed
+                        });
                         drop_only_seeds.insert(cache_key, Arc::clone(&seed));
                         seed
                     }
@@ -96,6 +111,16 @@ pub(super) fn preferred_versions_seeds(
     }
 
     (Arc::new(workspace_seed), by_importer)
+}
+
+/// Layer caller-supplied preferences onto a seed, per package name. A
+/// selector present in both wins from `overrides`, which is how a version
+/// named on the command line outranks the pin the lockfile seeded for it.
+fn merge_preferred_versions(seed: &mut PreferredVersions, overrides: Option<&PreferredVersions>) {
+    let Some(overrides) = overrides else { return };
+    for (name, selectors) in overrides {
+        seed.entry(name.clone()).or_default().extend(selectors.clone());
+    }
 }
 
 fn excluded_names(

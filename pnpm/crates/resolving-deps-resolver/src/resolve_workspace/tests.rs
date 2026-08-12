@@ -459,7 +459,7 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
         let parent_children =
             result.merged_tree.children_by_id.get("parent@1.0.0").expect("parent children");
         assert_eq!(parent_children.len(), 1);
-        assert_eq!(parent_children[0].pkg_id, "pkg@100.1.0");
+        assert_eq!(&*parent_children[0].pkg_id, "pkg@100.1.0");
         // Recording the winner's children is not enough on its own: the
         // occurrence that ran first realized the ones it resolved, and
         // only the handover makes it re-read them.
@@ -635,7 +635,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
         .expect("injected workspace package children");
     assert_eq!(children.len(), 1);
     assert_eq!(children[0].alias, "is-positive");
-    assert_eq!(children[0].pkg_id, "is-positive@1.0.0");
+    assert_eq!(&*children[0].pkg_id, "is-positive@1.0.0");
     assert!(!children[0].optional);
 }
 
@@ -3083,6 +3083,103 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
         "the lockfile-reused subtree must survive the ownership handover",
     );
 }
+/// Publishing a fresh answer over pinned children re-resolves the open
+/// ranges reuse exists to hold still, and leaves the occurrences that
+/// realized the pinned subtree reading children the record no longer
+/// holds (<https://github.com/pnpm/pnpm/issues/13837>).
+#[tokio::test]
+async fn a_pinned_subtree_keeps_its_children_against_a_fresh_walk() {
+    for slow in [("fresh", "1.0.0"), ("reused", "1.0.0")] {
+        let tree = resolve_pinned_versus_fresh(slow).await;
+        let recorded: Vec<&str> = tree
+            .children_by_id
+            .get("shared@1.0.0")
+            .expect("shared children")
+            .iter()
+            .map(|edge| &*edge.pkg_id)
+            .collect();
+        assert_eq!(recorded, ["pin@1.0.0"], "the pins stand, held back: {slow:?}");
+        assert!(
+            !tree.packages.contains_key("pin@1.5.0"),
+            "and nothing re-resolves the range they pinned, held back: {slow:?}",
+        );
+    }
+}
+
+/// `slow` is the `(alias, range)` the resolver holds back, which
+/// decides whether the pinned subtree or the fresh edge records
+/// `shared`'s children first.
+async fn resolve_pinned_versus_fresh(slow: (&str, &str)) -> crate::ResolvedTree {
+    let dependencies = |deps| {
+        move |name: &str, version: &str| {
+            fake_result(
+                name,
+                version,
+                None,
+                serde_json::json!({ "name": name, "version": version, "dependencies": deps }),
+            )
+        }
+    };
+    let table = HashMap::from_iter([
+        (
+            ("reused".to_string(), "1.0.0".to_string()),
+            dependencies(serde_json::json!({ "shared": "1.0.0" }))("reused", "1.0.0"),
+        ),
+        (
+            ("fresh".to_string(), "1.0.0".to_string()),
+            dependencies(serde_json::json!({ "shared": "^1.0.0" }))("fresh", "1.0.0"),
+        ),
+        (
+            ("shared".to_string(), "1.0.0".to_string()),
+            dependencies(serde_json::json!({ "pin": "^1.0.0" }))("shared", "1.0.0"),
+        ),
+        (
+            ("shared".to_string(), "^1.0.0".to_string()),
+            dependencies(serde_json::json!({ "pin": "^1.0.0" }))("shared", "1.0.0"),
+        ),
+        (
+            ("pin".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "pin",
+                "1.0.0",
+                None,
+                serde_json::json!({ "name": "pin", "version": "1.0.0" }),
+            ),
+        ),
+        (
+            ("pin".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "pin",
+                "1.5.0",
+                None,
+                serde_json::json!({ "name": "pin", "version": "1.5.0" }),
+            ),
+        ),
+    ]);
+    let resolver = SlowAliasResolver { table, slow: (slow.0.to_string(), slow.1.to_string()) };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "reused": "1.0.0", "fresh": "1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(Arc::new(reuse_graph_lockfile(
+        ".",
+        &[("reused", "1.0.0", "1.0.0")],
+        &[
+            ("reused@1.0.0", &[("shared", "1.0.0")]),
+            ("shared@1.0.0", &[("pin", "1.0.0")]),
+            ("pin@1.0.0", &[]),
+        ],
+        &[],
+    )));
+    let dir = tmp.path().to_path_buf();
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(dir.clone(), None)
+    })
+    .await
+    .expect("resolve the pinned-versus-fresh contest")
+    .merged_tree
+}
+
 fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
     use pacquet_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,

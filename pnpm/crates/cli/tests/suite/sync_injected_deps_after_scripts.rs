@@ -151,3 +151,91 @@ fn a_project_outside_a_workspace_still_runs_the_script() {
 
     drop(root);
 }
+
+/// Every `.bin` directory under `dir` that holds a shim named `bin_name`,
+/// counting the Windows shim set as one.
+fn bin_dirs_holding(dir: &Path, bin_name: &str) -> Vec<std::path::PathBuf> {
+    fn walk(dir: &Path, bin_name: &str, found: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            if path.file_name().is_some_and(|name| name == ".bin") {
+                let holds =
+                    [bin_name.to_string(), format!("{bin_name}.CMD"), format!("{bin_name}.ps1")]
+                        .iter()
+                        .any(|candidate| path.join(candidate).exists());
+                if holds {
+                    found.push(path.clone());
+                }
+            }
+            walk(&path, bin_name, found);
+        }
+    }
+    let mut found = Vec::new();
+    walk(dir, bin_name, &mut found);
+    found.sort();
+    found
+}
+
+#[test]
+fn a_listed_script_removes_the_link_of_a_bin_it_dropped() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace(&workspace, "syncInjectedDepsAfterScripts:\n  - build\n");
+
+    // Give project-1 two bins and a build script that drops one of them the
+    // way a step regenerating package.json would.
+    fs::create_dir_all(workspace.join("project-1/bin")).expect("mkdir project-1/bin");
+    fs::write(workspace.join("project-1/bin/kept.js"), "#!/usr/bin/env node\n")
+        .expect("write kept bin");
+    fs::write(workspace.join("project-1/bin/dropped.js"), "#!/usr/bin/env node\n")
+        .expect("write dropped bin");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "bin": { "kept-cli": "bin/kept.js", "dropped-cli": "bin/dropped.js" },
+            "scripts": { "build": "node drop-bin.cjs" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1 package.json");
+    fs::write(
+        workspace.join("project-1/drop-bin.cjs"),
+        concat!(
+            "const fs = require('fs')\n",
+            "const p = __dirname + '/package.json'\n",
+            "const m = JSON.parse(fs.readFileSync(p, 'utf8'))\n",
+            "delete m.bin['dropped-cli']\n",
+            "fs.writeFileSync(p, JSON.stringify(m, null, 2))\n",
+        ),
+    )
+    .expect("write drop-bin.cjs");
+
+    pacquet.with_arg("install").assert().success();
+
+    assert!(
+        !bin_dirs_holding(&workspace, "dropped-cli").is_empty(),
+        "the install should have linked the bin somewhere",
+    );
+
+    pacquet_in(&workspace.join("project-1")).with_args(["run", "build"]).assert().success();
+
+    assert_eq!(
+        bin_dirs_holding(&workspace, "dropped-cli"),
+        Vec::<std::path::PathBuf>::new(),
+        "the shim of the dropped bin should be gone everywhere",
+    );
+    assert!(
+        !bin_dirs_holding(&workspace, "kept-cli").is_empty(),
+        "the bin the script kept should still be linked",
+    );
+
+    drop((mock_instance, root));
+}

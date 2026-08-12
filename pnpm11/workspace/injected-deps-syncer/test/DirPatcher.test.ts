@@ -59,7 +59,10 @@ function createFifo (fifoPath: string): void {
   execFileSync('mkfifo', [path.resolve(fifoPath)])
 }
 
-const inodeNumber = (filePath: string): number => fs.lstatSync(filePath).ino
+const fileId = (filePath: string): string => {
+  const stats = fs.lstatSync(filePath)
+  return `${stats.dev}:${stats.ino}`
+}
 
 test('optimally synchronizes source and target', async () => {
   prepareEmpty()
@@ -124,11 +127,11 @@ test('optimally synchronizes source and target', async () => {
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
-      .map(inodeNumber)
+      .map(fileId)
   ).not.toStrictEqual(
     filesToModify
       .map(suffix => path.resolve(sourceDir, suffix))
-      .map(inodeNumber)
+      .map(fileId)
   )
 
   let fsMethods = mockFsPromises()
@@ -150,11 +153,11 @@ test('optimally synchronizes source and target', async () => {
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
-      .map(inodeNumber)
+      .map(fileId)
   ).toStrictEqual(
     filesToModify
       .map(suffix => path.resolve(sourceDir, suffix))
-      .map(inodeNumber)
+      .map(fileId)
   )
 
   // does not touch filesToKeep
@@ -326,4 +329,29 @@ testOnPosix('keeps the files linked into a directory that replaced a blocking in
   await Promise.all(patchers.map(async patcher => patcher.apply()))
 
   expect(fs.readdirSync('target/blocked').sort()).toStrictEqual(fileNames.sort())
+})
+
+test('removes what the source dropped before replacing the directory that held it', async () => {
+  prepareEmpty()
+
+  createFile('source/became-a-file', 'now a file')
+  createFile('target/became-a-file/dropped.txt', 'was a dir')
+
+  // `became-a-file` is a modification, `became-a-file/dropped.txt` a
+  // removal. Hold the removal back so it would land after the
+  // modification has linked a file over its parent — at which point
+  // the path it was given no longer has a directory in it.
+  let delayNextRemoval = true
+  fs.promises.rm = (async (target: fs.PathLike, options?: fs.RmOptions) => {
+    if (delayNextRemoval && String(target).endsWith('dropped.txt')) {
+      delayNextRemoval = false
+      await delay(30)
+    }
+    return originalRm(target, options)
+  }) as typeof fs.promises.rm
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.readFileSync('target/became-a-file', 'utf8')).toBe('now a file')
 })

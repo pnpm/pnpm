@@ -164,6 +164,7 @@ impl LinkArgs {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,

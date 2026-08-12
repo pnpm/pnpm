@@ -184,6 +184,10 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// satisfying their manifest range. Drives `pacquet update`'s
     /// compatible bump; see [`UpdateSeedPolicy`].
     pub update_seed_policy: UpdateSeedPolicy,
+    /// Preferences layered onto the seed, by package name. `add` / `update`
+    /// put a version named on the command line here so the re-resolve lands
+    /// on it instead of on the highest one its range allows.
+    pub preferred_versions_override: Option<pacquet_resolving_resolver_base::PreferredVersions>,
     /// Per-invocation `Authorization`-header override; `None` uses
     /// `config.auth_headers`. See [`crate::Install::auth_override`].
     pub auth_override: Option<Arc<AuthHeaders>>,
@@ -267,6 +271,35 @@ pub enum UpdateSeedPolicy {
         policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
         max_depth: UpdateDepth,
     },
+}
+
+/// Record `version` as the preferred one for `name`, outranking the pin the
+/// lockfile seeds.
+///
+/// A version named on the command line has to reach the lockfile even when
+/// the specifier written to the manifest doesn't carry it — a `catalog:`
+/// entry keeps the version in the catalog, so without this the entry's
+/// recorded resolution is reused and the request is dropped silently.
+pub(crate) fn prefer_requested_version(
+    preferred: &mut pacquet_resolving_resolver_base::PreferredVersions,
+    name: &str,
+    version: &str,
+) {
+    use pacquet_resolving_resolver_base::{
+        EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
+        VersionSelectorWithWeight,
+    };
+
+    if node_semver::Version::parse(version).is_err() {
+        return;
+    }
+    preferred.entry(name.to_string()).or_default().insert(
+        version.to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1,
+        }),
+    );
 }
 
 impl UpdateSeedPolicy {
@@ -683,6 +716,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             persist_policy_excludes,
             is_full_install,
             update_seed_policy,
+            preferred_versions_override,
             auth_override,
             resolution_observer,
             peer_issues_sink,
@@ -855,6 +889,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 &update_seed_policy,
                 wanted_lockfile,
                 &importer_manifests,
+                preferred_versions_override.as_ref(),
             );
         // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
         // per install. The resolver consults the grouped record at
@@ -2097,6 +2132,7 @@ fn build_fresh_lockfile(
         named_registries: &named_registries,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
         previous_importers,
+        previous_packages: wanted_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         time: merge_recorded_time(wanted_lockfile, resolved_time),

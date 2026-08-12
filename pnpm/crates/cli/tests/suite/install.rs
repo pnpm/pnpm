@@ -1565,6 +1565,71 @@ fn resolution_mode_time_based_applies_under_a_minimum_release_age() {
     drop((root, mock_instance));
 }
 
+/// A hoisted (auto-installed) peer is not a dependency the user
+/// declared, so the direct-dep pick of `lowest-direct` must not apply
+/// to it even though it installs at the importer level.
+#[test]
+fn resolution_mode_lowest_direct_resolves_hoisted_peers_to_highest() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    existing
+        .push_str("resolutionMode: lowest-direct\nminimumReleaseAge: 0\nautoInstallPeers: true\n");
+    fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/abc-parent-with-missing-peers": "1.0.0" },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    assert!(
+        pnpm_dir.join("@pnpm.e2e+peer-a@1.0.1").exists(),
+        "the hoisted peer must resolve to the highest satisfying version under lowest-direct",
+    );
+    assert!(!pnpm_dir.join("@pnpm.e2e+peer-a@1.0.0").exists());
+
+    drop((root, mock_instance));
+}
+
+/// `time-based` shares the hoisted-peer rule with `lowest-direct`: the
+/// hoist resolves like a transitive dep — highest satisfying, under the
+/// subdep publish-date cutoff.
+#[test]
+fn resolution_mode_time_based_resolves_hoisted_peers_to_highest() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    existing.push_str("resolutionMode: time-based\nminimumReleaseAge: 0\nautoInstallPeers: true\n");
+    fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/abc-parent-with-missing-peers": "1.0.0" },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    assert!(
+        pnpm_dir.join("@pnpm.e2e+peer-a@1.0.1").exists(),
+        "the hoisted peer must resolve to the highest satisfying version under time-based",
+    );
+    assert!(!pnpm_dir.join("@pnpm.e2e+peer-a@1.0.0").exists());
+
+    drop((root, mock_instance));
+}
+
 /// Dropping `time:` would lose the publish dates a re-resolve falls back
 /// on when the registry's abbreviated metadata carries none, changing the
 /// cutoff every subdependency is resolved under.
@@ -1781,6 +1846,54 @@ fn set_dir_modes(path: &std::path::Path, mode: u32) {
 /// `frozenLockfile: true` in `pnpm-workspace.yaml` drives the same
 /// headless install `--frozen-lockfile` does, and `--no-frozen-lockfile`
 /// overrides it back off.
+#[test]
+fn frozen_lockfile_accepts_a_peer_package_extensions_injected() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str(concat!(
+        "autoInstallPeers: true\n",
+        "packageExtensions:\n",
+        "  root:\n",
+        "    peerDependencies:\n",
+        "      '@pnpm.e2e/foo': ^100.0.0\n",
+    ));
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    // The extension made `@pnpm.e2e/foo` a peer of the project, so
+    // `autoInstallPeers` recorded it as a dependency of the importer. The
+    // freshness check has to see the same peer, or it reads that entry as a
+    // dependency the manifest dropped.
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    assert!(
+        wanted.importers["."].dependencies.as_ref().is_some_and(
+            |dependencies| dependencies.contains_key(&"@pnpm.e2e/foo".parse().expect("alias"))
+        ),
+        "the injected peer is auto-installed into the importer",
+    );
+
+    new_pacquet_command(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn frozen_lockfile_setting_drives_the_headless_install() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

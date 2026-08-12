@@ -123,6 +123,10 @@ pub struct GraphToLockfileOptions<'a> {
     /// previous lockfile (a first install) or when `dedupeInjectedDeps`
     /// is off.
     pub previous_importers: Option<&'a HashMap<String, ProjectSnapshot>>,
+    /// The previous run's `packages:` map. A rebuilt entry whose
+    /// resolution is unchanged never loses a recorded `deprecated`
+    /// marker to registry metadata drift. `None` on a first install.
+    pub previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     /// How this install reuses the prior resolution, mapped from the
     /// `pacquet update` seed policy. Together with a spec change it
     /// decides whether an importer's workspace dependency is *targeted*
@@ -214,6 +218,7 @@ pub fn dependencies_graph_to_lockfile(
         named_registries,
         lockfile_include_tarball_url,
         previous_importers,
+        previous_packages,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         time,
@@ -223,9 +228,12 @@ pub fn dependencies_graph_to_lockfile(
     let (packages, snapshots) = build_packages_and_snapshots(
         graph,
         &optional_overrides,
-        registry,
-        named_registries,
-        lockfile_include_tarball_url,
+        &PackageMetadataSources {
+            registry,
+            named_registries,
+            lockfile_include_tarball_url,
+            previous_packages,
+        },
     )?;
 
     let mut importers: HashMap<String, ProjectSnapshot> =
@@ -658,12 +666,19 @@ type PackagesAndSnapshots =
 /// `optional_overrides` carries the corrected `optional` flag per
 /// depPath produced by [`compute_corrected_optional`]; a missing
 /// entry falls back to [`DependenciesGraphNode::optional`].
+/// What [`build_packages_and_snapshots`] renders `packages:` entries
+/// from, beyond the graph itself.
+struct PackageMetadataSources<'a> {
+    registry: &'a str,
+    named_registries: &'a HashMap<String, String>,
+    lockfile_include_tarball_url: bool,
+    previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+}
+
 fn build_packages_and_snapshots(
     graph: &DependenciesGraph,
     optional_overrides: &HashMap<DepPath, bool>,
-    registry: &str,
-    named_registries: &HashMap<String, String>,
-    lockfile_include_tarball_url: bool,
+    sources: &PackageMetadataSources<'_>,
 ) -> Result<PackagesAndSnapshots, DependenciesGraphToLockfileError> {
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
@@ -699,13 +714,26 @@ fn build_packages_and_snapshots(
             // entry that no install can fetch. Keeping the URL is always
             // recoverable, so an unknown alias forces it to be written.
             let (registry, include_tarball_url) = match key.suffix.registry_qualified() {
-                Some((registry_name, _)) => match named_registries.get(registry_name) {
-                    Some(named_registry) => (named_registry.as_str(), lockfile_include_tarball_url),
-                    None => (registry, true),
+                Some((registry_name, _)) => match sources.named_registries.get(registry_name) {
+                    Some(named_registry) => {
+                        (named_registry.as_str(), sources.lockfile_include_tarball_url)
+                    }
+                    None => (sources.registry, true),
                 },
-                None => (registry, lockfile_include_tarball_url),
+                None => (sources.registry, sources.lockfile_include_tarball_url),
             };
-            build_package_metadata(node, key, registry, include_tarball_url)
+            let mut metadata = build_package_metadata(node, key, registry, include_tarball_url);
+            // `deprecated` is the only registry-mutable field of a
+            // published version; an unchanged resolution must not lose
+            // a recorded deprecation to a registry serving it
+            // inconsistently (pnpm/pnpm#13846).
+            if metadata.deprecated.is_none()
+                && let Some(previous) = sources.previous_packages.and_then(|prev| prev.get(key))
+                && previous.resolution == metadata.resolution
+            {
+                metadata.deprecated.clone_from(&previous.deprecated);
+            }
+            metadata
         });
     }
 

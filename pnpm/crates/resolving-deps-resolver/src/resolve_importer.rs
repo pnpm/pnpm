@@ -460,7 +460,7 @@ impl ImporterHoistState {
         )?;
         let project_dir = base_opts.project_dir.clone();
         let tree_lockfile_dir = lockfile_dir.clone().unwrap_or_else(|| project_dir.clone());
-        let ctx = TreeCtx::with_workspace(workspace, base_opts)
+        let mut ctx = TreeCtx::with_workspace(workspace, base_opts)
             .with_lockfile_dir(&tree_lockfile_dir)
             .with_importer_id(importer_id)
             .with_importer_order(importer_order)
@@ -502,6 +502,7 @@ impl ImporterHoistState {
         .await?;
         ctx.workspace().set_direct_locked_peer_names(&direct, &locked_peer_names_by_alias);
         parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
+        ctx.resolve_new_direct_deps_as_subdeps();
         Ok(ImporterHoistState {
             importer_id: importer_id.to_string(),
             ctx,
@@ -1226,7 +1227,7 @@ fn build_workspace_root_deps(
     let mut out = Vec::with_capacity(direct.len());
     let mut named = HashSet::default();
     for dep in direct {
-        let Some(pkg) = snapshot.packages.get(&dep.id) else { continue };
+        let Some(pkg) = snapshot.packages.get(dep.id.as_str()) else { continue };
         let Some(pkg_name) = resolved_pkg_name(&pkg.result) else { continue };
         named.insert(dep.alias.as_str());
         out.push(WorkspaceRootDep {

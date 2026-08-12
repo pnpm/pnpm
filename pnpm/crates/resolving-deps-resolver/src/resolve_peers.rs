@@ -530,7 +530,7 @@ fn build_node_ids_by_previous_dep_path(
     let mut node_ids: Vec<&NodeId> = tree.dependencies_tree.keys().collect();
     node_ids.sort();
     for node_id in node_ids {
-        if let Some(previous) = tree.dependencies_tree[node_id].previous_dep_path.as_ref()
+        if let Some(previous) = tree.dependencies_tree[node_id].previous_dep_path()
             && !map.contains_key(previous)
         {
             map.insert(previous.clone(), node_id.clone());

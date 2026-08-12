@@ -142,6 +142,7 @@ impl Remove<'_> {
             // every remaining lockfile pin in the preferred-versions
             // seed, same as `install` / `add`.
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,
@@ -229,6 +230,7 @@ impl Remove<'_> {
             dry_run: false,
             persist_policy_excludes: false,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,

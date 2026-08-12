@@ -16,7 +16,7 @@ import {
   runLifecycleHook,
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
-import type { PackageScripts, ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
 import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
@@ -456,6 +456,8 @@ export async function runScript (opts: {
       pkgName: opts.manifest.name,
       pkgRootDir: opts.lifecycleOpts.pkgRoot,
       workspaceDir: opts.runScriptOptions.workspaceDir,
+      // Read before the script ran, so a bin it drops can still be named.
+      manifestBeforeScripts: opts.manifest as DependencyManifest,
     })
   }
 }
