@@ -12,8 +12,7 @@ use crate::{
 };
 use pacquet_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// See [`PeersCacheItem`] for why a cache hit reports no providers.
 #[test]

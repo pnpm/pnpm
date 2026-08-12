@@ -1603,8 +1603,7 @@ mod locked_peer_provider_preferences {
     use super::{DepPath, DirectDep, NodeId, ResolvePeersOptions, ResolvedTree, resolve_peers};
     use crate::resolve_peers::test_support::{package, package_with_peer_dependencies, tree_node};
     use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-    use std::collections::BTreeMap;
-    use std::sync::Arc;
+    use std::{collections::BTreeMap, sync::Arc};
 
     struct LockedTreeIds {
         current_peer: NodeId,
