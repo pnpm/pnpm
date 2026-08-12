@@ -585,3 +585,40 @@ fn importer_dep_version(workspace: &Path, importer: &str, name: &str) -> String 
             |dependency| dependency.version.to_string(),
         )
 }
+
+/// The same move has to reach a project that keeps its own lockfile, where
+/// importer ids are relative to the project rather than to the workspace.
+#[test]
+fn add_moves_a_catalog_with_a_per_project_lockfile() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\ncatalogMode: strict\ncatalog:\n  '{FOO}': 1.0.0\n"
+        ),
+    );
+    let project = workspace.join("packages/a");
+    std::fs::create_dir_all(&project).expect("create the package dir");
+    std::fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { FOO: "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write the package manifest");
+    run_ok(&workspace, &["--dir", "packages/a", "install", "--lockfile-only"]);
+    let widened = read(&workspace, "pnpm-workspace.yaml").replace("': 1.0.0", "': ^1.0.0");
+    std::fs::write(workspace.join("pnpm-workspace.yaml"), widened).expect("widen the catalog");
+    run_ok(&workspace, &["--dir", "packages/a", "install", "--lockfile-only"]);
+    assert_eq!(catalog_snapshot(&project, FOO), ("^1.0.0".to_string(), "1.0.0".to_string()));
+
+    run_ok(&workspace, &["--dir", "packages/a", "add", "--lockfile-only", &format!("{FOO}@1.1.0")]);
+
+    assert_eq!(catalog_snapshot(&project, FOO), ("^1.0.0".to_string(), "1.1.0".to_string()));
+
+    drop((root, anchor));
+}

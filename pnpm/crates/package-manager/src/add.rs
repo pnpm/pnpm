@@ -42,7 +42,7 @@ use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
 use std::{
     collections::{BTreeMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -247,9 +247,11 @@ where
         } else {
             let manifest_dir =
                 manifest.path().parent().expect("manifest path always has a parent dir");
-            let workspace_root = config.workspace_dir.as_deref().unwrap_or(manifest_dir);
             BTreeMap::from([(
-                pacquet_workspace::importer_id_from_root_dir(workspace_root, manifest_dir),
+                pacquet_workspace::importer_id_from_root_dir(
+                    importer_id_root(config, manifest_dir),
+                    manifest_dir,
+                ),
                 ImporterUpdateSeedPolicy::DropOnly(dropped_pins),
             )])
         };
@@ -387,9 +389,8 @@ where
 
         // Scoped per importer: a project that wasn't selected keeps its pins, so its
         // resolutions stand even when it declares the same package directly.
-        let workspace_root = config.workspace_dir.as_deref().unwrap_or_else(|| {
-            manifest.path().parent().expect("manifest path always has a parent dir")
-        });
+        let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
+        let importer_root = importer_id_root(config, manifest_dir);
         let mut seed_policies = BTreeMap::new();
         let mut preferred_versions_override = PreferredVersions::new();
         for &index in &selected_indices {
@@ -405,7 +406,7 @@ where
                 continue;
             }
             let importer_id = pacquet_workspace::importer_id_from_root_dir(
-                workspace_root,
+                importer_root,
                 &projects[index].root_dir,
             );
             seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
@@ -482,6 +483,18 @@ where
         prune_minimum_release_age_excludes(config, Some(&prepared.workspace_dir), manifest)
             .map_err(AddError::WriteWorkspaceManifest)?;
         Ok(())
+    }
+}
+
+/// The directory importer ids are relative to: the lockfile's own directory,
+/// which is the workspace root only while one lockfile is shared. A seed
+/// policy keyed against anything else names no importer and silently does
+/// nothing. Mirrors the root [`Install`] resolves against.
+fn importer_id_root<'a>(config: &'a Config, manifest_dir: &'a Path) -> &'a Path {
+    if config.shared_workspace_lockfile {
+        config.workspace_dir.as_deref().unwrap_or(manifest_dir)
+    } else {
+        manifest_dir
     }
 }
 
