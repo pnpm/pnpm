@@ -147,8 +147,8 @@ pub(super) struct PeersCacheItem {
     /// subtree still reports the same per-package missing breakdown a
     /// full walk of it would.
     pub(super) subtree_missing_by_pkg: SubtreeMissingByPkg,
-    /// `None` for a verdict that saw its package's whole subtree, which
-    /// is the only kind this cache used to hold.
+    /// `None` for a verdict that saw its package's whole subtree —
+    /// such verdicts are valid wherever the peer-context checks pass.
     ///
     /// A cycle re-entry resolves against children the cycle gate
     /// truncated, so its peer sets describe *that* truncation rather

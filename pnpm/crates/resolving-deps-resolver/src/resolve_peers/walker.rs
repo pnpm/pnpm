@@ -956,13 +956,14 @@ impl Walker<'_> {
             parent.or(frame);
         }
         // Without the occurrence's ancestor ids there is nothing to scope
-        // a truncated verdict to, so it stays uncached exactly as before.
+        // a truncated verdict to, so it stays uncached.
         let cycle_key = match (resolved_through_cycle, truncation_ids.as_ref(), frame.as_ref()) {
             (true, Some(ids), Some(frame)) => Some(self.build_cycle_key(ids, frame)),
             _ => None,
         };
         if resolved_through_cycle && cycle_key.is_none() {
-            // Leave both caches untouched, as before.
+            // A truncated verdict with no scope must not be reused
+            // anywhere, so neither cache records it.
         } else if !resolved_through_cycle && is_pure {
             self.pure_pkgs
                 .insert(std::sync::Arc::<str>::clone(&pkg.id).to_string(), dep_path.clone());
