@@ -36,6 +36,106 @@ use std::{collections::BTreeMap, sync::Arc};
 /// pnpm's resolver gives a not-new package `resolvedPeers: {}`
 /// (`resolveDependencies.ts`) — so only the walk that first resolved a
 /// subtree promotes its providers to importer level.
+/// Set of package ids, as bits over [`Walker::consulted_bit_by_pkg`].
+///
+/// A full walk collects here every package the cycle gate weighed while
+/// realizing the walk's subtree — the packages whose presence in the
+/// occurrence's ancestor chain could have changed what got truncated.
+/// Everything else in the chain is noise the verdict provably does not
+/// depend on, which is what makes [`CycleTruncationKey`] so much
+/// coarser (and so much more reusable) than the chain itself.
+///
+/// Kept normalized: no trailing zero words, so derived equality and
+/// hashing see one representation per set.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+pub(super) struct ConsultedPkgs {
+    words: Vec<u64>,
+}
+
+impl ConsultedPkgs {
+    pub(super) fn set(&mut self, bit: u32) {
+        let word = (bit / 64) as usize;
+        if self.words.len() <= word {
+            self.words.resize(word + 1, 0);
+        }
+        self.words[word] |= 1 << (bit % 64);
+    }
+
+    pub(super) fn contains(&self, bit: u32) -> bool {
+        let word = (bit / 64) as usize;
+        self.words.get(word).is_some_and(|word| word & (1 << (bit % 64)) != 0)
+    }
+
+    pub(super) fn or(&mut self, other: &Self) {
+        if self.words.len() < other.words.len() {
+            self.words.resize(other.words.len(), 0);
+        }
+        for (ours, theirs) in self.words.iter_mut().zip(other.words.iter()) {
+            *ours |= theirs;
+        }
+    }
+}
+
+/// What scopes a cycle-truncated verdict to the occurrences it is
+/// authoritative for.
+///
+/// The cycle gate truncates a subtree as a function of the occurrence's
+/// ancestor chain — but only of the chain entries it actually weighs.
+/// Two occurrences whose chains agree on those entries (same ids, same
+/// order, same base/appended placement) truncate identically, so the
+/// recorded walk's verdict is exactly what a fresh walk would compute.
+#[derive(Debug)]
+pub(super) struct CycleTruncationKey {
+    /// The packages the recorded walk's gate weighed.
+    consulted: Arc<ConsultedPkgs>,
+    /// The recorded occurrence's ancestor chain restricted to
+    /// [`Self::consulted`], base entries first.
+    chain: Box<[Arc<str>]>,
+    /// How many of [`Self::chain`]'s entries came from the base half.
+    /// Order across the base/appended boundary is not comparable —
+    /// `forms_cycle` treats the halves differently — so the boundary is
+    /// part of the key.
+    base_len: u32,
+}
+
+impl CycleTruncationKey {
+    pub(super) fn new(consulted: Arc<ConsultedPkgs>, chain: Vec<Arc<str>>, base_len: u32) -> Self {
+        CycleTruncationKey { consulted, chain: chain.into_boxed_slice(), base_len }
+    }
+
+    pub(super) fn consulted(&self) -> &Arc<ConsultedPkgs> {
+        &self.consulted
+    }
+
+    /// `true` when `current`, restricted to the recorded walk's
+    /// consulted packages, is the recorded chain.
+    fn matches(
+        &self,
+        current: &AncestorIds,
+        bit_by_pkg: &HashMap<std::sync::Arc<str>, u32>,
+    ) -> bool {
+        let consulted =
+            |id: &str| bit_by_pkg.get(id).is_some_and(|bit| self.consulted.contains(*bit));
+        let mut expected = self.chain.iter();
+        let mut base_len = 0u32;
+        for id in current.base_ids().filter(|id| consulted(id)) {
+            if expected.next().map(|e| &**e) != Some(id) {
+                return false;
+            }
+            base_len += 1;
+        }
+        if base_len != self.base_len {
+            return false;
+        }
+        for id in current.appended_ids().filter(|id| consulted(id)) {
+            if expected.next().map(|e| &**e) != Some(id) {
+                return false;
+            }
+        }
+        expected.next().is_none()
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct PeersCacheItem {
     pub(super) dep_path: DepPath,
@@ -47,6 +147,18 @@ pub(super) struct PeersCacheItem {
     /// subtree still reports the same per-package missing breakdown a
     /// full walk of it would.
     pub(super) subtree_missing_by_pkg: SubtreeMissingByPkg,
+    /// `None` for a verdict that saw its package's whole subtree, which
+    /// is the only kind this cache used to hold.
+    ///
+    /// A cycle re-entry resolves against children the cycle gate
+    /// truncated, so its peer sets describe *that* truncation rather
+    /// than the package as a whole. Reusing one where the subtree is
+    /// intact is what pnpm/pnpm#5108 is about. The truncation is a
+    /// function of the ancestor chain restricted to the packages the
+    /// gate weighed, though, so recording that restriction lets
+    /// [`Walker::find_hit`] hand the verdict back to exactly the
+    /// occurrences that would recompute it — and no others.
+    pub(super) cycle_key: Option<CycleTruncationKey>,
 }
 
 impl PeersCacheItem {
@@ -149,9 +261,18 @@ impl Walker<'_> {
         &self,
         parent_refs: &ParentRefs,
         pkg_id: &str,
+        ancestor_ids: Option<&AncestorIds>,
     ) -> Option<&PeersCacheItem> {
         let cache_items = self.peers_cache.get(pkg_id)?;
         cache_items.iter().find(|item| {
+            // A truncated verdict is only valid for an occurrence whose
+            // ancestors truncate it the same way.
+            if let Some(key) = &item.cycle_key
+                && !ancestor_ids
+                    .is_some_and(|current| key.matches(current, &self.consulted_bit_by_pkg))
+            {
+                return false;
+            }
             for (name, cached_node_id) in item.resolved_peers.iter() {
                 let Some(current_ref) = parent_refs.get(name) else {
                     return false;
@@ -264,10 +385,13 @@ impl Walker<'_> {
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
         self.peers_cache.get(pkg_id)?.iter().find(|item| {
-            matches!(
-                self.fast_cache_item_matches(parent_ids, parent_refs, pkg_id, item),
-                FastCacheMatch::Match,
-            )
+            // The fast paths have no ancestor chain to compare, so they
+            // stay on the entries that never needed one.
+            item.cycle_key.is_none()
+                && matches!(
+                    self.fast_cache_item_matches(parent_ids, parent_refs, pkg_id, item),
+                    FastCacheMatch::Match,
+                )
         })
     }
 
@@ -561,6 +685,7 @@ impl Walker<'_> {
             }
         };
         let children = self.tree.children_by_id.get(&pkg_id).cloned().unwrap_or_default();
+        self.mark_realization_consulted(&pkg_id);
         let provider_edge_indices = self
             .peer_provider_children_by_pkg_id
             .get(&*pkg_id)
@@ -628,7 +753,15 @@ impl Walker<'_> {
             let node = &self.tree.dependencies_tree[node_id];
             match &node.children {
                 // Cheap: the realized map is shared, not copied per revisit.
-                TreeChildren::Realized(map) => return (Arc::clone(map), None),
+                TreeChildren::Realized(map) => {
+                    let map = Arc::clone(map);
+                    let pkg_id = std::sync::Arc::<str>::clone(&node.resolved_package_id);
+                    // The map embodies the gate answers of whichever walk
+                    // realized it, so reusing it consults the same
+                    // packages a fresh realization would have.
+                    self.mark_realization_consulted(&pkg_id);
+                    return (map, None);
+                }
                 TreeChildren::Lazy { parent_ids } => (
                     parent_ids.clone(),
                     std::sync::Arc::<str>::clone(&node.resolved_package_id),
@@ -642,6 +775,7 @@ impl Walker<'_> {
             // for this package id — defensive empty case.
             None => Arc::new(Vec::new()),
         };
+        self.mark_realization_consulted(&pkg_id);
         let child_depth = depth + 1;
         let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
         let mut newly_inserted: Vec<NodeId> = Vec::new();

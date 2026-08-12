@@ -111,6 +111,14 @@ pub(crate) struct PeerDiscoveryCaches {
     pub(super) retained_peer_node_ids: HashSet<NodeId>,
     pub(super) peer_provider_children_by_pkg_id: HashMap<String, PeerProviderChildren>,
     pub(super) peer_provider_index_peer_names: HashSet<String>,
+    /// Interprets the bits in every [`PeersCacheItem`]'s
+    /// [`CycleTruncationKey`](super::cache::CycleTruncationKey), so it
+    /// must live exactly as long as the cache items do.
+    pub(super) consulted_bit_by_pkg: HashMap<std::sync::Arc<str>, u32>,
+    /// Dedupes the consulted sets those keys hold; walks of one package
+    /// overwhelmingly weigh the same packages.
+    pub(super) consulted_sets:
+        HashMap<super::cache::ConsultedPkgs, std::sync::Arc<super::cache::ConsultedPkgs>>,
 }
 
 /// What one peer-hoist discovery pass reports back to the hoist loop —
