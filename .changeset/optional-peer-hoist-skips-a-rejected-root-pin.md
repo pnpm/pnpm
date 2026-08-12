@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-The workspace root's own dependency on a package no longer bounds an auto-installed *optional* peer when it falls outside the declared peer range. A root that pins `date-fns@2.30.0` used to push that version into an importer whose only `date-fns` need was an optional `^4.0.0` peer, so pnpm reported its own resolution as unmet even though a satisfying `date-fns@4.4.0` was already in the graph. The root's pin now bounds the candidates only when it overlaps the wanted range [#13867](https://github.com/pnpm/pnpm/issues/13867).
+An auto-installed *optional* peer is now resolved to a version its declared peer range accepts, even when the workspace root depends on that package at a version outside the range. A root pinning `date-fns@2.30.0` used to hand that version to an importer whose only `date-fns` need was an optional `^4.0.0` peer, which pnpm then reported as an unmet peer [#13867](https://github.com/pnpm/pnpm/issues/13867).

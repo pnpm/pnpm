@@ -411,7 +411,7 @@ test('getHoistableOptionalPeers stays within the workspace root\'s range', () =>
   })
 })
 
-test('getHoistableOptionalPeers ignores a workspace root specifier that the wanted range rejects', () => {
+test('getHoistableOptionalPeers ignores a workspace root specifier that a wanted range rejects', () => {
   expect(getHoistableOptionalPeers({ 'date-fns': ['^4.0.0'] }, {
     'date-fns': {
       '2.30.0': 'version',
@@ -421,6 +421,18 @@ test('getHoistableOptionalPeers ignores a workspace root specifier that the want
     { alias: 'date-fns-v2', pkgName: 'date-fns', normalizedBareSpecifier: 'npm:date-fns@2.30.0' },
   ])).toStrictEqual({
     'date-fns': '4.4.0',
+  })
+})
+
+test('getHoistableOptionalPeers ignores a workspace root specifier that only one wanted range accepts', () => {
+  expect(getHoistableOptionalPeers({ foo: ['>=1.0.0 <3.0.0', '>=2.0.0 <4.0.0'] }, {
+    foo: {
+      '2.0.0': 'version',
+    },
+  }, [
+    { alias: 'foo', pkgName: 'foo', normalizedBareSpecifier: '1.0.0' },
+  ])).toStrictEqual({
+    foo: '2.0.0',
   })
 })
 
