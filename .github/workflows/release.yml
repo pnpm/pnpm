@@ -269,7 +269,7 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@26.7.0
       - name: Build TypeScript executable artifacts
@@ -423,7 +423,7 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@26.7.0
       # Internal workspace packages still publish with the static token. `@pnpm/exe`
@@ -531,7 +531,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@22
 
@@ -763,7 +763,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@22
           install: false
@@ -903,7 +903,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@22
           install: false
@@ -1209,7 +1209,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@22
           install: false
@@ -1322,7 +1322,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@22
           install: false

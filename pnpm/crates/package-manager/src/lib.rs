@@ -8,6 +8,7 @@ mod compat_package_extensions;
 mod dependencies_graph_to_lockfile;
 mod fast_update_catalog_versions;
 mod fast_update_catalogs;
+mod fast_update_compose;
 mod fast_update_ignored_optional_dependencies;
 mod fast_update_importers;
 mod fast_update_lockfile;

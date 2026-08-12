@@ -42,6 +42,7 @@ fn empty_lockfile() -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 
@@ -104,6 +105,7 @@ fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
             resolution: LockfileResolution::Git(GitResolution {
                 repo: "file:///repo".to_string(),
                 commit: "0123456789012345678901234567890123456789".to_string(),
+                integrity: None,
                 path: None,
             }),
             version: Some("1.0.0".to_string()),
@@ -194,6 +196,7 @@ fn synthesizes_a_git_resolution_with_the_locked_commit_and_manifest_version() {
     metadata.resolution = LockfileResolution::Git(GitResolution {
         repo: "file:///repo".to_string(),
         commit: "0123456789012345678901234567890123456789".to_string(),
+        integrity: None,
         path: None,
     });
     metadata.version = Some("1.2.3".to_string());

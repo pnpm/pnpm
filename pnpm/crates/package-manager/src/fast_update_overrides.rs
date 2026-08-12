@@ -139,7 +139,6 @@ fn build_rewrite_plan(
         let removes_dependency = new_value == "-";
         if parsed.target_pkg.bare_specifier.is_some()
             || parsed.converge
-            || !removes_dependency && parsed.parent_pkg.is_some()
             || parsed_overrides.iter().any(|candidate| {
                 candidate.selector != *selector
                     && candidate.target_pkg.name == parsed.target_pkg.name
@@ -148,8 +147,11 @@ fn build_rewrite_plan(
             return None;
         }
         let name = PkgName::parse(&parsed.target_pkg.name).ok()?;
-        let new_version =
-            if removes_dependency { None } else { Some(Version::parse(new_value).ok()?) };
+        let new_version = if removes_dependency {
+            None
+        } else {
+            Some(overridden_version(lockfile, &name, new_value)?)
+        };
         overrides.push(FastOverride {
             name,
             new_version,
@@ -166,6 +168,26 @@ fn build_rewrite_plan(
     }
 
     build_replacement_plan(lockfile, overrides)
+}
+
+/// The version an override moves its target to.
+///
+/// A range names the highest already-locked version satisfying it,
+/// because `preferredVersions` makes the resolver reuse a version the
+/// graph already holds rather than the highest published.
+fn overridden_version(lockfile: &Lockfile, name: &PkgName, value: &str) -> Option<Version> {
+    if let Ok(version) = Version::parse(value) {
+        return Some(version);
+    }
+    let range = Range::parse(value).ok()?;
+    // `resolutionMode` only moves direct dependencies to the low end of
+    // their range, and an override names a package at any depth.
+    crate::fast_update_importers::locked_version_resolution_would_pick(
+        lockfile.packages.as_ref(),
+        name,
+        &range,
+        false,
+    )
 }
 
 /// Work out which locked packages each entry of `overrides` moves, and
@@ -417,6 +439,11 @@ fn rewrite_importer_dependencies(
     for (alias, spec) in map.iter_mut() {
         let Some(old_key) = spec.version.resolved_key(alias) else { continue };
         let Some(new_key) = plan.replacements.get(&old_key) else { continue };
+        // An importer is not a package, so a `parent>child` selector never
+        // names it — the same exit removals take here.
+        if !should_replace_dependency(alias, None, &plan.overrides) {
+            continue;
+        }
         spec.version = ImporterDepVersion::Regular(new_key.suffix.clone());
     }
     if map.is_empty() {
@@ -445,6 +472,9 @@ fn rewrite_snapshot_dependency_map(
     for (alias, dep_ref) in dependencies {
         let Some(old_key) = dep_ref.resolve(alias) else { continue };
         let Some(new_key) = plan.replacements.get(&old_key) else { continue };
+        if !should_replace_dependency(alias, parent_key, &plan.overrides) {
+            continue;
+        }
         *dep_ref = SnapshotDepRef::Plain(new_key.suffix.clone());
     }
 }
@@ -455,21 +485,44 @@ fn should_remove_dependency(
     overrides: &[FastOverride],
 ) -> bool {
     overrides.iter().any(|override_entry| {
-        if override_entry.new_version.is_some() || override_entry.name != *alias {
-            return false;
-        }
-        let Some(parent) = override_entry.parent.as_ref() else { return true };
-        let Some(parent_key) = parent_key else { return false };
-        if parent_key.name.to_string() != parent.name {
-            return false;
-        }
-        match parent.bare_specifier.as_deref() {
-            None => true,
-            Some(range) => parent_key.suffix.version_semver().is_some_and(|version| {
-                Range::parse(range).is_ok_and(|range| range.satisfies(version))
-            }),
-        }
+        override_entry.new_version.is_none()
+            && override_entry.name == *alias
+            && override_applies_to(override_entry, parent_key)
     })
+}
+
+/// Whether an edge on `alias` owned by `parent_key` is one a replacing
+/// override moves. A `parent>child` selector names only the edges out of
+/// that parent, so other dependents keep the version they have and the
+/// shared prune decides whether it survives.
+fn should_replace_dependency(
+    alias: &PkgName,
+    parent_key: Option<&PackageKey>,
+    overrides: &[FastOverride],
+) -> bool {
+    overrides.iter().any(|override_entry| {
+        override_entry.new_version.is_some()
+            && override_entry.name == *alias
+            && override_applies_to(override_entry, parent_key)
+    })
+}
+
+/// Whether `override_entry`'s parent selector names `parent_key`. A
+/// selector without a parent names every edge; one with a parent names
+/// only edges out of a package it matches, which an importer never is.
+fn override_applies_to(override_entry: &FastOverride, parent_key: Option<&PackageKey>) -> bool {
+    let Some(parent) = override_entry.parent.as_ref() else { return true };
+    let Some(parent_key) = parent_key else { return false };
+    if parent_key.name.to_string() != parent.name {
+        return false;
+    }
+    match parent.bare_specifier.as_deref() {
+        None => true,
+        Some(range) => parent_key
+            .suffix
+            .version_semver()
+            .is_some_and(|version| Range::parse(range).is_ok_and(|range| range.satisfies(version))),
+    }
 }
 
 fn validate_dependencies(

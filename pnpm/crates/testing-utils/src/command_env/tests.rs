@@ -4,6 +4,7 @@ use command_extra::CommandExtra;
 use std::{ffi::OsStr, process::Command};
 
 const SETTING: &str = "PNPM_CONFIG_GLOBAL_SHIMS";
+const CI_SETTING: &str = "PNPM_CONFIG_CI";
 
 #[test]
 fn pnpm_and_npm_settings_match_in_either_spelling() {
@@ -57,6 +58,16 @@ fn an_explicit_value_set_afterwards_survives_the_removal() {
         Some(OsStr::new(r#"{"node":"auto"}"#)),
         "a later `env` should win over the removal",
     );
+}
+
+#[test]
+fn spawned_pnpm_defaults_to_non_ci_after_ambient_config_is_removed() {
+    let guard = EnvGuard::snapshot([CI_SETTING]);
+    guard.set(CI_SETTING, "true");
+
+    let command = Command::new("pnpm").without_ambient_pnpm_config();
+
+    assert_eq!(env_value(&command, CI_SETTING).as_deref(), Some(OsStr::new("false")));
 }
 
 /// What `command` will pass for `name`: `None` once it is removed, `Some`

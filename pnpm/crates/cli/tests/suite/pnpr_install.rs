@@ -132,6 +132,64 @@ fn install_via_pnpr_links_node_modules() {
     drop((root, mock_instance));
 }
 
+/// A pnpr-resolved lockfile is rewritten wholesale from the server's
+/// answer, so `time:` has to survive the round trip the same way a
+/// locally resolved install preserves it.
+#[test]
+fn install_via_pnpr_preserves_the_lockfiles_time_section() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    let manifest_path = workspace.join("package.json");
+    let write_manifest = |dependencies: serde_json::Value| {
+        fs::write(&manifest_path, serde_json::json!({ "dependencies": dependencies }).to_string())
+            .expect("write package.json");
+    };
+    let install_via_pnpr = || {
+        pacquet_at(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_arg("install")
+            .with_arg("--pnpr-server")
+            .with_arg(&pnpr_url)
+            .assert()
+            .success();
+    };
+
+    write_manifest(serde_json::json!({ "@foo/has-dep-from-same-scope": "1.0.0" }));
+    install_via_pnpr();
+
+    // Appended as text: saving would prune the transitive entry before
+    // the install under test ever sees it.
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut recorded = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    recorded.push_str(
+        "\ntime:\n  '@foo/has-dep-from-same-scope@1.0.0': '2024-01-01T00:00:00.000Z'\n  '@foo/no-deps@1.0.0': '2024-01-02T00:00:00.000Z'\n",
+    );
+    fs::write(&lockfile_path, recorded).expect("record publish dates in pnpm-lock.yaml");
+
+    // A new dependency is what sends the second install back through the
+    // server rather than short-circuiting on the lockfile it just wrote.
+    write_manifest(
+        serde_json::json!({ "@foo/has-dep-from-same-scope": "1.0.0", "is-positive": "1.0.0" }),
+    );
+    install_via_pnpr();
+
+    let time = read_workspace_lockfile(&workspace).time.expect("`time:` survives a pnpr install");
+    assert_eq!(
+        time.into_iter().collect::<Vec<_>>(),
+        [(
+            "@foo/has-dep-from-same-scope@1.0.0".to_string(),
+            "2024-01-01T00:00:00.000Z".to_string(),
+        )],
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redownloading() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -601,8 +659,8 @@ fn filtered_workspace_pnpr_resolves_workspace_protocol_from_project_identity() {
     let wanted = read_workspace_lockfile(&workspace);
     assert_eq!(workspace_importer_version(&wanted, "packages/app", "lib"), "link:../lib");
     assert!(workspace_has_link(&workspace, "app", "lib"));
-    assert!(workspace_has_link(&workspace, "lib", WORKSPACE_HELLO));
-    assert!(workspace_slot(&workspace, WORKSPACE_HELLO, "1.0.0").exists());
+    assert!(!workspace_has_link(&workspace, "lib", WORKSPACE_HELLO));
+    assert!(!workspace_slot(&workspace, WORKSPACE_HELLO, "1.0.0").exists());
 
     drop((root, mock_instance));
 }

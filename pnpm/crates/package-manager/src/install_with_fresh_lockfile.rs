@@ -216,6 +216,12 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
+    /// pnpm's `saveLockfile`: whether the freshly built lockfile may be
+    /// written to `<lockfile_dir>/pnpm-lock.yaml`. `false` leaves that
+    /// file untouched — the resolved graph is still returned and still
+    /// drives `<virtual_store_dir>/lock.yaml`. See
+    /// [`crate::Install::run_legacy_deploy`].
+    pub save_lockfile: bool,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -687,6 +693,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             current_lockfile,
             prior_hoisted_dependencies,
             prune_orphans,
+            save_lockfile,
         } = self;
 
         // Shared once so the per-edge `ResolveOptions` clones below stay
@@ -925,8 +932,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // entries and this run's final update scope, but `update_reuse_scope`
         // is moved into the resolver options below and `wanted_lockfile` is
         // later shadowed by the freshly built lockfile.
+        // Withheld when `dedupe_injected_deps` is off, since the guard only
+        // compensates for that pass not running on every re-resolution path.
         let guard_previous_importers: Option<&HashMap<String, pacquet_lockfile::ProjectSnapshot>> =
-            wanted_lockfile.map(|lockfile| &lockfile.importers);
+            wanted_lockfile
+                .filter(|_| config.dedupe_injected_deps)
+                .map(|lockfile| &lockfile.importers);
         let guard_update_reuse_scope = update_reuse_scope.clone();
         let guard_update_reuse_scopes_by_importer = update_reuse_scopes_by_importer.clone();
 
@@ -1055,6 +1066,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         }
         let merged_graph = workspace_result.peers.graph;
         let direct_by_importer = workspace_result.peers.direct_dependencies_by_importer;
+        let resolved_time = workspace_result.time;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "resolve_workspace",
@@ -1136,6 +1148,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 real_importer_ids,
                 selected_importer_ids,
                 lockfile_dir,
+                resolved_time,
             })?;
             return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
                 built_lockfile,
@@ -1143,6 +1156,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 lockfile_dir,
                 requester,
                 dry_run,
+                save_lockfile,
                 after_all_resolved_hook: after_all_resolved_hook.as_ref(),
                 after_all_resolved_log,
                 store_index_writer,
@@ -1224,6 +1238,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             real_importer_ids,
             selected_importer_ids,
             lockfile_dir,
+            resolved_time,
         })?;
         tracing::info!(
             target: "pacquet::install::phase",
@@ -1581,7 +1596,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // Saved after the build phase succeeds so a partial install can't
         // leave a lockfile pointing at slots that never landed on disk.
-        let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
+        let (wanted_lockfile, can_record_lockfile_verification) = if !config.lockfile {
+            (None, false)
+        } else if save_lockfile {
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
             let can_record_lockfile_verification = save_wanted_lockfile(
                 &built_lockfile,
@@ -1592,7 +1609,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .await?;
             (Some(built_lockfile), can_record_lockfile_verification)
         } else {
-            (None, false)
+            // Nothing was persisted, so there is no `pnpm-lock.yaml`
+            // whose verification a later install could key off.
+            (Some(built_lockfile), false)
         };
 
         Ok(InstallWithFreshLockfileResult {
@@ -1671,7 +1690,7 @@ fn collect_prefetch_cache_keys_from_graph(
 /// `context.log(message)` call emits a `pnpm:hook` event through the
 /// install's reporter, carrying the project `prefix`, the pnpmfile path
 /// (`from`), and the hook name.
-fn hook_log_fn<Reporter: self::Reporter>(
+pub(crate) fn hook_log_fn<Reporter: self::Reporter>(
     prefix: &Path,
     from: &Path,
     hook: &'static str,
@@ -1793,6 +1812,7 @@ struct LockfileOnlyOptions<'a> {
     lockfile_dir: &'a Path,
     requester: &'a str,
     dry_run: bool,
+    save_lockfile: bool,
     after_all_resolved_hook: Option<&'a Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     after_all_resolved_log: Option<pacquet_hooks::LogFn>,
     store_index_writer: Arc<pacquet_store_dir::StoreIndexWriter>,
@@ -1815,13 +1835,14 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
         lockfile_dir,
         requester,
         dry_run,
+        save_lockfile,
         after_all_resolved_hook,
         after_all_resolved_log,
         store_index_writer,
         writer_task,
     } = opts;
 
-    let (wanted_lockfile, can_record_lockfile_verification) = if dry_run {
+    let (wanted_lockfile, can_record_lockfile_verification) = if dry_run || !save_lockfile {
         (Some(built_lockfile), false)
     } else if config.lockfile {
         let can_record_lockfile_verification = save_wanted_lockfile(
@@ -1986,6 +2007,10 @@ struct FreshLockfileBuildOptions<'a> {
     real_importer_ids: Option<&'a std::collections::HashSet<String>>,
     selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
     lockfile_dir: &'a Path,
+    /// Publish dates this run resolved for the direct dependencies,
+    /// layered over the ones [`Self::wanted_lockfile`] recorded. Empty
+    /// unless the install resolved `time-based`.
+    resolved_time: BTreeMap<String, String>,
 }
 
 /// Build the fresh lockfile, then — under a filtered install — splice it
@@ -2019,10 +2044,11 @@ fn build_fresh_lockfile(
     opts: FreshLockfileBuildOptions<'_>,
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let FreshLockfileBuildOptions {
-        wanted_lockfile: _,
+        wanted_lockfile,
         real_importer_ids: _,
         selected_importer_ids: _,
         lockfile_dir: _,
+        resolved_time,
         config,
         importer_manifests,
         graph,
@@ -2073,8 +2099,26 @@ fn build_fresh_lockfile(
         previous_importers,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
+        time: merge_recorded_time(wanted_lockfile, resolved_time),
     })?;
     Ok(lockfile)
+}
+
+/// The `time:` section the rewritten lockfile carries: what the prior
+/// lockfile recorded, with this run's freshly resolved publish dates
+/// layered over it. Keeping the prior entries is what preserves a
+/// recorded date for a dependency whose packument does not carry one;
+/// saving prunes whatever is no longer a direct dependency.
+fn merge_recorded_time(
+    wanted_lockfile: Option<&Lockfile>,
+    resolved_time: BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    let Some(recorded) = wanted_lockfile.and_then(|lockfile| lockfile.time.as_ref()) else {
+        return resolved_time;
+    };
+    let mut time = recorded.clone();
+    time.extend(resolved_time);
+    time
 }
 
 pub(crate) fn compute_package_extensions_checksum(config: &Config) -> Option<String> {

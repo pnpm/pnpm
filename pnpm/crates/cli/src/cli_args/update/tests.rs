@@ -113,3 +113,13 @@ fn workspace_option_is_checked_before_anything_is_read() {
         .expect_err("--workspace with --latest");
     assert_eq!(with_latest.to_string(), "Cannot use --latest with --workspace simultaneously");
 }
+
+#[test]
+fn ignore_pnpmfile_flag_applies_to_config() {
+    let mut config = Config::default();
+    update_args(&[]).apply_cli_config(&mut config);
+    assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
+
+    update_args(&["--ignore-pnpmfile"]).apply_cli_config(&mut config);
+    assert!(config.ignore_pnpmfile, "flag present → config set");
+}

@@ -1,4 +1,21 @@
-use super::try_fast_update_patched_dependencies;
+/// The composed pipeline restricted to `patchedDependencies` drift:
+/// every other input is neutral, so these tests exercise this handler
+/// alone.
+fn try_fast_update_patched_dependencies(lockfile: &Lockfile, config: &Config) -> Option<Lockfile> {
+    {
+        // As the caller does: an unreadable patch file declines the whole
+        // attempt rather than reading as no patches at all.
+        let hashes = config.patched_dependency_hashes().ok()?;
+        crate::fast_update_compose::try_compose_fast_updates(
+            lockfile,
+            &[],
+            &[],
+            config,
+            hashes.as_ref(),
+            false,
+        )
+    }
+}
 use indexmap::IndexMap;
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;

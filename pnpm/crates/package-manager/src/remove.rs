@@ -2,7 +2,8 @@ use crate::{
     DIRECT_GROUPS, Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
     WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
     emit_initial_package_manifest, package_manifest_prefix, selected_project_indices,
 };
@@ -73,7 +74,7 @@ pub enum RemoveError {
     #[display("Failed to save the manifest file: {_0}")]
     SaveManifest(#[error(source)] PackageManifestError),
 
-    /// The `cleanupUnusedCatalogs` pass on `pnpm-workspace.yaml` failed.
+    /// The `catalogPrune` pass on `pnpm-workspace.yaml` failed.
     #[diagnostic(transparent)]
     WriteWorkspaceManifest(#[error(source)] WriteWorkspaceCatalogsError),
 
@@ -115,11 +116,12 @@ impl Remove<'_> {
             // re-resolve walks all three.
             dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
-            // `pacquet remove` mutates the manifest, so the lockfile is
-            // necessarily stale — short-circuit the prefer-frozen fast
-            // path so the install always re-resolves. See the parallel
-            // comment in `add.rs`.
-            prefer_frozen_lockfile: Some(false),
+            // The manifest was just edited, but the drift is exactly the
+            // deleted importer edges, which the removal handler of the
+            // lockfile fast path absorbs without resolving. When it
+            // declines, the freshness check fails and the install
+            // re-resolves as it always did.
+            prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
@@ -128,7 +130,7 @@ impl Remove<'_> {
             // `uninstallSome` mutation), so the root project's own
             // lifecycle scripts must not run — they fire only on a full
             // install.
-            mutation: ProjectMutation::NoInstall,
+            mutation: ProjectMutation::UninstallSome,
             installs_only: false,
             resolved_packages,
             supported_architectures,
@@ -156,6 +158,9 @@ impl Remove<'_> {
         persist_manifest::<Reporter>(manifest)?;
 
         write_workspace_catalogs(config, None, &Catalogs::new(), manifest)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
+
+        prune_minimum_release_age_excludes(config, None, manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
         Ok(())
@@ -210,12 +215,12 @@ impl Remove<'_> {
             lockfile_path,
             dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
+            prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            mutation: ProjectMutation::NoInstall,
+            mutation: ProjectMutation::UninstallSome,
             installs_only: false,
             resolved_packages,
             supported_architectures,
@@ -246,6 +251,9 @@ impl Remove<'_> {
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
 
         write_workspace_catalogs_selected(config, &workspace_root, &Catalogs::new(), projects)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
+
+        prune_minimum_release_age_excludes(config, Some(&workspace_root), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
         Ok(())
     }

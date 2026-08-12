@@ -304,6 +304,7 @@ export async function resolveDependencies (
     })
     : initiallyResolvedPeers
 
+  const preserveDedupedWorkspaceLinks = Boolean(opts.dedupeInjectedDeps)
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   await Promise.all(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
@@ -396,7 +397,7 @@ export async function resolveDependencies (
       const previousRef = previousDirectRefs[alias]
       const targetedByUpdate = updateTargetedAliases.has(alias) ||
         (updateMatching?.(depNode.name) ?? false)
-      if (!targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
+      if (preserveDedupedWorkspaceLinks && !targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
         ref = previousRef
       }
       if (projectSnapshot.dependencies?.[alias]) {

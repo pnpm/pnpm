@@ -783,6 +783,7 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         "registry": &config.registry,
         "namedRegistries": &request.named_registries,
         "overrides": &request.overrides,
+        "catalogs": &request.catalogs,
         "projects": projects,
         "inputLockfileHash": request.lockfile.as_ref().map(hash_lockfile),
         "frozenLockfile": request.frozen_lockfile,
@@ -1420,8 +1421,9 @@ fn merge_policies(
 /// cloud instance metadata, an internal service, or any other off-allowlist
 /// host. Beyond the default/named registries this also covers every fetch a
 /// *direct-URL dependency* would trigger: an `http(s)`/`git` dependency spec,
-/// an override URL leaf, or an input lockfile's tarball URL. A semver range or
-/// `npm:`/`workspace:`/`file:` alias never hits the network, so it is ignored.
+/// a catalog entry, an override URL leaf, or an input lockfile's tarball URL. A
+/// semver range or `npm:`/`workspace:`/`file:` alias never hits the network, so
+/// it is ignored.
 fn reject_off_allowlist_fetches(
     request: &ResolveRequest,
     context: &RouteContext,
@@ -1446,6 +1448,10 @@ fn reject_off_allowlist_fetches(
         {
             url_specs.extend(map.values().map(String::as_str));
         }
+    }
+    if let Some(catalogs) = request.catalogs.as_ref() {
+        url_specs
+            .extend(catalogs.values().flat_map(|catalog| catalog.values()).map(String::as_str));
     }
     if let Some(packages) =
         request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
@@ -1543,9 +1549,9 @@ fn forbidden_off_allowlist(target: &str) -> Response {
 
 /// Reject a request whose client-supplied URLs carry inline
 /// `user:pass@host` credentials, before any fetch or cache write. Covers
-/// the default and named registries, every dependency spec, override
-/// values, and the tarball URLs of an input lockfile — every surface a
-/// tarball/registry URL can reach the resolver (or be echoed back) through.
+/// the default and named registries, every dependency spec, catalog value,
+/// override values, and the tarball URLs of an input lockfile — every surface
+/// a tarball/registry URL can reach the resolver (or be echoed back) through.
 /// Returns a `400` response when one is found.
 fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
     let mut specs: Vec<&str> = Vec::new();
@@ -1560,6 +1566,9 @@ fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
         {
             specs.extend(map.values().map(String::as_str));
         }
+    }
+    if let Some(catalogs) = request.catalogs.as_ref() {
+        specs.extend(catalogs.values().flat_map(|catalog| catalog.values()).map(String::as_str));
     }
     // A supplied lockfile can carry `resolution.tarball` URLs that reach the
     // verify/frozen paths and would otherwise be routed or echoed back.

@@ -1,6 +1,6 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, fs,
+    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, default_ci, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -57,6 +57,45 @@ fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
     let subscriber = tracing_subscriber::registry().with(CaptureLayer(messages_clone));
     tracing::subscriber::with_default(subscriber, f);
     Arc::try_unwrap(messages).unwrap().into_inner().unwrap()
+}
+
+#[test]
+fn ci_false_disables_github_actions_detection() {
+    struct GithubActionsWithCiFalse;
+
+    impl EnvVar for GithubActionsWithCiFalse {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CI" => Some("false".to_string()),
+                "GITHUB_ACTIONS" => Some("true".to_string()),
+                _ => None,
+            }
+        }
+
+        fn vars() -> Vec<(String, String)> {
+            Vec::new()
+        }
+    }
+
+    assert!(!default_ci::<GithubActionsWithCiFalse>(|| true));
+}
+
+#[test]
+fn ci_detection_uses_injected_detector() {
+    struct InjectedCi;
+
+    impl EnvVar for InjectedCi {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+
+        fn vars() -> Vec<(String, String)> {
+            Vec::new()
+        }
+    }
+
+    assert!(default_ci::<InjectedCi>(|| true));
+    assert!(!default_ci::<InjectedCi>(|| false));
 }
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage
@@ -2919,14 +2958,49 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
 }
 
 #[test]
-pub fn cleanup_unused_catalogs_from_workspace_yaml() {
+pub fn catalog_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
-    assert!(!config.cleanup_unused_catalogs);
+    assert!(!config.catalog_prune);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "catalogPrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.catalog_prune);
+}
+
+/// `catalogPrune` was released as `cleanupUnusedCatalogs`, which every
+/// `pnpm-workspace.yaml` written since pnpm 10.15 may still carry.
+#[test]
+pub fn catalog_prune_from_its_former_name_in_workspace_yaml() {
+    let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "cleanupUnusedCatalogs: true\n")
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-    assert!(config.cleanup_unused_catalogs);
+    assert!(config.catalog_prune);
+}
+
+/// The canonical name wins, whichever order the two appear in.
+#[test]
+pub fn catalog_prune_overrides_its_former_name() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "cleanupUnusedCatalogs: true\ncatalogPrune: false\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(!config.catalog_prune);
+}
+
+#[test]
+pub fn minimum_release_age_exclude_prune_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.minimum_release_age_exclude_prune);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAgeExcludePrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.minimum_release_age_exclude_prune);
 }
 
 #[test]

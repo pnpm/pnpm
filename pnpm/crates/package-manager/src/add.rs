@@ -2,7 +2,8 @@ use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS, Install,
     InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
     decide_catalog_outcome, emit_initial_package_manifest, package_manifest_prefix,
     resolution_policy::{PickPolicy, pick_package_context},
@@ -20,7 +21,7 @@ use pacquet_config::{Config, SaveWorkspaceProtocol};
 use pacquet_engine_runtime_node_resolver::{NodeResolver, NodeResolverError};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
-use pacquet_network::ThrottledClient;
+use pacquet_network::{ThrottledClient, redact_and_sanitize};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
@@ -34,7 +35,7 @@ use pacquet_resolving_npm_resolver::{
     parse_bare_specifier, pick_matching_local_version_or_null, pick_package,
     pick_registry_for_package, shared_packument_fetch_locker,
 };
-use pacquet_resolving_resolver_base::WorkspacePackages;
+use pacquet_resolving_resolver_base::{GitResolveError, WorkspacePackages};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
@@ -109,7 +110,7 @@ pub enum AddError {
     CatalogVersionMismatch(#[error(source)] CatalogVersionMismatchError),
 
     /// Writing the auto-cataloged entry back to `pnpm-workspace.yaml`
-    /// (or the `cleanupUnusedCatalogs` pass it runs) failed.
+    /// (or the `catalogPrune` pass it runs) failed.
     #[diagnostic(transparent)]
     WriteWorkspaceManifest(#[error(source)] WriteWorkspaceCatalogsError),
 
@@ -138,6 +139,12 @@ pub enum AddError {
         #[error(source)]
         source: pacquet_resolving_resolver_base::ResolveError,
     },
+
+    /// The git dependency's `git ls-remote` failed. Kept as the diagnostic the
+    /// resolver raised, which already names the specifier and carries the
+    /// `ERR_PNPM_GIT_RESOLVE_FAILED` code and its remediation.
+    #[diagnostic(transparent)]
+    GitResolve(#[error(source)] GitResolveError),
 
     #[display("Could not determine the package name of git dependency {specifier:?}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_GIT_PACKAGE_NAME))]
@@ -212,7 +219,7 @@ where
         // Write the new catalog entry to `pnpm-workspace.yaml` before the
         // install so the resolver reads it back and the lockfile's
         // `catalogs:` snapshot records the resolved version. The same
-        // write runs the `cleanupUnusedCatalogs` pass when configured.
+        // write runs the `catalogPrune` pass when configured.
         write_workspace_catalogs(
             config,
             Some(&catalog_ctx.workspace_dir),
@@ -242,15 +249,12 @@ where
             // lockfile, the virtual store, and `node_modules`.
             dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
-            // `pacquet add` mutates the manifest, so the lockfile is
-            // necessarily stale by the time the install dispatch
-            // runs — short-circuit the prefer-frozen fast path so we
-            // always re-resolve. `None` would fall back to
-            // `config.prefer_frozen_lockfile`, which is `true` by
-            // default and the dispatch would discover the staleness
-            // anyway; explicit `Some(false)` keeps `pacquet add`
-            // behaviour self-evident at the call site.
-            prefer_frozen_lockfile: Some(false),
+            // `None` defers to `config.prefer_frozen_lockfile`, which is
+            // what lets the fast lockfile update absorb the manifest edit
+            // `prepare_manifest` just made. It only absorbs an addition the
+            // lockfile already holds a satisfying version for; anything else
+            // fails the freshness gate and reaches the resolver.
+            prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
@@ -281,6 +285,9 @@ where
         .map_err(AddError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
+
+        prune_minimum_release_age_excludes(config, Some(&catalog_ctx.workspace_dir), manifest)
+            .map_err(AddError::WriteWorkspaceManifest)?;
 
         Ok(())
     }
@@ -351,7 +358,8 @@ where
                 // set.
                 dependency_groups: DIRECT_GROUPS,
                 frozen_lockfile: false,
-                prefer_frozen_lockfile: Some(false),
+                // See the `prefer_frozen_lockfile` comment in [`Self::run`].
+                prefer_frozen_lockfile: None,
                 ignore_manifest_check: false,
                 skip_runtimes: config.skip_runtimes,
                 trust_lockfile: config.trust_lockfile,
@@ -386,6 +394,9 @@ where
         .map_err(AddError::Install)?;
 
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
+
+        prune_minimum_release_age_excludes(config, Some(&prepared.workspace_dir), manifest)
+            .map_err(AddError::WriteWorkspaceManifest)?;
         Ok(())
     }
 }
@@ -828,8 +839,13 @@ async fn resolve_aliasless_git(
         &pacquet_resolving_resolver_base::ResolveOptions::default(),
     )
     .await
-    .map_err(|source| AddError::ResolveGit { specifier: specifier.to_string(), source })?
-    .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
+    .map_err(|source| match source.downcast::<GitResolveError>() {
+        Ok(git_resolve) => AddError::GitResolve(*git_resolve),
+        // A specifier can carry `user:pass@` credentials, and every error here
+        // echoes it back.
+        Err(source) => AddError::ResolveGit { specifier: redact_and_sanitize(specifier), source },
+    })?
+    .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
     let package_name = result
         .manifest
         .as_ref()
@@ -837,10 +853,10 @@ async fn resolve_aliasless_git(
         .and_then(serde_json::Value::as_str)
         .map(str::to_string)
         .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.project))
-        .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
+        .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
     if !is_valid_dependency_alias(&package_name) {
         return Err(AddError::InvalidGitPackageName {
-            specifier: specifier.to_string(),
+            specifier: redact_and_sanitize(specifier),
             name: package_name,
         });
     }

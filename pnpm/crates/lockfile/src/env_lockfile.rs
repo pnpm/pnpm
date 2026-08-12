@@ -14,10 +14,10 @@
 
 use crate::{
     LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
-    extract_env_document, extract_main_document,
+    extract_main_document,
     save_lockfile::ensure_lockfile_is_not_symlink,
     serialize_yaml,
-    yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START},
+    yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, read_first_yaml_document},
 };
 use pacquet_fs::write_atomic;
 use serde::{Deserialize, Serialize};
@@ -109,13 +109,12 @@ impl EnvLockfile {
     ///   leading env document.
     /// - Otherwise parses the env document and guarantees the root
     ///   importer (and its `configDependencies` map) exists.
+    ///
+    /// Only the leading document is read: the dependency graph that
+    /// follows it never reaches memory.
     pub fn read(root_dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
-        let Some(content) = read_lockfile_to_string(&path).map_err(LoadLockfileError::ReadFile)?
-        else {
-            return Ok(None);
-        };
-        let Some(env_doc) = extract_env_document(&content) else {
+        let Some(env_doc) = read_env_document(&path).map_err(LoadLockfileError::ReadFile)? else {
             return Ok(None);
         };
         let mut env: EnvLockfile = serde_saphyr::from_str(&env_doc)
@@ -140,21 +139,18 @@ impl EnvLockfile {
     }
 }
 
-fn read_lockfile_to_string_no_follow(path: &Path) -> io::Result<Option<String>> {
-    read_lockfile_to_string_with(path, open_lockfile_no_follow)
-}
-
-/// Reads a whole lockfile, following a symlink;
+/// Reads the leading env document, following a symlink;
 /// [`ensure_lockfile_is_not_symlink`] covers why only writes refuse one.
-fn read_lockfile_to_string(path: &Path) -> io::Result<Option<String>> {
-    read_lockfile_to_string_with(path, |path| File::open(path))
+fn read_env_document(path: &Path) -> io::Result<Option<String>> {
+    match File::open(path) {
+        Ok(file) => read_first_yaml_document(file),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
-fn read_lockfile_to_string_with(
-    path: &Path,
-    open_file: impl FnOnce(&Path) -> io::Result<File>,
-) -> io::Result<Option<String>> {
-    let mut file = match open_file(path) {
+fn read_lockfile_to_string_no_follow(path: &Path) -> io::Result<Option<String>> {
+    let mut file = match open_lockfile_no_follow(path) {
         Ok(file) => file,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),

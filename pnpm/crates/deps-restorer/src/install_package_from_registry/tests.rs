@@ -31,6 +31,7 @@ fn create_config(
     cache_dir: &Path,
 ) -> Config {
     Config {
+        ci: false,
         versioning: Default::default(),
         hoist: false,
         hoist_pattern: None,
@@ -118,6 +119,7 @@ fn create_config(
         dangerously_allow_all_builds: false,
         strict_dep_builds: true,
         ignore_scripts: false,
+        ignore_pnpmfile: false,
         git_checks: true,
         scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,
@@ -133,6 +135,7 @@ fn create_config(
         filter_prod: Vec::new(),
         workspace_root: false,
         test_pattern: Vec::new(),
+        sync_injected_deps_after_scripts: Vec::new(),
         changed_files_ignore_pattern: Vec::new(),
         git_shallow_hosts: pacquet_config::default_git_shallow_hosts(),
         supported_architectures: None,
@@ -155,7 +158,8 @@ fn create_config(
         trust_policy_ignore_after: None,
         resolution_mode: Default::default(),
         catalog_mode: Default::default(),
-        cleanup_unused_catalogs: false,
+        catalog_prune: false,
+        minimum_release_age_exclude_prune: false,
         catalogs: None,
         save_catalog_name: None,
         save_prefix: None,

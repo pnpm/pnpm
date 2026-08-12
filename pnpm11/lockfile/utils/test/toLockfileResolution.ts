@@ -149,3 +149,38 @@ test('records gitHosted on the lockfile entry when set on the resolution', () =>
     gitHosted: true,
   })
 })
+
+test('drops an integrity recorded on a git resolution', () => {
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    {
+      type: 'git',
+      repo: 'https://github.com/foo/bar.git',
+      commit: 'e63c09e460269b0c535e4c34debf69bb91d57b22',
+      integrity: 'sha512-AAAA',
+    } as never,
+    REGISTRY
+  )).toEqual({
+    type: 'git',
+    repo: 'https://github.com/foo/bar.git',
+    commit: 'e63c09e460269b0c535e4c34debf69bb91d57b22',
+  })
+})
+
+test('keeps a git resolution without an integrity untouched', () => {
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    {
+      type: 'git',
+      repo: 'https://github.com/foo/bar.git',
+      commit: 'e63c09e460269b0c535e4c34debf69bb91d57b22',
+      path: '/packages/foo',
+    },
+    REGISTRY
+  )).toEqual({
+    type: 'git',
+    repo: 'https://github.com/foo/bar.git',
+    commit: 'e63c09e460269b0c535e4c34debf69bb91d57b22',
+    path: '/packages/foo',
+  })
+})

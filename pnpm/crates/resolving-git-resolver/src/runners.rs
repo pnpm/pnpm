@@ -135,13 +135,23 @@ fn run_ls_remote_blocking(
                 last_err = Some(String::from_utf8_lossy(&out.stderr).into_owned());
             }
             Err(err) => {
-                last_err = Some(err.to_string());
+                last_err = Some(spawn_failure(&err));
             }
         }
     }
     Err(GitRunError {
         message: last_err.unwrap_or_else(|| "ls-remote failed with unknown error".to_string()),
     })
+}
+
+/// pnpm does not bundle git, so a missing binary is a setup problem rather
+/// than a transport one and is worth saying outright.
+fn spawn_failure(err: &std::io::Error) -> String {
+    if err.kind() == std::io::ErrorKind::NotFound {
+        return "`git` executable not found on PATH. Install git to resolve git-hosted packages."
+            .to_string();
+    }
+    err.to_string()
 }
 
 fn ls_remote_command(bin: Option<&PathBuf>, repo: &str, ref_: Option<&str>) -> Command {

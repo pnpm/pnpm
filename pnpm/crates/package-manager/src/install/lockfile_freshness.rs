@@ -12,57 +12,91 @@ pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     pub(super) ignore_manifest_check: bool,
+    /// Whether this run sees the complete project list, so an importer
+    /// no project claims may be dropped rather than kept.
+    pub(super) prune_stale_importers: bool,
 }
 
 /// Rewrite the loaded lockfile in place of a full resolution for the
-/// drift the lockfile itself proves is safe to absorb: a compatible
-/// direct-dependency range change, an addition to
-/// `ignoredOptionalDependencies`, a `patchedDependencies` change that
-/// matches no locked package, or a setting change that cannot affect
-/// the recorded graph. The candidate only replaces the loaded
-/// lockfile once it passes every freshness gate, so a handler that
-/// rewrites too much falls back to the resolver instead of committing.
-///
-/// Each handler rewrites the same loaded lockfile, so their candidates
-/// cannot be composed: when more than one fires, the resolver takes
-/// over rather than committing a candidate that drops another's rewrite.
-pub(super) async fn try_fast_update_lockfile(
+/// drift the lockfile itself proves is safe to absorb — see
+/// [`crate::fast_update_compose::try_compose_fast_updates`] for the
+/// handlers and their composition order. The candidate only replaces
+/// the loaded lockfile once it passes every freshness gate, so a
+/// handler that rewrites too much falls back to the resolver instead
+/// of committing.
+pub(super) async fn try_fast_update_lockfile<Reporter: pacquet_reporter::Reporter>(
     opts: FastUpdateLockfileOptions<'_, '_>,
 ) -> Option<Lockfile> {
     let lockfile = opts.lockfile?;
-    let mut candidates = [
-        crate::fast_update_importers::try_fast_update_importers(lockfile, opts.manifests),
-        crate::fast_update_ignored_optional_dependencies::try_fast_update_ignored_optional_dependencies(
-            lockfile,
-            opts.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
-        ),
-        crate::fast_update_settings::try_fast_update_settings(
-            lockfile,
-            &crate::fast_update_settings::lockfile_settings_from_config(opts.config),
-            opts.project_manifests,
-        ),
-        crate::fast_update_patched_dependencies::try_fast_update_patched_dependencies(
-            lockfile,
-            opts.config,
-        ),
-    ]
-    .into_iter()
-    .flatten();
-    let (Some(candidate), None) = (candidates.next(), candidates.next()) else {
+    // Hashed once for the whole attempt: the drift check, the unused-patch
+    // guard inside the pipeline, and the report below all need the same
+    // snapshot, and reading the patch files is the only I/O any of them do.
+    // `Err` is a patch file that cannot be read or hashed, which the
+    // resolver reports — not the same as having none configured.
+    let Ok(patch_hashes) = opts.config.patched_dependency_hashes() else {
         return None;
     };
+    let candidate = crate::fast_update_compose::try_compose_fast_updates(
+        lockfile,
+        opts.manifests,
+        opts.project_manifests,
+        opts.config,
+        patch_hashes.as_ref(),
+        opts.prune_stale_importers,
+    )?;
     check_lockfile_freshness(
         &candidate,
         opts.manifests,
         opts.config,
         opts.catalogs,
         opts.pnpmfile_hook,
-        opts.ignore_manifest_check,
-        true,
+        FreshnessScope {
+            ignore_manifest_check: opts.ignore_manifest_check,
+            allow_missing_dependency_free_importers: true,
+            prune_stale_importers: opts.prune_stale_importers,
+        },
     )
     .await
     .ok()?;
+    // Only the committed candidate is worth reporting on: a rewrite the
+    // freshness gates reject is followed by the resolution, which reports it
+    // itself.
+    if let Some(unused) =
+        crate::fast_update_patched_dependencies::unused_patches(&candidate, patch_hashes.as_ref())
+    {
+        Reporter::emit(&pacquet_reporter::LogEvent::Global(pacquet_reporter::GlobalLog {
+            level: pacquet_reporter::LogLevel::Warn,
+            message: unused.to_string(),
+        }));
+    }
     Some(candidate)
+}
+
+/// Which importers a freshness check may reason about, and how
+/// strictly. See [`check_lockfile_freshness`] for what each one admits.
+#[derive(Clone, Copy)]
+pub(crate) struct FreshnessScope {
+    /// Skip the per-importer specifier gate entirely.
+    pub(crate) ignore_manifest_check: bool,
+    /// Treat a project with no importer entry and no dependencies as
+    /// satisfied rather than missing.
+    pub(crate) allow_missing_dependency_free_importers: bool,
+    /// Treat an importer no project claims as staleness. Only an
+    /// unfiltered workspace install may, since only it sees the
+    /// complete project list.
+    pub(crate) prune_stale_importers: bool,
+}
+
+/// The first importer the lockfile records that no project claims.
+pub(super) fn removed_importer_id<'a>(
+    lockfile: &'a Lockfile,
+    manifest_freshness_inputs: &[(String, &PackageManifest)],
+) -> Option<&'a str> {
+    lockfile
+        .importers
+        .keys()
+        .find(|importer_id| !manifest_freshness_inputs.iter().any(|(id, _)| id == *importer_id))
+        .map(String::as_str)
 }
 
 /// Run every gate the frozen-lockfile dispatch consults before
@@ -98,9 +132,13 @@ pub(super) async fn check_lockfile_freshness(
     config: &Config,
     catalogs: &Catalogs,
     pnpmfile_hook: Option<&Arc<dyn pacquet_hooks::PnpmfileHooks>>,
-    ignore_manifest_check: bool,
-    allow_missing_dependency_free_importers: bool,
+    scope: FreshnessScope,
 ) -> Result<(), FreshnessCheckError> {
+    let FreshnessScope {
+        ignore_manifest_check,
+        allow_missing_dependency_free_importers,
+        prune_stale_importers,
+    } = scope;
     let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
     let pnpmfile_checksum = pacquet_hooks::current_pnpmfile_checksum(
         pnpmfile_hook,
@@ -120,6 +158,18 @@ pub(super) async fn check_lockfile_freshness(
 
     if ignore_manifest_check {
         return Ok(());
+    }
+
+    // An importer whose project is gone leaves the recorded graph wider
+    // than the workspace, and it is a root in every reachability walk, so
+    // it also keeps that project's dependencies alive. Only an unfiltered
+    // install sees the whole project list, so only it may conclude this.
+    if prune_stale_importers
+        && let Some(importer_id) = removed_importer_id(lockfile, manifest_freshness_inputs)
+    {
+        return Err(FreshnessCheckError::Stale(StalenessReason::RemovedImporter {
+            importer_id: importer_id.to_string(),
+        }));
     }
 
     let ignored_optional_matcher = pacquet_config::matcher::create_matcher(

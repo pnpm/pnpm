@@ -11,7 +11,7 @@ import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
@@ -34,7 +34,8 @@ export interface StrictInstallOptions {
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
-  cleanupUnusedCatalogs: boolean
+  catalogPrune: boolean
+  minimumReleaseAgeExcludePrune: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   frozenStore: boolean
@@ -110,6 +111,7 @@ export interface StrictInstallOptions {
     customResolvers?: CustomResolver[]
     customFetchers?: CustomFetcher[]
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
+    hasUntrackedReadPackageHook?: boolean
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
@@ -364,7 +366,8 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       !process.setgid ||
       process.getuid?.() !== 0,
     catalogMode: 'manual',
-    cleanupUnusedCatalogs: false,
+    catalogPrune: false,
+    minimumReleaseAgeExcludePrune: false,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
@@ -394,6 +397,12 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
 
 export interface ProcessedInstallOptions extends StrictInstallOptions {
   readPackageHook?: ReadPackageHook
+  /**
+   * Version preferences layered on top of the seed resolution takes from the lockfile, by
+   * package name. Callers pass them in (an audit fix penalizing vulnerable versions), and
+   * `mutateModules` adds its own for a catalog entry it moves.
+   */
+  preferredVersions?: PreferredVersions
   parsedOverrides: VersionOverride[]
   /**
    * Present when the overrides contain convergence entries (`"pkg@"`). The

@@ -7,7 +7,7 @@
 
 use crate::_utils;
 
-use _utils::enable_gvs_in_workspace_yaml;
+use _utils::{enable_gvs_in_workspace_yaml, pacquet_in};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
@@ -279,6 +279,98 @@ fn injected_peer_suffixed_workspace_dep_stays_file_after_remove() {
     assert!(
         !lockfile.contains("link:../b"),
         "remove must not collapse the peer-suffixed injected dep to link:../b:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The pnpm/pnpm#10433 guard preserves an untargeted workspace dep's
+/// prior `link:`, but it only compensates for the dedupe pass not
+/// running on every re-resolution path — with that pass off the recorded
+/// entry is stale. Regression test for pnpm/pnpm#13754.
+#[test]
+fn newly_injected_workspace_dep_with_dedupe_off_replaces_recorded_link() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeInjectedDeps: false\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    let a_manifest_path = workspace.join("packages/a/package.json");
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        &a_manifest_path,
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { "b": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/a/package.json");
+
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        serde_json::json!({ "name": "b", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/b/package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("link:../b"),
+        "the plain install should record b as link:../b under packages/a:\n{lockfile}",
+    );
+
+    fs::write(
+        &a_manifest_path,
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { "b": "workspace:*" },
+            "dependenciesMeta": { "b": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("rewrite packages/a/package.json");
+
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("file:packages/b"),
+        "the injected install should record b as file:packages/b under packages/a:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("link:../b"),
+        "the injected install must not keep the stale link:../b entry:\n{lockfile}",
+    );
+
+    let dep = workspace.join("packages/a/node_modules/b");
+    assert!(
+        dep.join("package.json").is_file(),
+        "packages/a/node_modules/b should resolve to a materialised virtual-store slot",
+    );
+    assert_ne!(
+        fs::canonicalize(&dep).expect("canonicalize packages/a/node_modules/b"),
+        fs::canonicalize(workspace.join("packages/b")).expect("canonicalize packages/b"),
+        "packages/a/node_modules/b should be an injected copy, not the source project",
     );
 
     drop((root, mock_instance));

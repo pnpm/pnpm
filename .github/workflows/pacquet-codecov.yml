@@ -78,7 +78,7 @@ jobs:
         run: rustup component add llvm-tools-preview
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           install: false
 
@@ -107,7 +107,7 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
-          cargo codecov --lcov --output-path lcov.info
+          env PNPM_CONFIG_CI=false cargo codecov --lcov --output-path lcov.info
 
       - name: Report disk usage
         if: always()

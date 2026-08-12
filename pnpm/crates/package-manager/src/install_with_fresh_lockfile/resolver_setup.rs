@@ -321,8 +321,11 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     };
 
-    let pnpmfile_hook =
-        pnpmfile_hook_override.or_else(|| pacquet_hooks::finder::load_pnpmfile(lockfile_dir));
+    let pnpmfile_hook = pnpmfile_hook_override.or_else(|| {
+        (!config.ignore_pnpmfile)
+            .then(|| pacquet_hooks::finder::load_pnpmfile(lockfile_dir))
+            .flatten()
+    });
     let custom_resolvers: Vec<Arc<dyn pacquet_hooks::CustomResolver>> =
         if let Some(ref hook) = pnpmfile_hook {
             hook.get_custom_resolvers().await.map_err(|err| {

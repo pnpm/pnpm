@@ -56,6 +56,17 @@ pub use workspace_yaml::{
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds, workspace_root_or,
 };
 
+fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
+    let ci = Sys::var("CI");
+    if ci.as_deref() == Some("false") {
+        return false;
+    }
+
+    matches!(ci.as_deref(), Some("true" | "1" | "woodpecker"))
+        || Sys::var("GITHUB_ACTIONS").is_some()
+        || detect_ci()
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {
@@ -735,6 +746,12 @@ pub enum PackageImportMethod {
 /// (project-structural settings).
 #[derive(Debug, Clone, SmartDefault)]
 pub struct Config {
+    /// Whether pnpm is running in a continuous-integration environment.
+    /// Defaults to automatic CI detection and may be overridden through
+    /// configuration.
+    #[default(_code = "default_ci::<Host>(is_ci::cached)")]
+    pub ci: bool,
+
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
     /// This makes unlisted dependencies accessible to all packages inside `node_modules`.
     #[default = true]
@@ -1515,6 +1532,16 @@ pub struct Config {
     /// when set, leaving `ignoredBuilds` empty. Default `false`.
     pub ignore_scripts: bool,
 
+    /// `--ignore-pnpmfile`. When `true`, no pnpmfile hooks run: neither
+    /// the workspace-root `.pnpmfile.{cjs,mjs}` nor the pnpmfiles of
+    /// config-dependency plugins are loaded, so `readPackage`,
+    /// `updateConfig`, `afterAllResolved`, custom resolvers and custom
+    /// fetchers are all skipped. A CLI-only boolean: pnpm excludes
+    /// `ignore-pnpmfile` from its config-file keys, so the yaml / env
+    /// overlay never populates it — the CLI layer sets it from the flag.
+    /// Default `false`.
+    pub ignore_pnpmfile: bool,
+
     /// `gitChecks` (`--no-git-checks`). When `true` (the default),
     /// `pnpm publish` verifies the git working tree is clean, on the
     /// expected branch, and up to date with the remote before publishing.
@@ -1649,6 +1676,12 @@ pub struct Config {
     /// all match, the project is selected without its dependents.
     pub test_pattern: Vec<String>,
 
+    /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` /
+    /// `PNPM_CONFIG_SYNC_INJECTED_DEPS_AFTER_SCRIPTS`. Names the scripts
+    /// after which every injected copy of the package that ran them is
+    /// re-synced from its source.
+    pub sync_injected_deps_after_scripts: Vec<String>,
+
     /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_CHANGED_FILES_IGNORE_PATTERN`, overridable by the
     /// `--changed-files-ignore-pattern` CLI flag. Glob patterns of
@@ -1753,6 +1786,14 @@ pub struct Config {
     /// [`minimum_release_age`]: Self::minimum_release_age
     pub minimum_release_age_exclude: Option<Vec<String>>,
 
+    /// When `true`, `add` / `remove` / `update` prune
+    /// [`Self::minimum_release_age_exclude`] entries in
+    /// `pnpm-workspace.yaml` whose versions the freshly resolved
+    /// lockfile no longer records, once the install has written that
+    /// lockfile. The `minimumReleaseAgeExcludePrune` setting;
+    /// default `false`, matching pnpm.
+    pub minimum_release_age_exclude_prune: bool,
+
     /// When the registry's metadata lacks the per-version `time`
     /// field (some self-hosted registries strip it), the verifier
     /// cannot enforce the maturity cutoff. With this flag set,
@@ -1849,10 +1890,11 @@ pub struct Config {
     pub catalog_mode: CatalogMode,
 
     /// When `true`, commands that persist the workspace manifest
-    /// (`add`, `remove`, `update`) also drop catalog entries that no
-    /// workspace project references. The `cleanupUnusedCatalogs`
-    /// setting; default `false`, matching pnpm.
-    pub cleanup_unused_catalogs: bool,
+    /// (`add`, `remove`, `update`) also drop entries of the `catalog:`
+    /// and `catalogs:` blocks that no workspace project references. The
+    /// `catalogPrune` setting (formerly `cleanupUnusedCatalogs`, still
+    /// accepted); default `false`, matching pnpm.
+    pub catalog_prune: bool,
 
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
@@ -2683,6 +2725,10 @@ impl Config {
             // writes it) never runs.
             self.workspace_dir = Some(base_dir.clone());
             if let Some(mut settings) = settings {
+                // CI detection is process state. A repository-controlled
+                // manifest must not be able to turn it off; trusted global
+                // config and PNPM_CONFIG_CI are applied in their own layers.
+                settings.ci = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml

@@ -72,6 +72,9 @@ pub(super) struct Walker<'tree> {
     /// would walk the parent's `children` map and find no symlink edge
     /// for the child, leaving the package without it in its slot.
     pub(super) pending_peer_edges: Vec<PendingPeerEdge>,
+    /// Membership guard for [`Walker::pending_peer_edges`], keeping the
+    /// buffer free of exact duplicates. Cleared whenever the buffer drains.
+    pub(super) pending_peer_edge_keys: HashSet<(DepPath, String, NodeId)>,
     /// Set of `pkgIdWithPatchHash` values whose full subtree resolved
     /// with zero external peers and zero missing peers. A revisit of
     /// any such package whose own `peerDependencies` is empty
@@ -194,6 +197,7 @@ impl<'tree> Walker<'tree> {
             resolved_peer_providers_by_alias: BTreeMap::new(),
             in_progress: HashSet::default(),
             pending_peer_edges: Vec::new(),
+            pending_peer_edge_keys: HashSet::default(),
             pure_pkgs,
             peers_cache,
             parent_pkgs_of_node,
@@ -585,7 +589,8 @@ impl Walker<'_> {
 
         let fast_cached = {
             let tree_node = &self.tree.dependencies_tree[node_id];
-            (tree_node.locked_peer_names.is_none() && tree_node.locked_peer_context.is_none())
+            tree_node
+                .has_no_locked_peers()
                 .then(|| {
                     self.find_fast_hit(node_id, parent_parent_refs, &tree_node.resolved_package_id)
                 })
@@ -611,7 +616,7 @@ impl Walker<'_> {
                 tree_node.resolved_package_id.clone(),
                 tree_node.depth,
                 tree_node.installable,
-                tree_node.locked_peer_names.clone(),
+                tree_node.locked_peer_names().cloned(),
             )
         };
         let pkg = self.owned_package(&pkg_id);
@@ -683,7 +688,7 @@ impl Walker<'_> {
             None
         };
         let (children_map, realize_undo) = if discovery_children.is_some() {
-            (BTreeMap::new(), None)
+            (Arc::new(BTreeMap::new()), None)
         } else {
             self.realize_children_with(node_id, Some(&provider_children))
         };
@@ -744,7 +749,7 @@ impl Walker<'_> {
         } else {
             let child_aliases = ChildAliases::Realized(&children_map);
             for repeated in [true, false] {
-                for (alias, child_node_id) in &children_map {
+                for (alias, child_node_id) in children_map.iter() {
                     if child_parent_refs.contains_key(alias) != repeated {
                         continue;
                     }
@@ -1056,7 +1061,7 @@ impl Walker<'_> {
             self.tree
                 .dependencies_tree
                 .get(node_id)
-                .and_then(|tree_node| tree_node.locked_peer_context.as_ref()),
+                .and_then(crate::resolved_tree::DependenciesTreeNode::locked_peer_context),
             self.opts.resolved_peer_provider_paths.as_ref(),
         ) else {
             return pins;
@@ -1146,7 +1151,7 @@ impl Walker<'_> {
                                 .tree
                                 .dependencies_tree
                                 .get(peer_node_id)
-                                .is_none_or(|node| node.previous_dep_path.is_none())))
+                                .is_none_or(|node| node.previous_dep_path().is_none())))
                 {
                     return true;
                 }
@@ -1156,9 +1161,7 @@ impl Walker<'_> {
             let Some(parent_node) = self.tree.dependencies_tree.get(parent_node_id) else {
                 continue;
             };
-            let Some(must_win) =
-                parent_node.dependency_names_whose_current_provider_must_win.as_ref()
-            else {
+            let Some(must_win) = parent_node.must_win_dependency_names() else {
                 continue;
             };
             // Ancestors on the walk path always have realized children.

@@ -96,6 +96,7 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
+    pub ci: Option<bool>,
     pub hoist: Option<bool>,
 
     /// Tri-state `hoistPattern` — see `deserialize_double_option`.
@@ -387,6 +388,10 @@ pub struct WorkspaceSettings {
     /// [`Config::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Option<Vec<String>>,
 
+    /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` — see
+    /// [`Config::sync_injected_deps_after_scripts`].
+    pub sync_injected_deps_after_scripts: Option<Vec<String>>,
+
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Drives the
     /// optional-dependency platform check at install time: a
     /// `name: ['darwin'], cpu: ['arm64']` setting tells pacquet to
@@ -447,6 +452,11 @@ pub struct WorkspaceSettings {
 
     /// `minimumReleaseAgeExclude` from `pnpm-workspace.yaml`.
     pub minimum_release_age_exclude: Option<Vec<String>>,
+
+    /// `minimumReleaseAgeExcludePrune` from `pnpm-workspace.yaml`.
+    /// See [`Config::minimum_release_age_exclude_prune`]. Default
+    /// `false`.
+    pub minimum_release_age_exclude_prune: Option<bool>,
 
     /// `minimumReleaseAgeIgnoreMissingTime` from `pnpm-workspace.yaml`.
     pub minimum_release_age_ignore_missing_time: Option<bool>,
@@ -519,8 +529,12 @@ pub struct WorkspaceSettings {
     /// `catalogMode` from `pnpm-workspace.yaml`. See [`CatalogMode`].
     pub catalog_mode: Option<CatalogMode>,
 
-    /// `cleanupUnusedCatalogs` from `pnpm-workspace.yaml`. See
-    /// [`Config::cleanup_unused_catalogs`]. Default `false`.
+    /// `catalogPrune` from `pnpm-workspace.yaml`. See
+    /// [`Config::catalog_prune`]. Default `false`.
+    pub catalog_prune: Option<bool>,
+
+    /// `catalogPrune`'s former name, still accepted. [`Self::catalog_prune`]
+    /// wins when a file carries both.
     pub cleanup_unused_catalogs: Option<bool>,
 
     /// `saveCatalogName` from `pnpm-workspace.yaml`. See
@@ -881,6 +895,7 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.sync_injected_deps_after_scripts = None;
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
         self.save_peer = None;
@@ -1004,6 +1019,12 @@ impl WorkspaceSettings {
         let audit_level_in_yaml = self.audit_level.is_some();
         let audit_config_in_yaml = self.audit_config.is_some();
 
+        // `catalogPrune`'s former name, applied before the macro so the
+        // canonical key wins when a file carries both.
+        if let Some(v) = self.cleanup_unused_catalogs {
+            config.catalog_prune = v;
+        }
+
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
                 if let Some(v) = self.$field {
@@ -1013,7 +1034,7 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            hoist, shamefully_hoist,
+            ci, hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
@@ -1046,7 +1067,9 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
-            resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer, save_exact,
+            sync_injected_deps_after_scripts,
+            resolution_mode, catalog_mode, catalog_prune,
+            minimum_release_age_exclude_prune, save_peer, save_exact,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,

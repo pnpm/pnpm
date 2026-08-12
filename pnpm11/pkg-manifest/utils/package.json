@@ -36,7 +36,8 @@
     "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "semver": "catalog:"
+    "semver": "catalog:",
+    "semver-utils": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

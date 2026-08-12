@@ -562,6 +562,18 @@ test('a remove in a workspace member runs no project postinstall', () => {
   expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual([])
 })
 
+test('a remove that falls back to resolution runs no project postinstall', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+  // A pnpmfile added after the install changes the recorded
+  // pnpmfileChecksum, which keeps the remove off the fast lockfile update,
+  // so the removal takes the resolve-then-materialize path.
+  fs.writeFileSync('.pnpmfile.cjs', 'module.exports = { hooks: { readPackage: (pkg) => pkg } }')
+
+  execPnpmSync(['remove', DEP], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual([])
+})
+
 test('an argumentless update at the workspace root runs the postinstall of the root alone', () => {
   prepareInstalledWorkspace(['a', 'b'])
 

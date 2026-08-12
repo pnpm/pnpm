@@ -1,3 +1,4 @@
+use crate::fast_update_compose::Drift;
 use pacquet_config::Config;
 use pacquet_lockfile::{ImporterDepVersion, Lockfile, LockfileSettings, ProjectSnapshot};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -32,32 +33,40 @@ pub(crate) enum ChangedSetting {
     InjectWorkspacePackages,
 }
 
-/// Record a changed lockfile setting without resolving the dependency
-/// graph, for the settings that the lockfile itself proves cannot
-/// affect its graph: the peer settings when nothing declares a peer
+/// Whether the lockfile's recorded `settings` block drifted from the
+/// current configuration. Whether the drift is absorbable is
+/// [`apply_settings_update`]'s question: it depends on the graph, which
+/// the handlers running before it may have rewritten.
+pub(crate) fn detect_settings_drift(lockfile: &Lockfile, settings: &LockfileSettings) -> Drift<()> {
+    if changed_settings(lockfile.settings.as_ref(), settings).is_empty() {
+        Drift::Clean
+    } else {
+        Drift::Absorb(())
+    }
+}
+
+/// Record the current configuration's `settings` block on `candidate`,
+/// restricted to the drift the candidate itself proves cannot affect
+/// its graph: the peer settings when nothing declares a peer
 /// dependency, and the link and injection settings when no project
-/// depends on a directory or on another workspace project.
-///
-/// `None` — nothing changed, or a changed setting could affect the
-/// graph — leaves the caller on the full-resolution path.
-pub(crate) fn try_fast_update_settings(
-    lockfile: &Lockfile,
+/// depends on a directory or on another workspace project. Checked
+/// against the candidate the earlier handlers already rewrote — a peer
+/// dependent they removed no longer blocks the setting. `false` leaves
+/// the caller on the full-resolution path.
+pub(crate) fn apply_settings_update(
+    candidate: &mut Lockfile,
     settings: &LockfileSettings,
     manifests: &[(PathBuf, &PackageManifest)],
-) -> Option<Lockfile> {
-    let changed = changed_settings(lockfile.settings.as_ref(), settings);
-    if changed.is_empty() {
-        return None;
-    }
+) -> bool {
+    let changed = changed_settings(candidate.settings.as_ref(), settings);
     let workspace_package_names = workspace_package_names(manifests);
     if !changed.iter().all(|setting| {
-        setting_cannot_affect_lockfile(*setting, lockfile, manifests, &workspace_package_names)
+        setting_cannot_affect_lockfile(*setting, candidate, manifests, &workspace_package_names)
     }) {
-        return None;
+        return false;
     }
-    let mut candidate = lockfile.clone();
     candidate.settings = Some(settings.clone());
-    Some(candidate)
+    true
 }
 
 fn changed_settings(
@@ -173,7 +182,11 @@ fn has_no_injectable_dependencies(
         })
 }
 
-fn is_directory_dependency(
+/// Whether `alias` resolves to a directory rather than to a registry
+/// version: the protocols that name one outright, and a plain range on
+/// a workspace project's name, which `linkWorkspacePackages` turns into
+/// a link.
+pub(crate) fn is_directory_dependency(
     alias: &str,
     bare_specifier: &str,
     workspace_package_names: &HashSet<String>,
@@ -204,7 +217,11 @@ fn declares_injected_dependency(manifest: &PackageManifest) -> bool {
     )
 }
 
-fn workspace_package_names(manifests: &[(PathBuf, &PackageManifest)]) -> HashSet<String> {
+/// The names every workspace project publishes under, which a plain
+/// range on one of them resolves to a directory through.
+pub(crate) fn workspace_package_names(
+    manifests: &[(PathBuf, &PackageManifest)],
+) -> HashSet<String> {
     manifests
         .iter()
         .filter_map(|(_, manifest)| {

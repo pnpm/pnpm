@@ -208,7 +208,7 @@ export interface Config extends OptionsFromRootManifest {
   workspacePackagePatterns?: string[]
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
-  cleanupUnusedCatalogs?: boolean
+  catalogPrune?: boolean
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
@@ -301,6 +301,7 @@ export interface Config extends OptionsFromRootManifest {
   preserveAbsolutePaths?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeExcludePrune?: boolean
   minimumReleaseAgeIgnoreMissingTime?: boolean
   minimumReleaseAgeStrict?: boolean
   fetchWarnTimeoutMs?: number
@@ -317,6 +318,8 @@ export interface Config extends OptionsFromRootManifest {
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
+  /** `catalogPrune`'s former name, still accepted. */
+  cleanupUnusedCatalogs?: boolean
 }
 
 export const PROJECT_CONFIG_FIELDS = [

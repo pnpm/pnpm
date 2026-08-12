@@ -122,6 +122,22 @@ export function redactAndSanitize (text: string): string {
   return redactUrlCredentials(sanitized)
 }
 
+/**
+ * {@link redactAndSanitize} for text whose line breaks are worth keeping, such
+ * as a subprocess's multi-line stderr.
+ *
+ * Line breaks are kept only when doing so redacts exactly as much as
+ * collapsing the text would: a newline can fall inside a `user:pass@`
+ * authority — git echoes such a URL back verbatim, password included — and
+ * redacting each line separately would leave the credentials split but
+ * readable. Whenever the two disagree, the collapsed form wins.
+ */
+export function redactAndSanitizeMultiline (text: string): string {
+  const collapsed = redactAndSanitize(text)
+  const perLine = text.split('\n').map(redactAndSanitize).join('\n')
+  return perLine.replaceAll('\n', '') === collapsed ? perLine : collapsed
+}
+
 function isSchemeTailChar (code: number): boolean {
   return (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a)
 }

@@ -384,7 +384,10 @@ struct UsesValue<'a> {
 }
 
 fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
-    let value = yaml_serde::from_str::<Value>(text).map_err(|_| QueryError::InvalidInput)?;
+    let value = yaml_serde::from_str::<Value>(text).map_err(|err| {
+        let (line, column) = err.location().map_or((0, 0), |loc| (loc.line(), loc.column()));
+        QueryError::InvalidInput(line, column)
+    })?;
     let document = Document::new(text)?;
     let mut values = Vec::new();
     for route in uses_routes(&value) {

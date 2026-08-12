@@ -77,9 +77,16 @@ async function fromHostedGit (hosted: any, dispatcherOptions: DispatcherOptions)
   // (`shortcut`, `https`, ...) an SSH remote was never asked for, and recording one
   // in the lockfile breaks installs in environments without SSH keys, so every
   // HTTPS transport is exhausted first.
+  //
+  // Such a specifier therefore resolves over HTTPS whether or not git can reach
+  // the host that way on this machine, and its HTTPS access is not probed at all:
+  // the probe could not change what is recorded, and a machine that reaches the
+  // host only over SSH substitutes the transport itself through git's
+  // `url.<base>.insteadOf`. Only an explicit SSH URL, which HTTPS may displace,
+  // is worth the round-trip.
   const preferSsh = hosted.default === 'sshurl'
   const repoIsPublic = httpsUrl != null && await isRepoPublic(httpsUrl, dispatcherOptions)
-  if (httpsUrl && repoIsPublic && await accessRepository(httpsUrl)) {
+  if (httpsUrl && repoIsPublic && (!preferSsh || await accessRepository(httpsUrl))) {
     fetchSpec = httpsUrl
   }
   if (!fetchSpec && preferSsh && sshUrl && await accessRepository(sshUrl)) {
@@ -199,8 +206,12 @@ function correctUrl (gitUrl: string): string {
       _gitUrl = _gitUrl.slice(0, hashIndex)
     }
     const [auth, ...pathname] = _gitUrl.slice(6).split('/')
-    const [, host] = auth.split('@')
-    if (host.includes(':') && !/:\d+$/.test(host)) {
+    const userInfoEnd = auth.lastIndexOf('@')
+    const host = userInfoEnd === -1 ? auth : auth.slice(userInfoEnd + 1)
+    // The colons of a bracketed IPv6 literal belong to the address.
+    const bracketEnd = host.startsWith('[') ? host.indexOf(']') : -1
+    const afterHost = bracketEnd === -1 ? host : host.slice(bracketEnd + 1)
+    if (afterHost.includes(':') && !/:\d+$/.test(afterHost)) {
       const authArr = auth.split(':')
       const protocol = gitUrl.split('://')[0]
       gitUrl = `${protocol}://${authArr.slice(0, -1).join(':') + '/' + authArr[authArr.length - 1]}${pathname.length ? '/' + pathname.join('/') : ''}${hash}`

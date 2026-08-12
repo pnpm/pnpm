@@ -1,9 +1,10 @@
 import path from 'node:path'
 
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { checkPackageInstallability } from '@pnpm/config.package-is-installable'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, LockfileResolution, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import {
   lockfileWalkerGroupImporterSteps,
@@ -11,7 +12,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
+import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
@@ -42,6 +43,7 @@ export interface CollectSbomComponentsOptions {
   namedRegistries?: Record<string, string>
   lockfileDir: string
   includedImporterIds?: ProjectId[]
+  supportedArchitectures?: SupportedArchitectures
   lockfileOnly?: boolean
   storeDir?: string
   virtualStoreDirMaxLength?: number
@@ -207,6 +209,24 @@ async function walkStep (
 
       if (!name || !version) return
 
+      // An optional dependency for another platform is in the lockfile but was
+      // never fetched, so the store holds no metadata to describe it with.
+      // `checkPackageInstallability`, not `packageIsInstallable`: the latter
+      // reports every skip through the install loggers, which reading a
+      // lockfile must not do.
+      if (!opts.lockfileOnly && pkgSnapshot.optional === true && checkPackageInstallability(pkgSnapshot.id ?? depPath, {
+        name,
+        version,
+        cpu: pkgSnapshot.cpu,
+        os: pkgSnapshot.os,
+        libc: pkgSnapshot.libc,
+      }, {
+        optional: true,
+        supportedArchitectures: opts.supportedArchitectures,
+      }) != null) {
+        return
+      }
+
       // Resolve the alias before the purl is built. An unknown alias would
       // otherwise yield an unqualified purl that collides with the same
       // package from the default registry, and the `componentsMap.has(purl)`
@@ -233,7 +253,7 @@ async function walkStep (
 
       if (componentsMap.has(purl)) return
 
-      const integrity = (pkgSnapshot.resolution as TarballResolution).integrity
+      const integrity = verifiedIntegrity(pkgSnapshot.resolution)
       const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
       const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
 
@@ -328,4 +348,22 @@ export function resolveWorkspaceDeps (
   }
 
   return { links, additionalImporterIds }
+}
+
+/**
+ * The resolution's integrity, but only where pnpm verifies the downloaded
+ * bytes against it: the tarball/registry hash and a `type: binary` runtime
+ * archive's. Nothing checks a git checkout against a hash, so an `integrity`
+ * recorded on one is not a checksum and is never published as one.
+ *
+ * Read from an untyped lockfile, so the shape is probed rather than trusted:
+ * reading a checksum out of a malformed resolution yields nothing instead of
+ * throwing, and a non-string integrity never reaches `ssri.parse` downstream.
+ * (A malformed resolution still fails the walk further along, in
+ * `pkgSnapshotToResolution` — this only keeps the checksum lookup total.)
+ */
+function verifiedIntegrity (resolution: LockfileResolution): string | undefined {
+  const { type, integrity } = (resolution ?? {}) as { type?: string, integrity?: unknown }
+  if (typeof integrity !== 'string') return undefined
+  return (type === undefined || type === 'binary') ? integrity : undefined
 }

@@ -120,7 +120,8 @@ pub struct GraphToLockfileOptions<'a> {
     /// [`Self::importers`]. Used to preserve a workspace dependency's
     /// prior `link:` entry when this install does not target it — see
     /// `build_importer` and pnpm/pnpm#10433. `None` when there is no
-    /// previous lockfile (a first install).
+    /// previous lockfile (a first install) or when `dedupeInjectedDeps`
+    /// is off.
     pub previous_importers: Option<&'a HashMap<String, ProjectSnapshot>>,
     /// How this install reuses the prior resolution, mapped from the
     /// `pacquet update` seed policy. Together with a spec change it
@@ -138,6 +139,11 @@ pub struct GraphToLockfileOptions<'a> {
     /// update targets the named dependency in the importer that declares
     /// it while leaving untouched importers' `link:` entries intact.
     pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// The lockfile's `time:` section: the prior lockfile's recorded
+    /// publish dates with this run's freshly resolved ones layered over
+    /// them. Empty on a first install that did not resolve `time-based`.
+    /// Saving prunes it to the importers' direct dependencies.
+    pub time: BTreeMap<String, String>,
 }
 
 /// Error returned while converting a resolver graph into a lockfile.
@@ -210,6 +216,7 @@ pub fn dependencies_graph_to_lockfile(
         previous_importers,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
+        time,
     } = opts;
 
     let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
@@ -271,6 +278,7 @@ pub fn dependencies_graph_to_lockfile(
         importers,
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
+        time: (!time.is_empty()).then_some(time),
     })
 }
 
@@ -385,12 +393,12 @@ fn build_importer(
         };
         // pnpm/pnpm#10433: a fresh-lockfile install re-resolves every
         // importer, and an injected workspace dependency whose peer context
-        // genuinely diverges (or with `dedupeInjectedDeps` off) reaches
-        // `importer_dep_version`'s `file:` arm instead of deduping back to
-        // `link:`. When this install does not *target* that dependency, keep
-        // its previous `link:` importer entry rather than rewriting it to a
-        // peer-suffixed `file:`. `dedupe_injected_deps` runs earlier in the
-        // resolver and does not reach this finalization path.
+        // genuinely diverges reaches `importer_dep_version`'s `file:` arm
+        // instead of deduping back to `link:`. When this install does not
+        // *target* that dependency, keep its previous `link:` importer entry
+        // rather than rewriting it to a peer-suffixed `file:`.
+        // `dedupe_injected_deps` runs earlier in the resolver and does not
+        // reach this finalization path.
         if let ImporterDepVersion::File(_) = &version
             && let Some(previous) =
                 previous_importer.and_then(|prev| previous_importer_dep(prev, &name_for_key))

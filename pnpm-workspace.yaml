@@ -222,7 +222,7 @@ catalog:
   dir-is-case-sensitive: ^3.0.0
   empathic: ^2.0.1
   encode-registry: ^3.0.1
-  esbuild: ^0.28.1
+  esbuild: ^0.28.2
   escape-string-regexp: ^5.0.0
   eslint: ^10.8.1
   eslint-plugin-import-x: ^4.17.1

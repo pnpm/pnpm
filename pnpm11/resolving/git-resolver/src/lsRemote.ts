@@ -1,3 +1,4 @@
+import { PnpmError, redactAndSanitizeMultiline } from '@pnpm/error'
 import { safeExeca as execa } from 'execa'
 
 /**
@@ -6,6 +7,8 @@ import { safeExeca as execa } from 'execa'
  * ls-remote invocations must go through this function to keep that guarantee.
  *
  * Failed runs are retried immediately, matching the Rust runner's policy.
+ * A run that fails every attempt throws `ERR_PNPM_GIT_LS_REMOTE_FAILED`,
+ * which the git resolver restates with the dependency it was resolving.
  */
 export async function lsRemote (args: string[], opts: { retries: number }): Promise<{ stdout: string }> {
   let lastErr: unknown
@@ -21,5 +24,23 @@ export async function lsRemote (args: string[], opts: { retries: number }): Prom
       lastErr = err
     }
   }
-  throw lastErr
+  throw lsRemoteError(lastErr)
+}
+
+/**
+ * git's stderr is untrusted: the repository URL it echoes back can carry
+ * `user:pass@` credentials, so it goes through
+ * {@link redactAndSanitizeMultiline} rather than being restated verbatim.
+ */
+function lsRemoteError (err: unknown): PnpmError {
+  return new PnpmError('GIT_LS_REMOTE_FAILED', `git ls-remote failed: ${redactAndSanitizeMultiline(lsRemoteFailureDetail(err))}`)
+}
+
+function lsRemoteFailureDetail (err: unknown): string {
+  if ((err as { code?: string }).code === 'ENOENT') {
+    return '`git` executable not found on PATH. Install git to resolve git-hosted packages.'
+  }
+  const stderr = (err as { stderr?: string }).stderr?.trim()
+  if (stderr != null && stderr !== '') return stderr
+  return (err as { message?: string }).message ?? String(err)
 }

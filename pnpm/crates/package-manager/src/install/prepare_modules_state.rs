@@ -30,6 +30,7 @@ pub(super) struct PrepareModulesStateInputs<'a, 'install> {
         Option<super::LockfileVerificationOverride<'install>>,
     pub(super) lockfile_synthesized_from_current: bool,
     pub(super) lockfile_was_fast_updated: bool,
+    pub(super) save_lockfile: bool,
     pub(super) catalogs: &'a Catalogs,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) prefix: &'a str,
@@ -68,6 +69,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         lockfile_verification_override,
         lockfile_synthesized_from_current,
         lockfile_was_fast_updated,
+        save_lockfile,
         catalogs,
         project_manifests,
         prefix,
@@ -374,7 +376,10 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
             prefix: prefix.to_string(),
             stage: Stage::ImportingDone,
         }));
-        if (lockfile_synthesized_from_current || lockfile_was_fast_updated) && config.lockfile {
+        if (lockfile_synthesized_from_current || lockfile_was_fast_updated)
+            && config.lockfile
+            && save_lockfile
+        {
             wanted_lockfile
                 .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
                 .map_err(InstallError::SaveWantedLockfile)?;

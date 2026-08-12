@@ -66,8 +66,8 @@ use lifecycle::{
     run_dev_preinstall, run_projects_lifecycle_scripts,
 };
 pub(crate) use lockfile_freshness::{
-    CheckLockfileSettingsDriftOptions, FreshnessCheckError, check_importer_satisfies,
-    check_lockfile_settings_drift, parse_config_overrides,
+    CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
+    check_importer_satisfies, check_lockfile_settings_drift, parse_config_overrides,
 };
 use lockfile_freshness::{
     FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
@@ -189,9 +189,12 @@ pub enum ProjectMutation {
     /// rewrite named dependencies rather than installing the project's
     /// whole manifest.
     InstallSome,
-    /// A run that installs no project's manifest: pnpm's
-    /// `mutation: 'uninstallSome'` (`pacquet remove`) and the commands
-    /// that only materialize what the lockfile already records
+    /// pnpm's `mutation: 'uninstallSome'`: `pacquet remove`, which
+    /// deletes named dependencies from the manifest before the install
+    /// runs.
+    UninstallSome,
+    /// A run that installs no project's manifest: the commands that
+    /// only materialize what the lockfile already records
     /// (`link`, `import`, `fetch`, `rebuild`).
     NoInstall,
 }
@@ -202,6 +205,18 @@ impl ProjectMutation {
     #[must_use]
     pub fn is_full_install(self) -> bool {
         matches!(self, ProjectMutation::InstallWorkspace | ProjectMutation::InstallSelected)
+    }
+
+    /// Whether the run may absorb its manifest drift by rewriting the
+    /// loaded lockfile instead of resolving. `pacquet remove` qualifies
+    /// because its only drift is the importer edges it deleted, and
+    /// `pacquet add` because it pins the manifest before the install runs,
+    /// leaving the same importer-edge drift — one the rewrite absorbs only
+    /// when the lockfile already holds a version satisfying it.
+    #[must_use]
+    pub fn may_fast_update_lockfile(self) -> bool {
+        self.is_full_install()
+            || matches!(self, ProjectMutation::UninstallSome | ProjectMutation::InstallSome)
     }
 }
 
@@ -495,6 +510,12 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
 
+    /// The pnpmfile's `readPackage` hook threw while transforming a
+    /// workspace project's own manifest.
+    #[display("{_0}")]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
+    ReadPackageHook(#[error(not(source))] pacquet_hooks::HookError),
+
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 
@@ -718,15 +739,32 @@ pub enum InstallError {
     ConfigConflictVirtualStoreOnlyWithNoModulesDir,
 }
 
-#[derive(Default)]
 struct InstallRunOptions<'install, 'selection> {
     lockfile_verification_override: Option<LockfileVerificationOverride<'install>>,
     rebuild: Option<RebuildOptions>,
     selection: Option<WorkspaceInstallSelection<'selection>>,
     root_manifest_as_workspace_root: bool,
+    /// pnpm's `saveLockfile`: whether the resolved graph may be written
+    /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
+    /// whose resolution belongs to a project other than the one that
+    /// owns that lockfile, so the run must leave it untouched.
+    save_lockfile: bool,
     /// Forces the interactive-prompt eligibility that is otherwise derived
     /// from the process environment, so tests can exercise both branches.
     prompt_eligibility_override: Option<bool>,
+}
+
+impl Default for InstallRunOptions<'_, '_> {
+    fn default() -> Self {
+        InstallRunOptions {
+            lockfile_verification_override: None,
+            rebuild: None,
+            selection: None,
+            root_manifest_as_workspace_root: false,
+            save_lockfile: true,
+            prompt_eligibility_override: None,
+        }
+    }
 }
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
@@ -785,13 +823,21 @@ where
         .await
     }
 
-    /// Execute with the active manifest mapped to the root importer while
-    /// retaining workspace discovery for `workspace:` dependency resolution.
-    pub async fn run_with_root_importer<Reporter: self::Reporter + 'static>(
+    /// Execute the install a legacy `pacquet deploy` runs in its target
+    /// directory: the deployed manifest is the root importer, while
+    /// workspace discovery stays anchored at the source workspace so
+    /// `workspace:` dependencies still resolve to their projects.
+    ///
+    /// The source workspace also still owns `pnpm-lock.yaml`, and this
+    /// resolution describes the deployed project rather than the
+    /// workspace, so nothing is written to it (pnpm's
+    /// `saveLockfile: false`).
+    pub async fn run_legacy_deploy<Reporter: self::Reporter + 'static>(
         self,
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             root_manifest_as_workspace_root: true,
+            save_lockfile: false,
             ..Default::default()
         }))
         .await

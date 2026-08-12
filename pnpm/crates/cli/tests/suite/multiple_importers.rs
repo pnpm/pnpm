@@ -135,12 +135,8 @@ fn current_lockfile_contains_only_installed_dependencies() {
 /// TS: `headless install is used when package linked to another package
 /// in the workspace` (`multipleImporters.ts:540`). The subset install
 /// after a lockfile-only resolve must go headless (it announces
-/// "Lockfile is up to date, resolution step is skipped").
-///
-/// Upstream additionally asserts the unselected link target's own
-/// dependencies are *not* installed; pacquet expands the subset closure
-/// through importer-level links, so that tail lives in
-/// [`known_failures::subset_install_does_not_install_unselected_link_targets_dependencies`].
+/// "Lockfile is up to date, resolution step is skipped") without
+/// installing the unselected link target's own dependencies.
 #[test]
 fn headless_install_is_used_when_package_is_linked_to_another_workspace_package() {
     let fixture = WorkspaceFixture::new();
@@ -152,7 +148,7 @@ fn headless_install_is_used_when_package_is_linked_to_another_workspace_package(
             ..Default::default()
         },
     );
-    fixture.project(
+    let project_2 = fixture.project(
         "project-2",
         "project-2",
         ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
@@ -164,6 +160,8 @@ fn headless_install_is_used_when_package_is_linked_to_another_workspace_package(
     assert!(has_up_to_date_log(&records), "the subset install must go headless: {records:#?}");
     assert!(has_link(&project_1, FOO));
     assert!(has_link(&project_1, "project-2"));
+    assert!(!project_2.join("node_modules").exists());
+    assert!(!fixture.slot(NO_DEPS, "1.0.0").exists());
 }
 
 /// TS: `headless install is used with an up-to-date lockfile when
@@ -722,38 +720,4 @@ fn custom_virtual_store_directory_with_dedicated_lockfiles() {
     fs::remove_dir_all(project.join("node_modules")).expect("remove the project's node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
     assert_recorded_virtual_store("frozen");
-}
-
-mod known_failures {
-    //! Multi-importer cases blocked on features pacquet hasn't built
-    //! yet. Each entry stubs the not-yet-built subject under test
-    //! through [`pacquet_testing_utils::allow_known_failure`] so the
-    //! test exits early rather than masking a real bug.
-
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
-
-    fn importer_level_link_closure_divergence() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet's subset-install materialization closure follows \
-             importer-level `link:` / workspace-linked dependencies of \
-             the selected projects and installs the link targets' own \
-             dependencies (`materialization_closure` in \
-             `crates/deps-restorer/src/current_lockfile.rs`). The \
-             TypeScript CLI keeps those targets shallow — only \
-             `--filter <project>...` widens the selection — so the two \
-             stacks need a shared decision before this can be pinned.",
-        ))
-    }
-
-    /// The tail of TS `headless install is used when package linked to
-    /// another package in the workspace` (`multipleImporters.ts:540`):
-    /// the unselected `link:` target's own dependencies must not be
-    /// installed by the subset install.
-    #[test]
-    fn subset_install_does_not_install_unselected_link_targets_dependencies() {
-        allow_known_failure!(importer_level_link_closure_divergence());
-    }
 }

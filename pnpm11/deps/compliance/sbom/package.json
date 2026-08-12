@@ -36,6 +36,7 @@
   "dependencies": {
     "@cyclonedx/cyclonedx-library": "catalog:",
     "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",

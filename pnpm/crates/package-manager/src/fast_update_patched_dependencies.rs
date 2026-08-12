@@ -1,4 +1,4 @@
-use pacquet_config::Config;
+use crate::fast_update_compose::Drift;
 use pacquet_deps_path::{index_of_dep_path_suffix, remove_suffix};
 use pacquet_lockfile::{
     ImporterDepVersion, Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap,
@@ -12,9 +12,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 /// Where a package's snapshot key moves to when its patch changes.
 type Rekeys = HashMap<PackageKey, PackageKey>;
 
-/// Absorb a changed `patchedDependencies` without resolving the
-/// dependency graph.
-///
 /// Resolution never reads a patch: it appends the patch file's hash to
 /// an already-resolved package id, so the set of packages and versions
 /// is the same either way. Only the affected packages' `snapshots:`
@@ -22,39 +19,64 @@ type Rekeys = HashMap<PackageKey, PackageKey>;
 /// the loaded lockfile rather than a re-resolve. `packages:` is keyed
 /// without the patch hash, so it stays as it is.
 ///
-/// `None` — nothing changed, a patched package is reachable as a peer,
-/// or the new configuration leaves a patch unused while
-/// `allowUnusedPatches` is off — leaves the caller on the
-/// full-resolution path, which is where `ERR_PNPM_UNUSED_PATCH` is
-/// raised.
-///
-/// A patch file that cannot be read or hashed also falls back, so the
-/// resolver reports it rather than this path swallowing the error.
-pub(crate) fn try_fast_update_patched_dependencies(
-    lockfile: &Lockfile,
-    config: &Config,
-) -> Option<Lockfile> {
-    let empty = BTreeMap::new();
-    let hashes = config.patched_dependency_hashes().ok()?;
-    let recorded = lockfile.patched_dependencies.as_ref().unwrap_or(&empty);
-    let current = hashes.as_ref().unwrap_or(&empty);
-    if recorded == current {
-        return None;
-    }
+/// The plan holds the configured patches [`apply_patched_update`] moves
+/// the lockfile to: the hashes to record and their resolver-shaped
+/// grouping.
+pub(crate) struct PatchedPlan {
+    current: BTreeMap<String, String>,
+    groups: PatchGroupRecord,
+}
 
-    let groups = groups_from_hashes(current)?;
-    if !config.allow_unused_patches {
-        let applied = applied_patch_keys(lockfile, &groups)?;
-        if all_patch_keys(&groups).any(|key| !applied.contains(key)) {
-            return None;
+/// Whether `patchedDependencies` drifted from what the lockfile
+/// records, against the hashes of the configured patch files.
+/// [`Drift::Resolve`] when a key's version segment parses as neither a
+/// version nor a range — the resolver reports that.
+pub(crate) fn detect_patched_drift(
+    lockfile: &Lockfile,
+    hashes: Option<&BTreeMap<String, String>>,
+) -> Drift<PatchedPlan> {
+    let empty = BTreeMap::new();
+    let recorded = lockfile.patched_dependencies.as_ref().unwrap_or(&empty);
+    let current = hashes.unwrap_or(&empty);
+    if recorded == current {
+        return Drift::Clean;
+    }
+    match groups_from_hashes(current) {
+        Some(groups) => Drift::Absorb(PatchedPlan { current: current.clone(), groups }),
+        None => Drift::Resolve,
+    }
+}
+
+/// Rekey the affected snapshots to the configured patches and record
+/// the new hashes.
+///
+/// Runs after removals have been applied and pruned, so the unused-patch
+/// guard and the rekey plan see the packages a full resolution would see
+/// — a patch whose only referent was just removed falls back exactly
+/// like the resolver raising `ERR_PNPM_UNUSED_PATCH` would.
+///
+/// `false` — a patched package reachable as a peer, an opaque peer
+/// suffix, or a patch left unused while `allowUnusedPatches` is off —
+/// leaves the caller on the full-resolution path.
+pub(crate) fn apply_patched_update(
+    candidate: &mut Lockfile,
+    plan: &PatchedPlan,
+    allow_unused_patches: bool,
+) -> bool {
+    if !allow_unused_patches {
+        let Some(applied) = applied_patch_keys(candidate, &plan.groups) else {
+            return false;
+        };
+        if all_patch_keys(&plan.groups).any(|key| !applied.contains(key)) {
+            return false;
         }
     }
-
-    let rekeys = plan_rekeys(lockfile, &groups)?;
-    let mut candidate = lockfile.clone();
-    apply_rekeys(&mut candidate, &rekeys);
-    candidate.patched_dependencies = (!current.is_empty()).then(|| current.clone());
-    Some(candidate)
+    let Some(rekeys) = plan_rekeys(candidate, &plan.groups) else {
+        return false;
+    };
+    apply_rekeys(candidate, &rekeys);
+    candidate.patched_dependencies = (!plan.current.is_empty()).then(|| plan.current.clone());
+    true
 }
 
 /// Where every snapshot key moves to once `groups` is the configured
@@ -213,11 +235,60 @@ fn rewrite_importer_group(group: &mut ResolvedDependencyMap, rekeys: &Rekeys) {
     }
 }
 
+/// Whether every configured patch still has a package to apply to.
+///
+/// A patch with none left is `ERR_PNPM_UNUSED_PATCH`, which only a
+/// resolution raises, so a rewrite that would produce one has to decline
+/// and let the resolver report it. Any handler that drops an edge can
+/// produce one, not only a changed patch configuration, so this runs over
+/// the settled graph rather than inside [`apply_patched_update`].
+///
+/// `allowUnusedPatches` turns that error into a warning the resolution
+/// emits, which no rewrite reproduces either; as elsewhere in this module,
+/// a warning is not worth a full resolution.
+pub(crate) fn every_configured_patch_is_applied(
+    lockfile: &Lockfile,
+    hashes: Option<&BTreeMap<String, String>>,
+    allow_unused_patches: bool,
+) -> bool {
+    if allow_unused_patches {
+        return true;
+    }
+    let Some(hashes) = hashes.filter(|hashes| !hashes.is_empty()) else {
+        return true;
+    };
+    let Some(groups) = groups_from_hashes(hashes) else {
+        return false;
+    };
+    let Some(applied) = applied_patch_keys(lockfile, &groups) else {
+        return false;
+    };
+    !all_patch_keys(&groups).any(|key| !applied.contains(key))
+}
+
+/// The configured patches the committed lockfile leaves unused, as the
+/// resolution's own `verify_patches` would report them.
+///
+/// Only non-empty with `allowUnusedPatches` on: with it off,
+/// [`every_configured_patch_is_applied`] declines the rewrite instead, and
+/// the resolution that takes over raises `ERR_PNPM_UNUSED_PATCH`.
+pub(crate) fn unused_patches(
+    lockfile: &Lockfile,
+    hashes: Option<&BTreeMap<String, String>>,
+) -> Option<pacquet_patching::UnusedPatches> {
+    let hashes = hashes.filter(|hashes| !hashes.is_empty())?;
+    let groups = groups_from_hashes(hashes)?;
+    let applied = applied_patch_keys(lockfile, &groups)?;
+    let applied = applied.into_iter().map(str::to_string).collect();
+    pacquet_patching::verify_patches(&groups, &applied, true).ok().flatten()
+}
+
 /// Bucket `hashes` the way the resolver buckets configured patches.
 ///
 /// The patch file path is left out: nothing here applies a patch, and
-/// the hashes [`Config::patched_dependency_hashes`] already computed are
-/// the only payload the rewrite needs, so no patch file is read twice.
+/// the hashes [`pacquet_config::Config::patched_dependency_hashes`]
+/// already computed are the only payload the rewrite needs, so no patch
+/// file is read twice.
 ///
 /// `None` for a key whose version segment is neither a version nor a
 /// range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.

@@ -18,6 +18,7 @@ import {
 } from '@pnpm/constants'
 import {
   ignoredScriptsLogger,
+  packageManifestLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
@@ -75,9 +76,10 @@ import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
-import type {
-  PreferredVersions,
-  ResolutionPolicyViolation,
+import {
+  EXISTING_VERSION_SELECTOR_WEIGHT,
+  type PreferredVersions,
+  type ResolutionPolicyViolation,
 } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type {
@@ -109,14 +111,11 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
-import { tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
-import { tryFastUpdateCatalogVersions } from './tryFastUpdateCatalogVersions.js'
-import { tryFastUpdateIgnoredOptionalDependencies } from './tryFastUpdateIgnoredOptionalDependencies.js'
-import { hasChangedProjectSpecifiers, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
+import { type AddedManifests, tryAddLockedVersions } from './tryAddLockedVersions.js'
+import { tryComposeFastUpdates } from './tryComposeFastUpdates.js'
+import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
-import { tryFastUpdateOverrides } from './tryFastUpdateOverrides.js'
-import { tryFastUpdatePatchedDependencies } from './tryFastUpdatePatchedDependencies.js'
-import { tryFastUpdateSettings } from './tryFastUpdateSettings.js'
+import { warnUnusedPatches } from './tryFastUpdatePatchedDependencies.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
@@ -138,6 +137,13 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
 ])
 
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
+
+const COMPOSABLE_CHANGED_FIELDS = new Set<ChangedField>([
+  'catalogs',
+  'ignoredOptionalDependencies',
+  'overrides',
+  'patchedDependencies',
+])
 
 interface InstallMutationOptions {
   update?: boolean
@@ -185,6 +191,8 @@ export interface InstallResult {
   updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
   ignoredBuilds: IgnoredBuilds | undefined
+  /** Forwarded from {@link MutateModulesResult.newLockfile}. */
+  newLockfile?: LockfileObject
   /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
   /** Forwarded from {@link MutateModulesResult.dryRunResult}. */
@@ -203,7 +211,7 @@ export async function install (
     return installViaPnprServer(manifest, rootDir, opts)
   }
 
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -225,7 +233,7 @@ export async function install (
       }],
     }
   )
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult }
 }
 
 interface ProjectToBeInstalled {
@@ -249,6 +257,8 @@ export interface MutateModulesInSingleProjectResult {
   updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
   ignoredBuilds: IgnoredBuilds | undefined
+  /** Forwarded from {@link MutateModulesResult.newLockfile}. */
+  newLockfile?: LockfileObject
   /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
   /** Forwarded from {@link MutateModulesResult.dryRunResult}. */
@@ -286,6 +296,7 @@ export async function mutateModulesInSingleProject (
     updatedCatalogs: result.updatedCatalogs,
     updatedProject: result.updatedProjects[0],
     ignoredBuilds: result.ignoredBuilds,
+    newLockfile: result.newLockfile,
     resolutionPolicyViolations: result.resolutionPolicyViolations,
     dryRunResult: result.dryRunResult,
   }
@@ -294,6 +305,12 @@ export async function mutateModulesInSingleProject (
 export interface MutateModulesResult {
   updatedCatalogs?: Catalogs
   updatedProjects: UpdatedProject[]
+  /**
+   * The wanted lockfile as freshly resolved by this mutation. Absent when
+   * no new resolution ran (e.g. a frozen install reused the existing
+   * lockfile) or resolution was delegated (pnpr server).
+   */
+  newLockfile?: LockfileObject
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
   ignoredBuilds: IgnoredBuilds | undefined
@@ -352,6 +369,16 @@ export async function mutateModules (
   }
 
   const installsOnly = allMutationsAreInstalls(projects)
+  // Removals, and additions the lockfile already holds a version for, may
+  // take the fast lockfile update and the frozen-like install; an explicitly
+  // frozen run keeps its stricter behavior. An addition also has to have had
+  // its manifest edit committed, which only a rewrite that passed its gates
+  // does — see `addedManifests`.
+  const installsAndUninstallsOnly = installsOnly ||
+    projects.every((project) => (
+      (project.mutation === 'install' || project.mutation === 'installSome') &&
+      !project.update && !project.updateMatching
+    ) || project.mutation === 'uninstallSome')
   if (!installsOnly) opts.strictPeerDependencies = false
   const rootProjectManifest = opts.allProjects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
@@ -579,6 +606,7 @@ export async function mutateModules (
   return {
     updatedCatalogs: result.updatedCatalogs,
     updatedProjects: result.updatedProjects,
+    newLockfile: result.newLockfile,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
     ignoredBuilds,
@@ -589,6 +617,7 @@ export async function mutateModules (
   interface InnerInstallResult {
     readonly updatedCatalogs?: Catalogs
     readonly updatedProjects: UpdatedProject[]
+    readonly newLockfile?: LockfileObject
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
     readonly ignoredBuilds: IgnoredBuilds | undefined
@@ -673,6 +702,50 @@ export async function mutateModules (
     const patchGroups = patchGroupInput ? groupPatchedDependencies(patchGroupInput) : undefined
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
+    // `uninstallSome` edits the manifests here, ahead of the fast-path
+    // dispatch, so a removal is visible to it the same way a hand-edited
+    // manifest is. The resolution path is unaffected: it drops the same
+    // names through `removePackages`, and `removeDeps` re-applied there
+    // is a no-op.
+    await Promise.all(projects.map(async (project) => {
+      if (project.mutation !== 'uninstallSome') return
+      const ctxProject = ctx.projects[project.rootDir]
+      if (ctxProject == null) return
+      const _removeDeps = async (manifest: ProjectManifest) => removeDeps(manifest, project.dependencyNames, { prefix: project.rootDir, saveType: project.targetDependenciesField })
+      ctxProject.manifest = await _removeDeps(ctxProject.manifest)
+      if (ctxProject.originalManifest != null) {
+        ctxProject.originalManifest = await _removeDeps(ctxProject.originalManifest)
+      }
+    }))
+    // `time-based` and `lowest-direct` resolve a direct dependency to its
+    // lowest satisfying version, so the lockfile alone does not say which end
+    // of a range a rewrite should reuse.
+    const resolutionPicksLowest = opts.resolutionMode !== 'highest'
+    // `installSome` cannot edit the manifests in place the way `uninstallSome`
+    // does: the resolution path reads them to tell a new dependency from a
+    // re-added one, and reads them again to pick the range style it saves. So
+    // the additions the lockfile can answer on its own are staged on copies
+    // here, handed to the fast update and its freshness gates below, and
+    // committed to the context only once that rewrite succeeds.
+    const installSomeProjects = projects.filter((project) => project.mutation === 'installSome')
+    const addedManifests = installSomeProjects.length === 0
+      ? new Map<ProjectRootDir, AddedManifests>()
+      : tryAddLockedVersions(ctx.wantedLockfile, {
+        added: installSomeProjects.map((project) => ({
+          ...project,
+          manifest: ctx.projects[project.rootDir].manifest,
+          originalManifest: ctx.projects[project.rootDir].originalManifest,
+        })),
+        autoInstallPeers: opts.autoInstallPeers,
+        catalogs: opts.catalogs,
+        catalogMode: opts.catalogMode,
+        ignoreCurrentSpecifiers: opts.ignoreCurrentSpecifiers,
+        parsedOverrides: opts.parsedOverrides,
+        resolutionPicksLowest,
+        saveCatalogName: opts.saveCatalogName,
+        workspacePackages: ctx.workspacePackages,
+      })
+    let addedManifestsAreCommitted = installSomeProjects.length === 0
     let changedLockfileSettings: ChangedField[] = []
     const overridesMap = createOverridesMapFromParsed(opts.parsedOverrides)
     const wantedLockfileSettings = {
@@ -703,24 +776,50 @@ export async function mutateModules (
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let didFastUpdateOverrides = false
-    const contextProjects = Object.values(ctx.projects)
-    const hasChangedSpecifiers = outdatedLockfileSettingName == null &&
-      hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects)
+    const contextProjects = Object.values(ctx.projects).map((project) => {
+      const added = addedManifests?.get(project.rootDir)
+      return added == null ? project : { ...project, ...added }
+    })
     const changedSettingsFields = changedLockfileSettings.filter(isSettingsField)
-    const onlyLockfileSettingsChanged = changedLockfileSettings.length > 0 &&
-      changedLockfileSettings.length === changedSettingsFields.length
+    // Typed as required, but a caller that passes it through from its own
+    // optional config leaves it undefined, and this now runs on every
+    // install rather than only when the fast path opens.
+    const configuredOverrides = opts.overrides ?? {}
+    // An override whose value is a `catalog:` reference is only meaningful
+    // once the catalog rewrite has settled, and the range-only catalog
+    // rewrite refuses to run under one. Neither resolver-consulting rewrite
+    // composes with that, so both leave the drift to the resolver.
+    const overridesUseCatalogs = Object.values(configuredOverrides)
+      .some((specifier) => parseCatalogProtocol(specifier) != null)
+    const hasAsyncDrift = changedLockfileSettings.includes('catalogs') ||
+      changedLockfileSettings.includes('overrides')
+    const allChangedFieldsAreComposable =
+      !(hasAsyncDrift && overridesUseCatalogs) &&
+      changedLockfileSettings.every((field) =>
+        isSettingsField(field) || COMPOSABLE_CHANGED_FIELDS.has(field))
+    // A changed field nothing can absorb forces a resolution, so the
+    // workspace-wide specifier scan would be wasted.
+    const hasChangedSpecifiers = allChangedFieldsAreComposable &&
+      hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects, opts.pruneLockfileImporters)
+    const drift = {
+      importers: hasChangedSpecifiers,
+      ignoredOptionalDependencies: changedLockfileSettings.includes('ignoredOptionalDependencies'),
+      patchedDependencies: changedLockfileSettings.includes('patchedDependencies'),
+      settings: changedSettingsFields.length > 0,
+      catalogs: changedLockfileSettings.includes('catalogs'),
+      overrides: changedLockfileSettings.includes('overrides'),
+    }
+    const composableDrift =
+      (hasChangedSpecifiers || changedLockfileSettings.length > 0) &&
+      allChangedFieldsAreComposable
     const canTryFastUpdateLockfile =
-      (outdatedLockfileSettingName === 'catalogs' ||
-        outdatedLockfileSettingName === 'ignoredOptionalDependencies' ||
-        outdatedLockfileSettingName === 'overrides' ||
-        outdatedLockfileSettingName === 'patchedDependencies' ||
-        onlyLockfileSettingsChanged ||
-        hasChangedSpecifiers) &&
+      composableDrift &&
       !frozenLockfile &&
       // `pnpm fetch` installs from the lockfile alone; with its empty
       // manifests every recorded dependency would read as removed.
       !opts.ignorePackageManifest &&
-      installsOnly &&
+      installsAndUninstallsOnly &&
+      addedManifests != null &&
       !isCheckOnlyInstall(opts) &&
       opts.preferFrozenLockfile &&
       opts.useLockfile &&
@@ -732,22 +831,28 @@ export async function mutateModules (
       !opts.force &&
       !opts.forceFullResolution &&
       !forceResolutionFromHook &&
-      !opts.hooks.readPackage?.length &&
+      // A pnpmfile's `readPackage` hook is safe here — `getContext` applies
+      // it to every project manifest and a changed pnpmfile surfaces as
+      // `pnpmfileChecksum` drift. A hook the checksum cannot vouch for — a
+      // programmatic one, or one from the checksum-excluded global pnpmfile
+      // — keeps forcing the resolver.
+      (!opts.hooks.readPackage?.length ||
+        (opts.hooks.calculatePnpmfileChecksum != null && !opts.hooks.hasUntrackedReadPackageHook)) &&
       !opts.hooks.preResolution?.length &&
       !opts.hooks.afterAllResolved?.length &&
       opts.hooks.customResolvers == null &&
       !ctx.lockfileHadConflicts &&
       ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
       !isEmptyLockfile(ctx.wantedLockfile) &&
-      (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
-      ctx.wantedLockfile.time == null
+      // `time` records publish dates for the importers' direct dependencies
+      // and is pruned back to them whenever the lockfile is written, so a
+      // rewrite that introduces no new version needs no maintenance of it.
+      // The resolver-consulting rewrites do introduce versions, whose dates
+      // only a resolution can record.
+      (ctx.wantedLockfile.time == null || !hasAsyncDrift)
     if (canTryFastUpdateLockfile) {
-      const changedSetting = outdatedLockfileSettingName
       await verifyLockfilePromise
-      const overridesUseCatalogs = Object.values(opts.overrides)
-        .some((specifier) => parseCatalogProtocol(specifier) != null)
-      const onlyChangedSetting = onlyLockfileSettingsChanged || changedLockfileSettings.length <= 1
-      const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(Object.values(ctx.projects), {
+      const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(contextProjects, {
         catalogs: opts.catalogs,
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -757,88 +862,82 @@ export async function mutateModules (
         workspacePackages: ctx.workspacePackages,
         lockfileDir: opts.lockfileDir,
       })
+      // Built only for the rewrites that consult the resolver: deriving the
+      // policies rejects a malformed pattern, which is the resolver's error
+      // to report on a run that has no use for them.
+      const rewriteOptions = hasAsyncDrift
+        ? {
+          ...getPublishedByPolicy(opts),
+          isLockfileUpToDate,
+          lockfileDir: opts.lockfileDir,
+          lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+          readPackageHook: opts.readPackageHook,
+          registries: ctx.registries,
+          requestPackage: opts.storeController.requestPackage,
+          trustPolicy: opts.trustPolicy,
+          trustPolicyExclude: opts.trustPolicyExclude
+            ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+            : undefined,
+          trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+        }
+        : undefined
       if (
-        onlyChangedSetting &&
-        (changedSetting === 'catalogs' || !overridesUseCatalogs) &&
         await tryFastUpdateLockfile(ctx.wantedLockfile, {
-          update: async (candidate) => {
-            if (onlyLockfileSettingsChanged) {
-              return tryFastUpdateSettings(candidate, {
-                changedSettings: changedSettingsFields,
-                projects: contextProjects,
-                settings: wantedLockfileSettings,
-                workspacePackages: ctx.workspacePackages,
-              })
-            }
-            if (changedSetting === 'catalogs') {
-              // The range-only rewrite keeps the entries it cannot handle, so a
-              // mixed update still leaves an exact move for the rewrite below.
-              const rewroteRanges = tryFastUpdateCatalogs(candidate, {
-                catalogs: opts.catalogs,
-                overrides: opts.overrides,
-              })
-              if (overridesUseCatalogs) return rewroteRanges
-              const catalogPolicy = getPublishedByPolicy(opts)
-              const rewrite = await tryFastUpdateCatalogVersions(candidate, {
-                catalogs: opts.catalogs,
-                lockfileDir: opts.lockfileDir,
-                lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
-                readPackageHook: opts.readPackageHook,
-                registries: ctx.registries,
-                requestPackage: opts.storeController.requestPackage,
-                publishedBy: catalogPolicy.publishedBy,
-                publishedByExclude: catalogPolicy.publishedByExclude,
-                trustPolicy: opts.trustPolicy,
-                trustPolicyExclude: opts.trustPolicyExclude
-                  ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
-                  : undefined,
-                trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-                isLockfileUpToDate,
-              })
-              // Only the "nothing moved" outcome may fall back on the
-              // range-only result. A move this cannot express has to reach the
-              // resolver, even though the range-only rewrite succeeded.
-              if (rewrite === 'applied') return true
-              return rewrite === 'nothing-to-move' && rewroteRanges
-            }
-            if (changedSetting === 'ignoredOptionalDependencies') {
-              return tryFastUpdateIgnoredOptionalDependencies(candidate, opts.ignoredOptionalDependencies)
-            }
-            if (changedSetting === 'patchedDependencies') {
-              return tryFastUpdatePatchedDependencies(candidate, {
-                patchedDependencies,
-                allowUnusedPatches: opts.allowUnusedPatches,
-              })
-            }
-            if (changedSetting == null) {
-              return tryFastUpdateImporters(candidate, contextProjects)
-            }
-            const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
-            return tryFastUpdateOverrides(candidate, {
-              lockfileDir: opts.lockfileDir,
-              lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+          update: async (candidate) => tryComposeFastUpdates(candidate, {
+            drift,
+            projects: contextProjects,
+            workspacePackages: ctx.workspacePackages,
+            resolutionPicksLowest,
+            pruneLockfileImporters: opts.pruneLockfileImporters,
+            ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+            patchedDependencies: {
+              patchedDependencies,
+              allowUnusedPatches: opts.allowUnusedPatches,
+            },
+            settings: {
+              changedSettings: changedSettingsFields,
+              projects: contextProjects,
+              settings: wantedLockfileSettings,
+              workspacePackages: ctx.workspacePackages,
+            },
+            catalogs: rewriteOptions && {
+              ...rewriteOptions,
+              catalogs: opts.catalogs,
+              overrides: configuredOverrides,
+              parsedOverrides: opts.parsedOverrides,
+            },
+            overrides: rewriteOptions && {
+              ...rewriteOptions,
               overrides: overridesMap,
               parsedOverrides: opts.parsedOverrides,
-              readPackageHook: opts.readPackageHook,
-              registries: ctx.registries,
-              requestPackage: opts.storeController.requestPackage,
-              publishedBy,
-              publishedByExclude,
-              trustPolicy: opts.trustPolicy,
-              trustPolicyExclude: opts.trustPolicyExclude
-                ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
-                : undefined,
-              trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-              isLockfileUpToDate,
-            })
-          },
+            },
+          }),
           isLockfileUpToDate,
           verifyLockfile: (lockfile) => verifyLockfileResolutions(lockfile, []),
         })
       ) {
         outdatedLockfileSettingName = null
         ctx.wantedLockfileIsModified = true
-        didFastUpdateOverrides = changedSetting === 'overrides'
+        didFastUpdateOverrides = drift.overrides
+        for (const [rootDir, added] of addedManifests!) {
+          const project = ctx.projects[rootDir]
+          project.manifest = added.manifest
+          if (added.originalManifest != null) {
+            project.originalManifest = added.originalManifest
+          }
+          packageManifestLogger.debug({
+            prefix: rootDir,
+            updated: added.manifest,
+          })
+        }
+        addedManifestsAreCommitted = true
+        // Only the committed candidate is worth reporting on: a rewrite the
+        // freshness gates reject is followed by the resolution, which reports
+        // it itself.
+        warnUnusedPatches(ctx.wantedLockfile, {
+          patchedDependencies,
+          allowUnusedPatches: opts.allowUnusedPatches,
+        })
       }
     }
     const outdatedLockfileSettings = outdatedLockfileSettingName != null
@@ -860,6 +959,7 @@ export async function mutateModules (
     }
 
     const frozenInstallResult = await tryFrozenInstall({
+      addedManifestsAreCommitted,
       didFastUpdateOverrides,
       frozenLockfile,
       needsFullResolution,
@@ -875,6 +975,7 @@ export async function mutateModules (
     }
 
     const projectsToInstall = [] as ImporterToUpdate[]
+    const installedProjectIds = new Set<string>(projects.map((project) => ctx.projects[project.rootDir].id))
 
     let preferredSpecs: Record<string, string> | null = null
 
@@ -1073,13 +1174,22 @@ export async function mutateModules (
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
           const catalogDepSpecifier = matchCatalogResolveResult(catalog, pickCatalogSpecifier)
 
-          if (
-            !catalogDepSpecifier ||
-            wantedDep.bareSpecifier === catalogBareSpecifier ||
-            semver.valid(wantedDep.bareSpecifier) &&
-            semver.valid(catalogDepSpecifier) &&
-            semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
-          ) {
+          if (!catalogDepSpecifier || wantedDep.bareSpecifier === catalogBareSpecifier) {
+            wantedDep.saveCatalogName = perDepCatalogName
+            continue
+          }
+
+          if (catalogCovers(catalogDepSpecifier, wantedDep.bareSpecifier)) {
+            // The catalog covers the wanted version, so the dependency resolves through the
+            // catalog: every project referencing the entry stays on the one version the entry
+            // resolves to. Keeping the wanted version as the specifier would pin it in the
+            // manifest instead, dropping the project out of the catalog.
+            resolveCatalogEntryTo({
+              alias: wantedDep.alias,
+              catalogName: perDepCatalogName,
+              version: wantedDep.bareSpecifier!,
+            })
+            wantedDep.bareSpecifier = catalogBareSpecifier
             wantedDep.saveCatalogName = perDepCatalogName
             continue
           }
@@ -1105,6 +1215,46 @@ export async function mutateModules (
       } as ImporterToUpdate)
     }
 
+    /**
+     * Resolve a catalog entry to the version a command asked for, leaving the range the
+     * workspace declared for it alone.
+     *
+     * A cataloged dependency takes its version from the catalog, so the entry's recorded
+     * resolution is what a wanted version has to move. Reusing it instead drops the request
+     * without a word. Only the projects in this install follow the entry to the new version;
+     * the rest keep their resolutions until they are installed, as they do for any other
+     * catalog change.
+     */
+    function resolveCatalogEntryTo (
+      { alias, catalogName, version }: {
+        alias: string
+        catalogName: string
+        version: string
+      }
+    ): void {
+      if (ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]?.version === version) return
+
+      delete ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]
+      for (const [id, importer] of Object.entries(ctx.wantedLockfile.importers ?? {})) {
+        if (!installedProjectIds.has(id)) continue
+        const specifier = importer.specifiers?.[alias]
+        if (specifier == null || parseCatalogProtocol(specifier) !== catalogName) continue
+        delete importer.dependencies?.[alias]
+        delete importer.devDependencies?.[alias]
+        delete importer.optionalDependencies?.[alias]
+      }
+
+      // Outranks the pin the lockfile seeds for the package: naming a version is a request to
+      // move off whatever is resolved now, and without that the pin wins.
+      // Null-prototype merge targets so a package named `__proto__` lands as a plain own key
+      // instead of invoking the prototype setter.
+      const preferredVersions: PreferredVersions = Object.assign(Object.create(null), opts.preferredVersions)
+      preferredVersions[alias] = Object.assign(Object.create(null), preferredVersions[alias], {
+        [version]: { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1 },
+      })
+      opts.preferredVersions = preferredVersions
+    }
+
     // Unfortunately, the private lockfile may differ from the public one.
     // A user might run named installations on a project that has a pnpm-lock.yaml file before running a noop install
     const makePartialCurrentLockfile = !installsOnly && (
@@ -1127,6 +1277,7 @@ export async function mutateModules (
     return {
       updatedCatalogs: result.updatedCatalogs,
       updatedProjects: result.projects,
+      newLockfile: result.newLockfile,
       stats: result.stats,
       depsRequiringBuild: result.depsRequiringBuild,
       ignoredBuilds: result.ignoredBuilds,
@@ -1161,12 +1312,20 @@ export async function mutateModules (
    * not change recorded dependency resolutions.
    */
   async function tryFrozenInstall ({
+    addedManifestsAreCommitted,
     didFastUpdateOverrides,
     frozenLockfile,
     needsFullResolution,
     patchGroups,
     upToDateLockfileMajorVersion,
   }: {
+    /**
+     * Whether every `installSome` mutation's manifest edit has been applied
+     * to the context. Without it the up-to-date check would not see the
+     * requested dependencies, and a frozen-like install would leave them
+     * uninstalled.
+     */
+    addedManifestsAreCommitted: boolean
     didFastUpdateOverrides: boolean
     frozenLockfile: boolean
     needsFullResolution: boolean
@@ -1185,7 +1344,7 @@ export async function mutateModules (
       // frozen path would skip resolution and/or perform a real install.
       !isCheckOnlyInstall(opts) &&
 
-      installsOnly &&
+      (installsOnly || (installsAndUninstallsOnly && addedManifestsAreCommitted && !frozenLockfile)) &&
       (
         // If the user explicitly requested a frozen lockfile install, attempt
         // to perform one. An error will be thrown if updates are required.
@@ -1317,6 +1476,9 @@ Note that in CI environments, this setting is enabled by default.`,
         currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
         patchedDependencies: patchGroups,
         selectedProjectDirs: projects.map((project) => project.rootDir),
+        projectDirsRunningScripts: projects
+          .filter((project) => project.mutation !== 'uninstallSome')
+          .map((project) => project.rootDir),
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
         pruneVirtualStore,
@@ -1492,6 +1654,21 @@ function isWantedDepBareSpecifierSame (
 }
 
 /**
+ * Whether the catalog entry already covers the wanted specifier, so the dependency can keep
+ * resolving through the catalog: the entry names the same concrete version, or it is a range the
+ * wanted version satisfies.
+ *
+ * The wanted specifier has to be a concrete version. A wanted range is never covered, because the
+ * catalog — not the dependency — decides which version a `catalog:` reference resolves to.
+ */
+function catalogCovers (catalogSpecifier: string, bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null &&
+    semver.valid(bareSpecifier) != null &&
+    semver.validRange(catalogSpecifier) != null &&
+    semver.satisfies(bareSpecifier, catalogSpecifier)
+}
+
+/**
  * Determines the catalog name for a dependency during installSome.
  *
  * If the dependency's previous specifier already uses a named catalog
@@ -1524,7 +1701,7 @@ export async function addDependenciesToPackage (
   } & InstallMutationOptions
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -1552,7 +1729,7 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations }
 }
 
 export type ImporterToUpdate = {
@@ -2374,6 +2551,9 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           },
           currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
           selectedProjectDirs: projects.map((project) => project.rootDir),
+          projectDirsRunningScripts: projects
+            .filter((project) => project.mutation !== 'uninstallSome')
+            .map((project) => project.rootDir),
           allProjects: ctx.projects,
           prunedAt: ctx.modulesFile?.prunedAt,
           wantedLockfile: result.newLockfile,
@@ -2401,6 +2581,9 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         },
         currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
         selectedProjectDirs: projects.map((project) => project.rootDir),
+        projectDirsRunningScripts: projects
+          .filter((project) => project.mutation !== 'uninstallSome')
+          .map((project) => project.rootDir),
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
         wantedLockfile: result.newLockfile,

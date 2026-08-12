@@ -6,9 +6,9 @@ use std::{ffi::OsString, process::Command};
 /// Test-only additions to [`Command`].
 pub trait CommandTestExt {
     /// Strip the pnpm and npm configuration variables out of the inherited
-    /// environment, so the spawned process is configured only by the
-    /// test's own `.npmrc` / workspace YAML and whatever the caller sets
-    /// afterwards.
+    /// environment, then make the spawned process non-CI by default. The
+    /// process is otherwise configured only by the test's own `.npmrc` /
+    /// workspace YAML and whatever the caller sets afterwards.
     ///
     /// A spawned command inherits this process's environment, and pnpm
     /// reads settings from `PNPM_CONFIG_*` / `pnpm_config_*` as well as
@@ -28,6 +28,7 @@ impl CommandTestExt for Command {
         for name in ambient_pnpm_config_vars() {
             self.env_remove(name);
         }
+        self.env("PNPM_CONFIG_CI", "false");
         self
     }
 }

@@ -23,10 +23,16 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 /// Sha256 hex digest of the lockfile content.
+///
+/// The same on-write normalization the writer applies runs first, so an
+/// in-memory lockfile hashes to what it will hash to once saved and read
+/// back — which is what lets an install record the verification its
+/// successor looks up.
 #[must_use]
 pub fn hash_lockfile(lockfile: &Lockfile) -> String {
-    let value = serde_json::to_value(lockfile)
+    let mut value = serde_json::to_value(lockfile)
         .expect("Lockfile serializes; serde_json::Value supports all JSON-shape variants");
+    pacquet_lockfile::prune_time(&mut value);
     let normalized = normalize(value);
     let mut hasher = HashWriter(Sha256::new());
     serde_json::to_writer(&mut hasher, &normalized)

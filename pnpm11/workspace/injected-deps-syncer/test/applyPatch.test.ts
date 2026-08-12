@@ -45,7 +45,10 @@ function createHardlink (existingPath: string, newPath: string): void {
   fs.linkSync(existingPath, newPath)
 }
 
-const inodeNumber = (filePath: string): number => fs.lstatSync(filePath).ino
+const fileId = (filePath: string): string => {
+  const stats = fs.lstatSync(filePath)
+  return `${stats.dev}:${stats.ino}`
+}
 
 test('applies a patch on a directory', async () => {
   prepareEmpty()
@@ -111,7 +114,7 @@ test('applies a patch on a directory', async () => {
         path: 'files-to-add/a',
         newValue: DIR,
       },
-      ...filesToAdd.map(path => ({ path, newValue: inodeNumber(`source/${path}`) })),
+      ...filesToAdd.map(path => ({ path, newValue: fileId(`source/${path}`) })),
     ],
     removed: [
       {
@@ -122,13 +125,13 @@ test('applies a patch on a directory', async () => {
         path: 'files-to-remove/a',
         oldValue: DIR,
       } as const,
-      ...filesToRemove.map(path => ({ path, oldValue: inodeNumber(`target/${path}`) })),
+      ...filesToRemove.map(path => ({ path, oldValue: fileId(`target/${path}`) })),
     ].reverse(),
     modified: [
       ...filesToModify.map(path => ({
         path,
-        oldValue: inodeNumber(`target/${path}`),
-        newValue: inodeNumber(`source/${path}`),
+        oldValue: fileId(`target/${path}`),
+        newValue: fileId(`source/${path}`),
       })),
     ],
   }
@@ -139,11 +142,11 @@ test('applies a patch on a directory', async () => {
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)
-      .map(inodeNumber)
+      .map(fileId)
   ).not.toStrictEqual(
     filesToModify
       .map(suffix => `source/${suffix}`)
-      .map(inodeNumber)
+      .map(fileId)
   )
 
   const fsMethods = mockFsPromises()
@@ -156,11 +159,11 @@ test('applies a patch on a directory', async () => {
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)
-      .map(inodeNumber)
+      .map(fileId)
   ).toStrictEqual(
     filesToModify
       .map(suffix => `source/${suffix}`)
-      .map(inodeNumber)
+      .map(fileId)
   )
 
   // does not touch filesToKeep

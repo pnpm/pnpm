@@ -1049,16 +1049,16 @@ fn update_latest_default_catalog_preserves_reference() {
 }
 
 /// `pacquet update --lockfile-only <pkg>@<version>` under
-/// `catalogMode: strict`, where the catalog entry for `<pkg>` is a
-/// *range*, rejects with `ERR_PNPM_CATALOG_VERSION_MISMATCH` instead of
-/// crashing. This is the exact `Renovate` scenario ported from
-/// [pnpm#11706](https://github.com/pnpm/pnpm/pull/11706): before the fix,
-/// passing a range to the exact-version comparison threw `Invalid
-/// Version`.
+/// `catalogMode: strict`, where the wanted version falls outside the
+/// catalog entry's range, rejects with
+/// `ERR_PNPM_CATALOG_VERSION_MISMATCH` instead of crashing
+/// ([pnpm#11706](https://github.com/pnpm/pnpm/pull/11706): before that
+/// fix, passing a range to the exact-version comparison threw `Invalid
+/// Version`).
 #[test]
 fn update_strict_catalog_range_mismatch_errors() {
     let (root, workspace, anchor) = setup();
-    set_strict_catalog(&workspace, &[(DEP, "^100.0.0")]);
+    set_strict_catalog(&workspace, &[(DEP, "^101.0.0")]);
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
 
     let output = pacquet(&workspace, ["update", "--lockfile-only", &format!("{DEP}@100.0.0")])
@@ -1073,6 +1073,31 @@ fn update_strict_catalog_range_mismatch_errors() {
     assert!(
         stderr.contains("ERR_PNPM_CATALOG_VERSION_MISMATCH"),
         "stderr did not carry the error code: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+/// A wanted version the catalog range already covers is taken from the
+/// catalog instead of being rejected, so the dependency keeps its
+/// `catalog:` reference. This is the `Renovate` scenario from
+/// [pnpm#13715](https://github.com/pnpm/pnpm/issues/13715).
+#[test]
+fn update_strict_catalog_range_covering_the_wanted_version_succeeds() {
+    let (root, workspace, anchor) = setup();
+    set_strict_catalog(&workspace, &[(DEP, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+
+    pacquet(&workspace, ["update", "--lockfile-only", &format!("{DEP}@100.1.0")])
+        .assert()
+        .success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:"));
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains(&format!("{DEP}@100.1.0")),
+        "the update should have moved the catalog resolution to 100.1.0:\n{lockfile}",
     );
 
     drop((root, anchor));

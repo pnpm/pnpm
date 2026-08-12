@@ -306,6 +306,7 @@ fn importer_scoped_update_lockfile(
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 
@@ -459,6 +460,10 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
             result.merged_tree.children_by_id.get("parent@1.0.0").expect("parent children");
         assert_eq!(parent_children.len(), 1);
         assert_eq!(parent_children[0].pkg_id, "pkg@100.1.0");
+        // Recording the winner's children is not enough on its own: the
+        // occurrence that ran first realized the ones it resolved, and
+        // only the handover makes it re-read them.
+        assert_eq!(graph_versions_of(&result, "pkg"), ["100.1.0"], "order {order:?}");
     }
 }
 
@@ -742,7 +747,7 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0", "b": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
-    resolve_workspace(
+    let result = resolve_workspace(
         &resolver,
         &importers,
         &[DependencyGroup::Prod],
@@ -764,6 +769,86 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
         (false, Some(expected_cutoff)),
         "subdep picks highest, constrained to newest-direct + 1h",
     );
+    assert_eq!(
+        result.time,
+        recorded_time(&[
+            ("a@1.0.0", "2024-03-01T10:00:00.000Z"),
+            ("b@1.0.0", "2024-05-20T08:00:00.000Z"),
+        ]),
+        "the direct deps' publish dates are handed to the lockfile's `time:` section",
+    );
+}
+
+/// Against a registry whose abbreviated metadata omits publish times,
+/// the dates the lockfile already recorded are what the cutoff is
+/// derived from — otherwise a re-resolve would compute a different
+/// cutoff and could pick different subdependency versions.
+#[tokio::test]
+async fn time_based_cutoff_falls_back_to_the_lockfiles_recorded_time() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("a".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "a",
+            "1.0.0",
+            None,
+            serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": { "sub": "^2.0.0" } }),
+        ),
+    );
+    table.insert(
+        ("sub".to_string(), "^2.0.0".to_string()),
+        fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+
+    let mut opts = workspace_opts(true, true);
+    opts.wanted_lockfile =
+        Some(Arc::new(lockfile_recording_time(&[("a@1.0.0", "2024-05-20T08:00:00.000Z")])));
+
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(tmp.path().to_path_buf(), None)
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(
+        resolver.opts_for("sub"),
+        (false, Some(Utc.with_ymd_and_hms(2024, 5, 20, 9, 0, 0).unwrap())),
+        "the recorded publish date stands in for the missing one",
+    );
+    assert_eq!(
+        result.time,
+        recorded_time(&[("a@1.0.0", "2024-05-20T08:00:00.000Z")]),
+        "a recorded date is carried forward, not dropped",
+    );
+}
+
+fn recorded_time(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
+    entries
+        .iter()
+        .map(|(pkg_id, published_at)| ((*pkg_id).to_string(), (*published_at).to_string()))
+        .collect()
+}
+
+fn lockfile_recording_time(entries: &[(&str, &str)]) -> pacquet_lockfile::Lockfile {
+    use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion};
+
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: std::collections::HashMap::new(),
+        packages: None,
+        snapshots: None,
+        time: Some(recorded_time(entries)),
+    }
 }
 
 #[tokio::test]
@@ -978,6 +1063,7 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
             pacquet_lockfile::PkgNameVerPeer::from_str("shared@1.0.0(opt@25.0.0)").unwrap(),
             pacquet_lockfile::SnapshotEntry::default(),
         )])),
+        time: None,
     }));
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
@@ -1568,6 +1654,7 @@ fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
         importers: std::collections::HashMap::new(),
         packages: Some(std::collections::HashMap::from([(key, metadata)])),
         snapshots: None,
+        time: None,
     }
 }
 
@@ -1999,6 +2086,7 @@ fn reuse_graph_lockfile(
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 
@@ -2995,6 +3083,103 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
         "the lockfile-reused subtree must survive the ownership handover",
     );
 }
+/// Publishing a fresh answer over pinned children re-resolves the open
+/// ranges reuse exists to hold still, and leaves the occurrences that
+/// realized the pinned subtree reading children the record no longer
+/// holds (<https://github.com/pnpm/pnpm/issues/13837>).
+#[tokio::test]
+async fn a_pinned_subtree_keeps_its_children_against_a_fresh_walk() {
+    for slow in [("fresh", "1.0.0"), ("reused", "1.0.0")] {
+        let tree = resolve_pinned_versus_fresh(slow).await;
+        let recorded: Vec<&str> = tree
+            .children_by_id
+            .get("shared@1.0.0")
+            .expect("shared children")
+            .iter()
+            .map(|edge| edge.pkg_id.as_str())
+            .collect();
+        assert_eq!(recorded, ["pin@1.0.0"], "the pins stand, held back: {slow:?}");
+        assert!(
+            !tree.packages.contains_key("pin@1.5.0"),
+            "and nothing re-resolves the range they pinned, held back: {slow:?}",
+        );
+    }
+}
+
+/// `slow` is the `(alias, range)` the resolver holds back, which
+/// decides whether the pinned subtree or the fresh edge records
+/// `shared`'s children first.
+async fn resolve_pinned_versus_fresh(slow: (&str, &str)) -> crate::ResolvedTree {
+    let dependencies = |deps| {
+        move |name: &str, version: &str| {
+            fake_result(
+                name,
+                version,
+                None,
+                serde_json::json!({ "name": name, "version": version, "dependencies": deps }),
+            )
+        }
+    };
+    let table = HashMap::from_iter([
+        (
+            ("reused".to_string(), "1.0.0".to_string()),
+            dependencies(serde_json::json!({ "shared": "1.0.0" }))("reused", "1.0.0"),
+        ),
+        (
+            ("fresh".to_string(), "1.0.0".to_string()),
+            dependencies(serde_json::json!({ "shared": "^1.0.0" }))("fresh", "1.0.0"),
+        ),
+        (
+            ("shared".to_string(), "1.0.0".to_string()),
+            dependencies(serde_json::json!({ "pin": "^1.0.0" }))("shared", "1.0.0"),
+        ),
+        (
+            ("shared".to_string(), "^1.0.0".to_string()),
+            dependencies(serde_json::json!({ "pin": "^1.0.0" }))("shared", "1.0.0"),
+        ),
+        (
+            ("pin".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "pin",
+                "1.0.0",
+                None,
+                serde_json::json!({ "name": "pin", "version": "1.0.0" }),
+            ),
+        ),
+        (
+            ("pin".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "pin",
+                "1.5.0",
+                None,
+                serde_json::json!({ "name": "pin", "version": "1.5.0" }),
+            ),
+        ),
+    ]);
+    let resolver = SlowAliasResolver { table, slow: (slow.0.to_string(), slow.1.to_string()) };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "reused": "1.0.0", "fresh": "1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(Arc::new(reuse_graph_lockfile(
+        ".",
+        &[("reused", "1.0.0", "1.0.0")],
+        &[
+            ("reused@1.0.0", &[("shared", "1.0.0")]),
+            ("shared@1.0.0", &[("pin", "1.0.0")]),
+            ("pin@1.0.0", &[]),
+        ],
+        &[],
+    )));
+    let dir = tmp.path().to_path_buf();
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(dir.clone(), None)
+    })
+    .await
+    .expect("resolve the pinned-versus-fresh contest")
+    .merged_tree
+}
+
 fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
     use pacquet_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
@@ -3076,6 +3261,7 @@ fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 

@@ -26,6 +26,7 @@ pacquet-workspace-state        = { workspace = true }
 derive_more   = { workspace = true }
 home          = { workspace = true }
 indexmap      = { workspace = true }
+is_ci         = { workspace = true }
 miette        = { workspace = true }
 node-semver   = { workspace = true }
 pipe-trait    = { workspace = true }

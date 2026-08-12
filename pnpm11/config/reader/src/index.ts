@@ -699,6 +699,9 @@ export async function getConfig (opts: {
         break
     }
   }
+  // `catalogPrune`'s former name, still accepted. The canonical key wins
+  // when both are set.
+  pnpmConfig.catalogPrune ??= pnpmConfig.cleanupUnusedCatalogs
   if (!pnpmConfig.httpsProxy) {
     // An empty `proxy=` is unset, so it must not suppress the environment
     // fallback. `false` and `null` keep their meaning: proxying is off.

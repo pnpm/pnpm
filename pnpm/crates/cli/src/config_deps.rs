@@ -396,6 +396,9 @@ impl EnvInstallerContext {
 /// pnpm's single loaded hooks object.
 #[must_use]
 pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> {
+    if config.ignore_pnpmfile {
+        return Vec::new();
+    }
     let config_modules_dir = root_dir.join("node_modules").join(".pnpm-config");
     let mut pnpmfiles: Vec<PathBuf> = match config.config_dependencies.as_ref() {
         Some(deps) => finder::calc_pnpmfile_paths_of_plugin_deps(
@@ -509,6 +512,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         return Ok(());
     }
     let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
+    let changed_prefer_frozen_lockfile = delta.get("preferFrozenLockfile").cloned();
     let changed_virtual_store_dir = delta.get("virtualStoreDir").cloned();
     let changed_global_virtual_store_dir = delta.get("globalVirtualStoreDir").cloned();
     let virtual_store_dir_cleared = changed_virtual_store_dir.as_ref().is_some_and(Value::is_null);
@@ -541,6 +545,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         config.virtual_store_dir = base_dir.join("node_modules/.pnpm");
     }
     for (key, value) in [
+        ("preferFrozenLockfile", changed_prefer_frozen_lockfile),
         ("virtualStoreDir", changed_virtual_store_dir),
         ("globalVirtualStoreDir", changed_global_virtual_store_dir),
     ] {

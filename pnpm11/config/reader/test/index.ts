@@ -4759,3 +4759,63 @@ test('warning stays when PNPM_CONFIG_NPMRC_AUTH_FILE is a relative path that doe
     }
   }
 })
+
+test('catalogPrune is read from pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    catalogPrune: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.catalogPrune).toBe(true)
+})
+
+// `catalogPrune` was released as `cleanupUnusedCatalogs`, which every
+// pnpm-workspace.yaml written since pnpm 10.15 may still carry.
+test('catalogPrune is read from its former name, cleanupUnusedCatalogs', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    cleanupUnusedCatalogs: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.catalogPrune).toBe(true)
+})
+
+test('catalogPrune overrides its former name', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    cleanupUnusedCatalogs: true,
+    catalogPrune: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.catalogPrune).toBe(false)
+})

@@ -84,6 +84,7 @@ fn single_importer_opts<'a>(
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     }
 }
 
@@ -168,6 +169,56 @@ fn write_manifest(deps_value: serde_json::Value) -> (TempDir, PackageManifest) {
         .expect("write manifest");
     let manifest = PackageManifest::from_path(manifest_path).expect("read manifest");
     (tmp, manifest)
+}
+
+#[test]
+fn recorded_publish_dates_reach_the_lockfiles_time_section() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let node = make_node(
+        "react",
+        "17.0.2",
+        json!({ "name": "react", "version": "17.0.2" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+    let direct = BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
+
+    let time =
+        BTreeMap::from([("react@17.0.2".to_string(), "2021-03-22T14:00:00.000Z".to_string())]);
+    let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+    opts.time = time.clone();
+
+    assert_eq!(dependencies_graph_to_lockfile(opts).time, Some(time));
+}
+
+/// An install that resolved no publish dates leaves the section out
+/// rather than writing an empty map.
+#[test]
+fn no_recorded_publish_dates_leave_out_the_time_section() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let graph = DependenciesGraph::default();
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        BTreeMap::new(),
+        true,
+        false,
+        None,
+        None,
+    ));
+
+    assert_eq!(lockfile.time, None);
 }
 
 #[test]
@@ -428,6 +479,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
     let on_settings = on.settings.as_ref().expect("settings written");
     assert_eq!(on_settings.dedupe_peers, Some(true));
@@ -459,6 +511,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
     let off_settings = off.settings.as_ref().expect("settings written");
     assert_eq!(off_settings.dedupe_peers, None);
@@ -544,6 +597,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             previous_importers: None,
             update_reuse_scope: UpdateReuseScope::All,
             update_reuse_scopes_by_importer: BTreeMap::new(),
+            time: BTreeMap::new(),
         })
     };
 
@@ -702,6 +756,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let snapshots = lockfile.catalogs.as_ref().expect("catalogs snapshot present");
@@ -934,6 +989,7 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
         resolution: LockfileResolution::Git(GitResolution {
             repo: "ssh://git@example.com/org/is-negative.git".to_string(),
             commit: "0123456789012345678901234567890123456789".to_string(),
+            integrity: None,
             path: None,
         }),
         resolved_via: "git-repository".to_string(),
@@ -1759,6 +1815,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
@@ -1850,6 +1907,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -1959,6 +2017,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -2094,6 +2153,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");

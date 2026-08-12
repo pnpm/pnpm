@@ -220,6 +220,9 @@ impl Walker<'_> {
     /// and the absence already surfaced via
     /// [`crate::PeerDependencyIssues::missing`].
     pub(super) fn patch_pending_peer_edges(&mut self) {
+        // Cleared with the buffer: a triple pushed after this drain must be
+        // applied again, since the graph it patches has moved on.
+        self.pending_peer_edge_keys.clear();
         for edge in std::mem::take(&mut self.pending_peer_edges) {
             let Some(child_dep_path) = self.node_dep_paths.get(&edge.child_node_id).cloned() else {
                 continue;
@@ -710,11 +713,22 @@ impl Walker<'_> {
             // edge can use it verbatim.
             graph_children.insert(alias, link_dep_path);
         } else {
-            self.pending_peer_edges.push(PendingPeerEdge {
-                parent_dep_path: parent_dep_path.clone(),
-                child_alias: alias,
-                child_node_id: node_id,
-            });
+            // Exact duplicates are no-ops: `patch_pending_peer_edges`
+            // resolves the same `child_node_id` to the same `DepPath` and
+            // then `or_insert`s the same `(parent, alias)` slot. A parent
+            // reached through many occurrences pushes the same triple over
+            // and over, so drop repeats instead of buffering millions.
+            if self.pending_peer_edge_keys.insert((
+                parent_dep_path.clone(),
+                alias.clone(),
+                node_id.clone(),
+            )) {
+                self.pending_peer_edges.push(PendingPeerEdge {
+                    parent_dep_path: parent_dep_path.clone(),
+                    child_alias: alias,
+                    child_node_id: node_id,
+                });
+            }
         }
     }
 }

@@ -74,6 +74,12 @@ pub enum StalenessReason {
     #[display(r#"the lockfile has no `importers["{importer_id}"]` entry"#)]
     NoImporter { importer_id: String },
 
+    /// The lockfile records an importer for a workspace project that
+    /// no longer exists. Only reported for an unfiltered install of the
+    /// whole workspace, where the project list is the complete one.
+    #[display(r#"the lockfile records `importers["{importer_id}"]`, but no such project exists"#)]
+    RemovedImporter { importer_id: String },
+
     /// The flat union of `dependencies ∪ devDependencies ∪
     /// optionalDependencies` from the manifest doesn't match the
     /// per-dep specifiers recorded in the importer entry: the
@@ -258,6 +264,7 @@ impl StalenessReason {
                 Some("settings.injectWorkspacePackages")
             }
             StalenessReason::NoImporter { .. }
+            | StalenessReason::RemovedImporter { .. }
             | StalenessReason::SpecifiersDiffer(_)
             | StalenessReason::PublishDirectoryMismatch { .. }
             | StalenessReason::DependenciesMetaMismatch { .. }

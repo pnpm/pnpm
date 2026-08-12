@@ -1,5 +1,24 @@
-use super::try_fast_update_ignored_optional_dependencies;
 use pacquet_lockfile::Lockfile;
+
+/// The composed pipeline restricted to `ignoredOptionalDependencies`
+/// drift: every other input is neutral, so these tests exercise this
+/// handler and the shared epilogue alone.
+fn try_fast_update_ignored_optional_dependencies(
+    lockfile: &Lockfile,
+    ignored_optional_dependencies: &[String],
+) -> Option<Lockfile> {
+    crate::fast_update_compose::try_compose_fast_updates(
+        lockfile,
+        &[],
+        &[],
+        &pacquet_config::Config {
+            ignored_optional_dependencies: Some(ignored_optional_dependencies.to_vec()),
+            ..pacquet_config::Config::default()
+        },
+        None,
+        false,
+    )
+}
 
 fn lockfile(source: &str) -> Lockfile {
     serde_saphyr::from_str(source).expect("parse lockfile")

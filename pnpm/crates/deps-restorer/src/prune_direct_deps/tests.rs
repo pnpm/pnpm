@@ -28,6 +28,7 @@ fn lockfile_with_root_importer(snapshot: ProjectSnapshot) -> Lockfile {
         importers,
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 

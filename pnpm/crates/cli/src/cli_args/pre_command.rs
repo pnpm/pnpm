@@ -299,9 +299,9 @@ fn env_lockfile_sync(
 }
 
 /// Whether the caller already holds the parsed env lockfile. The download
-/// path reads it to look for a version to switch to, and `pnpm-lock.yaml`
-/// is read whole, so reading it a second time to answer the same question
-/// would double the cost of every command in a pinned project.
+/// path reads it to look for a version to switch to, so reading and parsing
+/// it a second time to answer the same question would repeat that work on
+/// every command in a pinned project.
 #[derive(Clone, Copy)]
 enum ReadEnvLockfile<'a> {
     Already(&'a EnvLockfile),

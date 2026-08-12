@@ -94,7 +94,8 @@ pub struct InstallArgs {
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
 
-    /// Don't generate a lockfile, and fail if an update to it is needed.
+    /// Don't generate a lockfile, and fail if an update to it is needed. This
+    /// setting is enabled by default in CI when a lockfile is present.
     #[clap(long, overrides_with = "no_frozen_lockfile")]
     pub frozen_lockfile: bool,
 
@@ -156,6 +157,11 @@ pub struct InstallArgs {
     /// Run lifecycle scripts even when the configuration disables them.
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
 
     /// Which node linker to use: `isolated` (the default, a symlinked
     /// store), `hoisted` (a flat `node_modules`), or `pnp` (Plug'n'Play).
@@ -267,6 +273,7 @@ impl InstallArgs {
             no_runtime: false,
             ignore_scripts: false,
             no_ignore_scripts: false,
+            ignore_pnpmfile: false,
             node_linker: None,
             offline: false,
             no_offline: false,
@@ -387,11 +394,17 @@ impl InstallArgs {
     /// `--frozen-lockfile` / `--no-frozen-lockfile` layered over the
     /// `frozenLockfile` setting.
     pub(crate) fn effective_frozen_lockfile(&self, config: &pacquet_config::Config) -> bool {
-        resolve_bool_override(
-            self.frozen_lockfile,
-            self.no_frozen_lockfile,
-            config.frozen_lockfile.unwrap_or(false),
-        )
+        self.configured_frozen_lockfile(config).unwrap_or(false)
+    }
+
+    fn configured_frozen_lockfile(&self, config: &pacquet_config::Config) -> Option<bool> {
+        if self.frozen_lockfile {
+            Some(true)
+        } else if self.no_frozen_lockfile {
+            Some(false)
+        } else {
+            config.frozen_lockfile
+        }
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
@@ -411,9 +424,20 @@ impl InstallArgs {
         state: State,
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
+        let frozen_lockfile = match self.configured_frozen_lockfile(state.config) {
+            Some(value) => value,
+            None if state.config.ci
+                && !self.lockfile_only
+                && !self.prefer_frozen_lockfile
+                && !self.no_prefer_frozen_lockfile
+                && !state.config.explicit_settings.contains_key("preferFrozenLockfile") =>
+            {
+                state.lockfile.get()?.is_some_and(|lockfile| !lockfile.is_empty())
+            }
+            None => false,
+        };
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
-        let frozen_lockfile = self.effective_frozen_lockfile(config);
         let InstallArgs {
             dependency_options,
             supported_architectures,
@@ -430,13 +454,14 @@ impl InstallArgs {
             verify_deps_before_run_install,
             ignore_manifest_check,
             no_runtime,
-            // The `ignore_scripts` / `offline` / `frozen_store` /
-            // `prefer_offline` flags and their `--no-` inverses are
-            // resolved against config by `apply_install_cli_config` in the
-            // dispatch (`cli_args.rs`), so the install reads them from
-            // `config`, not from here.
+            // The `ignore_scripts` / `ignore_pnpmfile` / `offline` /
+            // `frozen_store` / `prefer_offline` flags and their `--no-`
+            // inverses are resolved against config by
+            // `apply_install_cli_config` in the dispatch (`cli_args.rs`),
+            // so the install reads them from `config`, not from here.
             ignore_scripts: _,
             no_ignore_scripts: _,
+            ignore_pnpmfile: _,
             node_linker,
             offline: _,
             no_offline: _,
