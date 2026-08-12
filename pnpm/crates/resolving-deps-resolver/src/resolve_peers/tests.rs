@@ -1789,6 +1789,25 @@ fn peer_id_pair_leaves_an_ordinary_registry_package_bare() {
     assert_eq!(version, "1.0.0");
 }
 
+/// A graph node carrying nothing but its identity — enough for the
+/// pending-edge tests, which only read and write `children`.
+fn graph_node(dep_path: &DepPath) -> crate::dependencies_graph::DependenciesGraphNode {
+    crate::dependencies_graph::DependenciesGraphNode {
+        dep_path: dep_path.clone(),
+        resolved_package_id: dep_path.to_string(),
+        resolve_result: std::sync::Arc::new(resolve_result("parent", "1.0.0")),
+        children: BTreeMap::new(),
+        optional_children: HashSet::default(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
+        depth: 0,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    }
+}
+
 /// A parent reached through many occurrences enqueues the identical
 /// `(parent_dep_path, alias, child_node_id)` triple over and over —
 /// millions of times on a cyclic peer graph. Replaying a repeat is a
@@ -1824,9 +1843,59 @@ fn repeated_pending_peer_edges_are_buffered_once() {
         &mut graph_children,
         &parent,
         "child".to_string(),
-        second_child,
+        second_child.clone(),
     );
     assert_eq!(walker.pending_peer_edges.len(), 2, "dedup is by triple, not by (parent, alias)");
+
+    // What the buffer holds only matters through the graph it patches.
+    // Leave the first child unresolved: `patch_pending_peer_edges` is
+    // first-*resolvable*-wins, so the edge must come from the second
+    // triple. Deduplicating by `(parent, alias)` instead of by whole
+    // triple would have dropped that triple and left no edge at all.
+    let second_dep_path = DepPath::from("child@2.0.0");
+    walker.node_dep_paths.insert(second_child, second_dep_path.clone());
+    walker.graph.insert(parent.clone(), graph_node(&parent));
+    walker.patch_pending_peer_edges();
+
+    assert_eq!(
+        walker.graph[&parent].children.get("child"),
+        Some(&second_dep_path),
+        "an unresolvable first triple yields to the next one for the same slot",
+    );
+}
+
+/// The other half of first-resolvable-wins: when the earlier triple
+/// does resolve, it keeps the slot and the later one is ignored.
+#[test]
+fn the_first_resolvable_pending_edge_keeps_the_slot() {
+    let mut tree = ResolvedTree::default();
+    let mut walker = walker_for_tests(&mut tree);
+
+    let parent = DepPath::from("parent@1.0.0");
+    let first_child = NodeId::next();
+    let second_child = NodeId::next();
+    let mut graph_children = BTreeMap::new();
+
+    for child in [&first_child, &second_child] {
+        walker.add_graph_child_or_pending(
+            &mut graph_children,
+            &parent,
+            "child".to_string(),
+            child.clone(),
+        );
+    }
+
+    let first_dep_path = DepPath::from("child@1.0.0");
+    walker.node_dep_paths.insert(first_child, first_dep_path.clone());
+    walker.node_dep_paths.insert(second_child, DepPath::from("child@2.0.0"));
+    walker.graph.insert(parent.clone(), graph_node(&parent));
+    walker.patch_pending_peer_edges();
+
+    assert_eq!(
+        walker.graph[&parent].children.get("child"),
+        Some(&first_dep_path),
+        "`or_insert` leaves an already-filled slot alone",
+    );
 }
 
 /// The membership guard lives and dies with the buffer: once the edges
