@@ -187,17 +187,12 @@ export function parse (dependencyPath: string): DependencyPath {
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
-  // Lockfile format 6 spelled registry keys with a leading slash
-  // (`/foo@1.0.0`, `/@scope/foo@1.0.0`). Drop it the same way
-  // `depPathToFilenameUnescaped` does, so the name this returns matches
-  // the identity the package is installed and verified under.
-  const cleanDependencyPath = dependencyPath[0] === '/' ? dependencyPath.substring(1) : dependencyPath
-  const sepIndex = cleanDependencyPath.indexOf('@', 1)
+  const sepIndex = dependencyPath.indexOf('@', 1)
   if (sepIndex === -1) {
     return {}
   }
-  const name = cleanDependencyPath.substring(0, sepIndex)
-  let version = cleanDependencyPath.substring(sepIndex + 1)
+  const name = dependencyPath.substring(0, sepIndex)
+  let version = dependencyPath.substring(sepIndex + 1)
   if (version) {
     let peerDepGraphHash: string | undefined
     let patchHash: string | undefined

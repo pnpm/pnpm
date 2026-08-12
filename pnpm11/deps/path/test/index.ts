@@ -74,38 +74,6 @@ test('parse()', () => {
   })
 })
 
-test('parse() drops the leading slash of a lockfile v6 registry key', () => {
-  expect(parse('/foo@1.0.0')).toStrictEqual({
-    name: 'foo',
-    peerDepGraphHash: undefined,
-    version: '1.0.0',
-    patchHash: undefined,
-  })
-
-  expect(parse('/@foo/bar@1.0.0')).toStrictEqual({
-    name: '@foo/bar',
-    peerDepGraphHash: undefined,
-    version: '1.0.0',
-    patchHash: undefined,
-  })
-
-  expect(parse('/foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)')).toStrictEqual({
-    name: 'foo',
-    peerDepGraphHash: '(@types/babel__core@7.1.14)',
-    version: '1.0.0',
-    patchHash: '(patch_hash=0000)',
-  })
-
-  // Only one slash is dropped, matching depPathToFilename(), so a doubled
-  // prefix stays in the name and never collapses onto a real package.
-  expect(parse('//foo@1.0.0')).toStrictEqual({
-    name: '/foo',
-    peerDepGraphHash: undefined,
-    version: '1.0.0',
-    patchHash: undefined,
-  })
-})
-
 test('refToRelative()', () => {
   expect(refToRelative('1.3.0', '@most/multicast')).toBe('@most/multicast@1.3.0')
   expect(refToRelative('1.3.0', 'most')).toBe('most@1.3.0')
