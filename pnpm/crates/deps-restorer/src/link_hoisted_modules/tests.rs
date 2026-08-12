@@ -392,10 +392,9 @@ fn symlinks_and_dot_directories_are_preserved() {
     assert!(tool_cache.exists(), "tool cache at {tool_cache:?}");
 }
 
-/// A scope container is always a real directory in a tree pnpm owns.
-/// Scanning through a symlinked one would surface names that resolve
-/// outside the install root, and the confinement check is lexical, so
-/// removal would follow the symlink straight out of it.
+/// A name below a symlinked scope container is lexically inside the
+/// install root while its target is not, and the confinement check is
+/// lexical, so removal would follow the symlink straight out of it.
 #[test]
 fn orphan_scan_does_not_delete_through_a_symlinked_scope() {
     let tmp = tempfile::tempdir().expect("tempdir");

@@ -28,9 +28,10 @@ fn lists_unscoped_and_scoped_packages() {
     assert_eq!(names, ["@scope/bar", "@scope/baz", "foo"]);
 }
 
-/// Every name under a symlinked scope container resolves outside
-/// `modules_dir`, so reporting them would hand a caller that deletes
-/// what it enumerates a path out of the install root.
+/// Names below a symlinked scope container reach their target through
+/// the symlink, so reporting them hands a caller that deletes what it
+/// enumerates a path that leads wherever the link points — here, out of
+/// the install root.
 #[test]
 fn does_not_read_through_a_symlinked_scope_container() {
     let dir = tempdir().expect("create temp dir");

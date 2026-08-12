@@ -9,8 +9,8 @@ use std::{io, path::Path};
 /// *package* is reported like any other — a `link:` dependency is a
 /// package as far as this enumeration goes, and callers that must
 /// distinguish them inspect the entry themselves. A symlinked *scope
-/// container* is not, since every name under it would resolve outside
-/// `modules_dir`.
+/// container* is not, since the names below it reach their target
+/// through the symlink rather than through `modules_dir`.
 ///
 /// A missing `modules_dir` yields an empty list; every other read
 /// failure is surfaced.
@@ -53,10 +53,11 @@ fn collect_module_names(
             continue;
         }
         if scope.is_none() && name.starts_with('@') {
-            // A scope container is always a real directory; only the packages
-            // inside it are ever symlinks. Reading through a symlinked one
-            // would report names that resolve outside `modules_dir`, which
-            // callers that delete what they enumerate would then follow.
+            // Names below a symlinked scope container reach their target
+            // through the symlink, wherever it points — a caller that deletes
+            // what it enumerates follows it out of `modules_dir`. pnpm only
+            // ever symlinks the packages inside a scope, never the scope
+            // itself, so skipping costs nothing.
             if file_type.is_symlink() {
                 continue;
             }

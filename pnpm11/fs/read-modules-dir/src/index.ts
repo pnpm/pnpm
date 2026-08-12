@@ -24,10 +24,10 @@ async function _readModulesDir (
     if (dir.isFile() || dir.name[0] === '.') return
 
     if (!scope && dir.name[0] === '@') {
-      // A scope container is always a real directory; only the packages inside
-      // it are ever symlinks. Reading through a symlinked one would report
-      // names that resolve outside `modulesDir`, which callers that delete what
-      // they enumerate would then follow.
+      // Names below a symlinked scope container reach their target through the
+      // symlink, wherever it points — a caller that deletes what it enumerates
+      // follows it out of `modulesDir`. pnpm only ever symlinks the packages
+      // inside a scope, never the scope itself, so skipping costs nothing.
       if (dir.isSymbolicLink()) return
       pkgNames.push(...await _readModulesDir(modulesDir, dir.name))
       return
