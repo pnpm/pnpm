@@ -1983,10 +1983,20 @@ fn realizing_children_shares_the_edge_package_id() {
     );
 }
 
-/// A ring of `ring_len` packages (`ring00 → ring01 → … → ring00`), each
-/// peering on `p` (provided at the top), with a consumer of peer `w`
-/// hanging off `ring01` and extra `skip` edges (`ringN → ringN+2`) when
-/// asked for. Each entry in `entries` is a direct dep
+/// See [`fn@peer_cycle_fixture`].
+struct PeerCycleShape {
+    ring_len: usize,
+    /// Adds `skip` edges (`ringN → ringN+2`), `home` edges back to
+    /// `ring00`, and peerless fanout under the even members.
+    with_skips: bool,
+    /// Ring members that depend on the `wc` consumer of peer `w`.
+    wc_members: Vec<usize>,
+    /// Whether every ring member peers on `p` (provided at the top).
+    rings_peer_on_p: bool,
+}
+/// A ring of `ring_len` packages (`ring00 → ring01 → … → ring00`), with
+/// a consumer of peer `w` hanging off the `wc_members`. Each entry in
+/// `entries` is a direct dep
 /// `(alias, ring index it points at, its own w version)` — the
 /// per-entry `w` keeps one entry's untruncated ring verdicts from
 /// plainly matching another's, which is what forces the walk onto the
@@ -1998,11 +2008,8 @@ fn realizing_children_shares_the_edge_package_id() {
 /// under a `ring02` entry keeps `ring01` and resolves `w`. Same
 /// package, same `p` context, different truncation, different verdict:
 /// the pair a cycle-verdict cache must never merge.
-fn peer_cycle_fixture(
-    ring_len: usize,
-    entries: &[(&str, usize, &str)],
-    with_skips: bool,
-) -> ResolvedTree {
+fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) -> ResolvedTree {
+    let PeerCycleShape { ring_len, with_skips, wc_members, rings_peer_on_p } = shape;
     let ring_id = |index: usize| format!("ring{:02}@1.0.0", index % ring_len);
     let edge = |alias: &str, pkg_id: &str| crate::resolved_tree::ChildEdge {
         alias: alias.to_string(),
@@ -2013,9 +2020,10 @@ fn peer_cycle_fixture(
     let mut packages = HashMap::default();
     let mut children_by_id: HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>> =
         HashMap::default();
+    let ring_peers: &[(&str, &str)] = if rings_peer_on_p { &[("p", "*")] } else { &[] };
     for index in 0..ring_len {
         let name = format!("ring{index:02}");
-        packages.insert(Arc::from(ring_id(index)), package(&name, "1.0.0", &[("p", "*")], false));
+        packages.insert(Arc::from(ring_id(index)), package(&name, "1.0.0", ring_peers, false));
         let mut edges = vec![edge("next", &ring_id(index + 1))];
         if with_skips {
             edges.push(edge("skip", &ring_id(index + 2)));
@@ -2040,11 +2048,10 @@ fn peer_cycle_fixture(
                 edges.push(edge(&format!("fan{fan:02}"), &fan_pkg));
             }
         }
-        if index % 2 == 1 {
-            // Odd members consume `w`, so every untruncated verdict —
-            // and every keyless cached item — carries the entry's own
-            // `w` and never transfers across entries. Even members'
-            // cycle-truncated verdicts stay `{p}`-only and transferable.
+        if wc_members.contains(&index) {
+            // A `wc` member consumes `w`, so its untruncated verdicts —
+            // and every keyless cached item covering it — carry the
+            // entry's own `w` and never transfer across entries.
             edges.push(edge("wc", "wc@1.0.0"));
         }
         children_by_id.insert(Arc::from(ring_id(index)), Arc::new(edges));
@@ -2109,8 +2116,15 @@ fn peer_cycle_fixture(
 /// fixture.
 #[test]
 fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
-    let mut tree =
-        peer_cycle_fixture(4, &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], false);
+    let mut tree = peer_cycle_fixture(
+        &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
+        PeerCycleShape {
+            ring_len: 4,
+            with_skips: false,
+            wc_members: vec![1, 3],
+            rings_peer_on_p: true,
+        },
+    );
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
     assert!(
@@ -2151,7 +2165,15 @@ fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
         (0..12).map(|index| (format!("entry{index:02}"), format!("{index}.0.0"))).collect();
     let entries: Vec<(&str, usize, &str)> =
         names.iter().map(|(alias, version)| (alias.as_str(), 0, version.as_str())).collect();
-    let mut tree = peer_cycle_fixture(10, &entries, true);
+    let mut tree = peer_cycle_fixture(
+        &entries,
+        PeerCycleShape {
+            ring_len: 10,
+            with_skips: true,
+            wc_members: vec![1, 3, 5, 7, 9],
+            rings_peer_on_p: true,
+        },
+    );
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
     assert!(
@@ -2166,5 +2188,104 @@ fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
     assert!(
         occurrences < bound,
         "peer walk realized {occurrences} occurrence nodes (bound {bound});          the cycle-verdict cache has stopped collapsing re-walks",
+    );
+}
+
+/// The graph `entries` produce over the pnpm/pnpm#13865 ring, as sorted
+/// depPath keys, for comparing walk orders.
+fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], rings_peer_on_p: bool) -> Vec<String> {
+    let mut tree = peer_cycle_fixture(
+        entries,
+        PeerCycleShape { ring_len: 4, with_skips: false, wc_members: vec![1], rings_peer_on_p },
+    );
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let mut keys: Vec<String> = result.graph.keys().map(|path| path.as_str().to_string()).collect();
+    keys.sort_unstable();
+    keys
+}
+
+/// The pnpm/pnpm#13865 shape: one `w` consumer in the whole ring,
+/// hanging off `ring01`. Inside the first entry's lap, `ring02`'s
+/// subtree reaches `ring00` again and the re-entry is truncated, so
+/// that `ring02` verdict never sees `wc` — externals `{p}` only — while
+/// `ring02` itself is not re-entered, leaving the verdict in the cache
+/// keyless. The second entry then reaches `ring02` with an intact
+/// subtree and a context those `{p}`-only peer sets match vacuously.
+/// Reusing the blinded verdict there drops every `w@2.0.0` peer variant
+/// from the graph — and which entry walks first decides it, which is
+/// the lockfile churn of pnpm/pnpm#13846.
+#[test]
+fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
+    let first_order =
+        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], true);
+    let second_order =
+        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], true);
+    assert!(
+        first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)(w@2.0.0)"),
+        "the second entry sees ring01 → wc intact and must resolve its own w;          got {first_order:#?}",
+    );
+    assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
+}
+
+/// The same shape without `p`: the blinded `ring02`/`ring03` verdicts
+/// then have empty peer sets — indistinguishable from pure. `pure_pkgs`
+/// is reused unconditionally, so storing one there would hand every
+/// later occurrence the bare depPath and no context check could ever
+/// object. The store must divert such verdicts to the peers cache,
+/// where the partial-view guard applies.
+#[test]
+fn a_truncation_blinded_verdict_never_passes_for_pure() {
+    let first_order =
+        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], false);
+    let second_order =
+        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], false);
+    assert!(
+        first_order.iter().any(|key| key == "ring02@1.0.0(w@2.0.0)"),
+        "a pure-looking blinded verdict must not shadow the second entry's intact walk;          got {first_order:#?}",
+    );
+    assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
+}
+
+/// The store-side half of the pure guard: a blinded verdict whose peer
+/// sets came out empty is indistinguishable from pure by content, and
+/// `pure_pkgs` reuse has no context checks at all — so the store must
+/// divert it to the peers cache, carrying its partial view.
+#[test]
+fn a_blinded_pure_looking_verdict_is_cached_with_its_partial_view() {
+    let mut tree = peer_cycle_fixture(
+        &[("entry00", 0, "1.0.0")],
+        PeerCycleShape {
+            ring_len: 4,
+            with_skips: false,
+            wc_members: vec![1],
+            rings_peer_on_p: false,
+        },
+    );
+    let direct = tree.direct.clone();
+    let mut walker = crate::resolve_peers::test_support::walker_for_tests(&mut tree);
+    let importer_parents = Arc::new(walker.build_importer_parents_from(&direct));
+    let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
+    for dep in &direct {
+        walker.resolve_node(
+            &dep.node_id,
+            &importer_parents,
+            &importer_parent_dep_paths,
+            &crate::resolve_peers::context::SharedChain::default(),
+            &crate::resolve_peers::context::SharedChain::default(),
+            &crate::resolve_peers::context::SharedChain::default(),
+        );
+    }
+
+    // ring02's only walk ran under entry00 → ring00 → ring01, whose lap
+    // truncation cut the subtree holding `wc`: empty peer sets, but not
+    // authoritative for the package.
+    assert!(
+        !walker.pure_pkgs.contains_key("ring02@1.0.0"),
+        "a verdict blinded by its ancestors' truncation must not enter pure_pkgs",
+    );
+    let items = walker.peers_cache.get("ring02@1.0.0").expect("the verdict is still cached");
+    assert!(
+        items.iter().any(|item| item.partial_frame.is_some() && item.resolved_peers.is_empty()),
+        "the blinded verdict lands in the peers cache carrying its partial view",
     );
 }

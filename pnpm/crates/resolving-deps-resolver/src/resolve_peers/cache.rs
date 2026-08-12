@@ -159,6 +159,19 @@ pub(super) struct PeersCacheItem {
     /// [`Walker::find_hit`] hand the verdict back to exactly the
     /// occurrences that would recompute it — and no others.
     pub(super) cycle_key: Option<CycleTruncationKey>,
+    /// `Some` when the recorded walk's subtree was truncated by the
+    /// occurrence's own ancestors — a descendant re-entered a package
+    /// sitting *above* the recorded occurrence, so parts of the subtree
+    /// were never seen. Such a verdict is blind to any peer those parts
+    /// would have consumed: its peer sets can pass the context checks
+    /// vacuously in contexts an intact walk would resolve more in
+    /// (pnpm/pnpm#13865). The payload is the walk's consulted set:
+    /// an occurrence whose ancestors are disjoint from it resolves the
+    /// subtree intact, so it must re-walk instead of inheriting the
+    /// blind spots. Occurrences that do intersect it are truncated
+    /// themselves and keep matching on the context checks alone — the
+    /// reuse peer-cyclic graphs depend on to stay tractable.
+    pub(super) partial_frame: Option<Arc<ConsultedPkgs>>,
 }
 
 impl PeersCacheItem {
@@ -270,6 +283,13 @@ impl Walker<'_> {
             if let Some(key) = &item.cycle_key
                 && !ancestor_ids
                     .is_some_and(|current| key.matches(current, &self.consulted_bit_by_pkg))
+            {
+                return false;
+            }
+            // A partial-view verdict never serves an occurrence whose
+            // ancestors leave the recorded walk's subtree intact.
+            if let Some(frame) = &item.partial_frame
+                && !ancestor_ids.is_some_and(|current| self.frame_intersects_chain(current, frame))
             {
                 return false;
             }
@@ -404,6 +424,12 @@ impl Walker<'_> {
         pkg_id: &str,
         item: &PeersCacheItem,
     ) -> FastCacheMatch {
+        // See the same guard in [`Walker::find_hit`].
+        if let Some(frame) = &item.partial_frame
+            && !self.frame_intersects_chain(parent_ids, frame)
+        {
+            return FastCacheMatch::NoMatch;
+        }
         let mut ambiguous = false;
         for (name, cached_node_id) in item.resolved_peers.iter() {
             match self.fast_provider_for_name(parent_ids, parent_refs, pkg_id, name) {

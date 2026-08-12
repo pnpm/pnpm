@@ -96,6 +96,7 @@ fn keyed_item(
             base.iter().chain(appended).map(|id| Arc::from(*id)).collect(),
             base.len() as u32,
         )),
+        partial_frame: None,
     }
 }
 

@@ -300,14 +300,28 @@ impl<'tree> Walker<'tree> {
                 push_if_consulted(&mut chain, id);
             }
         }
-        let shared = if let Some(hit) = self.consulted_sets.get(frame) {
+        CycleTruncationKey::new(self.shared_consulted(frame), chain, base_len)
+    }
+
+    /// The deduplicated [`Self::consulted_sets`] handle for `frame`;
+    /// walks of one package overwhelmingly weigh the same packages.
+    fn shared_consulted(&mut self, frame: &ConsultedPkgs) -> Arc<ConsultedPkgs> {
+        if let Some(hit) = self.consulted_sets.get(frame) {
             Arc::clone(hit)
         } else {
             let arc = Arc::new(frame.clone());
             self.consulted_sets.insert(Arc::clone(&arc));
             arc
-        };
-        CycleTruncationKey::new(shared, chain, base_len)
+        }
+    }
+
+    /// Whether any of the occurrence's ancestors is a package the
+    /// walk's gate weighed — i.e. whether the walk's subtree was
+    /// truncated by the chain above the occurrence.
+    pub(super) fn frame_intersects_chain(&self, ids: &AncestorIds, frame: &ConsultedPkgs) -> bool {
+        ids.base_ids()
+            .chain(ids.appended_ids())
+            .any(|id| self.consulted_bit_by_pkg.get(id).is_some_and(|bit| frame.contains(*bit)))
     }
 }
 
@@ -961,10 +975,26 @@ impl Walker<'_> {
             (true, Some(ids), Some(frame)) => Some(self.build_cycle_key(ids, frame)),
             _ => None,
         };
+        // Truncated by the occurrence's own ancestors without being a
+        // cycle re-entry itself: the verdict is blind to the subtree
+        // parts the truncation cut (pnpm/pnpm#13865). A pure-looking
+        // one may only look pure because the cut hid a peer consumer,
+        // so it must not enter the unconditionally-reused `pure_pkgs`;
+        // it goes in the peers cache instead, carrying the walk's
+        // consulted set so `find_hit` can keep it away from intact
+        // occurrences.
+        let partial_frame = match (truncation_ids.as_ref(), frame.as_ref()) {
+            (Some(ids), Some(frame))
+                if cycle_key.is_none() && self.frame_intersects_chain(ids, frame) =>
+            {
+                Some(self.shared_consulted(frame))
+            }
+            _ => None,
+        };
         if resolved_through_cycle && cycle_key.is_none() {
             // A truncated verdict with no scope must not be reused
             // anywhere, so neither cache records it.
-        } else if !resolved_through_cycle && is_pure {
+        } else if !resolved_through_cycle && is_pure && partial_frame.is_none() {
             self.pure_pkgs
                 .insert(std::sync::Arc::<str>::clone(&pkg.id).to_string(), dep_path.clone());
         } else {
@@ -979,6 +1009,7 @@ impl Walker<'_> {
                     missing_peers_of_children: Arc::clone(&missing_from_children),
                     subtree_missing_by_pkg: subtree_missing_by_pkg.clone(),
                     cycle_key,
+                    partial_frame,
                 });
         }
 
