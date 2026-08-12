@@ -9,7 +9,7 @@ import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import type { DepPath, Registries } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
-import { partition } from 'ramda'
+import { equals, partition } from 'ramda'
 
 import { depPathToRef } from './depPathToRef.js'
 import type { DependenciesGraph } from './index.js'
@@ -176,6 +176,15 @@ function toLockfileDependency (
   }
   if (pkg.additionalInfo.deprecated) {
     result['deprecated'] = pkg.additionalInfo.deprecated
+  } else if (
+    // `deprecated` is the only registry-mutable field of a published
+    // version; an unchanged resolution must not lose a recorded
+    // deprecation to a registry serving it inconsistently
+    // (pnpm/pnpm#13846).
+    opts.prevSnapshot?.deprecated != null &&
+    equals(opts.prevSnapshot.resolution, lockfileResolution)
+  ) {
+    result['deprecated'] = opts.prevSnapshot.deprecated
   }
   if (pkg.hasBin) {
     result['hasBin'] = true

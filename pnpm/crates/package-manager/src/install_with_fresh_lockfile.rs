@@ -2132,6 +2132,7 @@ fn build_fresh_lockfile(
         named_registries: &named_registries,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
         previous_importers,
+        previous_packages: wanted_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         time: merge_recorded_time(wanted_lockfile, resolved_time),

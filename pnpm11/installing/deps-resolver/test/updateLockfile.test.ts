@@ -113,3 +113,30 @@ test.each([
   })
   expect(lockfile.packages![DEP_PATH].bundledDependencies).toEqual(expected)
 })
+
+test('an unchanged resolution never loses its recorded deprecation to metadata drift', () => {
+  const lockfile = updateLockfile({
+    dependenciesGraph: tarballGraph({ tarball: TARBALL_URL, integrity: INTEGRITY }),
+    lockfile: lockfileWith({
+      resolution: { tarball: TARBALL_URL, integrity: INTEGRITY },
+      deprecated: 'No longer maintained',
+    }),
+    prefix: '.',
+    registries: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].deprecated).toBe('No longer maintained')
+})
+
+test('a changed resolution takes the freshly served metadata', () => {
+  const newIntegrity = 'sha512-CccCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcC=='
+  const lockfile = updateLockfile({
+    dependenciesGraph: tarballGraph({ tarball: TARBALL_URL, integrity: newIntegrity }),
+    lockfile: lockfileWith({
+      resolution: { tarball: TARBALL_URL, integrity: INTEGRITY },
+      deprecated: 'No longer maintained',
+    }),
+    prefix: '.',
+    registries: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].deprecated).toBeUndefined()
+})
