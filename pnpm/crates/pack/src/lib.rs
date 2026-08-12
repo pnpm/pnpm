@@ -338,7 +338,7 @@ where
     )
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(&dir, &files);
-    inject_workspace_license(opts, &dir, &files, &mut files_map);
+    inject_workspace_license(opts, &dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.
     for (name, _) in &opts.injected_files {
@@ -730,11 +730,10 @@ fn executable_sources(publish_manifest: &Value, manifest: &Value, dir: &Path) ->
 fn inject_workspace_license(
     opts: &PackOptions,
     dir: &Path,
-    files: &[String],
     files_map: &mut indexmap::IndexMap<String, PathBuf>,
 ) {
     let Some(workspace_dir) = &opts.workspace_dir else { return };
-    if dir == workspace_dir || files.iter().any(|file| contains_license(file)) {
+    if dir == workspace_dir || files_map.values().any(|file| contains_license(file)) {
         return;
     }
     let Ok(entries) = std::fs::read_dir(workspace_dir) else { return };
@@ -847,10 +846,12 @@ fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
 }
 
 /// Whether a packed path looks like a license file, matching upstream's
-/// unanchored `/LICEN[CS]E(?:\..+)?/i` presence test.
-fn contains_license(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    lower.contains("license") || lower.contains("licence")
+/// `/LICEN[CS]E(?:\..+)?$/i` presence test.
+fn contains_license(path: &Path) -> bool {
+    if let Some(file_name) = path.file_name() {
+        return is_license_filename(&file_name.to_string_lossy());
+    }
+    false
 }
 
 /// Whether a root filename matches the `LICEN{S,C}E{,.*}` glob pnpm
