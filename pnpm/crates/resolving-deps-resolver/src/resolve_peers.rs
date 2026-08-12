@@ -465,6 +465,7 @@ pub fn resolve_peers_workspace(
             .collect();
         direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
     }
+    walker::Walker::dump_walks("ws");
     let mut graph = walker.build_final_graph(&final_dep_paths);
     let paths_by_node_id = walker.final_paths_by_node_id(&final_dep_paths);
 

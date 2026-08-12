@@ -2236,10 +2236,12 @@ fn a_truncation_blinded_verdict_never_passes_for_pure() {
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
 
-/// The store-side half of the pure guard: `pure_pkgs` reuse has no
-/// context checks at all, so the diversion must happen at the store.
+/// A verdict recorded under a truncating chain still carries the
+/// package's full static peer-name closure: the top-up resolves what
+/// the cut subtree never surfaced, so no cached item can under-report
+/// its names (pnpm/pnpm#13865).
 #[test]
-fn a_blinded_pure_looking_verdict_is_cached_with_its_partial_view() {
+fn a_truncated_verdict_is_topped_up_to_the_static_peer_names() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0")],
         PeerCycleShape {
@@ -2266,11 +2268,13 @@ fn a_blinded_pure_looking_verdict_is_cached_with_its_partial_view() {
 
     assert!(
         !walker.pure_pkgs.contains_key("ring02@1.0.0"),
-        "a verdict blinded by its ancestors' truncation must not enter pure_pkgs",
+        "a package whose closure consumes a peer is never pure",
     );
-    let items = walker.peers_cache.get("ring02@1.0.0").expect("the verdict is still cached");
+    let items = walker.peers_cache.get("ring02@1.0.0").expect("the verdict is cached");
     assert!(
-        items.iter().any(|item| item.partial_frame.is_some() && item.resolved_peers.is_empty()),
-        "the blinded verdict lands in the peers cache carrying its partial view",
+        items.iter().all(|item| {
+            item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
+        }),
+        "every ring02 verdict accounts for w, cut subtree or not",
     );
 }

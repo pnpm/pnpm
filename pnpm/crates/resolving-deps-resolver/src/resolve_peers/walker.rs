@@ -35,6 +35,8 @@ use pacquet_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
+pub(super) static WALKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 pub(super) struct Walker<'tree> {
     pub(super) tree: &'tree mut ResolvedTree,
     pub(super) opts: ResolvePeersOptions,
@@ -142,6 +144,14 @@ pub(super) struct Walker<'tree> {
     /// finished walk folds its frame into its parent's, so an outer
     /// frame covers the outer walk's whole subtree.
     consulted_stack: Vec<ConsultedPkgs>,
+    /// Per-`pkgIdWithPatchHash` static peer-name closure: the least
+    /// fixpoint of `names(P) = (ownPeers(P) ∪ ⋃_c names(c) ∖
+    /// childAliases(P)) ∖ {name(P)}` over the dependency graph. Cycles
+    /// close the fixpoint instead of truncating it, which is what makes
+    /// the set a property of the package rather than of the occurrence
+    /// (pnpm/pnpm#13865). Built lazily once per walker; the tree's
+    /// children are frozen for the walker's lifetime.
+    static_peer_names: std::cell::OnceCell<HashMap<Arc<str>, Arc<HashSet<String>>>>,
     /// Dedupes the consulted sets stored on cycle-truncation keys.
     consulted_sets: HashSet<Arc<ConsultedPkgs>>,
     pub(super) empty_resolved_peers: Arc<HashMap<String, NodeId>>,
@@ -229,10 +239,15 @@ impl<'tree> Walker<'tree> {
             peer_provider_index_peer_names,
             consulted_bit_by_pkg,
             consulted_stack: Vec::new(),
+            static_peer_names: std::cell::OnceCell::new(),
             consulted_sets,
             empty_resolved_peers: Arc::new(HashMap::default()),
             empty_missing_peers: Arc::new(HashMap::default()),
         }
+    }
+
+    pub(super) fn dump_walks(tag: &str) {
+        eprintln!("WALKS[{tag}]={}", WALKS.load(std::sync::atomic::Ordering::Relaxed));
     }
 
     pub(super) fn into_caches(self) -> PeerDiscoveryCaches {
@@ -269,6 +284,12 @@ impl<'tree> Walker<'tree> {
         for edge in edges.iter().flat_map(|edges| edges.iter()) {
             mark(&edge.pkg_id);
         }
+    }
+
+    /// The static peer-name closure for `pkg_id`; see
+    /// [`Walker::static_peer_names`].
+    fn static_peer_names_of(&self, pkg_id: &str) -> Option<&Arc<HashSet<String>>> {
+        self.static_peer_names.get_or_init(|| build_static_peer_names(self.tree)).get(pkg_id)
     }
 
     /// The [`CycleTruncationKey`] scoping this walk's truncated verdict:
@@ -313,15 +334,6 @@ impl<'tree> Walker<'tree> {
             self.consulted_sets.insert(Arc::clone(&arc));
             arc
         }
-    }
-
-    /// Whether any of the occurrence's ancestors is a package the
-    /// walk's gate weighed — i.e. whether the walk's subtree was
-    /// truncated by the chain above the occurrence.
-    pub(super) fn frame_intersects_chain(&self, ids: &AncestorIds, frame: &ConsultedPkgs) -> bool {
-        ids.base_ids()
-            .chain(ids.appended_ids())
-            .any(|id| self.consulted_bit_by_pkg.get(id).is_some_and(|bit| frame.contains(*bit)))
     }
 }
 
@@ -726,6 +738,7 @@ impl Walker<'_> {
         // From here on every gate consultation — the provider preview
         // below included — feeds this walk's truncation key. Every exit
         // past this point pops the frame.
+        WALKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.consulted_stack.push(ConsultedPkgs::default());
         let (provider_children, preview_undo) = self.preview_peer_provider_children(node_id);
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
@@ -983,18 +996,10 @@ impl Walker<'_> {
         // it goes in the peers cache instead, carrying the walk's
         // consulted set so `find_hit` can keep it away from intact
         // occurrences.
-        let partial_frame = match (truncation_ids.as_ref(), frame.as_ref()) {
-            (Some(ids), Some(frame))
-                if cycle_key.is_none() && self.frame_intersects_chain(ids, frame) =>
-            {
-                Some(self.shared_consulted(frame))
-            }
-            _ => None,
-        };
         if resolved_through_cycle && cycle_key.is_none() {
             // A truncated verdict with no scope must not be reused
             // anywhere, so neither cache records it.
-        } else if !resolved_through_cycle && is_pure && partial_frame.is_none() {
+        } else if !resolved_through_cycle && is_pure {
             self.pure_pkgs
                 .insert(std::sync::Arc::<str>::clone(&pkg.id).to_string(), dep_path.clone());
         } else {
@@ -1009,7 +1014,6 @@ impl Walker<'_> {
                     missing_peers_of_children: Arc::clone(&missing_from_children),
                     subtree_missing_by_pkg: subtree_missing_by_pkg.clone(),
                     cycle_key,
-                    partial_frame,
                 });
         }
 
@@ -1182,6 +1186,36 @@ impl Walker<'_> {
         let mut all_missing = missing_from_children.clone();
         for (peer_alias, info) in &own_missing {
             all_missing.insert(peer_alias.clone(), info.clone());
+        }
+
+        // Top the verdict up to the package's static peer-name closure:
+        // names a truncated subtree never surfaced resolve against the
+        // same context an intact walk would have used, so every verdict
+        // of this package carries the same name set and the peers cache
+        // can never conflate differently truncated occurrences
+        // (pnpm/pnpm#13865). Missing top-ups feed the context checks
+        // only; the walk that actually reaches a consumer reports the
+        // user-facing issue.
+        if let Some(static_names) = self.static_peer_names_of(&pkg.id).cloned() {
+            for name in static_names.iter() {
+                if name == pkg_name
+                    || all_resolved.contains_key(name)
+                    || all_missing.contains_key(name)
+                {
+                    continue;
+                }
+                match parent_refs.get(name).and_then(|parent| parent.node_id.clone()) {
+                    Some(provider) => {
+                        all_resolved.insert(name.clone(), provider);
+                    }
+                    None => {
+                        all_missing.insert(
+                            name.clone(),
+                            MissingPeerInfo { range: "*".to_string(), optional: true },
+                        );
+                    }
+                }
+            }
         }
 
         let dep_path = if all_resolved.is_empty() {
@@ -1545,7 +1579,66 @@ impl<'a> MissingNames<'a> {
     }
 }
 
-/// Index the per-package missing-peer names `roots` reported, borrowing
+/// Build [`Walker::static_peer_names`]: a worklist least-fixpoint of
+/// `names(P) = (ownPeers(P) ∪ ⋃_c names(c) ∖ childAliases(P)) ∖
+/// {name(P)}` over the recorded children graph. Cycles close the
+/// fixpoint instead of truncating it, which is what makes the set a
+/// property of the package rather than of the occurrence
+/// (pnpm/pnpm#13865).
+fn build_static_peer_names(tree: &ResolvedTree) -> HashMap<Arc<str>, Arc<HashSet<String>>> {
+    let mut own_names: HashMap<Arc<str>, String> = HashMap::default();
+    let mut names: HashMap<Arc<str>, HashSet<String>> = HashMap::default();
+    for (pkg_id, pkg) in &tree.packages {
+        let (real_name, _) = pkg_name_version(&pkg.result);
+        let mut initial: HashSet<String> = pkg.peer_dependencies.keys().cloned().collect();
+        initial.remove(&real_name);
+        names.insert(Arc::clone(pkg_id), initial);
+        own_names.insert(Arc::clone(pkg_id), real_name);
+    }
+    let mut parents_of: HashMap<Arc<str>, Vec<Arc<str>>> = HashMap::default();
+    let mut aliases_of: HashMap<Arc<str>, HashSet<&str>> = HashMap::default();
+    for (pkg_id, children) in &tree.children_by_id {
+        let aliases = aliases_of.entry(Arc::clone(pkg_id)).or_default();
+        for edge in children.iter() {
+            aliases.insert(edge.alias.as_str());
+        }
+        for edge in children.iter() {
+            if edge.pkg_id != *pkg_id {
+                parents_of.entry(Arc::clone(&edge.pkg_id)).or_default().push(Arc::clone(pkg_id));
+            }
+        }
+    }
+    let mut worklist: Vec<Arc<str>> = names.keys().cloned().collect();
+    while let Some(pkg_id) = worklist.pop() {
+        let child_names = match names.get(&pkg_id) {
+            Some(child_names) if !child_names.is_empty() => child_names.clone(),
+            _ => continue,
+        };
+        let Some(parents) = parents_of.get(&pkg_id).cloned() else { continue };
+        for parent in parents {
+            let empty = HashSet::default();
+            let aliases = aliases_of.get(&parent).unwrap_or(&empty);
+            let own_name = own_names.get(&parent).map(String::as_str).unwrap_or_default();
+            let additions: Vec<String> = child_names
+                .iter()
+                .filter(|name| {
+                    !aliases.contains(name.as_str())
+                        && name.as_str() != own_name
+                        && names.get(&parent).is_none_or(|have| !have.contains(*name))
+                })
+                .cloned()
+                .collect();
+            if additions.is_empty() {
+                continue;
+            }
+            names.entry(Arc::clone(&parent)).or_default().extend(additions);
+            worklist.push(parent);
+        }
+    }
+    names.into_iter().map(|(pkg_id, set)| (pkg_id, Arc::new(set))).collect()
+}
+
+/// Index the per-package missing-peer names `roots` reported, borrowing/// Index the per-package missing-peer names `roots` reported, borrowing
 /// from the summaries rather than copying every descendant's names into
 /// an owned map: one of these is built per importer per hoist round, so
 /// a copy would make each round cost the whole workspace.
