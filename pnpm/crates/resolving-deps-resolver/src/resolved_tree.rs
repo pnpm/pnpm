@@ -74,6 +74,16 @@ pub struct AncestorIds {
 }
 
 impl AncestorIds {
+    /// The dependency walk's contiguous base ids, in order.
+    pub fn base_ids(&self) -> impl Iterator<Item = &str> {
+        self.base.iter().map(String::as_str)
+    }
+
+    /// The ids peer discovery appended after the base, in order.
+    pub fn appended_ids(&self) -> impl Iterator<Item = &str> {
+        self.appended.iter().map(|id| &**id)
+    }
+
     #[must_use]
     pub fn pushed(&self, id: String) -> Self {
         let mut appended = Vec::with_capacity(self.appended.len() + 1);

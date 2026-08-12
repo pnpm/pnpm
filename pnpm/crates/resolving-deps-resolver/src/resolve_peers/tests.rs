@@ -1982,3 +1982,189 @@ fn realizing_children_shares_the_edge_package_id() {
         "the occurrence points at the edge's id instead of owning a copy of it",
     );
 }
+
+/// A ring of `ring_len` packages (`ring00 → ring01 → … → ring00`), each
+/// peering on `p` (provided at the top), with a consumer of peer `w`
+/// hanging off `ring01` and extra `skip` edges (`ringN → ringN+2`) when
+/// asked for. Each entry in `entries` is a direct dep
+/// `(alias, ring index it points at, its own w version)` — the
+/// per-entry `w` keeps one entry's untruncated ring verdicts from
+/// plainly matching another's, which is what forces the walk onto the
+/// cycle-verdict cache. Everything realizes lazily from
+/// `children_by_id`, the way production trees reach the peer walk.
+///
+/// The shape matters: `ring00` re-entered through the full lap has its
+/// `ring01` edge cut — no `w` in that subtree — while `ring00` reached
+/// under a `ring02` entry keeps `ring01` and resolves `w`. Same
+/// package, same `p` context, different truncation, different verdict:
+/// the pair a cycle-verdict cache must never merge.
+fn peer_cycle_fixture(
+    ring_len: usize,
+    entries: &[(&str, usize, &str)],
+    with_skips: bool,
+) -> ResolvedTree {
+    let ring_id = |index: usize| format!("ring{:02}@1.0.0", index % ring_len);
+    let edge = |alias: &str, pkg_id: &str| crate::resolved_tree::ChildEdge {
+        alias: alias.to_string(),
+        pkg_id: Arc::from(pkg_id),
+        optional: false,
+    };
+
+    let mut packages = HashMap::default();
+    let mut children_by_id: HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>> =
+        HashMap::default();
+    for index in 0..ring_len {
+        let name = format!("ring{index:02}");
+        packages.insert(Arc::from(ring_id(index)), package(&name, "1.0.0", &[("p", "*")], false));
+        let mut edges = vec![edge("next", &ring_id(index + 1))];
+        if with_skips {
+            edges.push(edge("skip", &ring_id(index + 2)));
+        }
+        if with_skips && index % 2 == 0 && index != 0 {
+            // Every even member also re-enters the ring's entry, so one
+            // lap re-enters the cycle many times — each re-entry a
+            // truncated verdict whose subtree the cache can skip.
+            edges.push(edge("home", &ring_id(0)));
+        }
+        if with_skips && index % 2 == 0 {
+            // Fanout under the transferable members: what a cache hit
+            // saves is realizing the hit node's children, so the win
+            // only counts when there are children worth skipping.
+            for fan in 0..30 {
+                let fan_pkg = format!("fan{index:02}x{fan:02}@1.0.0");
+                packages.insert(
+                    Arc::from(&*fan_pkg),
+                    package(&format!("fan{index:02}x{fan:02}"), "1.0.0", &[("p", "*")], false),
+                );
+                children_by_id.insert(Arc::from(&*fan_pkg), Arc::new(Vec::new()));
+                edges.push(edge(&format!("fan{fan:02}"), &fan_pkg));
+            }
+        }
+        if index % 2 == 1 {
+            // Odd members consume `w`, so every untruncated verdict —
+            // and every keyless cached item — carries the entry's own
+            // `w` and never transfers across entries. Even members'
+            // cycle-truncated verdicts stay `{p}`-only and transferable.
+            edges.push(edge("wc", "wc@1.0.0"));
+        }
+        children_by_id.insert(Arc::from(ring_id(index)), Arc::new(edges));
+    }
+    packages.insert(Arc::from("wc@1.0.0"), package("wc", "1.0.0", &[("w", "*")], false));
+    packages.insert(Arc::from("p@1.0.0"), package("p", "1.0.0", &[], true));
+
+    let mut dependencies_tree = HashMap::default();
+    let mut direct = Vec::new();
+    let add_direct = |id: &str,
+                      alias: &str,
+                      dependencies_tree: &mut HashMap<NodeId, _>,
+                      direct: &mut Vec<DirectDep>| {
+        let node_id = NodeId::next();
+        dependencies_tree.insert(
+            node_id.clone(),
+            crate::resolved_tree::DependenciesTreeNode::new(
+                Arc::from(id),
+                crate::resolved_tree::TreeChildren::Lazy {
+                    parent_ids: Arc::new(Vec::new()).into(),
+                },
+                0,
+                true,
+            ),
+        );
+        direct.push(DirectDep { alias: alias.to_string(), node_id, id: id.to_string() });
+    };
+    add_direct("p@1.0.0", "p", &mut dependencies_tree, &mut direct);
+    for (alias, ring_index, w_version) in entries {
+        let entry_pkg = format!("{alias}@1.0.0");
+        let w_pkg = format!("w@{w_version}");
+        packages.entry(Arc::from(&*w_pkg)).or_insert_with(|| package("w", w_version, &[], true));
+        packages.insert(Arc::from(&*entry_pkg), package(alias, "1.0.0", &[], false));
+        children_by_id.insert(
+            Arc::from(&*entry_pkg),
+            Arc::new(vec![edge("ring", &ring_id(*ring_index)), edge("w", &w_pkg)]),
+        );
+        add_direct(&entry_pkg, alias, &mut dependencies_tree, &mut direct);
+    }
+
+    ResolvedTree {
+        direct,
+        packages,
+        dependencies_tree,
+        all_peer_dep_names: HashSet::from_iter(["p".to_string(), "w".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::default(),
+        children_by_id,
+    }
+}
+
+/// End-to-end guard for the reuse boundary, through outputs alone.
+///
+/// The first entry's lap stores the cycle-truncated `ring00` verdict —
+/// externals `{p}`, no `w`, because the truncation cut `ring01`. The
+/// second entry reaches `ring00` under `ring02` with an intact
+/// `ring01`, and its untruncated verdicts can't reuse the first entry's
+/// (its `w` differs), so the lookup lands exactly on the truncated
+/// keyed entry. A key that under-collects what the walk consulted — the
+/// failure mode of a misplaced walk frame — accepts it, and the second
+/// entry's `ring00` silently loses its `w`. This is pnpm/pnpm#5108 as a
+/// fixture.
+#[test]
+fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
+    let mut tree =
+        peer_cycle_fixture(4, &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], false);
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+    assert!(
+        result.peer_dependency_issues.missing.is_empty(),
+        "unexpected missing peers: {:#?}",
+        result.peer_dependency_issues.missing,
+    );
+    let ring00_variants: Vec<&str> = result
+        .graph
+        .keys()
+        .map(pacquet_deps_path::DepPath::as_str)
+        .filter(|path| path.starts_with("ring00@1.0.0"))
+        .collect();
+    assert!(
+        ring00_variants.iter().any(|path| path.contains("w@2.0.0")),
+        "ring00 under the second entry sees ring01 untruncated and must keep          that entry's w — reusing the first entry's truncated verdict here is          pnpm/pnpm#5108; got {ring00_variants:?}",
+    );
+    assert!(
+        ring00_variants.iter().any(|path| path.contains("w@1.0.0")),
+        "ring00 under the first entry keeps its own w; got {ring00_variants:?}",
+    );
+}
+
+/// The integrity bound behind pnpm/pnpm#13681: a cycle re-walked under
+/// ancestors that truncate it identically must be a cache hit. Each
+/// entry's own `w` blocks plain reuse of the untruncated verdicts, so
+/// every entry re-enters the ring — but the lap's cycle-truncated
+/// verdicts repeat the same consulted chains, and all entries after the
+/// first resolve the lap from the cache. Uncached, every entry pays the
+/// whole lap again and the occurrence count multiplies past the bound.
+/// Deterministic, no wall clocks.
+#[test]
+fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
+    // Each entry provides its own `w`, so nothing untruncated transfers
+    // across entries and only the cycle-verdict cache can collapse the
+    // repeated laps.
+    let names: Vec<(String, String)> =
+        (0..12).map(|index| (format!("entry{index:02}"), format!("{index}.0.0"))).collect();
+    let entries: Vec<(&str, usize, &str)> =
+        names.iter().map(|(alias, version)| (alias.as_str(), 0, version.as_str())).collect();
+    let mut tree = peer_cycle_fixture(10, &entries, true);
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+    assert!(
+        result.peer_dependency_issues.missing.is_empty(),
+        "the bound only means something for a healthy resolution",
+    );
+    let occurrences = tree.dependencies_tree.len();
+    // The cached walk realizes ~2,230 occurrences here; with cycle-verdict
+    // reuse disabled it realizes ~4,360. The bound sits between, with
+    // headroom for fixture-neutral resolver changes on the cached side.
+    let bound = 3000;
+    assert!(
+        occurrences < bound,
+        "peer walk realized {occurrences} occurrence nodes (bound {bound});          the cycle-verdict cache has stopped collapsing re-walks",
+    );
+}
