@@ -130,24 +130,24 @@ test('getOptionsFromPnpmSettings() rejects non-object overrides values', () => {
 test('getOptionsFromPnpmSettings() rejects a non-string range in packageExtensions', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     packageExtensions: {
-      'officeparser@*': {
+      'foo@*': {
         peerDependencies: {
-          puppeteer: null,
+          bar: null,
         },
       },
     } as unknown as Record<string, PackageExtension>,
   })).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_INVALID_SETTING',
-    message: 'The "packageExtensions[\'officeparser@*\'].peerDependencies.puppeteer" setting should be a string, but got null',
+    message: 'The "packageExtensions[\'foo@*\'].peerDependencies.bar" setting should be a string, but got null',
   }))
 })
 
 test('getOptionsFromPnpmSettings() rejects a non-boolean optional flag in packageExtensions', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     packageExtensions: {
-      'officeparser@*': {
+      'foo@*': {
         peerDependenciesMeta: {
-          puppeteer: {
+          bar: {
             optional: 'yes',
           },
         },
@@ -155,48 +155,48 @@ test('getOptionsFromPnpmSettings() rejects a non-boolean optional flag in packag
     } as unknown as Record<string, PackageExtension>,
   })).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_INVALID_SETTING',
-    message: 'The "packageExtensions[\'officeparser@*\'].peerDependenciesMeta.puppeteer.optional" setting should be a boolean, but got string',
+    message: 'The "packageExtensions[\'foo@*\'].peerDependenciesMeta.bar.optional" setting should be a boolean, but got string',
   }))
 })
 
 test('getOptionsFromPnpmSettings() rejects a non-object package extension', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     packageExtensions: {
-      'officeparser@*': [],
+      'foo@*': [],
     } as unknown as Record<string, PackageExtension>,
   })).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_INVALID_SETTING',
-    message: 'The "packageExtensions[\'officeparser@*\']" setting should be an object, but got array',
+    message: 'The "packageExtensions[\'foo@*\']" setting should be an object, but got array',
   }))
 })
 
 test('getOptionsFromPnpmSettings() accepts valid packageExtensions', () => {
   expect(getOptionsFromPnpmSettings(process.cwd(), {
     packageExtensions: {
-      'officeparser@*': {
+      'foo@*': {
         dependencies: {
           foo: '1.0.0',
         },
         peerDependencies: {
-          puppeteer: '*',
+          bar: '*',
         },
         peerDependenciesMeta: {
-          puppeteer: {
+          bar: {
             optional: true,
           },
         },
       },
     },
   }).packageExtensions).toStrictEqual({
-    'officeparser@*': {
+    'foo@*': {
       dependencies: {
         foo: '1.0.0',
       },
       peerDependencies: {
-        puppeteer: '*',
+        bar: '*',
       },
       peerDependenciesMeta: {
-        puppeteer: {
+        bar: {
           optional: true,
         },
       },
