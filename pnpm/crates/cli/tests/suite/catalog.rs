@@ -478,3 +478,54 @@ fn prunes_the_minimum_release_age_excludes() {
 
     drop((root, anchor));
 }
+
+/// A version named on the command line reaches the lockfile even when the
+/// catalog entry it resolves through names a different one. Without this the
+/// entry's recorded resolution is reused and the request is dropped in
+/// silence — no install, no error ([pnpm#13715](https://github.com/pnpm/pnpm/issues/13715)).
+#[test]
+fn add_moves_a_catalog_locked_on_another_version() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogMode: strict\ncatalog:\n  '{FOO}': 1.0.0\n"),
+    );
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    // Widen the entry to a range that keeps 1.0.0 resolved, so the wanted
+    // version below is inside the range but is not what the entry resolves to.
+    let widened = read(&workspace, "pnpm-workspace.yaml").replace("': 1.0.0", "': ^1.0.0");
+    std::fs::write(workspace.join("pnpm-workspace.yaml"), widened).expect("widen the catalog");
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.0.0".to_string(), "1.0.0".to_string()));
+
+    run_ok(&workspace, &["add", "--lockfile-only", &format!("{FOO}@1.1.0")]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.0.0".to_string(), "1.1.0".to_string()));
+
+    drop((root, anchor));
+}
+
+/// The same for `update`, where the requested version is older than the one
+/// the entry resolves to but still inside its range.
+#[test]
+fn update_moves_a_catalog_to_an_older_in_range_version() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogMode: strict\ncatalog:\n  '{FOO}': ^1.0.0\n"),
+    );
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    let (_, resolved) = catalog_snapshot(&workspace, FOO);
+    assert_ne!(resolved, "1.0.0", "the entry has to start on a newer version than the request");
+
+    run_ok(&workspace, &["update", "--lockfile-only", &format!("{FOO}@1.0.0")]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+    assert_eq!(catalog_snapshot(&workspace, FOO).1, "1.0.0");
+
+    drop((root, anchor));
+}

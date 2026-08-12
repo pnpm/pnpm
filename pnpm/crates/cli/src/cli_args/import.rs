@@ -85,6 +85,7 @@ impl ImportArgs {
                 dry_run: false,
                 persist_policy_excludes: false,
                 update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::drop_all(),
+                preferred_versions_override: None,
                 auth_override: None,
                 resolution_observer: None,
                 peer_issues_sink: None,

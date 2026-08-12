@@ -39,8 +39,8 @@ use pacquet_resolving_npm_resolver::{
     merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pacquet_resolving_resolver_base::{
-    ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackages,
-    WorkspacePackagesByVersion,
+    PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, WantedDependency,
+    WorkspacePackages, WorkspacePackagesByVersion,
 };
 use pacquet_tarball::MemCache;
 use pacquet_workspace_range_resolver::resolve_workspace_range;
@@ -318,6 +318,7 @@ impl Update<'_> {
         }
         let UpdatePreparation {
             seed_policy,
+            preferred_versions_override,
             persist_manifest: should_persist_manifest,
             catalogs_override,
             workspace_dir_for_catalogs,
@@ -353,6 +354,7 @@ impl Update<'_> {
             dry_run: false,
             persist_policy_excludes: save,
             update_seed_policy: seed_policy,
+            preferred_versions_override: Some(preferred_versions_override),
             auth_override: None,
             resolution_observer,
             peer_issues_sink: None,
@@ -482,6 +484,7 @@ impl Update<'_> {
                 policies: prepared.seed_policies,
                 max_depth: UpdateDepth::new(depth),
             },
+            preferred_versions_override: Some(prepared.preferred_versions_override),
             auth_override: None,
             resolution_observer,
             peer_issues_sink: None,
@@ -515,6 +518,7 @@ impl Update<'_> {
 
 struct UpdatePreparation {
     seed_policy: UpdateSeedPolicy,
+    preferred_versions_override: PreferredVersions,
     persist_manifest: bool,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
@@ -523,6 +527,7 @@ struct UpdatePreparation {
 
 struct SelectedUpdatePreparation {
     seed_policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
+    preferred_versions_override: PreferredVersions,
     persist_indices: Vec<usize>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
@@ -612,6 +617,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         .transpose()?
         .unwrap_or_default();
 
+    let mut preferred_versions_override = PreferredVersions::new();
     let seed_policy = if let Some(workspace_packages) =
         workspace_packages.filter(|_| !workspace_targets.is_empty())
     {
@@ -750,6 +756,15 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         .iter()
                         .find(|selector| matcher_one(&selector.pattern).matches(name))
                         .and_then(|selector| selector.version.clone());
+                    // A cataloged dependency writes `catalog:` to the manifest, so a version
+                    // named on the command line only reaches the lockfile as a preference.
+                    if let Some(version) = requested.as_deref() {
+                        crate::install_with_fresh_lockfile::prefer_requested_version(
+                            &mut preferred_versions_override,
+                            name,
+                            version,
+                        );
+                    }
                     // An update that doesn't save keeps the manifest's
                     // specifier, and whatever resolution settles on has to
                     // satisfy it — a frozen install rejects the lockfile
@@ -866,6 +881,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     });
     Ok(Some(UpdatePreparation {
         seed_policy,
+        preferred_versions_override,
         persist_manifest,
         updated_catalogs,
         catalogs_override,
@@ -899,6 +915,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     let mut latest_chain = None;
     let mut seed_policies = BTreeMap::new();
     let mut persist_indices = Vec::new();
+    let mut preferred_versions_override = PreferredVersions::new();
     let mut updated_catalogs = Catalogs::new();
     let mut catalogs_override = None;
     let mut workspace_dir_for_catalogs = None;
@@ -929,6 +946,9 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         any_work = true;
         let importer_id =
             pacquet_workspace::importer_id_from_root_dir(workspace_root, &projects[index].root_dir);
+        for (name, selectors) in prepared.preferred_versions_override {
+            preferred_versions_override.entry(name).or_default().extend(selectors);
+        }
         match prepared.seed_policy {
             UpdateSeedPolicy::KeepAll => {}
             UpdateSeedPolicy::KeepAllResolveAll => {
@@ -962,6 +982,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
 
     Ok(SelectedUpdatePreparation {
         seed_policies,
+        preferred_versions_override,
         persist_indices,
         updated_catalogs,
         catalogs_override,

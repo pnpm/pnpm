@@ -25,7 +25,7 @@ use pacquet_network::{ThrottledClient, redact_and_sanitize};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_resolving_deps_resolver::is_valid_dependency_alias;
+use pacquet_resolving_deps_resolver::{UpdateDepth, is_valid_dependency_alias};
 use pacquet_resolving_git_resolver::{
     GitFetchContext, GitResolver, HostedGit, HostedOpts, RealGitProbe, RealGitRunner,
 };
@@ -35,7 +35,7 @@ use pacquet_resolving_npm_resolver::{
     parse_bare_specifier, pick_matching_local_version_or_null, pick_package,
     pick_registry_for_package, shared_packument_fetch_locker,
 };
-use pacquet_resolving_resolver_base::{GitResolveError, WorkspacePackages};
+use pacquet_resolving_resolver_base::{GitResolveError, PreferredVersions, WorkspacePackages};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
@@ -233,6 +233,12 @@ where
             catalogs
         });
 
+        let (dropped_pins, preferred_versions_override) = explicit_version_requests(package_names);
+        // A `catalog:` dependency's manifest specifier doesn't change when the version
+        // behind it does, so the freshness gate would hold and the install would never
+        // reach the resolver.
+        let named_a_version = !dropped_pins.is_empty();
+
         Install {
             tarball_mem_cache,
             http_client,
@@ -254,7 +260,7 @@ where
             // `prepare_manifest` just made. It only absorbs an addition the
             // lockfile already holds a satisfying version for; anything else
             // fails the freshness gate and reaches the resolver.
-            prefer_frozen_lockfile: None,
+            prefer_frozen_lockfile: named_a_version.then_some(false),
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
@@ -270,7 +276,15 @@ where
             // `add` keeps every lockfile pin; the freshly-added range
             // is the only thing that re-resolves. `update`'s bump is a
             // separate operation.
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
+            update_seed_policy: if dropped_pins.is_empty() {
+                UpdateSeedPolicy::KeepAll
+            } else {
+                UpdateSeedPolicy::DropOnly {
+                    names: dropped_pins,
+                    max_depth: UpdateDepth::UNLIMITED,
+                }
+            },
+            preferred_versions_override: Some(preferred_versions_override),
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,
@@ -343,6 +357,12 @@ where
         )
         .map_err(AddError::WriteWorkspaceManifest)?;
 
+        let (dropped_pins, preferred_versions_override) = explicit_version_requests(package_names);
+        // A `catalog:` dependency's manifest specifier doesn't change when the version
+        // behind it does, so the freshness gate would hold and the install would never
+        // reach the resolver.
+        let named_a_version = !dropped_pins.is_empty();
+
         Box::pin(
             Install {
                 tarball_mem_cache,
@@ -359,7 +379,7 @@ where
                 dependency_groups: DIRECT_GROUPS,
                 frozen_lockfile: false,
                 // See the `prefer_frozen_lockfile` comment in [`Self::run`].
-                prefer_frozen_lockfile: None,
+                prefer_frozen_lockfile: named_a_version.then_some(false),
                 ignore_manifest_check: false,
                 skip_runtimes: config.skip_runtimes,
                 trust_lockfile: config.trust_lockfile,
@@ -372,7 +392,15 @@ where
                 lockfile_only,
                 dry_run: false,
                 persist_policy_excludes: true,
-                update_seed_policy: UpdateSeedPolicy::KeepAll,
+                update_seed_policy: if dropped_pins.is_empty() {
+                    UpdateSeedPolicy::KeepAll
+                } else {
+                    UpdateSeedPolicy::DropOnly {
+                        names: dropped_pins,
+                        max_depth: UpdateDepth::UNLIMITED,
+                    }
+                },
+                preferred_versions_override: Some(preferred_versions_override),
                 auth_override: None,
                 resolution_observer: None,
                 peer_issues_sink: None,
@@ -399,6 +427,35 @@ where
             .map_err(AddError::WriteWorkspaceManifest)?;
         Ok(())
     }
+}
+
+/// The lockfile pins to withhold, and the preferences to layer on the seed,
+/// for the versions an `add` named outright.
+///
+/// A version named on the command line has to reach the lockfile even when
+/// the specifier that lands in the manifest doesn't carry it — the
+/// `catalog:` case, where the version lives in the catalog entry. Without
+/// this the entry's recorded resolution is reused and the request is
+/// dropped without a word.
+fn explicit_version_requests(package_selectors: &[String]) -> (HashSet<String>, PreferredVersions) {
+    let mut names = HashSet::new();
+    let mut preferred = PreferredVersions::new();
+    for selector in package_selectors {
+        let parsed = pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency(selector);
+        let (Some(alias), Some(bare_specifier)) = (parsed.alias, parsed.bare_specifier) else {
+            continue;
+        };
+        if node_semver::Version::parse(&bare_specifier).is_err() {
+            continue;
+        }
+        crate::install_with_fresh_lockfile::prefer_requested_version(
+            &mut preferred,
+            &alias,
+            &bare_specifier,
+        );
+        names.insert(alias);
+    }
+    (names, preferred)
 }
 
 struct AddCatalogCtx {
