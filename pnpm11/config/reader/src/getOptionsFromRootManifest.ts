@@ -66,6 +66,9 @@ export function getOptionsFromPnpmSettings (
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
+  if (pnpmSettings.nodeDownloadMirrors != null) {
+    assertStringRecord(pnpmSettings.nodeDownloadMirrors, 'nodeDownloadMirrors')
+  }
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
 
@@ -192,6 +195,15 @@ function assertBoolean (value: unknown, settingName: string): asserts value is b
 function assertString (value: unknown, settingName: string): asserts value is string {
   if (typeof value !== 'string') {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be a string, but got ${renderReceivedType(value)}`)
+  }
+}
+
+function assertStringRecord (value: unknown, settingName: string): void {
+  assertObjectSetting(value, settingName)
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof item !== 'string') {
+      throw new PnpmError('INVALID_SETTING', `The value of ${settingName}.${key} should be a string, but got ${renderReceivedType(item)}`)
+    }
   }
 }
 
