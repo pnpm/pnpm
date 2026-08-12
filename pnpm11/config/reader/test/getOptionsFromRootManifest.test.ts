@@ -237,7 +237,10 @@ test('getOptionsFromPnpmSettings() rejects non-object packageExtensions', () => 
 
 // A key left empty in pnpm-workspace.yaml parses to null. pacquet reads the same
 // shapes into `Option` fields, where null and an absent key are the same thing.
-test('getOptionsFromPnpmSettings() treats null packageExtensions fields as unset', () => {
+// The nulls are passed through rather than stripped: every reader of these
+// fields already treats them as unset, so normalizing them here would only add a
+// second spelling of the same state.
+test('getOptionsFromPnpmSettings() accepts null packageExtensions fields', () => {
   expect(getOptionsFromPnpmSettings(process.cwd(), {
     packageExtensions: {
       'foo@*': {
