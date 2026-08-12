@@ -174,6 +174,20 @@ pub(super) struct RecordedChildrenContext {
 }
 
 impl RecordedChildrenContext {
+    /// Whether a walk under `other` would re-resolve what the prior
+    /// lockfile pinned for this recording — the churn reuse exists to
+    /// avoid, and which leaves the occurrences that realized the
+    /// pinned subtree pointing at children the record no longer holds.
+    ///
+    /// An update policy is the one thing that re-resolves a pin on
+    /// purpose, so a walk under one is never held to the pins.
+    pub(super) fn pins_children_over(&self, other: &Self) -> bool {
+        self.peer_shadowed == other.peer_shadowed
+            && self.prior_key.is_some()
+            && other.prior_key.is_none()
+            && !other.update_active
+    }
+
     /// Two contexts produce the same children.
     ///
     /// The preferred-versions overlay is deliberately not part of the
@@ -1303,9 +1317,10 @@ pub(super) fn recorded_children_match(
     pkg_id: &str,
     context: &RecordedChildrenContext,
 ) -> bool {
-    lock_recoverable(&ctx.workspace.children_by_id)
-        .get(pkg_id)
-        .is_some_and(|recorded| recorded.context.produces_same_children_as(context))
+    lock_recoverable(&ctx.workspace.children_by_id).get(pkg_id).is_some_and(|recorded| {
+        recorded.context.produces_same_children_as(context)
+            || recorded.context.pins_children_over(context)
+    })
 }
 
 /// What [`fn@record_children`] did with a walk's child edges.
@@ -1377,16 +1392,20 @@ pub(super) fn record_children(
             // Nothing recorded yet, so no occurrence node can hold
             // realized children of this package to stale.
             None => ChildrenRecording::Published,
-            Some(recorded) if *recorded.edges == edges => ChildrenRecording::Published,
             // A recording the prior lockfile pinned outlives a fresh
-            // walk's different answer: the occurrences that reused the
-            // subtree keep it realized rather than re-resolving its open
-            // ranges, which is the churn the reuse existed to avoid.
-            Some(recorded)
-                if recorded.context.prior_key.is_some() && context.prior_key.is_none() =>
-            {
-                ChildrenRecording::Published
+            // walk's answer, so this walk publishes nothing and reads
+            // the pinned children like every occurrence that reused the
+            // subtree. Publishing over them would re-resolve the open
+            // ranges reuse exists to hold still, and would leave those
+            // occurrences realizing children the record no longer
+            // holds. This comes before the equal-edge arm because
+            // republishing even the same edges would carry this walk's
+            // unpinned context onto the record, leaving the next fresh
+            // walk to land on different edges nothing to hold it back.
+            Some(recorded) if recorded.context.pins_children_over(&context) => {
+                return ChildrenRecording::Declined;
             }
+            Some(recorded) if *recorded.edges == edges => ChildrenRecording::Published,
             Some(_) => ChildrenRecording::PublishedOverStale,
         };
         children.insert(pkg_id.to_string(), RecordedChildren { edges: Arc::new(edges), context });

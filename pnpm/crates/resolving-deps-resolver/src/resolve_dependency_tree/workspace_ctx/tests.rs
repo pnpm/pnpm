@@ -544,6 +544,40 @@ fn recorded_children_match_only_under_the_recording_context() {
     assert!(matches!(ctx.update_reuse_scope(), UpdateReuseScope::All));
 }
 
+/// Which of a package's dependencies its own peers supply is a
+/// property of the occurrence, and pinned children were filtered under
+/// the recording occurrence's set — so the pins stand in for a fresh
+/// walk only where the two shadow the same names.
+#[test]
+fn a_pin_stands_in_only_for_a_walk_that_shadows_the_same_dependencies() {
+    use super::RecordedChildrenContext;
+    use std::sync::Arc;
+
+    let fresh = RecordedChildrenContext {
+        peer_shadowed: Arc::default(),
+        prior_key: None,
+        update_active: false,
+    };
+    let pinned = RecordedChildrenContext {
+        prior_key: Some("pkg@1.0.0".parse().expect("parse snapshot key")),
+        ..fresh.clone()
+    };
+    assert!(pinned.pins_children_over(&fresh));
+
+    let shadowed = RecordedChildrenContext {
+        peer_shadowed: Arc::new(HashSet::from_iter(["peer".to_string()])),
+        ..pinned.clone()
+    };
+    assert!(!shadowed.pins_children_over(&fresh), "a different shadow set filtered them");
+    assert!(shadowed.pins_children_over(&RecordedChildrenContext {
+        peer_shadowed: Arc::clone(&shadowed.peer_shadowed),
+        ..fresh.clone()
+    }));
+
+    let updating = RecordedChildrenContext { update_active: true, ..fresh };
+    assert!(!pinned.pins_children_over(&updating), "an update re-resolves pins on purpose");
+}
+
 /// A walk that lost the claim while it ran must not overwrite the
 /// children the occurrence that outranked it published.
 #[test]
@@ -629,8 +663,22 @@ fn re_recording_reports_whether_the_child_edges_moved() {
         ChildrenRecording::PublishedOverStale,
     );
     assert_eq!(
+        record_children(&ctx, "pkg@1.0.0", &owner.owner, edges("dep@1.0.0"), context()),
+        ChildrenRecording::Declined,
+        "a fresh walk that agrees does not republish the pin away either",
+    );
+    assert_eq!(
         record_children(&ctx, "pkg@1.0.0", &owner.owner, edges("dep@2.0.0"), context()),
-        ChildrenRecording::Published,
+        ChildrenRecording::Declined,
         "a fresh walk does not unpin the subtree the lockfile-reusing occurrences realized",
     );
+    let standing = lock_recoverable(&workspace.children_by_id);
+    let standing: Vec<&str> = standing
+        .get("pkg@1.0.0")
+        .expect("pinned children")
+        .edges
+        .iter()
+        .map(|edge| edge.pkg_id.as_str())
+        .collect();
+    assert_eq!(standing, ["dep@1.0.0"], "the pinned children are what every occurrence reads");
 }
