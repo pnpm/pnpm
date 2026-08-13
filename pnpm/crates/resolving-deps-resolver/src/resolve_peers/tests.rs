@@ -1993,6 +1993,23 @@ struct PeerCycleShape {
     wc_members: Vec<usize>,
     /// Whether every ring member peers on `p` (provided at the top).
     rings_peer_on_p: bool,
+    /// The range `wc` declares for its peer `w`.
+    wc_w_range: &'static str,
+    /// A `w` version provided as an importer-level direct dep.
+    importer_w_version: Option<&'static str>,
+}
+
+impl Default for PeerCycleShape {
+    fn default() -> Self {
+        PeerCycleShape {
+            ring_len: 4,
+            with_skips: false,
+            wc_members: Vec::new(),
+            rings_peer_on_p: false,
+            wc_w_range: "*",
+            importer_w_version: None,
+        }
+    }
 }
 /// A ring of `ring_len` packages (`ring00 → ring01 → … → ring00`), with
 /// a consumer of peer `w` hanging off the `wc_members`. Each entry in
@@ -2009,7 +2026,14 @@ struct PeerCycleShape {
 /// package, same `p` context, different truncation, different verdict:
 /// the pair a cycle-verdict cache must never merge.
 fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) -> ResolvedTree {
-    let PeerCycleShape { ring_len, with_skips, wc_members, rings_peer_on_p } = shape;
+    let PeerCycleShape {
+        ring_len,
+        with_skips,
+        wc_members,
+        rings_peer_on_p,
+        wc_w_range,
+        importer_w_version,
+    } = shape;
     let ring_id = |index: usize| format!("ring{:02}@1.0.0", index % ring_len);
     let edge = |alias: &str, pkg_id: &str| crate::resolved_tree::ChildEdge {
         alias: alias.to_string(),
@@ -2056,7 +2080,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
         }
         children_by_id.insert(Arc::from(ring_id(index)), Arc::new(edges));
     }
-    packages.insert(Arc::from("wc@1.0.0"), package("wc", "1.0.0", &[("w", "*")], false));
+    packages.insert(Arc::from("wc@1.0.0"), package("wc", "1.0.0", &[("w", wc_w_range)], false));
     packages.insert(Arc::from("p@1.0.0"), package("p", "1.0.0", &[], true));
 
     let mut dependencies_tree = HashMap::default();
@@ -2080,6 +2104,12 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
         direct.push(DirectDep { alias: alias.to_string(), node_id, id: id.to_string() });
     };
     add_direct("p@1.0.0", "p", &mut dependencies_tree, &mut direct);
+    if let Some(w_version) = importer_w_version {
+        let w_pkg = format!("w@{w_version}");
+        packages.entry(Arc::from(&*w_pkg)).or_insert_with(|| package("w", w_version, &[], true));
+        children_by_id.insert(Arc::from(&*w_pkg), Arc::new(Vec::new()));
+        add_direct(&w_pkg, "w", &mut dependencies_tree, &mut direct);
+    }
     for (alias, ring_index, w_version) in entries {
         let entry_pkg = format!("{alias}@1.0.0");
         let w_pkg = format!("w@{w_version}");
@@ -2114,12 +2144,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
 fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
-        PeerCycleShape {
-            ring_len: 4,
-            with_skips: false,
-            wc_members: vec![1, 3],
-            rings_peer_on_p: true,
-        },
+        PeerCycleShape { wc_members: vec![1, 3], rings_peer_on_p: true, ..Default::default() },
     );
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
@@ -2141,60 +2166,20 @@ fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
     );
 }
 
-/// The same shape under [`ResolvePeersOptions::shadowed_peer_fallback`]:
-/// the entries provide `w` on their paths into the ring, so `w` is
-/// shadowed and stays positional — every ring member keeps one
-/// deterministic verdict per providing entry, while the unshadowed `p`
-/// still binds to the importer's provider everywhere.
-#[test]
-fn a_shadowed_name_keeps_per_entry_variants_under_positional_fallback() {
-    let mut tree = peer_cycle_fixture(
-        &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
-        PeerCycleShape {
-            ring_len: 4,
-            with_skips: false,
-            wc_members: vec![1, 3],
-            rings_peer_on_p: true,
-        },
-    );
-    let opts = ResolvePeersOptions { shadowed_peer_fallback: true, ..Default::default() };
-    let result = resolve_peers(&mut tree, opts);
-
-    assert!(
-        result.peer_dependency_issues.missing.is_empty(),
-        "unexpected missing peers: {:#?}",
-        result.peer_dependency_issues.missing,
-    );
-    let mut ring00_variants: Vec<&str> = result
-        .graph
-        .keys()
-        .map(pacquet_deps_path::DepPath::as_str)
-        .filter(|path| path.starts_with("ring00@1.0.0"))
-        .collect();
-    ring00_variants.sort_unstable();
-    assert_eq!(
-        ring00_variants,
-        ["ring00@1.0.0(p@1.0.0)(w@1.0.0)", "ring00@1.0.0(p@1.0.0)(w@2.0.0)"],
-        "each providing entry keeps its own ring00 variant; p stays importer-hoisted",
-    );
-}
-
 /// The graph `entries` produce over the pnpm/pnpm#13865 ring, as sorted
 /// depPath keys, for comparing walk orders.
-fn peer_cycle_graph_keys(
-    entries: &[(&str, usize, &str)],
-    rings_peer_on_p: bool,
-    shadowed_peer_fallback: bool,
-) -> Vec<String> {
-    let mut tree = peer_cycle_fixture(
-        entries,
-        PeerCycleShape { ring_len: 4, with_skips: false, wc_members: vec![1], rings_peer_on_p },
-    );
-    let opts = ResolvePeersOptions { shadowed_peer_fallback, ..Default::default() };
-    let result = resolve_peers(&mut tree, opts);
+fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: PeerCycleShape) -> Vec<String> {
+    let mut tree = peer_cycle_fixture(entries, shape);
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let mut keys: Vec<String> = result.graph.keys().map(|path| path.as_str().to_string()).collect();
     keys.sort_unstable();
     keys
+}
+
+/// The [`fn@peer_cycle_graph_keys`] shape shared by the walk-order
+/// tests: one `wc` member, `w` provided per entry.
+fn order_test_shape(rings_peer_on_p: bool) -> PeerCycleShape {
+    PeerCycleShape { wc_members: vec![1], rings_peer_on_p, ..Default::default() }
 }
 
 /// Peers of a cyclic region resolve against the importer context, so
@@ -2203,10 +2188,14 @@ fn peer_cycle_graph_keys(
 /// pnpm/pnpm#13846).
 #[test]
 fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
-    let first_order =
-        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], true, false);
-    let second_order =
-        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], true, false);
+    let first_order = peer_cycle_graph_keys(
+        &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
+        order_test_shape(true),
+    );
+    let second_order = peer_cycle_graph_keys(
+        &[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")],
+        order_test_shape(true),
+    );
     assert!(
         first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)"),
         "ring members resolve their importer-provided p; got {first_order:#?}",
@@ -2222,10 +2211,14 @@ fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
 /// to bare depPaths — identically in either walk order.
 #[test]
 fn a_truncation_blinded_verdict_never_passes_for_pure() {
-    let first_order =
-        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], false, false);
-    let second_order =
-        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], false, false);
+    let first_order = peer_cycle_graph_keys(
+        &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
+        order_test_shape(false),
+    );
+    let second_order = peer_cycle_graph_keys(
+        &[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")],
+        order_test_shape(false),
+    );
     assert!(
         first_order.iter().any(|key| key == "ring02@1.0.0"),
         "ring members merge to bare depPaths; got {first_order:#?}",
@@ -2233,17 +2226,30 @@ fn a_truncation_blinded_verdict_never_passes_for_pure() {
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
 
-/// Positional per-entry variants under the shadowed fallback are still
-/// deterministic: both walk orders produce the same fragmented graph.
+/// A hoisted binding is range-checked: an importer-level provider that
+/// violates a region consumer's declared range does not bind, the name
+/// falls back to positional nearest-wins resolution — deterministically
+/// in either walk order.
 #[test]
-fn shadowed_fallback_variants_do_not_depend_on_walk_order() {
+fn a_range_violating_importer_provider_falls_back_to_positional() {
+    let shape = || PeerCycleShape {
+        wc_members: vec![1],
+        rings_peer_on_p: true,
+        wc_w_range: "<3.0.0",
+        importer_w_version: Some("9.9.9"),
+        ..Default::default()
+    };
     let first_order =
-        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], true, true);
+        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], shape());
     let second_order =
-        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], true, true);
+        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], shape());
     assert!(
         first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)(w@2.0.0)"),
-        "a ring member resolves the importer's p and its entry's shadowed w; got {first_order:#?}",
+        "a ring member keeps its entry's range-satisfying w; got {first_order:#?}",
+    );
+    assert!(
+        !first_order.iter().any(|key| key.contains("(w@9.9.9)")),
+        "the range-violating importer provider binds nowhere; got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
@@ -2254,19 +2260,19 @@ fn shadowed_fallback_variants_do_not_depend_on_walk_order() {
 /// is pure (pnpm/pnpm#13865).
 #[test]
 fn a_truncated_verdict_is_topped_up_to_the_static_peer_names() {
-    let (pure, cached_mentions_w) = walk_single_entry_ring(false);
+    let (pure, cached_mentions_w) = walk_single_entry_ring(None);
     assert!(pure, "with no importer-provided hoisted names the ring member is pure");
     assert!(!cached_mentions_w, "hoisted names stay out of cached verdicts");
 }
 
-/// Under [`ResolvePeersOptions::shadowed_peer_fallback`] the shadowed
-/// `w` stays in the verdict at every truncation: what a truncated
-/// walk's cut subtree hid is topped up from the position context, so no
-/// cached `ring02` state is blind to `w` (pnpm/pnpm#13865).
+/// A range-blocked `w` stays positional and in the verdict at every
+/// truncation: what a truncated walk's cut subtree hid is topped up
+/// from the position context, so no cached `ring02` state is blind to
+/// `w` (pnpm/pnpm#13865).
 #[test]
-fn a_shadowed_name_is_topped_up_at_every_truncation() {
-    let (pure, cached_mentions_w) = walk_single_entry_ring(true);
-    assert!(!pure, "a verdict carrying the shadowed w is not pure");
+fn a_range_blocked_name_is_topped_up_at_every_truncation() {
+    let (pure, cached_mentions_w) = walk_single_entry_ring(Some("9.9.9"));
+    assert!(!pure, "a verdict carrying the range-blocked w is not pure");
     assert!(
         cached_mentions_w,
         "every cached ring02 verdict carries w, however its subtree was truncated",
@@ -2276,19 +2282,18 @@ fn a_shadowed_name_is_topped_up_at_every_truncation() {
 /// Walk the single-entry pnpm/pnpm#13865 ring white-box and report
 /// `ring02`'s cached state: whether it is pure, and whether every
 /// cached verdict mentions `w`.
-fn walk_single_entry_ring(shadowed_peer_fallback: bool) -> (bool, bool) {
+fn walk_single_entry_ring(importer_w_version: Option<&'static str>) -> (bool, bool) {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0")],
         PeerCycleShape {
-            ring_len: 4,
-            with_skips: false,
             wc_members: vec![1],
-            rings_peer_on_p: false,
+            wc_w_range: "<3.0.0",
+            importer_w_version,
+            ..Default::default()
         },
     );
     let direct = tree.direct.clone();
     let mut walker = crate::resolve_peers::test_support::walker_for_tests(&mut tree);
-    walker.opts.shadowed_peer_fallback = shadowed_peer_fallback;
     let importer_parents = Arc::new(walker.build_importer_parents_from(&direct));
     walker.set_importer_refs(Arc::clone(&importer_parents));
     let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);

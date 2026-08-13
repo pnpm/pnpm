@@ -316,23 +316,16 @@ impl<'tree> Walker<'tree> {
     /// The current importer's hoist decisions for `pkg_id`'s
     /// hoisted-eligible names: every static-closure name that arrives
     /// through a strongly connected component (every closure name, for
-    /// a cyclic-region package), minus the tree-wide shadowed set. See
-    /// [`Walker::hoisted_bindings_memo`].
+    /// a cyclic-region package). See [`Walker::hoisted_bindings_memo`].
     pub(super) fn hoisted_bindings(&self, pkg_id: &str) -> Arc<HoistedBindings> {
         if let Some(known) = self.hoisted_bindings_memo.borrow().get(pkg_id) {
             return Arc::clone(known);
         }
-        static ENV_SHADOWED_FALLBACK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-        let shadowed_fallback = self.opts.shadowed_peer_fallback
-            || *ENV_SHADOWED_FALLBACK
-                .get_or_init(|| std::env::var_os("PACQUET_SHADOWED_FALLBACK").is_some());
         let tables = self.static_peer_tables();
         let mut bindings = HoistedBindings::default();
         if let Some(sets) = tables.per_pkg.get(pkg_id) {
             for name in sets.closure.iter() {
-                if (!sets.in_cyclic_region && sets.acyclic.contains(name))
-                    || (shadowed_fallback && tables.shadowed.contains(name))
-                {
+                if !sets.in_cyclic_region && sets.acyclic.contains(name) {
                     continue;
                 }
                 match self.importer_refs.get(name) {
@@ -1310,9 +1303,9 @@ impl Walker<'_> {
         // `transitivePeerDependencies` through the static table at
         // record time (pnpm/pnpm#5108), but carrying it as a missing
         // entry would destroy the pure fast path for the whole region.
-        // A shadowed or range-blocked name stays positional; what this
-        // walk's truncation hid is topped up from the position context
-        // so the verdict stays name-complete.
+        // A range-blocked name stays positional; what this walk's
+        // truncation hid is topped up from the position context so the
+        // verdict stays name-complete.
         if !self.tree.children_by_id.is_empty()
             && let Some(static_names) = self.static_peer_names_of(&pkg.id)
         {
@@ -1740,7 +1733,7 @@ pub(super) struct HoistedBindings {
     pub(super) absent: HashSet<String>,
     /// Would-be-hoisted names forced back to positional resolution at
     /// this importer: its provider violates a consumer-declared range
-    /// somewhere in the closure.
+    /// somewhere in the cyclic region.
     pub(super) positional: HashSet<String>,
 }
 
@@ -1768,14 +1761,10 @@ pub(super) struct StaticPeerNames {
     pub(super) in_cyclic_region: bool,
 }
 
-/// [`StaticPeerNames`] per package, plus the tree-wide `shadowed` set:
-/// names some package inside a cyclic region — or on a path into one —
-/// provides as a child. Hoisting a shadowed name would skip a provider
-/// nearest-wins must honor, so shadowed names keep positional
-/// resolution everywhere.
+/// [`StaticPeerNames`] per package, plus the range data hoisted
+/// bindings are validated against.
 pub(super) struct StaticPeerTables {
     pub(super) per_pkg: HashMap<Arc<str>, StaticPeerNames>,
-    pub(super) shadowed: HashSet<String>,
     /// Consumer-declared range data per peer name, unioned across the
     /// cyclic regions' members. Every consumer a hoist-eligible name is
     /// collected from is a region member (a name arriving through a
@@ -1789,12 +1778,10 @@ pub(super) struct StaticPeerTables {
 /// [`StaticPeerNames`] and the tree-wide shadowed set, sharing one
 /// Tarjan pass.
 fn build_static_peer_names(tree: &ResolvedTree) -> StaticPeerTables {
-    let build_started = std::time::Instant::now();
     let scc_of = children_scc_ids(tree);
     let closure = peer_name_fixpoint(tree, None);
     let acyclic = peer_name_fixpoint(tree, Some(&scc_of));
     let region = cyclic_region(tree, &scc_of);
-    let shadowed = shadowed_names(tree, &region);
     let mut region_ranges: HashMap<String, PeerNameOrigin> = HashMap::default();
     for pkg_id in &region {
         let Some(pkg) = tree.packages.get(&**pkg_id) else { continue };
@@ -1804,7 +1791,7 @@ fn build_static_peer_names(tree: &ResolvedTree) -> StaticPeerTables {
             origin.required |= !dep.optional;
         }
     }
-    let per_pkg: HashMap<Arc<str>, StaticPeerNames> = closure
+    let per_pkg = closure
         .into_iter()
         .map(|(pkg_id, closure_map)| {
             let acyclic_set =
@@ -1816,64 +1803,7 @@ fn build_static_peer_names(tree: &ResolvedTree) -> StaticPeerTables {
             )
         })
         .collect();
-    let tables_shadowed = shadowed;
-    if std::env::var_os("PACQUET_DUMP_STATIC_TABLES").is_some() {
-        eprintln!("STATIC-TABLES build_ms={}", build_started.elapsed().as_millis());
-        let blocked: usize = per_pkg
-            .values()
-            .flat_map(|sets| sets.closure.iter())
-            .filter(|name| tables_shadowed.contains(*name))
-            .count();
-        let closure_total: usize = per_pkg.values().map(|sets| sets.closure.len()).sum();
-        let mut shadowed_names: Vec<&str> = tables_shadowed.iter().map(String::as_str).collect();
-        shadowed_names.sort_unstable();
-        eprintln!(
-            "STATIC-TABLES pkgs={} region={} shadowed={} closure_entries={} blocked_entries={}",
-            per_pkg.len(),
-            per_pkg.values().filter(|sets| sets.in_cyclic_region).count(),
-            tables_shadowed.len(),
-            closure_total,
-            blocked,
-        );
-        eprintln!("SHADOWED {shadowed_names:?}");
-    }
-    StaticPeerTables { per_pkg, shadowed: tables_shadowed, region_ranges }
-}
-
-/// See [`StaticPeerTables::shadowed`]: the provider child names of
-/// every package inside a cyclic region or from which one is reachable.
-fn shadowed_names(tree: &ResolvedTree, region: &HashSet<Arc<str>>) -> HashSet<String> {
-    let mut reverse: HashMap<&str, Vec<&Arc<str>>> = HashMap::default();
-    for (pkg_id, children) in &tree.children_by_id {
-        for edge in children.iter() {
-            reverse.entry(&*edge.pkg_id).or_default().push(pkg_id);
-        }
-    }
-    let mut reaches_region: HashSet<Arc<str>> = region.iter().map(Arc::clone).collect();
-    let mut worklist: Vec<Arc<str>> = region.iter().map(Arc::clone).collect();
-    while let Some(pkg_id) = worklist.pop() {
-        for parent in reverse.get(&*pkg_id).into_iter().flatten() {
-            if reaches_region.insert(Arc::clone(parent)) {
-                worklist.push(Arc::clone(parent));
-            }
-        }
-    }
-    let mut shadowed: HashSet<String> = HashSet::default();
-    for pkg_id in &reaches_region {
-        let Some(children) = tree.children_by_id.get(&**pkg_id) else { continue };
-        for edge in children.iter() {
-            if tree.all_peer_dep_names.contains(edge.alias.as_str()) {
-                shadowed.insert(edge.alias.clone());
-            }
-            if let Some(child_pkg) = tree.packages.get(&*edge.pkg_id) {
-                let (real_name, _) = pkg_name_version(&child_pkg.result);
-                if real_name != edge.alias && tree.all_peer_dep_names.contains(real_name.as_str()) {
-                    shadowed.insert(real_name);
-                }
-            }
-        }
-    }
-    shadowed
+    StaticPeerTables { per_pkg, region_ranges }
 }
 
 /// The packages inside a strongly connected component of the children
