@@ -226,7 +226,7 @@ catalog:
   escape-string-regexp: ^5.0.0
   eslint: ^10.8.1
   eslint-plugin-import-x: ^4.17.1
-  eslint-plugin-jest: ^29.16.0
+  eslint-plugin-jest: ^29.16.1
   eslint-plugin-n: ^18.3.0
   eslint-plugin-promise: ^7.3.0
   eslint-plugin-regexp: ^3.1.1
