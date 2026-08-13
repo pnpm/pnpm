@@ -1721,7 +1721,7 @@ impl<'a> MissingNames<'a> {
 /// What the static closure knows about one peer name: the union of the
 /// consumer-declared ranges it was collected from, and whether any of
 /// those consumers requires it non-optionally.
-#[derive(Clone, Default)]
+#[derive(Default, Clone)]
 pub(super) struct PeerNameOrigin {
     pub(super) ranges: BTreeSet<String>,
     pub(super) required: bool,
