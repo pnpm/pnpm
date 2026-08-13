@@ -6,7 +6,9 @@
 
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
-use pnpm_modules_yaml::{HoistKind, Host, Modules, read_modules_manifest, write_modules_manifest};
+use pnpm_modules_yaml::{
+    HoistKind, Host, Modules, read_modules_layout, read_modules_manifest, write_modules_manifest,
+};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::{fs, path::Path};
@@ -183,6 +185,70 @@ fn write_modules_manifest_preserves_hoisted_dependency_order() {
         written.hoisted_dependencies["z@1.0.0"].keys().map(String::as_str).collect::<Vec<_>>(),
         vec!["z-alias", "a-alias"],
     );
+}
+
+#[test]
+fn write_and_read_manifest_with_long_dependency_path() {
+    let temp_dir = tempfile::tempdir().expect("create temporary directory");
+    let modules_dir = temp_dir.path();
+    let dependency_path = format!("@scope/package@1.0.0({})", "p".repeat(1001));
+    assert_eq!(dependency_path.len(), 1023);
+    let manifest = Modules {
+        hoisted_dependencies: IndexMap::from([(
+            dependency_path,
+            IndexMap::from([("@scope/package".to_string(), HoistKind::Private)]),
+        )]),
+        virtual_store_dir: modules_dir.join(".pnpm").display().to_string(),
+        ..Default::default()
+    };
+
+    write_modules_manifest::<Host>(modules_dir, manifest.clone()).expect("write manifest");
+
+    let actual = read_modules_manifest::<Host>(modules_dir)
+        .expect("read manifest")
+        .expect("manifest exists");
+    assert_eq!(actual.hoisted_dependencies, manifest.hoisted_dependencies);
+
+    read_modules_layout::<Host>(modules_dir).expect("read layout").expect("layout exists");
+}
+
+#[test]
+fn long_json_keys_keep_duplicate_key_validation() {
+    let temp_dir = tempfile::tempdir().expect("create temporary directory");
+    let modules_dir = temp_dir.path();
+    let dependency_path = format!("package@1.0.0({})", "p".repeat(1010));
+    let content = format!(
+        r#"{{"hoistedDependencies":{{"{dependency_path}":{{"package":"private"}},"{dependency_path}":{{"package":"public"}}}}}}"#,
+    );
+    fs::write(modules_dir.join(".modules.yaml"), content).expect("write manifest");
+
+    for result in [
+        read_modules_manifest::<Host>(modules_dir).map(drop),
+        read_modules_layout::<Host>(modules_dir).map(drop),
+    ] {
+        let error = result.expect_err("duplicate keys must be rejected");
+        assert!(error.to_string().to_lowercase().contains("duplicate"), "{error}");
+    }
+}
+
+#[test]
+fn long_json_keys_keep_yaml_depth_budget() {
+    let temp_dir = tempfile::tempdir().expect("create temporary directory");
+    let modules_dir = temp_dir.path();
+    let dependency_path = format!("package@1.0.0({})", "p".repeat(1010));
+    let nested_value = format!("{}null{}", "[".repeat(65), "]".repeat(65));
+    let content = format!(
+        r#"{{"hoistedDependencies":{{"{dependency_path}":{{"package":"private"}}}},"extra":{nested_value}}}"#,
+    );
+    fs::write(modules_dir.join(".modules.yaml"), content).expect("write manifest");
+
+    for result in [
+        read_modules_manifest::<Host>(modules_dir).map(drop),
+        read_modules_layout::<Host>(modules_dir).map(drop),
+    ] {
+        let error = result.expect_err("excessive depth must be rejected");
+        assert!(error.to_string().to_lowercase().contains("depth"), "{error}");
+    }
 }
 
 #[test]
