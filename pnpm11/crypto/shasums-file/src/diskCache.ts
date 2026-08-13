@@ -59,11 +59,13 @@ export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): P
   const bytes = await readCachedBytes(url, opts)
   if (bytes == null) return undefined
   try {
-    return new TextDecoder('utf8', { fatal: true }).decode(bytes)
+    return strictUtf8Decoder.decode(bytes)
   } catch {
     return undefined
   }
 }
+
+const strictUtf8Decoder = new TextDecoder('utf8', { fatal: true })
 
 /**
  * The cached bytes for `url`, or `undefined` on any miss — a URL the mapping
