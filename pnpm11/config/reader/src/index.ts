@@ -1246,7 +1246,7 @@ const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
 }
 
 /**
- * How to set a refused key that no config file accepts. Without these the
+ * The hint for a refused key that no config file accepts. Without these the
  * fallback would tell a user that pnpm works `dir` out for itself, when
  * `--dir` sets it.
  */
@@ -1274,7 +1274,6 @@ export function whereRefusedKeyBelongs (camelKey: string): string {
   return NON_CONFIG_FILE_SOURCES[camelKey] ?? 'pnpm resolves this setting per run, so no config file sets it'
 }
 
-/** Renders each refused key with the route that does set it. */
 function quoteAndExplain (keys: string[]): string {
   return keys.map((key) => `"${key}" (${whereRefusedKeyBelongs(camelcase(key, { locale: 'en-US' }))})`).join(', ')
 }
@@ -1302,9 +1301,8 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
-    // Unconditional, and checked here rather than by the callers, so that no
-    // manifest — project, global package directory, or a branch added later —
-    // can overwrite the reader's own bookkeeping.
+    // In the loop rather than at the callers, so that no manifest can
+    // overwrite the reader's own bookkeeping, whichever branch loaded it.
     if (CONFIG_CONTEXT_KEYS.has(key)) continue
     if (skipSettings?.has(key)) continue
 
