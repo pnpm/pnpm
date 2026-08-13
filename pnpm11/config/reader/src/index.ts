@@ -1246,20 +1246,6 @@ const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
 }
 
 /**
- * The hint for a refused key that no config file accepts. Without these the
- * fallback would tell a user that pnpm works `dir` out for itself, when
- * `--dir` sets it.
- */
-const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
-  dir: 'Pass --dir on the command line instead',
-  configDir: 'pnpm takes it from XDG_CONFIG_HOME, or the platform default',
-  pnpmHomeDir: 'pnpm takes it from PNPM_HOME, which pnpm setup sets',
-  userConfig: "pnpm reads it from the user's .npmrc",
-  authConfig: 'pnpm assembles it from your .npmrc files and auth.ini',
-  configByUri: 'pnpm assembles it from your .npmrc files and auth.ini',
-}
-
-/**
  * Where {@link camelKey} can be set, for a key a project manifest refuses.
  *
  * Lives here rather than in the config command so that the reader's warnings
@@ -1271,7 +1257,11 @@ export function whereRefusedKeyBelongs (camelKey: string): string {
   if (isConfigFileKey(kebabKey)) {
     return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
   }
-  return NON_CONFIG_FILE_SOURCES[camelKey] ?? 'pnpm resolves this setting per run, so no config file sets it'
+  if (camelKey === 'dir') return 'Pass --dir on the command line instead'
+  // The rest were never settings: each names a location pnpm works out for
+  // itself, or an object it assembles from the trusted sources. Saying how
+  // would publish internals and imply the key was only aimed at the wrong file.
+  return 'This is not a pnpm setting'
 }
 
 function quoteAndExplain (keys: string[]): string {

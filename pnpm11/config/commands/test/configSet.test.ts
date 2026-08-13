@@ -1110,12 +1110,12 @@ test.each([
   // Refused in a project manifest, but the global config file takes it.
   ['state-dir', 'pnpm config set --global state-dir'],
   ['global_dir', 'pnpm config set --global global-dir'],
-  // No config file takes these, so the hint has to name the route that does.
-  ['config-dir', 'XDG_CONFIG_HOME'],
+  // `--dir` is the only route left for a refused key.
   ['dir', 'Pass --dir on the command line'],
-  ['pnpm-home-dir', 'PNPM_HOME'],
-  // Nothing outside pnpm sets this one, so there is no route to name.
-  ['root-project-manifest-dir', 'pnpm resolves this setting per run'],
+  // The rest were never settings, so there is no route to name.
+  ['config-dir', 'This is not a pnpm setting'],
+  ['pnpm-home-dir', 'This is not a pnpm setting'],
+  ['root-project-manifest-dir', 'This is not a pnpm setting'],
   // Writable globally but never read back, so the hint names the key that does
   // supply the user-level .npmrc.
   ['userconfig', 'pnpm config set --global npmrc-auth-file'],
