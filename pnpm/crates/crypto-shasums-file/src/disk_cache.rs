@@ -52,16 +52,25 @@ impl ShasumsTrust {
     }
 }
 
+/// Upper bound on a cache entry's size. Real SHASUMS bodies are a few
+/// kilobytes; anything past this bound is not a release asset list and
+/// is never read into memory or written.
+const MAX_CACHED_SHASUMS_LEN: u64 = 1024 * 1024;
+
 /// The cached body for `url`, or `None` on any miss — a URL the
-/// mapping cannot represent, a missing file, unreadable content, or an
+/// mapping cannot represent, a missing file, unreadable content, an
 /// empty file (never a valid SHASUMS body, so it only signals a torn
-/// write).
+/// write), or a file over [`MAX_CACHED_SHASUMS_LEN`].
 pub(crate) fn read_cached_shasums(
     cache_dir: Option<&Path>,
     trust: ShasumsTrust,
     url: &str,
 ) -> Option<String> {
     let path = shasums_cache_path(cache_dir?, trust, url)?;
+    let len = fs::metadata(&path).ok()?.len();
+    if len == 0 || len > MAX_CACHED_SHASUMS_LEN {
+        return None;
+    }
     fs::read_to_string(path).ok().filter(|body| !body.is_empty())
 }
 
@@ -77,6 +86,9 @@ pub(crate) fn write_cached_shasums(
     body: &str,
 ) {
     let Some(cache_dir) = cache_dir else { return };
+    if body.len() as u64 > MAX_CACHED_SHASUMS_LEN {
+        return;
+    }
     let Some(path) = shasums_cache_path(cache_dir, trust, url) else { return };
     let Some(parent) = path.parent() else { return };
     if fs::create_dir_all(parent).is_err() {
@@ -95,11 +107,15 @@ pub(crate) fn write_cached_shasums(
         TEMP_COUNTER.fetch_add(1, Ordering::Relaxed),
     ));
     let temp = path.with_file_name(temp_name);
-    let written = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp)
-        .and_then(|mut file| file.write_all(body.as_bytes()));
+    // `sync_all` before the rename so a crash cannot persist the
+    // renamed name pointing at partially-written content — a torn
+    // SHASUMS prefix still parses and would otherwise be served
+    // (missing platform rows) until the cache is cleared.
+    let written =
+        fs::OpenOptions::new().write(true).create_new(true).open(&temp).and_then(|mut file| {
+            file.write_all(body.as_bytes())?;
+            file.sync_all()
+        });
     if written.is_err() || fs::rename(&temp, &path).is_err() {
         let _ = fs::remove_file(&temp);
     }

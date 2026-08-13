@@ -35,9 +35,17 @@ export interface ShasumsCacheOpts {
 }
 
 /**
+ * Upper bound on a cache entry's size. Real SHASUMS bodies are a few
+ * kilobytes; anything past this bound is not a release asset list and is
+ * never read into memory or written.
+ */
+const MAX_CACHED_SHASUMS_LEN = 1024 * 1024
+
+/**
  * The cached body for `url`, or `undefined` on any miss — a URL the mapping
- * cannot represent, a missing file, unreadable content, or an empty file
- * (never a valid SHASUMS body, so it only signals a torn write).
+ * cannot represent, a missing file, unreadable content, an empty file (never
+ * a valid SHASUMS body, so it only signals a torn write), or a file over
+ * {@link MAX_CACHED_SHASUMS_LEN}.
  */
 export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): Promise<string | undefined> {
   if (opts.cacheDir == null) return undefined
@@ -45,6 +53,8 @@ export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): P
   if (filePath == null) return undefined
   let body: string
   try {
+    const { size } = await fs.promises.stat(filePath)
+    if (size === 0 || size > MAX_CACHED_SHASUMS_LEN) return undefined
     body = await fs.promises.readFile(filePath, 'utf8')
   } catch {
     return undefined
@@ -61,6 +71,7 @@ export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): P
  */
 export async function writeCachedShasums (url: string, body: string, opts: ShasumsCacheOpts): Promise<void> {
   if (opts.cacheDir == null) return
+  if (body.length > MAX_CACHED_SHASUMS_LEN) return
   const filePath = shasumsCachePath(opts.cacheDir, opts.trust, url)
   if (filePath == null) return
   // The process id alone does not make the temp name unique (worker threads
@@ -71,7 +82,17 @@ export async function writeCachedShasums (url: string, body: string, opts: Shasu
   const tempPath = `${filePath}.tmp-${process.pid.toString()}-${threadId.toString()}-${(tempCounter++).toString()}`
   try {
     await fs.promises.mkdir(path.dirname(filePath), { recursive: true })
-    await fs.promises.writeFile(tempPath, body, { flag: 'wx' })
+    // Sync before the rename so a crash cannot persist the renamed name
+    // pointing at partially-written content — a torn SHASUMS prefix still
+    // parses and would otherwise be served (missing platform rows) until the
+    // cache is cleared.
+    const tempFile = await fs.promises.open(tempPath, 'wx')
+    try {
+      await tempFile.writeFile(body)
+      await tempFile.sync()
+    } finally {
+      await tempFile.close()
+    }
     await fs.promises.rename(tempPath, filePath)
   } catch {
     try {
