@@ -2104,11 +2104,12 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
 }
 
 /// End-to-end shape of a cycle package under the hoisted-region rule:
-/// `w` reaches `ring00` only inside the ring's own cycle, so no entry's
-/// private `w` leaks into any ring verdict and both entries share one
-/// `ring00` variant. pnpm/pnpm#5108's requirement survives as the name
-/// being carried (`w` stays a transitive peer, importer-missing) rather
-/// than as per-position variants.
+/// `w` reaches `ring00` only inside the ring's own cycle and the
+/// importer provides no `w`, so no entry's private `w` leaks into any
+/// ring verdict and both entries share one `ring00` variant.
+/// pnpm/pnpm#5108's requirement survives as the name being carried
+/// (`w` stays a transitive peer, importer-missing) rather than as
+/// per-position variants.
 #[test]
 fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
     let mut tree = peer_cycle_fixture(
@@ -2140,57 +2141,57 @@ fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
     );
 }
 
-/// The integrity bound behind pnpm/pnpm#13681: a cycle re-walked under
-/// ancestors that truncate it identically must be a cache hit. Each
-/// entry's own `w` blocks plain reuse of the untruncated verdicts, so
-/// every entry re-enters the ring — but the lap's cycle-truncated
-/// verdicts repeat the same consulted chains, and all entries after the
-/// first resolve the lap from the cache. Uncached, every entry pays the
-/// whole lap again and the occurrence count multiplies past the bound.
-/// Deterministic, no wall clocks.
+/// The same shape under [`ResolvePeersOptions::shadowed_peer_fallback`]:
+/// the entries provide `w` on their paths into the ring, so `w` is
+/// shadowed and stays positional — every ring member keeps one
+/// deterministic verdict per providing entry, while the unshadowed `p`
+/// still binds to the importer's provider everywhere.
 #[test]
-fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
-    // Each entry provides its own `w`, so nothing untruncated transfers
-    // across entries and only the cycle-verdict cache can collapse the
-    // repeated laps.
-    let names: Vec<(String, String)> =
-        (0..12).map(|index| (format!("entry{index:02}"), format!("{index}.0.0"))).collect();
-    let entries: Vec<(&str, usize, &str)> =
-        names.iter().map(|(alias, version)| (alias.as_str(), 0, version.as_str())).collect();
+fn a_shadowed_name_keeps_per_entry_variants_under_positional_fallback() {
     let mut tree = peer_cycle_fixture(
-        &entries,
+        &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
         PeerCycleShape {
-            ring_len: 10,
-            with_skips: true,
-            wc_members: vec![1, 3, 5, 7, 9],
+            ring_len: 4,
+            with_skips: false,
+            wc_members: vec![1, 3],
             rings_peer_on_p: true,
         },
     );
-    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let opts = ResolvePeersOptions { shadowed_peer_fallback: true, ..Default::default() };
+    let result = resolve_peers(&mut tree, opts);
 
     assert!(
         result.peer_dependency_issues.missing.is_empty(),
-        "the bound only means something for a healthy resolution",
+        "unexpected missing peers: {:#?}",
+        result.peer_dependency_issues.missing,
     );
-    let occurrences = tree.dependencies_tree.len();
-    // The cached walk realizes ~2,230 occurrences here; with cycle-verdict
-    // reuse disabled it realizes ~4,360. The bound sits between, with
-    // headroom for fixture-neutral resolver changes on the cached side.
-    let bound = 3000;
-    assert!(
-        occurrences < bound,
-        "peer walk realized {occurrences} occurrence nodes (bound {bound});          the cycle-verdict cache has stopped collapsing re-walks",
+    let mut ring00_variants: Vec<&str> = result
+        .graph
+        .keys()
+        .map(pacquet_deps_path::DepPath::as_str)
+        .filter(|path| path.starts_with("ring00@1.0.0"))
+        .collect();
+    ring00_variants.sort_unstable();
+    assert_eq!(
+        ring00_variants,
+        ["ring00@1.0.0(p@1.0.0)(w@1.0.0)", "ring00@1.0.0(p@1.0.0)(w@2.0.0)"],
+        "each providing entry keeps its own ring00 variant; p stays importer-hoisted",
     );
 }
 
 /// The graph `entries` produce over the pnpm/pnpm#13865 ring, as sorted
 /// depPath keys, for comparing walk orders.
-fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], rings_peer_on_p: bool) -> Vec<String> {
+fn peer_cycle_graph_keys(
+    entries: &[(&str, usize, &str)],
+    rings_peer_on_p: bool,
+    shadowed_peer_fallback: bool,
+) -> Vec<String> {
     let mut tree = peer_cycle_fixture(
         entries,
         PeerCycleShape { ring_len: 4, with_skips: false, wc_members: vec![1], rings_peer_on_p },
     );
-    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let opts = ResolvePeersOptions { shadowed_peer_fallback, ..Default::default() };
+    let result = resolve_peers(&mut tree, opts);
     let mut keys: Vec<String> = result.graph.keys().map(|path| path.as_str().to_string()).collect();
     keys.sort_unstable();
     keys
@@ -2203,9 +2204,9 @@ fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], rings_peer_on_p: bool)
 #[test]
 fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
     let first_order =
-        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], true);
+        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], true, false);
     let second_order =
-        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], true);
+        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], true, false);
     assert!(
         first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)"),
         "ring members resolve their importer-provided p; got {first_order:#?}",
@@ -2222,12 +2223,27 @@ fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
 #[test]
 fn a_truncation_blinded_verdict_never_passes_for_pure() {
     let first_order =
-        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], false);
+        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], false, false);
     let second_order =
-        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], false);
+        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], false, false);
     assert!(
         first_order.iter().any(|key| key == "ring02@1.0.0"),
         "ring members merge to bare depPaths; got {first_order:#?}",
+    );
+    assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
+}
+
+/// Positional per-entry variants under the shadowed fallback are still
+/// deterministic: both walk orders produce the same fragmented graph.
+#[test]
+fn shadowed_fallback_variants_do_not_depend_on_walk_order() {
+    let first_order =
+        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], true, true);
+    let second_order =
+        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], true, true);
+    assert!(
+        first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)(w@2.0.0)"),
+        "a ring member resolves the importer's p and its entry's shadowed w; got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
@@ -2238,6 +2254,29 @@ fn a_truncation_blinded_verdict_never_passes_for_pure() {
 /// is pure (pnpm/pnpm#13865).
 #[test]
 fn a_truncated_verdict_is_topped_up_to_the_static_peer_names() {
+    let (pure, cached_mentions_w) = walk_single_entry_ring(false);
+    assert!(pure, "with no importer-provided hoisted names the ring member is pure");
+    assert!(!cached_mentions_w, "hoisted names stay out of cached verdicts");
+}
+
+/// Under [`ResolvePeersOptions::shadowed_peer_fallback`] the shadowed
+/// `w` stays in the verdict at every truncation: what a truncated
+/// walk's cut subtree hid is topped up from the position context, so no
+/// cached `ring02` state is blind to `w` (pnpm/pnpm#13865).
+#[test]
+fn a_shadowed_name_is_topped_up_at_every_truncation() {
+    let (pure, cached_mentions_w) = walk_single_entry_ring(true);
+    assert!(!pure, "a verdict carrying the shadowed w is not pure");
+    assert!(
+        cached_mentions_w,
+        "every cached ring02 verdict carries w, however its subtree was truncated",
+    );
+}
+
+/// Walk the single-entry pnpm/pnpm#13865 ring white-box and report
+/// `ring02`'s cached state: whether it is pure, and whether every
+/// cached verdict mentions `w`.
+fn walk_single_entry_ring(shadowed_peer_fallback: bool) -> (bool, bool) {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0")],
         PeerCycleShape {
@@ -2249,6 +2288,7 @@ fn a_truncated_verdict_is_topped_up_to_the_static_peer_names() {
     );
     let direct = tree.direct.clone();
     let mut walker = crate::resolve_peers::test_support::walker_for_tests(&mut tree);
+    walker.opts.shadowed_peer_fallback = shadowed_peer_fallback;
     let importer_parents = Arc::new(walker.build_importer_parents_from(&direct));
     walker.set_importer_refs(Arc::clone(&importer_parents));
     let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
@@ -2263,14 +2303,12 @@ fn a_truncated_verdict_is_topped_up_to_the_static_peer_names() {
         );
     }
 
-    assert!(
-        walker.pure_pkgs.contains_key("ring02@1.0.0"),
-        "with no importer-provided hoisted names the ring member is pure",
-    );
+    let pure = walker.pure_pkgs.contains_key("ring02@1.0.0");
     let cached_mentions_w = walker.peers_cache.get("ring02@1.0.0").is_some_and(|items| {
-        items.iter().any(|item| {
-            item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
-        })
+        !items.is_empty()
+            && items.iter().all(|item| {
+                item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
+            })
     });
-    assert!(!cached_mentions_w, "hoisted names stay out of cached verdicts");
+    (pure, cached_mentions_w)
 }

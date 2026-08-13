@@ -120,6 +120,15 @@ pub struct ResolvePeersOptions {
     /// resolved them.
     pub hoisted_peer_provider_node_ids: HashSet<NodeId>,
 
+    /// When `true`, a hoist-eligible peer name some package inside a
+    /// cyclic region — or on a path into one — provides as a child
+    /// falls back to positional resolution, preserving nearest-wins
+    /// against those in-graph providers at the price of per-context
+    /// verdict variants. Off by default: on dense-SCC workspaces most
+    /// hot peer names have an in-region provider, and the fallback
+    /// re-opens the walk fragmentation hoisting exists to close.
+    pub shadowed_peer_fallback: bool,
+
     /// Importer-level dependencies installed solely to satisfy optional
     /// peers. A reused direct dependency only sees these providers when
     /// its wanted-lockfile peer suffix recorded the same peer name.
@@ -164,6 +173,7 @@ impl Default for ResolvePeersOptions {
             hoist_missing_scope: None,
             hoisted_optional_peer_node_ids: HashSet::default(),
             hoisted_peer_provider_node_ids: HashSet::default(),
+            shadowed_peer_fallback: false,
             resolved_peer_provider_paths: None,
             collect_paths_by_node_id: false,
             declared_direct_dependencies: HashSet::default(),

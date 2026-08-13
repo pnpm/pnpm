@@ -33,7 +33,10 @@ use pacquet_deps_path::{
 };
 use pacquet_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 pub(super) static WALKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -148,17 +151,16 @@ pub(super) struct Walker<'tree> {
     /// acyclic subset); see [`StaticPeerNames`]. Built lazily once per
     /// walker; the tree's children are frozen for the walker's
     /// lifetime.
-    static_peer_names: std::cell::OnceCell<HashMap<Arc<str>, StaticPeerNames>>,
+    static_peer_names: std::cell::OnceCell<StaticPeerTables>,
     /// The current importer's root-level peer providers — the
     /// deterministic context cyclic-arriving peer names resolve
     /// against, regardless of where the occurrence sits. Swapped per
     /// importer by the walk drivers via [`Walker::set_importer_refs`].
     pub(super) importer_refs: Arc<ParentRefs>,
-    /// Per-package memo of the hoisted names [`Self::importer_refs`]
-    /// provides. Backs the reuse guards: an item recorded when a
-    /// hoisted name had no provider must not serve a context that has
-    /// one. Cleared whenever the importer context is swapped.
-    hoisted_provided_memo: std::cell::RefCell<HashMap<Arc<str>, Arc<Vec<String>>>>,
+    /// Per-package memo of [`Walker::hoisted_bindings`] under
+    /// [`Self::importer_refs`]; cleared when the importer context is
+    /// swapped.
+    hoisted_bindings_memo: std::cell::RefCell<HashMap<Arc<str>, Arc<HoistedBindings>>>,
     /// Dedupes the consulted sets stored on cycle-truncation keys.
     consulted_sets: HashSet<Arc<ConsultedPkgs>>,
     pub(super) empty_resolved_peers: Arc<HashMap<String, NodeId>>,
@@ -248,7 +250,7 @@ impl<'tree> Walker<'tree> {
             consulted_stack: Vec::new(),
             static_peer_names: std::cell::OnceCell::new(),
             importer_refs: Arc::new(ParentRefs::default()),
-            hoisted_provided_memo: std::cell::RefCell::new(HashMap::default()),
+            hoisted_bindings_memo: std::cell::RefCell::new(HashMap::default()),
             consulted_sets,
             empty_resolved_peers: Arc::new(HashMap::default()),
             empty_missing_peers: Arc::new(HashMap::default()),
@@ -298,42 +300,75 @@ impl<'tree> Walker<'tree> {
     /// The static peer-name sets for `pkg_id`; see
     /// [`Walker::static_peer_names`].
     pub(super) fn static_peer_names_of(&self, pkg_id: &str) -> Option<&StaticPeerNames> {
-        self.static_peer_names.get_or_init(|| build_static_peer_names(self.tree)).get(pkg_id)
+        self.static_peer_tables().per_pkg.get(pkg_id)
+    }
+
+    pub(super) fn static_peer_tables(&self) -> &StaticPeerTables {
+        self.static_peer_names.get_or_init(|| build_static_peer_names(self.tree))
     }
 
     /// Swap the importer context in; see [`Walker::importer_refs`].
     pub(super) fn set_importer_refs(&mut self, refs: Arc<ParentRefs>) {
         self.importer_refs = refs;
-        self.hoisted_provided_memo.borrow_mut().clear();
+        self.hoisted_bindings_memo.borrow_mut().clear();
     }
 
-    /// The hoisted names of `pkg_id` the current importer context
-    /// provides; see [`Walker::hoisted_provided_memo`].
-    pub(super) fn hoisted_provided(&self, pkg_id: &str) -> Arc<Vec<String>> {
-        if let Some(known) = self.hoisted_provided_memo.borrow().get(pkg_id) {
+    /// The current importer's hoist decisions for `pkg_id`'s
+    /// hoisted-eligible names: every static-closure name that arrives
+    /// through a strongly connected component (every closure name, for
+    /// a cyclic-region package), minus the tree-wide shadowed set. See
+    /// [`Walker::hoisted_bindings_memo`].
+    pub(super) fn hoisted_bindings(&self, pkg_id: &str) -> Arc<HoistedBindings> {
+        if let Some(known) = self.hoisted_bindings_memo.borrow().get(pkg_id) {
             return Arc::clone(known);
         }
-        let provided: Vec<String> = self
-            .static_peer_names_of(pkg_id)
-            .map(|sets| {
-                sets.closure
-                    .iter()
-                    .filter(|name| sets.in_cyclic_region || !sets.acyclic.contains(*name))
-                    .filter(|name| self.importer_refs.contains_key(*name))
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
-        let provided = Arc::new(provided);
-        if let Some(interned) = self
-            .static_peer_names
-            .get()
-            .and_then(|names| names.get_key_value(pkg_id))
-            .map(|(key, _)| Arc::clone(key))
-        {
-            self.hoisted_provided_memo.borrow_mut().insert(interned, Arc::clone(&provided));
+        static ENV_SHADOWED_FALLBACK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let shadowed_fallback = self.opts.shadowed_peer_fallback
+            || *ENV_SHADOWED_FALLBACK
+                .get_or_init(|| std::env::var_os("PACQUET_SHADOWED_FALLBACK").is_some());
+        let tables = self.static_peer_tables();
+        let mut bindings = HoistedBindings::default();
+        if let Some(sets) = tables.per_pkg.get(pkg_id) {
+            for name in sets.closure.iter() {
+                if (!sets.in_cyclic_region && sets.acyclic.contains(name))
+                    || (shadowed_fallback && tables.shadowed.contains(name))
+                {
+                    continue;
+                }
+                match self.importer_refs.get(name) {
+                    None => {
+                        bindings.absent.insert(name.clone());
+                    }
+                    Some(parent) => {
+                        let satisfies = tables.region_ranges.get(name).is_none_or(|origin| {
+                            origin.ranges.iter().all(|range| {
+                                satisfies_with_prereleases(
+                                    &parent.version,
+                                    &get_peer_version_range(range),
+                                )
+                            })
+                        });
+                        match (satisfies, &parent.node_id) {
+                            (true, Some(node)) => {
+                                bindings.provided.insert(name.clone(), node.clone());
+                            }
+                            (true, None) => {
+                                bindings.absent.insert(name.clone());
+                            }
+                            (false, _) => {
+                                bindings.positional.insert(name.clone());
+                            }
+                        }
+                    }
+                }
+            }
         }
-        provided
+        let bindings = Arc::new(bindings);
+        if let Some((interned, _)) = self.static_peer_tables().per_pkg.get_key_value(pkg_id) {
+            let interned = Arc::clone(interned);
+            self.hoisted_bindings_memo.borrow_mut().insert(interned, Arc::clone(&bindings));
+        }
+        bindings
     }
 
     /// The [`CycleTruncationKey`] scoping this walk's truncated verdict:
@@ -410,6 +445,13 @@ pub(super) struct MissingPeerInfo {
     pub(super) range: String,
     #[allow(dead_code, reason = "future peersCache validation")]
     pub(super) optional: bool,
+    /// A name-completeness marker topped up from the static closure
+    /// rather than observed at a walked consumer: it keeps truncated
+    /// and intact verdicts comparable in the cache's context checks,
+    /// but must not feed peer issues or the hoist loop's missing
+    /// summaries — the closure ignores cycle truncation, so the
+    /// consumer it stands for may be unreachable at this occurrence.
+    pub(super) synthetic: bool,
 }
 
 /// Persistent summary of missing peers in a subtree. Child summaries
@@ -700,9 +742,12 @@ impl Walker<'_> {
                     ));
                 }
                 let dep_path = self.pure_pkgs.get(&*tree_node.resolved_package_id)?;
-                // A pure verdict recorded without importer-provided
-                // hoisted names cannot serve a context that has them.
-                if !self.hoisted_provided(&tree_node.resolved_package_id).is_empty() {
+                // A pure verdict can only serve a context where every
+                // hoisted name is absent: an importer-provided one
+                // binds, and a range-blocked one re-opens positional
+                // resolution.
+                let bindings = self.hoisted_bindings(&tree_node.resolved_package_id);
+                if !bindings.provided.is_empty() || !bindings.positional.is_empty() {
                     return None;
                 }
                 // Own peers of a cyclic-region package are hoisted, so
@@ -994,8 +1039,13 @@ impl Walker<'_> {
         // this node's depPath).
         self.remember_resolved_node(node_id, &dep_path);
 
-        let own_missing = (!missing_from_children.is_empty())
-            .then(|| (pkg.id.to_string(), missing_from_children.keys().cloned().collect()));
+        let observed_missing: HashSet<String> = missing_from_children
+            .iter()
+            .filter(|(_, info)| !info.synthetic)
+            .map(|(name, _)| name.clone())
+            .collect();
+        let own_missing =
+            (!observed_missing.is_empty()).then(|| (pkg.id.to_string(), observed_missing));
         let subtree_missing_by_pkg = match (own_missing, missing_summaries.len()) {
             (None, 0) => None,
             (None, 1) => missing_summaries.pop(),
@@ -1251,34 +1301,54 @@ impl Walker<'_> {
         // Normalize the verdict to the package's hoisted peer names:
         // inside a cyclic region — where cache-collapsed subtrees mean
         // an occurrence's context can come from whichever walk
-        // materialized it first — every name resolves against the
-        // importer context; outside, only names arriving through a
-        // strongly connected component do, and acyclically arriving
-        // names keep the walk's position resolution, which no
-        // occurrence chain can disturb (pnpm/pnpm#13865). A hoisted
-        // name the importer does not provide leaves the verdict
-        // entirely: it still reaches `transitivePeerDependencies`
-        // through the static table at record time (pnpm/pnpm#5108),
-        // but carrying it as a missing entry would destroy the pure
-        // fast path for the whole region.
+        // materialized it first — names resolve against the importer
+        // context; outside, only names arriving through a strongly
+        // connected component do, and acyclically arriving names keep
+        // the walk's position resolution, which no occurrence chain can
+        // disturb (pnpm/pnpm#13865). A hoisted name the importer does
+        // not provide leaves the verdict entirely: it still reaches
+        // `transitivePeerDependencies` through the static table at
+        // record time (pnpm/pnpm#5108), but carrying it as a missing
+        // entry would destroy the pure fast path for the whole region.
+        // A shadowed or range-blocked name stays positional; what this
+        // walk's truncation hid is topped up from the position context
+        // so the verdict stays name-complete.
         if !self.tree.children_by_id.is_empty()
             && let Some(static_names) = self.static_peer_names_of(&pkg.id)
         {
             let closure = Arc::clone(&static_names.closure);
             let acyclic = Arc::clone(&static_names.acyclic);
             let region = static_names.in_cyclic_region;
+            let bindings = self.hoisted_bindings(&pkg.id);
             for name in closure.iter() {
                 if name == pkg_name || (!region && acyclic.contains(name)) {
                     continue;
                 }
-                if let Some(provider) =
-                    self.importer_refs.get(name).and_then(|parent| parent.node_id.clone())
-                {
+                if let Some(provider) = bindings.provided.get(name) {
                     all_missing.remove(name);
-                    all_resolved.insert(name.clone(), provider);
-                } else {
+                    all_resolved.insert(name.clone(), provider.clone());
+                } else if bindings.absent.contains(name) {
                     all_resolved.remove(name);
                     all_missing.remove(name);
+                } else if !all_resolved.contains_key(name) && !all_missing.contains_key(name) {
+                    if let Some(node) =
+                        parent_refs.get(name).and_then(|parent| parent.node_id.clone())
+                    {
+                        all_resolved.insert(name.clone(), node);
+                    } else if !parent_refs.contains_key(name) {
+                        let origin = self.static_peer_tables().region_ranges.get(name);
+                        let range = match origin {
+                            Some(origin) if origin.ranges.len() == 1 => {
+                                origin.ranges.iter().next().expect("length checked").clone()
+                            }
+                            _ => "*".to_string(),
+                        };
+                        let optional = origin.is_none_or(|origin| !origin.required);
+                        all_missing.insert(
+                            name.clone(),
+                            MissingPeerInfo { range, optional, synthetic: true },
+                        );
+                    }
                 }
             }
         }
@@ -1493,7 +1563,11 @@ impl Walker<'_> {
             None => {
                 missing.insert(
                     peer_name.to_string(),
-                    MissingPeerInfo { range: range_for_match.to_string(), optional },
+                    MissingPeerInfo {
+                        range: range_for_match.to_string(),
+                        optional,
+                        synthetic: false,
+                    },
                 );
                 if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
                     self.record_missing_issue(
@@ -1644,50 +1718,162 @@ impl<'a> MissingNames<'a> {
     }
 }
 
-/// The two static peer-name sets of a package.
+/// What the static closure knows about one peer name: the union of the
+/// consumer-declared ranges it was collected from, and whether any of
+/// those consumers requires it non-optionally.
+#[derive(Clone, Default)]
+pub(super) struct PeerNameOrigin {
+    pub(super) ranges: BTreeSet<String>,
+    pub(super) required: bool,
+}
+
+/// One importer's hoist decisions for one package's hoisted-eligible
+/// peer names; see [`Walker::hoisted_bindings`].
+#[derive(Default)]
+pub(super) struct HoistedBindings {
+    /// Hoisted names the importer context provides, with the provider
+    /// every occurrence binds to.
+    pub(super) provided: HashMap<String, NodeId>,
+    /// Hoisted names with no importer-level provider: they leave the
+    /// verdict and travel to `transitivePeerDependencies` through the
+    /// static table at record time (pnpm/pnpm#5108).
+    pub(super) absent: HashSet<String>,
+    /// Would-be-hoisted names forced back to positional resolution at
+    /// this importer: its provider violates a consumer-declared range
+    /// somewhere in the closure.
+    pub(super) positional: HashSet<String>,
+}
+
+impl HoistedBindings {
+    pub(super) fn is_hoisted(&self, name: &str) -> bool {
+        self.provided.contains_key(name) || self.absent.contains(name)
+    }
+}
+
+/// The static peer-name data of one package.
 ///
-/// `closure` is the least fixpoint of `names(P) = (ownPeers(P) ∪ ⋃_c
-/// names(c) ∖ childAliases(P)) ∖ {name(P)}` over the recorded children
-/// graph — cycles close it instead of truncating it, so it is the name
-/// set pnpm/pnpm#5108 requires every occurrence to carry. `acyclic` is
-/// the same fixpoint with intra-component edges excluded: the names
-/// that reach the package through structure no occurrence chain can
-/// cut, and so the names whose walk-time resolution is already
-/// position-independent. Names in `closure ∖ acyclic` arrive only
-/// through the package's own strongly connected component; they resolve
-/// against the importer's root context instead, which is what makes
-/// every verdict of a package a function of (package, context) alone
-/// (pnpm/pnpm#13865).
+/// `closure` holds every peer name the package's dependency closure can
+/// consume — the least fixpoint of `names(P) = (ownPeers(P) ∪ ⋃_c
+/// names(c) ∖ childAliases(P)) ∖ {name(P)}`, with cycles closing the
+/// fixpoint (the set pnpm/pnpm#5108 requires every occurrence to
+/// carry). `acyclic` is the same fixpoint with intra-component edges
+/// excluded: names whose walk-time resolution is already
+/// position-independent. `in_cyclic_region` marks packages inside a
+/// strongly connected component or reachable from one, whose
+/// occurrences can be reached through shared, cache-collapsed
+/// subtrees.
 pub(super) struct StaticPeerNames {
     pub(super) closure: Arc<HashSet<String>>,
     pub(super) acyclic: Arc<HashSet<String>>,
-    /// Whether the package sits in a cyclic region — inside a strongly
-    /// connected component or reachable from one. Occurrences there can
-    /// be reached through shared, cache-collapsed subtrees, so every
-    /// peer name resolves against the importer context to keep the
-    /// region's verdicts independent of which walk materialized them.
     pub(super) in_cyclic_region: bool,
 }
 
+/// [`StaticPeerNames`] per package, plus the tree-wide `shadowed` set:
+/// names some package inside a cyclic region — or on a path into one —
+/// provides as a child. Hoisting a shadowed name would skip a provider
+/// nearest-wins must honor, so shadowed names keep positional
+/// resolution everywhere.
+pub(super) struct StaticPeerTables {
+    pub(super) per_pkg: HashMap<Arc<str>, StaticPeerNames>,
+    pub(super) shadowed: HashSet<String>,
+    /// Consumer-declared range data per peer name, unioned across the
+    /// cyclic regions' members. Every consumer a hoist-eligible name is
+    /// collected from is a region member (a name arriving through a
+    /// strongly connected component arrives from inside or below it),
+    /// so this region-wide union covers exactly the hoisted bindings'
+    /// consumers.
+    pub(super) region_ranges: HashMap<String, PeerNameOrigin>,
+}
+
 /// Build [`Walker::static_peer_names`]: both fixpoints of
-/// [`StaticPeerNames`], sharing one Tarjan pass and one worklist shape.
-fn build_static_peer_names(tree: &ResolvedTree) -> HashMap<Arc<str>, StaticPeerNames> {
+/// [`StaticPeerNames`] and the tree-wide shadowed set, sharing one
+/// Tarjan pass.
+fn build_static_peer_names(tree: &ResolvedTree) -> StaticPeerTables {
+    let build_started = std::time::Instant::now();
     let scc_of = children_scc_ids(tree);
     let closure = peer_name_fixpoint(tree, None);
     let acyclic = peer_name_fixpoint(tree, Some(&scc_of));
     let region = cyclic_region(tree, &scc_of);
-    closure
+    let shadowed = shadowed_names(tree, &region);
+    let mut region_ranges: HashMap<String, PeerNameOrigin> = HashMap::default();
+    for pkg_id in &region {
+        let Some(pkg) = tree.packages.get(&**pkg_id) else { continue };
+        for (name, dep) in &pkg.peer_dependencies {
+            let origin = region_ranges.entry(name.clone()).or_default();
+            origin.ranges.insert(dep.version.clone());
+            origin.required |= !dep.optional;
+        }
+    }
+    let per_pkg: HashMap<Arc<str>, StaticPeerNames> = closure
         .into_iter()
-        .map(|(pkg_id, closure_set)| {
+        .map(|(pkg_id, closure_map)| {
             let acyclic_set =
                 acyclic.get(&pkg_id).cloned().unwrap_or_else(|| Arc::new(HashSet::default()));
             let in_cyclic_region = region.contains(&pkg_id);
             (
                 pkg_id,
-                StaticPeerNames { closure: closure_set, acyclic: acyclic_set, in_cyclic_region },
+                StaticPeerNames { closure: closure_map, acyclic: acyclic_set, in_cyclic_region },
             )
         })
-        .collect()
+        .collect();
+    let tables_shadowed = shadowed;
+    if std::env::var_os("PACQUET_DUMP_STATIC_TABLES").is_some() {
+        eprintln!("STATIC-TABLES build_ms={}", build_started.elapsed().as_millis());
+        let blocked: usize = per_pkg
+            .values()
+            .flat_map(|sets| sets.closure.iter())
+            .filter(|name| tables_shadowed.contains(*name))
+            .count();
+        let closure_total: usize = per_pkg.values().map(|sets| sets.closure.len()).sum();
+        let mut shadowed_names: Vec<&str> = tables_shadowed.iter().map(String::as_str).collect();
+        shadowed_names.sort_unstable();
+        eprintln!(
+            "STATIC-TABLES pkgs={} region={} shadowed={} closure_entries={} blocked_entries={}",
+            per_pkg.len(),
+            per_pkg.values().filter(|sets| sets.in_cyclic_region).count(),
+            tables_shadowed.len(),
+            closure_total,
+            blocked,
+        );
+        eprintln!("SHADOWED {shadowed_names:?}");
+    }
+    StaticPeerTables { per_pkg, shadowed: tables_shadowed, region_ranges }
+}
+
+/// See [`StaticPeerTables::shadowed`]: the provider child names of
+/// every package inside a cyclic region or from which one is reachable.
+fn shadowed_names(tree: &ResolvedTree, region: &HashSet<Arc<str>>) -> HashSet<String> {
+    let mut reverse: HashMap<&str, Vec<&Arc<str>>> = HashMap::default();
+    for (pkg_id, children) in &tree.children_by_id {
+        for edge in children.iter() {
+            reverse.entry(&*edge.pkg_id).or_default().push(pkg_id);
+        }
+    }
+    let mut reaches_region: HashSet<Arc<str>> = region.iter().map(Arc::clone).collect();
+    let mut worklist: Vec<Arc<str>> = region.iter().map(Arc::clone).collect();
+    while let Some(pkg_id) = worklist.pop() {
+        for parent in reverse.get(&*pkg_id).into_iter().flatten() {
+            if reaches_region.insert(Arc::clone(parent)) {
+                worklist.push(Arc::clone(parent));
+            }
+        }
+    }
+    let mut shadowed: HashSet<String> = HashSet::default();
+    for pkg_id in &reaches_region {
+        let Some(children) = tree.children_by_id.get(&**pkg_id) else { continue };
+        for edge in children.iter() {
+            if tree.all_peer_dep_names.contains(edge.alias.as_str()) {
+                shadowed.insert(edge.alias.clone());
+            }
+            if let Some(child_pkg) = tree.packages.get(&*edge.pkg_id) {
+                let (real_name, _) = pkg_name_version(&child_pkg.result);
+                if real_name != edge.alias && tree.all_peer_dep_names.contains(real_name.as_str()) {
+                    shadowed.insert(real_name);
+                }
+            }
+        }
+    }
+    shadowed
 }
 
 /// The packages inside a strongly connected component of the children
