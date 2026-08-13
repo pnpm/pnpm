@@ -79,6 +79,29 @@ export interface VerifyLockfileResolutionsOptions {
 }
 
 /**
+ * A verification that passed but has not been written to the log yet.
+ *
+ * The log is read by the *next* install, so when it is written matters:
+ * an install's own dependency lifecycle scripts run before it finishes,
+ * and they can append to the same file. Recording only once the install
+ * is otherwise done means any record a script wrote is an extra one
+ * rather than a substitute for pnpm's, which is what makes tampering
+ * detectable by whoever caches the log.
+ *
+ * Discarding the value without calling {@link PendingVerificationRecord.record}
+ * persists nothing — an install that fails after verification leaves no
+ * verdict behind.
+ */
+export interface PendingVerificationRecord {
+  /**
+   * Append the verdict to the log. Call once the install has run
+   * everything that could write to the log itself — its build phase
+   * above all.
+   */
+  record: () => void
+}
+
+/**
  * Policy-neutral pass that asks every resolver-supplied
  * {@link ResolutionVerifier} to check every entry in a lockfile loaded
  * from disk. Iteration runs before resolution decisions are touched and
@@ -109,8 +132,8 @@ export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
-): Promise<void> {
-  if (!lockfile.packages) return
+): Promise<PendingVerificationRecord | undefined> {
+  if (!lockfile.packages) return undefined
 
   // Caching kicks in only when the caller surfaced both a writable
   // cache directory and the lockfile's absolute path — that's the
@@ -136,6 +159,19 @@ export async function verifyLockfileResolutions (
     if (cachedHash == null) cachedHash = hashObject(lockfile)
     return cachedHash
   }
+  const pendingRecord = (): PendingVerificationRecord | undefined => {
+    if (!cache) return undefined
+    return {
+      record: () => {
+        recordVerification(cache.cacheDir, {
+          lockfilePath: cache.lockfilePath,
+          verifiers: cacheVerifiers,
+          hashLockfile,
+        }, cachePrecomputed)
+      },
+    }
+  }
+
   if (cache) {
     const result = tryLockfileVerificationCache(cache.cacheDir, {
       lockfilePath: cache.lockfilePath,
@@ -154,7 +190,7 @@ export async function verifyLockfileResolutions (
           lockfilePath: options?.lockfilePath,
         })
       }
-      return
+      return undefined
     }
     cachePrecomputed = result.precomputed
   }
@@ -174,16 +210,11 @@ export async function verifyLockfileResolutions (
   if (shapeViolations.length > 0) {
     throw buildVerificationError(shapeViolations)
   }
-  if (verifiers.length === 0) return
+  if (verifiers.length === 0) return undefined
   if (candidates.size === 0) {
-    if (cache) {
-      recordVerification(cache.cacheDir, {
-        lockfilePath: cache.lockfilePath,
-        verifiers: cacheVerifiers,
-        hashLockfile,
-      }, cachePrecomputed)
-    }
-    return
+    // An empty fan-out is still a successful run, so it is worth
+    // persisting for the next install's stat-only path.
+    return pendingRecord()
   }
   const startedAt = Date.now()
   lockfileVerificationLogger.debug({
@@ -202,15 +233,7 @@ export async function verifyLockfileResolutions (
     const violations = await iterateLockfileViolations(candidates, verifiers, options?.concurrency)
     if (violations.length === 0) {
       terminalStatus = 'done'
-      // Persist the success so the next install can stat-only the lockfile.
-      if (cache) {
-        recordVerification(cache.cacheDir, {
-          lockfilePath: cache.lockfilePath,
-          verifiers: cacheVerifiers,
-          hashLockfile,
-        }, cachePrecomputed)
-      }
-      return
+      return pendingRecord()
     }
     throw buildVerificationError(violations)
   } finally {

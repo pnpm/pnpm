@@ -117,7 +117,7 @@ import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
 import { warnUnusedPatches } from './tryFastUpdatePatchedDependencies.js'
 import { validateModules } from './validateModules.js'
-import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { type PendingVerificationRecord, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
 import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
@@ -466,7 +466,7 @@ export async function mutateModules (
       // so violations can be returned to the command layer.
       (opts.saveLockfile && opts.runPacquet.supportsResolution && opts.frozenLockfile !== true && opts.nodeLinker !== 'hoisted' && opts.handleResolutionPolicyViolations == null)
     )
-  let verifyLockfilePromise: Promise<void> | undefined
+  let verifyLockfilePromise: Promise<PendingVerificationRecord | undefined> | undefined
   if (!willDelegateToPacquet && !opts.trustLockfile) {
     const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
     const wantedLockfilePath = cacheActive
@@ -489,8 +489,12 @@ export async function mutateModules (
   // verification, but no dependency lifecycle script may run until the verdict
   // is in. Awaiting the promise here throws if verification failed, aborting
   // before any script executes. `settleInstall` is the catch-all that still
-  // reconciles the verdict on paths that never reach the build phase.
-  const verifyLockfile = verifyLockfilePromise && (() => verifyLockfilePromise)
+  // reconciles the verdict on paths that never reach the build phase. The
+  // verdict is only awaited, never recorded here — that happens once the
+  // build phase this gates is over.
+  const verifyLockfile = verifyLockfilePromise && (async () => {
+    await verifyLockfilePromise
+  })
 
   if (opts.hooks.preResolution) {
     for (const preResolution of opts.hooks.preResolution) {
@@ -537,6 +541,13 @@ export async function mutateModules (
   }
 
   const result = await settleInstall(_install(), verifyLockfilePromise)
+
+  // Recorded only now: the install has run its build phase, and a
+  // dependency's lifecycle script can append to the same log. Recording
+  // ahead of them would leave pnpm's own verdict indistinguishable from
+  // whatever they wrote. An install that threw never reaches this line, so
+  // it leaves no verdict behind.
+  ;(await verifyLockfilePromise)?.record()
 
   // @ts-expect-error
   if (global['verifiedFileIntegrity'] > 1000) {
@@ -636,7 +647,7 @@ export async function mutateModules (
   // a rejected install.
   async function settleInstall (
     install: Promise<InnerInstallResult>,
-    verification: Promise<void> | undefined
+    verification: Promise<PendingVerificationRecord | undefined> | undefined
   ): Promise<InnerInstallResult> {
     if (verification == null) return install
     // Handle the install's eventual rejection up front so a fail-fast
@@ -913,7 +924,9 @@ export async function mutateModules (
             },
           }),
           isLockfileUpToDate,
-          verifyLockfile: (lockfile) => verifyLockfileResolutions(lockfile, []),
+          verifyLockfile: async (lockfile) => {
+            await verifyLockfileResolutions(lockfile, [])
+          },
         })
       ) {
         outdatedLockfileSettingName = null
