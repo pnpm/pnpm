@@ -342,14 +342,17 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         // eagerly before the up-to-date early return.
         if let Some(lockfile_verification_override) = lockfile_verification_override {
             lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
-        } else {
-            verify_lockfile_eagerly::<Reporter>(
-                wanted_lockfile,
-                resolution_verifiers,
-                derived_lockfile_path,
-                &config.cache_dir,
-            )
-            .await?;
+        } else if let Some(pending_verification_record) = verify_lockfile_eagerly::<Reporter>(
+            wanted_lockfile,
+            resolution_verifiers,
+            derived_lockfile_path,
+            &config.cache_dir,
+        )
+        .await?
+        {
+            // The up-to-date path materializes nothing, so no lifecycle
+            // script runs between the verdict and this record.
+            pending_verification_record.record();
         }
         // Keep `strictDepBuilds` enforced on the up-to-date path: a
         // rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not

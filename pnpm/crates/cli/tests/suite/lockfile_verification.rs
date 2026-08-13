@@ -14,9 +14,10 @@
 use crate::_utils;
 pub use _utils::*;
 
+use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::fs;
+use std::{fs, process::Command};
 
 /// `minimumReleaseAge` set to 100 years rejects every version the
 /// mocked registry has ever served. The install fails before any
@@ -327,6 +328,69 @@ fn trust_lockfile_still_rejects_traversal_dependency_name() {
             "no link may be created outside the project",
         );
     }
+
+    drop((root, mock_instance));
+}
+
+/// The verdict is written only once the install's build phase is over.
+/// A dependency's lifecycle script runs inside the install and can append
+/// to the same log, so a verdict recorded ahead of it would be
+/// indistinguishable from whatever that script wrote; recording last makes
+/// any script-written record an extra one.
+#[test]
+fn verification_is_recorded_after_dependency_build_scripts_run() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/install-script-example": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    // A policy has to be active for the gate to run a fan-out worth
+    // recording; one minute holds nothing back.
+    set_minimum_release_age(&workspace, 1);
+    append_workspace_yaml_key(&workspace, "dangerouslyAllowAllBuilds", true);
+
+    // The package's `install` script writes this file, so its presence
+    // marks the point in the install where lifecycle scripts have run.
+    let build_marker = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0\
+         /node_modules/@pnpm.e2e/install-script-example/generated-by-install.js",
+    );
+    let verification_log = cache_dir.join("lockfile-verified.jsonl");
+
+    // The first install resolves; the ordering under test is the frozen
+    // path's, which is what CI runs and what verifies concurrently with
+    // the fetch. Clear the log and the modules dir so the second install
+    // re-verifies and rebuilds.
+    pacquet.with_arg("install").assert().success();
+    fs::remove_file(&verification_log).expect("clear the verification log");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("clear node_modules");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(build_marker.exists(), "the dependency's build script must have run");
+    let log = fs::read_to_string(&verification_log).expect("read the verification log");
+    let records = log.lines().filter(|line| !line.trim().is_empty()).count();
+    assert_eq!(records, 1, "the install must append exactly one record; got:\n{log}");
+
+    let build_marker_written_at = fs::metadata(&build_marker)
+        .and_then(|metadata| metadata.modified())
+        .expect("build marker mtime");
+    let log_written_at = fs::metadata(&verification_log)
+        .and_then(|metadata| metadata.modified())
+        .expect("verification log mtime");
+    assert!(
+        log_written_at >= build_marker_written_at,
+        "the verdict must be recorded after the build script ran",
+    );
 
     drop((root, mock_instance));
 }

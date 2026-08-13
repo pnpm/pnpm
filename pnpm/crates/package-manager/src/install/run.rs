@@ -851,14 +851,17 @@ where
             // verify eagerly to keep the gate before the early return.
             if let Some(lockfile_verification_override) = lockfile_verification_override {
                 lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
-            } else {
-                verify_lockfile_eagerly::<Reporter>(
-                    lockfile,
-                    &resolution_verifiers,
-                    derived_lockfile_path.as_deref(),
-                    &config.cache_dir,
-                )
-                .await?;
+            } else if let Some(pending_verification_record) = verify_lockfile_eagerly::<Reporter>(
+                lockfile,
+                &resolution_verifiers,
+                derived_lockfile_path.as_deref(),
+                &config.cache_dir,
+            )
+            .await?
+            {
+                // Nothing is materialized here, so no lifecycle script runs
+                // between the verdict and this record.
+                pending_verification_record.record();
             }
             if config.lockfile {
                 lockfile

@@ -601,13 +601,17 @@ async fn second_run_with_cache_skips_fan_out() {
         ..Default::default()
     };
 
+    // An install records once its build phase is over; here that is this
+    // `record()` call, without which the second run has nothing to reuse.
     verify_lockfile_resolutions::<SilentReporter>(
         &lockfile,
         std::slice::from_ref(&verifier),
         &opts,
     )
     .await
-    .expect("first run");
+    .expect("first run")
+    .expect("a passing run yields a record")
+    .record();
     assert_eq!(CALLS.load(Ordering::SeqCst), 1, "first run ran the verifier");
 
     verify_lockfile_resolutions::<SilentReporter>(
@@ -649,7 +653,9 @@ async fn cache_hit_emits_cached_event() {
         &opts,
     )
     .await
-    .expect("first run");
+    .expect("first run")
+    .expect("a passing run yields a record")
+    .record();
     verify_lockfile_resolutions::<RecordingReporter>(
         &lockfile,
         std::slice::from_ref(&verifier),
@@ -706,7 +712,9 @@ async fn cache_hit_with_no_policy_verifiers_stays_silent() {
         &opts,
     )
     .await
-    .expect("first run");
+    .expect("first run")
+    .expect("a passing run yields a record")
+    .record();
     verify_lockfile_resolutions::<RecordingReporter>(&lockfile, &[], &opts)
         .await
         .expect("second run");

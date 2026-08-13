@@ -274,10 +274,12 @@ test('skips the verifier when the cache holds an unchanged lockfile + matching p
       return { ok: true }
     }, exampleSlot(60))
 
-    // First call has no cache record yet — verifier runs.
-    await verifyLockfileResolutions(lockfile, [counting], {
+    // First call has no cache record yet — verifier runs. The install
+    // persists the verdict once its build phase is over; here that is the
+    // `record()` call.
+    ;(await verifyLockfileResolutions(lockfile, [counting], {
       cacheDir, lockfilePath,
-    })
+    }))?.record()
     expect(calls).toBe(1)
 
     // Second call against the same lockfile + policy — cache short-circuit.
@@ -301,7 +303,7 @@ test('emits a cached event when the cache short-circuits verification', async ()
     })
     const verifier = wrap(async () => ({ ok: true }), exampleSlot(60))
 
-    await verifyLockfileResolutions(lockfile, [verifier], { cacheDir, lockfilePath })
+    ;(await verifyLockfileResolutions(lockfile, [verifier], { cacheDir, lockfilePath }))?.record()
 
     const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug')
     try {
@@ -331,9 +333,9 @@ test('reuses the cached verdict silently when no policy verifiers are active', a
       'a@1.0.0': { resolution: tarballResolution('sha512-a') },
     })
 
-    await verifyLockfileResolutions(lockfile, [wrap(async () => ({ ok: true }), exampleSlot(60))], {
+    ;(await verifyLockfileResolutions(lockfile, [wrap(async () => ({ ok: true }), exampleSlot(60))], {
       cacheDir, lockfilePath,
-    })
+    }))?.record()
 
     const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug')
     try {
@@ -587,4 +589,31 @@ test('registry-qualified entries are verified separately, each with its own regi
   expect(seen.every((entry) => entry.name === 'foo' && entry.version === '1.0.0')).toBe(true)
   expect(new Set(seen.map((entry) => entry.registryName)))
     .toStrictEqual(new Set([undefined, 'work', 'gh']))
+})
+
+test('a passing verification writes nothing until the caller records it', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+    const logPath = path.join(cacheDir, 'lockfile-verified.jsonl')
+
+    // An install records once its build phase is over, so that a lifecycle
+    // script writing to the same log cannot pass its record off as pnpm's.
+    // Until then the verdict is held, and an install that throws in between
+    // leaves nothing behind.
+    const pending = await verifyLockfileResolutions(lockfile, [wrap(async () => ({ ok: true }), exampleSlot(60))], {
+      cacheDir, lockfilePath,
+    })
+    expect(fs.existsSync(logPath)).toBe(false)
+
+    pending!.record()
+    expect(fs.existsSync(logPath)).toBe(true)
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
 })

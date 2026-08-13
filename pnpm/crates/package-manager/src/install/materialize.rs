@@ -201,11 +201,12 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         debug_assert!(supported_lockfile_major);
 
         let mut frozen_verification_override = lockfile_verification_override;
+        let mut pending_verification_record = None;
         if requested_importer_ids.is_some() {
             if let Some(verification_override) = frozen_verification_override.take() {
                 verification_override.await.map_err(map_frozen_lockfile_error)?;
             } else {
-                verify_lockfile_eagerly::<Reporter>(
+                pending_verification_record = verify_lockfile_eagerly::<Reporter>(
                     lockfile,
                     &resolution_verifiers,
                     derived_lockfile_path.as_deref(),
@@ -270,6 +271,13 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         // is the same gate, just run alongside the fetch.
         .map_err(map_frozen_lockfile_error)?;
 
+        // Held back until the frozen run's build phase is over, for the
+        // reason [`PendingVerificationRecord`] documents. The non-selective
+        // frozen path records inside that run, past its own build phase.
+        if let Some(pending_verification_record) = pending_verification_record {
+            pending_verification_record.record();
+        }
+
         ignored_builds = frozen_result.ignored_builds;
         deferred_builds = frozen_result.deferred_builds;
         injected_deps = frozen_result.injected_deps;
@@ -286,10 +294,11 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         // resolver re-resolves from it. No-op when there's no lockfile
         // (state 4) or verification is disabled. The fresh path's own
         // resolution is the slow part, so this stays a blocking gate.
+        let mut pending_verification_record = None;
         if let Some(lockfile_verification_override) = lockfile_verification_override {
             lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
         } else if let Some(loaded_lockfile) = lockfile {
-            verify_lockfile_eagerly::<Reporter>(
+            pending_verification_record = verify_lockfile_eagerly::<Reporter>(
                 loaded_lockfile,
                 &resolution_verifiers,
                 derived_lockfile_path.as_deref(),
@@ -366,6 +375,13 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         .run::<Reporter>()
         .await
         .map_err(InstallError::WithFreshLockfile)?;
+
+        // Both records land past the fresh run's build phase: this one
+        // covers the lockfile as it was verified before the resolve, the
+        // one below the lockfile the resolve produced.
+        if let Some(pending_verification_record) = pending_verification_record {
+            pending_verification_record.record();
+        }
 
         if fresh_result.can_record_lockfile_verification
             && let Some(lockfile) = fresh_result.wanted_lockfile.as_ref()

@@ -13,7 +13,13 @@
 //! emit boundaries — is in place so the cache slice only needs to
 //! plug into the existing call sites.
 
-use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Instant,
+};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
@@ -66,7 +72,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
-) -> Result<(), VerifyError> {
+) -> Result<Option<PendingVerificationRecord>, VerifyError> {
     // Offline structural gate first: reject invalid dependency names
     // before the `packages`-absent short-circuit and the cache lookup,
     // so a lockfile that carries a path-traversal alias but no
@@ -74,7 +80,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verify_lockfile_dependency_names(lockfile)?;
 
     if lockfile.packages.is_none() {
-        return Ok(());
+        return Ok(None);
     }
 
     // Caching activates only when both `cache_dir` and
@@ -124,7 +130,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
                     },
                 );
             }
-            return Ok(());
+            return Ok(None);
         }
         cache_precomputed = result.precomputed;
     }
@@ -134,21 +140,17 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Err(build_verification_error(shape_violations));
     }
     if verifiers.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     if candidates.is_empty() {
-        // Persist the success so the next install can stat-only the
-        // lockfile. An empty fan-out is still a successful run.
-        if let Some((cache_dir, lockfile_path)) = cache_inputs {
-            record_verification(
-                cache_dir,
-                lockfile_path,
-                &cache_verifiers,
-                &mut hash_once,
-                cache_precomputed,
-            );
-        }
-        return Ok(());
+        // An empty fan-out is still a successful run, so it is worth
+        // persisting for the next install's stat-only path.
+        return Ok(pending_record(
+            cache_inputs,
+            &cache_verifiers,
+            &mut hash_once,
+            cache_precomputed,
+        ));
     }
 
     let entries = candidates.len() as u64;
@@ -178,18 +180,82 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             elapsed_ms: started_at.elapsed().as_millis() as u64,
             lockfile_path: lockfile_path_str,
         });
-        if let Some((cache_dir, lockfile_path)) = cache_inputs {
-            record_verification(
-                cache_dir,
-                lockfile_path,
-                &cache_verifiers,
-                &mut hash_once,
-                cache_precomputed,
-            );
-        }
-        return Ok(());
+        return Ok(pending_record(
+            cache_inputs,
+            &cache_verifiers,
+            &mut hash_once,
+            cache_precomputed,
+        ));
     }
     Err(build_verification_error(violations))
+}
+
+/// A verification that passed but has not been written to the log yet.
+///
+/// The log is read by the *next* install, so when it is written matters:
+/// an install's own dependency lifecycle scripts run before it finishes,
+/// and they can append to the same file. Recording only once the install
+/// is otherwise done means any record a script wrote is an extra one
+/// rather than a substitute for pnpm's, which is what makes tampering
+/// detectable by whoever caches the log.
+///
+/// Dropping the value without calling [`record`](Self::record) persists
+/// nothing — an install that fails after verification leaves no verdict
+/// behind.
+#[must_use = "the verification is only persisted by calling record()"]
+pub struct PendingVerificationRecord {
+    cache_dir: PathBuf,
+    lockfile_path: PathBuf,
+    verifiers: Vec<Arc<dyn ResolutionVerifier>>,
+    hash: String,
+    precomputed: CachePrecomputed,
+}
+
+/// Hand-written because the verifiers are trait objects; the fields that
+/// identify *which* verification this is are the interesting ones anyway.
+impl fmt::Debug for PendingVerificationRecord {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PendingVerificationRecord")
+            .field("cache_dir", &self.cache_dir)
+            .field("lockfile_path", &self.lockfile_path)
+            .field("hash", &self.hash)
+            .field("verifiers", &self.verifiers.len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl PendingVerificationRecord {
+    /// Append the verdict to the log. Call once the install has run
+    /// everything that could write to the log itself — its build phase
+    /// above all.
+    pub fn record(self) {
+        record_verification(
+            &self.cache_dir,
+            &self.lockfile_path,
+            &self.verifiers,
+            || self.hash.clone(),
+            self.precomputed,
+        );
+    }
+}
+
+/// Capture what [`PendingVerificationRecord::record`] needs, or `None`
+/// when the caller runs without a cache (tests, and callers that pass
+/// no `cache_dir`/`lockfile_path`).
+fn pending_record(
+    cache_inputs: Option<(&Path, &Path)>,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    hash_once: &mut impl FnMut() -> String,
+    precomputed: CachePrecomputed,
+) -> Option<PendingVerificationRecord> {
+    let (cache_dir, lockfile_path) = cache_inputs?;
+    Some(PendingVerificationRecord {
+        cache_dir: cache_dir.to_path_buf(),
+        lockfile_path: lockfile_path.to_path_buf(),
+        verifiers: verifiers.to_vec(),
+        hash: hash_once(),
+        precomputed,
+    })
 }
 
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that

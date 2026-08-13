@@ -577,10 +577,10 @@ where
         // `resolution_verifiers` is empty (`trustLockfile`).
         let verify_fut = async {
             if let Some(lockfile_verification_override) = lockfile_verification_override {
-                return lockfile_verification_override.await;
+                return lockfile_verification_override.await.map(|()| None);
             }
             if resolution_verifiers.is_empty() {
-                return Ok(());
+                return Ok(None);
             }
             verify_lockfile_resolutions::<Reporter>(
                 lockfile,
@@ -635,6 +635,7 @@ where
         // flight (the select drops `create_virtual_store_fut`); a fetch
         // failure waits for the verdict and only surfaces once the
         // lockfile is known trusted.
+        let pending_verification_record;
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
@@ -646,11 +647,11 @@ where
             let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
             tokio::select! {
                 verify = &mut verify_fut => {
-                    verify?;
+                    pending_verification_record = verify?;
                     create_virtual_store_fut.await?
                 }
                 output = &mut create_virtual_store_fut => {
-                    verify_fut.await?;
+                    pending_verification_record = verify_fut.await?;
                     output?
                 }
             }
@@ -808,6 +809,14 @@ where
                 extra_node_paths: &extra_node_paths,
             })
             .map_err(InstallFrozenLockfileError::BuildPhase)?;
+
+        // Only now that the build phase is over: a dependency's lifecycle
+        // script can append to the verification log, and recording ahead of
+        // them would leave pnpm's own verdict indistinguishable from
+        // whatever they wrote.
+        if let Some(pending_verification_record) = pending_verification_record {
+            pending_verification_record.record();
+        }
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped;
