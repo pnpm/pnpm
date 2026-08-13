@@ -51,14 +51,11 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   switch (configFileName) {
     case GLOBAL_CONFIG_YAML_FILENAME:
     case WORKSPACE_MANIFEST_FILENAME: {
-      // `pnpm config set <key> null` casts to a removal, so the cast decides
-      // this rather than the raw parameter. Casting before the key is
-      // normalized is safe: the key only selects a numeric type.
+      // `pnpm config set <key> null` casts to a removal too.
       const castValue = castField(value, kebabCase(key))
-      // Validation stops a write landing in a file that will not read it back,
-      // and nothing reads back a key being deleted. Both readers warn about
-      // every key their file rejects, so a removal skips the checks entirely.
       const isRemoval = castValue == null
+      // Validation stops a write landing in a file that will not read it back.
+      // Nothing reads back a key being deleted, so a removal skips both checks.
       if (configFileName === GLOBAL_CONFIG_YAML_FILENAME && !isRemoval) {
         key = validateYamlConfigKey(key)
       }
@@ -66,18 +63,14 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
         throw new ConfigSetNotAProjectSettingError(writtenKey)
       }
-      // Removing from a file that is not there is a no-op, not an error: the
-      // writer deletes a manifest once the removal empties it, and would fail
-      // to delete one that was never written.
+      // The writer deletes a manifest once a removal empties it, so it would
+      // fail on one that was never written.
       if (isRemoval && !await pathExists(configPath)) break
       const updatedFields: Record<string, unknown> = {
         [writtenKey]: castValue,
       }
-      // pnpm always writes the normalized spelling, but a hand-edited file may
-      // carry another one — and for a project manifest that is the spelling
-      // the reader names when it reports the setting as ignored. A removal
-      // clears every spelling rather than only the one the user typed, since
-      // the file's spelling is what the warning named and what has to go.
+      // A hand-edited file may carry a spelling pnpm did not write, and that
+      // is the one the reader's warning names, so a removal clears them all.
       if (isRemoval) {
         updatedFields[key] = null
         updatedFields[kebabCase(writtenKey)] = null
@@ -205,8 +198,6 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY', `The key ${JSON.stringify(key)} isn't supported by the workspace manifest`, {
-      // No `hintForRefusedKey` here: `validateWorkspaceKey` returns early for
-      // every refused setting, so this error never sees one.
       hint: `Try ${JSON.stringify(camelCase(key))}`,
     })
     this.key = key
@@ -237,10 +228,9 @@ export class ConfigSetNotAProjectSettingError extends PnpmError {
  */
 function validateWorkspaceKey (key: string): string {
   if (Object.hasOwn(types, key) || isConfigFileKey(key)) return camelCase(key)
-  // Most of these are absent from `types`, so their kebab-case spelling would
-  // fall through to the rejection below — leaving no way to clear the key the
-  // reader's warning just named, since it reports the spelling the file used.
-  // Writing one is still refused, by the caller.
+  // A refused setting is usually absent from `types`, so its kebab spelling
+  // would reach the rejection below, leaving no way to clear what the reader's
+  // warning named. Writing one is still refused, by the caller.
   if (isProjectManifestSkippedSetting(camelCase(key))) return camelCase(key)
   if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
   return key
