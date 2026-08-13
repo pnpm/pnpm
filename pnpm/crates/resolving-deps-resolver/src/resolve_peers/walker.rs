@@ -35,8 +35,6 @@ use pacquet_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
-pub(super) static WALKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
 pub(super) struct Walker<'tree> {
     pub(super) tree: &'tree mut ResolvedTree,
     pub(super) opts: ResolvePeersOptions,
@@ -142,11 +140,6 @@ pub(super) struct Walker<'tree> {
     /// revisit a package. Built lazily once per walker; the tree's
     /// children are frozen for the walker's lifetime.
     children_sccs: std::cell::OnceCell<Arc<HashMap<Arc<str>, usize>>>,
-    /// Packages every incoming children-graph edge of which is cut by
-    /// the canonical gate: nothing walks them positionally, so a
-    /// realized back-edge child pointing at one must be queued for the
-    /// drain or the package vanishes from the graph.
-    backedge_only_pkgs: std::cell::OnceCell<Arc<HashSet<Arc<str>>>>,
     pub(super) empty_resolved_peers: Arc<HashMap<String, NodeId>>,
     pub(super) empty_missing_peers: Arc<HashMap<String, MissingPeerInfo>>,
     /// The shared record-only occurrence per canonical back-edge
@@ -244,17 +237,12 @@ impl<'tree> Walker<'tree> {
             peer_provider_children_by_pkg_id,
             peer_provider_index_peer_names,
             children_sccs: std::cell::OnceCell::new(),
-            backedge_only_pkgs: std::cell::OnceCell::new(),
             empty_resolved_peers: Arc::new(HashMap::default()),
             empty_missing_peers: Arc::new(HashMap::default()),
             canonical_backedge_nodes,
             pending_canonical_nodes: Vec::new(),
             in_canonical_drain: false,
         }
-    }
-
-    pub(super) fn dump_walks(tag: &str) {
-        eprintln!("WALKS[{tag}]={}", WALKS.load(std::sync::atomic::Ordering::Relaxed));
     }
 
     pub(super) fn into_caches(self) -> PeerDiscoveryCaches {
@@ -274,33 +262,6 @@ impl<'tree> Walker<'tree> {
     /// see [`Walker::children_sccs`].
     pub(super) fn canonical_scc(&self) -> Arc<HashMap<Arc<str>, usize>> {
         Arc::clone(self.children_sccs.get_or_init(|| Arc::new(children_scc_ids(self.tree))))
-    }
-
-    /// See [`Walker::backedge_only_pkgs`].
-    fn backedge_only_pkgs(&self) -> Arc<HashSet<Arc<str>>> {
-        if let Some(known) = self.backedge_only_pkgs.get() {
-            return Arc::clone(known);
-        }
-        let scc_of = self.canonical_scc();
-        let mut backedge_only: HashSet<Arc<str>> = HashSet::default();
-        let mut forward_reachable: HashSet<&str> = HashSet::default();
-        for (pkg_id, children) in &self.tree.children_by_id {
-            for edge in children.iter() {
-                if !Self::cuts_cycle_edge(&scc_of, pkg_id, &edge.pkg_id) {
-                    forward_reachable.insert(&edge.pkg_id);
-                }
-            }
-        }
-        for children in self.tree.children_by_id.values() {
-            for edge in children.iter() {
-                if !forward_reachable.contains(&*edge.pkg_id) {
-                    backedge_only.insert(Arc::clone(&edge.pkg_id));
-                }
-            }
-        }
-        let backedge_only = Arc::new(backedge_only);
-        let _ = self.backedge_only_pkgs.set(Arc::clone(&backedge_only));
-        backedge_only
     }
 
     /// Whether the peer walk drops the `pkg_id → child_pkg_id` edge:
@@ -779,7 +740,6 @@ impl Walker<'_> {
             )
         };
         let pkg = self.owned_package(&pkg_id);
-        WALKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let (provider_children, preview_undo) = self.preview_peer_provider_children(node_id);
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
         let ChildParentRefs {
@@ -921,24 +881,13 @@ impl Walker<'_> {
                     // drain still walks it once at importer context —
                     // eagerly realized trees reach their back-edge
                     // subtrees only through this queue.
-                    if let Some(child_pkg_id) = self
-                        .tree
-                        .dependencies_tree
-                        .get(child_node_id)
-                        .map(|child| Arc::clone(&child.resolved_package_id))
-                        .filter(|child_pkg_id| {
-                            Self::cuts_cycle_edge(&canonical_scc, &pkg.id, child_pkg_id)
-                        })
-                    {
-                        // A package nothing reaches forward is only in
-                        // the graph if the drain walks it here; every
-                        // other back-edge target resolves at some
-                        // forward position of its own.
-                        if !self.node_dep_paths.contains_key(child_node_id)
-                            && self.backedge_only_pkgs().contains(&child_pkg_id)
-                        {
-                            self.pending_canonical_nodes.push(child_node_id.clone());
-                        }
+                    // A canonical back-edge child is record-only: the
+                    // position walk contributes nothing through it, and
+                    // the record pass remaps it to the target's shared
+                    // canonical occurrence.
+                    if self.tree.dependencies_tree.get(child_node_id).is_some_and(|child| {
+                        Self::cuts_cycle_edge(&canonical_scc, &pkg.id, &child.resolved_package_id)
+                    }) {
                         continue;
                     }
                     let child_output = self.resolve_node(
