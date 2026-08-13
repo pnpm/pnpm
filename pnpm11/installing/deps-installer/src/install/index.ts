@@ -71,7 +71,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
-import { allProjectsAreUpToDate, catalogResolutionIsStale, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
@@ -1407,8 +1407,9 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
       })
       for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
-        const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)
-        if (!satisfies) {
+        const importer = ctx.wantedLockfile.importers[id]
+        const { satisfies, detailedReason } = _satisfiesPackageManifest(importer, manifest)
+        if (!satisfies || (importer != null && !catalogResolutionsAreUpToDate(importer, ctx.wantedLockfile.catalogs))) {
           if (!ctx.existsWantedLockfile) {
             throw new PnpmError('NO_LOCKFILE',
               `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {

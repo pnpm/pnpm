@@ -1,6 +1,6 @@
 ---
 "@pnpm/installing.deps-installer": patch
-"@pnpm/lockfile.verification": patch
+"@pnpm/lockfile.verification": minor
 "pnpm": patch
 ---
 
