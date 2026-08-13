@@ -2167,6 +2167,46 @@ fn a_cycle_package_resolves_identically_at_every_occurrence() {
     );
 }
 
+/// The integrity bound behind pnpm/pnpm#13681: repeated entries into a
+/// dense cyclic region must collapse onto shared occurrence subtrees
+/// instead of materializing one per entry. Deterministic, no wall
+/// clocks.
+#[test]
+fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
+    // Each entry provides its own `w`, so nothing untruncated transfers
+    // across entries and only occurrence sharing can collapse the
+    // repeated laps.
+    let names: Vec<(String, String)> =
+        (0..12).map(|index| (format!("entry{index:02}"), format!("{index}.0.0"))).collect();
+    let entries: Vec<(&str, usize, &str)> =
+        names.iter().map(|(alias, version)| (alias.as_str(), 0, version.as_str())).collect();
+    let mut tree = peer_cycle_fixture(
+        &entries,
+        PeerCycleShape {
+            ring_len: 10,
+            with_skips: true,
+            wc_members: vec![1, 3, 5, 7, 9],
+            rings_peer_on_p: true,
+            ..Default::default()
+        },
+    );
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+    assert!(
+        result.peer_dependency_issues.missing.is_empty(),
+        "the bound only means something for a healthy resolution",
+    );
+    let occurrences = tree.dependencies_tree.len();
+    // The canonical walk realizes ~2,275 occurrences here; realizing
+    // one subtree per entry would roughly double that. The bound sits
+    // between, with headroom for fixture-neutral resolver changes.
+    let bound = 3000;
+    assert!(
+        occurrences < bound,
+        "peer walk realized {occurrences} occurrence nodes (bound {bound});          occurrence sharing has stopped collapsing re-walks",
+    );
+}
+
 /// The graph `entries` produce over the pnpm/pnpm#13865 ring, as sorted
 /// depPath keys, for comparing walk orders.
 fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: PeerCycleShape) -> Vec<String> {

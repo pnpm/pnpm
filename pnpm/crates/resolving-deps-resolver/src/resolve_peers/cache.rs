@@ -261,9 +261,10 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
+        let canonical_scc = self.canonical_scc();
         self.peers_cache.get(pkg_id)?.iter().find(|item| {
             matches!(
-                self.fast_cache_item_matches(parent_refs, pkg_id, item),
+                self.fast_cache_item_matches(&canonical_scc, parent_refs, pkg_id, item),
                 FastCacheMatch::Match,
             )
         })
@@ -271,13 +272,14 @@ impl Walker<'_> {
 
     fn fast_cache_item_matches(
         &self,
+        canonical_scc: &HashMap<Arc<str>, usize>,
         parent_refs: &ParentRefs,
         pkg_id: &str,
         item: &PeersCacheItem,
     ) -> FastCacheMatch {
         let mut ambiguous = false;
         for (name, cached_node_id) in item.resolved_peers.iter() {
-            match self.fast_provider_for_name(parent_refs, pkg_id, name) {
+            match self.fast_provider_for_name(canonical_scc, parent_refs, pkg_id, name) {
                 FastProvider::Missing => return FastCacheMatch::NoMatch,
                 FastProvider::Inherited(current_ref) => {
                     if !self.parent_ref_matches_cached(current_ref, cached_node_id) {
@@ -305,7 +307,7 @@ impl Walker<'_> {
             }
         }
         for name in item.missing_peers.keys() {
-            match self.fast_provider_for_name(parent_refs, pkg_id, name) {
+            match self.fast_provider_for_name(canonical_scc, parent_refs, pkg_id, name) {
                 FastProvider::Missing => {}
                 FastProvider::Inherited(_) | FastProvider::Child(_) => {
                     return FastCacheMatch::NoMatch;
@@ -318,6 +320,7 @@ impl Walker<'_> {
 
     fn fast_provider_for_name<'a>(
         &'a self,
+        canonical_scc: &HashMap<Arc<str>, usize>,
         parent_refs: &'a ParentRefs,
         pkg_id: &str,
         name: &str,
@@ -334,11 +337,10 @@ impl Walker<'_> {
             return inherited.map_or(FastProvider::Missing, FastProvider::Inherited);
         };
 
-        let canonical_scc = self.canonical_scc();
         let mut child_pkg_id = None;
         for &edge_index in edge_indices {
             let edge = &children[edge_index];
-            if Self::cuts_cycle_edge(&canonical_scc, pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(canonical_scc, pkg_id, &edge.pkg_id) {
                 continue;
             }
             if child_pkg_id.is_some() {
