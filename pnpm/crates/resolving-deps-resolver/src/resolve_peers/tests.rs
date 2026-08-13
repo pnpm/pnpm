@@ -2133,15 +2133,15 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
     }
 }
 
-/// End-to-end shape of a cycle package under the hoisted-region rule:
-/// `w` reaches `ring00` only inside the ring's own cycle and the
-/// importer provides no `w`, so no entry's private `w` leaks into any
-/// ring verdict and both entries share one `ring00` variant.
-/// pnpm/pnpm#5108's requirement survives as the name being carried
-/// (`w` stays a transitive peer, importer-missing) rather than as
-/// per-position variants.
+/// End-to-end shape of a cycle package under canonical cycle-breaking:
+/// the ring's one back-edge (`ring03 → ring00`) is cut identically at
+/// every occurrence, so `ring00` has exactly two deterministic
+/// variants — the position under the entry that walks the ring from
+/// its canonical root (whose subtree reaches the `w` consumers), and
+/// the shared back-edge occurrence resolved at importer context, where
+/// no `w` is provided.
 #[test]
-fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
+fn a_cycle_package_resolves_identically_at_every_occurrence() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
         PeerCycleShape { wc_members: vec![1, 3], rings_peer_on_p: true, ..Default::default() },
@@ -2153,16 +2153,17 @@ fn one_context_keeps_both_truncations_of_a_cycle_package_apart() {
         "unexpected missing peers: {:#?}",
         result.peer_dependency_issues.missing,
     );
-    let ring00_variants: Vec<&str> = result
+    let mut ring00_variants: Vec<&str> = result
         .graph
         .keys()
         .map(pacquet_deps_path::DepPath::as_str)
         .filter(|path| path.starts_with("ring00@1.0.0"))
         .collect();
+    ring00_variants.sort_unstable();
     assert_eq!(
         ring00_variants,
-        ["ring00@1.0.0(p@1.0.0)"],
-        "one importer-hoisted verdict serves every ring00 occurrence",
+        ["ring00@1.0.0(p@1.0.0)", "ring00@1.0.0(p@1.0.0)(w@1.0.0)"],
+        "one positional variant under the canonical-root entry, one importer-context          back-edge occurrence",
     );
 }
 
@@ -2182,12 +2183,11 @@ fn order_test_shape(rings_peer_on_p: bool) -> PeerCycleShape {
     PeerCycleShape { wc_members: vec![1], rings_peer_on_p, ..Default::default() }
 }
 
-/// Peers of a cyclic region resolve against the importer context, so
-/// every occurrence of a ring member renders one verdict — walk order
-/// cannot make peer variants appear or disappear (pnpm/pnpm#13865,
-/// pnpm/pnpm#13846).
+/// The canonical cut is a property of the graph, not the walk: entering
+/// the ring at `ring00` or at `ring02` first cannot make peer variants
+/// appear or disappear (pnpm/pnpm#13865, pnpm/pnpm#13846).
 #[test]
-fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
+fn walk_order_cannot_change_the_graph() {
     let first_order = peer_cycle_graph_keys(
         &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
         order_test_shape(true),
@@ -2201,16 +2201,17 @@ fn a_truncation_blinded_verdict_is_not_reused_where_the_subtree_is_intact() {
         "ring members resolve their importer-provided p; got {first_order:#?}",
     );
     assert!(
-        !first_order.iter().any(|key| key.starts_with("ring") && key.contains("(w@")),
-        "no ring member carries a w variant: w reaches the ring only inside its own          cycle and the importer provides none; got {first_order:#?}",
+        !first_order.iter().any(|key| key.starts_with("ring02") && key.contains("(w@")),
+        "ring02's canonical subtree ends at the back-edge and reaches no w consumer;          got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
 
-/// The same shape without `p`: region verdicts are peerless and merge
-/// to bare depPaths — identically in either walk order.
+/// The same shape without `p`: members whose canonical subtree reaches
+/// no peer consumer merge to bare depPaths — identically in either walk
+/// order.
 #[test]
-fn a_truncation_blinded_verdict_never_passes_for_pure() {
+fn a_backedge_cut_member_merges_to_a_bare_dep_path() {
     let first_order = peer_cycle_graph_keys(
         &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
         order_test_shape(false),
@@ -2226,12 +2227,12 @@ fn a_truncation_blinded_verdict_never_passes_for_pure() {
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
 
-/// A hoisted binding is range-checked: an importer-level provider that
-/// violates a region consumer's declared range does not bind, the name
-/// falls back to positional nearest-wins resolution — deterministically
-/// in either walk order.
+/// Nearest-wins is untouched at walked positions: an importer-level
+/// provider does not shadow a nearer entry-level one. Only the shared
+/// back-edge occurrence — which has no position — binds the importer's
+/// provider.
 #[test]
-fn a_range_violating_importer_provider_falls_back_to_positional() {
+fn an_importer_provider_does_not_shadow_a_nearer_entry_provider() {
     let shape = || PeerCycleShape {
         wc_members: vec![1],
         rings_peer_on_p: true,
@@ -2244,58 +2245,52 @@ fn a_range_violating_importer_provider_falls_back_to_positional() {
     let second_order =
         peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], shape());
     assert!(
-        first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)(w@2.0.0)"),
-        "a ring member keeps its entry's range-satisfying w; got {first_order:#?}",
+        first_order.iter().any(|key| key == "ring01@1.0.0(p@1.0.0)(w@1.0.0)"),
+        "a walked position binds its entry's nearer w; got {first_order:#?}",
     );
     assert!(
-        !first_order.iter().any(|key| key.contains("(w@9.9.9)")),
-        "the range-violating importer provider binds nowhere; got {first_order:#?}",
+        first_order.iter().any(|key| key == "ring01@1.0.0(p@1.0.0)(w@9.9.9)"),
+        "the positionless back-edge occurrence binds the importer's w; got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
 
-/// Hoisted names travel through the static table, not the verdict: a
-/// ring member's cached state carries no `w` however its subtree was
-/// truncated, and with no importer-provided hoisted names the member
-/// is pure (pnpm/pnpm#13865).
+/// The regression behind the canonical cut's record-only back-edges: a
+/// cut edge is still a real dependency, so the cycle-closing member's
+/// graph node keeps its edge to the back-edge target.
 #[test]
-fn a_truncated_verdict_is_topped_up_to_the_static_peer_names() {
-    let (pure, cached_mentions_w) = walk_single_entry_ring(None);
-    assert!(pure, "with no importer-provided hoisted names the ring member is pure");
-    assert!(!cached_mentions_w, "hoisted names stay out of cached verdicts");
-}
+fn a_backedge_dependency_stays_in_the_graph() {
+    let mut tree = peer_cycle_fixture(
+        &[("entry00", 0, "1.0.0")],
+        PeerCycleShape { wc_members: vec![1], ..Default::default() },
+    );
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-/// A range-blocked `w` stays positional and in the verdict at every
-/// truncation: what a truncated walk's cut subtree hid is topped up
-/// from the position context, so no cached `ring02` state is blind to
-/// `w` (pnpm/pnpm#13865).
-#[test]
-fn a_range_blocked_name_is_topped_up_at_every_truncation() {
-    let (pure, cached_mentions_w) = walk_single_entry_ring(Some("9.9.9"));
-    assert!(!pure, "a verdict carrying the range-blocked w is not pure");
+    let (_, ring03) = result
+        .graph
+        .iter()
+        .find(|(path, _)| path.as_str().starts_with("ring03@1.0.0"))
+        .expect("ring03 is walked");
+    let next = ring03.children.get("next").expect("the cut ring03 → ring00 edge is recorded");
     assert!(
-        cached_mentions_w,
-        "every cached ring02 verdict carries w, however its subtree was truncated",
+        next.as_str().starts_with("ring00@1.0.0"),
+        "the back-edge references a ring00 occurrence, got {next:?}",
     );
 }
 
-/// Walk the single-entry pnpm/pnpm#13865 ring white-box and report
-/// `ring02`'s cached state: whether it is pure, and whether every
-/// cached verdict mentions `w`.
-fn walk_single_entry_ring(importer_w_version: Option<&'static str>) -> (bool, bool) {
+/// A member whose canonical subtree ends at the back-edge is genuinely
+/// pure: the cut is the same at every occurrence, so its cached state
+/// never mentions the peer consumers behind the back-edge
+/// (pnpm/pnpm#13865).
+#[test]
+fn a_backedge_cut_subtree_is_pure() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0")],
-        PeerCycleShape {
-            wc_members: vec![1],
-            wc_w_range: "<3.0.0",
-            importer_w_version,
-            ..Default::default()
-        },
+        PeerCycleShape { wc_members: vec![1], wc_w_range: "<3.0.0", ..Default::default() },
     );
     let direct = tree.direct.clone();
     let mut walker = crate::resolve_peers::test_support::walker_for_tests(&mut tree);
     let importer_parents = Arc::new(walker.build_importer_parents_from(&direct));
-    walker.set_importer_refs(Arc::clone(&importer_parents));
     let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
     for dep in &direct {
         walker.resolve_node(
@@ -2308,12 +2303,14 @@ fn walk_single_entry_ring(importer_w_version: Option<&'static str>) -> (bool, bo
         );
     }
 
-    let pure = walker.pure_pkgs.contains_key("ring02@1.0.0");
+    assert!(
+        walker.pure_pkgs.contains_key("ring02@1.0.0"),
+        "ring02's canonical subtree reaches no peer consumer, so it is pure",
+    );
     let cached_mentions_w = walker.peers_cache.get("ring02@1.0.0").is_some_and(|items| {
-        !items.is_empty()
-            && items.iter().all(|item| {
-                item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
-            })
+        items.iter().any(|item| {
+            item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
+        })
     });
-    (pure, cached_mentions_w)
+    assert!(!cached_mentions_w, "no cached ring02 verdict mentions the consumer behind the cut");
 }

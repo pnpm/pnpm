@@ -264,7 +264,6 @@ impl Walker<'_> {
         ancestor_ids: Option<&AncestorIds>,
     ) -> Option<&PeersCacheItem> {
         let cache_items = self.peers_cache.get(pkg_id)?;
-        let bindings = self.hoisted_bindings(pkg_id);
         cache_items.iter().find(|item| {
             // A truncated verdict is only valid for an occurrence whose
             // ancestors truncate it the same way.
@@ -275,30 +274,19 @@ impl Walker<'_> {
                 return false;
             }
             for (name, cached_node_id) in item.resolved_peers.iter() {
-                // An importer-hoisted name resolves against the importer
-                // context wherever the occurrence sits, so that is the
-                // context it must be compared in.
-                let refs =
-                    if bindings.is_hoisted(name) { &self.importer_refs } else { parent_refs };
-                let Some(current_ref) = refs.get(name) else {
+                let Some(current_ref) = parent_refs.get(name) else {
                     return false;
                 };
                 if !self.parent_ref_matches_cached(current_ref, cached_node_id) {
                     return false;
                 }
             }
-            // A missing entry for a currently hoisted name was recorded
-            // under a context that classified it positional; a fresh
-            // walk here would not carry it.
             for missing_name in item.missing_peers.keys() {
-                if bindings.is_hoisted(missing_name) || parent_refs.contains_key(missing_name) {
+                if parent_refs.contains_key(missing_name) {
                     return false;
                 }
             }
-            // A hoisted name the importer provides must be in the item:
-            // its absence means the item was recorded under an importer
-            // context without the provider.
-            bindings.provided.keys().all(|name| item.resolved_peers.contains_key(name))
+            true
         })
     }
 
@@ -383,16 +371,14 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
-        let TreeChildren::Lazy { parent_ids } = &self.tree.dependencies_tree.get(node_id)?.children
-        else {
+        let TreeChildren::Lazy { .. } = &self.tree.dependencies_tree.get(node_id)?.children else {
             return None;
         };
-        self.find_fast_hit_for_lazy(parent_ids, parent_refs, pkg_id)
+        self.find_fast_hit_for_lazy(parent_refs, pkg_id)
     }
 
     fn find_fast_hit_for_lazy(
         &self,
-        parent_ids: &AncestorIds,
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
@@ -403,7 +389,7 @@ impl Walker<'_> {
             // Skipping only loses hits, never correctness.
             item.cycle_key.is_none()
                 && matches!(
-                    self.fast_cache_item_matches(parent_ids, parent_refs, pkg_id, item),
+                    self.fast_cache_item_matches(parent_refs, pkg_id, item),
                     FastCacheMatch::Match,
                 )
         })
@@ -411,23 +397,13 @@ impl Walker<'_> {
 
     fn fast_cache_item_matches(
         &self,
-        parent_ids: &AncestorIds,
         parent_refs: &ParentRefs,
         pkg_id: &str,
         item: &PeersCacheItem,
     ) -> FastCacheMatch {
         let mut ambiguous = false;
-        let bindings = self.hoisted_bindings(pkg_id);
         for (name, cached_node_id) in item.resolved_peers.iter() {
-            if bindings.is_hoisted(name) {
-                match self.importer_refs.get(name) {
-                    Some(current_ref)
-                        if self.parent_ref_matches_cached(current_ref, cached_node_id) => {}
-                    _ => return FastCacheMatch::NoMatch,
-                }
-                continue;
-            }
-            match self.fast_provider_for_name(parent_ids, parent_refs, pkg_id, name) {
+            match self.fast_provider_for_name(parent_refs, pkg_id, name) {
                 FastProvider::Missing => return FastCacheMatch::NoMatch,
                 FastProvider::Inherited(current_ref) => {
                     if !self.parent_ref_matches_cached(current_ref, cached_node_id) {
@@ -455,10 +431,7 @@ impl Walker<'_> {
             }
         }
         for name in item.missing_peers.keys() {
-            if bindings.is_hoisted(name) {
-                return FastCacheMatch::NoMatch;
-            }
-            match self.fast_provider_for_name(parent_ids, parent_refs, pkg_id, name) {
+            match self.fast_provider_for_name(parent_refs, pkg_id, name) {
                 FastProvider::Missing => {}
                 FastProvider::Inherited(_) | FastProvider::Child(_) => {
                     return FastCacheMatch::NoMatch;
@@ -466,15 +439,11 @@ impl Walker<'_> {
                 FastProvider::Ambiguous => ambiguous = true,
             }
         }
-        if !bindings.provided.keys().all(|name| item.resolved_peers.contains_key(name)) {
-            return FastCacheMatch::NoMatch;
-        }
         if ambiguous { FastCacheMatch::Ambiguous } else { FastCacheMatch::Match }
     }
 
     fn fast_provider_for_name<'a>(
         &'a self,
-        parent_ids: &AncestorIds,
         parent_refs: &'a ParentRefs,
         pkg_id: &str,
         name: &str,
@@ -495,7 +464,7 @@ impl Walker<'_> {
         let mut child_pkg_id = None;
         for &edge_index in edge_indices {
             let edge = &children[edge_index];
-            if Self::cuts_cycle_edge(canonical_scc.as_deref(), parent_ids, pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(&canonical_scc, pkg_id, &edge.pkg_id) {
                 continue;
             }
             if child_pkg_id.is_some() {
@@ -533,7 +502,7 @@ impl Walker<'_> {
             );
             let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id.to_string());
             for (peer_name, info) in output.missing_peers.iter() {
-                if info.synthetic || self.missing_issue_suppressed(&chain_with_self, peer_name) {
+                if self.missing_issue_suppressed(&chain_with_self, peer_name) {
                     continue;
                 }
                 self.record_missing_issue(
@@ -567,22 +536,16 @@ impl Walker<'_> {
 
     fn deferred_child_resolution(
         &self,
-        parent_ids: &AncestorIds,
         parent_refs: &ParentRefs,
         pkg_id: &Arc<str>,
     ) -> DeferredChildResolution {
         if let Some(dep_path) = self.pure_pkgs.get(&**pkg_id)
-            && (self.tree.packages[&**pkg_id].peer_dependencies.is_empty()
-                || (!self.canonical_cycles
-                    && self.static_peer_names_of(pkg_id).is_some_and(|sets| sets.in_cyclic_region)))
+            && self.tree.packages[&**pkg_id].peer_dependencies.is_empty()
         {
-            let bindings = self.hoisted_bindings(pkg_id);
-            if bindings.provided.is_empty() && bindings.positional.is_empty() {
-                return DeferredChildResolution::Pure(dep_path.clone());
-            }
+            return DeferredChildResolution::Pure(dep_path.clone());
         }
         if let Some(cached) = self
-            .find_fast_hit_for_lazy(parent_ids, parent_refs, pkg_id)
+            .find_fast_hit_for_lazy(parent_refs, pkg_id)
             .map(PeersCacheItem::to_cached_node_output)
             && cached.output.missing_peers.is_empty()
         {
@@ -606,7 +569,7 @@ impl Walker<'_> {
             parent_pkg_ids,
             depth,
         } = context;
-        match self.deferred_child_resolution(parent_ids, parent_refs, &edge.pkg_id) {
+        match self.deferred_child_resolution(parent_refs, &edge.pkg_id) {
             DeferredChildResolution::Pure(dep_path) => NodeOutput {
                 dep_path,
                 external_resolved_peers: Arc::clone(&self.empty_resolved_peers),
@@ -732,7 +695,7 @@ impl Walker<'_> {
         for &edge_index in provider_edge_indices {
             let edge = &children[edge_index];
             let Some(pkg) = self.tree.packages.get(&edge.pkg_id) else { continue };
-            if Self::cuts_cycle_edge(canonical_scc.as_deref(), &full_chain, &pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(&canonical_scc, &pkg_id, &edge.pkg_id) {
                 continue;
             }
             let child_node_id =
@@ -818,11 +781,11 @@ impl Walker<'_> {
         let canonical_scc = self.canonical_scc();
         let full_chain = parent_ids.pushed(pkg_id.to_string());
         for edge in children_spec.iter() {
-            if Self::cuts_cycle_edge(canonical_scc.as_deref(), &full_chain, &pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(&canonical_scc, &pkg_id, &edge.pkg_id) {
                 // A canonical back-edge is still a real dependency edge:
                 // record it against the target's shared canonical
                 // occurrence without giving the walk a path through it.
-                if canonical_scc.is_some() && pkg_id != edge.pkg_id {
+                if pkg_id != edge.pkg_id {
                     let node_id = self.canonical_backedge_node(&edge.pkg_id, child_depth);
                     realized.insert(edge.alias.clone(), node_id);
                 }

@@ -118,6 +118,12 @@ pub(crate) struct PeerDiscoveryCaches {
     /// Dedupes the consulted sets those keys hold; walks of one package
     /// overwhelmingly weigh the same packages.
     pub(super) consulted_sets: HashSet<std::sync::Arc<super::cache::ConsultedPkgs>>,
+    /// The shared record-only occurrence per canonical back-edge
+    /// target; persisted so later rounds reuse instead of re-creating
+    /// (and re-walking) them. Entries are validated against the current
+    /// tree on lookup, so a walker over a different tree view recreates
+    /// what its tree lacks.
+    pub(super) canonical_backedge_nodes: HashMap<std::sync::Arc<str>, NodeId>,
 }
 
 /// What one peer-hoist discovery pass reports back to the hoist loop —
@@ -170,7 +176,6 @@ fn discover_peers(
         Walker::new(tree, opts, HashMap::default(), current_provider_sources, caches, true);
 
     let importer_parents = Arc::new(walker.build_importer_parents_from(parents_direct));
-    walker.set_importer_refs(Arc::clone(&importer_parents));
     let parent_chain_names = SharedChain::default();
     let parent_node_ids = SharedChain::default();
     let parent_pkg_ids_chain = SharedChain::default();
