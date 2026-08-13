@@ -1086,6 +1086,26 @@ test('config set does not suggest the camelCase spelling of a key the project ma
   })
 })
 
+// The hints below send the user to these commands, so they have to work.
+test.each([
+  ['state-dir', 'stateDir'],
+  ['global-dir', 'globalDir'],
+])('config set --global %s writes to the global config file', async (key, written) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['set', key, '/tmp/somewhere'])
+
+  expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toEqual({ [written]: '/tmp/somewhere' })
+})
+
 test.each([
   // Refused in a project manifest, but the global config file takes it.
   ['state-dir', 'pnpm config set --global state-dir'],
