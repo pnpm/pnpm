@@ -24,7 +24,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use wax::{
-    Glob,
+    Glob, Program,
     walk::{Entry, FileIterator},
 };
 
@@ -146,16 +146,22 @@ pub fn find_workspace_projects_no_check(
     // `Walk::not` call (both `Glob` and `Any` derive `Clone` in wax),
     // since `IGNORE_PATTERNS` is a constant and reparsing it on every
     // user-supplied pattern is wasted work.
-    let ignore_template = wax::any(
-        IGNORE_PATTERNS
-            .iter()
-            .copied()
-            .chain(user_negation_globs.iter().map(std::string::String::as_str)),
-    )
-    .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-        pattern: "<built-in ignore>".to_string(),
-        message: err.to_string(),
+    let ignore_template = wax::any(IGNORE_PATTERNS.iter().copied()).map_err(|err| {
+        FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<built-in ignore>".to_string(),
+            message: err.to_string(),
+        }
     })?;
+
+    // User negations are written relative to the workspace root, while a
+    // parent-relative include walks from an ancestor of it, so they are
+    // matched against the path each entry has *from the workspace root*
+    // rather than handed to `Walk::not` alongside the built-in ignores.
+    let user_negations = wax::any(user_negation_globs.iter().map(std::string::String::as_str))
+        .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<negated pattern>".to_string(),
+            message: err.to_string(),
+        })?;
 
     // `NotFound` is the one error kind this enumeration absorbs, in both
     // the walk below and the manifest read after it: a pattern whose
@@ -204,7 +210,13 @@ pub fn find_workspace_projects_no_check(
                         });
                     }
                 };
-                manifest_paths.insert(entry.path().to_path_buf());
+                let manifest_path = entry.path();
+                if pathdiff::diff_paths(manifest_path, workspace_root)
+                    .is_some_and(|relative| user_negations.is_match(relative.as_path()))
+                {
+                    continue;
+                }
+                manifest_paths.insert(manifest_path.to_path_buf());
             }
         }
     }

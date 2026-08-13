@@ -353,6 +353,37 @@ fn discovers_projects_declared_above_the_workspace_root() {
     );
 }
 
+/// A negation is written relative to the workspace root whichever
+/// ancestor the include it narrows walks from.
+#[test]
+fn negation_pattern_excludes_a_project_above_the_workspace_root() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "shared/keep", "keep");
+    make_project(tmp.path(), "shared/drop", "drop");
+    make_project(tmp.path(), "workspace", "workspace-root");
+
+    let projects = find_workspace_projects(
+        &tmp.path().join("workspace"),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["../shared/*".to_string(), "!../shared/drop".to_string()]),
+        },
+    )
+    .unwrap();
+
+    let names: Vec<String> = projects
+        .iter()
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+    assert!(
+        !names.contains(&"drop".to_string()),
+        "`!../shared/drop` must exclude the project it names: {names:?}",
+    );
+    assert!(
+        names.contains(&"keep".to_string()),
+        "expected the `keep` project to be enumerated; got {names:?}",
+    );
+}
+
 /// Workspaces do contain manifests written with a leading UTF-8 BOM —
 /// Vite ships one as the `utf8-bom-package` fixture — and discovery must
 /// enumerate them rather than failing the whole walk.
