@@ -66,12 +66,19 @@ pub(crate) fn read_cached_shasums(
     trust: ShasumsTrust,
     url: &str,
 ) -> Option<String> {
+    use std::io::Read as _;
+
     let path = shasums_cache_path(cache_dir?, trust, url)?;
-    let len = fs::metadata(&path).ok()?.len();
-    if len == 0 || len > MAX_CACHED_SHASUMS_LEN {
-        return None;
-    }
-    fs::read_to_string(path).ok().filter(|body| !body.is_empty())
+    // A bounded reader rather than a metadata check keeps the cap
+    // race-free: at most one byte past the bound is ever read,
+    // whatever the file's size becomes between open and read.
+    let mut body = String::new();
+    let bytes_read = fs::File::open(&path)
+        .ok()?
+        .take(MAX_CACHED_SHASUMS_LEN + 1)
+        .read_to_string(&mut body)
+        .ok()?;
+    (bytes_read > 0 && bytes_read as u64 <= MAX_CACHED_SHASUMS_LEN).then_some(body)
 }
 
 /// Best-effort write of `body` for `url`: a cache-write failure only

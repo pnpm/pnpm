@@ -51,15 +51,22 @@ export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): P
   if (opts.cacheDir == null) return undefined
   const filePath = shasumsCachePath(opts.cacheDir, opts.trust, url)
   if (filePath == null) return undefined
-  let body: string
   try {
-    const { size } = await fs.promises.stat(filePath)
-    if (size === 0 || size > MAX_CACHED_SHASUMS_LEN) return undefined
-    body = await fs.promises.readFile(filePath, 'utf8')
+    // A bounded read rather than a stat check keeps the cap race-free: at
+    // most one byte past the bound is ever read, whatever the file's size
+    // becomes between open and read.
+    const file = await fs.promises.open(filePath, 'r')
+    try {
+      const buffer = Buffer.allocUnsafe(MAX_CACHED_SHASUMS_LEN + 1)
+      const { bytesRead } = await file.read(buffer, 0, buffer.length, 0)
+      if (bytesRead === 0 || bytesRead > MAX_CACHED_SHASUMS_LEN) return undefined
+      return buffer.toString('utf8', 0, bytesRead)
+    } finally {
+      await file.close()
+    }
   } catch {
     return undefined
   }
-  return body || undefined
 }
 
 /**
@@ -71,7 +78,7 @@ export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): P
  */
 export async function writeCachedShasums (url: string, body: string, opts: ShasumsCacheOpts): Promise<void> {
   if (opts.cacheDir == null) return
-  if (body.length > MAX_CACHED_SHASUMS_LEN) return
+  if (Buffer.byteLength(body) > MAX_CACHED_SHASUMS_LEN) return
   const filePath = shasumsCachePath(opts.cacheDir, opts.trust, url)
   if (filePath == null) return
   // The process id alone does not make the temp name unique (worker threads
