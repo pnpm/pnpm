@@ -9,13 +9,24 @@
 //! the registry metadata mirror. The layout is shared with pnpm, which
 //! reads and writes the same files.
 //!
-//! Only hand immutable URLs to this cache. A cached body is trusted on
-//! the same terms as the registry metadata mirror: verification (the
-//! `OpenPGP` signature check for signed channels) happens before the
-//! write, not after the read, so a reader never re-verifies. The
-//! `<trust>` path segment keeps signature-verified bodies and
-//! TLS-only bodies in disjoint subtrees, so an unverified fetch can
-//! never seed an entry that a signature-verifying reader would trust.
+//! Only hand immutable URLs to this cache. The cache directory is
+//! *project-configurable* (`cacheDir`), so entries under it must never
+//! carry more authority than the project that could have written them:
+//!
+//! - Signed-channel readers persist the detached signature next to the
+//!   body and re-verify it against the embedded release keys on every
+//!   read (see `fetch_verified_node_shasums_file_cached`), so a
+//!   pre-seeded entry is only accepted if it is a genuine release
+//!   body.
+//! - Unverified entries are trusted on read, which grants a project
+//!   nothing new: the unsigned channels' mirrors are already
+//!   project-configurable (their bodies were project-controllable
+//!   before the cache existed), and the musl list's download URLs are
+//!   derived from the hardcoded unofficial-builds base, never from the
+//!   cached body.
+//!
+//! The `<trust>` path segment keeps the two classes in disjoint
+//! subtrees so their read policies cannot be confused.
 
 use std::{
     fmt::Write as _,
@@ -57,15 +68,24 @@ impl ShasumsTrust {
 /// is never read into memory or written.
 const MAX_CACHED_SHASUMS_LEN: u64 = 1024 * 1024;
 
-/// The cached body for `url`, or `None` on any miss — a URL the
-/// mapping cannot represent, a missing file, unreadable content, an
-/// empty file (never a valid SHASUMS body, so it only signals a torn
-/// write), or a file over [`MAX_CACHED_SHASUMS_LEN`].
+/// The cached body for `url` as UTF-8 text, via [`read_cached_bytes`].
 pub(crate) fn read_cached_shasums(
     cache_dir: Option<&Path>,
     trust: ShasumsTrust,
     url: &str,
 ) -> Option<String> {
+    String::from_utf8(read_cached_bytes(cache_dir, trust, url)?).ok()
+}
+
+/// The cached bytes for `url`, or `None` on any miss — a URL the
+/// mapping cannot represent, a missing or non-regular file, unreadable
+/// content, an empty file (never a valid entry, so it only signals a
+/// torn write), or a file over [`MAX_CACHED_SHASUMS_LEN`].
+pub(crate) fn read_cached_bytes(
+    cache_dir: Option<&Path>,
+    trust: ShasumsTrust,
+    url: &str,
+) -> Option<Vec<u8>> {
     use std::io::Read as _;
 
     let path = shasums_cache_path(cache_dir?, trust, url)?;
@@ -89,8 +109,8 @@ pub(crate) fn read_cached_shasums(
     // A bounded reader rather than a metadata check keeps the cap
     // race-free: at most one byte past the bound is ever read,
     // whatever the file's size becomes between open and read.
-    let mut body = String::new();
-    let bytes_read = file.take(MAX_CACHED_SHASUMS_LEN + 1).read_to_string(&mut body).ok()?;
+    let mut body = Vec::new();
+    let bytes_read = file.take(MAX_CACHED_SHASUMS_LEN + 1).read_to_end(&mut body).ok()?;
     (bytes_read > 0 && bytes_read as u64 <= MAX_CACHED_SHASUMS_LEN).then_some(body)
 }
 
@@ -103,7 +123,7 @@ pub(crate) fn write_cached_shasums(
     cache_dir: Option<&Path>,
     trust: ShasumsTrust,
     url: &str,
-    body: &str,
+    body: &[u8],
 ) {
     let Some(cache_dir) = cache_dir else { return };
     if body.len() as u64 > MAX_CACHED_SHASUMS_LEN {
@@ -133,7 +153,7 @@ pub(crate) fn write_cached_shasums(
     // (missing platform rows) until the cache is cleared.
     let written =
         fs::OpenOptions::new().write(true).create_new(true).open(&temp).and_then(|mut file| {
-            file.write_all(body.as_bytes())?;
+            file.write_all(body)?;
             file.sync_all()
         });
     if written.is_err() || fs::rename(&temp, &path).is_err() {

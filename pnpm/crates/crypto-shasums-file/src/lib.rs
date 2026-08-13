@@ -31,7 +31,7 @@ use pgp::{
     types::KeyDetails,
 };
 
-use disk_cache::{ShasumsTrust, read_cached_shasums, write_cached_shasums};
+use disk_cache::{ShasumsTrust, read_cached_bytes, read_cached_shasums, write_cached_shasums};
 use node_release_keys::{NODE_RELEASE_KEYS, NodeReleaseKey};
 
 pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
@@ -175,6 +175,18 @@ pub async fn fetch_verified_node_shasums(
     http_client: &ThrottledClient,
     shasums_url: &str,
 ) -> Result<String, FetchVerifiedNodeShasumsError> {
+    let (body, _signature) =
+        fetch_verified_node_shasums_with_signature(http_client, shasums_url).await?;
+    Ok(body)
+}
+
+/// [`fetch_verified_node_shasums`], additionally returning the verified
+/// detached signature so the disk cache can persist it as the entry's
+/// verification evidence.
+async fn fetch_verified_node_shasums_with_signature(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+) -> Result<(String, Vec<u8>), FetchVerifiedNodeShasumsError> {
     let shasums_bytes =
         fetch_node_shasums_bytes(http_client, shasums_url, "SHASUMS256.txt").await?;
     let signature_url = format!("{shasums_url}.sig");
@@ -187,10 +199,13 @@ pub async fn fetch_verified_node_shasums(
         });
     }
 
-    String::from_utf8(shasums_bytes).map_err(|error| FetchVerifiedNodeShasumsError::InvalidUtf8 {
-        url: shasums_url.to_string(),
-        error: Arc::new(error),
-    })
+    let body = String::from_utf8(shasums_bytes).map_err(|error| {
+        FetchVerifiedNodeShasumsError::InvalidUtf8 {
+            url: shasums_url.to_string(),
+            error: Arc::new(error),
+        }
+    })?;
+    Ok((body, signature_bytes))
 }
 
 /// Like [`fetch_shasums_file`], but first verifies the SHASUMS file's
@@ -203,21 +218,30 @@ pub async fn fetch_verified_node_shasums_file(
 }
 
 /// Like [`fetch_verified_node_shasums_file`], backed by the disk cache
-/// when `cache_dir` is given: a body cached by an earlier resolve is
-/// served without network access or signature re-verification, and a
-/// freshly fetched body is cached only after its signature checks out.
-/// `shasums_url` must be version-pinned — a mutable URL must never be
-/// handed to the cache.
+/// when `cache_dir` is given. The cache stores the body together with
+/// its detached signature, and a cache hit re-verifies that signature
+/// against the embedded release keys: the cache directory is
+/// project-configurable, so a pre-seeded entry must prove it is a
+/// genuine release body before it is served. Any verification failure
+/// is a miss and the pair is refetched. `shasums_url` must be
+/// version-pinned — a mutable URL must never be handed to the cache.
 pub async fn fetch_verified_node_shasums_file_cached(
     http_client: &ThrottledClient,
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
-    if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url) {
+    let signature_url = format!("{shasums_url}.sig");
+    if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url)
+        && let Some(signature) =
+            read_cached_bytes(cache_dir, ShasumsTrust::Verified, &signature_url)
+        && is_signed_by_trusted_node_release_key(body.as_bytes(), &signature).unwrap_or(false)
+    {
         return Ok(parse_shasums_file(&body));
     }
-    let body = fetch_verified_node_shasums(http_client, shasums_url).await?;
-    write_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url, &body);
+    let (body, signature) =
+        fetch_verified_node_shasums_with_signature(http_client, shasums_url).await?;
+    write_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url, body.as_bytes());
+    write_cached_shasums(cache_dir, ShasumsTrust::Verified, &signature_url, &signature);
     Ok(parse_shasums_file(&body))
 }
 
@@ -235,7 +259,7 @@ pub async fn fetch_shasums_file_cached(
         return Ok(parse_shasums_file(&body));
     }
     let body = fetch_shasums_file_raw(http_client, shasums_url).await?;
-    write_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url, &body);
+    write_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url, body.as_bytes());
     Ok(parse_shasums_file(&body))
 }
 

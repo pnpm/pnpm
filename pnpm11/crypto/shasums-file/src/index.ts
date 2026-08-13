@@ -3,8 +3,13 @@ import type {
   FetchFromRegistry,
 } from '@pnpm/fetching.types'
 
-import { readCachedShasums, RUNTIME_SHASUMS_DIR, writeCachedShasums } from './diskCache.js'
-import { type ArmoredKey, fetchVerifiedNodeShasums } from './verifyNodeShasums.js'
+import { readCachedBytes, readCachedShasums, RUNTIME_SHASUMS_DIR, writeCachedShasums } from './diskCache.js'
+import {
+  type ArmoredKey,
+  fetchVerifiedNodeShasums,
+  fetchVerifiedNodeShasumsWithSignature,
+  nodeShasumsSignatureVerifies,
+} from './verifyNodeShasums.js'
 
 export { fetchVerifiedNodeShasums, RUNTIME_SHASUMS_DIR }
 
@@ -43,10 +48,13 @@ export interface FetchVerifiedNodeShasumsFileCachedOpts extends FetchShasumsFile
 
 /**
  * Like {@link fetchVerifiedNodeShasumsFile}, backed by the disk cache when
- * `opts.cacheDir` is given: a body cached by an earlier resolve is served
- * without network access or signature re-verification, and a freshly fetched
- * body is cached only after its signature checks out. `shasumsUrl` must be
- * version-pinned — a mutable URL must never be handed to the cache.
+ * `opts.cacheDir` is given. The cache stores the body together with its
+ * detached signature, and a cache hit re-verifies that signature against the
+ * embedded release keys: the cache directory is project-configurable, so a
+ * pre-seeded entry must prove it is a genuine release body before it is
+ * served. Any verification failure is a miss and the pair is refetched.
+ * `shasumsUrl` must be version-pinned — a mutable URL must never be handed to
+ * the cache.
  */
 export async function fetchVerifiedNodeShasumsFileCached (
   fetch: FetchFromRegistry,
@@ -54,10 +62,22 @@ export async function fetchVerifiedNodeShasumsFileCached (
   opts?: FetchVerifiedNodeShasumsFileCachedOpts
 ): Promise<ShasumsFileItem[]> {
   const cacheOpts = { cacheDir: opts?.cacheDir, trust: 'verified' as const }
-  const cached = await readCachedShasums(shasumsUrl, cacheOpts)
-  if (cached != null) return parseShasumsFile(cached)
-  const body = await fetchVerifiedNodeShasums(fetch, shasumsUrl, opts?.trustedKeys)
-  await writeCachedShasums(shasumsUrl, body, cacheOpts)
+  const signatureUrl = `${shasumsUrl}.sig`
+  const [cachedBody, cachedSignature] = await Promise.all([
+    readCachedShasums(shasumsUrl, cacheOpts),
+    readCachedBytes(signatureUrl, cacheOpts),
+  ])
+  if (
+    cachedBody != null && cachedSignature != null &&
+    await nodeShasumsSignatureVerifies(Buffer.from(cachedBody, 'utf8'), cachedSignature, opts?.trustedKeys)
+  ) {
+    return parseShasumsFile(cachedBody)
+  }
+  const { body, signature } = await fetchVerifiedNodeShasumsWithSignature(fetch, shasumsUrl, opts?.trustedKeys)
+  await Promise.all([
+    writeCachedShasums(shasumsUrl, body, cacheOpts),
+    writeCachedShasums(signatureUrl, signature, cacheOpts),
+  ])
   return parseShasumsFile(body)
 }
 

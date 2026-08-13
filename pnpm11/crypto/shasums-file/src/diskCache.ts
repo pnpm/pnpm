@@ -13,13 +13,22 @@ import { threadId } from 'node:worker_threads'
  * cache directory clears them together with the registry metadata mirror. The
  * layout is shared with pacquet, which reads and writes the same files.
  *
- * Only hand immutable URLs to this cache. A cached body is trusted on the
- * same terms as the registry metadata mirror: verification (the OpenPGP
- * signature check for signed channels) happens before the write, not after
- * the read, so a reader never re-verifies. The `<trust>` path segment keeps
- * signature-verified bodies and TLS-only bodies in disjoint subtrees, so an
- * unverified fetch can never seed an entry that a signature-verifying reader
- * would trust.
+ * Only hand immutable URLs to this cache. The cache directory is
+ * *project-configurable* (`cacheDir`), so entries under it must never carry
+ * more authority than the project that could have written them:
+ *
+ * - Signed-channel readers persist the detached signature next to the body
+ *   and re-verify it against the embedded release keys on every read (see
+ *   `fetchVerifiedNodeShasumsFileCached`), so a pre-seeded entry is only
+ *   accepted if it is a genuine release body.
+ * - Unverified entries are trusted on read, which grants a project nothing
+ *   new: the unsigned channels' mirrors are already project-configurable
+ *   (their bodies were project-controllable before the cache existed), and
+ *   the musl list's download URLs are derived from the hardcoded
+ *   unofficial-builds base, never from the cached body.
+ *
+ * The `<trust>` path segment keeps the two classes in disjoint subtrees so
+ * their read policies cannot be confused.
  */
 export const RUNTIME_SHASUMS_DIR = 'v11/runtime-shasums'
 
@@ -42,12 +51,19 @@ export interface ShasumsCacheOpts {
 const MAX_CACHED_SHASUMS_LEN = 1024 * 1024
 
 /**
- * The cached body for `url`, or `undefined` on any miss — a URL the mapping
- * cannot represent, a missing file, unreadable content, an empty file (never
- * a valid SHASUMS body, so it only signals a torn write), or a file over
- * {@link MAX_CACHED_SHASUMS_LEN}.
+ * The cached body for `url` as UTF-8 text, via {@link readCachedBytes}.
  */
 export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): Promise<string | undefined> {
+  return (await readCachedBytes(url, opts))?.toString('utf8')
+}
+
+/**
+ * The cached bytes for `url`, or `undefined` on any miss — a URL the mapping
+ * cannot represent, a missing or non-regular file, unreadable content, an
+ * empty file (never a valid entry, so it only signals a torn write), or a
+ * file over {@link MAX_CACHED_SHASUMS_LEN}.
+ */
+export async function readCachedBytes (url: string, opts: ShasumsCacheOpts): Promise<Buffer | undefined> {
   if (opts.cacheDir == null) return undefined
   const filePath = shasumsCachePath(opts.cacheDir, opts.trust, url)
   if (filePath == null) return undefined
@@ -67,7 +83,7 @@ export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): P
       const buffer = Buffer.allocUnsafe(MAX_CACHED_SHASUMS_LEN + 1)
       const { bytesRead } = await file.read(buffer, 0, buffer.length, 0)
       if (bytesRead === 0 || bytesRead > MAX_CACHED_SHASUMS_LEN) return undefined
-      return buffer.toString('utf8', 0, bytesRead)
+      return buffer.subarray(0, bytesRead)
     } finally {
       await file.close()
     }
@@ -83,7 +99,7 @@ export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): P
  * file + rename keeps concurrent writers (two installs resolving the same
  * version) from exposing a torn body.
  */
-export async function writeCachedShasums (url: string, body: string, opts: ShasumsCacheOpts): Promise<void> {
+export async function writeCachedShasums (url: string, body: string | Uint8Array, opts: ShasumsCacheOpts): Promise<void> {
   if (opts.cacheDir == null) return
   if (Buffer.byteLength(body) > MAX_CACHED_SHASUMS_LEN) return
   const filePath = shasumsCachePath(opts.cacheDir, opts.trust, url)

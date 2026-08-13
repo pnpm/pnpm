@@ -83,6 +83,31 @@ test('an unverified cache entry does not serve a verified read', async () => {
   expect(calls).toStrictEqual([SHASUMS_URL, SHASUMS_URL, `${SHASUMS_URL}.sig`])
 })
 
+// The cache directory is project-configurable, so a verified hit must prove
+// itself against the trusted keys on every read: a pre-seeded entry without a
+// valid persisted signature is a miss and gets refetched.
+test('a seeded verified cache entry without a valid signature is refetched', async () => {
+  const { signature, trustedKeys } = await signedShasums()
+  const cacheDir = await temporaryDirectory()
+  const entryDir = path.join(cacheDir, RUNTIME_SHASUMS_DIR, 'verified/nodejs.example.test/download/release/v22.11.0')
+  await fs.promises.mkdir(entryDir, { recursive: true })
+  await fs.promises.writeFile(path.join(entryDir, 'SHASUMS256.txt'), '0'.repeat(64) + '  node-v22.11.0-darwin-arm64.tar.gz\n')
+  await fs.promises.writeFile(path.join(entryDir, 'SHASUMS256.txt.sig'), 'not a signature')
+  const { fetch, calls } = countingFetch({
+    [SHASUMS_URL]: () => new Response(new TextEncoder().encode(SHASUMS)),
+    [`${SHASUMS_URL}.sig`]: () => new Response(signature.slice().buffer as ArrayBuffer),
+  })
+
+  const refetched = await fetchVerifiedNodeShasumsFileCached(fetch, SHASUMS_URL, { cacheDir, trustedKeys })
+  const cached = await fetchVerifiedNodeShasumsFileCached(fetch, SHASUMS_URL, { cacheDir, trustedKeys })
+
+  // The seeded pair was rejected and replaced by the genuine fetched pair,
+  // which then serves the second read from the cache.
+  expect(refetched[0].integrity).not.toContain('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=')
+  expect(cached).toStrictEqual(refetched)
+  expect(calls).toStrictEqual([SHASUMS_URL, `${SHASUMS_URL}.sig`])
+})
+
 test('a URL the cache path mapping cannot represent is fetched every time', async () => {
   const cacheDir = await temporaryDirectory()
   const url = 'https://nodejs.example.test/download/release/v22.11.0/SHASUMS256.txt?token=1'
