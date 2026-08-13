@@ -1196,7 +1196,7 @@ export function isProjectManifestSkippedSetting (camelKey: string): boolean {
 /**
  * Whether a project's `pnpm-workspace.yaml` drops this key, whether as a
  * setting a project may not contribute or as the reader's own bookkeeping.
- * Both warnings ask this, so neither can pass over a key the other reports.
+ * Shared by the warnings so that they cannot disagree on what was dropped.
  */
 function isRefusedByAProjectManifest (key: string): boolean {
   const camelKey = camelcase(key, { locale: 'en-US' })
