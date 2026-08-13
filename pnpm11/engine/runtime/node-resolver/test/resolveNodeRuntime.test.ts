@@ -45,17 +45,6 @@ test.each([
 
 const RELEASE_MIRROR = 'https://node.example/download/release/'
 
-function countingFetch (responses: Record<string, () => Response>): { fetch: FetchFromRegistry, calls: string[] } {
-  const calls: string[] = []
-  const countedFetch = (async (url: string) => {
-    calls.push(url)
-    const response = responses[url]
-    if (!response) return new Response(null, { status: 404 })
-    return response()
-  }) as unknown as FetchFromRegistry
-  return { fetch: countedFetch, calls }
-}
-
 // An exact-specifier resolve skips the release index, so a nonexistent
 // version first fails its asset fetch; the resolver must then consult the
 // index and raise the canonical not-found error rather than the raw fetch
@@ -98,25 +87,40 @@ test('resolveNodeRuntime() keeps the asset error when the exact version exists',
 // A SHASUMS body cached by an earlier resolve serves the next one without
 // refetching it; only the (mutable) release index is fetched again.
 test('resolveNodeRuntime() serves repeat asset reads from the cache', async () => {
-  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-node-resolver-'))
-  const { fetch: countedFetch, calls } = countingFetch({
-    [`${MIRROR}index.json`]: () => new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }])),
-    [`${MIRROR}v22.11.0/SHASUMS256.txt`]: () => new Response('ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n'),
-  })
-
-  for (let run = 0; run < 2; run++) {
-    // eslint-disable-next-line no-await-in-loop
-    const resolution = await resolveNodeRuntime({
-      fetchFromRegistry: countedFetch,
-      nodeDownloadMirrors: { rc: MIRROR },
-      cacheDir,
-    }, {
-      alias: 'node',
-      bareSpecifier: 'runtime:rc/22',
+  const cacheDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-node-resolver-'))
+  try {
+    const { fetch: countedFetch, calls } = countingFetch({
+      [`${MIRROR}index.json`]: () => new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }])),
+      [`${MIRROR}v22.11.0/SHASUMS256.txt`]: () => new Response('ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n'),
     })
-    expect(resolution?.resolution.variants).toHaveLength(1)
-  }
 
-  expect(calls.filter((url) => url === `${MIRROR}v22.11.0/SHASUMS256.txt`)).toHaveLength(1)
-  expect(calls.filter((url) => url === `${MIRROR}index.json`)).toHaveLength(2)
+    for (let run = 0; run < 2; run++) {
+      // eslint-disable-next-line no-await-in-loop
+      const resolution = await resolveNodeRuntime({
+        fetchFromRegistry: countedFetch,
+        nodeDownloadMirrors: { rc: MIRROR },
+        cacheDir,
+      }, {
+        alias: 'node',
+        bareSpecifier: 'runtime:rc/22',
+      })
+      expect(resolution?.resolution.variants).toHaveLength(1)
+    }
+
+    expect(calls.filter((url) => url === `${MIRROR}v22.11.0/SHASUMS256.txt`)).toHaveLength(1)
+    expect(calls.filter((url) => url === `${MIRROR}index.json`)).toHaveLength(2)
+  } finally {
+    await fs.promises.rm(cacheDir, { recursive: true, force: true })
+  }
 })
+
+function countingFetch (responses: Record<string, () => Response>): { fetch: FetchFromRegistry, calls: string[] } {
+  const calls: string[] = []
+  const countedFetch = (async (url: string) => {
+    calls.push(url)
+    const response = responses[url]
+    if (!response) return new Response(null, { status: 404 })
+    return response()
+  }) as unknown as FetchFromRegistry
+  return { fetch: countedFetch, calls }
+}

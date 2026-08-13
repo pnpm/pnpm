@@ -31,7 +31,7 @@ use pgp::{
     types::KeyDetails,
 };
 
-use disk_cache::{read_cached_shasums, write_cached_shasums};
+use disk_cache::{ShasumsTrust, read_cached_shasums, write_cached_shasums};
 use node_release_keys::{NODE_RELEASE_KEYS, NodeReleaseKey};
 
 pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
@@ -213,11 +213,11 @@ pub async fn fetch_verified_node_shasums_file_cached(
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
-    if let Some(body) = read_cached_shasums(cache_dir, shasums_url) {
+    if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url) {
         return Ok(parse_shasums_file(&body));
     }
     let body = fetch_verified_node_shasums(http_client, shasums_url).await?;
-    write_cached_shasums(cache_dir, shasums_url, &body);
+    write_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url, &body);
     Ok(parse_shasums_file(&body))
 }
 
@@ -231,11 +231,11 @@ pub async fn fetch_shasums_file_cached(
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
-    if let Some(body) = read_cached_shasums(cache_dir, shasums_url) {
+    if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url) {
         return Ok(parse_shasums_file(&body));
     }
     let body = fetch_shasums_file_raw(http_client, shasums_url).await?;
-    write_cached_shasums(cache_dir, shasums_url, &body);
+    write_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url, &body);
     Ok(parse_shasums_file(&body))
 }
 

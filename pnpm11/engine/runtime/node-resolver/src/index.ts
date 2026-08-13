@@ -73,7 +73,7 @@ export async function resolveNodeRuntime (
   }
   let variants: PlatformAssetResolution[]
   try {
-    variants = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version, releaseChannel, ctx.cacheDir)
+    variants = await readNodeAssets(ctx.fetchFromRegistry, { nodeMirrorBaseUrl, version, releaseChannel, cacheDir: ctx.cacheDir })
   } catch (err: unknown) {
     // The exact-specifier pick skipped the release index, so a failed asset
     // read is ambiguous: the version may simply not exist. Consult the index
@@ -156,7 +156,16 @@ async function versionMissingFromIndex (fetch: FetchFromRegistry, version: strin
   }
 }
 
-async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string, releaseChannel: string, cacheDir?: string): Promise<PlatformAssetResolution[]> {
+async function readNodeAssets (
+  fetch: FetchFromRegistry,
+  opts: {
+    nodeMirrorBaseUrl: string
+    version: string
+    releaseChannel: string
+    cacheDir?: string
+  }
+): Promise<PlatformAssetResolution[]> {
+  const { nodeMirrorBaseUrl, version, releaseChannel, cacheDir } = opts
   // The mirror is repository-configurable, so the SHASUMS file's hashes are only
   // trustworthy once its OpenPGP signature is verified against the Node.js
   // release keys embedded in pnpm. Only the `release` channel publishes a signed
@@ -195,8 +204,8 @@ async function readNodeAssetsFromMirror (
   // eligible for the SHASUMS disk cache.
   const integritiesFileUrl = `${nodeMirrorBaseUrl}v${version}/SHASUMS256.txt`
   const shasumsFileItems = verifySignature
-    ? await fetchVerifiedNodeShasumsFileCached(fetch, integritiesFileUrl, cacheDir)
-    : await fetchShasumsFileCached(fetch, integritiesFileUrl, cacheDir)
+    ? await fetchVerifiedNodeShasumsFileCached(fetch, integritiesFileUrl, { cacheDir })
+    : await fetchShasumsFileCached(fetch, integritiesFileUrl, { cacheDir })
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
   // The second capture group uses [^.-]+ to stop at a dash, so that the optional
   // third group can capture the '-musl' suffix separately (e.g. 'x64' + '-musl').

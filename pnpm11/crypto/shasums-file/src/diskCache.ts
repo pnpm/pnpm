@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { threadId } from 'node:worker_threads'
 
 /**
  * On-disk cache for per-version runtime `SHASUMS256.txt` bodies.
@@ -7,17 +8,79 @@ import path from 'node:path'
  * A release's SHASUMS file lives under a version-pinned URL
  * (`.../v22.0.0/SHASUMS256.txt`), so its content is immutable: a body fetched
  * once — and, for signed channels, verified once — never needs to be fetched
- * again. Entries live under `<cacheDir>/v11/runtime-shasums/<host>/<url path>`
- * so clearing the cache directory clears them together with the registry
- * metadata mirror. The layout is shared with pacquet, which reads and writes
- * the same files.
+ * again. Entries live under
+ * `<cacheDir>/v11/runtime-shasums/<trust>/<host>/<url path>` so clearing the
+ * cache directory clears them together with the registry metadata mirror. The
+ * layout is shared with pacquet, which reads and writes the same files.
  *
  * Only hand immutable URLs to this cache. A cached body is trusted on the
  * same terms as the registry metadata mirror: verification (the OpenPGP
  * signature check for signed channels) happens before the write, not after
- * the read, so a reader never re-verifies.
+ * the read, so a reader never re-verifies. The `<trust>` path segment keeps
+ * signature-verified bodies and TLS-only bodies in disjoint subtrees, so an
+ * unverified fetch can never seed an entry that a signature-verifying reader
+ * would trust.
  */
 export const RUNTIME_SHASUMS_DIR = 'v11/runtime-shasums'
+
+/**
+ * How the body of a cache entry was authenticated before it was written.
+ * Each class caches into its own subtree.
+ */
+export type ShasumsTrust = 'verified' | 'unverified'
+
+export interface ShasumsCacheOpts {
+  cacheDir?: string
+  trust: ShasumsTrust
+}
+
+/**
+ * The cached body for `url`, or `undefined` on any miss — a URL the mapping
+ * cannot represent, a missing file, unreadable content, or an empty file
+ * (never a valid SHASUMS body, so it only signals a torn write).
+ */
+export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): Promise<string | undefined> {
+  if (opts.cacheDir == null) return undefined
+  const filePath = shasumsCachePath(opts.cacheDir, opts.trust, url)
+  if (filePath == null) return undefined
+  let body: string
+  try {
+    body = await fs.promises.readFile(filePath, 'utf8')
+  } catch {
+    return undefined
+  }
+  return body || undefined
+}
+
+/**
+ * Best-effort write of `body` for `url`: a cache-write failure only costs a
+ * refetch on the next resolve, so errors are deliberately dropped rather than
+ * failing the resolution that produced the body. The exclusively-created temp
+ * file + rename keeps concurrent writers (two installs resolving the same
+ * version) from exposing a torn body.
+ */
+export async function writeCachedShasums (url: string, body: string, opts: ShasumsCacheOpts): Promise<void> {
+  if (opts.cacheDir == null) return
+  const filePath = shasumsCachePath(opts.cacheDir, opts.trust, url)
+  if (filePath == null) return
+  // The process id alone does not make the temp name unique (worker threads
+  // share it), so the thread id and a counter join it. The `wx` flag refuses
+  // to open a path that already exists — a colliding writer or a pre-seeded
+  // symlink fails the open instead of being followed — and any failure just
+  // skips the write.
+  const tempPath = `${filePath}.tmp-${process.pid.toString()}-${threadId.toString()}-${(tempCounter++).toString()}`
+  try {
+    await fs.promises.mkdir(path.dirname(filePath), { recursive: true })
+    await fs.promises.writeFile(tempPath, body, { flag: 'wx' })
+    await fs.promises.rename(tempPath, filePath)
+  } catch {
+    try {
+      await fs.promises.rm(tempPath, { force: true })
+    } catch {}
+  }
+}
+
+let tempCounter = 0
 
 /**
  * The cache file backing `url`, or `undefined` when the URL has a shape the
@@ -25,7 +88,7 @@ export const RUNTIME_SHASUMS_DIR = 'v11/runtime-shasums'
  * string, empty or dot-only path segments). Returning `undefined` just
  * disables caching for that URL.
  */
-export function shasumsCachePath (cacheDir: string, url: string): string | undefined {
+function shasumsCachePath (cacheDir: string, trust: ShasumsTrust, url: string): string | undefined {
   let rest: string
   if (url.startsWith('https://')) {
     rest = url.substring('https://'.length)
@@ -46,7 +109,7 @@ export function shasumsCachePath (cacheDir: string, url: string): string | undef
     parts.push(encodePathSegment(segment))
   }
   if (parts.some((part) => part == null)) return undefined
-  return path.join(cacheDir, RUNTIME_SHASUMS_DIR, ...(parts as string[]))
+  return path.join(cacheDir, RUNTIME_SHASUMS_DIR, trust, ...(parts as string[]))
 }
 
 /**
@@ -66,45 +129,4 @@ function encodePathSegment (segment: string): string | undefined {
     }
   }
   return encoded
-}
-
-/**
- * The cached body for `url`, or `undefined` on any miss — a URL the mapping cannot represent,
- * a missing file, unreadable content, or an empty file (never a valid SHASUMS
- * body, so it only signals a torn write).
- */
-export function readCachedShasums (cacheDir: string | undefined, url: string): string | undefined {
-  if (cacheDir == null) return undefined
-  const filePath = shasumsCachePath(cacheDir, url)
-  if (filePath == null) return undefined
-  let body: string
-  try {
-    body = fs.readFileSync(filePath, 'utf8')
-  } catch {
-    return undefined
-  }
-  return body || undefined
-}
-
-/**
- * Best-effort write of `body` for `url`: a cache-write failure only costs a
- * refetch on the next resolve, so errors are deliberately dropped rather than
- * failing the resolution that produced the body. The temp-file + rename keeps
- * concurrent writers (two installs resolving the same version) from exposing
- * a torn body.
- */
-export function writeCachedShasums (cacheDir: string | undefined, url: string, body: string): void {
-  if (cacheDir == null) return
-  const filePath = shasumsCachePath(cacheDir, url)
-  if (filePath == null) return
-  const tempPath = `${filePath}.tmp${process.pid.toString()}`
-  try {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    fs.writeFileSync(tempPath, body)
-    fs.renameSync(tempPath, filePath)
-  } catch {
-    try {
-      fs.rmSync(tempPath, { force: true })
-    } catch {}
-  }
 }
