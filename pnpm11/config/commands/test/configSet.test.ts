@@ -1106,23 +1106,12 @@ test.each([
   expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toEqual({ [written]: '/tmp/somewhere' })
 })
 
-test.each([
-  // Refused in a project manifest, but the global config file takes it.
-  ['state-dir', 'pnpm config set --global state-dir'],
-  ['global_dir', 'pnpm config set --global global-dir'],
-  // `--dir` is the only route left for a refused key.
-  ['dir', 'Pass --dir on the command line'],
-  // The rest were never settings, so there is no route to name.
-  ['config-dir', 'This is not a pnpm setting'],
-  ['pnpm-home-dir', 'This is not a pnpm setting'],
-  ['root-project-manifest-dir', 'This is not a pnpm setting'],
-  // Writable globally but never read back, so the hint names the key that does
-  // supply the user-level .npmrc.
-  ['userconfig', 'pnpm config set --global npmrc-auth-file'],
-])('config set tells the user where %s belongs', async (key, expectedHint) => {
+// Which hint each key gets is `whereRefusedKeyBelongs`, covered by the reader's
+// own unit test. What the command has to get right is reaching it with the key
+// the user typed, in whichever spelling.
+test('config set hints where a kebab-case key belongs', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
 
   await expect(config.handler(createConfigCommandOpts({
     dir: process.cwd(),
@@ -1130,8 +1119,23 @@ test.each([
     configDir,
     location: 'project',
     authConfig: {},
-  }), ['set', key, '/tmp/somewhere'])).rejects.toMatchObject({
-    hint: expect.stringContaining(expectedHint),
+  }), ['set', 'state-dir', '/tmp/somewhere'])).rejects.toMatchObject({
+    hint: 'Set it for the machine instead: pnpm config set --global state-dir',
+  })
+})
+
+test('config set hints where a camelCase key belongs', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', 'pnpmHomeDir', '/tmp/somewhere'])).rejects.toMatchObject({
+    hint: 'This is not a pnpm setting',
   })
 })
 
