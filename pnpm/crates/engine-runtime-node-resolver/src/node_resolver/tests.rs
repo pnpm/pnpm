@@ -255,7 +255,7 @@ async fn resolve_save_specifier_saves_an_exact_version_without_network() {
         .node_download_mirrors
         .insert("release".to_string(), "http://127.0.0.1:9/download/release/".to_string());
 
-    assert_eq!(resolver.resolve_save_specifier("22.11.0", None).await.unwrap(), "runtime:22.11.0",);
+    assert_eq!(resolver.resolve_save_specifier("22.11.0", None).await.unwrap(), "runtime:22.11.0");
 }
 
 /// An exact-version resolve skips the release index, so a nonexistent
