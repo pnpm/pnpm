@@ -366,10 +366,7 @@ fn approve_builds_works_after_removing_an_unrelated_dependency() {
 
     let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
     assert!(output.contains(PREPOST), "the remaining package stays pending: {output}");
-    assert!(
-        !output.contains(INSTALL),
-        "the removed package must not stay pending: {output}",
-    );
+    assert!(!output.contains(INSTALL), "the removed package must not stay pending: {output}",);
 
     pacquet(&workspace).with_args(["approve-builds", "--all"]).assert().success();
 
