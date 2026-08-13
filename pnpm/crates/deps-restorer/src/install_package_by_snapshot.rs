@@ -865,7 +865,8 @@ pub fn runtime_platform_selector(
             .unwrap_or_else(|| host.os.clone()),
         cpu: pick(supported.and_then(|value| value.cpu.as_ref()), Some(&host.cpu))
             .unwrap_or_else(|| host.cpu.clone()),
-        libc: pick(supported.and_then(|value| value.libc.as_ref()), host.libc.as_deref()),
+        libc: pick(supported.and_then(|value| value.libc.as_ref()), host.libc.as_deref())
+            .or_else(|| host.libc.clone()),
     }
 }
 
