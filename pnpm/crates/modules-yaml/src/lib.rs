@@ -398,9 +398,10 @@ where
 /// Rewrite JSON object keys that exceed YAML's 1,024-character simple-key
 /// limit to the equivalent explicit-key form before retrying the YAML parser.
 fn make_long_json_keys_explicit(content: &str) -> Option<String> {
+    const YAML_MAX_INPUT_BYTES: usize = 256 * 1024 * 1024;
     const YAML_SIMPLE_KEY_LIMIT: usize = 1024;
 
-    if !content.trim_start().starts_with('{') {
+    if content.len() > YAML_MAX_INPUT_BYTES || !content.trim_start().starts_with('{') {
         return None;
     }
 
@@ -444,7 +445,12 @@ fn make_long_json_keys_explicit(content: &str) -> Option<String> {
         return None;
     }
 
-    let mut rewritten = String::with_capacity(content.len() + long_key_starts.len() * 2);
+    let rewritten_len = content.len().checked_add(long_key_starts.len().checked_mul(2)?)?;
+    if rewritten_len > YAML_MAX_INPUT_BYTES {
+        return None;
+    }
+    let mut rewritten = String::new();
+    rewritten.try_reserve_exact(rewritten_len).ok()?;
     let mut copied_until = 0;
     for key_start in long_key_starts {
         rewritten.push_str(&content[copied_until..key_start]);
