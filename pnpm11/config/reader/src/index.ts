@@ -1116,19 +1116,12 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
 ] satisfies Array<keyof Config>)
 
 /**
- * Settings a project's `pnpm-workspace.yaml` does not contribute.
+ * Where the machine keeps what it holds across runs, which no project chooses.
  *
- * Each names a location or a trusted value that is not the project's to
- * choose. A repository setting one would redirect where pnpm writes — `pnpm
- * login`'s `auth.ini`, `pnpm setup`'s PATH entry, the bins `pnpm install`
- * links — or, for the auth group, which credentials it sends and to whom.
- *
- * `cacheDir` and `storeDir` are deliberately absent: those name caches a
- * project may legitimately place, and the Rust `WorkspaceSettings` accepts
- * both.
+ * A repository setting one would redirect where pnpm writes: `pnpm login`'s
+ * `auth.ini`, `pnpm setup`'s PATH entry, the bins `pnpm install` links.
  */
-const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
-  // What the machine keeps outside any project.
+const MACHINE_LOCATION_SETTINGS = [
   'configDir',
   'globalBinDir',
   'globalDir',
@@ -1137,21 +1130,48 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'pnpmHomeDir',
   'stateDir',
   'userconfig',
-  // The directories the current command reads and writes in.
+] satisfies Array<keyof (Config & ConfigContext)>
+
+/**
+ * The directories the current command reads and writes in.
+ *
+ * The reader resolves these from the command line and the cwd, and it needs
+ * them before it can find a manifest at all, so a manifest cannot supply them.
+ */
+const CURRENT_RUN_LOCATION_SETTINGS = [
   'bin',
   'dir',
   'rootProjectManifestDir',
   'workspaceDir',
-  // Auth and the bootstrap download routes, which the reader assembles from
-  // the trusted config sources only. `userConfig` is the parsed contents of
-  // the user's `.npmrc`, so it carries credentials even though `userconfig`
-  // above is only the path to it.
+] satisfies Array<keyof (Config & ConfigContext)>
+
+/**
+ * Which credentials pnpm sends, and to whom.
+ *
+ * The reader assembles these from the trusted config sources. `userConfig` is
+ * the parsed contents of the user's `.npmrc`, so it carries credentials rather
+ * than the path `npmrcAuthFile` holds.
+ */
+const CREDENTIAL_SETTINGS = [
   'authConfig',
   'userConfig',
   'configByUri',
   'packageManagerNetworkConfig',
   'packageManagerRegistries',
-] satisfies Array<keyof (Config & ConfigContext)>)
+] satisfies Array<keyof (Config & ConfigContext)>
+
+/**
+ * Settings a project's `pnpm-workspace.yaml` does not contribute.
+ *
+ * `cacheDir` and `storeDir` are deliberately absent: those name caches a
+ * project may legitimately place, and the Rust `WorkspaceSettings` accepts
+ * both.
+ */
+const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+  ...MACHINE_LOCATION_SETTINGS,
+  ...CURRENT_RUN_LOCATION_SETTINGS,
+  ...CREDENTIAL_SETTINGS,
+])
 
 /**
  * The refused settings the global config file does not accept either.
