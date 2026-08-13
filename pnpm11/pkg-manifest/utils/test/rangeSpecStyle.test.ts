@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { getRangeSpecStyle, rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { calcVersionRange, getRangeSpecStyle, rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 
 test('getRangeSpecStyle()', () => {
   expect(getRangeSpecStyle({ saveExact: true })).toBe('patch')
@@ -18,6 +18,14 @@ test('versionWithRangeSpecStyle()', () => {
   expect(versionWithRangeSpecStyle('1.2.3', 'exact')).toBe('=1.2.3')
   expect(versionWithRangeSpecStyle('1.2.3', 'none')).toBe('^1.2.3')
   expect(() => versionWithRangeSpecStyle('1.2.3', 'bogus' as never)).toThrow("Unknown range spec style: 'bogus'")
+})
+
+test('calcVersionRange() preserves an existing prerelease range style', () => {
+  expect(calcVersionRange('3.0.0-rc.11', { prevSpecifier: '^3.0.0-rc.8' })).toBe('^3.0.0-rc.11')
+  expect(calcVersionRange('3.0.0-rc.11', { prevSpecifier: '~3.0.0-rc.8' })).toBe('~3.0.0-rc.11')
+  expect(calcVersionRange('3.0.0-rc.11', { prevSpecifier: '3.0.0-rc.8' })).toBe('3.0.0-rc.11')
+  expect(calcVersionRange('3.0.0-rc.11', { prevSpecifier: '=3.0.0-rc.8' })).toBe('=3.0.0-rc.11')
+  expect(calcVersionRange('3.0.0-rc.11', {})).toBe('3.0.0-rc.11')
 })
 
 test('rangeSpecGranularity() collapses exact to patch', () => {

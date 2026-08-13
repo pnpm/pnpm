@@ -29,8 +29,8 @@ export function getRangeSpecStyle (opts: { saveExact?: boolean, savePrefix?: str
  *
  * The existing entry's range style wins over the requested specifier's, which
  * wins over the configured default, so a re-add keeps the pinning style the
- * manifest already used. A prerelease is pinned exactly: no range operator
- * expresses "this prerelease and later ones".
+ * manifest already used. A newly added prerelease is pinned exactly, while an
+ * updated prerelease keeps the existing entry's range style.
  */
 export function calcVersionRange (
   version: string,
@@ -41,7 +41,8 @@ export function calcVersionRange (
   }
 ): string {
   if (semver.parse(version)?.prerelease.length) {
-    return version
+    const prevRangeSpecStyle = opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined
+    return prevRangeSpecStyle ? versionWithRangeSpecStyle(version, prevRangeSpecStyle) : version
   }
   const rangeSpecStyle = (opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined) ??
     (opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined) ??

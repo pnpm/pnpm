@@ -170,14 +170,8 @@ fn bumped_range(
         // A link or an injected directory has no version to pin.
         ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
     };
-    // No range operator expresses "this prerelease and later ones", so a
-    // prerelease pick is pinned exactly.
-    let range = if resolved.pre_release.is_empty() {
-        let style = infer_range_spec_style(declared_range).unwrap_or(default_style);
-        format!("{}{resolved}", style.range_prefix())
-    } else {
-        resolved.to_string()
-    };
+    let style = infer_range_spec_style(declared_range).unwrap_or(default_style);
+    let range = format!("{}{resolved}", style.range_prefix());
     let bumped = format!("{prefix}{range}");
     (bumped != declared).then_some(bumped)
 }

@@ -728,6 +728,20 @@ test('update to latest without downgrading already defined prerelease (#7436)', 
   expect(lockfile3).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
 })
 
+test('update preserves an existing prerelease range operator', async function () {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '^3.0.0-rc.0',
+    },
+  })
+
+  await execPnpm(['install'])
+  await execPnpm(['update'])
+
+  const manifest = await readPackageJsonFromDir('.')
+  expect(manifest.dependencies?.['@pnpm.e2e/has-prerelease']).toBe('^3.0.0-rc.1')
+})
+
 test('update with tag @latest will downgrade prerelease', async function () {
   prepare()
 
