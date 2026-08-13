@@ -1014,9 +1014,6 @@ test.each([
   } satisfies ConfigFilesData
   writeConfigFiles(configDir, tmp, initConfig)
 
-  // The config reader ignores these in a project manifest, so writing one there
-  // would leave the user with a setting that does nothing and a warning on
-  // every command.
   await expect(config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
@@ -1040,7 +1037,7 @@ test('config delete removes a skipped key that a project manifest already has', 
     localYaml: { configDir: '/tmp/somewhere', storeDir: '~/store' },
   } satisfies ConfigFilesData)
 
-  // Deleting is how a user clears a manifest that already carries one of these,
+  // Deleting is how a user clears a manifest that already carries `configDir`,
   // so the write-side rejection must not block it.
   await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
@@ -1058,7 +1055,7 @@ test('config set --global does not send a machine-level key to the project manif
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
 
-  // The project manifest refuses these too, so the usual "put it in
+  // A project manifest refuses `configDir` as well, so the usual "put it in
   // pnpm-workspace.yaml" hint would send the user in a circle.
   await expect(config.handler(createConfigCommandOpts({
     dir: process.cwd(),
@@ -1077,7 +1074,7 @@ test('config set does not suggest the camelCase spelling of a key the project ma
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
 
-  // "Try \"pnpmHomeDir\"" would be a dead end: that spelling is refused too.
+  // 'Try "pnpmHomeDir"' would be a dead end: that spelling is refused too.
   await expect(config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
@@ -1099,8 +1096,8 @@ test.each([
   ['pnpm-home-dir', 'PNPM_HOME'],
   // Nothing outside pnpm sets this one, so there is no route to name.
   ['root-project-manifest-dir', 'pnpm resolves this setting per run'],
-  // `userconfig` is writable globally but never read back; point at the key
-  // that actually supplies the user-level .npmrc.
+  // Writable globally but never read back, so the hint names the key that does
+  // supply the user-level .npmrc.
   ['userconfig', 'pnpm config set --global npmrc-auth-file'],
 ])('config set tells the user where %s belongs', async (key, expectedHint) => {
   const tmp = tempDir()
@@ -1118,7 +1115,7 @@ test.each([
   })
 })
 
-/** The file's spelling is what the reader named, whichever spelling the user types. */
+// The file's spelling is what the reader named, whichever spelling the user types.
 test.each([
   ['config-dir', 'configDir'],
   ['configDir', 'config-dir'],
@@ -1158,12 +1155,10 @@ test('config delete clears a hand-written kebab-case key', async () => {
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
 })
 
-/**
- * Ten of these settings have no entry in `types`, so their kebab-case
- * spelling reaches `validateWorkspaceKey`'s rejection rather than the delete.
- * The reader names whichever spelling the file used, so every one of them has
- * to be clearable under that name.
- */
+// A setting absent from `types` has no kebab-case spelling to match on, so it
+// reaches `validateWorkspaceKey`'s rejection rather than the delete. The reader
+// names whichever spelling the file used, so it has to be clearable under that
+// name anyway.
 test.each([
   'pnpm-home-dir',
   'global-pkg-dir',
@@ -1188,11 +1183,9 @@ test.each([
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
 })
 
-/**
- * Accepting these spellings routes them into the writer, which removes a
- * manifest once a delete empties it — so with no manifest present it would try
- * to remove a file that was never there.
- */
+// Accepting these spellings routes them into the writer, which removes a
+// manifest once a delete empties it. With no manifest present it would then try
+// to remove a file that was never there.
 test.each([
   ['delete', 'pnpm-home-dir', undefined],
   ['delete', 'config-dir', undefined],
@@ -1215,10 +1208,8 @@ test.each([
   expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBe(false)
 })
 
-/**
- * The global config file's warning names every key it does not accept, not
- * only the refused settings, so a delete has to reach all of them.
- */
+// The global config file's warning names every key it does not accept, not
+// only the refused settings, so a delete has to reach all of them.
 test('config delete clears a key the global config file never accepted', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
@@ -1236,10 +1227,8 @@ test('config delete clears a key the global config file never accepted', async (
   expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toEqual({ storeDir: '~/store' })
 })
 
-/**
- * Every key a reader warns about has to be clearable, whichever validator
- * would otherwise have rejected the spelling.
- */
+// Every key a reader warns about has to be clearable, whichever validator would
+// otherwise have rejected the spelling.
 test.each([
   // Absent from `types`, so the workspace-key check rejects its kebab form.
   ['global', 'onlyBuiltDependencies', 'onlyBuiltDependencies'],
@@ -1265,7 +1254,8 @@ test.each([
   expect(readYamlFileSync(target)).toEqual({ storeDir: '~/store' })
 })
 
-/** The reader warns about these in the global config file too, so a delete has to reach them there. */
+// The reader warns about a refused setting in the global config file too, so a
+// delete has to reach it there.
 test('config delete clears a refused setting from the global config.yaml', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
@@ -1285,7 +1275,7 @@ test('config delete clears a refused setting from the global config.yaml', async
   expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toEqual({ storeDir: '~/store' })
 })
 
-/** `set <key> null` is a removal, so it must clear the key rather than be refused. */
+// `set <key> null` is a removal, so it must clear the key rather than be refused.
 test('config set config-dir null clears it instead of being refused', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
@@ -1303,7 +1293,7 @@ test('config set config-dir null clears it instead of being refused', async () =
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
 })
 
-/** The same spellings must still be refused on the way in, and by the accurate error. */
+// The same spellings must still be refused on the way in, and by the accurate error.
 test.each(['pnpm-home-dir', 'workspace-dir'])('config set still refuses %s', async (key) => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
