@@ -423,7 +423,7 @@ test('installing Node.js runtime for the host, when it is not the first supporte
   const isWindows = process.platform === 'win32'
   const supportedArchitectures = {
     os: [isWindows ? 'linux' : 'win32', process.platform],
-    cpu: ['x64', process.arch],
+    cpu: [process.arch === 'x64' ? 'arm64' : 'x64', process.arch],
   }
   const expectedBinLocation = isWindows ? 'node/node.exe' : 'node/bin/node'
   const project = prepareEmpty()

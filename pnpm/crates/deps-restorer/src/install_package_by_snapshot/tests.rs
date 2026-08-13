@@ -261,6 +261,19 @@ fn runtime_platform_selector_prefers_the_host_over_the_other_configured_targets(
 }
 
 #[test]
+fn runtime_platform_selector_expands_current_to_the_host() {
+    let supported = SupportedArchitectures {
+        os: Some(vec!["freebsd".to_string(), "current".to_string()]),
+        cpu: Some(vec!["current".to_string()]),
+        libc: Some(vec!["current".to_string()]),
+    };
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector, host_platform_selector());
+}
+
+#[test]
 fn render_variant_targets_formats_each_triple_with_optional_libc() {
     let variants = vec![
         PlatformAssetResolution {

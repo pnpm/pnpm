@@ -42,7 +42,7 @@ test('resolvePlatformSelector() prefers the host over the other supported archit
   const host = { platform: 'darwin', arch: 'arm64', libc: 'glibc' }
   expect(resolvePlatformSelector({ os: ['darwin', 'linux'], cpu: ['x64', 'arm64'], libc: ['musl', 'glibc'] }, host))
     .toStrictEqual({ os: 'darwin', cpu: 'arm64', libc: 'glibc' })
-  expect(resolvePlatformSelector({ os: ['linux', 'current'], cpu: ['current'] }, host))
+  expect(resolvePlatformSelector({ os: ['linux', 'current'], cpu: ['current'], libc: ['current'] }, host))
     .toStrictEqual({ os: 'darwin', cpu: 'arm64', libc: 'glibc' })
 })
 
