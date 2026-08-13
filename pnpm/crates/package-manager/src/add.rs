@@ -885,6 +885,7 @@ async fn resolve_added_dependency<'a>(
         let mut node_resolver = NodeResolver::new(std::sync::Arc::clone(http_client_arc));
         node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
         node_resolver.offline = config.offline;
+        node_resolver.cache_dir = Some(config.cache_dir.clone());
         node_resolver
             .resolve_save_specifier(version_spec, prev_specifier.as_deref())
             .await

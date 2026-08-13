@@ -17,9 +17,10 @@
 //!   downloaded body to extract the integrity of a single file. The
 //!   verifier path uses it when only one variant's hash is needed.
 
+mod disk_cache;
 mod node_release_keys;
 
-use std::{io::Cursor, string::FromUtf8Error, sync::Arc};
+use std::{io::Cursor, path::Path, string::FromUtf8Error, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use derive_more::{Display, Error};
@@ -30,7 +31,10 @@ use pgp::{
     types::KeyDetails,
 };
 
+use disk_cache::{read_cached_shasums, write_cached_shasums};
 use node_release_keys::{NODE_RELEASE_KEYS, NodeReleaseKey};
+
+pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
 
 /// One row parsed out of a `SHASUMS256.txt` body.
 ///
@@ -195,7 +199,43 @@ pub async fn fetch_verified_node_shasums_file(
     http_client: &ThrottledClient,
     shasums_url: &str,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
+    fetch_verified_node_shasums_file_cached(http_client, shasums_url, None).await
+}
+
+/// Like [`fetch_verified_node_shasums_file`], backed by the disk cache
+/// when `cache_dir` is given: a body cached by an earlier resolve is
+/// served without network access or signature re-verification, and a
+/// freshly fetched body is cached only after its signature checks out.
+/// `shasums_url` must be version-pinned — a mutable URL must never be
+/// handed to the cache.
+pub async fn fetch_verified_node_shasums_file_cached(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
+    if let Some(body) = read_cached_shasums(cache_dir, shasums_url) {
+        return Ok(parse_shasums_file(&body));
+    }
     let body = fetch_verified_node_shasums(http_client, shasums_url).await?;
+    write_cached_shasums(cache_dir, shasums_url, &body);
+    Ok(parse_shasums_file(&body))
+}
+
+/// Like [`fetch_shasums_file`], backed by the disk cache when
+/// `cache_dir` is given. For mirrors whose SHASUMS files carry no
+/// verifiable signature the cached body is trusted exactly as far as
+/// the TLS fetch that produced it. `shasums_url` must be
+/// version-pinned — a mutable URL must never be handed to the cache.
+pub async fn fetch_shasums_file_cached(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
+    if let Some(body) = read_cached_shasums(cache_dir, shasums_url) {
+        return Ok(parse_shasums_file(&body));
+    }
+    let body = fetch_shasums_file_raw(http_client, shasums_url).await?;
+    write_cached_shasums(cache_dir, shasums_url, &body);
     Ok(parse_shasums_file(&body))
 }
 

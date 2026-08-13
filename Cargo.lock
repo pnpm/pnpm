@@ -4173,6 +4173,7 @@ dependencies = [
  "pgp",
  "pretty_assertions",
  "reqwest",
+ "tempfile",
  "tokio",
 ]
 
@@ -4357,6 +4358,7 @@ dependencies = [
  "serde",
  "serde_json",
  "ssri",
+ "tempfile",
  "tokio",
 ]
 

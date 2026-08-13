@@ -3,9 +3,10 @@ import type {
   FetchFromRegistry,
 } from '@pnpm/fetching.types'
 
+import { readCachedShasums, RUNTIME_SHASUMS_DIR, writeCachedShasums } from './diskCache.js'
 import { fetchVerifiedNodeShasums } from './verifyNodeShasums.js'
 
-export { fetchVerifiedNodeShasums }
+export { fetchVerifiedNodeShasums, RUNTIME_SHASUMS_DIR }
 
 export interface ShasumsFileItem {
   integrity: string
@@ -30,6 +31,45 @@ export async function fetchVerifiedNodeShasumsFile (
   shasumsUrl: string
 ): Promise<ShasumsFileItem[]> {
   return parseShasumsFile(await fetchVerifiedNodeShasums(fetch, shasumsUrl))
+}
+
+/**
+ * Like {@link fetchVerifiedNodeShasumsFile}, backed by the disk cache when
+ * `cacheDir` is given: a body cached by an earlier resolve is served without
+ * network access or signature re-verification, and a freshly fetched body is
+ * cached only after its signature checks out. `shasumsUrl` must be
+ * version-pinned — a mutable URL must never be handed to the cache.
+ */
+export async function fetchVerifiedNodeShasumsFileCached (
+  fetch: FetchFromRegistry,
+  shasumsUrl: string,
+  cacheDir?: string,
+  trustedKeys?: Parameters<typeof fetchVerifiedNodeShasums>[2]
+): Promise<ShasumsFileItem[]> {
+  const cached = readCachedShasums(cacheDir, shasumsUrl)
+  if (cached != null) return parseShasumsFile(cached)
+  const body = await fetchVerifiedNodeShasums(fetch, shasumsUrl, trustedKeys)
+  writeCachedShasums(cacheDir, shasumsUrl, body)
+  return parseShasumsFile(body)
+}
+
+/**
+ * Like {@link fetchShasumsFile}, backed by the disk cache when `cacheDir` is
+ * given. For mirrors whose SHASUMS files carry no verifiable signature the
+ * cached body is trusted exactly as far as the TLS fetch that produced it.
+ * `shasumsUrl` must be version-pinned — a mutable URL must never be handed to
+ * the cache.
+ */
+export async function fetchShasumsFileCached (
+  fetch: FetchFromRegistry,
+  shasumsUrl: string,
+  cacheDir?: string
+): Promise<ShasumsFileItem[]> {
+  const cached = readCachedShasums(cacheDir, shasumsUrl)
+  if (cached != null) return parseShasumsFile(cached)
+  const body = await fetchShasumsFileRaw(fetch, shasumsUrl)
+  writeCachedShasums(cacheDir, shasumsUrl, body)
+  return parseShasumsFile(body)
 }
 
 export function parseShasumsFile (shasumsFileContent: string): ShasumsFileItem[] {
