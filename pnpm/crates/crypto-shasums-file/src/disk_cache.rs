@@ -72,9 +72,10 @@ fn encode_path_segment(segment: &str) -> Option<String> {
     Some(encoded)
 }
 
-/// The cached body for `url`, or `None` on any miss — an unmappable
-/// URL, a missing file, unreadable content, or an empty file (never a
-/// valid SHASUMS body, so it only signals a torn write).
+/// The cached body for `url`, or `None` on any miss — a URL the
+/// mapping cannot represent, a missing file, unreadable content, or an
+/// empty file (never a valid SHASUMS body, so it only signals a torn
+/// write).
 pub(crate) fn read_cached_shasums(cache_dir: Option<&Path>, url: &str) -> Option<String> {
     let path = shasums_cache_path(cache_dir?, url)?;
     fs::read_to_string(path).ok().filter(|body| !body.is_empty())

@@ -69,7 +69,7 @@ function encodePathSegment (segment: string): string | undefined {
 }
 
 /**
- * The cached body for `url`, or `undefined` on any miss — an unmappable URL,
+ * The cached body for `url`, or `undefined` on any miss — a URL the mapping cannot represent,
  * a missing file, unreadable content, or an empty file (never a valid SHASUMS
  * body, so it only signals a torn write).
  */

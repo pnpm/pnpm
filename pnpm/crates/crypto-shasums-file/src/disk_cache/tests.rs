@@ -34,7 +34,7 @@ fn encodes_hosts_ports_and_unusual_segments() {
 
 #[test]
 fn rejects_urls_the_mapping_cannot_represent() {
-    let unmappable = [
+    let not_representable = [
         "ftp://nodejs.org/v22.11.0/SHASUMS256.txt",
         "https://nodejs.org/v22.11.0/SHASUMS256.txt?token=1",
         "https://nodejs.org/v22.11.0/SHASUMS256.txt#fragment",
@@ -44,7 +44,7 @@ fn rejects_urls_the_mapping_cannot_represent() {
         "https://nodejs.org",
         "https:///v22.11.0/SHASUMS256.txt",
     ];
-    for url in unmappable {
+    for url in not_representable {
         assert_eq!(shasums_cache_path(Path::new("/cache"), url), None, "url={url:?}");
     }
 }
