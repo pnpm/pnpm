@@ -814,11 +814,9 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(config.packageManagerNetworkConfig).toStrictEqual(real.config.packageManagerNetworkConfig)
   })
 
-  /**
-   * `explicitlySetKeys` is a `Set` the merge loop calls `.add` on, so a
-   * manifest supplying any other type used to take down every command that
-   * reads config — a repository could stop pnpm from running at all.
-   */
+  // `explicitlySetKeys` is a `Set` the merge loop calls `.add` on, so a
+  // manifest supplying any other type would take down every command that reads
+  // config, letting a repository stop pnpm from running at all.
   test("a manifest cannot overwrite the reader's own bookkeeping", async () => {
     prepareEmpty()
 
@@ -846,11 +844,9 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(context.rootProjectManifest?.name).not.toBe('attacker-root')
   })
 
-  /**
-   * The global config file's own warning told users to move an ignored setting
-   * to a project manifest, which now refuses a subset of them — following it
-   * would land on the other warning, which offers no remedy.
-   */
+  // The global config file's warning offers to move an ignored setting to a
+  // project manifest, which refuses a subset of them. For those, following it
+  // would land on the other warning, which offers no remedy.
   test('the global config file does not send a refused setting to the project manifest', async () => {
     prepareEmpty()
 
@@ -889,12 +885,9 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     }
   })
 
-  /**
-   * The global config file's own contents are filtered before the merge, but
-   * the CLI options are merged in again there — so the escape hatch used to
-   * work for anyone who happened to have a `config.yaml`, and not for anyone
-   * who did not.
-   */
+  // The global config file's own contents are filtered before the merge, but
+  // the CLI options are merged in again there, so an unfiltered escape hatch
+  // would work only for the users who happen to have a `config.yaml`.
   test.each([true, false])('the --config escape hatch is inert whether or not a global config.yaml exists (%s)', async (withGlobalYaml) => {
     prepareEmpty()
 
