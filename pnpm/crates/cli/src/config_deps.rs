@@ -10,7 +10,7 @@
 use crate::config_overrides::apply_store_dir_override;
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
-use pnpm_config::{Config, Host, WorkspaceSettings};
+use pnpm_config::{Config, Host, PNPM_VERSION, WorkspaceSettings};
 use pnpm_env_installer::{
     ConfigDepsInstallOptions, pnpm_engine_packages, resolve_and_install_config_deps,
     resolve_package_manager_integrities,
@@ -164,14 +164,17 @@ pub async fn resolve_engine_version(
         }
         None => None,
     };
-    let published_by_exclude = config
-        .minimum_release_age_exclude
-        .as_deref()
-        .filter(|patterns| !patterns.is_empty())
-        .map(pnpm_config::version_policy::create_package_version_policy)
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("compile the minimum-release-age-exclude policy")?;
+    // The running version is already on this machine, so hiding it behind the
+    // maturity cutoff protects nothing — it only makes a dist-tag that points
+    // at it fall back to an older release, downgrading the user
+    // (pnpm/pnpm#13883).
+    let mut exclude_patterns = config.minimum_release_age_exclude.clone().unwrap_or_default();
+    exclude_patterns.push(format!("pnpm@{PNPM_VERSION}"));
+    let published_by_exclude =
+        pnpm_config::version_policy::create_package_version_policy(&exclude_patterns)
+            .into_diagnostic()
+            .wrap_err("compile the minimum-release-age-exclude policy")
+            .map(Some)?;
     let trust_policy = match config.trust_policy {
         pnpm_config::TrustPolicy::Off => None,
         pnpm_config::TrustPolicy::NoDowngrade => Some(pnpm_config::TrustPolicy::NoDowngrade),

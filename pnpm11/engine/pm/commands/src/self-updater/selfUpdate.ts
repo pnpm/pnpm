@@ -102,7 +102,16 @@ export async function handler (
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
   const pkgName = 'pnpm'
-  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
+  // The running version is already on this machine, so hiding it behind the
+  // maturity cutoff protects nothing — it only makes a dist-tag that points
+  // at it fall back to an older release, downgrading the user (pnpm/pnpm#13883).
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy({
+    ...opts,
+    minimumReleaseAgeExclude: [
+      ...opts.minimumReleaseAgeExclude ?? [],
+      `${pkgName}@${packageManager.version}`,
+    ],
+  })
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
   // refuse to downgrade in that case — `latest` on the registry can lag the
   // installed version when a new major has shipped without being tagged.
