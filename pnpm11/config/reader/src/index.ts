@@ -1176,16 +1176,10 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
 /**
  * The refused settings the global config file does not accept either.
  *
- * Its own contents are already filtered by `isConfigFileKey` before the merge,
- * but the CLI options are merged in again there, so without this a
+ * That file's own contents are already filtered by `isConfigFileKey`, but the
+ * CLI options are merged in again alongside them, so without this a
  * `--config.config-dir` would land back on a key the reader resolves for
- * itself — and only for users who happen to have a `config.yaml`. The ones it
- * does accept (`stateDir`, `globalDir`, `globalBinDir`, `npmrcAuthFile` and
- * `userconfig`) are deliberately absent.
- *
- * This closes the two merges a project install goes through. A `--global`
- * command that finds a manifest in the global package directory merges the
- * command line unfiltered, so the same spellings still reach the config there.
+ * itself, and only for the users who happen to have a `config.yaml`.
  */
 const GLOBAL_CONFIG_SKIPPED_SETTINGS: ReadonlySet<string> = new Set(
   [...PROJECT_MANIFEST_SKIPPED_SETTINGS].filter((key) => !isConfigFileKey(kebabCase(key)))
@@ -1200,10 +1194,9 @@ export function isProjectManifestSkippedSetting (camelKey: string): boolean {
 }
 
 /**
- * Whether a project's `pnpm-workspace.yaml` drops this key — either because it
- * is a setting a project may not contribute, or because it names the reader's
- * own bookkeeping. Both warnings ask this, so neither can report a key the
- * other passes over in silence.
+ * Whether a project's `pnpm-workspace.yaml` drops this key, whether as a
+ * setting a project may not contribute or as the reader's own bookkeeping.
+ * Both warnings ask this, so neither can pass over a key the other reports.
  */
 function isRefusedByAProjectManifest (key: string): boolean {
   const camelKey = camelcase(key, { locale: 'en-US' })
@@ -1212,13 +1205,11 @@ function isRefusedByAProjectManifest (key: string): boolean {
 
 /**
  * The reader's own bookkeeping, which shares one object with the settings but
- * is not settable by anyone: runtime state, the workspace context the reader
- * resolved, and the CLI metadata.
+ * is not settable by anyone.
  *
- * A manifest naming one of these is not choosing a setting, it is overwriting
- * what the reader worked out — and `explicitlySetKeys` is a `Set` that the
- * loop below calls `.add` on, so a manifest supplying any other type crashes
- * every command.
+ * A manifest naming one of these overwrites what the reader worked out rather
+ * than choosing a setting. `explicitlySetKeys` is the sharpest case: the merge
+ * loop calls `.add` on it, so any other type there crashes every command.
  *
  * Typed as a total record so that a new {@link ConfigContext} field fails the
  * build until it is listed here.
@@ -1240,21 +1231,24 @@ const CONFIG_CONTEXT_KEYS: ReadonlySet<string> = new Set(Object.keys({
 } satisfies Record<keyof ConfigContext, true>))
 
 /**
- * The key to name in a suggestion, for a setting whose own name the global
- * config file accepts but never reads back.
+ * The global config file key that sets a refused setting, where it is not that
+ * setting's own name.
  *
- * `userconfig` is one: the user-level `.npmrc` comes from `npmrcAuthFile`, or
- * from `--userconfig`, and never from the config file's `userconfig`. Naming
- * it would send the user to a command that succeeds and changes nothing.
+ * `bin` and `globalPkgDir` are derived from the two directory keys. The global
+ * config file does accept `userconfig` under its own name but never reads it
+ * back: the user-level `.npmrc` comes from `npmrcAuthFile` or `--userconfig`.
+ * Naming it would send the user to a command that changes nothing.
  */
 const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
+  bin: 'global-bin-dir',
+  globalPkgDir: 'global-dir',
   userconfig: 'npmrc-auth-file',
 }
 
 /**
- * How to set a refused key that no config file accepts, for the ones that are
- * still settable another way. Without these the fallback would tell a user
- * that pnpm works `dir` out for itself, when `--dir` sets it.
+ * How to set a refused key that no config file accepts. Without these the
+ * fallback would tell a user that pnpm works `dir` out for itself, when
+ * `--dir` sets it.
  */
 const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
   dir: 'Pass --dir on the command line instead',
@@ -1263,10 +1257,6 @@ const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
   userConfig: "pnpm reads it from the user's .npmrc",
   authConfig: 'pnpm assembles it from your .npmrc files and auth.ini',
   configByUri: 'pnpm assembles it from your .npmrc files and auth.ini',
-  // Both are derived from a key the global config file does take, so name that
-  // one rather than claiming nothing sets them.
-  bin: 'Set it for the machine instead: pnpm config set --global global-bin-dir',
-  globalPkgDir: 'Set it for the machine instead: pnpm config set --global global-dir',
 }
 
 /**
