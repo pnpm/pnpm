@@ -435,7 +435,7 @@ pub(super) fn selected_manifest_freshness_inputs<'a>(
     inputs
 }
 
-pub(super) fn configured_or_discovered_workspace_dir(
+pub(crate) fn configured_or_discovered_workspace_dir(
     config: &Config,
     manifest_dir: &Path,
 ) -> Result<Option<PathBuf>, pacquet_workspace::FindWorkspaceDirError> {
@@ -443,6 +443,27 @@ pub(super) fn configured_or_discovered_workspace_dir(
         Some(workspace_dir) => Ok(Some(workspace_dir)),
         None => pacquet_workspace::find_workspace_dir(manifest_dir),
     }
+}
+
+/// The directory `pnpm-lock.yaml` lives in, which is what importer ids,
+/// reporter prefixes and the workspace-state file are all named relative
+/// to. Dedicated per-project lockfiles (`sharedWorkspaceLockfile: false`)
+/// anchor it at the active project rather than the workspace root,
+/// mirroring pnpm's `lockfileDir = sharedWorkspaceLockfile ? workspaceDir
+/// : projectDir`.
+///
+/// Every caller that names something by importer id has to derive it the
+/// same way the install does, or the two disagree about which importer an
+/// entry belongs to.
+pub(crate) fn lockfile_root_dir(
+    config: &Config,
+    manifest_dir: &Path,
+) -> Result<PathBuf, pacquet_workspace::FindWorkspaceDirError> {
+    if !config.shared_workspace_lockfile {
+        return Ok(manifest_dir.to_path_buf());
+    }
+    Ok(configured_or_discovered_workspace_dir(config, manifest_dir)?
+        .unwrap_or_else(|| manifest_dir.to_path_buf()))
 }
 
 /// Build the `name → version → WorkspacePackage` lookup the npm

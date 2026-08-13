@@ -55,6 +55,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) deps_requiring_build_sink: Option<DepsRequiringBuildSink>,
     pub(super) pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     pub(super) save_lockfile: bool,
+    pub(super) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
     pub(super) catalogs: &'a Catalogs,
     pub(super) prefix: &'a str,
 }
@@ -116,6 +117,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         deps_requiring_build_sink,
         pnpmfile_hook,
         save_lockfile,
+        manifest_spec_bumps,
         catalogs,
         prefix,
     } = inputs;
@@ -359,6 +361,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             current_lockfile,
             prior_hoisted_dependencies,
             prune_orphans,
+            manifest_spec_bumps,
         }
         .run::<Reporter>()
         .await

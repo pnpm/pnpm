@@ -11,9 +11,10 @@ use super::{
     check_optimistic_repeat_install, configured_or_discovered_workspace_dir,
     dev_preinstall_already_ran, emit_initial_package_manifest,
     get_catalogs_from_workspace_manifest, gvs_build_marker_present,
-    gvs_build_markers_may_require_recovery, load_workspace_projects, map_frozen_lockfile_error,
-    materialize, prepare_modules_state, run_dev_preinstall, selected_manifest_freshness_inputs,
-    try_fast_update_lockfile, unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
+    gvs_build_markers_may_require_recovery, load_workspace_projects, lockfile_root_dir,
+    map_frozen_lockfile_error, materialize, prepare_modules_state, run_dev_preinstall,
+    selected_manifest_freshness_inputs, try_fast_update_lockfile,
+    unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
 use pacquet_config::Config;
 use pacquet_executor::DEV_PREINSTALL_STAGE;
@@ -32,6 +33,7 @@ where
             selection,
             root_manifest_as_workspace_root,
             save_lockfile,
+            manifest_spec_bumps,
             prompt_eligibility_override,
         } = options;
         let Install {
@@ -139,18 +141,11 @@ where
             .map_err(InstallError::FindWorkspaceDir)?;
         let workspace_manifest_dir =
             workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
-        // Dedicated per-project lockfiles (`sharedWorkspaceLockfile:
-        // false`) anchor everything `workspace_root` names — the wanted
-        // lockfile, importer ids, reporter prefixes, the workspace-state
-        // file — at the active project, mirroring pnpm's `lockfileDir =
-        // sharedWorkspaceLockfile ? workspaceDir : projectDir`. Catalogs
-        // and workspace packages still come from the real workspace dir
-        // (`workspace_dir_opt`).
-        let workspace_root = if config.shared_workspace_lockfile {
-            workspace_manifest_dir.clone()
-        } else {
-            manifest_dir.to_path_buf()
-        };
+        // Catalogs and workspace packages still come from the real
+        // workspace dir (`workspace_dir_opt`), which `lockfile_root_dir`
+        // parts ways with under `sharedWorkspaceLockfile: false`.
+        let workspace_root =
+            lockfile_root_dir(config, manifest_dir).map_err(InstallError::FindWorkspaceDir)?;
 
         let workspace_manifest = match workspace_dir_opt.as_deref() {
             Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
@@ -970,6 +965,7 @@ where
             deps_requiring_build_sink,
             pnpmfile_hook,
             save_lockfile,
+            manifest_spec_bumps,
             catalogs: &catalogs,
             prefix: &prefix,
         })
