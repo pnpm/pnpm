@@ -290,16 +290,14 @@ impl Walker<'_> {
                 }
             }
             for missing_name in item.missing_peers.keys() {
-                let refs = if self.peer_name_is_hoisted(pkg_id, missing_name) {
-                    &self.importer_refs
-                } else {
-                    parent_refs
-                };
-                if refs.contains_key(missing_name) {
+                if parent_refs.contains_key(missing_name) {
                     return false;
                 }
             }
-            true
+            // A hoisted name the importer provides must be in the item:
+            // its absence means the item was recorded under an importer
+            // context without the provider.
+            self.hoisted_provided(pkg_id).iter().all(|name| item.resolved_peers.contains_key(name))
         })
     }
 
@@ -464,12 +462,6 @@ impl Walker<'_> {
             }
         }
         for name in item.missing_peers.keys() {
-            if self.peer_name_is_hoisted(pkg_id, name) {
-                if self.importer_refs.contains_key(name) {
-                    return FastCacheMatch::NoMatch;
-                }
-                continue;
-            }
             match self.fast_provider_for_name(parent_ids, parent_refs, pkg_id, name) {
                 FastProvider::Missing => {}
                 FastProvider::Inherited(_) | FastProvider::Child(_) => {
@@ -477,6 +469,10 @@ impl Walker<'_> {
                 }
                 FastProvider::Ambiguous => ambiguous = true,
             }
+        }
+        if !self.hoisted_provided(pkg_id).iter().all(|name| item.resolved_peers.contains_key(name))
+        {
+            return FastCacheMatch::NoMatch;
         }
         if ambiguous { FastCacheMatch::Ambiguous } else { FastCacheMatch::Match }
     }
@@ -541,7 +537,7 @@ impl Walker<'_> {
             );
             let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id.to_string());
             for (peer_name, info) in output.missing_peers.iter() {
-                if info.hoisted || self.missing_issue_suppressed(&chain_with_self, peer_name) {
+                if self.missing_issue_suppressed(&chain_with_self, peer_name) {
                     continue;
                 }
                 self.record_missing_issue(
@@ -580,7 +576,9 @@ impl Walker<'_> {
         pkg_id: &Arc<str>,
     ) -> DeferredChildResolution {
         if let Some(dep_path) = self.pure_pkgs.get(&**pkg_id)
-            && self.tree.packages[&**pkg_id].peer_dependencies.is_empty()
+            && (self.tree.packages[&**pkg_id].peer_dependencies.is_empty()
+                || self.static_peer_names_of(pkg_id).is_some_and(|sets| sets.in_cyclic_region))
+            && self.hoisted_provided(pkg_id).is_empty()
         {
             return DeferredChildResolution::Pure(dep_path.clone());
         }

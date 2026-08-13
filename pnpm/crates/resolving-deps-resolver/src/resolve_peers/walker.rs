@@ -152,8 +152,13 @@ pub(super) struct Walker<'tree> {
     /// The current importer's root-level peer providers — the
     /// deterministic context cyclic-arriving peer names resolve
     /// against, regardless of where the occurrence sits. Swapped per
-    /// importer by the walk drivers.
+    /// importer by the walk drivers via [`Walker::set_importer_refs`].
     pub(super) importer_refs: Arc<ParentRefs>,
+    /// Per-package memo of the hoisted names [`Self::importer_refs`]
+    /// provides. Backs the reuse guards: an item recorded when a
+    /// hoisted name had no provider must not serve a context that has
+    /// one. Cleared whenever the importer context is swapped.
+    hoisted_provided_memo: std::cell::RefCell<HashMap<Arc<str>, Arc<Vec<String>>>>,
     /// Dedupes the consulted sets stored on cycle-truncation keys.
     consulted_sets: HashSet<Arc<ConsultedPkgs>>,
     pub(super) empty_resolved_peers: Arc<HashMap<String, NodeId>>,
@@ -243,6 +248,7 @@ impl<'tree> Walker<'tree> {
             consulted_stack: Vec::new(),
             static_peer_names: std::cell::OnceCell::new(),
             importer_refs: Arc::new(ParentRefs::default()),
+            hoisted_provided_memo: std::cell::RefCell::new(HashMap::default()),
             consulted_sets,
             empty_resolved_peers: Arc::new(HashMap::default()),
             empty_missing_peers: Arc::new(HashMap::default()),
@@ -293,6 +299,41 @@ impl<'tree> Walker<'tree> {
     /// [`Walker::static_peer_names`].
     pub(super) fn static_peer_names_of(&self, pkg_id: &str) -> Option<&StaticPeerNames> {
         self.static_peer_names.get_or_init(|| build_static_peer_names(self.tree)).get(pkg_id)
+    }
+
+    /// Swap the importer context in; see [`Walker::importer_refs`].
+    pub(super) fn set_importer_refs(&mut self, refs: Arc<ParentRefs>) {
+        self.importer_refs = refs;
+        self.hoisted_provided_memo.borrow_mut().clear();
+    }
+
+    /// The hoisted names of `pkg_id` the current importer context
+    /// provides; see [`Walker::hoisted_provided_memo`].
+    pub(super) fn hoisted_provided(&self, pkg_id: &str) -> Arc<Vec<String>> {
+        if let Some(known) = self.hoisted_provided_memo.borrow().get(pkg_id) {
+            return Arc::clone(known);
+        }
+        let provided: Vec<String> = self
+            .static_peer_names_of(pkg_id)
+            .map(|sets| {
+                sets.closure
+                    .iter()
+                    .filter(|name| sets.in_cyclic_region || !sets.acyclic.contains(*name))
+                    .filter(|name| self.importer_refs.contains_key(*name))
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
+        let provided = Arc::new(provided);
+        if let Some(interned) = self
+            .static_peer_names
+            .get()
+            .and_then(|names| names.get_key_value(pkg_id))
+            .map(|(key, _)| Arc::clone(key))
+        {
+            self.hoisted_provided_memo.borrow_mut().insert(interned, Arc::clone(&provided));
+        }
+        provided
     }
 
     /// The [`CycleTruncationKey`] scoping this walk's truncated verdict:
@@ -369,10 +410,6 @@ pub(super) struct MissingPeerInfo {
     pub(super) range: String,
     #[allow(dead_code, reason = "future peersCache validation")]
     pub(super) optional: bool,
-    /// `true` for a miss recorded by the hoisted-context normalization
-    /// rather than by a walk reaching a consumer: it scopes cache
-    /// matching but is not a user-facing issue.
-    pub(super) hoisted: bool,
 }
 
 /// Persistent summary of missing peers in a subtree. Child summaries
@@ -486,7 +523,7 @@ struct NodePeersContext<'a> {
 impl Walker<'_> {
     pub(super) fn walk(mut self) -> ResolvePeersResult {
         let importer_parents = Arc::new(self.build_importer_parents());
-        self.importer_refs = Arc::clone(&importer_parents);
+        self.set_importer_refs(Arc::clone(&importer_parents));
         let parent_chain_names = SharedChain::default();
         let parent_node_ids = SharedChain::default();
         let parent_pkg_ids_chain = SharedChain::default();
@@ -569,9 +606,7 @@ impl Walker<'_> {
             missing_names_by_pkg
                 .entry(std::sync::Arc::<str>::clone(&tree_node.resolved_package_id).to_string())
                 .or_default()
-                .extend(
-                    missing.iter().filter(|(_, info)| !info.hoisted).map(|(name, _)| name.clone()),
-                );
+                .extend(missing.keys().cloned());
         }
         ResolvePeersResult {
             graph,
@@ -665,7 +700,22 @@ impl Walker<'_> {
                     ));
                 }
                 let dep_path = self.pure_pkgs.get(&*tree_node.resolved_package_id)?;
-                if !self.tree.packages[&tree_node.resolved_package_id].peer_dependencies.is_empty()
+                // A pure verdict recorded without importer-provided
+                // hoisted names cannot serve a context that has them.
+                if !self.hoisted_provided(&tree_node.resolved_package_id).is_empty() {
+                    return None;
+                }
+                // Own peers of a cyclic-region package are hoisted, so
+                // they cannot make its verdict context-sensitive; the
+                // guard above already vouched the importer provides
+                // none of them.
+                let own_peers_bind = !self.tree.packages[&tree_node.resolved_package_id]
+                    .peer_dependencies
+                    .is_empty()
+                    && !self
+                        .static_peer_names_of(&tree_node.resolved_package_id)
+                        .is_some_and(|sets| sets.in_cyclic_region);
+                if own_peers_bind
                     || (!self.discovery
                         && self
                             .graph
@@ -944,16 +994,8 @@ impl Walker<'_> {
         // this node's depPath).
         self.remember_resolved_node(node_id, &dep_path);
 
-        // Hoisted misses are cache-scoping data, not hoist-loop input:
-        // feeding them back would have auto-install churn the importer
-        // context every round.
-        let reportable_missing: HashSet<String> = missing_from_children
-            .iter()
-            .filter(|(_, info)| !info.hoisted)
-            .map(|(name, _)| name.clone())
-            .collect();
-        let own_missing =
-            (!reportable_missing.is_empty()).then(|| (pkg.id.to_string(), reportable_missing));
+        let own_missing = (!missing_from_children.is_empty())
+            .then(|| (pkg.id.to_string(), missing_from_children.keys().cloned().collect()));
         let subtree_missing_by_pkg = match (own_missing, missing_summaries.len()) {
             (None, 0) => None,
             (None, 1) => missing_summaries.pop(),
@@ -1206,18 +1248,19 @@ impl Walker<'_> {
             all_missing.insert(peer_alias.clone(), info.clone());
         }
 
-        // Normalize the verdict to the package's static peer-name
-        // closure (pnpm/pnpm#5108 requires every occurrence to carry
-        // it). Inside a cyclic region — where cache-collapsed subtrees
-        // mean an occurrence's context can come from whichever walk
+        // Normalize the verdict to the package's hoisted peer names:
+        // inside a cyclic region — where cache-collapsed subtrees mean
+        // an occurrence's context can come from whichever walk
         // materialized it first — every name resolves against the
         // importer context; outside, only names arriving through a
         // strongly connected component do, and acyclically arriving
         // names keep the walk's position resolution, which no
-        // occurrence chain can disturb (pnpm/pnpm#13865). Either way a
-        // package's verdict is a function of (package, context) alone.
-        // Hoisted misses feed the context checks only; the walk that
-        // actually reaches a consumer reports the user-facing issue.
+        // occurrence chain can disturb (pnpm/pnpm#13865). A hoisted
+        // name the importer does not provide leaves the verdict
+        // entirely: it still reaches `transitivePeerDependencies`
+        // through the static table at record time (pnpm/pnpm#5108),
+        // but carrying it as a missing entry would destroy the pure
+        // fast path for the whole region.
         if !self.tree.children_by_id.is_empty()
             && let Some(static_names) = self.static_peer_names_of(&pkg.id)
         {
@@ -1235,10 +1278,7 @@ impl Walker<'_> {
                     all_resolved.insert(name.clone(), provider);
                 } else {
                     all_resolved.remove(name);
-                    all_missing.insert(
-                        name.clone(),
-                        MissingPeerInfo { range: "*".to_string(), optional: true, hoisted: true },
-                    );
+                    all_missing.remove(name);
                 }
             }
         }
@@ -1453,11 +1493,7 @@ impl Walker<'_> {
             None => {
                 missing.insert(
                     peer_name.to_string(),
-                    MissingPeerInfo {
-                        range: range_for_match.to_string(),
-                        optional,
-                        hoisted: false,
-                    },
+                    MissingPeerInfo { range: range_for_match.to_string(), optional },
                 );
                 if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
                     self.record_missing_issue(

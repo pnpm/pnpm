@@ -2232,10 +2232,10 @@ fn a_truncation_blinded_verdict_never_passes_for_pure() {
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
 }
 
-/// A verdict recorded under a truncating chain still carries the
-/// package's full static peer-name closure: the top-up resolves what
-/// the cut subtree never surfaced, so no cached item can under-report
-/// its names (pnpm/pnpm#13865).
+/// Hoisted names travel through the static table, not the verdict: a
+/// ring member's cached state carries no `w` however its subtree was
+/// truncated, and with no importer-provided hoisted names the member
+/// is pure (pnpm/pnpm#13865).
 #[test]
 fn a_truncated_verdict_is_topped_up_to_the_static_peer_names() {
     let mut tree = peer_cycle_fixture(
@@ -2250,6 +2250,7 @@ fn a_truncated_verdict_is_topped_up_to_the_static_peer_names() {
     let direct = tree.direct.clone();
     let mut walker = crate::resolve_peers::test_support::walker_for_tests(&mut tree);
     let importer_parents = Arc::new(walker.build_importer_parents_from(&direct));
+    walker.set_importer_refs(Arc::clone(&importer_parents));
     let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
     for dep in &direct {
         walker.resolve_node(
@@ -2263,14 +2264,13 @@ fn a_truncated_verdict_is_topped_up_to_the_static_peer_names() {
     }
 
     assert!(
-        !walker.pure_pkgs.contains_key("ring02@1.0.0"),
-        "a package whose closure consumes a peer is never pure",
+        walker.pure_pkgs.contains_key("ring02@1.0.0"),
+        "with no importer-provided hoisted names the ring member is pure",
     );
-    let items = walker.peers_cache.get("ring02@1.0.0").expect("the verdict is cached");
-    assert!(
-        items.iter().all(|item| {
+    let cached_mentions_w = walker.peers_cache.get("ring02@1.0.0").is_some_and(|items| {
+        items.iter().any(|item| {
             item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
-        }),
-        "every ring02 verdict accounts for w, cut subtree or not",
-    );
+        })
+    });
+    assert!(!cached_mentions_w, "hoisted names stay out of cached verdicts");
 }

@@ -156,6 +156,18 @@ impl Walker<'_> {
                 transitive_peer_dependencies.insert(peer_alias.clone());
             }
         }
+        // Hoisted names travel through the static table rather than the
+        // verdict (see the normalization in `resolve_node_peers`), but
+        // pnpm/pnpm#5108 requires every occurrence to carry them here.
+        if let Some(static_names) = self.static_peer_names_of(&pkg.id) {
+            for name in static_names.closure.iter() {
+                if (static_names.in_cyclic_region || !static_names.acyclic.contains(name))
+                    && !pkg.peer_dependencies.contains_key(name)
+                {
+                    transitive_peer_dependencies.insert(name.clone());
+                }
+            }
+        }
 
         // Finish this node's NodeId-level edges for the post-walk
         // [`Walker::build_final_dep_paths`] rebuild: its regular children
