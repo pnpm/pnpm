@@ -843,32 +843,29 @@ pub fn host_platform_selector() -> PlatformSelector {
     PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
 }
 
-/// Resolve the runtime archive selector from `supportedArchitectures`, using
-/// the first requested value on each axis and expanding `current` to the host.
+/// Resolve the runtime archive selector from `supportedArchitectures`. Only
+/// one archive is installed, so each axis keeps the host's own value whenever
+/// the requested values allow it, either by listing it or by listing
+/// `current`. Values that exclude the host fall back to the first requested
+/// one.
 #[must_use]
 pub fn runtime_platform_selector(
     supported: Option<&pnpm_package_is_installable::SupportedArchitectures>,
 ) -> PlatformSelector {
     let host = host_platform_selector();
-    let pick = |values: Option<&Vec<String>>, current: &str| {
-        values.and_then(|values| values.first()).map_or_else(
-            || current.to_string(),
-            |value| {
-                if value == "current" { current.to_string() } else { value.clone() }
-            },
-        )
+    let pick = |values: Option<&Vec<String>>, current: Option<&str>| -> Option<String> {
+        let values = values.filter(|values| !values.is_empty())?;
+        if values.iter().any(|value| value == "current" || Some(value.as_str()) == current) {
+            return current.map(str::to_string);
+        }
+        values.first().cloned()
     };
     PlatformSelector {
-        os: pick(supported.and_then(|value| value.os.as_ref()), &host.os),
-        cpu: pick(supported.and_then(|value| value.cpu.as_ref()), &host.cpu),
-        libc: match supported
-            .and_then(|value| value.libc.as_ref())
-            .and_then(|values| values.first())
-        {
-            None => host.libc,
-            Some(value) if value == "current" => host.libc,
-            Some(value) => Some(value.clone()),
-        },
+        os: pick(supported.and_then(|value| value.os.as_ref()), Some(&host.os))
+            .unwrap_or_else(|| host.os.clone()),
+        cpu: pick(supported.and_then(|value| value.cpu.as_ref()), Some(&host.cpu))
+            .unwrap_or_else(|| host.cpu.clone()),
+        libc: pick(supported.and_then(|value| value.libc.as_ref()), host.libc.as_deref()),
     }
 }
 
