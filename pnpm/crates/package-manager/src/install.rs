@@ -77,9 +77,10 @@ pub use lockfile_freshness::{
 use materialize::{MaterializationInputs, MaterializationOutput, materialize};
 use modules_state::{
     build_modules_manifest, check_modules_settings_diff, drain_settled_projects,
-    frozen_tree_intact, gvs_build_marker_present, gvs_build_markers_may_require_recovery,
-    has_newly_allowed_ignored_builds, has_revoked_allowed_builds, manifest_string_field,
-    merge_filtered_modules_metadata, merge_pending_builds, modules_consistent_with,
+    current_contains_dep_path, frozen_tree_intact, gvs_build_marker_present,
+    gvs_build_markers_may_require_recovery, has_newly_allowed_ignored_builds,
+    has_revoked_allowed_builds, manifest_string_field, merge_filtered_modules_metadata,
+    merge_pending_builds, modules_consistent_with,
     modules_layout_consistent_with, project_requires_lifecycle_scripts,
     unapproved_recorded_ignored_builds,
 };

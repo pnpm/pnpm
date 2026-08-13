@@ -358,6 +358,32 @@ fn install_two_with_ignored_builds() -> (CommandTempCwd<AddMockedRegistry>, std:
     (harness, workspace)
 }
 
+#[test]
+fn approve_builds_works_after_removing_an_unrelated_dependency() {
+    let (harness, workspace) = install_two_with_ignored_builds();
+
+    pacquet(&workspace).with_args(["remove", INSTALL]).assert().success();
+
+    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
+    assert!(output.contains(PREPOST), "the remaining package stays pending: {output}");
+    assert!(
+        !output.contains(INSTALL),
+        "the removed package must not stay pending: {output}",
+    );
+
+    pacquet(&workspace).with_args(["approve-builds", "--all"]).assert().success();
+
+    assert!(workspace.join(PREPOST_MARKER).exists(), "remaining package built under --all");
+    assert!(!workspace.join(INSTALL_MARKER).exists(), "removed package was not rebuilt");
+    assert_eq!(
+        allow_builds(&workspace).get(PREPOST),
+        Some(&true),
+        "remaining package approval persisted",
+    );
+
+    drop(harness);
+}
+
 /// The `allowBuilds` map recorded in the workspace manifest.
 /// The *decided* `allowBuilds` entries. An install scaffolds an
 /// undecided placeholder for every build it blocked, which is a prompt to

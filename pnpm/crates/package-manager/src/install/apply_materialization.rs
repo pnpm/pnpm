@@ -4,8 +4,8 @@ use super::{
     LogLevel, Modules, NodeLinker, PackageManifest, Path, PathBuf, ProjectMutation,
     ProjectScriptsInputs, RebuildOptions, Reporter, SummaryLog, SystemTime,
     WorkspaceInstallSelection, build_modules_manifest, build_workspace_state,
-    drain_settled_projects, merge_filtered_modules_metadata, merge_pending_builds,
-    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    current_contains_dep_path, drain_settled_projects, merge_filtered_modules_metadata,
+    merge_pending_builds, order_project_lifecycle_groups, project_requires_lifecycle_scripts,
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
@@ -400,6 +400,12 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         pending_builds,
         pruned_at,
     );
+    if let (Some(previous), Some(current)) = (modules_manifest, materialized_current_lockfile) {
+        let allow_build_policy = crate::AllowBuildPolicy::from_config(config)
+            .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
+            .map_err(InstallError::WithFreshLockfile)?;
+        retain_current_ignored_builds(&mut next_modules, previous, current, &allow_build_policy);
+    }
     if filtered_install
         && !matches!(node_linker, NodeLinker::Hoisted)
         && !is_inconsistent
@@ -459,6 +465,22 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     }
 
     Ok(())
+}
+
+fn retain_current_ignored_builds(
+    next: &mut Modules,
+    previous: &pacquet_modules_yaml::ModulesLayout,
+    current: &Lockfile,
+    allow_build_policy: &crate::AllowBuildPolicy,
+) {
+    let Some(previous_ignored) = previous.ignored_builds.as_ref() else { return };
+    for dep_path in previous_ignored {
+        if current_contains_dep_path(current, dep_path.as_str())
+            && allow_build_policy.check(dep_path.as_str()).is_none()
+        {
+            next.ignored_builds.get_or_insert_default().insert(dep_path.clone());
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

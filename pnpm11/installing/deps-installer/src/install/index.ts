@@ -2176,6 +2176,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ctx.pendingBuilds = ctx.pendingBuilds
       .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
 
+    if (ctx.modulesFile?.ignoredBuilds?.size) {
+      for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
+        if (result.currentLockfile.packages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, opts.allowBuild)) {
+          ignoredBuilds ??= new Set()
+          ignoredBuilds.add(ignoredBuild)
+        }
+      }
+    }
+
     if (result.newDepPaths?.length) {
       if (opts.ignoreScripts) {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
@@ -2206,7 +2215,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
         // Dependency lifecycle scripts must not run on an unverified lockfile.
         await opts.verifyLockfile?.()
-        ignoredBuilds = (await buildModules(dependenciesGraph, rootNodes, {
+        const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
@@ -2229,12 +2238,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
           frozenStore: opts.frozenStore,
         })).ignoredBuilds
-        if (ctx.modulesFile?.ignoredBuilds?.size) {
+        if (ignoredBuildsFromBuild?.size) {
           ignoredBuilds ??= new Set()
-          for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
-            if (result.currentLockfile.packages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, opts.allowBuild)) {
-              ignoredBuilds.add(ignoredBuild)
-            }
+          for (const ignoredBuild of ignoredBuildsFromBuild.values()) {
+            ignoredBuilds.add(ignoredBuild)
           }
         }
       }
