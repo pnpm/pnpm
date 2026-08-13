@@ -1906,6 +1906,15 @@ pacquet@12.0.0-rc.4:
     - ssh-git-url-without-user-info
     - stream-env-lockfile-document
     - unused-patch-after-removal
+pacquet@12.0.0-rc.5:
+  dir: pnpm/npm/pnpm
+  intents:
+    - canonical-cycle-breaking
+    - hoisted-peers-resolve-as-subdeps
+    - importer-order-invariance
+    - peer-cache-partial-view
+    - preserve-unchanged-package-metadata
+    - update-writes-the-new-range
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
