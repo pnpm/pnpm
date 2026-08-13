@@ -400,7 +400,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         pending_builds,
         pruned_at,
     );
-    if let (Some(previous), Some(current)) = (modules_manifest, materialized_current_lockfile) {
+    if let (Some(previous), Some(current)) = (prior_modules, materialized_current_lockfile) {
         let allow_build_policy = crate::AllowBuildPolicy::from_config(config)
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
             .map_err(InstallError::WithFreshLockfile)?;
