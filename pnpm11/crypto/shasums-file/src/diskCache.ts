@@ -52,11 +52,18 @@ export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): P
   const filePath = shasumsCachePath(opts.cacheDir, opts.trust, url)
   if (filePath == null) return undefined
   try {
-    // A bounded read rather than a stat check keeps the cap race-free: at
-    // most one byte past the bound is ever read, whatever the file's size
-    // becomes between open and read.
-    const file = await fs.promises.open(filePath, 'r')
+    // A FIFO planted at the entry path would block a plain open until a
+    // writer appears; O_NONBLOCK (a no-op for regular files, absent on
+    // Windows, whose directory entries cannot be named pipes) makes the open
+    // return immediately.
+    const file = await fs.promises.open(filePath, fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0))
     try {
+      // Checked on the opened handle, so nothing can swap the regular file
+      // for a special one between check and read.
+      if (!(await file.stat()).isFile()) return undefined
+      // A bounded read rather than a stat check keeps the cap race-free: at
+      // most one byte past the bound is ever read, whatever the file's size
+      // becomes between open and read.
       const buffer = Buffer.allocUnsafe(MAX_CACHED_SHASUMS_LEN + 1)
       const { bytesRead } = await file.read(buffer, 0, buffer.length, 0)
       if (bytesRead === 0 || bytesRead > MAX_CACHED_SHASUMS_LEN) return undefined

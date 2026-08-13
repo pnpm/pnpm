@@ -69,15 +69,28 @@ pub(crate) fn read_cached_shasums(
     use std::io::Read as _;
 
     let path = shasums_cache_path(cache_dir?, trust, url)?;
+    let mut options = fs::OpenOptions::new();
+    options.read(true);
+    // A FIFO planted at the entry path would block a plain `open` until
+    // a writer appears; `O_NONBLOCK` makes the open return immediately
+    // and is a no-op for regular files. (Windows directory entries
+    // cannot be named pipes, so the plain open is safe there.)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = options.open(&path).ok()?;
+    // Checked on the opened handle, so nothing can swap the regular
+    // file for a special one between check and read.
+    if !file.metadata().ok()?.is_file() {
+        return None;
+    }
     // A bounded reader rather than a metadata check keeps the cap
     // race-free: at most one byte past the bound is ever read,
     // whatever the file's size becomes between open and read.
     let mut body = String::new();
-    let bytes_read = fs::File::open(&path)
-        .ok()?
-        .take(MAX_CACHED_SHASUMS_LEN + 1)
-        .read_to_string(&mut body)
-        .ok()?;
+    let bytes_read = file.take(MAX_CACHED_SHASUMS_LEN + 1).read_to_string(&mut body).ok()?;
     (bytes_read > 0 && bytes_read as u64 <= MAX_CACHED_SHASUMS_LEN).then_some(body)
 }
 
