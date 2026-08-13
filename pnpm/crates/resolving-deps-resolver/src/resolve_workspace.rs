@@ -246,6 +246,19 @@ where
         })
         .collect();
 
+    // Resolve importers in id order. Children-owner claims are ranked
+    // by importer position and the hoist rounds run sequentially in
+    // list order, so a stable order makes ownership, the first-walk
+    // missing scope, and every auto-install decision a function of the
+    // importer set rather than of the caller's listing order
+    // (pnpm/pnpm#13846).
+    let (importers, importer_opts): (Vec<&WorkspaceImporter<'a>>, Vec<ResolveImporterOptions>) = {
+        let mut paired: Vec<(&WorkspaceImporter<'a>, ResolveImporterOptions)> =
+            importers.iter().zip(importer_opts).collect();
+        paired.sort_by(|(left, _), (right, _)| left.id.cmp(&right.id));
+        paired.into_iter().unzip()
+    };
+
     // The `minimumReleaseAge` cutoff is set uniformly on every
     // importer's `base_opts.published_by` by the install layer; it is
     // the upper bound on the time-based cutoff.
@@ -253,7 +266,7 @@ where
     let TimeBasedCutoff { published_by: subdep_published_by, time } = if time_based {
         compute_time_based_cutoff(
             resolver,
-            importers,
+            &importers,
             &importer_opts,
             dependency_groups,
             pick_lowest_direct,
@@ -435,7 +448,7 @@ struct TimeBasedCutoff {
 /// them.
 async fn compute_time_based_cutoff<Chain>(
     resolver: &Chain,
-    importers: &[WorkspaceImporter<'_>],
+    importers: &[&WorkspaceImporter<'_>],
     importer_opts: &[ResolveImporterOptions],
     dependency_groups: &[DependencyGroup],
     pick_lowest_direct: bool,
