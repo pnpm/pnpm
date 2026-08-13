@@ -52,9 +52,17 @@ const MAX_CACHED_SHASUMS_LEN = 1024 * 1024
 
 /**
  * The cached body for `url` as UTF-8 text, via {@link readCachedBytes}.
+ * Invalid UTF-8 is a miss — a lossy decode would turn a corrupted entry
+ * into malformed rows instead of a refetch.
  */
 export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): Promise<string | undefined> {
-  return (await readCachedBytes(url, opts))?.toString('utf8')
+  const bytes = await readCachedBytes(url, opts)
+  if (bytes == null) return undefined
+  try {
+    return new TextDecoder('utf8', { fatal: true }).decode(bytes)
+  } catch {
+    return undefined
+  }
 }
 
 /**
