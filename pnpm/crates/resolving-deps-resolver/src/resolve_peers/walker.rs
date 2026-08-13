@@ -11,8 +11,8 @@ use crate::{
     resolve_peers::{
         ResolvePeersOptions, ResolvePeersResult,
         cache::{
-            CacheHitContext, ConsultedPkgs, CycleTruncationKey, DeferredChildContext,
-            PeerProviderChildren, PeersCacheItem, merge_realize_undo,
+            CacheHitContext, DeferredChildContext, PeerProviderChildren, PeersCacheItem,
+            merge_realize_undo,
         },
         context::{
             CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs, SharedChain,
@@ -135,15 +135,6 @@ pub(super) struct Walker<'tree> {
     packages_by_id: HashMap<String, Arc<ResolvedPackage>>,
     pub(super) peer_provider_children_by_pkg_id: HashMap<String, PeerProviderChildren>,
     peer_provider_index_peer_names: HashSet<String>,
-    /// `pkg id → bit` behind [`ConsultedPkgs`]. Persists with the
-    /// peers cache across walker instances — the bits in stored keys
-    /// mean nothing without it.
-    pub(super) consulted_bit_by_pkg: HashMap<Arc<str>, u32>,
-    /// One frame per full walk in progress. Realization marks the
-    /// packages the cycle gate weighs in the innermost frame; a
-    /// finished walk folds its frame into its parent's, so an outer
-    /// frame covers the outer walk's whole subtree.
-    consulted_stack: Vec<ConsultedPkgs>,
     /// Children-graph SCC ids behind the canonical cycle gate: every
     /// intra-SCC edge whose target is not canonically later
     /// (package-id order) is cut, the same cut at every occurrence, so
@@ -156,8 +147,6 @@ pub(super) struct Walker<'tree> {
     /// realized back-edge child pointing at one must be queued for the
     /// drain or the package vanishes from the graph.
     backedge_only_pkgs: std::cell::OnceCell<Arc<HashSet<Arc<str>>>>,
-    /// Dedupes the consulted sets stored on cycle-truncation keys.
-    consulted_sets: HashSet<Arc<ConsultedPkgs>>,
     pub(super) empty_resolved_peers: Arc<HashMap<String, NodeId>>,
     pub(super) empty_missing_peers: Arc<HashMap<String, MissingPeerInfo>>,
     /// The shared record-only occurrence per canonical back-edge
@@ -193,8 +182,6 @@ impl<'tree> Walker<'tree> {
             retained_peer_node_ids,
             mut peer_provider_children_by_pkg_id,
             mut peer_provider_index_peer_names,
-            consulted_bit_by_pkg,
-            consulted_sets,
             canonical_backedge_nodes,
         } = caches;
         if peer_provider_index_peer_names != tree.all_peer_dep_names {
@@ -256,11 +243,8 @@ impl<'tree> Walker<'tree> {
             packages_by_id: HashMap::default(),
             peer_provider_children_by_pkg_id,
             peer_provider_index_peer_names,
-            consulted_bit_by_pkg,
-            consulted_stack: Vec::new(),
             children_sccs: std::cell::OnceCell::new(),
             backedge_only_pkgs: std::cell::OnceCell::new(),
-            consulted_sets,
             empty_resolved_peers: Arc::new(HashMap::default()),
             empty_missing_peers: Arc::new(HashMap::default()),
             canonical_backedge_nodes,
@@ -282,31 +266,7 @@ impl<'tree> Walker<'tree> {
             retained_peer_node_ids: self.retained_peer_node_ids,
             peer_provider_children_by_pkg_id: self.peer_provider_children_by_pkg_id,
             peer_provider_index_peer_names: self.peer_provider_index_peer_names,
-            consulted_bit_by_pkg: self.consulted_bit_by_pkg,
-            consulted_sets: self.consulted_sets,
             canonical_backedge_nodes: self.canonical_backedge_nodes,
-        }
-    }
-
-    /// Record that realizing (or re-reading the realization of)
-    /// `pkg_id`'s children weighed `pkg_id` and every one of its child
-    /// edge targets against the ancestor chain. Feeds the innermost
-    /// walk frame; see [`Walker::consulted_stack`].
-    pub(super) fn mark_realization_consulted(&mut self, pkg_id: &Arc<str>) {
-        if self.consulted_stack.is_empty() {
-            return;
-        }
-        let edges = self.tree.children_by_id.get(&**pkg_id).cloned();
-        let mut mark = |id: &Arc<str>| {
-            let next = self.consulted_bit_by_pkg.len() as u32;
-            let bit = *self.consulted_bit_by_pkg.entry(Arc::clone(id)).or_insert(next);
-            if let Some(frame) = self.consulted_stack.last_mut() {
-                frame.set(bit);
-            }
-        };
-        mark(pkg_id);
-        for edge in edges.iter().flat_map(|edges| edges.iter()) {
-            mark(&edge.pkg_id);
         }
     }
 
@@ -420,50 +380,6 @@ impl<'tree> Walker<'tree> {
             );
         }
         self.in_canonical_drain = false;
-    }
-
-    /// The [`CycleTruncationKey`] scoping this walk's truncated verdict:
-    /// the occurrence's ancestor chain restricted to what the walk's
-    /// gate weighed.
-    fn build_cycle_key(&mut self, ids: &AncestorIds, frame: &ConsultedPkgs) -> CycleTruncationKey {
-        let mut chain: Vec<Arc<str>> = Vec::new();
-        let mut base_len = 0u32;
-        {
-            let bit_by_pkg = &self.consulted_bit_by_pkg;
-            // The bit index already owns an `Arc` for every consulted id,
-            // so the chain shares those instead of allocating copies.
-            let push_if_consulted = |chain: &mut Vec<Arc<str>>, id: &str| {
-                let Some((interned, bit)) = bit_by_pkg.get_key_value(id) else {
-                    return false;
-                };
-                if !frame.contains(*bit) {
-                    return false;
-                }
-                chain.push(Arc::clone(interned));
-                true
-            };
-            for id in ids.base_ids() {
-                if push_if_consulted(&mut chain, id) {
-                    base_len += 1;
-                }
-            }
-            for id in ids.appended_ids() {
-                push_if_consulted(&mut chain, id);
-            }
-        }
-        CycleTruncationKey::new(self.shared_consulted(frame), chain, base_len)
-    }
-
-    /// The deduplicated [`Self::consulted_sets`] handle for `frame`;
-    /// walks of one package overwhelmingly weigh the same packages.
-    fn shared_consulted(&mut self, frame: &ConsultedPkgs) -> Arc<ConsultedPkgs> {
-        if let Some(hit) = self.consulted_sets.get(frame) {
-            Arc::clone(hit)
-        } else {
-            let arc = Arc::new(frame.clone());
-            self.consulted_sets.insert(Arc::clone(&arc));
-            arc
-        }
     }
 }
 
@@ -764,13 +680,6 @@ impl Walker<'_> {
         parent_node_ids: &SharedChain<NodeId>,
         parent_pkg_ids_chain: &SharedChain<String>,
     ) -> NodeOutput {
-        // The cycle gate in `realize_children_with` truncates against these,
-        // so they identify the subtree this walk will actually see. Captured
-        // before realization flips the node to `Realized` and drops them.
-        let truncation_ids = match &self.tree.dependencies_tree.get(node_id).map(|n| &n.children) {
-            Some(TreeChildren::Lazy { parent_ids }) => Some(parent_ids.clone()),
-            _ => None,
-        };
         // `purePkgs` fast-path. When the subtree below this
         // `pkgIdWithPatchHash` resolved with zero external peers and
         // zero missing peers on a previous walk, AND this package
@@ -870,11 +779,7 @@ impl Walker<'_> {
             )
         };
         let pkg = self.owned_package(&pkg_id);
-        // From here on every gate consultation — the provider preview
-        // below included — feeds this walk's truncation key. Every exit
-        // past this point pops the frame.
         WALKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        self.consulted_stack.push(ConsultedPkgs::default());
         let (provider_children, preview_undo) = self.preview_peer_provider_children(node_id);
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
         let ChildParentRefs {
@@ -916,23 +821,8 @@ impl Walker<'_> {
         // view) because a node's own children count as parents for
         // its own descendants' peer resolution.
         let cached =
-            self.find_hit(&child_parent_refs, &pkg.id, truncation_ids.as_ref()).map(|item| {
-                (
-                    item.to_cached_node_output(),
-                    item.cycle_key.as_ref().map(|key| Arc::clone(key.consulted())),
-                )
-            });
-        if let Some((cached, consulted)) = cached {
-            // The reused verdict's chain-dependence becomes the caller's:
-            // whatever the recorded walk weighed, the walks above this
-            // node now transitively depend on.
-            let mut frame = self.consulted_stack.pop().unwrap_or_default();
-            if let Some(consulted) = consulted {
-                frame.or(&consulted);
-            }
-            if let Some(parent) = self.consulted_stack.last_mut() {
-                parent.or(&frame);
-            }
+            self.find_hit(&child_parent_refs, &pkg.id).map(PeersCacheItem::to_cached_node_output);
+        if let Some(cached) = cached {
             return self.finish_cache_hit(
                 cached,
                 CacheHitContext {
@@ -1122,47 +1012,10 @@ impl Walker<'_> {
         // fast-path early return at the top of [`resolve_node`];
         // non-pure subtrees push a [`PeersCacheItem`] so a future
         // visit with a compatible parent context can short-circuit
-        // via [`Self::find_hit`].
-        //
-        // A cycle re-entry resolves against truncated children (the cycle is
-        // broken by dropping the repeated package's subtree), so its empty or
-        // partial peer sets are not authoritative for the package as a whole.
-        // Caching that verdict *unconditionally* would let it short-circuit
-        // other occurrences that can see the full subtree, dropping their
-        // `transitivePeerDependencies` depending on traversal order and
-        // churning the lockfile (https://github.com/pnpm/pnpm/issues/5108).
-        //
-        // What the truncation depends on, though, is the ancestor chain: the
-        // gate in `realize_children_with` drops exactly the edges the chain
-        // already contains. So the verdict is authoritative for every
-        // occurrence reached through the same chain, and the entry carries
-        // that chain so `find_hit` can hand it back to those and no others.
-        // Dropping them entirely is what made this cache miss 999 lookups in
-        // 1000 on a peer-cyclic graph, since almost every walk of one ends in
-        // a cycle.
-        let resolved_through_cycle = parent_pkg_ids_chain.contains_str(&pkg.id);
-        let frame = self.consulted_stack.pop();
-        if let (Some(frame), Some(parent)) = (frame.as_ref(), self.consulted_stack.last_mut()) {
-            parent.or(frame);
-        }
-        // Without the occurrence's ancestor ids there is nothing to scope
-        // a truncated verdict to, so it stays uncached.
-        let cycle_key = match (resolved_through_cycle, truncation_ids.as_ref(), frame.as_ref()) {
-            (true, Some(ids), Some(frame)) => Some(self.build_cycle_key(ids, frame)),
-            _ => None,
-        };
-        // Truncated by the occurrence's own ancestors without being a
-        // cycle re-entry itself: the verdict is blind to the subtree
-        // parts the truncation cut (pnpm/pnpm#13865). A pure-looking
-        // one may only look pure because the cut hid a peer consumer,
-        // so it must not enter the unconditionally-reused `pure_pkgs`;
-        // it goes in the peers cache instead, carrying the walk's
-        // consulted set so `find_hit` can keep it away from intact
-        // occurrences.
-        if resolved_through_cycle && cycle_key.is_none() {
-            // A truncated verdict with no scope must not be reused
-            // anywhere, so neither cache records it.
-        } else if !resolved_through_cycle && is_pure {
+        // via [`Self::find_hit`]. The canonical cycle gate makes every
+        // occurrence of a package see the same subtree, so a verdict is
+        // a plain function of the parent context.
+        if is_pure {
             self.pure_pkgs
                 .insert(std::sync::Arc::<str>::clone(&pkg.id).to_string(), dep_path.clone());
         } else {
@@ -1176,7 +1029,6 @@ impl Walker<'_> {
                     missing_peers: Arc::clone(&all_missing_peers),
                     missing_peers_of_children: Arc::clone(&missing_from_children),
                     subtree_missing_by_pkg: subtree_missing_by_pkg.clone(),
-                    cycle_key,
                 });
         }
 

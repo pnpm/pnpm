@@ -91,34 +91,6 @@ impl AncestorIds {
         appended.push(Arc::from(id));
         Self { base: Arc::clone(&self.base), appended: Arc::new(appended) }
     }
-
-    #[must_use]
-    pub fn forms_cycle(&self, pkg_id: &str, child_pkg_id: &str) -> bool {
-        if pkg_id == child_pkg_id {
-            return true;
-        }
-
-        if let Some(pkg_index) = self.base.iter().position(|ancestor| ancestor == pkg_id) {
-            if self
-                .base
-                .iter()
-                .rposition(|ancestor| ancestor == child_pkg_id)
-                .is_some_and(|child_index| pkg_index < child_index)
-            {
-                return true;
-            }
-            return self.appended.iter().any(|ancestor| ancestor.as_ref() == child_pkg_id);
-        }
-
-        let oldest_pkg_index =
-            self.appended.iter().position(|ancestor| ancestor.as_ref() == pkg_id);
-        let newest_child_index =
-            self.appended.iter().rposition(|ancestor| ancestor.as_ref() == child_pkg_id);
-        matches!(
-            (oldest_pkg_index, newest_child_index),
-            (Some(pkg_index), Some(child_index)) if pkg_index < child_index,
-        )
-    }
 }
 
 impl From<Arc<Vec<String>>> for AncestorIds {
