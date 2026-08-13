@@ -230,6 +230,7 @@ fn discover_peers(
         );
         fold_output(&mut result, output);
     }
+    walker.drain_pending_canonical_nodes(&importer_parents, &importer_parent_dep_paths);
     result.peer_dependency_issues = std::mem::take(&mut walker.issues);
     result.missing_ancestor_pkg_ids = std::mem::take(&mut walker.missing_ancestor_pkg_ids);
     (result, walker.into_caches())

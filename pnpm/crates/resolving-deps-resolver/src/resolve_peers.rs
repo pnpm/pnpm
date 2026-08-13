@@ -440,6 +440,7 @@ pub fn resolve_peers_workspace(
                 &parent_pkg_ids_chain,
             );
         }
+        walker.drain_pending_canonical_nodes(&importer_parents, &importer_parent_dep_paths);
         let issues = std::mem::take(&mut walker.issues);
         if !issues.bad.is_empty() || !issues.missing.is_empty() {
             peer_dependency_issues_by_importer.insert(importer.id.clone(), issues);

@@ -491,10 +491,11 @@ impl Walker<'_> {
             return inherited.map_or(FastProvider::Missing, FastProvider::Inherited);
         };
 
+        let canonical_scc = self.canonical_scc();
         let mut child_pkg_id = None;
         for &edge_index in edge_indices {
             let edge = &children[edge_index];
-            if parent_ids.forms_cycle(pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(canonical_scc.as_deref(), parent_ids, pkg_id, &edge.pkg_id) {
                 continue;
             }
             if child_pkg_id.is_some() {
@@ -572,7 +573,8 @@ impl Walker<'_> {
     ) -> DeferredChildResolution {
         if let Some(dep_path) = self.pure_pkgs.get(&**pkg_id)
             && (self.tree.packages[&**pkg_id].peer_dependencies.is_empty()
-                || self.static_peer_names_of(pkg_id).is_some_and(|sets| sets.in_cyclic_region))
+                || (!self.canonical_cycles
+                    && self.static_peer_names_of(pkg_id).is_some_and(|sets| sets.in_cyclic_region)))
         {
             let bindings = self.hoisted_bindings(pkg_id);
             if bindings.provided.is_empty() && bindings.positional.is_empty() {
@@ -723,13 +725,14 @@ impl Walker<'_> {
             .peer_provider_children_by_pkg_id
             .get(&*pkg_id)
             .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
+        let canonical_scc = self.canonical_scc();
         let full_chain = parent_ids.pushed(pkg_id.to_string());
         let mut providers = BTreeMap::new();
         let mut newly_inserted = Vec::new();
         for &edge_index in provider_edge_indices {
             let edge = &children[edge_index];
             let Some(pkg) = self.tree.packages.get(&edge.pkg_id) else { continue };
-            if pkg_id == edge.pkg_id || full_chain.forms_cycle(&pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(canonical_scc.as_deref(), &full_chain, &pkg_id, &edge.pkg_id) {
                 continue;
             }
             let child_node_id =
@@ -812,11 +815,17 @@ impl Walker<'_> {
         let child_depth = depth + 1;
         let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
         let mut newly_inserted: Vec<NodeId> = Vec::new();
+        let canonical_scc = self.canonical_scc();
         let full_chain = parent_ids.pushed(pkg_id.to_string());
         for edge in children_spec.iter() {
-            // Same cycle gate as the eager walk: keep the first
-            // re-entry, drop a direct self-edge or a second lap.
-            if full_chain.forms_cycle(&pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(canonical_scc.as_deref(), &full_chain, &pkg_id, &edge.pkg_id) {
+                // A canonical back-edge is still a real dependency edge:
+                // record it against the target's shared canonical
+                // occurrence without giving the walk a path through it.
+                if canonical_scc.is_some() && pkg_id != edge.pkg_id {
+                    let node_id = self.canonical_backedge_node(&edge.pkg_id, child_depth);
+                    realized.insert(edge.alias.clone(), node_id);
+                }
                 continue;
             }
             // Reuse the first walk's classification (persisted on
