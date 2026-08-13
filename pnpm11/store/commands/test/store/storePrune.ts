@@ -717,3 +717,31 @@ describe('global virtual store prune', () => {
     expect(scopedPkgsAfter).toContain('romeo-dep')
   })
 })
+
+test('prune keeps the lockfile verification log', async () => {
+  prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
+
+  // The log records which lockfile passed which supply-chain policies, so it
+  // outlives the store it was written next to. CI restores it on its own to
+  // skip re-verification, and a prune in the post step must not undo that.
+  const verificationLog = path.join(cacheDir, 'lockfile-verified.jsonl')
+  fs.mkdirSync(cacheDir, { recursive: true })
+  fs.writeFileSync(verificationLog, '{}\n')
+
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    configByUri: {},
+    registries: { default: REGISTRY },
+    storeDir,
+    dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['prune'])
+
+  expect(fs.existsSync(verificationLog)).toBeTruthy()
+})
