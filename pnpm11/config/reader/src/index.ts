@@ -321,9 +321,7 @@ export async function getConfig (opts: {
     // Consumed by loadNpmrcConfig above; drop so it isn't flagged as unknown.
     delete (globalYamlConfig as unknown as Record<string, unknown>)._auth
     const ignoredKeys: string[] = []
-    // This gate is kebab-based, but the settings that survive it are picked up
-    // in camelCase. A kebab spelling would pass here and be dropped without a
-    // word, so it is reported instead — with the spelling that works.
+    // The gate below is kebab-based, but only camelCase keys are picked up later.
     const kebabKeys: string[] = []
     for (const key in globalYamlConfig) {
       if (!isConfigFileKey(kebabCase(key))) {
