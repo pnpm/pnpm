@@ -314,6 +314,45 @@ fn non_notfound_walk_failure_still_errors() {
     );
 }
 
+/// A `packages:` entry may point outside the workspace root, and the
+/// declared project has to be enumerated all the same, or the install
+/// later rejects its lockfile importer as untrusted (pnpm/pnpm#13880).
+#[test]
+fn discovers_projects_declared_above_the_workspace_root() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "shared", "shared-package");
+    make_project(tmp.path(), "vendor/libs/parser", "parser");
+    make_project(tmp.path(), "workspace", "workspace-root");
+    make_project(tmp.path(), "workspace/app", "example-app");
+
+    let projects = find_workspace_projects(
+        &tmp.path().join("workspace"),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec![
+                "app".to_string(),
+                "../shared".to_string(),
+                "../vendor/libs/*".to_string(),
+            ]),
+        },
+    )
+    .unwrap();
+
+    let mut names: Vec<String> = projects
+        .iter()
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        vec![
+            "example-app".to_string(),
+            "parser".to_string(),
+            "shared-package".to_string(),
+            "workspace-root".to_string(),
+        ],
+    );
+}
+
 /// Workspaces do contain manifests written with a leading UTF-8 BOM —
 /// Vite ships one as the `utf8-bom-package` fixture — and discovery must
 /// enumerate them rather than failing the whole walk.

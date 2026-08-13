@@ -167,16 +167,20 @@ pub fn find_workspace_projects_no_check(
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
     for pattern in include_patterns {
         for normalized in normalize_manifest_patterns(pattern) {
-            if is_literal_pattern(&normalized) && !workspace_root.join(&normalized).is_file() {
+            let Some((walk_root, normalized)) = split_parent_prefix(workspace_root, &normalized)
+            else {
+                continue;
+            };
+            if is_literal_pattern(normalized) && !walk_root.join(normalized).is_file() {
                 continue;
             }
             let glob =
-                Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                Glob::new(normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
                     pattern: pattern.to_string(),
                     message: err.to_string(),
                 })?;
 
-            let walk = glob.walk(workspace_root).not(ignore_template.clone()).map_err(|err| {
+            let walk = glob.walk(walk_root).not(ignore_template.clone()).map_err(|err| {
                 FindWorkspaceProjectsError::InvalidGlob {
                     pattern: pattern.to_string(),
                     message: err.to_string(),
@@ -195,7 +199,7 @@ pub fn find_workspace_projects_no_check(
                             continue;
                         }
                         return Err(FindWorkspaceProjectsError::Walk {
-                            root: workspace_root.to_path_buf(),
+                            root: walk_root.to_path_buf(),
                             source: err,
                         });
                     }
@@ -266,6 +270,24 @@ fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
         return Vec::new();
     }
     PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{trimmed}/{basename}")).collect()
+}
+
+/// Strip the pattern's leading `../` components, walking `workspace_root`
+/// up one directory for each. wax globs cannot express parent traversal,
+/// so a pattern such as `../shared/*` only matches when the walk starts
+/// from the ancestor it names. `None` — the traversal climbs past the
+/// filesystem root — matches nothing.
+fn split_parent_prefix<'root, 'pattern>(
+    workspace_root: &'root Path,
+    pattern: &'pattern str,
+) -> Option<(&'root Path, &'pattern str)> {
+    let mut walk_root = workspace_root;
+    let mut rest = pattern;
+    while let Some(tail) = rest.strip_prefix("../") {
+        walk_root = walk_root.parent()?;
+        rest = tail;
+    }
+    Some((walk_root, rest))
 }
 
 fn is_literal_pattern(pattern: &str) -> bool {
