@@ -14,8 +14,7 @@
 use crate::_utils;
 pub use _utils::*;
 
-use assert_cmd::assert::OutputAssertExt;
-use assert_cmd::cargo::CommandCargoExt;
+use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, process::Command};
