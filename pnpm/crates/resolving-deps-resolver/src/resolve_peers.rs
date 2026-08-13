@@ -355,13 +355,23 @@ pub fn resolve_peers_workspace(
         false,
     );
 
+    // Walk importers in id order. Occurrence realization and the shared
+    // verdict caches are first-writer-wins, so a stable walk order makes
+    // the graph a function of the importer set rather than of the
+    // caller's listing order (pnpm/pnpm#13846).
+    let importers: Vec<&ImporterPeerInput> = {
+        let mut sorted: Vec<&ImporterPeerInput> = importers.iter().collect();
+        sorted.sort_by(|left, right| left.id.cmp(&right.id));
+        sorted
+    };
+
     let mut direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>> =
         BTreeMap::new();
     let mut peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues> =
         BTreeMap::new();
     let mut importer_root_dirs: BTreeMap<String, PathBuf> = BTreeMap::new();
     let root_importer = resolve_peers_from_workspace_root
-        .then(|| importers.iter().find(|importer| importer.id == "."))
+        .then(|| importers.iter().copied().find(|importer| importer.id == "."))
         .flatten();
     let root_parents = root_importer.map(|importer| {
         let previous_dirs = (walker.opts.project_dir.clone(), walker.opts.modules_dir.clone());
@@ -371,7 +381,7 @@ pub fn resolve_peers_workspace(
         (walker.opts.project_dir, walker.opts.modules_dir) = previous_dirs;
         parents
     });
-    for importer in importers {
+    for importer in &importers {
         importer_root_dirs.insert(importer.id.clone(), importer.root_dir.clone());
         // Swap the per-importer `project_dir` / `modules_dir` in before
         // the walk so the `excludeLinksFromLockfile` link-remap inside
@@ -450,7 +460,7 @@ pub fn resolve_peers_workspace(
     // importer is walked, then rebuild the graph and re-key each
     // importer's direct deps.
     let final_dep_paths = walker.build_final_dep_paths();
-    for importer in importers {
+    for importer in &importers {
         let direct_by_alias: BTreeMap<String, DepPath> = importer
             .direct
             .iter()

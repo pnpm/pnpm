@@ -1886,9 +1886,11 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     let (_transitive_tmp, transitive_manifest) =
         fake_manifest(serde_json::json!({ "wrapper": "1.0.0" }));
     let (_direct_tmp, direct_manifest) = fake_manifest(serde_json::json!({ "old": "1.0.0" }));
+    // Ids chosen so the transitive importer is walked first under the
+    // resolver's id-ordered importer processing.
     let importers = [
-        WorkspaceImporter { id: "transitive".to_string(), manifest: &transitive_manifest },
-        WorkspaceImporter { id: "direct".to_string(), manifest: &direct_manifest },
+        WorkspaceImporter { id: "a-transitive".to_string(), manifest: &transitive_manifest },
+        WorkspaceImporter { id: "b-direct".to_string(), manifest: &direct_manifest },
     ];
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
@@ -1941,8 +1943,78 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     assert_eq!(deprecation.depth, 1);
     assert_eq!(
         deprecation.prefix,
-        std::path::PathBuf::from("/repo").join("transitive").display().to_string(),
+        std::path::PathBuf::from("/repo").join("a-transitive").display().to_string(),
     );
+}
+
+/// The listing order of importers is not part of the input: processing
+/// is id-ordered, so a reversed listing attributes the deprecation to
+/// the same first occurrence (pnpm/pnpm#13846).
+#[tokio::test]
+async fn deprecation_attribution_does_not_depend_on_importer_listing_order() {
+    let deprecation_prefix_for = |reversed: bool| async move {
+        let (_transitive_tmp, transitive_manifest) =
+            fake_manifest(serde_json::json!({ "wrapper": "1.0.0" }));
+        let (_direct_tmp, direct_manifest) = fake_manifest(serde_json::json!({ "old": "1.0.0" }));
+        let mut importers = vec![
+            WorkspaceImporter { id: "a-transitive".to_string(), manifest: &transitive_manifest },
+            WorkspaceImporter { id: "b-direct".to_string(), manifest: &direct_manifest },
+        ];
+        if reversed {
+            importers.reverse();
+        }
+        let resolver = RecordingResolver {
+            table: HashMap::from_iter([
+                (
+                    ("wrapper".to_string(), "1.0.0".to_string()),
+                    fake_result(
+                        "wrapper",
+                        "1.0.0",
+                        None,
+                        serde_json::json!({
+                            "name": "wrapper",
+                            "version": "1.0.0",
+                            "dependencies": { "old": "1.0.0" },
+                        }),
+                    ),
+                ),
+                (
+                    ("old".to_string(), "1.0.0".to_string()),
+                    fake_result(
+                        "old",
+                        "1.0.0",
+                        None,
+                        serde_json::json!({
+                            "name": "old",
+                            "version": "1.0.0",
+                            "deprecated": "use new instead",
+                        }),
+                    ),
+                ),
+            ]),
+            seen: Mutex::new(HashMap::default()),
+        };
+        let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let sink = std::sync::Arc::clone(&notifications);
+        let mut opts = workspace_opts(false, false);
+        opts.deprecation_log = Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
+            sink.lock().unwrap().push(deprecation);
+        }));
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve the workspace");
+        let notifications = notifications.lock().unwrap();
+        let [deprecation] = notifications.as_slice() else {
+            panic!("expected one deprecation: {notifications:?}");
+        };
+        deprecation.prefix.clone()
+    };
+
+    let listed = deprecation_prefix_for(false).await;
+    let reversed = deprecation_prefix_for(true).await;
+    assert_eq!(listed, reversed, "attribution must not depend on the listing order");
 }
 
 /// A dependency reused from the wanted lockfile still notifies the
@@ -3044,8 +3116,11 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
     );
     let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "wrapperB": "1.0.0" }));
-    let (tmp_root, root_manifest) =
-        fake_manifest(serde_json::json!({ "shared2": "1.0.0", "needyC": "1.0.0" }));
+    // The root carries only the peer consumer: with importers walked in
+    // id order the root's wave runs first, so the shared subtree must
+    // be claimed by pkg-b's wave and reach the root only through the
+    // later peer-hoist round for a handover to occur at all.
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "needyC": "1.0.0" }));
     let importers = [
         WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
         WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },

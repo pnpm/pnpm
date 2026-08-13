@@ -2207,6 +2207,102 @@ fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
     );
 }
 
+/// Importers are walked in id order, so reordering them cannot change
+/// which context first realizes a shared back-edge occurrence — even
+/// when their overlays provide conflicting versions (pnpm/pnpm#13846).
+#[test]
+fn backedge_bindings_do_not_depend_on_importer_order() {
+    let graph_for_order = |first: &str, second: &str| {
+        let edge = |alias: &str, pkg_id: &str| crate::resolved_tree::ChildEdge {
+            alias: alias.to_string(),
+            pkg_id: Arc::from(pkg_id),
+            optional: false,
+        };
+        let mut packages = HashMap::default();
+        packages.insert(Arc::from("p@1.0.0"), package("p", "1.0.0", &[], true));
+        packages.insert(Arc::from("p@2.0.0"), package("p", "2.0.0", &[], true));
+        packages
+            .insert(Arc::from("ring00@1.0.0"), package("ring00", "1.0.0", &[("p", "*")], false));
+        packages.insert(Arc::from("ring01@1.0.0"), package("ring01", "1.0.0", &[], false));
+        packages.insert(Arc::from("enter-a@1.0.0"), package("enter-a", "1.0.0", &[], false));
+        packages.insert(Arc::from("enter-b@1.0.0"), package("enter-b", "1.0.0", &[], false));
+        let children_by_id: HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>> =
+            HashMap::from_iter([
+                (Arc::from("ring00@1.0.0"), Arc::new(vec![edge("next", "ring01@1.0.0")])),
+                (Arc::from("ring01@1.0.0"), Arc::new(vec![edge("back", "ring00@1.0.0")])),
+                (Arc::from("enter-a@1.0.0"), Arc::new(vec![edge("ring", "ring00@1.0.0")])),
+                (Arc::from("enter-b@1.0.0"), Arc::new(vec![edge("ring", "ring01@1.0.0")])),
+            ]);
+
+        let mut dependencies_tree = HashMap::default();
+        let mut direct_dep = |pkg_id: &str, alias: &str| {
+            let node_id = NodeId::next();
+            dependencies_tree.insert(
+                node_id.clone(),
+                crate::resolved_tree::DependenciesTreeNode::new(
+                    Arc::from(pkg_id),
+                    crate::resolved_tree::TreeChildren::Lazy {
+                        parent_ids: Arc::new(Vec::new()).into(),
+                    },
+                    0,
+                    true,
+                ),
+            );
+            DirectDep { alias: alias.to_string(), node_id, id: pkg_id.to_string() }
+        };
+        let importer = |id: &str, direct: Vec<DirectDep>| ImporterPeerInput {
+            id: id.to_string(),
+            direct,
+            hoisted_optional_peer_node_ids: HashSet::default(),
+            root_dir: std::path::PathBuf::from(format!("/repo/{id}")),
+            modules_dir: None,
+        };
+        let root = importer(".", vec![direct_dep("p@1.0.0", "p")]);
+        let importer_a =
+            importer("a", vec![direct_dep("enter-a@1.0.0", "enter-a"), direct_dep("p@2.0.0", "p")]);
+        let importer_b = importer("b", vec![direct_dep("enter-b@1.0.0", "enter-b")]);
+        let importers: Vec<ImporterPeerInput> = [first, second]
+            .iter()
+            .map(|id| match *id {
+                "a" => importer_a.clone(),
+                _ => importer_b.clone(),
+            })
+            .collect();
+        let importers = [vec![root], importers].concat();
+
+        let mut tree = ResolvedTree {
+            direct: Vec::new(),
+            packages,
+            dependencies_tree,
+            all_peer_dep_names: HashSet::from_iter(["p".to_string()]),
+            policy_violations: Vec::new(),
+            applied_patches: HashSet::default(),
+            children_by_id,
+        };
+        let result = resolve_peers_workspace(
+            &mut tree,
+            &importers,
+            std::path::Path::new("/repo"),
+            false,
+            false,
+            true,
+            ResolvePeersOptions::default(),
+        );
+        let mut keys: Vec<String> =
+            result.graph.keys().map(|path| path.as_str().to_string()).collect();
+        keys.sort_unstable();
+        keys
+    };
+
+    let a_first = graph_for_order("a", "b");
+    let b_first = graph_for_order("b", "a");
+    assert!(
+        a_first.iter().any(|key| key == "ring00@1.0.0(p@2.0.0)"),
+        "the back-edge occurrence binds the id-ordered first realizer's context;          got {a_first:#?}",
+    );
+    assert_eq!(a_first, b_first, "the graph must not depend on the importers' order");
+}
+
 /// The graph `entries` produce over the pnpm/pnpm#13865 ring, as sorted
 /// depPath keys, for comparing walk orders.
 fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: PeerCycleShape) -> Vec<String> {
