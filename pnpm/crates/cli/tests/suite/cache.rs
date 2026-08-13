@@ -226,3 +226,22 @@ fn import_populates_metadata_cache() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn should_print_cache_path() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+    let cache_dir = cwd.npmrc_info.cache_dir.clone();
+
+    let output = cwd
+        .pacquet
+        .with_arg("cache")
+        .with_arg("path")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8(output).unwrap();
+    assert_eq!(stdout.trim(), cache_dir.to_string_lossy());
+}
