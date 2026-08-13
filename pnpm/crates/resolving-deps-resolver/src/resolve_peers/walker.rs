@@ -11,8 +11,8 @@ use crate::{
     resolve_peers::{
         ResolvePeersOptions, ResolvePeersResult,
         cache::{
-            CacheHitContext, ConsultedPkgs, CycleTruncationKey, DeferredChildContext,
-            PeerProviderChildren, PeersCacheItem, merge_realize_undo,
+            CacheHitContext, DeferredChildContext, PeerProviderChildren, PeersCacheItem,
+            merge_realize_undo,
         },
         context::{
             CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs, SharedChain,
@@ -133,19 +133,29 @@ pub(super) struct Walker<'tree> {
     packages_by_id: HashMap<String, Arc<ResolvedPackage>>,
     pub(super) peer_provider_children_by_pkg_id: HashMap<String, PeerProviderChildren>,
     peer_provider_index_peer_names: HashSet<String>,
-    /// `pkg id → bit` behind [`ConsultedPkgs`]. Persists with the
-    /// peers cache across walker instances — the bits in stored keys
-    /// mean nothing without it.
-    pub(super) consulted_bit_by_pkg: HashMap<Arc<str>, u32>,
-    /// One frame per full walk in progress. Realization marks the
-    /// packages the cycle gate weighs in the innermost frame; a
-    /// finished walk folds its frame into its parent's, so an outer
-    /// frame covers the outer walk's whole subtree.
-    consulted_stack: Vec<ConsultedPkgs>,
-    /// Dedupes the consulted sets stored on cycle-truncation keys.
-    consulted_sets: HashSet<Arc<ConsultedPkgs>>,
+    /// Children-graph SCC ids behind the canonical cycle gate: every
+    /// intra-SCC edge whose target is not canonically later
+    /// (package-id order) is cut, the same cut at every occurrence, so
+    /// realized subtrees are entry-independent and no walk path can
+    /// revisit a package. Built lazily once per walker; the tree's
+    /// children are frozen for the walker's lifetime.
+    children_sccs: std::cell::OnceCell<Arc<HashMap<Arc<str>, usize>>>,
     pub(super) empty_resolved_peers: Arc<HashMap<String, NodeId>>,
     pub(super) empty_missing_peers: Arc<HashMap<String, MissingPeerInfo>>,
+    /// The shared record-only occurrence per canonical back-edge
+    /// target: every back-edge to a package references this one node,
+    /// walked once at importer-root context via
+    /// [`Self::pending_canonical_nodes`].
+    canonical_backedge_nodes: HashMap<Arc<str>, NodeId>,
+    /// Canonical back-edge targets realized but not yet walked; the
+    /// walk drivers drain this after their direct-dep loops.
+    pub(super) pending_canonical_nodes: Vec<NodeId>,
+    /// Set while [`Self::drain_pending_canonical_nodes`] walks a shared
+    /// back-edge target at importer context: those walks must not emit
+    /// missing-peer issues — every real position reports its own state,
+    /// and an importer-context miss there would demand an auto-install
+    /// the positions do not need.
+    in_canonical_drain: bool,
 }
 
 impl<'tree> Walker<'tree> {
@@ -165,8 +175,7 @@ impl<'tree> Walker<'tree> {
             retained_peer_node_ids,
             mut peer_provider_children_by_pkg_id,
             mut peer_provider_index_peer_names,
-            consulted_bit_by_pkg,
-            consulted_sets,
+            canonical_backedge_nodes,
         } = caches;
         if peer_provider_index_peer_names != tree.all_peer_dep_names {
             peer_provider_children_by_pkg_id.clear();
@@ -227,11 +236,12 @@ impl<'tree> Walker<'tree> {
             packages_by_id: HashMap::default(),
             peer_provider_children_by_pkg_id,
             peer_provider_index_peer_names,
-            consulted_bit_by_pkg,
-            consulted_stack: Vec::new(),
-            consulted_sets,
+            children_sccs: std::cell::OnceCell::new(),
             empty_resolved_peers: Arc::new(HashMap::default()),
             empty_missing_peers: Arc::new(HashMap::default()),
+            canonical_backedge_nodes,
+            pending_canonical_nodes: Vec::new(),
+            in_canonical_drain: false,
         }
     }
 
@@ -244,70 +254,93 @@ impl<'tree> Walker<'tree> {
             retained_peer_node_ids: self.retained_peer_node_ids,
             peer_provider_children_by_pkg_id: self.peer_provider_children_by_pkg_id,
             peer_provider_index_peer_names: self.peer_provider_index_peer_names,
-            consulted_bit_by_pkg: self.consulted_bit_by_pkg,
-            consulted_sets: self.consulted_sets,
+            canonical_backedge_nodes: self.canonical_backedge_nodes,
         }
     }
 
-    /// Record that realizing (or re-reading the realization of)
-    /// `pkg_id`'s children weighed `pkg_id` and every one of its child
-    /// edge targets against the ancestor chain. Feeds the innermost
-    /// walk frame; see [`Walker::consulted_stack`].
-    pub(super) fn mark_realization_consulted(&mut self, pkg_id: &Arc<str>) {
-        if self.consulted_stack.is_empty() {
-            return;
-        }
-        let edges = self.tree.children_by_id.get(&**pkg_id).cloned();
-        let mut mark = |id: &Arc<str>| {
-            let next = self.consulted_bit_by_pkg.len() as u32;
-            let bit = *self.consulted_bit_by_pkg.entry(Arc::clone(id)).or_insert(next);
-            if let Some(frame) = self.consulted_stack.last_mut() {
-                frame.set(bit);
+    /// The children-graph SCC table behind the canonical cycle gate;
+    /// see [`Walker::children_sccs`].
+    pub(super) fn canonical_scc(&self) -> Arc<HashMap<Arc<str>, usize>> {
+        Arc::clone(self.children_sccs.get_or_init(|| Arc::new(children_scc_ids(self.tree))))
+    }
+
+    /// Whether the peer walk drops the `pkg_id → child_pkg_id` edge:
+    /// a self-edge, or an intra-SCC edge whose target is not later in
+    /// package-id order — the same answer at every occurrence.
+    pub(super) fn cuts_cycle_edge(
+        scc_of: &HashMap<Arc<str>, usize>,
+        pkg_id: &str,
+        child_pkg_id: &str,
+    ) -> bool {
+        pkg_id == child_pkg_id
+            || match (scc_of.get(pkg_id), scc_of.get(child_pkg_id)) {
+                (Some(pkg_scc), Some(child_scc)) => pkg_scc == child_scc && child_pkg_id <= pkg_id,
+                _ => false,
             }
-        };
-        mark(pkg_id);
-        for edge in edges.iter().flat_map(|edges| edges.iter()) {
-            mark(&edge.pkg_id);
-        }
     }
 
-    /// The [`CycleTruncationKey`] scoping this walk's truncated verdict:
-    /// the occurrence's ancestor chain restricted to what the walk's
-    /// gate weighed.
-    fn build_cycle_key(&mut self, ids: &AncestorIds, frame: &ConsultedPkgs) -> CycleTruncationKey {
-        let mut chain: Vec<Arc<str>> = Vec::new();
-        let mut base_len = 0u32;
+    /// The shared record-only node a canonical back-edge references;
+    /// created lazily and queued for the driver's importer-context
+    /// walk. See [`Self::canonical_backedge_nodes`].
+    pub(super) fn canonical_backedge_node(&mut self, pkg_id: &Arc<str>, depth: i32) -> NodeId {
+        if self.tree.packages.get(&**pkg_id).is_some_and(|pkg| pkg.is_leaf) {
+            let node_id = NodeId::leaf(pkg_id);
+            if !self.tree.dependencies_tree.contains_key(&node_id) {
+                self.tree.dependencies_tree.insert(
+                    node_id.clone(),
+                    crate::resolved_tree::DependenciesTreeNode::new(
+                        Arc::clone(pkg_id),
+                        TreeChildren::Lazy { parent_ids: AncestorIds::default() },
+                        depth,
+                        true,
+                    ),
+                );
+            }
+            return node_id;
+        }
+        if let Some(node_id) = self.canonical_backedge_nodes.get(&**pkg_id)
+            && self.tree.dependencies_tree.contains_key(node_id)
         {
-            let bit_by_pkg = &self.consulted_bit_by_pkg;
-            // The bit index already owns an `Arc` for every consulted id,
-            // so the chain shares those instead of allocating copies.
-            let push_if_consulted = |chain: &mut Vec<Arc<str>>, id: &str| {
-                let Some((interned, bit)) = bit_by_pkg.get_key_value(id) else {
-                    return false;
-                };
-                if !frame.contains(*bit) {
-                    return false;
-                }
-                chain.push(Arc::clone(interned));
-                true
-            };
-            for id in ids.base_ids() {
-                if push_if_consulted(&mut chain, id) {
-                    base_len += 1;
-                }
-            }
-            for id in ids.appended_ids() {
-                push_if_consulted(&mut chain, id);
-            }
+            return node_id.clone();
         }
-        let shared = if let Some(hit) = self.consulted_sets.get(frame) {
-            Arc::clone(hit)
-        } else {
-            let arc = Arc::new(frame.clone());
-            self.consulted_sets.insert(Arc::clone(&arc));
-            arc
-        };
-        CycleTruncationKey::new(shared, chain, base_len)
+        let node_id = NodeId::next();
+        self.tree.dependencies_tree.insert(
+            node_id.clone(),
+            crate::resolved_tree::DependenciesTreeNode::new(
+                Arc::clone(pkg_id),
+                TreeChildren::Lazy { parent_ids: AncestorIds::default() },
+                depth,
+                true,
+            ),
+        );
+        self.canonical_backedge_nodes.insert(Arc::clone(pkg_id), node_id.clone());
+        self.pending_canonical_nodes.push(node_id.clone());
+        node_id
+    }
+
+    /// Walk every queued canonical back-edge target at importer-root
+    /// context. Targets realized during these walks queue more, so the
+    /// drain loops until quiet.
+    pub(super) fn drain_pending_canonical_nodes(
+        &mut self,
+        importer_parents: &Arc<ParentRefs>,
+        importer_parent_dep_paths: &Arc<HashMap<String, super::context::ParentPkgInfo>>,
+    ) {
+        self.in_canonical_drain = true;
+        while let Some(node_id) = self.pending_canonical_nodes.pop() {
+            if self.visited_this_call.contains(&node_id) {
+                continue;
+            }
+            self.resolve_node(
+                &node_id,
+                importer_parents,
+                importer_parent_dep_paths,
+                &SharedChain::default(),
+                &SharedChain::default(),
+                &SharedChain::default(),
+            );
+        }
+        self.in_canonical_drain = false;
     }
 }
 
@@ -486,6 +519,7 @@ impl Walker<'_> {
                 self.resolved_peer_providers_by_alias.insert(peer_alias, peer_node_id);
             }
         }
+        self.drain_pending_canonical_nodes(&importer_parents, &importer_parent_dep_paths);
         // See ResolvePeersOptions::hoisted_peer_provider_node_ids — a
         // provider is normally resolved at its tree position during the
         // walk above; only one whose position was pruned still needs the
@@ -511,6 +545,7 @@ impl Walker<'_> {
                 self.resolved_peer_providers_by_alias.insert(peer_alias, peer_node_id);
             }
         }
+        self.drain_pending_canonical_nodes(&importer_parents, &importer_parent_dep_paths);
         self.patch_pending_peer_edges();
         // Recompute depPaths so each resolved peer carries its full
         // suffix (the cycle fallback during the walk collapses peers
@@ -606,13 +641,6 @@ impl Walker<'_> {
         parent_node_ids: &SharedChain<NodeId>,
         parent_pkg_ids_chain: &SharedChain<String>,
     ) -> NodeOutput {
-        // The cycle gate in `realize_children_with` truncates against these,
-        // so they identify the subtree this walk will actually see. Captured
-        // before realization flips the node to `Realized` and drops them.
-        let truncation_ids = match &self.tree.dependencies_tree.get(node_id).map(|n| &n.children) {
-            Some(TreeChildren::Lazy { parent_ids }) => Some(parent_ids.clone()),
-            _ => None,
-        };
         // `purePkgs` fast-path. When the subtree below this
         // `pkgIdWithPatchHash` resolved with zero external peers and
         // zero missing peers on a previous walk, AND this package
@@ -629,7 +657,10 @@ impl Walker<'_> {
                     ));
                 }
                 let dep_path = self.pure_pkgs.get(&*tree_node.resolved_package_id)?;
-                if !self.tree.packages[&tree_node.resolved_package_id].peer_dependencies.is_empty()
+                let own_peers_bind = !self.tree.packages[&tree_node.resolved_package_id]
+                    .peer_dependencies
+                    .is_empty();
+                if own_peers_bind
                     || (!self.discovery
                         && self
                             .graph
@@ -709,10 +740,6 @@ impl Walker<'_> {
             )
         };
         let pkg = self.owned_package(&pkg_id);
-        // From here on every gate consultation — the provider preview
-        // below included — feeds this walk's truncation key. Every exit
-        // past this point pops the frame.
-        self.consulted_stack.push(ConsultedPkgs::default());
         let (provider_children, preview_undo) = self.preview_peer_provider_children(node_id);
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
         let ChildParentRefs {
@@ -754,23 +781,8 @@ impl Walker<'_> {
         // view) because a node's own children count as parents for
         // its own descendants' peer resolution.
         let cached =
-            self.find_hit(&child_parent_refs, &pkg.id, truncation_ids.as_ref()).map(|item| {
-                (
-                    item.to_cached_node_output(),
-                    item.cycle_key.as_ref().map(|key| Arc::clone(key.consulted())),
-                )
-            });
-        if let Some((cached, consulted)) = cached {
-            // The reused verdict's chain-dependence becomes the caller's:
-            // whatever the recorded walk weighed, the walks above this
-            // node now transitively depend on.
-            let mut frame = self.consulted_stack.pop().unwrap_or_default();
-            if let Some(consulted) = consulted {
-                frame.or(&consulted);
-            }
-            if let Some(parent) = self.consulted_stack.last_mut() {
-                parent.or(&frame);
-            }
+            self.find_hit(&child_parent_refs, &pkg.id).map(PeersCacheItem::to_cached_node_output);
+        if let Some(cached) = cached {
             return self.finish_cache_hit(
                 cached,
                 CacheHitContext {
@@ -813,11 +825,12 @@ impl Walker<'_> {
         // children directly so cache hits never need occurrence-tree nodes.
         let mut child_outputs = ChildOutputs::default();
         if let Some((children, parent_ids)) = &discovery_children {
+            let canonical_scc = self.canonical_scc();
             let child_aliases = ChildAliases::Deferred(children);
             for repeated in [true, false] {
                 for edge in children.iter() {
                     if child_parent_refs.contains_key(&edge.alias) != repeated
-                        || parent_ids.forms_cycle(&pkg.id, &edge.pkg_id)
+                        || Self::cuts_cycle_edge(&canonical_scc, &pkg.id, &edge.pkg_id)
                     {
                         continue;
                     }
@@ -855,10 +868,26 @@ impl Walker<'_> {
                 }
             }
         } else {
+            let canonical_scc = self.canonical_scc();
             let child_aliases = ChildAliases::Realized(&children_map);
             for repeated in [true, false] {
                 for (alias, child_node_id) in children_map.iter() {
                     if child_parent_refs.contains_key(alias) != repeated {
+                        continue;
+                    }
+                    // A canonical back-edge child is record-only: it is
+                    // in the realized map for the snapshot edge, but the
+                    // position walk contributes nothing through it. The
+                    // drain still walks it once at importer context —
+                    // eagerly realized trees reach their back-edge
+                    // subtrees only through this queue.
+                    // A canonical back-edge child is record-only: the
+                    // position walk contributes nothing through it, and
+                    // the record pass remaps it to the target's shared
+                    // canonical occurrence.
+                    if self.tree.dependencies_tree.get(child_node_id).is_some_and(|child| {
+                        Self::cuts_cycle_edge(&canonical_scc, &pkg.id, &child.resolved_package_id)
+                    }) {
                         continue;
                     }
                     let child_output = self.resolve_node(
@@ -932,39 +961,10 @@ impl Walker<'_> {
         // fast-path early return at the top of [`resolve_node`];
         // non-pure subtrees push a [`PeersCacheItem`] so a future
         // visit with a compatible parent context can short-circuit
-        // via [`Self::find_hit`].
-        //
-        // A cycle re-entry resolves against truncated children (the cycle is
-        // broken by dropping the repeated package's subtree), so its empty or
-        // partial peer sets are not authoritative for the package as a whole.
-        // Caching that verdict *unconditionally* would let it short-circuit
-        // other occurrences that can see the full subtree, dropping their
-        // `transitivePeerDependencies` depending on traversal order and
-        // churning the lockfile (https://github.com/pnpm/pnpm/issues/5108).
-        //
-        // What the truncation depends on, though, is the ancestor chain: the
-        // gate in `realize_children_with` drops exactly the edges the chain
-        // already contains. So the verdict is authoritative for every
-        // occurrence reached through the same chain, and the entry carries
-        // that chain so `find_hit` can hand it back to those and no others.
-        // Dropping them entirely is what made this cache miss 999 lookups in
-        // 1000 on a peer-cyclic graph, since almost every walk of one ends in
-        // a cycle.
-        let resolved_through_cycle = parent_pkg_ids_chain.contains_str(&pkg.id);
-        let frame = self.consulted_stack.pop();
-        if let (Some(frame), Some(parent)) = (frame.as_ref(), self.consulted_stack.last_mut()) {
-            parent.or(frame);
-        }
-        // Without the occurrence's ancestor ids there is nothing to scope
-        // a truncated verdict to, so it stays uncached.
-        let cycle_key = match (resolved_through_cycle, truncation_ids.as_ref(), frame.as_ref()) {
-            (true, Some(ids), Some(frame)) => Some(self.build_cycle_key(ids, frame)),
-            _ => None,
-        };
-        if resolved_through_cycle && cycle_key.is_none() {
-            // A truncated verdict with no scope must not be reused
-            // anywhere, so neither cache records it.
-        } else if !resolved_through_cycle && is_pure {
+        // via [`Self::find_hit`]. The canonical cycle gate makes every
+        // occurrence of a package see the same subtree, so a verdict is
+        // a plain function of the parent context.
+        if is_pure {
             self.pure_pkgs
                 .insert(std::sync::Arc::<str>::clone(&pkg.id).to_string(), dep_path.clone());
         } else {
@@ -978,7 +978,6 @@ impl Walker<'_> {
                     missing_peers: Arc::clone(&all_missing_peers),
                     missing_peers_of_children: Arc::clone(&missing_from_children),
                     subtree_missing_by_pkg: subtree_missing_by_pkg.clone(),
-                    cycle_key,
                 });
         }
 
@@ -1322,6 +1321,9 @@ impl Walker<'_> {
         issue: MissingPeer,
         ancestor_pkg_ids: &SharedChain<String>,
     ) {
+        if self.in_canonical_drain {
+            return;
+        }
         self.issues.missing.entry(peer_name.to_string()).or_default().push(issue);
         if self.discovery {
             self.missing_ancestor_pkg_ids
@@ -1379,7 +1381,9 @@ impl Walker<'_> {
                 }
             }
             Some(parent) => {
-                if !satisfies_with_prereleases(&parent.version, &range_for_satisfies) {
+                if !satisfies_with_prereleases(&parent.version, &range_for_satisfies)
+                    && !self.in_canonical_drain
+                {
                     let parents = self.issue_parents(chain);
                     self.issues.bad.entry(peer_name.to_string()).or_default().push(
                         PeerDependencyIssue {
@@ -1514,7 +1518,90 @@ impl<'a> MissingNames<'a> {
     }
 }
 
-/// Index the per-package missing-peer names `roots` reported, borrowing
+/// Strongly-connected-component ids over the recorded children graph.
+/// Iterative Tarjan, mirroring the peer-graph variant in the finalize
+/// pass, so deep graphs cannot overflow the call stack.
+fn children_scc_ids(tree: &ResolvedTree) -> HashMap<Arc<str>, usize> {
+    let mut node_ids: Vec<Arc<str>> = Vec::new();
+    let mut index_by_id: HashMap<Arc<str>, usize> = HashMap::default();
+    let mut intern = |id: &Arc<str>, node_ids: &mut Vec<Arc<str>>| -> usize {
+        if let Some(index) = index_by_id.get(id) {
+            return *index;
+        }
+        let index = node_ids.len();
+        node_ids.push(Arc::clone(id));
+        index_by_id.insert(Arc::clone(id), index);
+        index
+    };
+    let mut adjacency: Vec<Vec<usize>> = Vec::new();
+    for (pkg_id, edges) in &tree.children_by_id {
+        let node = intern(pkg_id, &mut node_ids);
+        if adjacency.len() <= node {
+            adjacency.resize_with(node + 1, Vec::new);
+        }
+        let targets: Vec<usize> =
+            edges.iter().map(|edge| intern(&edge.pkg_id, &mut node_ids)).collect();
+        adjacency[node] = targets;
+    }
+    adjacency.resize_with(node_ids.len(), Vec::new);
+
+    let node_count = node_ids.len();
+    let mut discovery = vec![u32::MAX; node_count];
+    let mut lowlink = vec![0u32; node_count];
+    let mut on_stack = vec![false; node_count];
+    let mut tarjan_stack: Vec<usize> = Vec::new();
+    let mut next_index = 0u32;
+    let mut scc_of_index = vec![usize::MAX; node_count];
+    let mut next_scc = 0usize;
+
+    for root in 0..node_count {
+        if discovery[root] != u32::MAX {
+            continue;
+        }
+        // Explicit DFS stack of (node, edge cursor) so deep dependency
+        // graphs don't overflow the call stack.
+        let mut work: Vec<(usize, usize)> = vec![(root, 0)];
+        'dfs: while let Some(&mut (node, ref mut cursor)) = work.last_mut() {
+            if *cursor == 0 {
+                discovery[node] = next_index;
+                lowlink[node] = next_index;
+                next_index += 1;
+                on_stack[node] = true;
+                tarjan_stack.push(node);
+            }
+            while *cursor < adjacency[node].len() {
+                let child = adjacency[node][*cursor];
+                *cursor += 1;
+                if discovery[child] == u32::MAX {
+                    work.push((child, 0));
+                    continue 'dfs;
+                }
+                if on_stack[child] {
+                    lowlink[node] = lowlink[node].min(discovery[child]);
+                }
+            }
+            if lowlink[node] == discovery[node] {
+                loop {
+                    let member = tarjan_stack.pop().expect("Tarjan stack holds the open SCC");
+                    on_stack[member] = false;
+                    scc_of_index[member] = next_scc;
+                    if member == node {
+                        break;
+                    }
+                }
+                next_scc += 1;
+            }
+            work.pop();
+            if let Some(&mut (parent, _)) = work.last_mut() {
+                lowlink[parent] = lowlink[parent].min(lowlink[node]);
+            }
+        }
+    }
+
+    node_ids.into_iter().zip(scc_of_index).filter(|(_, scc)| *scc != usize::MAX).collect()
+}
+
+/// Index the per-package missing-peer names `roots` reported, borrowing/// Index the per-package missing-peer names `roots` reported, borrowing
 /// from the summaries rather than copying every descendant's names into
 /// an owned map: one of these is built per importer per hoist round, so
 /// a copy would make each round cost the whole workspace.

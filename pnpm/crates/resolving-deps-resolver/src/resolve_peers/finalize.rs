@@ -164,7 +164,33 @@ impl Walker<'_> {
         // suffix. A peer a descendant resolved (e.g. `debug`'s optional
         // `supports-color`) is symlinked at the descendant that declares
         // it, so it must not appear in this node's dependencies.
+        // A back-edge child whose occurrence node the walk skipped would
+        // render as its bare package id — a snapshot no variant of the
+        // target has. Remap it to the target's shared canonical
+        // occurrence, which the drivers walk at importer context.
+        let canonical_scc = self.canonical_scc();
+        let mut remapped_backedges: Vec<(String, NodeId)> = Vec::new();
+        for (alias, child_node_id) in children {
+            if self.node_dep_paths.contains_key(child_node_id) {
+                continue;
+            }
+            let Some(child_pkg_id) = self
+                .tree
+                .dependencies_tree
+                .get(child_node_id)
+                .map(|child| Arc::clone(&child.resolved_package_id))
+            else {
+                continue;
+            };
+            if Self::cuts_cycle_edge(&canonical_scc, &pkg.id, &child_pkg_id) {
+                remapped_backedges
+                    .push((alias.clone(), self.canonical_backedge_node(&child_pkg_id, depth + 1)));
+            }
+        }
         record_edges.extend(children.clone());
+        for (alias, node_id) in remapped_backedges {
+            record_edges.insert(alias, node_id);
+        }
         for (peer_alias, peer_node_id) in own_resolved_peers {
             record_edges.insert(peer_alias.clone(), peer_node_id.clone());
         }
