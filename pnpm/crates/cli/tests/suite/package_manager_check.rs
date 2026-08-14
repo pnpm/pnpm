@@ -16,7 +16,12 @@ fn install_fails_when_the_project_pins_another_package_manager() {
     let output = run(pacquet, root.path(), &["install"]);
 
     assert_failure(&output);
-    assert_contains(&stderr(&output), "This project is configured to use yarn");
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "This project is configured to use yarn");
+    // pnpm can provide that package manager, so the failure says how
+    // rather than leaving the project unusable.
+    assert_contains(&stderr, "pnpm with yarn");
+    assert_contains(&stderr, "pnpm shim add yarn");
 }
 
 #[test]

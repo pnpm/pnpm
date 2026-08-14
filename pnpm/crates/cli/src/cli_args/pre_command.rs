@@ -338,7 +338,8 @@ fn check_package_manager(
     if pm.name != "pnpm" {
         let name = sanitize_inline(&pm.name).into_owned();
         if should_error {
-            return Err(PreCommandError::OtherPmExpected { name }.into());
+            let hint = other_pm_hint(&name);
+            return Err(PreCommandError::OtherPmExpected { name, hint }.into());
         }
         global_warn(emit, &format!("This project is configured to use {name}"));
         return Ok(());
@@ -483,13 +484,27 @@ const COREPACK_NOTE: &str = "\nCorepack invoked pnpm with this version, and pnpm
 
 const COREPACK_PM_HINT_PREFIX: &str = r#"Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically."#;
 
+/// What to do about a project that another package manager installs.
+///
+/// pnpm does not become that package manager just because a project asks
+/// for one — typing `pnpm` would then silently run something else — but it
+/// can provide it, so the way out is worth naming.
+fn other_pm_hint(name: &str) -> String {
+    if PackageManager::parse(name).is_none() {
+        return format!("pnpm cannot provide {name}. Install it to work on this project.");
+    }
+    format!(
+        r#"Run a one-off command with "pnpm with {name} <command>", or link a {name} command that follows this project's pin with "pnpm shim add {name}"."#,
+    )
+}
+
 const RUNTIME_ON_FAIL_HINT: &str = r#"If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore""#;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum PreCommandError {
     #[display("This project is configured to use {name}")]
-    #[diagnostic(code(ERR_PNPM_OTHER_PM_EXPECTED))]
-    OtherPmExpected { name: String },
+    #[diagnostic(code(ERR_PNPM_OTHER_PM_EXPECTED), help("{hint}"))]
+    OtherPmExpected { name: String, hint: String },
 
     #[display(
         "This project is configured to use {wanted} of pnpm. Your current pnpm is v{PNPM_VERSION}{note}"
