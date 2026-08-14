@@ -506,10 +506,16 @@ test('approve-builds works after removing an unrelated dependency (#13891)', asy
   const ignoredNames = Array.from(modulesManifest?.ignoredBuilds ?? []).map((depPath) => parse(depPath).name)
   expect(ignoredNames).toContain(pendingPkg)
   expect(ignoredNames).not.toContain(removedPkg)
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-preinstall.js`)).toBeFalsy()
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-postinstall.js`)).toBeFalsy()
+  expect(fs.existsSync(`node_modules/${removedPkg}/generated-by-install.js`)).toBeFalsy()
 
   const approve = execPnpmSync(['approve-builds', '--all'])
   expect(approve.status).toBe(0)
   expect(approve.stdout.toString()).not.toContain('There are no packages awaiting approval')
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-preinstall.js`)).toBeTruthy()
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-postinstall.js`)).toBeTruthy()
+  expect(fs.existsSync(`node_modules/${removedPkg}/generated-by-install.js`)).toBeFalsy()
 
   const wsManifest = await readWorkspaceManifest(process.cwd())
   expect(wsManifest!.allowBuilds?.[pendingPkg]).toBe(true)
