@@ -19,10 +19,6 @@ pub(crate) enum EngineError {
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PACKAGE_MANAGER))]
     CannotResolvePackageManager { name: &'static str, spec: String },
 
-    #[display("Yarn {spec} is distributed as a native binary that pnpm cannot install yet")]
-    #[diagnostic(code(ERR_PNPM_UNSUPPORTED_PACKAGE_MANAGER))]
-    UnsupportedChannel { spec: String },
-
     #[display("Unable to find the global packages directory")]
     #[diagnostic(
         code(ERR_PNPM_NO_GLOBAL_BIN_DIR),

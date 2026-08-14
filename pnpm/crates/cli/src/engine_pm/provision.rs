@@ -45,11 +45,24 @@ pub(crate) async fn provision<Reporter: self::Reporter + 'static>(
         Channel::Registry { package } => {
             provision_from_registry::<Reporter>(config, pm, package, version_spec).await
         }
-        Channel::Binary(BinaryChannel::Bun) => provision_bun(version_spec).await,
-        Channel::Binary(BinaryChannel::Yarn) => {
-            Err(EngineError::UnsupportedChannel { spec: version_spec.to_string() }.into())
-        }
+        Channel::Binary(binary) => provision_binary(binary, version_spec).await,
     }
+}
+
+/// A package manager that ships as a platform archive is exactly what the
+/// managed-runtime installer already materializes: pinned by a publisher
+/// checksum, unpacked into the global virtual store, executed from there.
+async fn provision_binary(
+    binary: BinaryChannel,
+    version_spec: &str,
+) -> miette::Result<ProvisionedEngine> {
+    let name = match binary {
+        BinaryChannel::Bun => "bun",
+        BinaryChannel::Yarn => "yarn",
+    };
+    let program = materialize_runtime(name.to_string(), version_spec.to_string()).await?;
+    let bin_dirs = program.parent().map(Path::to_path_buf).into_iter().collect();
+    Ok(ProvisionedEngine { program, bin_dirs })
 }
 
 async fn provision_from_registry<Reporter: self::Reporter + 'static>(
@@ -87,14 +100,6 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     if let Some(node_bin_dir) = node_bin_dir(packages).await? {
         bin_dirs.push(node_bin_dir);
     }
-    Ok(ProvisionedEngine { program, bin_dirs })
-}
-
-/// Bun's package manager and its runtime are the same executable, so
-/// provisioning it is exactly the managed-runtime install.
-async fn provision_bun(version_spec: &str) -> miette::Result<ProvisionedEngine> {
-    let program = materialize_runtime("bun".to_string(), version_spec.to_string()).await?;
-    let bin_dirs = program.parent().map(Path::to_path_buf).into_iter().collect();
     Ok(ProvisionedEngine { program, bin_dirs })
 }
 

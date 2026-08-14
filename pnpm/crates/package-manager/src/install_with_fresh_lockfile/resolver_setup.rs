@@ -9,6 +9,7 @@
 use super::InstallWithFreshLockfileError;
 use crate::{PrefetchContext, PrefetchingResolver};
 use pacquet_config::Config;
+use pacquet_engine_pm_yarn_resolver::YarnResolver;
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
@@ -304,6 +305,7 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
     node_resolver.cache_dir = Some(config.cache_dir.clone());
     let deno_resolver = DenoResolver::new(Arc::clone(http_client_arc), Arc::clone(&npm_resolver));
     let bun_resolver = BunResolver::new(Arc::clone(http_client_arc), Arc::clone(&npm_resolver));
+    let yarn_resolver = YarnResolver::new(Arc::clone(http_client_arc));
     let named_registry_resolver = NamedRegistryResolver {
         named_registries: named_registries.clone(),
         registry_names: named_registries.keys().cloned().collect(),
@@ -377,6 +379,7 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
         Box::new(node_resolver),
         Box::new(deno_resolver),
         Box::new(bun_resolver),
+        Box::new(yarn_resolver),
         Box::new(named_registry_resolver),
         Box::new(local_path_resolver),
     ]);
