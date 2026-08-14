@@ -13,7 +13,7 @@ The `nodeLinker: hoisted` layout is produced by a Rust port of the hoisting
 algorithm in `@yarnpkg/nm`, and the built-in package-compatibility database
 is a copy of the one in `@yarnpkg/extensions`.
 
-```
+```text
 BSD 2-Clause License
 
 Copyright (c) 2016-present, Yarn Contributors.
