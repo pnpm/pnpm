@@ -1253,19 +1253,23 @@ const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
  * same setting.
  */
 export function whereRefusedKeyBelongs (camelKey: string): string {
+  if (camelKey === 'dir') return 'Pass --dir on the command line instead'
   const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelKey] ?? kebabCase(camelKey)
   if (isConfigFileKey(kebabKey)) {
     return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
   }
-  if (camelKey === 'dir') return 'Pass --dir on the command line instead'
   // The rest were never settings: each names a location pnpm works out for
   // itself, or an object it assembles from the trusted sources. Saying how
   // would publish internals and imply the key was only aimed at the wrong file.
   return 'This is not a pnpm setting'
 }
 
+function quoteRefusedKey (key: string): string {
+  return `"${key}" (${whereRefusedKeyBelongs(camelcase(key, { locale: 'en-US' }))})`
+}
+
 function quoteAndExplain (keys: string[]): string {
-  return keys.map((key) => `"${key}" (${whereRefusedKeyBelongs(camelcase(key, { locale: 'en-US' }))})`).join(', ')
+  return keys.map(quoteRefusedKey).join(', ')
 }
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
