@@ -53,9 +53,9 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   allProjects?: Project[]
   /**
    * Package name → the versions the freshly resolved lockfile records.
-   * Present only under `minimumReleaseAgeExcludePrune`, and only when the
-   * lockfile covers every project `minimumReleaseAgeExclude` governs;
-   * absent, the cleanup pass does not run.
+   * Supplied when a freshly resolved shared lockfile is available.
+   * `minimumReleaseAgeExcludePrune` gates only minimum-release-age cleanup;
+   * `allowBuilds` cleanup runs whenever this map is present.
    */
   resolvedPackageVersions?: ReadonlyMap<string, ReadonlySet<string>>
   minimumReleaseAgeExcludePrune?: boolean

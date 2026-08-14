@@ -27,3 +27,7 @@ test('no versions when the lockfile is not shared by the whole workspace', () =>
     sharedWorkspaceLockfile: false,
   }, newLockfile)).toBeUndefined()
 })
+
+test('no versions when no lockfile is available', () => {
+  expect(resolvedPackageVersionsForPrune({}, undefined)).toBeUndefined()
+})

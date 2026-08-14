@@ -65,3 +65,17 @@ test('delete the allowBuilds block if it becomes empty', async () => {
   })
   expect(fs.existsSync(filePath)).toBe(false)
 })
+
+test('flow-style allowBuilds: undecided entry is pruned, decided entries are kept', async () => {
+  // A flow-style mapping (allowBuilds: {foo: true, bar: 'set this to true or false'})
+  // exercises the rerender path. The retained entries are written back as block style.
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  fs.writeFileSync(filePath, "allowBuilds: {foo: true, bar: 'set this to true or false'}\n")
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    allowBuilds: { foo: true },
+  })
+})
