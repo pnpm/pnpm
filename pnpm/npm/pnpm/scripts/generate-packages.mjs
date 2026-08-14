@@ -24,8 +24,10 @@ const PACKAGE_DIR_PREFIX = "pacquet";
 const NATIVE_BIN_FILE = "pnpm";
 const EXE_WRAPPER_NAME = "@pnpm/exe";
 const EXE_WRAPPER_DIR = "pnpm-exe";
-// Files shared verbatim by both wrappers: the root-level bins + preinstall + README.
-const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js", "README.md"];
+// Files shared verbatim by both wrappers: the root-level bins + preinstall +
+// README + the third-party notices. Both wrappers publish the same `files`
+// list, so anything named there has to be copied here too.
+const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js", "README.md", "THIRD-PARTY-NOTICES.md"];
 
 const PNPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(PNPM_ROOT, "..");

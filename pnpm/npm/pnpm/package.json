@@ -46,7 +46,8 @@
     "pnpx",
     "pnx",
     "install.js",
-    "dist/"
+    "dist/",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "dependencies": {
     "node-gyp": "catalog:"
