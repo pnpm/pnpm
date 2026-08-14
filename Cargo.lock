@@ -4167,12 +4167,14 @@ version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
  "derive_more",
+ "libc",
  "miette 7.6.0",
  "mockito",
  "pacquet-network",
  "pgp",
  "pretty_assertions",
  "reqwest",
+ "tempfile",
  "tokio",
 ]
 
@@ -4357,6 +4359,7 @@ dependencies = [
  "serde",
  "serde_json",
  "ssri",
+ "tempfile",
  "tokio",
 ]
 

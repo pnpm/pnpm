@@ -301,6 +301,7 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
     let mut node_resolver = NodeResolver::new(Arc::clone(http_client_arc));
     node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
     node_resolver.offline = config.offline;
+    node_resolver.cache_dir = Some(config.cache_dir.clone());
     let deno_resolver = DenoResolver::new(Arc::clone(http_client_arc), Arc::clone(&npm_resolver));
     let bun_resolver = BunResolver::new(Arc::clone(http_client_arc), Arc::clone(&npm_resolver));
     let named_registry_resolver = NamedRegistryResolver {

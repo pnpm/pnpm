@@ -195,6 +195,7 @@ fn run_resolve_blocking(
 
     let mut node_resolver = NodeResolver::new(Arc::clone(&http_client));
     node_resolver.offline = config.offline;
+    node_resolver.cache_dir = Some(config.cache_dir.clone());
     let deno_resolver = DenoResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
     let bun_resolver = BunResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
 
