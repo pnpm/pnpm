@@ -2,6 +2,7 @@ use clap::Subcommand;
 use indexmap::IndexMap;
 use miette::IntoDiagnostic;
 use pacquet_config::{Config, ResolutionMode};
+use pacquet_fs::lexical_normalize;
 use pacquet_resolving_npm_resolver::mirror::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_registry_name, load_meta,
 };
@@ -9,7 +10,7 @@ use pacquet_store_dir::StoreIndex;
 use serde_json::json;
 use std::{
     fs,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 use wax::walk::Entry;
 
@@ -50,19 +51,7 @@ impl CacheCommand {
     /// temporary and home directories are symlinked, the two stacks would
     /// then print different paths for the same configuration.
     fn cleaned_cache_dir(config: &Config) -> PathBuf {
-        let mut cleaned = PathBuf::new();
-        for component in config.cache_dir.components() {
-            match component {
-                Component::CurDir => {}
-                Component::ParentDir
-                    if matches!(cleaned.components().next_back(), Some(Component::Normal(_))) =>
-                {
-                    cleaned.pop();
-                }
-                component => cleaned.push(component),
-            }
-        }
-        cleaned
+        lexical_normalize(&config.cache_dir)
     }
 
     /// Filesystem-safe slug of the configured registry, used as the top-level
