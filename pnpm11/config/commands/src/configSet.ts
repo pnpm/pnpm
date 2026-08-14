@@ -9,7 +9,6 @@ import { isCamelCase, isStrictlyKebabCase } from '@pnpm/text.naming-cases'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import camelCase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
-import { pathExists } from 'path-exists'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 
@@ -63,9 +62,6 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
         throw new ConfigSetNotAProjectSettingError(writtenKey)
       }
-      // The writer deletes a manifest once a removal empties it, so it would
-      // fail on one that was never written.
-      if (isRemoval && !await pathExists(configPath)) break
       const updatedFields: Record<string, unknown> = {
         [writtenKey]: castValue,
       }

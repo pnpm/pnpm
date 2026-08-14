@@ -43,7 +43,6 @@
     "camelcase": "catalog:",
     "ini": "catalog:",
     "lodash.kebabcase": "catalog:",
-    "path-exists": "catalog:",
     "read-ini-file": "catalog:",
     "render-help": "catalog:",
     "write-ini-file": "catalog:",
