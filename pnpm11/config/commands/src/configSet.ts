@@ -1,7 +1,7 @@
 import path from 'node:path'
 import util from 'node:util'
 
-import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isProjectManifestSkippedSetting, types, whereRefusedKeyBelongs } from '@pnpm/config.reader'
+import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isProjectManifestSkippedKey, types, whereRefusedKeyBelongs } from '@pnpm/config.reader'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { parsePropertyPath } from '@pnpm/object.property-path'
@@ -59,7 +59,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
         key = validateYamlConfigKey(key)
       }
       const writtenKey = isRemoval ? camelCase(key) : validateWorkspaceKey(key)
-      if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
+      if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedKey(writtenKey)) {
         throw new ConfigSetNotAProjectSettingError(writtenKey)
       }
       const updatedFields: Record<string, unknown> = {
@@ -203,7 +203,7 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
 /** The suggestion for {@link key}, which falls back when the key is allowed in a project manifest. */
 function hintForRefusedKey (key: string, fallback: string): string {
   const camelKey = camelCase(key)
-  if (!isProjectManifestSkippedSetting(camelKey)) return fallback
+  if (!isProjectManifestSkippedKey(camelKey)) return fallback
   return whereRefusedKeyBelongs(camelKey)
 }
 
@@ -227,7 +227,7 @@ function validateWorkspaceKey (key: string): string {
   // A refused setting is usually absent from `types`, so its kebab spelling
   // would reach the rejection below, leaving no way to clear what the reader's
   // warning named. Writing one is still refused, by the caller.
-  if (isProjectManifestSkippedSetting(camelCase(key))) return camelCase(key)
+  if (isProjectManifestSkippedKey(camelCase(key))) return camelCase(key)
   if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
   return key
 }

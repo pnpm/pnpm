@@ -344,7 +344,7 @@ export async function getConfig (opts: {
       configFromCliOpts,
       expandRequestDestinationEnv: true,
       projectManifest: undefined,
-      skipSettings: GLOBAL_CONFIG_SKIPPED_SETTINGS,
+      skipSettings: GLOBAL_CONFIG_SKIPPED_KEYS,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
@@ -496,8 +496,8 @@ export async function getConfig (opts: {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
           skipSettings: opts.forSelfUpdate
-            ? new Set([...PROJECT_MANIFEST_SKIPPED_SETTINGS, ...SELF_UPDATE_SKIPPED_SETTINGS])
-            : PROJECT_MANIFEST_SKIPPED_SETTINGS,
+            ? new Set([...PROJECT_MANIFEST_SKIPPED_KEYS, ...SELF_UPDATE_SKIPPED_SETTINGS])
+            : PROJECT_MANIFEST_SKIPPED_KEYS,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
@@ -1121,7 +1121,7 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
  * A repository setting one would redirect where pnpm writes: `pnpm login`'s
  * `auth.ini`, `pnpm setup`'s PATH entry, the bins `pnpm install` links.
  */
-const MACHINE_LOCATION_SETTINGS = [
+const MACHINE_LOCATION_KEYS = [
   'configDir',
   'globalBinDir',
   'globalDir',
@@ -1138,7 +1138,7 @@ const MACHINE_LOCATION_SETTINGS = [
  * The reader resolves these from the command line and the cwd, and it needs
  * them before it can find a manifest at all, so a manifest cannot supply them.
  */
-const CURRENT_RUN_LOCATION_SETTINGS = [
+const CURRENT_RUN_LOCATION_KEYS = [
   'bin',
   'dir',
   'rootProjectManifestDir',
@@ -1152,7 +1152,7 @@ const CURRENT_RUN_LOCATION_SETTINGS = [
  * the parsed contents of the user's `.npmrc`, so it carries credentials rather
  * than the path `npmrcAuthFile` holds.
  */
-const CREDENTIAL_SETTINGS = [
+const CREDENTIAL_KEYS = [
   'authConfig',
   'userConfig',
   'configByUri',
@@ -1161,46 +1161,46 @@ const CREDENTIAL_SETTINGS = [
 ] satisfies Array<keyof (Config & ConfigContext)>
 
 /**
- * Settings a project's `pnpm-workspace.yaml` does not contribute.
+ * Keys a project's `pnpm-workspace.yaml` does not contribute.
  *
  * `cacheDir` and `storeDir` are deliberately absent: those name caches a
  * project may legitimately place, and the Rust `WorkspaceSettings` accepts
  * both.
  */
-const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
-  ...MACHINE_LOCATION_SETTINGS,
-  ...CURRENT_RUN_LOCATION_SETTINGS,
-  ...CREDENTIAL_SETTINGS,
+const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<string> = new Set([
+  ...MACHINE_LOCATION_KEYS,
+  ...CURRENT_RUN_LOCATION_KEYS,
+  ...CREDENTIAL_KEYS,
 ])
 
 /**
- * The refused settings the global config file does not accept either.
+ * The refused keys the global config file does not accept either.
  *
  * That file's own contents are already filtered by `isConfigFileKey`, but the
  * CLI options are merged in again alongside them, so without this a
  * `--config.config-dir` would land back on a key the reader resolves for
  * itself, and only for the users who happen to have a `config.yaml`.
  */
-const GLOBAL_CONFIG_SKIPPED_SETTINGS: ReadonlySet<string> = new Set(
-  [...PROJECT_MANIFEST_SKIPPED_SETTINGS].filter((key) => !isConfigFileKey(kebabCase(key)))
+const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<string> = new Set(
+  [...PROJECT_MANIFEST_SKIPPED_KEYS].filter((key) => !isConfigFileKey(kebabCase(key)))
 )
 
 /**
  * Whether a project's `pnpm-workspace.yaml` would ignore this camelCase key.
- * See {@link PROJECT_MANIFEST_SKIPPED_SETTINGS}.
+ * See {@link PROJECT_MANIFEST_SKIPPED_KEYS}.
  */
-export function isProjectManifestSkippedSetting (camelKey: string): boolean {
-  return PROJECT_MANIFEST_SKIPPED_SETTINGS.has(camelKey)
+export function isProjectManifestSkippedKey (camelKey: string): boolean {
+  return PROJECT_MANIFEST_SKIPPED_KEYS.has(camelKey)
 }
 
 /**
  * Whether a project's `pnpm-workspace.yaml` drops this key, whether as a
- * setting a project may not contribute or as the reader's own bookkeeping.
+ * value a project may not contribute or as the reader's own bookkeeping.
  * Shared by the warnings so that they cannot disagree on what was dropped.
  */
 function isRefusedByAProjectManifest (key: string): boolean {
   const camelKey = camelcase(key, { locale: 'en-US' })
-  return isProjectManifestSkippedSetting(camelKey) || CONFIG_CONTEXT_KEYS.has(camelKey)
+  return isProjectManifestSkippedKey(camelKey) || CONFIG_CONTEXT_KEYS.has(camelKey)
 }
 
 /**
@@ -1281,7 +1281,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   projectManifest: ProjectManifest | undefined
   /**
    * Settings this manifest may not contribute. See
-   * {@link PROJECT_MANIFEST_SKIPPED_SETTINGS} and
+   * {@link PROJECT_MANIFEST_SKIPPED_KEYS} and
    * {@link SELF_UPDATE_SKIPPED_SETTINGS}.
    */
   skipSettings?: ReadonlySet<string>
