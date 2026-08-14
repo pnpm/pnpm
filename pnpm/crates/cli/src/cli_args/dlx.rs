@@ -2,6 +2,7 @@ use crate::{
     State,
     cli_args::{add::add_package, supported_architectures::SupportedArchitecturesArgs},
     engine_pm::{channel::PackageManager, provision::provision},
+    path_env::{BadPathDir, prepend_dirs_to_path},
     shim_dispatch::materialize_runtime,
 };
 use clap::Args;
@@ -23,7 +24,6 @@ use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap},
-    ffi::OsString,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -136,6 +136,12 @@ pub enum DlxError {
         #[error(source)]
         source: std::io::Error,
     },
+}
+
+impl From<BadPathDir> for DlxError {
+    fn from(BadPathDir { dir, delimiter }: BadPathDir) -> Self {
+        DlxError::BadPathDir { dir, delimiter }
+    }
 }
 
 impl DlxArgs {
@@ -431,7 +437,7 @@ fn run_bin(
     let DlxSpawn { cwd, extra_bin_paths, extra_env, user_agent, shell_mode } = *spawn;
     let mut prepend = bin_dirs;
     prepend.extend(extra_bin_paths.iter().cloned());
-    let path = prepend_dirs_to_path(&prepend)?;
+    let path = prepend_dirs_to_path(&prepend).map_err(DlxError::from)?;
 
     let mut cmd = if shell_mode {
         let shell = pacquet_executor::select_shell(None, cfg!(windows))
@@ -703,36 +709,6 @@ fn scopeless(pkg_name: &str) -> &str {
     } else {
         pkg_name
     }
-}
-
-fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, DlxError> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    for dir in dirs {
-        if dir.to_string_lossy().contains(delimiter) {
-            return Err(DlxError::BadPathDir {
-                dir: dir.to_string_lossy().into_owned(),
-                delimiter,
-            });
-        }
-    }
-
-    let sep = if cfg!(windows) { ";" } else { ":" };
-    let mut out = OsString::new();
-    for (index, dir) in dirs.iter().enumerate() {
-        if index > 0 {
-            out.push(sep);
-        }
-        out.push(dir);
-    }
-    if let Some(current) = std::env::var_os("PATH")
-        && !current.is_empty()
-    {
-        if !out.is_empty() {
-            out.push(sep);
-        }
-        out.push(current);
-    }
-    Ok(out)
 }
 
 #[cfg(test)]

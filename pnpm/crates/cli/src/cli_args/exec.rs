@@ -1,5 +1,6 @@
 mod recursive;
 
+use crate::path_env::{BadPathDir, prepend_dirs_to_path};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -8,8 +9,7 @@ use pacquet_executor::{push_script_arg, select_shell};
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_workspace::safe_read_project_manifest_only;
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    path::Path,
     process::{Command, ExitStatus},
 };
 
@@ -73,6 +73,12 @@ pub enum ExecError {
         #[error(source)]
         source: std::io::Error,
     },
+}
+
+impl From<BadPathDir> for ExecError {
+    fn from(BadPathDir { dir, delimiter }: BadPathDir) -> Self {
+        ExecError::BadPathDir { dir, delimiter }
+    }
 }
 
 impl ExecArgs {
@@ -201,39 +207,4 @@ pub(super) fn spawn_in_dir(
 /// is not an error for `exec` (it can run a command in any directory).
 fn read_package_name(dir: &Path) -> Option<String> {
     safe_read_project_manifest_only(dir).ok()??.value().get("name")?.as_str().map(str::to_string)
-}
-
-/// Prepend `dirs` to the current process `PATH`.
-///
-/// A directory containing the platform path delimiter cannot be expressed
-/// in `PATH`, so it is rejected with [`ExecError::BadPathDir`] rather than
-/// silently splitting into two entries.
-fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, ExecError> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    for dir in dirs {
-        if dir.to_string_lossy().contains(delimiter) {
-            return Err(ExecError::BadPathDir {
-                dir: dir.to_string_lossy().into_owned(),
-                delimiter,
-            });
-        }
-    }
-
-    let sep: &OsStr = if cfg!(windows) { OsStr::new(";") } else { OsStr::new(":") };
-    let mut out = OsString::new();
-    for (i, dir) in dirs.iter().enumerate() {
-        if i > 0 {
-            out.push(sep);
-        }
-        out.push(dir);
-    }
-    if let Some(current) = std::env::var_os("PATH")
-        && !current.is_empty()
-    {
-        if !out.is_empty() {
-            out.push(sep);
-        }
-        out.push(current);
-    }
-    Ok(out)
 }

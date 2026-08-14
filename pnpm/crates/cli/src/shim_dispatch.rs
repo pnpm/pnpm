@@ -604,7 +604,7 @@ fn trusted_package_manager_config() -> miette::Result<Config> {
 /// reachable, and its own directory has to come first so a nested
 /// invocation finds the same version.
 fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsString]) -> i32 {
-    match crate::cli_args::with::prepend_to_path(bin_dirs) {
+    match crate::path_env::prepend_dirs_to_path(bin_dirs) {
         Ok(path) => {
             // SAFETY: the dispatcher runs before the tokio runtime and
             // rayon pool start, so the process is single-threaded and no

@@ -18,11 +18,12 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_reporter::Reporter;
-use std::{ffi::OsString, path::PathBuf, process::Command};
+use std::{path::PathBuf, process::Command};
 
 use crate::{
     cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
     engine_pm::{channel::PackageManager, provision::provision},
+    path_env::{BadPathDir, prepend_dirs_to_path},
 };
 
 /// Errors specific to `pacquet with`. The codes carry the shared
@@ -42,6 +43,12 @@ pub enum WithError {
     )]
     #[diagnostic(code(ERR_PNPM_BAD_PATH_DIR))]
     BadPathDir { dir: String, delimiter: char },
+}
+
+impl From<BadPathDir> for WithError {
+    fn from(BadPathDir { dir, delimiter }: BadPathDir) -> Self {
+        WithError::BadPathDir { dir, delimiter }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -96,7 +103,7 @@ where
     Arg: AsRef<std::ffi::OsStr>,
 {
     let bin_dir = bin_dirs.first().expect("an installed engine has a bin directory");
-    let path = prepend_to_path(bin_dirs)?;
+    let path = prepend_dirs_to_path(bin_dirs).map_err(WithError::from)?;
     // Resolve `pnpm` strictly within `bin_dir`, never the full PATH, so a
     // missing or broken shim is an error rather than silently falling
     // through to a different `pnpm` elsewhere on PATH (which would run the
@@ -133,38 +140,6 @@ fn disable_package_manager_switching(cmd: &mut Command) {
     for name in PACKAGE_MANAGER_SWITCH_ENV_VARS {
         cmd.env(name, "false");
     }
-}
-
-/// Prepend `dirs` to the current process `PATH`, rejecting a directory
-/// that contains the platform path delimiter (it cannot be expressed as a
-/// single `PATH` entry and would silently split into several). Mirrors the
-/// `BAD_PATH_DIR` guard `exec`'s `prepend_dirs_to_path` already applies;
-/// the directories here are the engine's store-resident `bin` directory
-/// and, for a JavaScript engine on a host without Node.js, the managed
-/// runtime's.
-pub(crate) fn prepend_to_path(dirs: &[PathBuf]) -> Result<OsString, WithError> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    let separator = if cfg!(windows) { ";" } else { ":" };
-    let mut out = OsString::new();
-    for dir in dirs {
-        if dir.to_string_lossy().contains(delimiter) {
-            return Err(WithError::BadPathDir {
-                dir: dir.to_string_lossy().into_owned(),
-                delimiter,
-            });
-        }
-        if !out.is_empty() {
-            out.push(separator);
-        }
-        out.push(dir);
-    }
-    if let Some(current) = std::env::var_os("PATH").filter(|value| !value.is_empty()) {
-        if !out.is_empty() {
-            out.push(separator);
-        }
-        out.push(current);
-    }
-    Ok(out)
 }
 
 /// `true` when pnpm is running under corepack (which sets `COREPACK_ROOT`

@@ -9,6 +9,7 @@ mod github_actions;
 mod job_control;
 mod leading_separator;
 mod parse_boundary;
+mod path_env;
 mod renamed_options;
 mod shim_dispatch;
 mod shorthands;
