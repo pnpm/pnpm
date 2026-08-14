@@ -498,7 +498,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -510,7 +510,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -522,7 +522,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -534,7 +534,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -546,7 +546,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -558,7 +558,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -570,7 +570,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -582,7 +582,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
             echo '```'
             echo
             echo '</details>'
@@ -594,7 +594,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.json
             echo '```'
             echo
             echo '</details>'
@@ -606,7 +606,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json
             echo '```'
             echo
             echo '</details>'
