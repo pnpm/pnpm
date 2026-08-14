@@ -18,6 +18,7 @@ use crate::{
         rebuild::run_rebuild,
         shim::record_package_manager_shims,
     },
+    engine_pm::selector::tool_install_selector,
     shim_dispatch::install_dispatcher,
 };
 use derive_more::{Display, Error};
@@ -208,6 +209,17 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     }) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
+    // `pnpm add -g yarn@4` means the Yarn 4 line, which npm publishes
+    // under another name, and `pnpm add -g node@22` means the Node.js
+    // release rather than the wrapper package that downloads one. The
+    // request becomes the selector that installs the tool itself, and the
+    // ordinary install pipeline takes it from there — so the result is a
+    // normal global install that `pnpm ls -g` and `pnpm remove -g` see.
+    let params: Vec<String> = params
+        .iter()
+        .map(|param| tool_install_selector(param).unwrap_or_else(|| param.clone()))
+        .collect();
+
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
     fs::create_dir_all(&global_pkg_dir)
@@ -215,7 +227,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         .wrap_err("create the global packages directory")?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    for group in split_into_groups(params, cwd) {
+    for group in split_into_groups(&params, cwd) {
         let (install_dir, config) = Box::pin(run_group_install::<Reporter>(
             base_config,
             &global_pkg_dir,

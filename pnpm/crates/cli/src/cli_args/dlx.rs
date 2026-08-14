@@ -458,6 +458,11 @@ fn run_bin(
 /// without a version resolves.
 fn parse_package_manager_spec(command: &str) -> Option<(PackageManager, &str)> {
     let (name, version_spec) = command.split_once('@').unwrap_or((command, "latest"));
+    // A specifier carrying a protocol names a package to install, not a
+    // line of the tool, so it stays on the ordinary dlx path.
+    if version_spec.contains(':') {
+        return None;
+    }
     Some((PackageManager::parse(name)?, version_spec))
 }
 
@@ -465,6 +470,13 @@ fn parse_package_manager_spec(command: &str) -> Option<(PackageManager, &str)> {
 /// specifier it asks for, or `None` when it names something else.
 fn parse_runtime_spec(command: &str) -> Option<(&str, &str)> {
     let (name, version_spec) = command.split_once('@').unwrap_or((command, "latest"));
+    // `node@runtime:22` is the same request spelled with the protocol the
+    // resolver uses; anything else carrying one is an ordinary package.
+    let version_spec = match version_spec.split_once(':') {
+        Some(("runtime", version_spec)) => version_spec,
+        Some(_) => return None,
+        None => version_spec,
+    };
     is_runtime_alias(name).then_some((name, version_spec))
 }
 

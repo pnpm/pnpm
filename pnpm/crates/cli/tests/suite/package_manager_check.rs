@@ -648,3 +648,34 @@ fn stdout(output: &Output) -> String {
 fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
+
+/// Naming a package manager records which one the project uses, so it
+/// stays possible in a project pinned to another one — changing that
+/// declaration is not the pinned manager's work. Adding anything else
+/// still is.
+#[test]
+fn a_project_pinned_to_another_package_manager_can_still_be_repinned() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
+
+    let output = run(pacquet, root.path(), &["add", "yarn@1"]);
+
+    assert_success(&output);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    assert_eq!(
+        manifest["devEngines"]["packageManager"],
+        serde_json::json!({ "name": "yarn", "version": "1" }),
+    );
+}
+
+#[test]
+fn a_project_pinned_to_another_package_manager_still_refuses_an_ordinary_add() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
+
+    let output = run(pacquet, root.path(), &["add", "lodash"]);
+
+    assert_failure(&output);
+    assert_contains(&stderr(&output), "This project is configured to use yarn");
+}

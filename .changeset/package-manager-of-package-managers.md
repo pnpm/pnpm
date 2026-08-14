@@ -12,4 +12,6 @@ Three things use it:
 
 Installing a package manager globally (`pnpm add -g yarn`) now makes it follow a project's pin too, the way a globally installed Node.js already follows `devEngines.runtime`: the pinned version runs where a project pins one, and the globally installed copy is the fallback everywhere else. An explicit `globalShims` entry, including `false`, is left as you set it.
 
+`pnpm add` follows the same rule about what a name means. `pnpm add -g yarn@4` installs Yarn Berry — it used to fail, because npm's `yarn` package stops at Classic — and `pnpm add -g node@22` installs that Node.js release rather than a wrapper package that downloads one. In a project, naming a package manager records which one the project uses in `devEngines.packageManager` instead of installing it as a dependency, and naming a runtime records it under `engines.runtime` as `node@runtime:22` already did.
+
 A JavaScript package manager on a machine without Node.js gets a managed LTS runtime to run on.

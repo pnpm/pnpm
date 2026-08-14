@@ -9,4 +9,6 @@
 pub(crate) mod channel;
 pub(crate) mod error;
 pub(crate) mod install;
+pub(crate) mod pin;
 pub(crate) mod provision;
+pub(crate) mod selector;

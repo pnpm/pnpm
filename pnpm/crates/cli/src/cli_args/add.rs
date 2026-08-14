@@ -5,6 +5,11 @@ use crate::{
         supported_architectures::SupportedArchitecturesArgs,
     },
     config_deps,
+    engine_pm::{
+        channel::PackageManager,
+        pin::{describe_pin, record_package_manager_pin},
+        selector::tool_install_selector,
+    },
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -13,7 +18,7 @@ use pacquet_config::Config;
 use pacquet_package_manager::Add;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pacquet_workspace_manifest_writer::set_allow_builds;
 use std::{
@@ -256,13 +261,25 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
+        // A package manager is not a dependency of the project it
+        // installs: naming one declares which package manager the project
+        // uses, so it is recorded in `devEngines.packageManager` and
+        // nothing is installed for it. A runtime *is* installable, and
+        // becomes the `runtime:` request that records it as an engine.
+        let mut state = state;
+        let Some(package_names) =
+            record_package_manager_pins::<Reporter>(&mut state, &self.package_names)?
+        else {
+            return Ok(());
+        };
+
         let range_spec_style = self.range_spec_style(state.config);
         let dependency_options =
             self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
 
         add_packages::<Reporter, _>(
             state,
-            &self.package_names,
+            &package_names,
             range_spec_style,
             save_catalog_name,
             self.lockfile_only,
@@ -452,6 +469,54 @@ where
         Some(dependency_groups),
     ))
     .await
+}
+
+/// Record every package manager among `package_names` in the project's
+/// `devEngines.packageManager`, and return the requests that are left to
+/// install — `None` when the whole command was package managers and
+/// there is nothing to install.
+///
+/// A runtime is left in the list: unlike a package manager it is
+/// installed, and [`tool_install_selector`] turns it into the `runtime:`
+/// request that records it under `engines.runtime`.
+///
+/// pnpm's own pin is deliberately not written here. Changing it makes the
+/// next command switch the running CLI, which is `pnpm self-update`'s job
+/// to do deliberately rather than an `add`'s to do as a side effect.
+fn record_package_manager_pins<Reporter: self::Reporter>(
+    state: &mut State,
+    package_names: &[String],
+) -> miette::Result<Option<Vec<String>>> {
+    let mut remaining = Vec::new();
+    let mut recorded = Vec::new();
+    for request in package_names {
+        let parsed = parse_wanted_dependency(request);
+        let pin = parsed
+            .alias
+            .as_deref()
+            .and_then(PackageManager::parse)
+            .filter(|pm| *pm != PackageManager::Pnpm);
+        if let Some(pm) = pin {
+            let version_spec = parsed.bare_specifier.as_deref();
+            record_package_manager_pin(state.manifest.value_mut(), pm, version_spec);
+            recorded.push(describe_pin(pm, version_spec));
+        } else {
+            let selector = tool_install_selector(request);
+            remaining.push(selector.unwrap_or_else(|| request.clone()));
+        }
+    }
+    if recorded.is_empty() {
+        return Ok(Some(remaining));
+    }
+    state.manifest.save().map_err(miette::Report::new).wrap_err("save the manifest")?;
+    for pin in recorded {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Info,
+            message: format!("Recorded {pin} in devEngines.packageManager"),
+            prefix: String::new(),
+        }));
+    }
+    Ok((!remaining.is_empty()).then_some(remaining))
 }
 
 /// Add packages to `state`'s manifest and install them in one operation.
