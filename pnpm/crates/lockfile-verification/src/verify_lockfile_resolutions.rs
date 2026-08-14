@@ -192,12 +192,18 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
 
 /// A verification that passed but has not been written to the log yet.
 ///
-/// The log is read by the *next* install, so when it is written matters:
-/// an install's own dependency lifecycle scripts run before it finishes,
-/// and they can append to the same file. Recording only once the install
-/// is otherwise done means any record a script wrote is an extra one
-/// rather than a substitute for pnpm's, which is what makes tampering
-/// detectable by whoever caches the log.
+/// The log is read by the *next* install, and the log is last-writer-wins
+/// per lockfile. An install's own dependency lifecycle scripts run before
+/// it finishes and can append to the same file, so a verdict written ahead
+/// of them is a verdict they can supersede. Holding the record back until
+/// everything else is done keeps the install's verdict its last word on
+/// the lockfile it verified.
+///
+/// This is ordering, not integrity: a lifecycle script runs with the same
+/// privileges as pnpm and can rewrite the log — or the lockfile, or
+/// `node_modules` — however it likes, and nothing marks a line in the log
+/// as pnpm's. Whether such a script runs at all is what `allowBuilds`
+/// governs.
 ///
 /// Dropping the value without calling [`record`](Self::record) persists
 /// nothing — an install that fails after verification leaves no verdict
@@ -225,9 +231,8 @@ impl fmt::Debug for PendingVerificationRecord {
 }
 
 impl PendingVerificationRecord {
-    /// Append the verdict to the log. Call once the install has run
-    /// everything that could write to the log itself — its build phase
-    /// above all.
+    /// Append the verdict to the log. Call once the install has finished
+    /// every dependency lifecycle script it runs.
     pub fn record(self) {
         record_verification(
             &self.cache_dir,

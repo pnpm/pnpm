@@ -602,9 +602,9 @@ test('a passing verification writes nothing until the caller records it', async 
     })
     const logPath = path.join(cacheDir, 'lockfile-verified.jsonl')
 
-    // An install records once its build phase is over, so that a lifecycle
-    // script writing to the same log cannot pass its record off as pnpm's.
-    // Until then the verdict is held, and an install that throws in between
+    // An install records once its lifecycle scripts are done, so that a
+    // script writing to the same log cannot supersede pnpm's record. Until
+    // then the verdict is held, and an install that throws in between
     // leaves nothing behind.
     const pending = await verifyLockfileResolutions(lockfile, [wrap(async () => ({ ok: true }), exampleSlot(60))], {
       cacheDir, lockfilePath,

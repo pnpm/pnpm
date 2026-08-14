@@ -542,13 +542,6 @@ export async function mutateModules (
 
   const result = await settleInstall(_install(), verifyLockfilePromise)
 
-  // Recorded only now: the install has run its build phase, and a
-  // dependency's lifecycle script can append to the same log. Recording
-  // ahead of them would leave pnpm's own verdict indistinguishable from
-  // whatever they wrote. An install that threw never reaches this line, so
-  // it leaves no verdict behind.
-  ;(await verifyLockfilePromise)?.record()
-
   // @ts-expect-error
   if (global['verifiedFileIntegrity'] > 1000) {
     // @ts-expect-error
@@ -611,6 +604,13 @@ export async function mutateModules (
   ignoredScriptsLogger.debug({
     packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
   })
+
+  // Recorded only now that every lifecycle script this install runs is
+  // done — `runUnignoredDependencyBuilds` above rebuilds the packages
+  // approved since the last install, well past the install proper. An
+  // install that threw never reaches this line, so it leaves no verdict
+  // behind either.
+  ;(await verifyLockfilePromise)?.record()
 
   detachReporter()
 

@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-The lockfile verification result is now recorded once the install's build phase is over, rather than as soon as the lockfile passes. A dependency's lifecycle script runs inside the install and can write to the same log, so recording last keeps pnpm's own verdict distinguishable from anything a script wrote — which matters for CI setups that cache the log between jobs. An install that fails after verification no longer leaves a verdict behind either.
+The lockfile verification result is now recorded once the install has finished, rather than as soon as the lockfile passes. The log is read by the next install and the newest record for a lockfile wins, so an install should have the last word on the lockfile it verified: recording before the build phase let a dependency's lifecycle script append over pnpm's verdict, and left a "verified" record behind for an install that went on to fail.

@@ -334,9 +334,8 @@ fn trust_lockfile_still_rejects_traversal_dependency_name() {
 
 /// The verdict is written only once the install's build phase is over.
 /// A dependency's lifecycle script runs inside the install and can append
-/// to the same log, so a verdict recorded ahead of it would be
-/// indistinguishable from whatever that script wrote; recording last makes
-/// any script-written record an extra one.
+/// to the same log, where the newest record for a lockfile wins — so a
+/// verdict recorded ahead of the scripts is one they can supersede.
 #[test]
 fn verification_is_recorded_after_dependency_build_scripts_run() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

@@ -811,9 +811,8 @@ where
             .map_err(InstallFrozenLockfileError::BuildPhase)?;
 
         // Only now that the build phase is over: a dependency's lifecycle
-        // script can append to the verification log, and recording ahead of
-        // them would leave pnpm's own verdict indistinguishable from
-        // whatever they wrote.
+        // script can append to the verification log, and the newest record
+        // for a lockfile is the one the next install reads.
         if let Some(pending_verification_record) = pending_verification_record {
             pending_verification_record.record();
         }
