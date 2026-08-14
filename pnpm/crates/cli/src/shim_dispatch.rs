@@ -176,7 +176,7 @@ fn dispatch_target(
         Some(Candidate::PackageManagerPin { pm, version_spec, .. })
             if package_manager_runs_promptless(policy, pm, &version_spec) =>
         {
-            run_package_manager_from_pin(pm, &version_spec, args)
+            run_package_manager_from_pin(pm, &version_spec, name, args)
         }
         Some(candidate) if policy == ShimPolicy::Always || is_trusted(&candidate, name) => {
             match candidate {
@@ -196,7 +196,7 @@ fn dispatch_target(
                     run_runtime_from_store(name, &version_spec, args)
                 }
                 Candidate::PackageManagerPin { pm, version_spec, .. } => {
-                    run_package_manager_from_pin(pm, &version_spec, args)
+                    run_package_manager_from_pin(pm, &version_spec, name, args)
                 }
             }
         }
@@ -557,14 +557,29 @@ fn run_runtime_from_store(name: &str, version_spec: &str, args: &[OsString]) -> 
 /// The provisioning configuration is pnpm's own, anchored in its state
 /// directory: the project decides *which* package manager runs, never
 /// where its bytes come from.
-fn run_package_manager_from_pin(pm: PackageManager, version_spec: &str, args: &[OsString]) -> i32 {
+fn run_package_manager_from_pin(
+    pm: PackageManager,
+    version_spec: &str,
+    name: &str,
+    args: &[OsString],
+) -> i32 {
     let spec = version_spec.to_string();
     let result = crate::block_on_runtime("pacquet-global-shim-pm", async move {
         let config = Config::leak(trusted_package_manager_config()?);
         provision::<SilentReporter>(config, pm, &spec).await
     });
     match result {
-        Ok(engine) => exec_program_with_bin_dirs(&engine.program, &engine.bin_dirs, args),
+        Ok(engine) => {
+            // A package manager publishes more than one command — `npx`
+            // alongside `npm` — so the one the user typed is what runs,
+            // not whichever the engine calls its main bin.
+            let program = engine
+                .bin_dirs
+                .first()
+                .and_then(|bin_dir| which::which_in(name, Some(bin_dir), bin_dir).ok())
+                .unwrap_or(engine.program);
+            exec_program_with_bin_dirs(&program, &engine.bin_dirs, args)
+        }
         Err(error) => {
             eprintln!("pnpm: failed to prepare {}@{version_spec}: {error:?}", pm.name());
             1

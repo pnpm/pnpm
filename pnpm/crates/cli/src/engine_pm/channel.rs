@@ -93,7 +93,9 @@ impl PackageManager {
     /// chosen, and because the aliases differ across releases.
     pub(crate) fn bins(self) -> &'static [&'static str] {
         match self {
-            PackageManager::Bun => &["bun", "bunx"],
+            // Bun's release archive holds the one executable; `bunx` is a
+            // link its own installer makes, and `bun x` does the same job.
+            PackageManager::Bun => &["bun"],
             PackageManager::Npm => &["npm", "npx"],
             PackageManager::Pnpm => &["pnpm", "pnpx", "pn", "pnx"],
             PackageManager::Yarn => &["yarn", "yarnpkg"],
