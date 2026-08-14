@@ -14,12 +14,14 @@ use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::NodeLinker;
 use pacquet_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
+use pacquet_lockfile_verification::{lockfile_verification_is_cached, record_lockfile_verified};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manager::{
     Install, InstallFrozenLockfileError, LockfileVerificationOverride, ProjectMutation,
     SkippedSnapshots, TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy,
-    WorkspaceInstallSelection, install_already_up_to_date, materialization_closure,
-    merge_filtered_wanted_lockfile,
+    WantedLockfileSatisfactionCheck, WorkspaceInstallSelection, build_resolution_verifiers,
+    install_already_up_to_date, materialization_closure, merge_filtered_wanted_lockfile,
+    wanted_lockfile_satisfies_workspace,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_pnpr_client::{
@@ -301,10 +303,15 @@ impl InstallArgs {
     /// (which checks `recursive` / `filter` before reaching here) plus
     /// every input that would make [`Install::run`] skip its own
     /// short-circuit or do extra pre-install work: an explicit
-    /// `--frozen-lockfile` / `--lockfile-only`, a configured pnpr
-    /// server (that path never runs the optimistic check), config
+    /// `--frozen-lockfile` / `--lockfile-only`, config
     /// dependencies, and pnpmfile `updateConfig` hooks (both can
-    /// mutate the config the check compares against).
+    /// mutate the config the check compares against). A configured
+    /// pnpr server deliberately does NOT bail: the check decides
+    /// purely locally that nothing changed since the previous
+    /// (workspace-state-recording) install, and asking the server
+    /// cannot change that answer — while trust/policy setting changes
+    /// fall through via the settings drift comparison
+    /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
     ///
     /// `false` means "not decided" — the caller proceeds with the full
     /// install path, which re-runs the same check cheaply and
@@ -319,11 +326,7 @@ impl InstallArgs {
             || self.lockfile_only
             || self.force
             || self.verify_deps_before_run_install
-            || self.pnpr_server.is_some()
         {
-            return false;
-        }
-        if config.pnpr_server.is_some() {
             return false;
         }
         // Dedicated per-project lockfiles run one install per workspace
@@ -722,6 +725,15 @@ fn resolve_project(
 /// frozen install fetches every tarball from the registries itself, like
 /// a normal install. Under `--lockfile-only` it stops after writing the
 /// lockfile (fetch nothing, link nothing).
+///
+/// The server is only contacted when there is resolution or
+/// verification work for it: an install whose on-disk lockfile still
+/// satisfies every manifest skips the resolve exchange and goes
+/// straight to the frozen materialization, and the input-lockfile
+/// verification round trip is skipped when the local
+/// `lockfile-verified.jsonl` cache already covers the lockfile under
+/// the current policy
+/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
 pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
@@ -789,6 +801,32 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         (importer_ids.clone(), importer_ids)
     });
 
+    let catalogs = pnpr_catalogs(state)?;
+
+    // The local satisfaction gate ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)):
+    // when the on-disk lockfile still satisfies every manifest, there is
+    // nothing for the server to resolve, so the install goes straight to
+    // the frozen materialization below — the same dispatch the
+    // non-pnpr path takes via `preferFrozenLockfile`. Filtered installs
+    // keep the server exchange: their merge semantics live there.
+    let satisfied_without_server = !link.frozen_lockfile
+        && !link.lockfile_only
+        && link.prefer_frozen_lockfile
+        && selection.is_none()
+        && match previous_wanted.as_ref() {
+            Some(lockfile) => {
+                wanted_lockfile_satisfies_workspace(&WantedLockfileSatisfactionCheck {
+                    config: state.config,
+                    manifest: &state.manifest,
+                    catalogs: &catalogs.clone().unwrap_or_default(),
+                    lockfile,
+                    ignore_manifest_check: link.ignore_manifest_check,
+                })
+                .await
+            }
+            None => false,
+        };
+
     let overrides = state
         .config
         .overrides
@@ -820,7 +858,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         // route policy, so they stay out of the request body.
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
-        catalogs: pnpr_catalogs(state)?,
+        catalogs,
         lockfile: previous_wanted.clone(),
         frozen_lockfile: link.frozen_lockfile,
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
@@ -844,8 +882,8 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         .lockfile_path
         .map_or_else(|| lockfile_dir.join(Lockfile::FILE_NAME), std::path::Path::to_path_buf);
 
-    if link.frozen_lockfile
-        && (selection.is_some() || !link.lockfile_only)
+    if (satisfied_without_server
+        || (link.frozen_lockfile && (selection.is_some() || !link.lockfile_only)))
         && let Some(lockfile) = previous_wanted.as_ref()
     {
         let prefetcher = if link.lockfile_only {
@@ -898,16 +936,49 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             Some(prefetcher)
         };
 
-        let lockfile_verification_override: Option<LockfileVerificationOverride<'_>> =
-            if link.trust_lockfile {
+        // Delegated to the server only when the local verification cache
+        // can't already vouch for this lockfile under the current policy
+        // — a warm `lockfile-verified.jsonl` makes the round trip pure
+        // overhead ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+        // A server pass is recorded into the same cache, so the next
+        // install of the unchanged lockfile skips the exchange.
+        let lockfile_verification_override: Option<LockfileVerificationOverride<'_>> = if link
+            .trust_lockfile
+        {
+            None
+        } else {
+            let verifiers = build_resolution_verifiers(
+                state.config,
+                std::sync::Arc::clone(&state.http_client),
+                None,
+                None,
+                None,
+            )
+            .map_err(miette::Report::new)?;
+            if lockfile_verification_is_cached(
+                &state.config.cache_dir,
+                &lockfile_path,
+                lockfile,
+                &verifiers,
+            ) {
                 None
             } else {
                 let verify_opts = VerifyLockfileOptions::from_resolve_projects_options(&opts)
                     .expect("frozen pnpr verification requires the loaded lockfile");
                 let verify_client = PnprClient::new(pnpr_server);
+                let cache_dir = state.config.cache_dir.clone();
+                let record_lockfile_path = lockfile_path.clone();
                 Some(Box::pin(async move {
                     match verify_client.verify_lockfile(verify_opts).await {
-                        Ok(()) => Ok(()),
+                        Ok(()) => {
+                            record_lockfile_verified(
+                                Some(&cache_dir),
+                                &record_lockfile_path,
+                                lockfile,
+                                &verifiers,
+                            );
+                            Ok(())
+                        }
                         Err(PnprClientError::Verification(verify_err)) => {
                             Err(InstallFrozenLockfileError::LockfileVerification(verify_err))
                         }
@@ -916,7 +987,8 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
                         )),
                     }
                 }) as LockfileVerificationOverride<'_>)
-            };
+            }
+        };
 
         let install = Install {
             tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
@@ -1069,6 +1141,26 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             .save_to_path(&lockfile_path)
             .map_err(|err| miette::miette!("{err}"))
             .wrap_err("writing the pnpr-resolved lockfile")?;
+        // The server resolved and verified this lockfile under our
+        // policy, so mark it verified locally — pnpm's
+        // `writeWantedLockfileAndRecordVerified` — letting the next
+        // install's cache probe skip the server verification exchange.
+        if !link.trust_lockfile
+            && let Ok(verifiers) = build_resolution_verifiers(
+                state.config,
+                std::sync::Arc::clone(&state.http_client),
+                None,
+                None,
+                None,
+            )
+        {
+            record_lockfile_verified(
+                Some(&state.config.cache_dir),
+                &lockfile_path,
+                &outcome.lockfile,
+                &verifiers,
+            );
+        }
     }
 
     // `--lockfile-only`: the server resolved and returned the lockfile

@@ -2016,6 +2016,60 @@ fn migrated_keys_are_reported_by_the_up_to_date_fast_path() {
     drop(root);
 }
 
+/// Trust/policy settings key the lockfile-verification gate, so a
+/// change must look like settings drift and defeat the repeat-install
+/// fast path — the full install re-runs the verifier fan-out and
+/// re-records the workspace state, after which the fast path applies
+/// again. pnpm records `trustPolicy*` in the workspace state for
+/// exactly this reason.
+#[test]
+fn trust_policy_change_defeats_the_up_to_date_fast_path() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@foo/no-deps": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    let run_install = || {
+        let assert = pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_arg("install")
+            .assert()
+            .success();
+        String::from_utf8_lossy(&assert.get_output().stdout).into_owned()
+    };
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        run_install().contains("Already up to date"),
+        "an unchanged repeat install must take the fast path",
+    );
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustPolicy: no-downgrade\n"))
+        .expect("write pnpm-workspace.yaml");
+
+    assert!(
+        !run_install().contains("Already up to date"),
+        "a trustPolicy change must defeat the fast path",
+    );
+    assert!(
+        run_install().contains("Already up to date"),
+        "the full install re-records the state, so the fast path applies again",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Each emit site reads the root manifest on its own, and an editor may
 /// leave a UTF-8 BOM at its head. A reader that trips over one drops the
 /// warning without a trace, so both sites are exercised: the install

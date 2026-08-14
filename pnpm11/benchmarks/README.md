@@ -46,14 +46,15 @@ leading segment groups runs by linker mode. Today there are two
 groups (`isolated-linker.*` and `gvs-linker.*`); future scenarios
 will add `hoisted-linker.*` and `pnp-linker.*`.
 
-Every current scenario starts with `node_modules` wiped — "fresh"
-names that target state; future variants that begin with a populated
-`node_modules` will use a different action prefix. (For fresh-resolve
-the wipe also keeps the install's up-to-date short-circuit from
-skipping the measured resolution.)
+A "fresh" scenario starts with `node_modules` wiped. (For
+fresh-resolve the wipe also keeps the install's up-to-date
+short-circuit from skipping the measured resolution.) A
+"repeat-install" scenario starts with `node_modules` populated and up
+to date, measuring exactly that short-circuit.
 
 | # | Slug | Lockfile | Cache | Store | Description |
 |---|---|---|---|---|---|
+| 0 | `isolated-linker.repeat-install.hot-cache.hot-store` | ✔ | hot | hot | Repeat `pnpm install` in a current tree — the up-to-date short-circuit |
 | 1 | `isolated-linker.fresh-restore.hot-cache.hot-store` | ✔ frozen | hot | hot | Restore from lockfile with both directories hot (repeat-headless shape) |
 | 2 | `isolated-linker.fresh-add-dep.hot-cache.hot-store` | ✔ + add dep | hot | hot | `pnpm add <dep>` against an existing lockfile |
 | 3 | `isolated-linker.fresh-install.hot-cache.hot-store` | ✗ | hot | hot | Resolve from scratch with both directories hot |

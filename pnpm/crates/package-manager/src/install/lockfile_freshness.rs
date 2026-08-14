@@ -1,8 +1,98 @@
 use super::{
     Arc, Catalogs, Config, DependencyGroup, Diagnostic, Display, Error, InstallError,
     InstallWithFreshLockfileError, Lockfile, PackageManifest, Path, PathBuf, PnpmfileChecksumCheck,
-    StalenessReason, satisfies_package_manifest,
+    StalenessReason, build_project_manifests_list, configured_or_discovered_workspace_dir,
+    satisfies_package_manifest,
 };
+
+/// Inputs for [`wanted_lockfile_satisfies_workspace`].
+pub struct WantedLockfileSatisfactionCheck<'a> {
+    pub config: &'a Config,
+    /// The active project's manifest; the workspace and its sibling
+    /// projects are rediscovered from it exactly the way
+    /// [`super::Install::run`] does, so the two agree on the importer
+    /// set they compare against the lockfile.
+    pub manifest: &'a PackageManifest,
+    pub catalogs: &'a Catalogs,
+    pub lockfile: &'a Lockfile,
+    pub ignore_manifest_check: bool,
+}
+
+/// Whether an unfiltered install could materialize `node_modules` from
+/// `lockfile` as-is — the same settings-drift and per-importer
+/// specifier gates the explicit `--frozen-lockfile` dispatch runs, so a
+/// `true` verdict guarantees a subsequent frozen [`super::Install`] run
+/// over the same lockfile passes its freshness check instead of
+/// erroring.
+///
+/// Built for the pnpr client, which uses the verdict to skip the
+/// server resolve exchange when there is nothing to resolve
+/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+/// Conservative on every input it cannot cheaply reason about — an
+/// empty lockfile, config dependencies, a workspace pnpmfile (whose
+/// hooks could rewrite manifests or force a re-resolve), or a failed
+/// workspace discovery all report `false`, sending the caller down its
+/// full (resolving) path.
+pub async fn wanted_lockfile_satisfies_workspace(
+    check: &WantedLockfileSatisfactionCheck<'_>,
+) -> bool {
+    let WantedLockfileSatisfactionCheck {
+        config,
+        manifest,
+        catalogs,
+        lockfile,
+        ignore_manifest_check,
+    } = *check;
+    if lockfile.is_empty() {
+        return false;
+    }
+    if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
+        return false;
+    }
+    let Some(manifest_dir) = manifest.path().parent() else {
+        return false;
+    };
+    let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, manifest_dir) else {
+        return false;
+    };
+    let workspace_root = workspace_dir_opt.unwrap_or_else(|| manifest_dir.to_path_buf());
+    if !config.ignore_pnpmfile && pacquet_hooks::finder::find_pnpmfile(&workspace_root).is_some() {
+        return false;
+    }
+    let Ok(workspace_manifest) = pacquet_workspace::read_workspace_manifest(&workspace_root) else {
+        return false;
+    };
+    let Ok(workspace_projects) =
+        super::load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
+    else {
+        return false;
+    };
+    let project_manifests =
+        build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
+    let manifest_freshness_inputs: Vec<(String, &PackageManifest)> = project_manifests
+        .iter()
+        .map(|(project_dir, manifest)| {
+            (pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir), *manifest)
+        })
+        .collect();
+    check_lockfile_freshness(
+        lockfile,
+        &manifest_freshness_inputs,
+        config,
+        catalogs,
+        None,
+        FreshnessScope {
+            ignore_manifest_check,
+            // Both stricter than the auto-frozen dispatch: the verdict
+            // must imply the explicit-frozen gates pass, and a stale
+            // importer needs the resolving path to prune it.
+            allow_missing_dependency_free_importers: false,
+            prune_stale_importers: true,
+        },
+    )
+    .await
+    .is_ok()
+}
 
 pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
     pub(super) lockfile: Option<&'a Lockfile>,

@@ -72,6 +72,9 @@ pub(crate) use lockfile_freshness::{
 use lockfile_freshness::{
     FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
 };
+pub use lockfile_freshness::{
+    WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
+};
 use materialize::{MaterializationInputs, MaterializationOutput, materialize};
 use modules_state::{
     build_modules_manifest, check_modules_settings_diff, drain_settled_projects,

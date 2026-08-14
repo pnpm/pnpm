@@ -79,14 +79,14 @@ use std::{
 
 use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
 use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
+use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
 use pacquet_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_workspace_state::{
-    NodeLinker as WorkspaceStateNodeLinker, WorkspaceState, WorkspaceStateSettings,
-    load_workspace_state, update_workspace_state,
+    NodeLinker as WorkspaceStateNodeLinker, TrustPolicy as WorkspaceStateTrustPolicy,
+    WorkspaceState, WorkspaceStateSettings, load_workspace_state, update_workspace_state,
 };
 
 /// Outcome of [`check_optimistic_repeat_install`].

@@ -179,9 +179,9 @@ pub enum RegistryMode {
 /// dashboards can group by leading segment (`isolated-linker.*`,
 /// `gvs-linker.*`, future `hoisted-linker.*` / `pnp-linker.*`).
 ///
-/// Every current variant starts with `node_modules` wiped — "fresh"
-/// names that target state; future variants that begin with a
-/// populated `node_modules` will use a different action prefix.
+/// A `fresh-*` action starts with `node_modules` wiped; the
+/// `repeat-install` action starts with it populated and up to date, so
+/// it measures the repeat-install short-circuit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum BenchmarkScenario {
     /// No lockfile, cold cache + cold store. Mirrors `pnpm install` with nothing on disk.
@@ -215,6 +215,21 @@ pub enum BenchmarkScenario {
     /// Frozen lockfile, hot cache + hot store. The repeat-headless-install shape.
     #[value(name = "isolated-linker.fresh-restore.hot-cache.hot-store")]
     IsolatedFreshRestoreHotCacheHotStore,
+    /// Populated, up-to-date `node_modules` + lockfile, hot cache + hot
+    /// store: the plain repeat `pnpm install` in a current tree, which the
+    /// up-to-date short-circuit should answer in tens of milliseconds.
+    /// Nothing is wiped between iterations. Guards
+    /// [pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904): with a
+    /// pnpr server configured this must cost the same as a direct install
+    /// (no server exchange when there is nothing to resolve).
+    #[value(name = "isolated-linker.repeat-install.hot-cache.hot-store")]
+    IsolatedRepeatInstallHotCacheHotStore,
+    /// Same populated repeat install with `cache-dir` wiped per iteration:
+    /// the up-to-date answer must be reached without any metadata (or
+    /// verification-cache) reads, so a cold cache may not slow it down —
+    /// and may not tempt either arm into a network exchange.
+    #[value(name = "isolated-linker.repeat-install.cold-cache.hot-store")]
+    IsolatedRepeatInstallColdCacheHotStore,
     /// `pnpm add <dep>` against an existing lockfile, hot cache + hot store.
     #[value(name = "isolated-linker.fresh-add-dep.hot-cache.hot-store")]
     IsolatedFreshAddDepHotCacheHotStore,
@@ -257,7 +272,9 @@ impl BenchmarkScenario {
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
-            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => &["install"],
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore
+            | BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore
+            | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore => &["install"],
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
@@ -309,7 +326,9 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
             | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline
-            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => true,
+            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore
+            | BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore
+            | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore => true,
         }
     }
 
@@ -365,6 +384,17 @@ impl BenchmarkScenario {
             BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }
+            // A repeat install mutates nothing, so nothing is removed or
+            // restored — restoring the lockfile would bump its mtime and
+            // push every iteration off the pure-mtime fast path into the
+            // heavier content re-check. The populated `node_modules` (and
+            // workspace state) come from the pre-warm pass.
+            BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore => {
+                Cleanup { remove: &[], restore: &[] }
+            }
+            BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore => {
+                Cleanup { remove: &["cache-dir"], restore: &[] }
+            }
             BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => Cleanup {
                 remove: &["node_modules"],
                 restore: &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON],
@@ -404,15 +434,33 @@ impl BenchmarkScenario {
         matches!(self, BenchmarkScenario::GvsFreshRestoreHotCacheHotStore)
     }
 
+    /// Whether the scenario's contract is a populated, up-to-date
+    /// `node_modules`. The pre-benchmark wipe empties it, so an untimed
+    /// install pass per target re-establishes it before hyperfine runs —
+    /// hyperfine's warmup run would too, but `--warmup 0` must not
+    /// silently turn the first timed run into a fresh install.
+    pub fn prewarms_node_modules(self) -> bool {
+        matches!(
+            self,
+            BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore
+                | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore,
+        )
+    }
+
     /// Scenarios where pnpr's server-side resolution is expected to beat
-    /// or match a direct pacquet install. Hot-cache scenarios deliberately
-    /// skip this canary because there is little resolution work left to
-    /// offload and the remote pnpr hop can dominate.
+    /// or match a direct pacquet install. Hot-cache fresh scenarios
+    /// deliberately skip this canary because there is little resolution
+    /// work left to offload and the remote pnpr hop can dominate. The
+    /// repeat-install scenarios are the opposite: nothing may be
+    /// offloaded at all, so a configured pnpr server must cost nothing
+    /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
     pub fn expects_pnpr_not_slower_than_direct(self) -> bool {
         matches!(
             self,
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
-                | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore,
+                | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore
+                | BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore
+                | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore,
         )
     }
 

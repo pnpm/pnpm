@@ -32,6 +32,11 @@ const PREWARM_SCRIPT: &str = "prewarm.bash";
 const BENCHMARK_DIAGNOSTICS_JSON: &str = "BENCHMARK_DIAGNOSTICS.json";
 const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
 const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
+// Absolute slack for the pnpr-vs-direct gate: the repeat-install
+// scenarios finish in tens of milliseconds, where run-to-run noise
+// alone can exceed 5% of the mean. A pnpr arm within this many seconds
+// of the direct arm passes regardless of the ratio.
+const PNPR_DIRECT_ABS_SLACK_SECONDS: f64 = 0.015;
 // A pacquet peer-resolution blowup lands *below* 1x on this DAG, so the floor
 // only has to clear measurement noise, not encode how far ahead pacquet is.
 // The TypeScript resolver's own hot-cache cost moves independently — offline
@@ -586,15 +591,16 @@ impl WorkEnv {
         // would have its server up if a scenario ever combines the two.
         let _pnpr_servers = self.start_pnpr_servers(pnpr_server_registry);
 
-        // For GVS-warm we need a pre-warm pass: hyperfine's `--warmup`
-        // would otherwise time-from-empty for the first run since the
-        // pre-benchmark wipe above just emptied `store-dir`. The
-        // scenario's contract is "GVS already populated", so prime it
-        // by running the install once per target before hyperfine
-        // starts measuring.
-        if scenario.enables_gvs() {
+        // For GVS-warm and repeat-install scenarios we need a pre-warm
+        // pass: hyperfine's `--warmup` would otherwise time-from-empty
+        // for the first run since the pre-benchmark wipe above just
+        // emptied `store-dir` (and `node_modules`). Their contracts are
+        // "GVS already populated" / "`node_modules` already up to date",
+        // so prime them by running the install once per target before
+        // hyperfine starts measuring.
+        if scenario.enables_gvs() || scenario.prewarms_node_modules() {
             for id in self.benchmarked_ids() {
-                eprintln!("Pre-warming GVS for {id}...");
+                eprintln!("Pre-warming the install state for {id}...");
                 Command::new("bash").arg(self.script_path(id)).pipe_mut(executor("install.bash"));
             }
         }
@@ -1172,7 +1178,9 @@ impl WorkEnv {
                 continue;
             }
             assert!(
-                ratio.ratio <= PNPR_DIRECT_RATIO_MAX,
+                ratio.ratio <= PNPR_DIRECT_RATIO_MAX
+                    || ratio.pnpr_mean_seconds - ratio.pacquet_mean_seconds
+                        <= PNPR_DIRECT_ABS_SLACK_SECONDS,
                 "pnpr@{} was slower than pacquet@{}: ratio {:.3} > {:.3} (pnpr {:.3}s, pacquet {:.3}s)",
                 ratio.revision,
                 ratio.revision,

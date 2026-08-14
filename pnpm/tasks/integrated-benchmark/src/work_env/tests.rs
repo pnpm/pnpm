@@ -47,6 +47,31 @@ fn online_scenario_writes_no_prewarm_script() {
     assert!(!has_prewarm);
 }
 
+/// The repeat-install scenarios' contract is a populated, up-to-date
+/// `node_modules`: their per-iteration cleanup must not wipe it (or
+/// restore the lockfile, whose bumped mtime would push iterations off
+/// the pure-mtime fast path), and the pre-warm predicate must be set so
+/// the pre-benchmark wipe is repaired before hyperfine measures.
+#[test]
+fn repeat_install_scenarios_keep_node_modules_populated() {
+    for scenario in [
+        BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore,
+        BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore,
+    ] {
+        let cleanup = scenario.cleanup();
+        assert!(
+            !cleanup.remove.contains(&"node_modules"),
+            "{scenario:?} must not wipe node_modules between iterations",
+        );
+        assert!(
+            cleanup.restore.is_empty(),
+            "{scenario:?} must not restore files a repeat install never mutates",
+        );
+        assert!(scenario.prewarms_node_modules(), "{scenario:?} must pre-warm node_modules");
+        assert!(scenario.seeds_lockfile(), "{scenario:?} needs the seeded lockfile");
+    }
+}
+
 #[test]
 fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let dir = std::env::temp_dir()

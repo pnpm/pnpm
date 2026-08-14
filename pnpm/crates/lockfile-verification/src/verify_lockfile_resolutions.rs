@@ -56,6 +56,38 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     pub cache_dir: Option<&'a Path>,
 }
 
+/// Whether a recorded verification already covers `lockfile` as it sits
+/// at `lockfile_path` under the policy `verifiers` currently demand —
+/// i.e. whether a [`verify_lockfile_resolutions`] call would
+/// short-circuit on the cache without running the fan-out. The offline
+/// structural dependency-name gate runs here too (it is cheap and the
+/// cache never covers a lockfile that fails it), so a `true` return
+/// carries the same guarantee as the runner's cache hit.
+///
+/// Lets the pnpr client decide locally whether the server-side
+/// `verify_lockfile` round trip can be skipped
+/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+pub fn lockfile_verification_is_cached(
+    cache_dir: &Path,
+    lockfile_path: &Path,
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> bool {
+    if verify_lockfile_dependency_names(lockfile).is_err() {
+        return false;
+    }
+    if lockfile.packages.is_none() {
+        return true;
+    }
+    try_lockfile_verification_cache(
+        cache_dir,
+        lockfile_path,
+        &with_offline_check_cache_identities(verifiers),
+        || hash_lockfile(lockfile),
+    )
+    .hit
+}
+
 /// Run every active [`ResolutionVerifier`] against every entry in
 /// `lockfile.packages`.
 ///

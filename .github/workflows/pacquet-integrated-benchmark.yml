@@ -301,6 +301,32 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
 
+      - name: 'Benchmark: Isolated linker: repeat install, hot cache + hot store'
+        shell: bash
+        # Populated, up-to-date `node_modules`: nothing is wiped between
+        # iterations, so the timed command is the repeat-install
+        # short-circuit ("Already up to date"). Guards pnpm/pnpm#13904 —
+        # the harness asserts pnpr@HEAD is not slower than pacquet@HEAD
+        # here, since a configured pnpr server must cost nothing when
+        # there is nothing to resolve. Cheapest scenario per iteration.
+        timeout-minutes: 15
+        run: |
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.repeat-install.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
+
+      - name: 'Benchmark: Isolated linker: repeat install, cold cache + hot store'
+        shell: bash
+        # Same populated repeat install with `cache-dir` wiped per
+        # iteration: the up-to-date answer must be reached without any
+        # metadata or verification-cache reads, so a cold cache may not
+        # slow it down (same pnpm/pnpm#13904 gate as the hot variant).
+        timeout-minutes: 15
+        run: |
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.repeat-install.cold-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.json
+
       - name: 'Benchmark: Isolated linker: fresh install, cold cache + cold store'
         shell: bash
         # No-lockfile scenario: a fresh resolution runs longer than the
@@ -489,6 +515,30 @@ jobs:
             echo
             echo '</details>'
             echo
+            echo '### Scenario: Isolated linker: repeat install, hot cache + hot store'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '### Scenario: Isolated linker: repeat install, cold cache + hot store'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
             echo '### Scenario: Isolated linker: fresh install, cold cache + cold store'
             echo
             cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.md
@@ -617,6 +667,8 @@ jobs:
           build_bencher_file bench-work-env/bencher-results.json pacquet@HEAD \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \
             'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store' \
+            'ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.repeat-install.hot-cache.hot-store' \
+            'ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.repeat-install.cold-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
@@ -627,6 +679,8 @@ jobs:
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \
             'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store' \
+            'ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.repeat-install.hot-cache.hot-store' \
+            'ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.repeat-install.cold-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
