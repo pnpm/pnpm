@@ -7,6 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import { tempDir } from '@pnpm/prepare'
 import { readIniFileSync } from 'read-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { type ConfigFilesData, createConfigCommandOpts, readConfigFiles, writeConfigFiles } from './utils/index.js'
 
@@ -1147,7 +1148,7 @@ test.each([
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), `'${written}': /tmp/somewhere\nstoreDir: '~/store'\n`)
+  writeYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'), { [written]: '/tmp/somewhere', storeDir: '~/store' })
 
   await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
@@ -1164,7 +1165,7 @@ test('config delete clears a hand-written kebab-case key', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), "'config-dir': /tmp/somewhere\nstoreDir: '~/store'\n")
+  writeYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'), { 'config-dir': '/tmp/somewhere', storeDir: '~/store' })
 
   // The reader reports the spelling the user wrote, so deleting that spelling
   // has to be the remedy it implies.
@@ -1194,7 +1195,7 @@ test.each([
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), `'${key}': /tmp/somewhere\nstoreDir: '~/store'\n`)
+  writeYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'), { [key]: '/tmp/somewhere', storeDir: '~/store' })
 
   await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
@@ -1238,7 +1239,7 @@ test('config delete clears a key the global config file never accepted', async (
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'config.yaml'), "autoInstallPeers: true\nstoreDir: '~/store'\n")
+  writeYamlFileSync(path.join(configDir, 'config.yaml'), { autoInstallPeers: true, storeDir: '~/store' })
 
   await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
@@ -1265,7 +1266,7 @@ test.each([
   fs.mkdirSync(configDir, { recursive: true })
   const isGlobal = location === 'global'
   const target = isGlobal ? path.join(configDir, 'config.yaml') : path.join(tmp, 'pnpm-workspace.yaml')
-  fs.writeFileSync(target, `${written}: whatever\nstoreDir: '~/store'\n`)
+  writeYamlFileSync(target, { [written]: 'whatever', storeDir: '~/store' })
 
   await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
@@ -1286,7 +1287,7 @@ test('config delete clears a refused setting from the global config.yaml', async
   fs.mkdirSync(configDir, { recursive: true })
   // The hand-written spelling, which the delete has to clear rather than only
   // the normalized one.
-  fs.writeFileSync(path.join(configDir, 'config.yaml'), "config-dir: /tmp/somewhere\nstoreDir: '~/store'\n")
+  writeYamlFileSync(path.join(configDir, 'config.yaml'), { 'config-dir': '/tmp/somewhere', storeDir: '~/store' })
 
   await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
@@ -1304,7 +1305,7 @@ test('config set config-dir null clears it instead of being refused', async () =
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), "configDir: /tmp/somewhere\nstoreDir: '~/store'\n")
+  writeYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'), { configDir: '/tmp/somewhere', storeDir: '~/store' })
 
   await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
