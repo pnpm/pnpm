@@ -218,8 +218,7 @@ pub enum BenchmarkScenario {
     /// Populated, up-to-date `node_modules` + lockfile, hot cache + hot
     /// store: the plain repeat `pnpm install` in a current tree, which the
     /// up-to-date short-circuit should answer in tens of milliseconds.
-    /// Nothing is wiped between iterations. Guards
-    /// [pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904): with a
+    /// Nothing is wiped between iterations. Guards pnpm/pnpm#13904: with a
     /// pnpr server configured this must cost the same as a direct install
     /// (no server exchange when there is nothing to resolve).
     #[value(name = "isolated-linker.repeat-install.hot-cache.hot-store")]
