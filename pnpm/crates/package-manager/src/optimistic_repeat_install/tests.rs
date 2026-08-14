@@ -2369,6 +2369,71 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
     assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
 }
 
+/// Workspace branch: a same-millisecond mtime collision between the manifest
+/// and the baseline causes a content check on the next run, but that check
+/// passes and refreshes `lastValidatedTimestamp` forward by 1ms. The run after
+/// that must then take the pure-mtime path without needing a content check.
+#[test]
+fn workspace_content_check_resolves_same_millisecond_mtime_collision_and_converges() {
+    let (dir, config) = setup_content_check_project();
+    let manifest_path = dir.path().join("package.json");
+
+    // Set the manifest's and lockfiles' mtimes to exactly 1,700,000,000s + 0.5ms.
+    let seconds = 1_700_000_000;
+    let nanos = 500_000; // 0.5 ms
+    let system_time = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::new(seconds, nanos);
+
+    let file = std::fs::OpenOptions::new().write(true).open(&manifest_path).unwrap();
+    file.set_times(std::fs::FileTimes::new().set_modified(system_time)).unwrap();
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile_file = std::fs::OpenOptions::new().write(true).open(&lockfile_path).unwrap();
+    lockfile_file.set_times(std::fs::FileTimes::new().set_modified(system_time)).unwrap();
+
+    let current_lockfile_path = config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    let current_lockfile_file =
+        std::fs::OpenOptions::new().write(true).open(&current_lockfile_path).unwrap();
+    current_lockfile_file.set_times(std::fs::FileTimes::new().set_modified(system_time)).unwrap();
+
+    let manifest_mtime_ms = 1_700_000_000_000_i64;
+
+    // Stamp the workspace state's last_validated_timestamp to the EXACT SAME
+    // millisecond as the manifest's mtime (simulating a collision).
+    let settings =
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), manifest_mtime_ms, settings, projects);
+
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    // First check: because of the collision (ns > ms), it does not take the
+    // pure-mtime fast path. It runs the content check, which passes and
+    // updates the workspace state to `baseline + 1` ms.
+    let decision =
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+
+    // Verify the state was written with last_validated_timestamp = baseline + 1.
+    let after_state = pacquet_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
+    assert_eq!(after_state.last_validated_timestamp, manifest_mtime_ms + 1);
+
+    // Second check: because the reference is now `manifest_mtime_ms + 1`,
+    // it post-dates the manifest's mtime. The check should exit on the
+    // pure-mtime fast path without updating the state again.
+    // To verify it didn't run the content check (which would rewrite the state),
+    // we check that the timestamp is still exactly `manifest_mtime_ms + 1`.
+    let decision2 =
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision2, Decision::UpToDate);
+
+    let after_state2 = pacquet_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
+    assert_eq!(after_state2.last_validated_timestamp, manifest_mtime_ms + 1);
+}
+
 /// Workspace lockfile whose root importer links a sibling: the link
 /// stays valid while the sibling's version satisfies the manifest
 /// range, and a bump outside the range falls through to the full
