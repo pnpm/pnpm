@@ -48,3 +48,30 @@ fn only_the_named_package_s_shims_are_reported() {
 fn a_body_that_only_mentions_the_marker_is_not_a_shim() {
     assert_eq!(virtual_shim_package("echo '# cmd-shim-target=pkg:yarn'\n"), None);
 }
+
+/// A globally installed package manager opts into project-aware
+/// dispatch, but only when the user has not already decided for it.
+#[test]
+fn installing_a_package_manager_globally_records_the_opt_in() {
+    use super::{record_package_manager_shims, recorded_entries};
+    use pacquet_config::{Config, NamedShimPolicy, ShimPolicyValue};
+
+    let dir = tempdir().unwrap();
+    let config = Config { config_dir: Some(dir.path().to_path_buf()), ..Config::default() };
+
+    let added = record_package_manager_shims(&config, ["yarn", "typescript"]).expect("record");
+    assert_eq!(added.into_iter().collect::<Vec<_>>(), ["yarn"]);
+    let entries = recorded_entries(dir.path()).expect("read back");
+    assert_eq!(entries.get("yarn"), Some(&ShimPolicyValue::Named(NamedShimPolicy::Auto)));
+    // A package that is not a package manager is left to `pnpm shim add`.
+    assert_eq!(entries.get("typescript"), None);
+
+    // A decision already on record wins over the default.
+    super::set_policy(&config, "npm", Some(ShimPolicyValue::Toggle(false))).expect("opt out");
+    let added = record_package_manager_shims(&config, ["npm"]).expect("record");
+    assert!(added.is_empty());
+    assert_eq!(
+        recorded_entries(dir.path()).expect("read back").get("npm"),
+        Some(&ShimPolicyValue::Toggle(false)),
+    );
+}

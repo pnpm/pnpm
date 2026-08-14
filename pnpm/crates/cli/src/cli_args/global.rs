@@ -16,6 +16,7 @@ use crate::{
         approve_builds::ApproveBuildsArgs,
         ignored_builds::get_automatically_ignored_builds,
         rebuild::run_rebuild,
+        shim::record_package_manager_shims,
     },
     shim_dispatch::install_dispatcher,
 };
@@ -115,10 +116,19 @@ fn link_global_bins(
     global_bin_dir: &Path,
     bins_to_skip: &std::collections::HashSet<String>,
 ) -> miette::Result<()> {
+    // A package manager installed globally opts into project-aware
+    // dispatch, so it defers to whatever version a project pins and stays
+    // the fallback for projects that pin nothing — the arrangement a
+    // globally installed runtime already has. The entry is recorded before
+    // the split below, so the bins this very run writes are the
+    // dispatching flavor.
+    let names = pkgs.iter().filter_map(|pkg| pkg.manifest.get("name")?.as_str());
+    let newly_enabled = record_package_manager_shims(config, names)?;
+
     let (direct, context_aware): (Vec<_>, Vec<_>) = pkgs.iter().cloned().partition(|pkg| {
         let name = pkg.manifest.get("name").and_then(serde_json::Value::as_str);
         !name.is_some_and(|name| {
-            config.global_shims.is_enabled(name)
+            (config.global_shims.is_enabled(name) || newly_enabled.contains(name))
                 && (!pacquet_package_manifest::is_runtime_alias(name)
                     || dependencies
                         .iter()

@@ -24,7 +24,12 @@ use pacquet_config::{
     ShimPolicyValue, WorkspaceSettings, default_config_dir,
 };
 use pacquet_workspace_manifest_writer::update_manifest_field;
-use std::{collections::BTreeMap, fmt::Write as _, fs, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+    fs,
+    path::Path,
+};
 
 use crate::{config_deps, engine_pm::channel::PackageManager};
 
@@ -262,6 +267,35 @@ fn set_policy(
     update_manifest_field(&config_dir.join(GLOBAL_CONFIG_YAML_FILENAME), "globalShims", &value)
         .map_err(miette::Report::new)
         .wrap_err("record the globalShims setting")
+}
+
+/// Opt every package manager among `packages` into project-aware
+/// dispatch, and report which ones that added an entry for.
+///
+/// A globally installed package manager should defer to the version a
+/// project pins, the way a globally installed runtime already defers to
+/// `devEngines.runtime` — the global install stays the fallback for
+/// projects that pin nothing. Only a package with no entry is recorded:
+/// an existing one (including `false`) is the user's own decision.
+pub(crate) fn record_package_manager_shims<'a>(
+    config: &Config,
+    packages: impl IntoIterator<Item = &'a str>,
+) -> miette::Result<BTreeSet<String>> {
+    let config_dir = config
+        .config_dir
+        .clone()
+        .or_else(default_config_dir::<Host>)
+        .ok_or(ShimError::NoGlobalDir)?;
+    let recorded = recorded_entries(&config_dir)?;
+    let mut added = BTreeSet::new();
+    for package in packages {
+        if PackageManager::parse(package).is_none() || recorded.contains_key(package) {
+            continue;
+        }
+        set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))?;
+        added.insert(package.to_string());
+    }
+    Ok(added)
 }
 
 /// The `globalShims` record as the global `config.yaml` holds it today.
