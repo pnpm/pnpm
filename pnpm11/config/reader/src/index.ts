@@ -1283,11 +1283,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   configFromCliOpts: Record<string, unknown>
   expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
-  /**
-   * Settings this manifest may not contribute. See
-   * {@link PROJECT_MANIFEST_SKIPPED_KEYS} and
-   * {@link SELF_UPDATE_SKIPPED_SETTINGS}.
-   */
+  /** Settings this manifest may not contribute, chosen by the caller. */
   skipSettings?: ReadonlySet<string>
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
@@ -1295,8 +1291,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
-    // In the loop rather than at the callers, so that no manifest can
-    // overwrite the reader's own bookkeeping, whichever branch loaded it.
+    // Unlike `skipSettings` below, this is not the caller's to opt out of.
     if (CONFIG_CONTEXT_KEYS.has(key)) continue
     if (skipSettings?.has(key)) continue
 
