@@ -1,4 +1,6 @@
-use super::{corepack_integrity, describe_pin, record_package_manager_pin};
+use super::{
+    corepack_integrity, declared_package_manager, describe_pin, record_package_manager_pin,
+};
 use crate::engine_pm::channel::PackageManager;
 use serde_json::json;
 
@@ -125,4 +127,35 @@ fn a_yarn_berry_pin_carries_no_integrity() {
     assert_eq!(corepack_integrity("@yarnpkg/cli-dist", Some(&manifest)), None);
     assert_eq!(corepack_integrity("yarn", None), None);
     assert_eq!(corepack_integrity("yarn", Some(&json!({}))), None);
+}
+
+/// A specifier that locates a package to install under the package
+/// manager's name is an ordinary dependency, not a declaration of which
+/// package manager the project uses.
+#[test]
+fn a_located_package_is_not_a_package_manager_declaration() {
+    for request in [
+        "yarn@npm:@yarnpkg/cli-dist@4.9.2",
+        "yarn@yarnpkg/berry",
+        "yarn@yarnpkg/berry#main",
+        "npm@github:npm/cli",
+        "bun@https://example.test/bun.tgz",
+        "yarn@file:../yarn",
+    ] {
+        assert_eq!(declared_package_manager(request), None, "{request}");
+    }
+}
+
+/// A version, a range and a dist-tag all ask for a released version of
+/// the package manager itself.
+#[test]
+fn a_version_request_declares_the_package_manager() {
+    let declared = declared_package_manager;
+    assert_eq!(declared("yarn"), Some((PackageManager::Yarn, None)));
+    assert_eq!(declared("yarn@4"), Some((PackageManager::Yarn, Some("4".to_string()))));
+    assert_eq!(declared("npm@^11.1.0"), Some((PackageManager::Npm, Some("^11.1.0".to_string()))));
+    assert_eq!(declared("bun@latest"), Some((PackageManager::Bun, Some("latest".to_string()))));
+    // pnpm's own pin is `pnpm self-update`'s to change.
+    assert_eq!(declared("pnpm@12"), None);
+    assert_eq!(declared("typescript@5"), None);
 }

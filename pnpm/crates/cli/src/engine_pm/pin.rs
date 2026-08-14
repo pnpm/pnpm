@@ -30,17 +30,28 @@ use crate::{
 ///
 /// `None` is an ordinary install request. pnpm itself is one: its pin
 /// makes the next command switch the running CLI, which is
-/// `pnpm self-update`'s job to do deliberately. So is a specifier
-/// carrying a protocol, which names a package to install under the
-/// package manager's name rather than the package manager.
+/// `pnpm self-update`'s job to do deliberately. So is a specifier that
+/// locates a package to install under the package manager's name —
+/// `yarn@npm:@yarnpkg/cli-dist`, `yarn@yarnpkg/berry#main` — rather than
+/// asking for a released version of the package manager itself.
 pub(crate) fn declared_package_manager(request: &str) -> Option<(PackageManager, Option<String>)> {
     let parsed = parse_wanted_dependency(request);
-    if parsed.bare_specifier.as_deref().is_some_and(|spec| spec.contains(':')) {
+    if parsed.bare_specifier.as_deref().is_some_and(|spec| !declares_a_version(spec)) {
         return None;
     }
     let pm =
         PackageManager::parse(parsed.alias.as_deref()?).filter(|pm| *pm != PackageManager::Pnpm)?;
     Some((pm, parsed.bare_specifier))
+}
+
+/// Whether `spec` asks for a released version — a semver version, a range,
+/// or a dist-tag — rather than locating one somewhere.
+///
+/// The locator forms are told apart by the characters no version or tag
+/// can hold: a protocol's `:`, and the `/` and `#` of the GitHub shorthand
+/// `owner/repo#ref`.
+fn declares_a_version(spec: &str) -> bool {
+    !spec.contains([':', '/', '#'])
 }
 
 /// Declare in `manifest` that the project uses `pm` at `reference`,

@@ -753,12 +753,15 @@ fn adding_a_shim_over_another_package_s_bin_is_refused() {
     fs::create_dir_all(&project).unwrap();
     let global_bin = root.path().join("pnpm-home").join("bin");
 
-    pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
     let readded =
         pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
     assert!(readded.status.success(), "{}", String::from_utf8_lossy(&readded.stderr));
 
-    pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    assert!(!global_bin.join("yarn").exists());
     let installed_globally = "#!/bin/sh\necho a global install\n";
     fs::write(global_bin.join("yarn"), installed_globally).unwrap();
     let refused =
