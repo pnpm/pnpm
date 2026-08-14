@@ -1200,7 +1200,7 @@ export function isProjectManifestSkippedKey (camelKey: string): boolean {
  */
 function isRefusedByAProjectManifest (key: string): boolean {
   const camelKey = camelcase(key, { locale: 'en-US' })
-  return isProjectManifestSkippedKey(camelKey) || CONFIG_CONTEXT_KEYS.has(camelKey)
+  return isProjectManifestSkippedKey(camelKey) || CONFIG_CONTEXT_KEY_SET.has(camelKey)
 }
 
 /**
@@ -1210,25 +1210,29 @@ function isRefusedByAProjectManifest (key: string): boolean {
  * A manifest naming one of these overwrites what the reader worked out rather
  * than choosing a setting. `explicitlySetKeys` is the sharpest case: the merge
  * loop calls `.add` on it, so any other type there crashes every command.
- *
- * Typed as a total record so that a new {@link ConfigContext} field fails the
- * build until it is listed here.
  */
-const CONFIG_CONTEXT_KEYS: ReadonlySet<string> = new Set(Object.keys({
-  hooks: true,
-  finders: true,
-  allProjects: true,
-  selectedProjectsGraph: true,
-  allProjectsGraph: true,
-  prodAllProjectsGraph: true,
-  prodOnlySelectedProjectDirs: true,
-  rootProjectManifest: true,
-  rootProjectManifestDir: true,
-  cliOptions: true,
-  explicitlySetKeys: true,
-  packageManager: true,
-  wantedPackageManager: true,
-} satisfies Record<keyof ConfigContext, true>))
+const CONFIG_CONTEXT_KEYS = [
+  'hooks',
+  'finders',
+  'allProjects',
+  'selectedProjectsGraph',
+  'allProjectsGraph',
+  'prodAllProjectsGraph',
+  'prodOnlySelectedProjectDirs',
+  'rootProjectManifest',
+  'rootProjectManifestDir',
+  'cliOptions',
+  'explicitlySetKeys',
+  'packageManager',
+  'wantedPackageManager',
+] as const satisfies ReadonlyArray<keyof ConfigContext>
+
+type ProofConfigContextKeysIsExhaustive =
+  (_: Record<typeof CONFIG_CONTEXT_KEYS[number], unknown>) => Record<keyof ConfigContext, unknown>
+
+const _proofConfigContextKeysIsExhaustive: ProofConfigContextKeysIsExhaustive = (x) => x
+
+const CONFIG_CONTEXT_KEY_SET: ReadonlySet<string> = new Set(CONFIG_CONTEXT_KEYS)
 
 /**
  * The global config file key that sets a refused setting, where it is not that
@@ -1292,7 +1296,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
     // Unlike `skipSettings` below, this is not the caller's to opt out of.
-    if (CONFIG_CONTEXT_KEYS.has(key)) continue
+    if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
     if (skipSettings?.has(key)) continue
 
     // @ts-expect-error
