@@ -80,7 +80,7 @@ pub(super) fn hardened_install_config(
 /// its real executable. The small environment under pnpm's state directory
 /// contains only the lockfile and symlinks required to address the GVS slot;
 /// project `node_modules` is never consulted.
-pub(super) async fn materialize_runtime(
+pub(crate) async fn materialize_runtime(
     name: String,
     version_spec: String,
 ) -> miette::Result<PathBuf> {

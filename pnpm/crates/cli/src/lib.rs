@@ -2,6 +2,7 @@ mod boolean_negations;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod engine_pm;
 mod executable_link;
 mod flag_relocation;
 mod github_actions;

@@ -20,11 +20,11 @@ use super::{
     reporter::reporter_emit,
     sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
-    with::{
-        PackageManagerCheck,
-        install_pnpm_to_store::{install_pnpm_from_env, install_pnpm_to_store},
-        spawn_pnpm,
-    },
+    with::{PackageManagerCheck, spawn_pnpm},
+};
+use crate::engine_pm::{
+    channel::PackageManager,
+    install::{install_engine_from_env, install_engine_to_store},
 };
 use crate::{config_deps, config_overrides::ConfigOverrides, flag_relocation::ArgTable};
 use derive_more::{Display, Error};
@@ -124,12 +124,17 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 return Ok(false);
             }
             assert_release_is_installable(&version)?;
-            let bin_dir =
-                Box::pin(install_pnpm_from_env::<SilentReporter>(config, &env, &version)).await?;
+            let bin_dir = Box::pin(install_engine_from_env::<SilentReporter>(
+                config,
+                PackageManager::Pnpm,
+                &env,
+                &version,
+            ))
+            .await?;
             (version, bin_dir)
         }
         SwitchSource::Resolve { env_root, force_resync } => {
-            let resolved = config_deps::resolve_pnpm_version(config, &spec)
+            let resolved = config_deps::resolve_engine_version(config, "pnpm", &spec)
                 .await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
             if resolved.version == PNPM_VERSION {
@@ -150,8 +155,9 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 return Ok(false);
             }
             assert_release_is_installable(&resolved.version)?;
-            let bin_dir = Box::pin(install_pnpm_to_store::<SilentReporter>(
+            let bin_dir = Box::pin(install_engine_to_store::<SilentReporter>(
                 config,
+                PackageManager::Pnpm,
                 &env_root,
                 &spec,
                 &resolved.version,

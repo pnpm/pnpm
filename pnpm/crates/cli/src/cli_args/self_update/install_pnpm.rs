@@ -31,12 +31,6 @@ pub(crate) const PNPM_EXE_PACKAGE_NAME: &str = "@pnpm/exe";
 
 const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 
-/// The package-manager components marked buildable when installing the
-/// engine (`{ '@pnpm/exe': true, 'pnpm': true }`), so the `ENGINE_NAME` is
-/// folded into their global-virtual-store hash and each platform resolves
-/// to its own slot instead of colliding.
-pub(crate) const PNPM_ALLOW_BUILDS: [&str; 2] = ["pnpm", "@pnpm/exe"];
-
 #[derive(Clone, Copy)]
 pub(crate) struct PnpmPackageToInstall {
     pub name: &'static str,
@@ -87,7 +81,7 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         package_name,
         version,
         supported_architectures,
-        false,
+        None,
     ))
     .await
     .and_then(|()| {
@@ -226,25 +220,27 @@ fn version_gte(version: &node_semver::Version, minimum: (u64, u64, u64)) -> bool
     (version.major, version.minor, version.patch) >= minimum
 }
 
-/// Install a pnpm engine wrapper into a fresh group directory, mirroring the
-/// global-add group install but with scripts disabled (the native binary
-/// is linked manually afterwards) and no build-approval prompt.
+/// Install a package-manager engine wrapper into a fresh group directory,
+/// mirroring the global-add group install but with scripts disabled (the
+/// native binary is linked manually afterwards) and no build-approval
+/// prompt.
 ///
-/// When `enable_global_virtual_store` is `true` the engine is installed
+/// `shared_engine_packages` selects the layout. `Some(packages)` installs
 /// into the shared global virtual store (`<store>/links/...`) — the layout
-/// `pnpm with` reuses across invocations — with the package-manager
-/// components ([`PNPM_ALLOW_BUILDS`]) marked buildable so the
-/// `ENGINE_NAME` is folded into their GVS hash. When `false` the engine is
-/// self-contained inside `install_dir` (the `self-update` global install).
-/// In both cases scripts are disabled and the native binary is linked
-/// manually by the caller via [`link_exe_platform_binary`].
+/// engine provisioning reuses across invocations — with those packages
+/// marked buildable so the `ENGINE_NAME` is folded into their GVS hash and
+/// each platform resolves to its own slot instead of colliding. `None`
+/// keeps the engine self-contained inside `install_dir` (the `self-update`
+/// global install). In both cases scripts are disabled and the native
+/// binary is linked manually by the caller via
+/// [`link_exe_platform_binary`].
 pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
     install_dir: &Path,
     package_name: &str,
     version: &str,
     supported_architectures: Option<SupportedArchitectures>,
-    enable_global_virtual_store: bool,
+    shared_engine_packages: Option<&[&str]>,
 ) -> miette::Result<()> {
     let mut cfg = base_config.clone();
     // Resolve and fetch the engine bytes through the trusted
@@ -256,7 +252,7 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     apply_package_manager_bootstrap(&mut cfg, &base_config.package_manager_bootstrap);
     cfg.modules_dir = install_dir.join("node_modules");
     cfg.virtual_store_dir = install_dir.join("node_modules").join(".pnpm");
-    cfg.enable_global_virtual_store = enable_global_virtual_store;
+    cfg.enable_global_virtual_store = shared_engine_packages.is_some();
     cfg.lockfile = true;
     // Anchored (never `None`, which walks up and can adopt the global
     // packages dir's own settings `pnpm-workspace.yaml` as the workspace
@@ -271,18 +267,12 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     cfg.ignore_scripts = true;
     cfg.dangerously_allow_all_builds = false;
     cfg.strict_dep_builds = false;
-    if enable_global_virtual_store {
-        // The engine lands in the shared GVS, so mark the package-manager
-        // components ([`PNPM_ALLOW_BUILDS`]) buildable so the `ENGINE_NAME`
-        // enters their GVS hash and each platform gets its own slot.
-        // Scripts still don't run (`ignore_scripts` above).
+    cfg.allow_builds.clear();
+    if let Some(packages) = shared_engine_packages {
         cfg.global_virtual_store_dir = base_config.store_dir.links();
-        cfg.allow_builds.clear();
-        for name in PNPM_ALLOW_BUILDS {
-            cfg.allow_builds.insert(name.to_string(), true);
+        for name in packages {
+            cfg.allow_builds.insert((*name).to_string(), true);
         }
-    } else {
-        cfg.allow_builds.clear();
     }
     // Drop repo-controlled resolution-rewrite settings so a project's
     // `pnpm-workspace.yaml` can't change the engine's installed dependency

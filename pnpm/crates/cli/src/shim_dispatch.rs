@@ -38,13 +38,13 @@ use std::{
 };
 
 mod identity;
-mod runtime_env;
+pub(crate) mod runtime_env;
 mod trust;
 #[cfg(windows)]
 mod windows;
 
 use identity::{Provider, local_bin_identity, provider_of_target};
-use runtime_env::materialize_runtime;
+pub(crate) use runtime_env::materialize_runtime;
 use trust::is_trusted;
 #[cfg(windows)]
 pub(crate) use windows::install_windows_node_dispatcher;

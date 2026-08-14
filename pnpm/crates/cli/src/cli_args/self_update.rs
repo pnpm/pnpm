@@ -17,6 +17,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes};
 use pacquet_config::{Config, PNPM_VERSION};
+use pacquet_env_installer::pnpm_engine_packages;
 use pacquet_fs::force_symlink_dir;
 use pacquet_global::{
     create_global_cache_key, find_global_package, get_hash_link, read_installed_packages,
@@ -28,7 +29,7 @@ use pacquet_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_r
 use serde_json::Value;
 use std::{collections::HashSet, io::IsTerminal, path::Path};
 
-use crate::config_deps::{self, PnpmPolicyViolation};
+use crate::config_deps::{self, EnginePolicyViolation};
 
 /// Migration guidance printed once when `self-update` crosses a major
 /// boundary. Add an entry per future major that ships breaking changes
@@ -139,7 +140,7 @@ pub struct SelfUpdateArgs {
 fn enforce_resolution_policy(
     config: &Config,
     version: &str,
-    violation: &PnpmPolicyViolation,
+    violation: &EnginePolicyViolation,
 ) -> miette::Result<()> {
     if violation.code != MINIMUM_RELEASE_AGE_VIOLATION_CODE {
         return Err(SelfUpdateError::ReleasePolicyViolation { version: version.to_string() }.into());
@@ -205,10 +206,11 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let is_implicit_latest = params.is_none();
     let bare_specifier = params.unwrap_or("latest");
 
-    let resolved =
-        Box::pin(config_deps::resolve_pnpm_version(config, bare_specifier)).await?.ok_or_else(
-            || SelfUpdateError::CannotResolvePnpm { specifier: bare_specifier.to_string() },
-        )?;
+    let resolved = Box::pin(config_deps::resolve_engine_version(config, "pnpm", bare_specifier))
+        .await?
+        .ok_or_else(|| SelfUpdateError::CannotResolvePnpm {
+            specifier: bare_specifier.to_string(),
+        })?;
     let target_version = resolved.version;
     // Before the pin below is written, not just before the install: the pin is
     // shared, so a release this wrapper survives can still break a teammate's.
@@ -295,8 +297,14 @@ async fn handler<Reporter: self::Reporter + 'static>(
                 "Cannot verify the identity of pnpm@{target_version}: its integrity metadata is missing from pnpm-lock.yaml.",
             ),
         })?;
+    let label = format!("pnpm@{target_version}");
+    let engine = verify_engine::EngineToVerify {
+        label: &label,
+        packages: pnpm_engine_packages(&target_version),
+        platform_binaries: verify_engine::PlatformBinaries::PnpmExe,
+    };
     if let Some(warning) =
-        Box::pin(verify_engine::verify_pnpm_engine_identity(&env, &target_version, config)).await?
+        Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?
     {
         warn::<Reporter>(&prefix, &warning);
     }

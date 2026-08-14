@@ -1,0 +1,8 @@
+{
+  "name": "yarn",
+  "version": "1.22.22",
+  "bin": {
+    "yarn": "bin/yarn.js",
+    "yarnpkg": "bin/yarn.js"
+  }
+}
