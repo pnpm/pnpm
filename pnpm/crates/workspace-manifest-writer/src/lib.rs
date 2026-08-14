@@ -138,6 +138,8 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
     /// mirroring the [`Self::all_projects`] guard of
     /// `catalogPrune`.
     pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
+    pub prune_minimum_release_age_excludes: bool,
+    pub prune_allow_builds: bool,
 }
 
 /// Merge `opts.updated_catalogs` into `dir`'s `pnpm-workspace.yaml` and run
@@ -178,7 +180,12 @@ pub fn update_workspace_manifest(
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
     }
     if let Some(resolved) = opts.resolved_package_versions {
-        changed |= edit::prune_minimum_release_age_excludes(&mut manifest, resolved);
+        if opts.prune_minimum_release_age_excludes {
+            changed |= edit::prune_minimum_release_age_excludes(&mut manifest, resolved);
+        }
+        if opts.prune_allow_builds {
+            changed |= edit::prune_allow_builds(&mut manifest, resolved);
+        }
     }
     if !changed {
         return Ok(());

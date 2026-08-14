@@ -58,6 +58,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
    * absent, the cleanup pass does not run.
    */
   resolvedPackageVersions?: ReadonlyMap<string, ReadonlySet<string>>
+  minimumReleaseAgeExcludePrune?: boolean
 }): Promise<void> {
   const fileName = opts.fileName ?? DEFAULT_FILENAME
 
@@ -104,7 +105,10 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     }
   }
   if (opts.resolvedPackageVersions != null) {
-    shouldBeUpdated = pruneMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+    if (opts.minimumReleaseAgeExcludePrune) {
+      shouldBeUpdated = pruneMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+    }
+    shouldBeUpdated = pruneAllowBuilds(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
   }
   // Merged after the cleanup pass so entries approved during this install
   // are never pruned by it in the same write.
@@ -457,3 +461,25 @@ function propagateBlankLinesToNewPairs (document: yaml.Document, originalTopLeve
     }
   }
 }
+
+function pruneAllowBuilds (
+  manifest: Partial<WorkspaceManifest>,
+  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
+): boolean {
+  const allowBuilds = manifest.allowBuilds
+  if (allowBuilds == null || Object.keys(allowBuilds).length === 0) {
+    return false
+  }
+  let changed = false
+  for (const [key, value] of Object.entries(allowBuilds)) {
+    if (value === 'set this to true or false' && !resolvedPackageVersions.has(key)) {
+      delete allowBuilds[key]
+      changed = true
+    }
+  }
+  if (changed && Object.keys(allowBuilds).length === 0) {
+    delete manifest.allowBuilds
+  }
+  return changed
+}
+
