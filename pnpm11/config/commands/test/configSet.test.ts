@@ -1208,9 +1208,8 @@ test.each([
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
 })
 
-// Accepting these spellings routes them into the writer, which removes a
-// manifest once a delete empties it. With no manifest present it would then try
-// to remove a file that was never there.
+// Accepting these spellings routes them into the writer, so the no-op depends
+// on the writer skipping a removal for a field the manifest does not have.
 test.each([
   ['delete', 'pnpm-home-dir', undefined],
   ['delete', 'config-dir', undefined],
