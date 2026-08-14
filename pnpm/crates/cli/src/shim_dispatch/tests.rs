@@ -306,12 +306,12 @@ fn windows_cmd_shim_candidate_matches_the_global_provider() {
 
     let global_provider = provider_of_target(&global_target).unwrap();
     assert_eq!(global_provider.name, "tool");
-    let candidate = find_candidate(&project, "tool").unwrap();
+    let candidate = find_candidate(&project, "tool", "tool").unwrap();
     let Candidate::LocalBin { bin, .. } = &candidate else {
         panic!("expected a local bin candidate");
     };
     assert_eq!(local_bin_identity(bin, "tool").unwrap().provider.name, "tool");
-    assert!(validate_candidate(candidate, &global_provider, "tool").is_some());
+    assert!(validate_candidate(candidate, &global_provider.name, "tool").is_some());
 }
 
 /// The Windows dispatch flavor (`tool.cmd`) and the trailer-carrying sh
