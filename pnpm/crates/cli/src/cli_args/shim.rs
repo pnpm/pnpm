@@ -29,7 +29,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
     fs,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use crate::{config_deps, engine_pm::channel::PackageManager};
@@ -67,6 +67,15 @@ pub enum ShimError {
         )
     )]
     NoGlobalDir,
+
+    #[display("Cannot create a shim: globalShims is set to false")]
+    #[diagnostic(
+        code(ERR_PNPM_SHIMS_DISABLED),
+        help(
+            r#"That setting turns every context-aware shim off, so the shim would sit on PATH doing nothing. Remove it from the global config.yaml, or set "globalShims: true", and add the shim again."#
+        )
+    )]
+    ShimsDisabled,
 
     #[display("Cannot create a shim for {package}: {bin} is already in the global bin directory")]
     #[diagnostic(
@@ -120,6 +129,11 @@ async fn add(
 ) -> miette::Result<String> {
     if packages.is_empty() {
         return Err(ShimError::NoPackage.into());
+    }
+    // Writing the opt-in would replace that global off switch with a
+    // record of its own, turning the shims it disables back on.
+    if shims_disabled_globally(&global_config_dir(config)?)? {
+        return Err(ShimError::ShimsDisabled.into());
     }
     // The global bin directory is `pnpm setup`'s to create, and a shim can
     // be the first thing that ever goes in it.
@@ -277,11 +291,12 @@ fn set_policy(
     package: &str,
     policy: Option<ShimPolicyValue>,
 ) -> miette::Result<()> {
-    let config_dir = config
-        .config_dir
-        .clone()
-        .or_else(default_config_dir::<Host>)
-        .ok_or(ShimError::NoGlobalDir)?;
+    let config_dir = global_config_dir(config)?;
+    // A global off switch holds no entries to clear, and replacing it
+    // with an empty record would turn the built-in shims back on.
+    if policy.is_none() && shims_disabled_globally(&config_dir)? {
+        return Ok(());
+    }
     let mut entries = recorded_entries(&config_dir)?;
     match policy {
         Some(policy) => {
@@ -315,11 +330,7 @@ pub(crate) fn record_package_manager_shims<'a>(
     config: &Config,
     packages: impl IntoIterator<Item = &'a str>,
 ) -> miette::Result<BTreeSet<String>> {
-    let config_dir = config
-        .config_dir
-        .clone()
-        .or_else(default_config_dir::<Host>)
-        .ok_or(ShimError::NoGlobalDir)?;
+    let config_dir = global_config_dir(config)?;
     if shims_disabled_globally(&config_dir)? {
         return Ok(BTreeSet::new());
     }
@@ -333,6 +344,16 @@ pub(crate) fn record_package_manager_shims<'a>(
         added.insert(package.to_string());
     }
     Ok(added)
+}
+
+/// The directory holding the global `config.yaml` the shim settings live
+/// in.
+fn global_config_dir(config: &Config) -> miette::Result<PathBuf> {
+    config
+        .config_dir
+        .clone()
+        .or_else(default_config_dir::<Host>)
+        .ok_or_else(|| ShimError::NoGlobalDir.into())
 }
 
 /// Whether the global `config.yaml` turns every context-aware shim off.

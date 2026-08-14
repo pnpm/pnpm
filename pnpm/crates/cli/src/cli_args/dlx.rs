@@ -1,9 +1,6 @@
 use crate::{
     State,
-    cli_args::{
-        add::add_package, supported_architectures::SupportedArchitecturesArgs,
-        with::prepend_to_path,
-    },
+    cli_args::{add::add_package, supported_architectures::SupportedArchitecturesArgs},
     engine_pm::{channel::PackageManager, provision::provision},
     shim_dispatch::materialize_runtime,
 };
@@ -163,10 +160,16 @@ impl DlxArgs {
         let extra_bin_paths = config.extra_bin_paths.clone();
         let extra_env = config.extra_env.clone();
         let user_agent = config.user_agent.clone();
-        let spawn_env = SpawnEnv {
+
+        // The dlx command runs in the process working directory
+        // (`cwd: process.cwd()`), independent of `--dir`.
+        let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+        let spawn = DlxSpawn {
+            cwd: &run_cwd,
             extra_bin_paths: &extra_bin_paths,
             extra_env: &extra_env,
             user_agent: &user_agent,
+            shell_mode,
         };
 
         // An explicit `--package` is the user naming what to install, so
@@ -182,7 +185,7 @@ impl DlxArgs {
                 version_spec,
                 bin_command,
                 args,
-                &spawn_env,
+                &spawn,
             )
             .await;
         }
@@ -190,7 +193,7 @@ impl DlxArgs {
         if package.is_empty()
             && let Some((name, version_spec)) = parse_runtime_spec(bin_command)
         {
-            return run_runtime(name, version_spec, bin_command, args, &spawn_env).await;
+            return run_runtime(name, version_spec, bin_command, args, &spawn).await;
         }
 
         // `pkgs = package ?? [command]`. With `--package`, the command
@@ -259,10 +262,7 @@ impl DlxArgs {
         let bin_name =
             if package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };
 
-        // The dlx bin runs in the process working directory
-        // (`cwd: process.cwd()`), independent of `--dir`.
-        let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-        run_bin(&bin_name, args, &run_cwd, bins_dir, &spawn_env, shell_mode)
+        run_bin(DlxProgram::Named(&bin_name), args, vec![bins_dir], &spawn)
     }
 }
 
@@ -378,34 +378,65 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
-/// Resolve and spawn the bin, prepending the cache's `node_modules/.bin`
-/// (and `extraBinPaths`) to `PATH`.
-/// The config-derived environment a dlx bin is spawned with, read off
+/// How dlx spawns whatever it ends up running: the working directory and
+/// shell mode the command was invoked with, plus the environment read off
 /// `Config` before the install path consumes it.
-struct SpawnEnv<'a> {
+struct DlxSpawn<'a> {
+    cwd: &'a Path,
     extra_bin_paths: &'a [PathBuf],
     extra_env: &'a HashMap<String, String>,
     user_agent: &'a str,
+    shell_mode: bool,
+}
+
+/// What dlx runs.
+#[derive(Clone, Copy)]
+enum DlxProgram<'a> {
+    /// A bin from the installed package, looked up on the prepared `PATH`.
+    Named(&'a str),
+    /// A provisioned engine's own executable, run by path rather than by
+    /// name: an engine's directory can hold another executable named the
+    /// way a user would type it — Yarn 6's archive ships a `yarn` launcher
+    /// beside the `yarn-bin` that is the engine itself.
+    Provisioned { command: &'a str, executable: &'a Path },
+}
+
+impl DlxProgram<'_> {
+    /// The word the command is reported as, and the word a shell runs it
+    /// by. Both forms are reachable through the prepended directories.
+    fn word(&self) -> &str {
+        match self {
+            DlxProgram::Named(name) => name,
+            DlxProgram::Provisioned { executable, .. } => executable
+                .file_name()
+                .and_then(std::ffi::OsStr::to_str)
+                .expect("a provisioned engine is a file"),
+        }
+    }
+
+    fn command(&self) -> &str {
+        match self {
+            DlxProgram::Named(name) => name,
+            DlxProgram::Provisioned { command, .. } => command,
+        }
+    }
 }
 
 fn run_bin(
-    bin_name: &str,
+    program: DlxProgram<'_>,
     args: &[String],
-    cwd: &Path,
-    bins_dir: PathBuf,
-    env: &SpawnEnv<'_>,
-    shell_mode: bool,
+    bin_dirs: Vec<PathBuf>,
+    spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
-    let SpawnEnv { extra_bin_paths, extra_env, user_agent } = *env;
-    let mut prepend = Vec::with_capacity(1 + extra_bin_paths.len());
-    prepend.push(bins_dir);
+    let DlxSpawn { cwd, extra_bin_paths, extra_env, user_agent, shell_mode } = *spawn;
+    let mut prepend = bin_dirs;
     prepend.extend(extra_bin_paths.iter().cloned());
     let path = prepend_dirs_to_path(&prepend)?;
 
     let mut cmd = if shell_mode {
         let shell = pacquet_executor::select_shell(None, cfg!(windows))
             .expect("default shell selection never fails");
-        let mut joined = vec![bin_name.to_string()];
+        let mut joined = vec![program.word().to_string()];
         joined.extend(args.iter().cloned());
         let mut cmd = Command::new(&shell.program);
         cmd.args(&shell.args);
@@ -416,9 +447,12 @@ fn run_bin(
         pacquet_executor::push_script_arg(&mut cmd, &joined.join(" "), shell.windows_verbatim_args);
         cmd
     } else {
-        let program = which::which_in(bin_name, Some(&path), cwd)
-            .map_err(|_| DlxError::CommandNotFound { command: bin_name.to_string() })?;
-        let mut cmd = Command::new(program);
+        let executable = match program {
+            DlxProgram::Named(name) => which::which_in(name, Some(&path), cwd)
+                .map_err(|_| DlxError::CommandNotFound { command: name.to_string() })?,
+            DlxProgram::Provisioned { executable, .. } => executable.to_path_buf(),
+        };
+        let mut cmd = Command::new(executable);
         cmd.args(args);
         cmd
     };
@@ -435,8 +469,9 @@ fn run_bin(
     cmd.env("PATH", &path);
     cmd.env("npm_config_user_agent", user_agent);
 
-    let status =
-        cmd.status().map_err(|source| DlxError::Spawn { command: bin_name.to_string(), source })?;
+    let status = cmd
+        .status()
+        .map_err(|source| DlxError::Spawn { command: program.command().to_string(), source })?;
     if !status.success() {
         #[expect(
             clippy::exit,
@@ -484,12 +519,12 @@ async fn run_runtime(
     version_spec: &str,
     command: &str,
     args: &[String],
-    env: &SpawnEnv<'_>,
+    spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
     let executable =
         Box::pin(materialize_runtime(name.to_string(), version_spec.to_string())).await?;
     let bin_dirs: Vec<PathBuf> = executable.parent().map(Path::to_path_buf).into_iter().collect();
-    spawn_provisioned(&executable, &bin_dirs, command, args, env)
+    run_bin(DlxProgram::Provisioned { command, executable: &executable }, args, bin_dirs, spawn)
 }
 
 /// Provision `pm` and run it with the caller's arguments, propagating its
@@ -500,45 +535,15 @@ async fn run_package_manager<Reporter: self::Reporter + 'static>(
     version_spec: &str,
     command: &str,
     args: &[String],
-    env: &SpawnEnv<'_>,
+    spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
     let engine = Box::pin(provision::<Reporter>(config, pm, version_spec)).await?;
-    spawn_provisioned(&engine.program, &engine.bin_dirs, command, args, env)
-}
-
-/// Run a provisioned executable with `bin_dirs` prepended to `PATH`,
-/// propagating its exit status the way the rest of dlx does. The rest of
-/// the environment is what [`run_bin`] gives an ordinary dlx command.
-fn spawn_provisioned(
-    program: &Path,
-    bin_dirs: &[PathBuf],
-    command: &str,
-    args: &[String],
-    env: &SpawnEnv<'_>,
-) -> miette::Result<()> {
-    let SpawnEnv { extra_bin_paths, extra_env, user_agent } = *env;
-    let mut prepend = bin_dirs.to_vec();
-    prepend.extend(extra_bin_paths.iter().cloned());
-    let path = prepend_to_path(&prepend)?;
-    let mut cmd = Command::new(program);
-    cmd.args(args);
-    cmd.envs(extra_env);
-    // Drop any inherited PATH-like key before re-inserting our own, so a
-    // Windows `Path`/`PATH` pair can't collapse to an unspecified winner.
-    cmd.env_remove("PATH");
-    cmd.env_remove("Path");
-    cmd.env("PATH", &path);
-    cmd.env("npm_config_user_agent", user_agent);
-    let status =
-        cmd.status().map_err(|source| DlxError::Spawn { command: command.to_string(), source })?;
-    if !status.success() {
-        #[expect(
-            clippy::exit,
-            reason = "dlx propagates the spawned command's exit status, like pnpm"
-        )]
-        std::process::exit(status.code().unwrap_or(1));
-    }
-    Ok(())
+    run_bin(
+        DlxProgram::Provisioned { command, executable: &engine.program },
+        args,
+        engine.bin_dirs,
+        spawn,
+    )
 }
 
 /// Build the `{ "default": registry, <alias>: url, … }` map fed into the

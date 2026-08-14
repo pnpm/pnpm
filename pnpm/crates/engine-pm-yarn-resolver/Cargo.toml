@@ -23,6 +23,7 @@ reqwest     = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 ssri        = { workspace = true }
+tokio       = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

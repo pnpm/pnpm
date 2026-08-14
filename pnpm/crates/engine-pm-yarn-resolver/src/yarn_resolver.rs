@@ -36,11 +36,26 @@ pub enum YarnResolverError {
 /// nothing here goes through a registry.
 pub struct YarnResolver {
     pub http_client: Arc<ThrottledClient>,
+    /// The release list, fetched at most once per resolver. One command
+    /// can resolve Yarn more than once — a resolve and a latest probe, or
+    /// several importers pinning it — and the list is one unconditional
+    /// GitHub API request, which is rate-limited for an unauthenticated
+    /// caller.
+    releases: tokio::sync::OnceCell<Arc<Vec<YarnRelease>>>,
 }
 
 impl YarnResolver {
     pub fn new(http_client: Arc<ThrottledClient>) -> Self {
-        Self { http_client }
+        Self { http_client, releases: tokio::sync::OnceCell::new() }
+    }
+
+    async fn releases(&self) -> Result<&[YarnRelease], ReadYarnReleasesError> {
+        self.releases
+            .get_or_try_init(|| async {
+                fetch_yarn_releases(&self.http_client).await.map(Arc::new)
+            })
+            .await
+            .map(|releases| releases.as_slice())
     }
 }
 
@@ -71,10 +86,11 @@ impl YarnResolver {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency) else {
             return Ok(None);
         };
-        let releases = fetch_yarn_releases(&self.http_client)
+        let releases = self
+            .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let release = pick_release(&releases, version_spec).ok_or_else(|| {
+        let release = pick_release(releases, version_spec).ok_or_else(|| {
             Box::new(YarnResolverError::ResolutionFailure { spec: version_spec.to_string() })
                 as ResolveError
         })?;
@@ -108,10 +124,11 @@ impl YarnResolver {
         if bare_runtime_spec(&query.wanted_dependency).is_none() {
             return Ok(None);
         }
-        let releases = fetch_yarn_releases(&self.http_client)
+        let releases = self
+            .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let Some(release) = pick_release(&releases, "latest") else {
+        let Some(release) = pick_release(releases, "latest") else {
             return Ok(Some(LatestInfo::default()));
         };
         Ok(Some(LatestInfo {

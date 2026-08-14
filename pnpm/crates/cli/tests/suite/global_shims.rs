@@ -742,6 +742,35 @@ fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
     assert!(!config.contains("yarn: auto"), "{config}");
 }
 
+/// `globalShims: false` turns every context-aware shim off, so a shim
+/// added under it would sit on `PATH` doing nothing — and recording the
+/// opt-in would replace that off switch with a record that turns the
+/// built-in runtime shims back on. The command says so instead.
+#[test]
+fn adding_a_shim_under_a_global_disable_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
+
+    let refused =
+        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+
+    assert!(!refused.status.success());
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{stderr}");
+    assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
+    assert!(!root.path().join("pnpm-home").join("bin").join("yarn").exists());
+
+    // Removing shims under it still works, and still leaves the setting
+    // as the user wrote it.
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
+}
+
 /// Re-adding a package's own shims is how they get repaired, but a bin
 /// something else already provides is not this command's to take: it
 /// would break that command, and `pnpm shim rm` would then delete it
