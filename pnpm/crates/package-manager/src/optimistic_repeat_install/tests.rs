@@ -1594,6 +1594,67 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
+/// `explicit_settings` stands in for pnpm's raw (default-`undefined`)
+/// config value, which is what gates whether the policy is recorded.
+#[test]
+fn returns_skipped_when_trust_policy_is_newly_configured() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
+
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = workspace_root.join("node_modules");
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
+    assert_eq!(stale_settings.trust_policy, None, "an unconfigured policy is not recorded");
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.trust_policy = pacquet_config::TrustPolicy::NoDowngrade;
+    config
+        .explicit_settings
+        .insert("trustPolicy".to_string(), serde_json::Value::String("no-downgrade".to_string()));
+    let config = config.leak();
+
+    let decision = check(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
+/// See `WorkspaceStateSettings::minimum_release_age_strict` for the
+/// resolution rule being mirrored.
+#[test]
+fn records_minimum_release_age_strict_like_pnpm_resolves_it() {
+    let mut config = Config::new();
+    config.explicit_settings.insert("minimumReleaseAge".to_string(), serde_json::Value::from(1440));
+    let settings =
+        current_settings(&config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+    assert_eq!(settings.minimum_release_age_strict, Some(true));
+
+    config.minimum_release_age_strict = Some(false);
+    let settings =
+        current_settings(&config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+    assert_eq!(settings.minimum_release_age_strict, Some(false), "an explicit value wins");
+}
+
 /// State written by pnpm with a field pacquet doesn't read or
 /// consume during install (e.g. `packageExtensions`,
 /// `excludeLinksFromLockfile`) does NOT trip the settings-drift gate.

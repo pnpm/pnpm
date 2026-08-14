@@ -7159,6 +7159,9 @@ importers:
 
   pnpm11/lockfile/verification:
     dependencies:
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:*
+        version: link:../../catalogs/protocol-parser
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types

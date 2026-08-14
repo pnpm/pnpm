@@ -1,7 +1,10 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::fs;
+use std::{
+    fs,
+    path::{Component, PathBuf},
+};
 
 #[test]
 fn should_list_registries() {
@@ -225,4 +228,35 @@ fn import_populates_metadata_cache() {
     );
 
     drop((root, mock_instance));
+}
+
+#[test]
+fn should_print_cache_path() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+    let cache_dir = cwd.npmrc_info.cache_dir.clone();
+
+    let output = cwd
+        .pacquet
+        .with_arg("cache")
+        .with_arg("path")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let printed = PathBuf::from(String::from_utf8(output).unwrap().trim());
+    // The path is meant to be handed to other tools, so it must be absolute
+    // and free of `..` — the configured `cacheDir` is relative to the
+    // workspace. Its textual form is not pinned any further: macOS resolves
+    // the temporary directory to `/private/var`, exactly as `path.resolve`
+    // does for the TypeScript CLI.
+    assert!(printed.is_absolute(), "expected an absolute path, got {}", printed.display());
+    assert!(
+        !printed.components().any(|component| component == Component::ParentDir),
+        "expected a cleaned path, got {}",
+        printed.display(),
+    );
+    fs::create_dir_all(&printed).unwrap();
+    assert_eq!(fs::canonicalize(&printed).unwrap(), fs::canonicalize(&cache_dir).unwrap());
 }

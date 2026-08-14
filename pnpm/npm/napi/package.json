@@ -28,6 +28,7 @@
   "files": [
     "index.js",
     "index.d.ts",
-    "README.md"
+    "README.md",
+    "THIRD-PARTY-NOTICES.md"
   ]
 }

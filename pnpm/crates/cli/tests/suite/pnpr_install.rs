@@ -97,6 +97,25 @@ fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
+/// Rewrite the `.npmrc` `registry=` line. Registry resolutions derive
+/// their tarball URLs from the configured registry at install time, so
+/// the swap is transparent to an existing lockfile.
+fn point_npmrc_registry_at(npmrc_path: &Path, registry_url: &str) {
+    let npmrc = fs::read_to_string(npmrc_path)
+        .expect("read .npmrc")
+        .lines()
+        .map(|line| {
+            if line.starts_with("registry=") {
+                format!("registry={registry_url}/")
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(npmrc_path, npmrc).expect("rewrite .npmrc");
+}
+
 #[test]
 fn install_via_pnpr_links_node_modules() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -194,6 +213,114 @@ fn install_via_pnpr_preserves_the_lockfiles_time_section() {
 fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redownloading() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, cache_dir, mock_instance, .. } = npmrc_info;
+
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": { "@foo/no-deps": "1.0.0" },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .with_arg("--pnpr-server")
+        .with_arg(&pnpr_url)
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    // The first install recorded its lockfile as verified; wipe that
+    // cache so this test still exercises the server-delegated
+    // verification path instead of the cache short-circuit.
+    fs::remove_dir_all(&cache_dir).expect("wipe the client cache dir");
+
+    let mut verifier = mockito::Server::new();
+    let verify_mock = verifier
+        .mock("POST", "/-/pnpr/v0/verify-lockfile")
+        .with_status(200)
+        .with_header("content-type", "application/x-ndjson")
+        .with_body("{\"type\":\"done\"}\n")
+        .expect(1)
+        .create();
+
+    // The first install warmed the store, so the frozen restore must not
+    // fetch a single tarball: point the registry at a server that rejects
+    // every request.
+    let mut silent_registry = mockito::Server::new();
+    let no_downloads = silent_registry.mock("GET", mockito::Matcher::Any).expect(0).create();
+    point_npmrc_registry_at(&npmrc_path, &silent_registry.url());
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .with_arg("--frozen-lockfile")
+        .with_arg("--pnpr-server")
+        .with_arg(verifier.url())
+        .assert()
+        .success();
+
+    verify_mock.assert();
+    no_downloads.assert();
+    let symlink_path = workspace.join("node_modules/@foo/no-deps");
+    assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
+
+    drop((root, mock_instance));
+}
+
+/// The up-to-date verdict is decided purely locally
+/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+#[test]
+fn repeat_install_via_pnpr_short_circuits_without_contacting_the_server() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": { "@foo/no-deps": "1.0.0" },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .with_arg("--pnpr-server")
+        .with_arg(&pnpr_url)
+        .assert()
+        .success();
+
+    let mut silent_pnpr = mockito::Server::new();
+    let no_pnpr_requests = silent_pnpr.mock("POST", mockito::Matcher::Any).expect(0).create();
+
+    let assert = pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .with_arg("--pnpr-server")
+        .with_arg(silent_pnpr.url())
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    assert!(
+        stdout.contains("Already up to date"),
+        "expected the up-to-date fast path's output; got:\n{stdout}",
+    );
+    no_pnpr_requests.assert();
+
+    drop((root, mock_instance));
+}
+
+/// Zero exchanges, not one: the verification round trip is covered by
+/// the record the previous install left in the local verification cache
+/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+#[test]
+fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
@@ -214,6 +341,55 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
         .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
+    let mut silent_pnpr = mockito::Server::new();
+    let no_pnpr_requests = silent_pnpr.mock("POST", mockito::Matcher::Any).expect(0).create();
+    // The warm store must serve every tarball; reject any registry fetch.
+    let mut silent_registry = mockito::Server::new();
+    let no_downloads = silent_registry.mock("GET", mockito::Matcher::Any).expect(0).create();
+    point_npmrc_registry_at(&npmrc_path, &silent_registry.url());
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .with_arg("--pnpr-server")
+        .with_arg(silent_pnpr.url())
+        .assert()
+        .success();
+
+    no_pnpr_requests.assert();
+    no_downloads.assert();
+    let symlink_path = workspace.join("node_modules/@foo/no-deps");
+    assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
+
+    drop((root, mock_instance));
+}
+
+/// The satisfaction check skips only the *resolve* exchange on its own
+/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+#[test]
+fn satisfied_install_via_pnpr_delegates_verification_when_the_cache_is_cold() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, cache_dir, mock_instance, .. } = npmrc_info;
+
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": { "@foo/no-deps": "1.0.0" },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .with_arg("--pnpr-server")
+        .with_arg(&pnpr_url)
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_dir_all(&cache_dir).expect("wipe the client cache dir");
+
     let mut verifier = mockito::Server::new();
     let verify_mock = verifier
         .mock("POST", "/-/pnpr/v0/verify-lockfile")
@@ -222,38 +398,18 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
         .with_body("{\"type\":\"done\"}\n")
         .expect(1)
         .create();
-
-    // The first install warmed the store, so the frozen restore must not
-    // fetch a single tarball: point the registry at a server that rejects
-    // every request. Registry resolutions derive their tarball URLs from
-    // the configured registry at install time, so the swap is transparent
-    // to the lockfile.
-    let mut silent_registry = mockito::Server::new();
-    let no_downloads = silent_registry.mock("GET", mockito::Matcher::Any).expect(0).create();
-    let npmrc = fs::read_to_string(&npmrc_path)
-        .expect("read .npmrc")
-        .lines()
-        .map(|line| {
-            if line.starts_with("registry=") {
-                format!("registry={}/", silent_registry.url())
-            } else {
-                line.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    fs::write(&npmrc_path, npmrc).expect("rewrite .npmrc");
+    let no_resolve = verifier.mock("POST", "/-/pnpr/v0/resolve").expect(0).create();
 
     pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_arg("install")
-        .with_arg("--frozen-lockfile")
         .with_arg("--pnpr-server")
         .with_arg(verifier.url())
         .assert()
         .success();
 
     verify_mock.assert();
-    no_downloads.assert();
+    no_resolve.assert();
     let symlink_path = workspace.join("node_modules/@foo/no-deps");
     assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
 

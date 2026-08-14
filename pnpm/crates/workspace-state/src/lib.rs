@@ -129,11 +129,18 @@ pub struct WorkspaceStateSettings {
     /// path after a pacquet install.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub minimum_release_age: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_release_age_exclude: Option<Vec<String>>,
     /// Whether versions whose registry metadata lacks a `time` field
     /// pass the maturity check. pnpm defaults this to `true`, so it is
     /// recorded for the same reason as [`Self::minimum_release_age`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub minimum_release_age_ignore_missing_time: Option<bool>,
+    /// pnpm resolves this to `true` when `minimumReleaseAge` is
+    /// explicitly configured and the user didn't set it themselves, so
+    /// the recorded value is that resolved form, not the raw setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_release_age_strict: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_linker: Option<NodeLinker>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -158,8 +165,30 @@ pub struct WorkspaceStateSettings {
     /// are re-evaluated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supported_architectures: Option<serde_json::Value>,
+    /// The lockfile-verification cache is keyed by the trust-policy
+    /// settings, like the `minimumReleaseAge*` family: a policy turned
+    /// on or an exclude list shrunk must make the workspace state look
+    /// stale so the repeat-install fast path doesn't skip the verifier
+    /// fan-out. Recorded only when the user configured the setting,
+    /// matching pnpm's raw (default-`undefined`) config values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust_policy: Option<TrustPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust_policy_exclude: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust_policy_ignore_after: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_package_patterns: Option<Vec<String>>,
+}
+
+/// pnpm's `trustPolicy: 'no-downgrade' | 'off'`. Same wire format as
+/// `pacquet_config::TrustPolicy`; duplicated here for the same reason
+/// as [`NodeLinker`] below.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TrustPolicy {
+    Off,
+    NoDowngrade,
 }
 
 /// pnpm's `nodeLinker: 'hoisted' | 'isolated' | 'pnp'`. Same wire

@@ -24,8 +24,14 @@ const PACKAGE_DIR_PREFIX = "pacquet";
 const NATIVE_BIN_FILE = "pnpm";
 const EXE_WRAPPER_NAME = "@pnpm/exe";
 const EXE_WRAPPER_DIR = "pnpm-exe";
-// Files shared verbatim by both wrappers: the root-level bins + preinstall + README.
-const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js", "README.md"];
+// Ships with every package that carries the native binary, wrapper or not:
+// the BSD 2-Clause code the engine is derived from asks for its notice in the
+// materials accompanying a binary distribution.
+const NOTICES_FILE = "THIRD-PARTY-NOTICES.md";
+// Files shared verbatim by both wrappers: the root-level bins + preinstall +
+// README + the third-party notices. Both wrappers publish the same `files`
+// list, so anything named there has to be copied here too.
+const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js", "README.md", NOTICES_FILE];
 
 const PNPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(PNPM_ROOT, "..");
@@ -82,6 +88,9 @@ function generateNativePackage(target) {
   console.log(`Copy binary ${binaryTarget}`);
   fs.copyFileSync(binarySource, binaryTarget);
   fs.chmodSync(binaryTarget, 0o755);
+
+  // The manifest declares no `files`, so everything staged here is published.
+  fs.copyFileSync(resolve(PNPM_ROOT, NOTICES_FILE), resolve(packageRoot, NOTICES_FILE));
 }
 
 // Rewrite the committed `pacquet` manifest into the publishable one: no

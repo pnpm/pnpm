@@ -1526,6 +1526,7 @@ fn ensure_latest_resolver_chain<'chain>(
         let mut node_resolver = NodeResolver::new(Arc::clone(ctx.http_client_arc));
         node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
         node_resolver.offline = ctx.config.offline;
+        node_resolver.cache_dir = Some(ctx.config.cache_dir.clone());
         let resolver = DefaultResolver::new(vec![
             Box::new(Arc::clone(&npm_resolver)) as Box<dyn Resolver>,
             Box::new(node_resolver),

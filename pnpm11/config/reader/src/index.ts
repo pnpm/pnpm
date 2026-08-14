@@ -321,13 +321,18 @@ export async function getConfig (opts: {
     // Consumed by loadNpmrcConfig above; drop so it isn't flagged as unknown.
     delete (globalYamlConfig as unknown as Record<string, unknown>)._auth
     const ignoredKeys: string[] = []
+    // The gate below is kebab-based, but only camelCase keys are picked up later.
+    const kebabKeys: string[] = []
     for (const key in globalYamlConfig) {
       if (!isConfigFileKey(kebabCase(key))) {
         ignoredKeys.push(key)
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+      } else if (!isCamelCase(key)) {
+        kebabKeys.push(key)
+        delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       }
     }
-    if (ignoredKeys.length > 0) {
+    if (ignoredKeys.length > 0 || kebabKeys.length > 0) {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
       // A project manifest refuses some of these too, so pointing every one of
       // them at it would send the user from this warning straight to the other.
@@ -338,6 +343,9 @@ export async function getConfig (opts: {
       }
       if (nowhere.length > 0) {
         warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndExplain(nowhere)}.`)
+      }
+      if (kebabKeys.length > 0) {
+        warnings.push(`The following settings in the global config file ("${globalYamlConfigPath}") were ignored because they are not written in camelCase: ${kebabKeys.map(k => `"${k}" (use "${camelcase(k)}")`).join(', ')}.`)
       }
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
