@@ -384,6 +384,42 @@ fn negation_pattern_excludes_a_project_above_the_workspace_root() {
     );
 }
 
+/// A pattern may climb past the filesystem root, which has no ancestor to
+/// walk from. It matches nothing rather than falling back to the workspace
+/// root and enumerating whatever happens to sit there.
+#[test]
+fn pattern_climbing_past_the_filesystem_root_matches_nothing() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "shared", "shared-package");
+    make_project(tmp.path(), "workspace", "workspace-root");
+    // Discovered only if the overflowed pattern is silently rebased onto
+    // the workspace root.
+    make_project(tmp.path(), "workspace/app", "example-app");
+
+    let workspace_root = tmp.path().join("workspace");
+    // One `../` per component plus a spare, so the climb runs out of
+    // ancestors wherever the temporary directory lives.
+    let overflow = "../".repeat(workspace_root.components().count() + 1);
+
+    let projects = find_workspace_projects(
+        &workspace_root,
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec![format!("{overflow}*"), format!("{overflow}shared")]),
+        },
+    )
+    .unwrap();
+
+    let names: Vec<String> = projects
+        .iter()
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        names,
+        vec!["workspace-root".to_string()],
+        "a pattern that overflows the filesystem root must contribute no project",
+    );
+}
+
 /// Workspaces do contain manifests written with a leading UTF-8 BOM —
 /// Vite ships one as the `utf8-bom-package` fixture — and discovery must
 /// enumerate them rather than failing the whole walk.
