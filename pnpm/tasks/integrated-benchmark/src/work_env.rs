@@ -2183,6 +2183,18 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
             .pipe(Cow::Owned)
     };
     if let Some(lockfile) = scenario.lockfile(load_lockfile) {
+        // Land the seeded lockfile in a strictly later millisecond than
+        // the just-written `package.json`. The kernel's file-timestamp
+        // clock ticks coarsely (~1 ms), so back-to-back writes can share
+        // one mtime — and the repeat-install fast path reads a manifest
+        // whose mtime equals its baseline (the lockfile mtime, truncated
+        // to ms) as possibly-modified, pushing every timed iteration
+        // onto the heavier content-check path for one bench dir but not
+        // the other. Real projects never hit this shape (the lockfile is
+        // written by an install that started after the manifest edit),
+        // so the pause keeps the measured runs on the representative
+        // pure-mtime path.
+        std::thread::sleep(std::time::Duration::from_millis(5));
         let path = dst_dir.join("pnpm-lock.yaml");
         fs::write(path, lockfile).expect("write pnpm-lock.yaml for the revision");
     }
