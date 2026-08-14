@@ -9,6 +9,7 @@ import pEvery from 'p-every'
 import { isEmpty } from 'ramda'
 
 import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate.js'
+import { catalogResolutionsAreUpToDate } from './catalogResolutionsAreUpToDate.js'
 import { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory.js'
 import { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate.js'
 import { localTarballDepsAreUpToDate } from './localTarballDepsAreUpToDate.js'
@@ -66,6 +67,7 @@ export async function allProjectsAreUpToDate (
 
     return importer != null &&
       _satisfiesPackageManifest(importer, project.manifest).satisfies &&
+      catalogResolutionsAreUpToDate(importer, opts.wantedLockfile.catalogs) &&
       (await _localTarballDepsAreUpToDate(projectInfo)) &&
       (_linkedPackagesAreUpToDate(projectInfo))
   })
