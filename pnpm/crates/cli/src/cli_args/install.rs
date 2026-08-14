@@ -1035,7 +1035,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     // the client never runs `verify_lockfile_resolutions` on the pnpr
     // path ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
     // `trustPolicy: no-downgrade` is enforced
-    // server-side now — both for reused entries (the input-lockfile
+    // server-side — both for reused entries (the input-lockfile
     // verifier) and freshly-resolved ones (the resolver's pick-time
     // gate, since the policy is wired into the server's config).
     let opts = ResolveProjectsOptions {
@@ -1146,9 +1146,13 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             .save_to_path(&lockfile_path)
             .map_err(|err| miette::miette!("{err}"))
             .wrap_err("writing the pnpr-resolved lockfile")?;
-        // Recording is sound here because the server resolved and
-        // verified this lockfile under the client's own forwarded
-        // policy (pnpm's `writeWantedLockfileAndRecordVerified`).
+        // Recording is sound here because every entry in the saved
+        // lockfile passed the server's gates under the client's own
+        // forwarded policy: freshly-resolved entries through the
+        // pick-time gate, and entries carried over by the filtered-
+        // install merge as part of the input lockfile the server
+        // verified before resolving (pnpm's
+        // `writeWantedLockfileAndRecordVerified`).
         if !link.trust_lockfile
             && let Ok(verifiers) = build_resolution_verifiers(
                 state.config,
