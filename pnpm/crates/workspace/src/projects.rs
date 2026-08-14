@@ -39,6 +39,14 @@ use wax::{
 pub struct Project {
     pub root_dir: PathBuf,
     pub manifest: PackageManifest,
+    /// Manifest to expose when this project is resolved as a *dependency* of
+    /// another importer (an injected workspace instance), instead of
+    /// `manifest`. `None` — the common case, including every project the
+    /// on-disk walk discovers — means the two views are the same. Embedders
+    /// (`@pnpm/napi`'s `dependencyManifest`) split them when their importer
+    /// manifests are pre-transformed (e.g. workspace-sibling deps stripped)
+    /// but dependency instances must keep the raw dependency graph.
+    pub dependency_manifest: Option<PackageManifest>,
 }
 
 /// Options for [`find_workspace_projects`].
@@ -237,7 +245,7 @@ pub fn find_workspace_projects_no_check(
             Err(err) => return Err(FindWorkspaceProjectsError::ReadManifest(err)),
         };
         seen_roots.insert(root_dir.clone());
-        projects.push(Project { root_dir, manifest });
+        projects.push(Project { root_dir, manifest, dependency_manifest: None });
     }
 
     Ok(projects)

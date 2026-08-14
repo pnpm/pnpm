@@ -45,6 +45,25 @@ fn strip_url_credentials_removes_inline_userinfo() {
 }
 
 #[test]
+fn url_has_inline_credentials_allows_bare_ssh_usernames() {
+    use super::url_has_inline_credentials;
+    // An ssh login username is transport addressing, not a credential.
+    assert!(!url_has_inline_credentials("git+ssh://git@github.com/org/repo.git"));
+    assert!(!url_has_inline_credentials("ssh://git@github.com/org/repo.git"));
+    // Schemes match case-insensitively, and a password still counts.
+    assert!(!url_has_inline_credentials("GIT+SSH://git@github.com/org/repo.git"));
+    assert!(url_has_inline_credentials("SSH://user:pass@github.com/org/repo.git"));
+    // A password is a credential on every scheme, ssh included.
+    assert!(url_has_inline_credentials("git+ssh://user:pass@github.com/org/repo.git"));
+    assert!(url_has_inline_credentials("ssh://user:pass@github.com/org/repo.git"));
+    // On non-ssh schemes even a bare username is rejected.
+    assert!(url_has_inline_credentials("https://token@cdn.example/x.tgz"));
+    assert!(url_has_inline_credentials("https://user:pass@cdn.example/x.tgz"));
+    assert!(!url_has_inline_credentials("https://cdn.example/x.tgz"));
+    assert!(!url_has_inline_credentials("^1.0.0"));
+}
+
+#[test]
 fn sanitize_registry_tarball_url_drops_userinfo_query_and_fragment() {
     use super::sanitize_registry_tarball_url;
     // A presigned/tokenized upstream URL loses its token.

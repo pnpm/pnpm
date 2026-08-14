@@ -4,11 +4,13 @@
 )]
 
 use super::{
-    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, exclude_linked_dependencies,
-    install_already_up_to_date, load_workspace_projects, order_project_lifecycle_groups,
-    project_requires_lifecycle_scripts, should_write_package_map,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, install_already_up_to_date,
+    load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
+    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
 };
-use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
+use crate::{
+    AllowBuildPolicy, InstallWithFreshLockfileError, MinimumReleaseAgeError, VirtualStoreLayout,
+};
 use pacquet_config::{Config, NodePackageMapType};
 use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
@@ -47,6 +49,7 @@ fn empty_test_lockfile() -> Lockfile {
         importers: std::collections::HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 
@@ -242,12 +245,12 @@ fn workspace_without_packages_field_enumerates_root_only() {
 #[test]
 fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     let mut config = Config::new();
-    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
-    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
-    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
+    assert!(crate::should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
+    assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
 
     config.node_package_map_type = NodePackageMapType::Loose;
-    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(crate::should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
 }
 
 #[tokio::test]
@@ -309,11 +312,14 @@ async fn should_install_dependencies() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -469,11 +475,14 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -491,6 +500,77 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
     ));
     assert!(!dir.path().join("pnpm-lock.yaml").exists());
     assert!(!modules_dir.exists());
+}
+
+/// Loose-mode counterpart of the strict test above —
+/// [pnpm/pnpm#13687](https://github.com/pnpm/pnpm/issues/13687).
+#[tokio::test]
+async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_manifest() {
+    let mock_instance = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    let mut manifest = PackageManifest::create_if_needed(dir.path().join("package.json")).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    config.minimum_release_age = Some(60 * 24 * 365 * 100);
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallWorkspace,
+        installs_only: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        persist_policy_excludes: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run_with_prompt_eligibility::<SilentReporter>(false)
+    .await
+    .expect("loose mode lets the immature pick through");
+
+    assert!(dir.path().join("pnpm-lock.yaml").exists());
+    let workspace = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
+        .expect("install must create pnpm-workspace.yaml with the persisted excludes");
+    assert!(
+        workspace.contains("minimumReleaseAgeExclude:")
+            && workspace.contains("- '@pnpm.e2e/hello-world-js-bin@1.0.0'"),
+        "unexpected workspace manifest: {workspace}",
+    );
 }
 
 /// `Install` with `UpdateSeedPolicy::DropAll` is the update path
@@ -551,11 +631,14 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -602,11 +685,14 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::drop_all(),
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -679,11 +765,14 @@ async fn install_prunes_surplus_virtual_store_dir() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -761,11 +850,14 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -845,11 +937,14 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: true,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -905,11 +1000,14 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -962,11 +1060,14 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -1048,11 +1149,14 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -1124,11 +1228,14 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -1220,11 +1327,14 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -1300,11 +1410,14 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -1404,11 +1517,14 @@ async fn install_emits_pnpm_event_sequence() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -1566,11 +1682,14 @@ async fn install_writes_modules_yaml() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -1682,11 +1801,14 @@ async fn install_writes_workspace_state() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -1931,11 +2053,14 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2015,11 +2140,14 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2123,11 +2251,14 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2225,11 +2356,14 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2368,11 +2502,14 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2478,11 +2615,14 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2597,11 +2737,14 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2660,11 +2803,14 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2765,11 +2911,14 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2880,10 +3029,13 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -2955,10 +3107,13 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -3031,10 +3186,13 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -3133,10 +3291,13 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -3251,10 +3412,13 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -3325,10 +3489,13 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -3424,10 +3591,13 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -3455,6 +3625,153 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     );
 
     drop(dir);
+}
+
+#[tokio::test]
+async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let peer_root = dir.path().join("peer-c");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    std::fs::create_dir_all(&peer_root).expect("create peer root");
+    std::fs::write(
+        peer_root.join("package.json"),
+        serde_json::json!({ "name": "@pnpm.e2e/peer-c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write peer manifest");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/abc-optional-peers", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.add_dependency("@pnpm.e2e/peer-c", "link:../peer-c", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.enable_global_virtual_store = true;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.global_virtual_store_dir = config.store_dir.links();
+    config.registry = registry.url();
+    let config = config.leak();
+    let http_client = std::sync::Arc::new(pacquet_network::ThrottledClient::default());
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::clone(&http_client),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallWorkspace,
+        installs_only: true,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        persist_policy_excludes: true,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("full install should materialize the optional peer link");
+
+    let lockfile = Lockfile::load_wanted_from_dir(&project_root)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile exists");
+    let snapshot_key = lockfile
+        .snapshots
+        .as_ref()
+        .expect("snapshots exist")
+        .keys()
+        .find(|key| key.name.to_string() == "@pnpm.e2e/abc-optional-peers")
+        .expect("optional-peers snapshot")
+        .clone();
+    let allow_build_policy = AllowBuildPolicy::default();
+    let layout = VirtualStoreLayout::new(
+        config,
+        None,
+        lockfile.snapshots.as_ref(),
+        lockfile.packages.as_ref(),
+        Some(&allow_build_policy),
+        Some(&project_root),
+    );
+    let linked_peer = layout.slot_dir(&snapshot_key).join("node_modules").join("@pnpm.e2e/peer-c");
+    assert!(
+        is_symlink_or_junction(&linked_peer).unwrap(),
+        "full install must create the optional peer link at {linked_peer:?}",
+    );
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::clone(&http_client),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallSome,
+        installs_only: true,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        persist_policy_excludes: true,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("partial fresh install should succeed");
+
+    assert!(
+        is_symlink_or_junction(&linked_peer).unwrap(),
+        "partial install without the optional direct group must preserve {linked_peer:?}",
+    );
+
+    drop((dir, registry));
 }
 
 /// Under GVS, the `virtualStoreDir` value pacquet persists in
@@ -3544,10 +3861,13 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -3669,10 +3989,13 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -3760,10 +4083,13 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -3975,11 +4301,14 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -4107,11 +4436,14 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -4218,11 +4550,14 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -4332,11 +4667,14 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -4435,11 +4773,14 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -4541,11 +4882,14 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -4647,11 +4991,14 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -4748,11 +5095,14 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -4858,10 +5208,13 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -4964,10 +5317,14 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         resolved_packages: &Default::default(),
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
-        dry_run: false,        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        dry_run: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
+        persist_policy_excludes: true,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,
@@ -5074,11 +5431,14 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -5185,11 +5545,14 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -5281,11 +5644,14 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -5369,11 +5735,14 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -5453,11 +5822,14 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -5534,11 +5906,14 @@ async fn fresh_install_records_user_written_specifier() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -5613,11 +5988,14 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -5691,11 +6069,14 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -5771,11 +6152,14 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -5865,11 +6249,14 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: true,
         pnpmfile_hook_override: None,
@@ -5907,11 +6294,14 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: true,
         pnpmfile_hook_override: None,
@@ -5979,11 +6369,14 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -6054,11 +6447,14 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -6157,11 +6553,14 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -6269,11 +6668,14 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -6348,11 +6750,14 @@ async fn fresh_install_honors_skip_runtimes() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -6431,11 +6836,14 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -6516,11 +6924,14 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -6595,11 +7006,14 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -7087,11 +7501,14 @@ async fn run_purge_regression_install(
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: true,
         pnpmfile_hook_override: None,
@@ -7295,11 +7712,14 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -7445,7 +7865,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -7488,11 +7908,14 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -7567,7 +7990,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -7686,7 +8109,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             pnpmfiles: Vec::new(),
             filtered_install: false,
             config_dependencies: None,
-            settings: crate::optimistic_repeat_install::current_settings(
+            settings: crate::optimistic_repeat_install::settings::current_settings(
                 config,
                 pacquet_config::NodeLinker::Isolated,
                 included,
@@ -7816,7 +8239,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -7858,11 +8281,14 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -7969,7 +8395,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -8011,11 +8437,14 @@ async fn partial_install_disables_optimistic_short_circuit() {
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -8114,7 +8543,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -8160,11 +8589,14 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -8251,11 +8683,14 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -8315,11 +8750,14 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -8411,11 +8849,14 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -8483,11 +8924,14 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -8578,11 +9022,14 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -8674,11 +9121,14 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -8762,11 +9212,14 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -8914,11 +9367,14 @@ async fn fresh_lockfile_only_with_overrides(
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: true,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -9026,11 +9482,14 @@ async fn fresh_lockfile_only_with_compatibility_db(
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: true,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -9123,11 +9582,14 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -9228,10 +9690,13 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -9301,10 +9766,13 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -9383,11 +9851,14 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -9428,6 +9899,186 @@ async fn read_package_hook_pins_transitive_dependency_version() {
     assert!(
         !vsd.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0").exists(),
         "the un-pinned 100.1.0 must not be installed",
+    );
+
+    drop((dir, registry));
+}
+
+// The `readPackage` hook rewrites the project's OWN dependency range,
+// and both the resolution and the importer entry the lockfile records
+// follow the hook rather than the on-disk `package.json`. Declaring
+// `^100.0.0` would resolve to 100.1.0; the hook pins it to 100.0.0.
+#[tokio::test]
+async fn read_package_hook_rewrites_the_project_own_specifier() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "^100.0.0")],
+        r"module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.dependencies && pkg.dependencies['@pnpm.e2e/pkg-with-1-dep']) {
+    pkg.dependencies['@pnpm.e2e/pkg-with-1-dep'] = '100.0.0';
+  }
+  return pkg;
+} } }",
+    )
+    .await
+    .expect("install should succeed");
+
+    let content =
+        std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+    let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse pnpm-lock.yaml");
+    let root_deps = lockfile
+        .root_project()
+        .expect("root importer recorded")
+        .dependencies
+        .as_ref()
+        .expect("dependencies map");
+    let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/pkg-with-1-dep").unwrap();
+    let recorded = root_deps.get(&key).expect("pkg-with-1-dep recorded at root");
+    assert_eq!(recorded.specifier, "100.0.0");
+    assert_eq!(recorded.version.to_string(), "100.0.0");
+
+    drop((dir, registry));
+}
+
+/// Same as [`install_with_pnpmfile`] but for a workspace whose member
+/// carries the dependencies, so a hook rewriting a member's own
+/// specifier is exercised rather than only the root's.
+async fn install_workspace_member_with_pnpmfile(
+    registry_url: String,
+    root: &std::path::Path,
+    member_deps: &[(&str, &str)],
+    pnpmfile_src: &str,
+) -> Result<(), InstallError> {
+    let member_dir = root.join("packages/member");
+    std::fs::create_dir_all(&member_dir).unwrap();
+    std::fs::write(root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+
+    let dependencies: serde_json::Map<_, _> = member_deps
+        .iter()
+        .map(|(name, spec)| ((*name).to_string(), serde_json::Value::from(*spec)))
+        .collect();
+    std::fs::write(
+        member_dir.join("package.json"),
+        serde_json::json!({
+            "name": "member",
+            "version": "1.0.0",
+            "dependencies": dependencies,
+        })
+        .to_string(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("package.json"),
+        serde_json::json!({ "name": "workspace-root", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+    let manifest = PackageManifest::from_path(root.join("package.json")).unwrap();
+
+    std::fs::write(root.join(".pnpmfile.cjs"), pnpmfile_src).unwrap();
+
+    let modules_dir = root.join("node_modules");
+    let mut config = Config::new();
+    config.workspace_dir = Some(root.to_path_buf());
+    config.store_dir = root.join("pacquet-store").into();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.modules_dir = modules_dir;
+    config.registry = registry_url;
+    let config = config.leak();
+
+    let http_client = Default::default();
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallWorkspace,
+        installs_only: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        persist_policy_excludes: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+}
+
+// Declaring `^100.0.0` would resolve to 100.1.0; the hook pins it to
+// 100.0.0, this time on a workspace member rather than the root.
+#[tokio::test]
+async fn read_package_hook_rewrites_a_workspace_member_own_specifier() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let pnpmfile = r"module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.dependencies && pkg.dependencies['@pnpm.e2e/pkg-with-1-dep']) {
+    pkg.dependencies['@pnpm.e2e/pkg-with-1-dep'] = '100.0.0';
+  }
+  return pkg;
+} } }";
+
+    install_workspace_member_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "^100.0.0")],
+        pnpmfile,
+    )
+    .await
+    .expect("install should succeed");
+
+    let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/pkg-with-1-dep").unwrap();
+    let member_dependency = |lockfile: &Lockfile| {
+        lockfile.importers["packages/member"].dependencies.as_ref().expect("member dependencies")
+            [&key]
+            .clone()
+    };
+    let read_lockfile = || {
+        let content = std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME))
+            .expect("read pnpm-lock.yaml");
+        serde_saphyr::from_str::<Lockfile>(&content).expect("parse pnpm-lock.yaml")
+    };
+
+    let recorded = member_dependency(&read_lockfile());
+    assert_eq!(recorded.specifier, "100.0.0");
+    assert_eq!(recorded.version.to_string(), "100.0.0");
+
+    install_workspace_member_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "^100.0.0")],
+        pnpmfile,
+    )
+    .await
+    .expect("the repeat install must not see the raw range as drift");
+    assert_eq!(
+        member_dependency(&read_lockfile()),
+        recorded,
+        "the repeat install rewrites nothing",
     );
 
     drop((dir, registry));
@@ -9770,9 +10421,10 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
 #[tokio::test]
 async fn test_install_purges_node_modules_on_layout_mismatch() {
     let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
+    // Where the default store lands — see [`pacquet_config::store_path`].
+    let store_dir = modules_dir.join(".pnpm-store");
     let virtual_store_dir = modules_dir.join(".pacquet");
 
     let manifest_path = project_root.join("package.json");
@@ -9828,11 +10480,14 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -9846,6 +10501,10 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     std::fs::create_dir_all(&modules_dir).unwrap();
     std::fs::write(&canary_path, "canary").unwrap();
     assert!(canary_path.exists());
+
+    let store_marker = store_dir.join("marker");
+    std::fs::create_dir_all(&store_dir).unwrap();
+    std::fs::write(&store_marker, "keep").unwrap();
 
     // 2nd install: Hoisted node linker
     Install {
@@ -9870,11 +10529,14 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -9885,6 +10547,11 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     .expect("2nd install success");
 
     assert!(!canary_path.exists(), "node_modules should be purged due to mismatch");
+    assert_eq!(
+        std::fs::read_to_string(&store_marker).ok().as_deref(),
+        Some("keep"),
+        "a store inside node_modules should survive the purge",
+    );
 }
 
 #[tokio::test]
@@ -9948,11 +10615,14 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -9990,11 +10660,14 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: true,
+        persist_policy_excludes: true,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
@@ -10006,4 +10679,34 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
 
     // Canary should still exist because dry_run doesn't mutate node_modules
     assert!(canary_path.exists(), "canary was deleted despite dry_run: true");
+}
+
+#[test]
+fn workspace_packages_map_prefers_the_dependency_manifest() {
+    let root_dir = std::path::PathBuf::from("/ws/component");
+    let manifest_path = root_dir.join("package.json");
+    let importer_view = PackageManifest::from_value(
+        manifest_path.clone(),
+        serde_json::json!({ "name": "component", "version": "1.2.3" }),
+    );
+    let dependency_view = PackageManifest::from_value(
+        manifest_path,
+        serde_json::json!({
+            "name": "component",
+            "version": "1.2.3",
+            "dependencies": { "sibling": "workspace:*" },
+        }),
+    );
+    let projects = [pacquet_workspace::Project {
+        root_dir,
+        manifest: importer_view,
+        dependency_manifest: Some(dependency_view),
+    }];
+
+    let map = crate::build_workspace_packages_map(Some(&projects)).expect("map for projects");
+    let package = map.get("component").and_then(|by_version| by_version.get("1.2.3")).unwrap();
+    assert_eq!(
+        package.manifest.get("dependencies"),
+        Some(&serde_json::json!({ "sibling": "workspace:*" })),
+    );
 }

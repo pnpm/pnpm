@@ -37,6 +37,9 @@
       "path": "../../core/error"
     },
     {
+      "path": "../../core/logger"
+    },
+    {
       "path": "../../core/types"
     },
     {
@@ -49,7 +52,13 @@
       "path": "../../pkg-manifest/reader"
     },
     {
+      "path": "../../pkg-manifest/utils"
+    },
+    {
       "path": "../../store/connection-manager"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
     },
     {
       "path": "../packages"

@@ -4,7 +4,7 @@ use crate::{
 };
 use pacquet_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Write, path::Path};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -87,6 +87,29 @@ fn parses_main_document_from_combined_yaml() {
     assert_eq!(combined_loaded, main_only_loaded);
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/13606>: a
+/// combined lockfile checked out with CRLF line endings was handed to
+/// serde whole, failing as "multiple YAML documents detected" and
+/// making every install re-resolve from the registry.
+#[test]
+fn parses_main_document_from_crlf_combined_yaml() {
+    let combined = format!("---\n{ENV_DOC}\n---\n{MAIN_DOC}").replace('\n', "\r\n");
+    let tmp = write_lockfile(&combined);
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+
+    let crlf_loaded = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("load CRLF combined lockfile")
+        .expect("CRLF combined lockfile should be present");
+
+    let tmp_main = write_lockfile(MAIN_DOC);
+    let main_only_dir = tmp_main.path().join("node_modules").join(".pacquet");
+    let main_only_loaded = Lockfile::load_current_from_virtual_store_dir(&main_only_dir)
+        .expect("load main-only lockfile")
+        .expect("main-only lockfile should be present");
+
+    assert_eq!(crlf_loaded, main_only_loaded);
+}
+
 #[test]
 fn env_only_lockfile_loads_as_none() {
     let env_only = format!("---\n{ENV_DOC}\n");
@@ -96,6 +119,73 @@ fn env_only_lockfile_loads_as_none() {
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("env-only lockfile should not error");
     assert!(result.is_none(), "expected None for env-only lockfile, got: {result:?}");
+}
+
+#[test]
+fn parses_lockfile_larger_than_default_yaml_node_budget() {
+    const IMPORTER_COUNT: usize = 130_000;
+
+    let mut content = String::from("lockfileVersion: '9.0'\n\nimporters:\n");
+    for index in 0..IMPORTER_COUNT {
+        writeln!(content, "  project-{index}: {{}}").expect("write importer");
+    }
+
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse large lockfile")
+        .expect("large lockfile should be present");
+
+    assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
+}
+
+#[test]
+fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
+    const IMPORTER_COUNT: usize = 1_000_000;
+
+    // Each importer line contributes ~100 bytes of scalar text, pushing the
+    // document past the parser's 64 MiB default scalar budget.
+    let mut content = String::from("lockfileVersion: '9.0'\n\nimporters:\n");
+    for index in 0..IMPORTER_COUNT {
+        writeln!(
+            content,
+            "  padded-project-directory-name/deeply/nested/workspace-component-{index:07}: {{}}",
+        )
+        .expect("write importer");
+    }
+    assert!(content.len() > 64 * 1024 * 1024, "fixture must exceed the default scalar budget");
+
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse large lockfile")
+        .expect("large lockfile should be present");
+
+    assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
+}
+
+// A regression here makes every subsequent install re-resolve from
+// scratch after failing to read the lockfile it just wrote.
+#[test]
+fn snapshot_key_over_simple_key_limit_round_trips() {
+    let long_key = (0..40).fold(String::from("@scope/pkg@1.0.0"), |mut key, index| {
+        write!(key, "(@scope/very-long-peer-dependency-name-{index:02}@33.44.55)")
+            .expect("write peer suffix");
+        key
+    });
+    assert!(long_key.len() > 1024, "fixture key must exceed the simple-key limit");
+
+    let content = format!(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\nsnapshots:\n\n  ? '{long_key}'\n  : {{}}\n",
+    );
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse lockfile with explicit long key")
+        .expect("lockfile should be present");
+    let key: PackageKey = long_key.parse().expect("parse long snapshot key");
+    assert!(lockfile.snapshots.as_ref().expect("snapshots").contains_key(&key));
+
+    let emitted = lockfile.to_yaml_string().expect("emit lockfile");
+    assert!(emitted.contains("? '@scope/pkg@1.0.0"), "long key must be emitted in explicit form");
+    let reparsed = Lockfile::parse(&emitted, Path::new(Lockfile::FILE_NAME))
+        .expect("reparse emitted lockfile")
+        .expect("reparsed lockfile should be present");
+    assert_eq!(reparsed, lockfile);
 }
 
 #[test]

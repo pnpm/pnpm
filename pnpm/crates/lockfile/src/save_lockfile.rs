@@ -1,6 +1,9 @@
 use crate::{
     Lockfile, serialize_yaml,
-    yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document},
+    yaml_documents::{
+        YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document,
+        normalize_lockfile_content,
+    },
 };
 use derive_more::{Display, Error};
 use pacquet_diagnostics::miette::{self, Diagnostic};
@@ -79,9 +82,7 @@ pub fn save_value_to_path<Document: serde::Serialize>(
 ) -> Result<(), SaveLockfileError> {
     let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
     let existing = match fs::read_to_string(path) {
-        Ok(existing) => {
-            Some(existing.strip_prefix('\u{feff}').unwrap_or(&existing).replace("\r\n", "\n"))
-        }
+        Ok(existing) => Some(normalize_lockfile_content(&existing).into_owned()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(SaveLockfileError::WriteFile(error)),
     };

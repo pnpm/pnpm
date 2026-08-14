@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+rustc-hash                                = { workspace = true }
 pacquet-catalogs-config                   = { workspace = true }
 pacquet-catalogs-protocol-parser          = { workspace = true }
 pacquet-catalogs-resolver                 = { workspace = true }
@@ -18,6 +19,7 @@ pacquet-catalogs-types                    = { workspace = true }
 pacquet-cmd-shim                          = { workspace = true }
 pacquet-crypto-hash                       = { workspace = true }
 pacquet-deps-path                         = { workspace = true }
+pacquet-deps-restorer                     = { workspace = true }
 pacquet-directory-fetcher                 = { workspace = true }
 pacquet-engine-runtime-bun-resolver       = { workspace = true }
 pacquet-engine-runtime-deno-resolver      = { workspace = true }

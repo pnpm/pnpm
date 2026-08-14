@@ -5,8 +5,8 @@ use crate::{
         FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
-        generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, is_shim_pointing_at,
-        search_script_runtime,
+        ShimStyle, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, is_context_aware_shim,
+        is_shim_pointing_at, search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
@@ -246,7 +246,16 @@ where
             // uses.
             let scope_entries = match Sys::read_dir(&path) {
                 Ok(entries) => entries,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                // Same reasoning as `read_package`: a `@`-prefixed file
+                // is not a scope directory, so it holds no packages.
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,
+                    ) =>
+                {
+                    continue;
+                }
                 Err(error) => {
                     return Err(LinkBinsError::ReadModulesDir { dir: path.clone(), error });
                 }
@@ -273,7 +282,15 @@ fn read_package<Sys: FsReadFile>(
     let manifest_path = location.join("package.json");
     let bytes = match Sys::read_file(&manifest_path) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        // A missing manifest and a non-directory entry both mean the
+        // same thing: this is not a package. Users do drop stray files
+        // into `node_modules`, and one of them must not fail the
+        // install.
+        Err(error)
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+        {
+            return Ok(None);
+        }
         Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
     };
     let manifest: Value = parse_manifest_bytes(&bytes)
@@ -334,6 +351,46 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
+    link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, extra_node_paths, ShimStyle::Direct)
+}
+
+/// Like [`link_bins_of_packages_with_excludes`] but writes
+/// [`ShimStyle::ContextAware`] shims — the global bin dir's format (see
+/// [`ShimStyle`]). Global shims never carry `NODE_PATH`, so there is no
+/// `extra_node_paths` parameter.
+pub fn link_bins_of_packages_context_aware<Sys>(
+    packages: &[PackageBinSource],
+    bins_dir: &Path,
+    exclude_bins: &std::collections::HashSet<String>,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
+    link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, &[], ShimStyle::ContextAware)
+}
+
+fn link_bins_impl<Sys>(
+    packages: &[PackageBinSource],
+    bins_dir: &Path,
+    exclude_bins: &std::collections::HashSet<String>,
+    extra_node_paths: &[String],
+    style: ShimStyle,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
     let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
 
     for pkg in packages {
@@ -378,7 +435,7 @@ where
     // file I/O serialised across the whole `chosen` map.
     chosen.par_iter().try_for_each(|(bin_name, (command, pkg))| {
         let node_path = shim_node_path(pkg, extra_node_paths);
-        write_shim::<Sys>(&command.path, &bins_dir.join(bin_name), &node_path)
+        write_shim::<Sys>(&command.path, &bins_dir.join(bin_name), &node_path, style)
     })?;
 
     Ok(())
@@ -453,6 +510,7 @@ fn write_shim<Sys>(
     target_path: &Path,
     shim_path: &Path,
     node_path: &[String],
+    style: ShimStyle,
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
@@ -476,7 +534,19 @@ where
     //    (`$basedir/../node/bin/../node/bin/node` — the `node` segment
     //    appears twice). A direct symlink / hardlink bypasses the
     //    parser entirely.
-    if is_node_bin_name(shim_path) && link_node_bin(target_path, shim_path)? {
+    //
+    // A context-aware `node` is the exception on Unix: the whole point of
+    // the global bin dir's shims is that bare `node` can defer to a
+    // project-local version, which a symlink cannot do, so the global
+    // `node` gets a dispatch shim like every other bin. This low-level linker
+    // keeps the Windows hardlink because replacing `node.exe` with a script
+    // would break tools that spawn it without a shell; the global CLI linker
+    // subsequently replaces it with the native dispatcher after recording
+    // the original executable as its fallback target.
+    if is_node_bin_name(shim_path)
+        && (style == ShimStyle::Direct || cfg!(windows))
+        && link_node_bin(target_path, shim_path)?
+    {
         return Ok(());
     }
 
@@ -484,7 +554,7 @@ where
         LinkBinsError::ProbeShimSource { path: target_path.to_path_buf(), error }
     })?;
 
-    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
+    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path, style);
     // Windows siblings are off on Unix to match pnpm. The bodies
     // themselves still get computed inside the `cfg!(windows)` branch
     // below — moving the `generate_*` calls there keeps Unix builds
@@ -492,8 +562,10 @@ where
     let windows_shims = cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(shim_path, "cmd");
         let ps1_path = with_extension_appended(shim_path, "ps1");
-        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path);
-        let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path);
+        let cmd_body =
+            generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path, style);
+        let ps1_body =
+            generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path, style);
         (cmd_path, cmd_body, ps1_path, ps1_body)
     });
 
@@ -518,7 +590,9 @@ where
     let sh_marker_ok = match Sys::read_to_string(shim_path) {
         Ok(existing) if !node_path.is_empty() => existing == sh_body,
         Ok(existing) => {
-            is_shim_pointing_at(&existing, target_path) && !existing.contains("export NODE_PATH=")
+            is_shim_pointing_at(&existing, target_path)
+                && !existing.contains("export NODE_PATH=")
+                && is_context_aware_shim(&existing) == (style == ShimStyle::ContextAware)
         }
         Err(_) => false,
     };

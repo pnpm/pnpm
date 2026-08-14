@@ -60,8 +60,8 @@ use web_login::{WebLoginFlowError, web_login};
 pub struct LoginOptions<'a> {
     /// The `--registry` value; `None` falls back to [`DEFAULT_REGISTRY`].
     pub registry: Option<&'a str>,
-    /// The `--scope` value; when set, the token is keyed to the scope and a
-    /// scope-to-registry mapping is recorded.
+    /// The scope to key the token to; a scope-to-registry mapping is
+    /// recorded alongside it. `None` records an unscoped token.
     pub scope: Option<&'a str>,
     /// pnpm's `configDir`; `auth.ini` lives at `<config_dir>/auth.ini`.
     pub config_dir: &'a Path,
@@ -120,6 +120,10 @@ impl<Sys> LoginHost for Sys where
 /// username / password / email login when the registry answers the web-login
 /// probe with HTTP 404 or 405. Either path may satisfy a two-factor challenge
 /// before returning.
+///
+/// The web-based flow runs without an interactive terminal — it prints the
+/// authentication URL and polls the registry until the browser approval
+/// completes. Only the classic flow's credential prompts require a TTY.
 pub async fn login<Sys, Reporter>(
     http_client: &ThrottledClient,
     opts: LoginOptions<'_>,
@@ -129,10 +133,6 @@ where
     Reporter: self::Reporter,
 {
     let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
-
-    if !Sys::stdin_is_tty() || !Sys::stdout_is_tty() {
-        return Err(LoginError::NonInteractive);
-    }
 
     let fetch_options = WebAuthFetchOptions {
         timeout: Some(opts.fetch_timeout),
@@ -177,7 +177,7 @@ where
     Ok(format!("Logged in on {}", redact_and_sanitize(&registry)))
 }
 
-/// Normalize a `--scope` value the way pnpm does: trim it, treat an empty
+/// Normalize a scope value the way pnpm does: trim it, treat an empty
 /// string or a bare `@` as "no scope", and prefix a missing leading `@`.
 fn normalize_scope(scope: Option<&str>) -> Option<String> {
     let trimmed = scope?.trim();

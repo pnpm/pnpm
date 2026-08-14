@@ -1,6 +1,5 @@
 import path from 'node:path'
 
-import type { Config } from '@pnpm/config.reader'
 import type {
   DeprecationLog,
   PackageManifestLog,
@@ -13,6 +12,7 @@ import { map, take } from 'rxjs/operators'
 import semver from 'semver'
 
 import { EOL } from '../constants.js'
+import type { ReporterPnpmConfig } from '../ReporterPnpmConfig.js'
 import {
   ADDED_CHAR,
   REMOVED_CHAR,
@@ -45,7 +45,7 @@ export function reportSummary (
     cwd: string
     env: NodeJS.ProcessEnv
     filterPkgsDiff?: FilterPkgsDiff
-    pnpmConfig?: Config
+    pnpmConfig?: ReporterPnpmConfig
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.pnpmConfig?.global ? undefined : opts.cwd })
@@ -91,7 +91,7 @@ function printDiffs (
   opts: {
     cmd: string
     prefix: string
-    pnpmConfig?: Config
+    pnpmConfig?: ReporterPnpmConfig
   },
   pkgsDiff: PackageDiff[],
   depType: string

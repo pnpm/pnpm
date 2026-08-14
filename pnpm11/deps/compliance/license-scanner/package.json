@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.license-scanner",
-  "version": "1100.0.30",
+  "version": "1100.1.1",
   "description": "Check for licenses packages",
   "keywords": [
     "pnpm",
@@ -54,6 +54,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.license-scanner": "workspace:*",
     "@pnpm/logger": "workspace:*",

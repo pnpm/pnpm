@@ -17,6 +17,7 @@ fn compatible() {
 
     case!(9, "9.0" => ComVer { major: 9, minor: 0 });
     case!(9, "9.1" => ComVer { major: 9, minor: 1 });
+    case!(9, "12.0" => ComVer { major: 12, minor: 0 });
     case!(6, "6.0" => ComVer { major: 6, minor: 0 });
 }
 
@@ -24,7 +25,10 @@ fn compatible() {
 fn incompatible() {
     let error = "6.0".parse::<ComVer>().unwrap().pipe(LockfileVersion::<9>::try_from).unwrap_err();
     dbg!(&error);
-    assert_eq!(error.to_string(), "The lockfileVersion of 6.0 is incompatible with 9.x");
+    assert_eq!(
+        error.to_string(),
+        "The lockfileVersion of 6.0 is incompatible with the supported formats",
+    );
     assert!(matches!(
         error,
         LockfileVersionError::IncompatibleMajor(ComVer { major: 6, minor: 0 }),

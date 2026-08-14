@@ -43,9 +43,11 @@ export type SbomCommandOptions = {
   | 'dir'
   | 'lockfileDir'
   | 'registries'
+  | 'namedRegistries'
   | 'optional'
   | 'production'
   | 'storeDir'
+  | 'supportedArchitectures'
   | 'virtualStoreDir'
   | 'modulesDir'
   | 'pnpmHomeDir'
@@ -490,8 +492,10 @@ async function generateSbomForProject (
     sbomType: serialOpts.sbomType,
     include,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     lockfileDir,
     includedImporterIds,
+    supportedArchitectures: opts.supportedArchitectures,
     lockfileOnly: opts.lockfileOnly,
     storeDir: ctx.storeDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,

@@ -94,3 +94,67 @@ test('the lowest version of a direct dependency is installed when resolution mod
     '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
   })
 })
+
+test('the lowest version of a direct dependency is installed when a minimum release age is also configured', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  // `minimumReleaseAge` narrows the versions on offer to the mature ones. It
+  // does not say which end of what is left to take — that is what
+  // `resolutionMode` says.
+  await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'lowest-direct', minimumReleaseAge: 1 }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeFalsy()
+})
+
+test('a hoisted peer of a transitive dependency is resolved to its highest satisfying version when resolution mode is lowest-direct', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  // A hoisted peer is not a dependency the user declared, so the direct-dep pick must not apply to it.
+  await install({
+    dependencies: {
+      '@pnpm.e2e/abc-parent-with-missing-peers': '1.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'lowest-direct', autoInstallPeers: true }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.0']).toBeFalsy()
+})
+
+test('a hoisted peer of a transitive dependency is resolved to its highest satisfying version when resolution mode is time-based', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/abc-parent-with-missing-peers': '1.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'time-based', autoInstallPeers: true }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.0']).toBeFalsy()
+})
+
+test('the lowest version of a direct dependency is installed in time-based mode when a minimum release age is also configured', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  }, testDefaults({ resolutionMode: 'time-based', minimumReleaseAge: 1 }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeFalsy()
+})

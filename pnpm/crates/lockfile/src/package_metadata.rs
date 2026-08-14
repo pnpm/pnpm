@@ -65,21 +65,26 @@ pub enum BundledDependencies {
 }
 
 impl BundledDependencies {
-    /// Read the declaration off a package manifest. Only a list or `true` is
-    /// recorded; anything else (including `false`) falls through to the legacy
-    /// `bundleDependencies` spelling and then to `None`, because a package that
-    /// bundles nothing must not look like one that does.
+    /// Read the declaration off a package manifest. Only a nonempty list or
+    /// `true` is recorded; anything else (including `false` and an empty list)
+    /// falls through to the legacy `bundleDependencies` spelling and then to
+    /// `None`, because a package that bundles nothing must not look like one
+    /// that does. Tarball manifests can carry an empty list where registry
+    /// metadata omits the field, so recording it would make the lockfile
+    /// depend on the manifest source.
     #[must_use]
     pub fn from_manifest(manifest: Option<&serde_json::Value>) -> Option<Self> {
         ["bundledDependencies", "bundleDependencies"].into_iter().find_map(|key| {
             match manifest?.get(key)? {
-                serde_json::Value::Array(items) => Some(BundledDependencies::Names(
-                    items
-                        .iter()
-                        .filter_map(serde_json::Value::as_str)
-                        .map(ToString::to_string)
-                        .collect(),
-                )),
+                serde_json::Value::Array(items) if !items.is_empty() => {
+                    Some(BundledDependencies::Names(
+                        items
+                            .iter()
+                            .filter_map(serde_json::Value::as_str)
+                            .map(ToString::to_string)
+                            .collect(),
+                    ))
+                }
                 serde_json::Value::Bool(true) => Some(BundledDependencies::Boolean(true)),
                 _ => None,
             }

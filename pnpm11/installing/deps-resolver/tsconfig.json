@@ -16,6 +16,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../config/normalize-registries"
+    },
+    {
       "path": "../../config/version-policy"
     },
     {
@@ -83,6 +86,9 @@
     },
     {
       "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
     },
     {
       "path": "../../workspace/spec-parser"

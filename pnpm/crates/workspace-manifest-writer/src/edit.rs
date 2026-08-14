@@ -203,7 +203,7 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
 pub(crate) type CatalogReferences =
     std::collections::BTreeMap<String, std::collections::BTreeSet<String>>;
 
-/// The `cleanupUnusedCatalogs` pass: drop catalog entries that no
+/// The `catalogPrune` pass: drop catalog entries that no
 /// collected reference names. A default-catalog entry survives only via
 /// a bare `catalog:` reference; a named-catalog entry survives via
 /// `catalog:<name>` or bare `catalog:`. Emptied blocks are dropped
@@ -419,6 +419,25 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
     }
     manifest.minimum_release_age_exclude = Some(items.to_vec());
     true
+}
+
+/// The `minimumReleaseAgeExcludePrune` pass: prune
+/// `minimumReleaseAgeExclude:` entries against the versions the freshly
+/// resolved lockfile records. The per-entry decision lives in
+/// [`pacquet_config::version_policy::drop_unresolved_package_version_specs`];
+/// the text edit is [`set_minimum_release_age_excludes`]'s block replace,
+/// so a pruned-to-empty list drops the block and an unchanged list is a
+/// no-op. Returns whether anything changed.
+pub(crate) fn prune_minimum_release_age_excludes(
+    manifest: &mut Manifest,
+    resolved: &pacquet_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    let Some(current) = manifest.minimum_release_age_exclude.as_deref() else {
+        return false;
+    };
+    let pruned =
+        pacquet_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
+    set_minimum_release_age_excludes(manifest, &pruned)
 }
 
 /// Render a top-level block whose value is a block sequence (`key:` then

@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import type { ProjectId } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 
 import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
 
@@ -93,4 +93,26 @@ test('redundant fields are removed from "time"', () => {
       'qar@1.0.0': '2021-02-11T22:54:29.120Z',
     },
   })
+})
+
+test('a registry-qualified package key leaves the lockfile version alone', () => {
+  const withQualifiedKey = convertToLockfileFile({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { foo: 'work:1.0.0' },
+        specifiers: { foo: 'work:^1.0.0' },
+      },
+    },
+    packages: {
+      ['foo@work:1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-AAAA' },
+      },
+    },
+  })
+
+  // The key is additive, so it must not move the format: readers gate on the
+  // major, and anything outside 9.x is rejected outright by an older pnpm.
+  expect(withQualifiedKey.lockfileVersion).toBe(LOCKFILE_VERSION)
+  expect(Object.keys(withQualifiedKey.packages ?? {})).toStrictEqual(['foo@work:1.0.0'])
 })

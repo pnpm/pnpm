@@ -1,11 +1,12 @@
 use super::{
     GitFetcher, GitManifestQuery, exec_git_with, extract_host, is_safe_repo_arg,
-    is_valid_commit_hash, read_git_manifest, should_use_shallow,
+    is_valid_commit_hash, read_git_manifest, should_use_shallow, ssh_repo_host,
 };
 use crate::{
     error::{GitFetcherError, PreparePackageError},
     prepare_package::AllowBuildRef,
 };
+use miette::Diagnostic;
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::StoreDir;
@@ -161,6 +162,7 @@ async fn fetcher_rejects_option_shaped_commit() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "pkg@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "pkg@1.0.0\tbuilt",
@@ -194,6 +196,7 @@ async fn fetcher_rejects_partial_commit_before_running_git() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "pkg@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "pkg@1.0.0\tbuilt",
@@ -242,6 +245,7 @@ async fn fetcher_imports_package_into_cas() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "pkg@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "pkg@1.0.0\tbuilt",
@@ -287,6 +291,7 @@ async fn fetcher_rejects_commit_mismatch() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "pkg@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "pkg@1.0.0\tbuilt",
@@ -343,6 +348,7 @@ async fn fetcher_blocks_build_when_not_allowed() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "naughty@2.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "naughty@2.0.0\tbuilt",
@@ -441,6 +447,7 @@ async fn fetcher_packs_subfolder_when_path_set() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "sub@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "sub@1.0.0\tbuilt",
@@ -482,6 +489,7 @@ async fn fetcher_handles_repo_without_package_json() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "anon@0.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "anon@0.0.0\tbuilt",
@@ -537,6 +545,7 @@ async fn fetcher_skips_build_when_ignore_scripts() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         // The key's `built` dimension reflects what the *dispatcher*
@@ -593,6 +602,7 @@ async fn fetcher_runs_prepare_script_when_allowed() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "x@1.0.0\tbuilt",
@@ -641,6 +651,7 @@ async fn fetcher_surfaces_prepare_failure() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "x@1.0.0\tbuilt",
@@ -709,6 +720,7 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "git+file:///tmp/repo.git#abc123",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "git+file:///tmp/repo.git#abc123\tbuilt",
@@ -756,6 +768,7 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "git+file:///tmp/repo.git#abc123",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "git+file:///tmp/repo.git#abc123\tbuilt",
@@ -806,6 +819,7 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id,
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "git+file:///tmp/repo.git#abc123\tbuilt",
@@ -973,6 +987,7 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "x@1.0.0\tbuilt",
@@ -1053,6 +1068,7 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
         npm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
+        package_name: "pkg",
         requester: "/test",
         store_index_writer: None,
         files_index_file: "x@1.0.0\tbuilt",
@@ -1241,4 +1257,142 @@ fn is_safe_repo_arg_rejects_option_shaped_values() {
     assert!(!is_safe_repo_arg("-oProxyCommand=curl evil.example"));
     assert!(!is_safe_repo_arg(""));
     assert!(!is_safe_repo_arg("https://example.com/\0/x"));
+}
+
+#[test]
+fn ssh_repo_host_recognises_only_ssh_references() {
+    assert_eq!(ssh_repo_host("git@github.com:acme/widget.git"), Some("github.com"));
+    assert_eq!(ssh_repo_host("ssh://git@github.com/acme/widget.git"), Some("github.com"));
+    assert_eq!(ssh_repo_host("git+ssh://git@github.com/acme/widget.git"), Some("github.com"));
+    assert_eq!(
+        ssh_repo_host("ssh://git@gitlab.example.com:2222/org/repo.git"),
+        Some("gitlab.example.com"),
+    );
+    // Brackets are kept, matching what `URL.hostname` hands the TypeScript CLI.
+    assert_eq!(ssh_repo_host("ssh://git@[2001:db8::1]:2222/org/repo.git"), Some("[2001:db8::1]"));
+    assert_eq!(ssh_repo_host("ssh://[2001:db8::1]/org/repo.git"), Some("[2001:db8::1]"));
+
+    assert_eq!(ssh_repo_host("https://github.com/acme/widget.git"), None);
+    assert_eq!(ssh_repo_host("git://github.com/acme/widget.git"), None);
+    assert_eq!(ssh_repo_host("file:///home/zoltan/src/repo"), None);
+    assert_eq!(ssh_repo_host(r"C:\src\repo"), None);
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/13743>.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
+    let tmp = tempdir().unwrap();
+    let shim_path = write_failing_git_shim(&tmp.path().join("shim"));
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+
+    let err = failing_fetcher("git@github.com:acme/widget.git", &store_dir, &shim_path)
+        .run::<SilentReporter>()
+        .await
+        .expect_err("the shim fails every clone");
+
+    let GitFetcherError::FetchOverSsh { package, repo, host, stderr } = &err else {
+        panic!("expected FetchOverSsh; got {err:?}");
+    };
+    assert_eq!(package, "@scope/pkg");
+    assert_eq!(repo, "git@github.com:acme/widget.git");
+    assert_eq!(host, "github.com");
+    assert_eq!(stderr, "ssh: connect to host port 22: Connection refused");
+
+    assert_eq!(err.code().expect("a diagnostic code").to_string(), "ERR_PNPM_GIT_FETCH_FAILED");
+    let rendered = err.to_string();
+    dbg!(&rendered);
+    assert!(rendered.contains(r#"Failed to fetch "@scope/pkg""#), "{rendered}");
+
+    let help = err.help().expect("SSH remediation help").to_string();
+    dbg!(&help);
+    assert!(help.contains("needs an SSH key for github.com"), "{help}");
+    assert!(help.contains("pnpm update @scope/pkg"), "{help}");
+    assert!(help.contains("do not re-resolve git dependencies"), "{help}");
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_shallow_fetch_is_reported_like_a_failed_clone() {
+    let tmp = tempdir().unwrap();
+    let shim_path = write_failing_git_shim(&tmp.path().join("shim"));
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    let shallow_hosts = vec!["github.com".to_string()];
+
+    let mut fetcher =
+        failing_fetcher("ssh://git@github.com/acme/widget.git", &store_dir, &shim_path);
+    fetcher.git_shallow_hosts = &shallow_hosts;
+    let err = fetcher.run::<SilentReporter>().await.expect_err("the shim fails every fetch");
+
+    let GitFetcherError::FetchOverSsh { package, host, .. } = &err else {
+        panic!("expected FetchOverSsh; got {err:?}");
+    };
+    assert_eq!(package, "@scope/pkg");
+    assert_eq!(host, "github.com");
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_clone_over_https_carries_no_ssh_remediation() {
+    let tmp = tempdir().unwrap();
+    let shim_path = write_failing_git_shim(&tmp.path().join("shim"));
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+
+    let err = failing_fetcher("https://github.com/acme/widget.git", &store_dir, &shim_path)
+        .run::<SilentReporter>()
+        .await
+        .expect_err("the shim fails every clone");
+
+    assert!(matches!(err, GitFetcherError::Fetch { .. }), "{err:?}");
+    assert_eq!(err.code().expect("a diagnostic code").to_string(), "ERR_PNPM_GIT_FETCH_FAILED");
+    assert!(err.help().is_none(), "an HTTPS remote needs no SSH remediation");
+}
+
+/// A `git` shim that fails every invocation, so the transport-failure branch
+/// is reachable without a remote.
+#[cfg(unix)]
+fn write_failing_git_shim(dir: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    fs::create_dir_all(dir).unwrap();
+    let shim_path = dir.join("git");
+    let body = r"#!/bin/sh
+printf 'ssh: connect to host port 22: Connection refused\n' >&2
+exit 128
+";
+    fs::write(&shim_path, body).unwrap();
+    fs::set_permissions(&shim_path, fs::Permissions::from_mode(0o755)).unwrap();
+    shim_path
+}
+
+/// No shallow hosts, so the fetcher takes the `git clone` branch.
+#[cfg(unix)]
+fn failing_fetcher<'a>(
+    repo: &'a str,
+    store_dir: &'a StoreDir,
+    git_bin: &'a Path,
+) -> GitFetcher<'a> {
+    GitFetcher {
+        repo,
+        commit: "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
+        path: None,
+        git_shallow_hosts: &[],
+        allow_build: deny_all_builds(),
+        ignore_scripts: false,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        store_dir,
+        package_id: "git+ssh://git@github.com/acme/widget.git#c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
+        package_name: "@scope/pkg",
+        requester: "/test",
+        store_index_writer: None,
+        files_index_file: "@scope/pkg@1.0.0\tbuilt",
+        git_bin: Some(git_bin),
+    }
 }

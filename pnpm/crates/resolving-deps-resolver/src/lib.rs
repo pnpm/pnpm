@@ -35,12 +35,15 @@
 //!    `(pkgIdWithPatchHash, peer-suffix)` combination) and the entry
 //!    point for the install layer.
 //!
-//! 3. **Hoist loop** ([`fn@resolve_importer`]). Runs passes 1–2,
-//!    aggregates missing required and optional peers via
-//!    [`fn@hoist_peers`] / [`fn@get_hoistable_optional_peers`], extends
-//!    the tree with hoisted picks via
-//!    [`extend_tree`], and re-runs the peer pass
-//!    until both pass-1 and pass-2 reach a fixed point.
+//! 3. **Hoist loop** ([`fn@resolve_importer`]). Runs pass 1 plus a
+//!    graph-free discovery variant of pass 2 (one persistent
+//!    discovery engine per workspace resolve, so repeat walks
+//!    short-circuit on already-settled subtrees), aggregates missing
+//!    required and optional peers via [`fn@hoist_peers`] /
+//!    [`fn@get_hoistable_optional_peers`], extends the tree with
+//!    hoisted picks via [`extend_tree`], and re-runs discovery until
+//!    both reach a fixed point. The full pass 2 then runs once per
+//!    install.
 //!
 //! Notable design points:
 //!
@@ -78,8 +81,8 @@ mod resolved_tree;
 mod validate_dependency_alias;
 
 pub use dependencies_graph::{
-    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef, PeerDependencyIssue,
-    PeerDependencyIssues,
+    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
+    PeerDependencyIssue, PeerDependencyIssues,
 };
 pub use hoist_peers::{
     DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
@@ -106,8 +109,8 @@ pub use resolve_workspace::{
     ResolveWorkspaceResult, WorkspaceImporter, WorkspaceResolveOptions, resolve_workspace,
 };
 pub use resolved_tree::{
-    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage,
-    ResolvedTree, TreeChildren,
+    AncestorIds, ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep,
+    ResolvedPackage, ResolvedTree, TreeChildren,
 };
 pub use validate_dependency_alias::is_valid_dependency_alias;
 

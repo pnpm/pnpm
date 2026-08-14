@@ -43,6 +43,9 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
       "path": "../../installing/context"
     },
     {

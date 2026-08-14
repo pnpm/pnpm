@@ -97,6 +97,13 @@ function patchPnpmWrapperManifest() {
   ]);
 
   delete rootManifest["private"];
+  // `node-gyp` is declared so the workspace lockfile pins it and
+  // scripts/bundle-node-gyp.mjs can deploy it into dist/node_modules. The
+  // published package carries that tree already, so keeping the declaration
+  // would install it a second time. devDependencies go with it: they build the
+  // payload and are not published.
+  delete rootManifest["dependencies"];
+  delete rootManifest["devDependencies"];
   rootManifest["optionalDependencies"] = Object.fromEntries(nativePackages);
 
   console.log(`Update manifest ${MANIFEST_PATH}`);
@@ -115,6 +122,15 @@ function generateExeWrapper() {
   for (const file of WRAPPER_FILES) {
     fs.copyFileSync(resolve(PNPM_ROOT, file), resolve(exeRoot, file));
     fs.chmodSync(resolve(exeRoot, file), fs.statSync(resolve(PNPM_ROOT, file)).mode);
+  }
+
+  // Both wrappers place the native binary next to themselves, so both need
+  // their own copy of the node-gyp payload for it to be found at
+  // `<exe dir>/dist`. Built by scripts/bundle-node-gyp.mjs; absent when
+  // generating packages without having run it.
+  const distRoot = resolve(PNPM_ROOT, "dist");
+  if (fs.existsSync(distRoot)) {
+    fs.cpSync(distRoot, resolve(exeRoot, "dist"), { recursive: true });
   }
 
   const baseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));

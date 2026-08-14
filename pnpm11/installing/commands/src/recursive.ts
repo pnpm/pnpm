@@ -33,6 +33,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
@@ -47,6 +48,7 @@ import type {
   ProjectRootDir,
   ProjectRootDirRealPath,
   ProjectsGraph,
+  RangeSpecStyle,
 } from '@pnpm/types'
 import { sortProjects } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
@@ -54,10 +56,10 @@ import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 
-import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
+import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -73,6 +75,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'
+| 'lockfile'
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
@@ -93,7 +96,8 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'trustLockfile'
-| 'cleanupUnusedCatalogs'
+| 'catalogPrune'
+| 'minimumReleaseAgeExcludePrune'
 | 'packageConfigs'
 | 'updateConfig'
 > & Pick<ConfigContext,
@@ -309,7 +313,7 @@ export async function recursive (
             modulesDir,
             mutation,
             peer: opts.savePeer,
-            pinnedVersion: getPinnedVersion({
+            rangeSpecStyle: getRangeSpecStyle({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
@@ -348,6 +352,7 @@ export async function recursive (
       updatedCatalogs,
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
+      newLockfile,
       resolutionPolicyViolations,
       dryRunResult,
     } = await mutateModules(mutatedImporters, {
@@ -366,7 +371,8 @@ export async function recursive (
       })
       promises.push(updateWorkspaceManifest(opts.workspaceDir, {
         updatedCatalogs,
-        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+        catalogPrune: opts.catalogPrune,
+        resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
         allProjects,
         ...policyUpdates,
       }))
@@ -434,7 +440,7 @@ export async function recursive (
           & OptionsFromRootManifest
           & Project
           & Pick<Config, 'bin'>
-          & { pinnedVersion: 'major' | 'minor' | 'patch' }
+          & { rangeSpecStyle: RangeSpecStyle }
 
         interface ActionResult {
           updatedCatalogs?: Catalogs
@@ -488,7 +494,7 @@ export async function recursive (
             dir: rootDir,
             hooks,
             ignoreScripts: true,
-            pinnedVersion: getPinnedVersion({
+            rangeSpecStyle: getRangeSpecStyle({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
@@ -543,7 +549,7 @@ export async function recursive (
     // branch + installDeps already apply.
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
-      cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+      catalogPrune: opts.catalogPrune,
       allProjects,
       ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
     })

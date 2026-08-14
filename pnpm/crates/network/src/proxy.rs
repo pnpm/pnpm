@@ -20,6 +20,14 @@ use reqwest::Url;
 /// `pacquet-network` (rather than `pacquet-config`) because
 /// `pacquet-config` already depends on `pacquet-network` for the auth
 /// plumbing, so adding the reverse direction would form a cycle.
+///
+/// An empty proxy string means "no proxy", never "an invalid proxy URL":
+/// exporting `HTTP_PROXY=` is a common way to disable a proxy for one
+/// command (pnpm/pnpm#13533). Config layers (`.npmrc`, `pnpm-workspace.yaml`,
+/// CLI flags) drop an empty value so the next source in the cascade still
+/// applies, while an empty env var keeps winning over the lower-priority env
+/// vars it shadows; either way [`crate::ThrottledClient::for_installs`]
+/// resolves what is left to no proxy rather than rejecting it.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ProxyConfig {
     /// Proxy URL used for HTTPS targets. `None` means no proxy. May carry

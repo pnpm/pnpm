@@ -208,7 +208,7 @@ export interface Config extends OptionsFromRootManifest {
   workspacePackagePatterns?: string[]
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
-  cleanupUnusedCatalogs?: boolean
+  catalogPrune?: boolean
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
@@ -253,6 +253,12 @@ export interface Config extends OptionsFromRootManifest {
   registries: Registries
   packageManagerRegistries?: Registries
   packageManagerNetworkConfig?: PackageManagerNetworkConfig
+  /**
+   * As the user wrote it. Built-ins are filled in by
+   * `normalizeNamedRegistries` where a lookup happens, not here — this value
+   * is also forwarded to a pnpr server, which must only be asked about
+   * registries the project actually declares.
+   */
   namedRegistries?: Record<string, string>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
@@ -295,6 +301,7 @@ export interface Config extends OptionsFromRootManifest {
   preserveAbsolutePaths?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeExcludePrune?: boolean
   minimumReleaseAgeIgnoreMissingTime?: boolean
   minimumReleaseAgeStrict?: boolean
   fetchWarnTimeoutMs?: number
@@ -311,6 +318,8 @@ export interface Config extends OptionsFromRootManifest {
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
+  /** `catalogPrune`'s former name, still accepted. */
+  cleanupUnusedCatalogs?: boolean
 }
 
 export const PROJECT_CONFIG_FIELDS = [

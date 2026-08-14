@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.linking.hoist",
-  "version": "1100.0.22",
+  "version": "1100.0.26",
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "keywords": [
     "pnpm",
@@ -38,8 +38,8 @@
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "is-subdir": "catalog:",
     "ramda": "catalog:",
     "resolve-link-target": "catalog:",

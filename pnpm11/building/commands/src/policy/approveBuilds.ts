@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import chalk from 'chalk'
 import { renderHelp } from 'render-help'
 

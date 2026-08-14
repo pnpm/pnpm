@@ -128,12 +128,12 @@ interface VersionPolicyRule {
   exactVersions: string[]
 }
 
-interface ParsedVersionPolicyRule {
+export interface ParsedVersionPolicyRule {
   packageName: string
   exactVersions: string[]
 }
 
-function parseVersionPolicyRule (pattern: string): ParsedVersionPolicyRule {
+export function parseVersionPolicyRule (pattern: string): ParsedVersionPolicyRule {
   const isScoped = pattern.startsWith('@')
   const atIndex = isScoped ? pattern.indexOf('@', 1) : pattern.indexOf('@')
 

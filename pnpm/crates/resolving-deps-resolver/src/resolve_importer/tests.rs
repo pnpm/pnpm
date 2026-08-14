@@ -1,7 +1,6 @@
 use std::{
-    collections::{HashMap, HashSet},
     str::FromStr,
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -11,10 +10,11 @@ use pacquet_resolving_resolver_base::{
     VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
 };
 use pretty_assertions::assert_eq;
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use super::{
     ImporterLockedPeerContext, discard_changed_direct_dep_peer_context,
-    importer_locked_peer_context,
+    importer_locked_peer_context, merge_ranges,
 };
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
@@ -31,10 +31,10 @@ fn locked_peer_context_is_recorded_by_direct_alias() {
     let consumer = PkgName::parse("consumer").unwrap();
     let lockfile = Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
-        importers: HashMap::from([(
+        importers: std::collections::HashMap::from([(
             "app".to_string(),
             ProjectSnapshot {
-                dependencies: Some(HashMap::from([(
+                dependencies: Some(std::collections::HashMap::from([(
                     consumer,
                     ResolvedDependencySpec {
                         specifier: "1.0.0".to_string(),
@@ -55,13 +55,14 @@ fn locked_peer_context_is_recorded_by_direct_alias() {
         patched_dependencies: None,
         packages: None,
         snapshots: None,
+        time: None,
     };
 
     let ImporterLockedPeerContext { versions, names_by_alias } =
         importer_locked_peer_context(Some(&lockfile), "app");
 
-    assert_eq!(versions["peer"], HashSet::from(["2.0.0".to_string()]));
-    assert_eq!(names_by_alias["consumer"].as_ref(), &HashSet::from(["peer".to_string()]));
+    assert_eq!(versions["peer"], HashSet::from_iter(["2.0.0".to_string()]));
+    assert_eq!(names_by_alias["consumer"].as_ref(), &HashSet::from_iter(["peer".to_string()]));
 }
 
 #[test]
@@ -69,19 +70,22 @@ fn changed_direct_dependency_discards_prior_peer_context() {
     use pacquet_lockfile::PkgName;
     use std::sync::Arc;
 
-    let mut names_by_alias = HashMap::from([
-        ("changed".to_string(), Arc::new(HashSet::from(["old-peer".to_string()]))),
-        ("unchanged".to_string(), Arc::new(HashSet::from(["peer".to_string()]))),
+    let mut names_by_alias = HashMap::from_iter([
+        ("changed".to_string(), Arc::new(HashSet::from_iter(["old-peer".to_string()]))),
+        ("unchanged".to_string(), Arc::new(HashSet::from_iter(["peer".to_string()]))),
     ]);
 
     discard_changed_direct_dep_peer_context(
         &mut names_by_alias,
-        &HashSet::from([PkgName::parse("changed").unwrap()]),
+        &HashSet::from_iter([PkgName::parse("changed").unwrap()]),
     );
 
     assert_eq!(
         names_by_alias,
-        HashMap::from([("unchanged".to_string(), Arc::new(HashSet::from(["peer".to_string()])),)]),
+        HashMap::from_iter([(
+            "unchanged".to_string(),
+            Arc::new(HashSet::from_iter(["peer".to_string()])),
+        )]),
     );
 }
 
@@ -98,9 +102,9 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
         pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
         patched_dependencies: None,
-        importers: HashMap::new(),
+        importers: std::collections::HashMap::new(),
         packages: None,
-        snapshots: Some(HashMap::from([
+        snapshots: Some(std::collections::HashMap::from([
             (
                 PkgNameVerPeer::from_str("consumer@1.0.0(peer@1.0.0)").unwrap(),
                 SnapshotEntry::default(),
@@ -113,11 +117,12 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
                 SnapshotEntry::default(),
             ),
         ])),
+        time: None,
     };
 
     assert_eq!(
         locked_peer_names(Some(&lockfile)),
-        HashSet::from([
+        HashSet::from_iter([
             "@types/node".to_string(),
             "nested".to_string(),
             "peer".to_string(),
@@ -145,8 +150,8 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
         pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
         patched_dependencies: None,
-        importers: HashMap::new(),
-        packages: Some(HashMap::from([(
+        importers: std::collections::HashMap::new(),
+        packages: Some(std::collections::HashMap::from([(
             package_key,
             PackageMetadata {
                 resolution: LockfileResolution::Directory(DirectoryResolution {
@@ -161,39 +166,40 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
                 has_bin: None,
                 prepare: None,
                 bundled_dependencies: None,
-                peer_dependencies: Some(HashMap::from([
+                peer_dependencies: Some(std::collections::HashMap::from([
                     ("peer".to_string(), "*".to_string()),
                     ("missing".to_string(), "*".to_string()),
                 ])),
                 peer_dependencies_meta: None,
             },
         )])),
-        snapshots: Some(HashMap::from([(
+        snapshots: Some(std::collections::HashMap::from([(
             snapshot_key,
             SnapshotEntry {
-                dependencies: Some(HashMap::from([(
+                dependencies: Some(std::collections::HashMap::from([(
                     PkgName::parse("peer").unwrap(),
                     SnapshotDepRef::Plain(PkgVerPeer::from_str("1.0.0").unwrap()),
                 )])),
                 ..SnapshotEntry::default()
             },
         )])),
+        time: None,
     };
 
     let ImporterLockedPeerContext { versions, names_by_alias } =
         importer_locked_peer_context(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
-        HashMap::from([("peer".to_string(), HashSet::from(["1.0.0".to_string()]))]),
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
     );
     assert!(names_by_alias.is_empty());
 }
 
 fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> HashSet<String> {
     let Some(lockfile) = wanted_lockfile else {
-        return HashSet::new();
+        return HashSet::default();
     };
-    let mut names = HashSet::new();
+    let mut names = HashSet::default();
     for (key, snapshot) in lockfile.snapshots.iter().flatten() {
         let peer_suffix = key.suffix.peer();
         if peer_suffix.is_empty() {
@@ -324,7 +330,7 @@ fn default_opts() -> ResolveImporterOptions {
         resolve_peers_from_workspace_root: false,
         dedupe_peers: false,
         dedupe_peer_dependents: true,
-        all_preferred_versions: PreferredVersions::new(),
+        all_preferred_versions: Arc::new(PreferredVersions::new()),
         override_bare_specifier: None,
         patched_dependencies: None,
         base_opts: ResolveOptions::default(),
@@ -337,13 +343,14 @@ fn default_opts() -> ResolveImporterOptions {
         peers_suffix_max_length: 1000,
         catalog_server: false,
         manifest_hook: None,
+        overrides_hook: None,
         pnpmfile_hook: None,
     }
 }
 
 #[tokio::test]
 async fn auto_installs_missing_required_peer() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("react-dom".to_string(), "18.0.0".to_string()),
         fake_result(
@@ -385,7 +392,7 @@ async fn auto_installs_missing_required_peer() {
 
 #[tokio::test]
 async fn does_not_hoist_when_disabled() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("react-dom".to_string(), "18.0.0".to_string()),
         fake_result(
@@ -418,7 +425,7 @@ async fn does_not_hoist_when_disabled() {
 
 #[tokio::test]
 async fn transitive_required_peer_is_hoisted() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("outer".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -469,7 +476,7 @@ async fn transitive_required_peer_is_hoisted() {
 
 #[tokio::test]
 async fn reuses_preferred_version_instead_of_resolving_fresh() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("react".to_string(), "18.2.0".to_string()),
         fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
@@ -518,7 +525,7 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
 
 #[tokio::test]
 async fn auto_install_skips_optional_peers_without_preferred_versions() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("abc".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -574,7 +581,7 @@ async fn auto_install_skips_optional_peers_without_preferred_versions() {
 /// lives in pnpm's `autoInstallPeers.ts`.
 #[tokio::test]
 async fn keeps_locked_optional_peer_over_lower_sibling_version() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("abc".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -621,7 +628,9 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
             weight: EXISTING_VERSION_SELECTOR_WEIGHT,
         }),
     );
-    opts.all_preferred_versions.insert("peer-c".to_string(), peer_c_selectors);
+    let mut seeded = PreferredVersions::new();
+    seeded.insert("peer-c".to_string(), peer_c_selectors);
+    opts.all_preferred_versions = Arc::new(seeded);
 
     let result =
         resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
@@ -646,7 +655,7 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
 
 #[tokio::test]
 async fn auto_install_dedupes_via_range_intersection_when_identical() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("wants-peer-c-1".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -704,7 +713,7 @@ async fn auto_install_dedupes_via_range_intersection_when_identical() {
 /// intersection and its canonical rendering.
 #[tokio::test]
 async fn auto_installed_peer_uses_the_intersection_of_compatible_ranges() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("wants-peer-c-2".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -761,7 +770,7 @@ async fn auto_installed_peer_uses_the_intersection_of_compatible_ranges() {
 
 #[tokio::test]
 async fn auto_install_does_not_install_when_no_intersection() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("wants-peer-c-1".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -801,9 +810,132 @@ async fn auto_install_does_not_install_when_no_intersection() {
     assert!(!direct.contains(&"peer-c"), "peer-c must not be hoisted on conflict: {direct:?}");
 }
 
+#[test]
+fn repeated_consumer_ranges_merge_into_the_unique_intersection() {
+    let react = "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc";
+    let narrower = "^18.0.0 || ^19.0.0";
+    let merged = ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0";
+
+    assert_eq!(merge_ranges(&[react, narrower], false).as_deref(), Some(merged));
+
+    let mut repeated = vec![react; 10];
+    repeated.push(narrower);
+
+    assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(merged));
+}
+
+/// Deduplication alone only sees ranges that are spelled identically.
+/// Consumers reach the same peer through spellings that differ, and each
+/// one that survives into the union multiplies the next intersection, so
+/// the merged range has to stay bounded across them too.
+#[test]
+fn differently_spelled_equivalent_ranges_do_not_grow_the_merged_range() {
+    let spellings = [
+        "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+        "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc",
+        ">=16.8 <17 || >=17 <18 || >=18 <19 || >=19 <20 || ^19.0.0-rc",
+        "16.8 - 16.x || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+    ];
+    let merged =
+        ">=16.8.0 <17.0.0-0||>=17.0.0 <18.0.0-0||>=18.0.0 <19.0.0-0||>=19.0.0-rc <20.0.0-0";
+
+    assert_eq!(merge_ranges(&spellings, false).as_deref(), Some(merged));
+
+    let repeated: Vec<&str> = spellings.iter().cycle().copied().take(200).collect();
+
+    assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(merged));
+}
+
+/// A scheme specifier is not a semver range, so intersecting it would
+/// drop the peer instead of hoisting it.
+#[test]
+fn repeated_scheme_specifier_stays_verbatim() {
+    assert_eq!(
+        merge_ranges(&["workspace:^", "workspace:^"], false).as_deref(),
+        Some("workspace:^"),
+    );
+}
+
+/// The `@radix-ui/react-dialog` shape of pnpm/pnpm#13786: four paths
+/// reach the same package, so every branch reports the identical missing
+/// `react` peer again. One narrower declarer turns the merge into a real
+/// intersection, and the stub resolves `react` only through the
+/// deduplicated one — a merge that folds the duplicates back in reaches
+/// a different range and leaves the peer unhoisted.
+#[tokio::test]
+async fn a_peer_reported_once_per_path_is_hoisted_through_one_intersection() {
+    let react_range = "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc";
+    let mut table = HashMap::default();
+    for (name, deps) in [
+        ("dialog", vec!["dismissable-layer", "focus-scope", "portal", "primitive"]),
+        ("dismissable-layer", vec!["primitive"]),
+        ("focus-scope", vec!["primitive"]),
+        ("portal", vec!["primitive"]),
+        ("primitive", vec![]),
+    ] {
+        let dependencies: serde_json::Map<String, serde_json::Value> = deps
+            .into_iter()
+            .map(|dep| (dep.to_string(), serde_json::Value::from("1.0.0")))
+            .collect();
+        table.insert(
+            (name.to_string(), "1.0.0".to_string()),
+            fake_result(
+                name,
+                "1.0.0",
+                serde_json::json!({
+                    "name": name,
+                    "version": "1.0.0",
+                    "dependencies": dependencies,
+                    "peerDependencies": { "react": react_range },
+                }),
+            ),
+        );
+    }
+    table.insert(
+        ("wants-react-18-or-19".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-react-18-or-19",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-react-18-or-19",
+                "version": "1.0.0",
+                "peerDependencies": { "react": "^18.0.0 || ^19.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("react".to_string(), ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0".to_string()),
+        fake_result("react", "19.0.0", serde_json::json!({ "name": "react", "version": "19.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "dialog": "1.0.0",
+        "wants-react-18-or-19": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"react"), "react should be hoisted: {direct:?}");
+    let react_entries: Vec<&DepPath> = result
+        .peers_result
+        .graph
+        .keys()
+        .filter(|dep_path| dep_path.to_string().starts_with("react@"))
+        .collect();
+    assert_eq!(react_entries.len(), 1, "expected one react entry, got: {react_entries:?}");
+    assert!(
+        react_entries[0].to_string().starts_with("react@19.0.0"),
+        "react must resolve through the intersected range: {react_entries:?}",
+    );
+}
+
 #[tokio::test]
 async fn auto_install_from_highest_match_installs_on_conflict() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("wants-peer-c-1".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -850,7 +982,7 @@ async fn auto_install_from_highest_match_installs_on_conflict() {
 
 #[tokio::test]
 async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("xyz-parent".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -930,7 +1062,7 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
 
 #[tokio::test]
 async fn auto_install_does_not_hoist_when_root_already_has_dep() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("xyz".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -981,7 +1113,7 @@ async fn auto_install_does_not_hoist_when_root_already_has_dep() {
 /// <https://github.com/pnpm/pnpm/issues/12266>.
 #[tokio::test]
 async fn optional_peer_with_real_entry_is_hoisted_from_resolved_tree() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("needs-opt".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1042,7 +1174,7 @@ async fn optional_peer_with_real_entry_is_hoisted_from_resolved_tree() {
 /// round-trips.
 #[tokio::test]
 async fn meta_only_optional_peer_is_hoisted_like_a_declared_optional_peer() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("needs-opt".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1092,7 +1224,7 @@ async fn meta_only_optional_peer_is_hoisted_like_a_declared_optional_peer() {
 
 #[tokio::test]
 async fn real_peer_provider_from_direct_child_is_appended_as_hidden_direct_dep() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("host".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1151,7 +1283,7 @@ async fn real_peer_provider_from_direct_child_is_appended_as_hidden_direct_dep()
 
 #[tokio::test]
 async fn meta_only_peer_provider_from_direct_child_is_appended_as_hidden_direct_dep() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("host".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1210,7 +1342,7 @@ async fn meta_only_peer_provider_from_direct_child_is_appended_as_hidden_direct_
 
 #[tokio::test]
 async fn auto_install_does_not_install_same_missing_peer_twice() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("outer".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1261,7 +1393,7 @@ async fn auto_install_does_not_install_same_missing_peer_twice() {
 /// higher.
 #[tokio::test]
 async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("has-y-peer".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1312,7 +1444,7 @@ async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
 
 #[tokio::test]
 async fn auto_install_hoisted_peer_dep_reuses_regular_dep_version() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("has-c-in-deps".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1370,7 +1502,7 @@ async fn auto_install_hoisted_peer_dep_reuses_regular_dep_version() {
 /// The dereference is importer-only.
 #[tokio::test]
 async fn catalog_protocol_on_direct_dep_is_rewritten() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
         fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
@@ -1398,7 +1530,7 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
 /// error rather than falling through to `SpecNotSupported`.
 #[tokio::test]
 async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
-    let resolver = StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver { table: HashMap::default(), calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
 
     let err = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
@@ -1448,7 +1580,7 @@ fn aliased_fake_result(
 /// the importer level, where their cycle surfaces.
 #[tokio::test]
 async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("a".to_string(), "npm:a-real@1.0.0".to_string()),
         aliased_fake_result(
@@ -1542,7 +1674,7 @@ async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
         "aliased dep path must start with the real package id, got {a_dep_path}",
     );
 
-    let dep_paths: std::collections::HashSet<String> =
+    let dep_paths: HashSet<String> =
         result.peers_result.graph.keys().map(ToString::to_string).collect();
     assert!(
         dep_paths.iter().any(|dp| dp.starts_with("x@1.0.0")),
@@ -1569,7 +1701,8 @@ mod resolution_mode {
         ResolveFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
     };
     use pretty_assertions::assert_eq;
-    use std::{collections::HashMap, sync::Mutex};
+    use rustc_hash::FxHashMap as HashMap;
+    use std::sync::Mutex;
 
     /// The `(pick_lowest_version, published_by)` pair recorded per alias.
     type RecordedOpts = (bool, Option<DateTime<Utc>>);
@@ -1586,7 +1719,7 @@ mod resolution_mode {
         fn new(table: HashMap<(String, String), ResolveResult>) -> Self {
             RecordingResolver {
                 inner: StubResolver { table, calls: Mutex::new(Vec::new()) },
-                seen: Mutex::new(HashMap::new()),
+                seen: Mutex::new(HashMap::default()),
             }
         }
 
@@ -1620,7 +1753,7 @@ mod resolution_mode {
     }
 
     fn one_dep_one_subdep_table() -> HashMap<(String, String), ResolveResult> {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("direct".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -1705,7 +1838,7 @@ mod resolution_mode {
 /// unsuffixed snapshot.
 #[tokio::test]
 async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("abc".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1737,7 +1870,7 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
     let hoisting_off = ResolveImporterOptions {
         auto_install_peers: false,
         dedupe_peer_dependents: false,
-        all_preferred_versions: seeded_preferred_versions(),
+        all_preferred_versions: Arc::new(seeded_preferred_versions()),
         ..default_opts()
     };
     let resolver = StubResolver { table: table.clone(), calls: Mutex::new(Vec::new()) };
@@ -1757,7 +1890,7 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
     let dedupe_only = ResolveImporterOptions {
         auto_install_peers: false,
         dedupe_peer_dependents: true,
-        all_preferred_versions: seeded_preferred_versions(),
+        all_preferred_versions: Arc::new(seeded_preferred_versions()),
         ..default_opts()
     };
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };

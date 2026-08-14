@@ -4,7 +4,7 @@ use super::{
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
-use pacquet_fs::{is_subdir, lexical_normalize, relative_path};
+use pacquet_fs::{is_subdir, lexical_normalize, relative_path, remove_dirent};
 use pacquet_workspace::read_project_manifest_only;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -177,9 +177,7 @@ fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {
 }
 
 fn remove_path(path: &Path) -> miette::Result<()> {
-    let result =
-        if path.is_dir() { std::fs::remove_dir_all(path) } else { std::fs::remove_file(path) };
-    result
+    remove_dirent(path)
         .or_else(
             |error| {
                 if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }

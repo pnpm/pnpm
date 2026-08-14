@@ -28,7 +28,8 @@ on:
         type: boolean
         default: false
 
-# A release PR that bumps several products auto-tags each one (tag-release.yml),
+# A release PR that bumps several products is tagged per product by hand, with
+# a signed annotated tag pushed from a maintainer's machine (see RELEASING.md),
 # so several version tags can land together and start a run apiece. Each run
 # releases only the product its tag names (see the plan job), so simultaneous
 # runs publish disjoint packages and may proceed in parallel. The group is
@@ -59,9 +60,80 @@ jobs:
               ;;
           esac
 
+  # The release trust root: a tag reaches a publish job only if it carries a
+  # signature from a key committed under .github/release-keys. Every publish path
+  # descends from `plan`, and `plan` descends from this job.
+  #
+  # This guards against an unsigned tag, not against an actor who can push an
+  # arbitrary one. A tag push runs the workflow file and checks out the tree from
+  # the pushed tag, so a tag supplies both this job and the keys it trusts.
+  # Restricting who may create `v*` and `pnpr@*` tags is a repository ruleset
+  # concern that no workflow can enforce for itself.
+  verify-release-tag:
+    name: Verify the release tag is maintainer-signed
+    needs: validate-release-ref
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A tag push checks out the commit; the tag *object* carrying the
+          # signature is a separate object that only comes down with the tag
+          # refs, so verification would have nothing to read without this.
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Verify the tag signature
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # The verify_ts_release dispatch runs from a branch to inspect
+          # artifacts and never publishes, so there is no tag to verify. This is
+          # a step-level exit rather than a job-level `if` on purpose: a skipped
+          # job skips everything that `needs` it, which would take `plan` and
+          # the whole dispatch path down with it.
+          case "${GITHUB_REF}" in
+            refs/tags/*) ;;
+            *)
+              echo "$GITHUB_REF is not a tag; nothing to verify and nothing will publish."
+              exit 0
+              ;;
+          esac
+
+          # An isolated keyring, so verification can only ever succeed against a
+          # key committed to this repository — never one that happens to be on
+          # the runner.
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          chmod 700 "$GNUPGHOME"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+
+          shopt -s nullglob
+          keys=(.github/release-keys/*.asc)
+          if [ ${#keys[@]} -eq 0 ]; then
+            echo "::error::No release keys committed under .github/release-keys"
+            exit 1
+          fi
+          gpg --batch --quiet --import "${keys[@]}"
+
+          # No separate check that the tag is annotated: verify-tag already fails
+          # on a lightweight tag, having no object to read a signature from.
+          if ! git verify-tag "$TAG"; then
+            echo "::error::$TAG is not signed by a key in .github/release-keys. Release tags must be signed by a maintainer — see RELEASING.md."
+            exit 1
+          fi
+
+          echo "$TAG carries a valid maintainer signature."
+
   plan:
     name: Plan (which products need publishing)
-    needs: validate-release-ref
+    needs:
+      - validate-release-ref
+      - verify-release-tag
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -94,17 +166,13 @@ jobs:
         run: |
           set -eu
           needs_release() {
-            local out
-            # Query from outside the checkout: npm enforces the repository's
-            # devEngines (which pin pnpm) for any command run inside it.
-            if out=$(cd "${RUNNER_TEMP:-/tmp}" && npm view "$1" version 2>&1); then
-              echo false
-            elif echo "$out" | grep -q 'E404'; then
-              echo true
-            else
-              echo "::error::npm view $1 failed: $out"
-              exit 1
-            fi
+            local state
+            state=$(.github/scripts/npm-package-publication-state.sh "$1")
+            case "$state" in
+              published) echo false ;;
+              missing) echo true ;;
+              *) echo "::error::Unexpected npm publication state"; exit 1 ;;
+            esac
           }
 
           TS_VERSION=$(jq -r .version pnpm11/pnpm/package.json)
@@ -201,9 +269,9 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
-          runtime: node@26.5.0
+          runtime: node@26.7.0
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -355,22 +423,16 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
-          runtime: node@26.5.0
-      # The publish phase is split into three sequential steps to control which packages
-      # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
-      # out of OIDC as soon as a static `_authToken` is configured, so the only way to
-      # force trusted publishing for a given package today is to run its publish in a
-      # step that doesn't have NPM_TOKEN set. See https://github.com/pnpm/pnpm/pull/11495
-      # for the longer-term fix that lets OIDC override a configured token.
+          runtime: node@26.7.0
+      # Internal workspace packages still publish with the static token. `@pnpm/exe`
+      # and `pnpm` use stage-only OIDC. CI stages both packages but cannot approve
+      # or publish them; a maintainer does that later with interactive 2FA. Keeping
+      # each stage operation in a token-free step also prevents an accidental
+      # fallback to token authentication.
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
-      - name: Publish @pnpm/exe (trusted publishing)
-        # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
-        # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
-        run: |
-          pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance
       - name: Publish internal workspace packages (static token)
         # The other workspace packages don't have trusted publishing configured on npm,
         # so we still need a static token here. The token is removed from pnpm's config
@@ -386,14 +448,20 @@ jobs:
           trap 'pn config delete "//registry.npmjs.org/:_authToken" || true' EXIT
           pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
           pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance
-      - name: Publish pnpm CLI (trusted publishing)
-        # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
-        # the previous step has cleared its NPM_TOKEN from pnpm's config.
-        run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance
+      - name: Stage @pnpm/exe (OIDC)
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'TypeScript @pnpm/exe wrapper' next-11
+          pnpm11/pnpm/artifacts/exe
+      - name: Stage pnpm CLI (OIDC)
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'TypeScript pnpm CLI' next-11
+          pnpm11/pnpm
       - name: Copy Artifacts
         run: pn copy-artifacts
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: 'dist/*'
       - name: Generate release description
@@ -445,8 +513,49 @@ jobs:
           if (actual !== expected) throw new Error('GitHub draft release body does not match RELEASE.md')
           NODE
 
-  build-rust:
+  build-node-gyp-payload:
+    name: Bundle node-gyp
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: plan
+    if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
+    permissions:
+      contents: read
+    # Every channel ships the same node-gyp, so it is resolved once here rather
+    # than per target: the tree is platform-independent, and one build is the
+    # only way the GitHub archives and the npm packages are guaranteed to carry
+    # identical bytes. Kept out of build-rust deliberately — that job produces
+    # the attested binaries and holds no npm dependency graph.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        with:
+          runtime: node@22
+
+      - name: Bundle node-gyp
+        run: pnpm --filter=pacquet run bundle-node-gyp
+
+      - name: Archive payload
+        # Archived rather than uploaded as a directory, for the same reason the
+        # binaries are: actions/upload-artifact drops the executable bit, and
+        # the node-gyp wrappers have to stay executable
+        # (https://github.com/actions/upload-artifact#permission-loss).
+        run: tar czf node-gyp-payload.tar.gz -C pnpm/npm/pnpm dist
+
+      - name: Upload payload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: node-gyp-payload
+          path: node-gyp-payload.tar.gz
+
+  build-rust:
+    needs:
+      - plan
+      - build-node-gyp-payload
     if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
     permissions:
       contents: read
@@ -495,7 +604,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
         with:
           tool: cross
 
@@ -587,32 +696,44 @@ jobs:
           esac
           cp "$source" "pnpm-napi.${{ matrix.code-target }}.node"
 
+      - name: Download node-gyp payload
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          # Kept out of the workspace root so it can't be swept up by the
+          # `*.tar.gz` glob the Upload Binary step publishes.
+          path: node-gyp-payload
+
       # The binary is archived to fix permission loss
       # (https://github.com/actions/upload-artifact#permission-loss) and ships
       # under its final name: `pnpm-<target>` archives with a plain `pnpm`
-      # binary at the root — the layout the v11 releases use and get.pnpm.io's
-      # install scripts expect — so the github-release-rust job can upload them
-      # to the GitHub release byte-for-byte as attested here.
+      # binary at the root beside a `dist/` holding node-gyp — the layout the
+      # v11 releases use, that get.pnpm.io's install scripts expect, and that
+      # the binary resolves node-gyp from at `<exe dir>/dist/node-gyp-bin` — so
+      # the github-release-rust job can upload them to the GitHub release
+      # byte-for-byte as attested here.
       - name: Archive Binary
         if: runner.os == 'Windows'
         shell: bash
         run: |
           mv target/${{ matrix.target }}/release/pnpm.exe pnpm.exe
-          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe
+          tar xzf node-gyp-payload/node-gyp-payload.tar.gz
+          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe dist
 
       - name: Archive Binary
         if: runner.os != 'Windows'
-        # The binary is staged in a scratch directory because the repo root
+        # Everything is staged in a scratch directory because the repo root
         # already has a `pnpm/` directory (the Rust sub-project) — renaming the
         # binary to `pnpm` in place would move it *into* that directory and tar
         # up the whole source tree instead.
         run: |
           mkdir stage
           mv target/${{ matrix.target }}/release/pnpm stage/pnpm
-          tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm
+          tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C stage
+          tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm dist
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             pnpm-${{ matrix.code-target }}.*
@@ -642,7 +763,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@22
           install: false
@@ -670,6 +791,20 @@ jobs:
             tar -xzf "$archive" -C extract
             mv extract/pnpm "${archive%.tar.gz}"
           done
+
+      - name: Restore node-gyp payload
+        # The dist/ payload both wrappers ship, so install scripts that shell
+        # out to node-gyp build out of the box. Taken from the artifact rather
+        # than rebuilt, so the npm packages and the GitHub release archives
+        # carry the same bytes. Must land before the packages are generated:
+        # the `@pnpm/exe` wrapper copies dist/ too.
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          path: node-gyp-payload
+
+      - name: Unpack node-gyp payload
+        run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Generate npm packages
         # Rewrites the committed private `pacquet` wrapper into the publishable
@@ -754,6 +889,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      # Required by pnpm/setup to resolve the pnpm 11 GitHub release asset.
+      contents: read
       # Required for npm trusted publishing and provenance attestations via OIDC.
       id-token: write
     needs:
@@ -766,7 +903,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@22
           install: false
@@ -790,27 +927,47 @@ jobs:
             mv extract/pnpm "${archive%.tar.gz}"
           done
 
+      - name: Restore node-gyp payload
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          path: node-gyp-payload
+
+      - name: Unpack node-gyp payload
+        run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
+
       - name: Generate npm packages
         run: |
           node pnpm/npm/pnpm/scripts/generate-packages.mjs
           node pnpm/npm/napi/scripts/generate-packages.mjs
 
-      # Everything publishes via trusted publishing: the `pnpm` / `@pnpm/exe`
-      # trusted publishers are bound to this workflow file (they are shared
-      # with the TypeScript release job above), and the natives' and
-      # `@pnpm/napi`'s publishers are bound here too. Publishing the natives
-      # first keeps the wrappers' exact-version optionalDependencies
-      # installable the moment each wrapper goes live, and the `pnpm` wrapper
-      # goes last because the plan job uses it as the "release completed"
-      # gate. The trailing slash publishes the directory; the build dirs
-      # `pacquet-*` are published as `@pnpm/exe.<target>`.
-      - name: Publish (trusted publishing)
+      # Every generated package uses stage-only OIDC. CI stages the native
+      # packages, `@pnpm/napi` / `@pnpm/exe` wrappers, and `pnpm`, then finishes
+      # without publishing any of them. A maintainer approves those layers later
+      # with interactive 2FA in the same dependency order. The `pnpm` wrapper is
+      # approved last because the plan job uses it as the "release completed"
+      # gate. The build dirs `pacquet-*` publish as `@pnpm/exe.<target>`.
+      - name: Stage Rust native packages (OIDC)
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
-        run: |
-          for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
-            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
-          done
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'Rust native packages' "$TAG"
+          pnpm/npm/pacquet-* pnpm/npm/napi.*
+      - name: Stage Rust wrapper packages (OIDC)
+        env:
+          TAG: ${{ needs.plan.outputs.rust_tag }}
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'Rust wrapper packages' "$TAG"
+          pnpm/npm/napi pnpm/npm/pnpm-exe
+      - name: Stage Rust pnpm package (OIDC)
+        env:
+          TAG: ${{ needs.plan.outputs.rust_tag }}
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'Rust pnpm package' "$TAG"
+          pnpm/npm/pnpm
 
   github-release-rust:
     name: Draft GitHub release for pnpm (Rust)
@@ -938,7 +1095,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
         with:
           tool: cross
 
@@ -1023,7 +1180,7 @@ jobs:
           shasum -a 256 $BIN_NAME > $BIN_NAME.sha256
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             pnpr-${{ matrix.code-target }}*
@@ -1052,7 +1209,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@22
           install: false
@@ -1151,6 +1308,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      # Required by pnpm/setup to resolve the pnpm 11 GitHub release asset.
+      contents: read
       # Required for npm trusted publishing and provenance attestations via OIDC.
       id-token: write
     needs:
@@ -1163,7 +1322,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@22
           install: false
@@ -1200,8 +1359,23 @@ jobs:
         env:
           TAG: ${{ needs.plan.outputs.pnpr_tag }}
         run: |
+          set -euo pipefail
           for package in pnpr/npm/pnpr-* pnpr/npm/pnpr; do
-            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+            name=$(jq -r '.publishConfig.name // .name' "$package/package.json")
+            version=$(jq -r '.version' "$package/package.json")
+            state=$(.github/scripts/npm-package-publication-state.sh "$name@$version")
+            case "$state" in
+              published)
+                echo "$name@$version is already published; skipping"
+                ;;
+              missing)
+                pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+                ;;
+              *)
+                echo "::error::Unexpected npm publication state for $name@$version"
+                exit 1
+                ;;
+            esac
           done
 
   docker-pnpr:
@@ -1278,7 +1452,7 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Login to GHCR
-        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

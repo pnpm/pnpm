@@ -11,6 +11,13 @@ pub enum VersionPart {
     Semver(Version),
     /// Path portion of a `file:<path>` dep, scheme stripped.
     File(String),
+    /// `<registryName>:<version>` — a package resolved from a named
+    /// registry, keyed registry-qualified so the same name@version from
+    /// different registries stays distinct (lockfile format 12.0).
+    RegistryQualified {
+        registry_name: String,
+        version: Version,
+    },
     /// Non-semver reference preserved verbatim. The raw reference
     /// (e.g. a `https://codeload.github.com/...` tarball URL, a
     /// `git+...` URL, or a custom resolution id) is written into the
@@ -26,6 +33,9 @@ impl fmt::Display for VersionPart {
         match self {
             VersionPart::Semver(version) => version.fmt(f),
             VersionPart::File(path) => write!(f, "file:{path}"),
+            VersionPart::RegistryQualified { registry_name, version } => {
+                write!(f, "{registry_name}:{version}")
+            }
             VersionPart::NonSemver(raw) => f.write_str(raw),
         }
     }
@@ -110,7 +120,26 @@ impl PkgVerPeer {
     pub fn version_semver(&self) -> Option<&'_ Version> {
         match &self.version {
             VersionPart::Semver(version) => Some(version),
-            VersionPart::File(_) | VersionPart::NonSemver(_) => None,
+            // Registry-qualified versions are excluded deliberately: their
+            // semver only pins a version *within* their named registry, so
+            // generic reuse/preference paths that key on bare semver must
+            // treat them as opaque. Callers that route by registry consult
+            // [`PkgVerPeer::registry_qualified`] instead.
+            VersionPart::File(_)
+            | VersionPart::NonSemver(_)
+            | VersionPart::RegistryQualified { .. } => None,
+        }
+    }
+
+    /// The `(registry_name, version)` pair of a registry-qualified version
+    /// slot (`<registryName>:<version>`), if this is one.
+    #[must_use]
+    pub fn registry_qualified(&self) -> Option<(&'_ str, &'_ Version)> {
+        match &self.version {
+            VersionPart::RegistryQualified { registry_name, version } => {
+                Some((registry_name, version))
+            }
+            _ => None,
         }
     }
 
@@ -178,6 +207,14 @@ fn parse_version_part(input: &str) -> Result<VersionPart, ParsePkgVerPeerError> 
     // the version, so tarball / git URLs and other custom resolution
     // ids in the version slot still parse. Mirror that here — only an
     // empty body is a hard error.
+    if let Some((registry_name, version)) =
+        pacquet_deps_path::parse_registry_qualified_version(input)
+    {
+        return Ok(VersionPart::RegistryQualified {
+            registry_name: registry_name.to_string(),
+            version,
+        });
+    }
     match input.parse::<Version>() {
         Ok(version) => Ok(VersionPart::Semver(version)),
         Err(err) if input.is_empty() => Err(ParsePkgVerPeerError::ParseVersionFailure(err)),

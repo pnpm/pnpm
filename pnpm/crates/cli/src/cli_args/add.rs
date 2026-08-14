@@ -12,7 +12,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_package_manager::Add;
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pacquet_workspace_manifest_writer::set_allow_builds;
@@ -126,7 +126,7 @@ pub struct AddArgs {
     /// the default semver range operator.
     #[clap(short = 'E', long = "save-exact")]
     pub save_exact: bool,
-    /// The prefix of the saved version range: `^` (default), `~`, or empty for an exact version.
+    /// The prefix of the saved version range: `^` (default), `~`, `=` for an explicit exact pin, or empty for a bare exact version.
     #[clap(long = "save-prefix", value_name = "prefix")]
     pub save_prefix: Option<String>,
     /// Save the new dependency to the default catalog. Shorthand for `--save-catalog-name=default`.
@@ -159,6 +159,10 @@ pub struct AddArgs {
     /// Force-enable lifecycle scripts for this invocation.
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
     /// Reinstall every package the lockfile names: relink packages an
     /// earlier install already materialized, and install optional
     /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
@@ -174,6 +178,7 @@ impl AddArgs {
             self.no_ignore_scripts,
             config.ignore_scripts,
         );
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
         config.force = self.force || config.force;
     }
 
@@ -251,14 +256,14 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
-        let pinned_version = self.pinned_version(state.config);
+        let range_spec_style = self.range_spec_style(state.config);
         let dependency_options =
             self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
 
         add_packages::<Reporter, _>(
             state,
             &self.package_names,
-            pinned_version,
+            range_spec_style,
             save_catalog_name,
             self.lockfile_only,
             supported_architectures,
@@ -279,7 +284,7 @@ impl AddArgs {
             .clone()
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
-        let pinned_version = self.pinned_version(state.config);
+        let range_spec_style = self.range_spec_style(state.config);
         let dependency_groups = self
             .dependency_options
             .clone()
@@ -309,7 +314,7 @@ impl AddArgs {
             lockfile_path: Some(&lockfile_path),
             dependency_groups,
             package_names: &self.package_names,
-            pinned_version,
+            range_spec_style,
             save_catalog_name,
             resolved_packages,
             supported_architectures,
@@ -346,11 +351,11 @@ impl AddArgs {
         }
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
-        let pinned_version = self.pinned_version(config);
+        let range_spec_style = self.range_spec_style(config);
         Box::pin(crate::cli_args::global::handle_global_add::<Reporter>(
             config,
             &self.package_names,
-            pinned_version,
+            range_spec_style,
             supported_architectures,
             &self.allow_build,
             dir,
@@ -358,12 +363,12 @@ impl AddArgs {
         .await
     }
 
-    /// The pinned version that decides the saved range: `--save-exact` /
-    /// `--save-prefix` layered over the `savePrefix` setting, mirroring
-    /// pnpm's `getPinnedVersion`.
-    fn pinned_version(&self, config: &Config) -> PinnedVersion {
-        PinnedVersion::from_save_options(
-            self.save_exact,
+    /// The style that decides the saved range: `--save-exact` /
+    /// `--save-prefix` layered over the `saveExact` and `savePrefix`
+    /// settings, mirroring pnpm's `getRangeSpecStyle`.
+    fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
+        RangeSpecStyle::from_save_options(
+            self.save_exact || config.save_exact,
             self.save_prefix.as_deref().or(config.save_prefix.as_deref()),
         )
     }
@@ -426,7 +431,7 @@ pub enum AllowBuildError {
 pub(crate) async fn add_package<Reporter, DependencyGroupList>(
     state: State,
     package_name: &str,
-    pinned_version: PinnedVersion,
+    range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
@@ -440,7 +445,7 @@ where
     Box::pin(add_packages::<Reporter, _>(
         state,
         &package_names,
-        pinned_version,
+        range_spec_style,
         save_catalog_name,
         lockfile_only,
         supported_architectures,
@@ -453,7 +458,7 @@ where
 pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     mut state: State,
     package_names: &[String],
-    pinned_version: PinnedVersion,
+    range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
@@ -479,7 +484,7 @@ where
         lockfile_path: Some(&lockfile_path),
         dependency_groups,
         package_names,
-        pinned_version,
+        range_spec_style,
         save_catalog_name,
         resolved_packages,
         supported_architectures,

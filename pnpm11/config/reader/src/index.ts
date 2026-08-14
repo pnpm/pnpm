@@ -81,7 +81,7 @@ export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
-  ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
+  ? `${T extends Lowercase<T> ? '' : '-'}${Lowercase<T>}${CamelToKebabCase<U>}`
   : S
 
 type KebabCaseConfig = {
@@ -681,8 +681,14 @@ export async function getConfig (opts: {
         break
     }
   }
+  // `catalogPrune`'s former name, still accepted. The canonical key wins
+  // when both are set.
+  pnpmConfig.catalogPrune ??= pnpmConfig.cleanupUnusedCatalogs
   if (!pnpmConfig.httpsProxy) {
-    pnpmConfig.httpsProxy = pnpmConfig.proxy ?? getProcessEnv('https_proxy')
+    // An empty `proxy=` is unset, so it must not suppress the environment
+    // fallback. `false` and `null` keep their meaning: proxying is off.
+    const legacyProxy = pnpmConfig.proxy === '' ? undefined : pnpmConfig.proxy
+    pnpmConfig.httpsProxy = legacyProxy ?? getProcessEnv('https_proxy')
   }
   if (!pnpmConfig.httpProxy) {
     pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')

@@ -12,6 +12,7 @@ repository.workspace  = true
 
 [dependencies]
 pacquet-config                            = { workspace = true }
+pacquet-deps-path                         = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-registry                          = { workspace = true }
@@ -26,6 +27,7 @@ dashmap     = { workspace = true }
 derive_more = { workspace = true }
 httpdate    = { workspace = true }
 indexmap    = { workspace = true }
+libc        = { workspace = true }
 miette      = { workspace = true }
 node-semver = { workspace = true }
 pipe-trait  = { workspace = true }
@@ -33,6 +35,7 @@ reqwest     = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 sha2        = { workspace = true }
+ssri        = { workspace = true }
 tokio       = { workspace = true }
 tracing     = { workspace = true }
 
@@ -43,7 +46,6 @@ pacquet-resolving-local-resolver   = { workspace = true }
 futures-util      = { workspace = true }
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
-ssri              = { workspace = true }
 tempfile          = { workspace = true }
 tokio             = { workspace = true, features = ["macros", "rt"] }
 

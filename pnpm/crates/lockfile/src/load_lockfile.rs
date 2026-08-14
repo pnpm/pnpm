@@ -9,6 +9,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const DEFAULT_YAML_MAX_EVENTS: usize = 1_000_000;
+const DEFAULT_YAML_MAX_NODES: usize = 250_000;
+const DEFAULT_YAML_MAX_SCALAR_BYTES: usize = 64 * 1024 * 1024;
+const DEFAULT_YAML_MAX_READER_INPUT_BYTES: usize = 256 * 1024 * 1024;
+
 /// Error when reading lockfile the filesystem.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -112,12 +117,29 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(None);
         }
-        serde_saphyr::from_str::<Self>(main)
-            .map(|mut lockfile| {
-                lockfile.reconstruct_missing_directory_resolutions();
-                Some(lockfile)
-            })
-            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+        serde_saphyr::from_str_with_options::<Self>(
+            &main,
+            serde_saphyr::options! {
+                // Every size-proportional budget is raised to the document's
+                // byte length: none of these dimensions can exceed the size of
+                // an input that is already in memory, so a valid lockfile must
+                // never trip them, however large. The remaining defaults
+                // (aliases, anchors, depth, documents) bound YAML shapes the
+                // lockfile emitter never produces and stay as security caps.
+                budget: serde_saphyr::budget! {
+                    max_events: main.len().max(DEFAULT_YAML_MAX_EVENTS),
+                    max_nodes: main.len().max(DEFAULT_YAML_MAX_NODES),
+                    max_total_scalar_bytes: main.len().max(DEFAULT_YAML_MAX_SCALAR_BYTES),
+                    max_total_comment_bytes: main.len().max(DEFAULT_YAML_MAX_SCALAR_BYTES),
+                    max_reader_input_bytes: Some(main.len().max(DEFAULT_YAML_MAX_READER_INPUT_BYTES)),
+                },
+            },
+        )
+        .map(|mut lockfile| {
+            lockfile.reconstruct_missing_directory_resolutions();
+            Some(lockfile)
+        })
+        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
     }
 
     fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {

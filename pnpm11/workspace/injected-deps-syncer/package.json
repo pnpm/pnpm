@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.injected-deps-syncer",
-  "version": "1100.0.28",
+  "version": "1100.0.32",
   "description": "Update all injected replica of a workspace package",
   "keywords": [
     "pnpm",
@@ -32,12 +32,14 @@
   },
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/bins.remover": "workspace:*",
+    "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.projects-reader": "workspace:*",
     "@types/normalize-path": "catalog:",
     "normalize-path": "catalog:"
@@ -49,7 +51,9 @@
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/workspace.injected-deps-syncer": "workspace:*"
+    "@pnpm/workspace.injected-deps-syncer": "workspace:*",
+    "@types/is-windows": "catalog:",
+    "is-windows": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

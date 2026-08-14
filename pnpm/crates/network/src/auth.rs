@@ -799,6 +799,21 @@ pub fn redact_and_sanitize(text: &str) -> String {
     redact_url_credentials(&sanitized)
 }
 
+/// [`redact_and_sanitize`] for text whose line breaks are worth keeping, such
+/// as a subprocess's multi-line stderr.
+///
+/// Line breaks are kept only when doing so redacts exactly as much as
+/// collapsing the text would: a newline can fall inside a `user:pass@`
+/// authority — git echoes such a URL back verbatim, password included — and
+/// redacting each line separately would leave the credentials split but
+/// readable. Whenever the two disagree, the collapsed form wins.
+#[must_use]
+pub fn redact_and_sanitize_multiline(text: &str) -> String {
+    let collapsed = redact_and_sanitize(text);
+    let per_line = text.split('\n').map(redact_and_sanitize).collect::<Vec<_>>().join("\n");
+    if per_line.replace('\n', "") == collapsed { per_line } else { collapsed }
+}
+
 /// If the authority leading `text` contains `userinfo@`, return the slice after
 /// the **last** `@` within it; otherwise `None`. The authority ends at the first
 /// `/`, `?`, `#`, or whitespace. Stripping to the last `@` keeps a raw `@` inside

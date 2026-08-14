@@ -127,18 +127,20 @@ function pickMax (
 const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
 
-// When minimumReleaseAge is active: try the highest mature version; if none
-// satisfies the range, fall back to the lowest version regardless of maturity
-// so the resolver can report the violation inline and let the install layer
-// (or other caller) decide what to do — never throw at this layer.
+// `minimumReleaseAge` narrows which versions are on offer; `pickLowestVersion`
+// decides which end of what is left to take. The fallback deliberately drops
+// the maturity filter so a range no mature version satisfies still yields a
+// pick, which the install layer reports as a violation rather than this layer
+// throwing.
 function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
   return runPicker(pickerOpts, spec, (targetSpec) => {
-    const highest = pickHighest(pickerOpts, meta, targetSpec)
-    if (highest) return highest
+    const pickMature = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
+    const mature = pickMature(pickerOpts, meta, targetSpec)
+    if (mature) return mature
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
@@ -301,14 +303,28 @@ export async function pickPackage (
     }
     let diskMeta: PackageMeta | null | undefined
     if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-      diskMeta = await limit(loadMetaCondensed)
+      // Concurrent offline picks of one package all miss the pre-queue cache
+      // check and queue behind this limiter, so the check is repeated inside
+      // the queue and the promotion happens before the limiter releases —
+      // otherwise every queued pick re-reads and re-parses the mirror. Serving
+      // a queued pick from the cache is equivalent to it having arrived after
+      // the first caller cached it: offline entries are always disk-sourced
+      // and maybeUpgradeAbbreviatedMetaForReleaseAge short-circuits when
+      // offline, so an in-memory hit returns this same meta with no network
+      // access.
+      diskMeta = await limit(async () => {
+        if (ctx.offline !== true) return loadMetaCondensed()
+        const cached = ctx.metaCache.get(cacheKey)
+        if (cached != null) return cached
+        const meta = await loadMetaCondensed()
+        if (meta != null) {
+          cacheDiskLoadedMeta(ctx.metaCache, cacheKey, meta)
+        }
+        return meta
+      })
 
       if (ctx.offline) {
         if (diskMeta != null) {
-          // maybeUpgradeAbbreviatedMetaForReleaseAge short-circuits when
-          // offline, so a later in-memory cache hit returns this same meta
-          // without any network access.
-          cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
           return {
             meta: diskMeta,
             pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, diskMeta),

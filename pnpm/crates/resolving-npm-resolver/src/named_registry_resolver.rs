@@ -155,6 +155,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             alias: Some(spec.name.as_str()),
             resolved_via: NAMED_REGISTRY_RESOLVED_VIA,
             registry,
+            registry_name: Some(registry_name.as_str()),
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,

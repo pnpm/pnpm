@@ -11,10 +11,18 @@
   intents:
     - republish-all-lib-packages
     - web-auth-qr-code-fallback
+"@pnpm/auth.commands@1100.3.0":
+  dir: pnpm11/auth/commands
+  intents:
+    - login-non-interactive-web-auth
 "@pnpm/bins.linker@1100.0.22":
   dir: pnpm11/bins/linker
   intents:
     - republish-all-lib-packages
+"@pnpm/bins.linker@1100.0.26":
+  dir: pnpm11/bins/linker
+  intents:
+    - reapply-executable-bit-to-restored-bins
 "@pnpm/bins.remover@1100.0.16":
   dir: pnpm11/bins/remover
   intents:
@@ -27,6 +35,14 @@
   dir: pnpm11/building/after-install
   intents:
     - republish-all-lib-packages
+"@pnpm/building.after-install@1102.0.13":
+  dir: pnpm11/building/after-install
+  intents:
+    - gvs-local-directory-deps
+"@pnpm/building.after-install@1102.0.15":
+  dir: pnpm11/building/after-install
+  intents:
+    - rebuild-depath-name-traversal
 "@pnpm/building.commands@1100.1.17":
   dir: pnpm11/building/commands
   intents:
@@ -47,6 +63,10 @@
   dir: pnpm11/building/policy
   intents:
     - republish-all-lib-packages
+"@pnpm/building.policy@1100.0.17":
+  dir: pnpm11/building/policy
+  intents:
+    - allow-git-tarball-builds-by-repo-url
 "@pnpm/cache.api@1100.0.33":
   dir: pnpm11/cache/api
   intents:
@@ -91,6 +111,10 @@
   dir: pnpm11/cli/default-reporter
   intents:
     - republish-all-lib-packages
+"@pnpm/cli.default-reporter@1100.3.14":
+  dir: pnpm11/cli/default-reporter
+  intents:
+    - reporter-own-config-type
 "@pnpm/cli.default-reporter@1100.3.8":
   dir: pnpm11/cli/default-reporter
   intents:
@@ -123,10 +147,18 @@
   dir: pnpm11/config/normalize-registries
   intents:
     - republish-all-lib-packages
+"@pnpm/config.normalize-registries@1100.1.0":
+  dir: pnpm11/config/normalize-registries
+  intents:
+    - known-registries-single-owner
 "@pnpm/config.package-is-installable@1100.0.16":
   dir: pnpm11/config/package-is-installable
   intents:
     - republish-all-lib-packages
+"@pnpm/config.package-is-installable@1100.1.0":
+  dir: pnpm11/config/package-is-installable
+  intents:
+    - headless-edge-aware-engine-strict
 "@pnpm/config.parse-overrides@1100.1.0":
   dir: pnpm11/config/parse-overrides
   intents:
@@ -139,6 +171,10 @@
   dir: pnpm11/config/pick-registry-for-package
   intents:
     - republish-all-lib-packages
+"@pnpm/config.pick-registry-for-package@1100.1.0":
+  dir: pnpm11/config/pick-registry-for-package
+  intents:
+    - known-registries-single-owner
 "@pnpm/config.reader@1101.12.0":
   dir: pnpm11/config/reader
   intents:
@@ -154,6 +190,20 @@
   intents:
     - github-actions-server-setting
     - republish-all-lib-packages
+"@pnpm/config.reader@1101.15.0":
+  dir: pnpm11/config/reader
+  intents:
+    - self-update-release-age
+"@pnpm/config.reader@1101.16.0":
+  dir: pnpm11/config/reader
+  intents:
+    - empty-proxy-values-are-unset
+    - known-registries-single-owner
+    - named-registries-lockfile-format
+"@pnpm/config.registry-auth-key@1100.0.0":
+  dir: pnpm11/config/registry-auth-key
+  intents:
+    - inline-string-and-npmrc-key-utils
 "@pnpm/config.version-policy@1100.1.9":
   dir: pnpm11/config/version-policy
   intents:
@@ -166,6 +216,11 @@
   dir: pnpm11/core/constants
   intents:
     - republish-all-lib-packages
+"@pnpm/constants@1101.0.0":
+  dir: pnpm11/core/constants
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
 "@pnpm/core-loggers@1100.2.3":
   dir: pnpm11/core/core-loggers
   intents:
@@ -174,6 +229,10 @@
   dir: pnpm11/core/core-loggers
   intents:
     - republish-all-lib-packages
+"@pnpm/core-loggers@1100.3.0":
+  dir: pnpm11/core/core-loggers
+  intents:
+    - restore-package-import-method-log
 "@pnpm/crypto.hash@1100.0.2":
   dir: pnpm11/crypto/hash
   intents:
@@ -198,6 +257,10 @@
   dir: pnpm11/deps/compliance/commands
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.compliance.commands@1101.6.0":
+  dir: pnpm11/deps/compliance/commands
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.compliance.license-resolver@1100.0.1":
   dir: pnpm11/deps/compliance/license-resolver
   intents:
@@ -206,23 +269,61 @@
   dir: pnpm11/deps/compliance/license-scanner
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.compliance.license-scanner@1100.0.31":
+  dir: pnpm11/deps/compliance/license-scanner
+  intents:
+    - brave-pandas-list
+"@pnpm/deps.compliance.license-scanner@1100.1.0":
+  dir: pnpm11/deps/compliance/license-scanner
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.compliance.sbom@1100.3.8":
   dir: pnpm11/deps/compliance/sbom
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.compliance.sbom@1100.4.0":
+  dir: pnpm11/deps/compliance/sbom
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
 "@pnpm/deps.github-actions@1100.1.0":
   dir: pnpm11/deps/github-actions
   intents:
     - github-actions-server-setting
     - republish-all-lib-packages
+"@pnpm/deps.github-actions@1100.1.1":
+  dir: pnpm11/deps/github-actions
+  intents:
+    - interactive-update-github-actions-opt-in
 "@pnpm/deps.graph-builder@1100.0.26":
   dir: pnpm11/deps/graph-builder
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.graph-builder@1100.1.0":
+  dir: pnpm11/deps/graph-builder
+  intents:
+    - gvs-local-directory-deps
+    - headless-edge-aware-engine-strict
+"@pnpm/deps.graph-builder@1100.2.0":
+  dir: pnpm11/deps/graph-builder
+  intents:
+    - named-registries-lockfile-format
+"@pnpm/deps.graph-builder@1100.2.1":
+  dir: pnpm11/deps/graph-builder
+  intents:
+    - gvs-link-deps-in-slots
 "@pnpm/deps.graph-hasher@1100.2.12":
   dir: pnpm11/deps/graph-hasher
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.graph-hasher@1100.2.13":
+  dir: pnpm11/deps/graph-hasher
+  intents:
+    - gvs-local-directory-deps
+"@pnpm/deps.graph-hasher@1100.2.16":
+  dir: pnpm11/deps/graph-hasher
+  intents:
+    - gvs-link-deps-in-slots
 "@pnpm/deps.graph-sequencer@1100.0.1":
   dir: pnpm11/deps/graph-sequencer
   intents:
@@ -236,14 +337,27 @@
   intents:
     - github-actions-server-setting
     - republish-all-lib-packages
+"@pnpm/deps.inspection.commands@1100.7.1":
+  dir: pnpm11/deps/inspection/commands
+  intents:
+    - interactive-update-github-actions-opt-in
 "@pnpm/deps.inspection.list@1100.0.29":
   dir: pnpm11/deps/inspection/list
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.inspection.list@1100.1.0":
+  dir: pnpm11/deps/inspection/list
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.inspection.outdated@1100.1.20":
   dir: pnpm11/deps/inspection/outdated
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.inspection.outdated@1100.1.21":
+  dir: pnpm11/deps/inspection/outdated
+  intents:
+    - interactive-update-blank-workspace-name
+    - interactive-update-workspace-labels
 "@pnpm/deps.inspection.peers-checker@1100.0.21":
   dir: pnpm11/deps/inspection/peers-checker
   intents:
@@ -264,10 +378,18 @@
   dir: pnpm11/deps/inspection/tree-builder
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.inspection.tree-builder@1100.1.0":
+  dir: pnpm11/deps/inspection/tree-builder
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.path@1100.0.11":
   dir: pnpm11/deps/path
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.path@1100.1.0":
+  dir: pnpm11/deps/path
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.peer-range@1100.1.0":
   dir: pnpm11/deps/peer-range
   intents:
@@ -280,10 +402,18 @@
   dir: pnpm11/deps/security/signatures
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.security.signatures@1101.3.0":
+  dir: pnpm11/deps/security/signatures
+  intents:
+    - pm-signature-fallback-registry
 "@pnpm/deps.status@1100.1.12":
   dir: pnpm11/deps/status
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.status@1100.1.16":
+  dir: pnpm11/deps/status
+  intents:
+    - quick-oranges-ignore-optionals
 "@pnpm/deps.status@1100.1.7":
   dir: pnpm11/deps/status
   intents:
@@ -304,6 +434,26 @@
   dir: pnpm11/engine/pm/commands
   intents:
     - republish-all-lib-packages
+"@pnpm/engine.pm.commands@1101.3.0":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - gvs-local-directory-deps
+    - pnpm-setup-github-actions
+    - self-update-release-age
+"@pnpm/engine.pm.commands@1101.3.1":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - preserve-equals-pin-operator
+    - rename-pinned-version-to-range-spec-style
+"@pnpm/engine.pm.commands@1101.3.2":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - env-lockfile-skips-pnpm-exe-from-v12
+"@pnpm/engine.pm.commands@1101.3.3":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - pm-signature-fallback-registry
+    - setup-writes-module-type
 "@pnpm/engine.runtime.bun-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/bun-resolver
   intents:
@@ -350,6 +500,10 @@
   intents:
     - republish-all-lib-packages
     - some-games-smash
+"@pnpm/exec.commands@1100.4.5":
+  dir: pnpm11/exec/commands
+  intents:
+    - recursive-run-keeps-failures
 "@pnpm/exec.lifecycle@1100.1.3":
   dir: pnpm11/exec/lifecycle
   intents:
@@ -442,14 +596,31 @@
   dir: pnpm11/global/commands
   intents:
     - republish-all-lib-packages
+"@pnpm/global.commands@1100.0.42":
+  dir: pnpm11/global/commands
+  intents:
+    - rename-pinned-version-to-range-spec-style
+    - save-prefix-equals
+"@pnpm/global.commands@1100.1.0":
+  dir: pnpm11/global/commands
+  intents:
+    - friendly-global-groups
 "@pnpm/global.packages@1100.0.13":
   dir: pnpm11/global/packages
   intents:
     - republish-all-lib-packages
+"@pnpm/global.packages@1100.0.17":
+  dir: pnpm11/global/packages
+  intents:
+    - friendly-global-groups
 "@pnpm/hooks.pnpmfile@1100.0.22":
   dir: pnpm11/hooks/pnpmfile
   intents:
     - republish-all-lib-packages
+"@pnpm/hooks.pnpmfile@1100.0.26":
+  dir: pnpm11/hooks/pnpmfile
+  intents:
+    - calm-loaders-probe
 "@pnpm/hooks.read-package-hook@1100.1.0":
   dir: pnpm11/hooks/read-package-hook
   intents:
@@ -458,6 +629,14 @@
   dir: pnpm11/hooks/read-package-hook
   intents:
     - republish-all-lib-packages
+"@pnpm/hooks.read-package-hook@1100.2.0":
+  dir: pnpm11/hooks/read-package-hook
+  intents:
+    - overrides-reach-auto-installed-peers
+"@pnpm/hooks.read-package-hook@1100.2.3":
+  dir: pnpm11/hooks/read-package-hook
+  intents:
+    - gvs-compat-angular-nuxt-phantom-deps
 "@pnpm/hooks.types@1100.2.3":
   dir: pnpm11/hooks/types
   intents:
@@ -466,6 +645,10 @@
   dir: pnpm11/installing/client
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.client@1100.3.0":
+  dir: pnpm11/installing/client
+  intents:
+    - self-update-release-age
 "@pnpm/installing.commands@1100.10.5":
   dir: pnpm11/installing/commands
   intents:
@@ -484,18 +667,52 @@
   intents:
     - github-actions-server-setting
     - republish-all-lib-packages
+"@pnpm/installing.commands@1100.12.1":
+  dir: pnpm11/installing/commands
+  intents:
+    - calm-spiders-smile
+    - interactive-update-github-actions-opt-in
+    - interactive-update-wide-character-columns
+    - interactive-update-workspace-labels
+    - run-the-dev-preinstall-hook
+    - update-workspace-only-links-named-deps
+"@pnpm/installing.commands@1100.12.2":
+  dir: pnpm11/installing/commands
+  intents:
+    - rename-pinned-version-to-range-spec-style
+    - save-prefix-equals
+"@pnpm/installing.commands@1100.13.0":
+  dir: pnpm11/installing/commands
+  intents:
+    - named-registries-lockfile-format
+"@pnpm/installing.commands@1100.14.0":
+  dir: pnpm11/installing/commands
+  intents:
+    - friendly-global-groups
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.context@1100.1.0":
+  dir: pnpm11/installing/context
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/installing.dedupe.check@1100.1.5":
   dir: pnpm11/installing/dedupe/check
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.dedupe.check@1100.1.6":
+  dir: pnpm11/installing/dedupe/check
+  intents:
+    - calm-dedupes-report
 "@pnpm/installing.dedupe.issues-renderer@1100.0.2":
   dir: pnpm11/installing/dedupe/issues-renderer
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.dedupe.issues-renderer@1100.0.3":
+  dir: pnpm11/installing/dedupe/issues-renderer
+  intents:
+    - calm-dedupes-report
 "@pnpm/installing.dedupe.types@1100.0.2":
   dir: pnpm11/installing/dedupe/types
   intents:
@@ -513,6 +730,36 @@
   intents:
     - pnpr-catalog-overrides
     - republish-all-lib-packages
+"@pnpm/installing.deps-installer@1102.3.7":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - fast-catalog-ranges
+    - fast-exact-overrides
+    - overrides-reach-auto-installed-peers
+    - pnpr-forward-verification-policy
+    - pnpr-install-policy-violations
+    - quiet-catalogs-dedupe
+    - restore-package-import-method-log
+    - tidy-donkeys-check
+"@pnpm/installing.deps-installer@1103.0.0":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - rename-pinned-version-to-range-spec-style
+"@pnpm/installing.deps-installer@1103.1.0":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - named-registries-lockfile-format
+"@pnpm/installing.deps-installer@1103.1.1":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - drop-removed-dependencies-without-resolving
+    - exact-catalog-version-rewrite
+    - inert-lockfile-setting-updates
+    - inert-patched-dependencies-updates
+    - pnp-loader-virtual-store-only
+    - protect-workspace-root-modules-purge
+    - quick-oranges-ignore-optionals
+    - update-no-save-respects-kept-range
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -530,14 +777,55 @@
   dir: pnpm11/installing/deps-resolver
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.deps-resolver@1100.4.0":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - gvs-local-directory-deps
+    - optional-peer-hoist-respects-workspace-root
+    - overrides-reach-auto-installed-peers
+    - peer-hoist-skips-project-relative-root-deps
+"@pnpm/installing.deps-resolver@1101.0.0":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - normalize-empty-bundled-dependencies
+    - preserve-workspace-link-on-partial-update
+    - rename-pinned-version-to-range-spec-style
+"@pnpm/installing.deps-resolver@1101.1.0":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
 "@pnpm/installing.deps-restorer@1102.1.10":
   dir: pnpm11/installing/deps-restorer
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.deps-restorer@1102.2.0":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - fast-exact-overrides
+    - headless-edge-aware-engine-strict
+    - restore-package-import-method-log
+"@pnpm/installing.deps-restorer@1102.3.0":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - named-registries-lockfile-format
+"@pnpm/installing.deps-restorer@1102.3.1":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - headless-removal-bookkeeping
+    - pnp-loader-virtual-store-only
 "@pnpm/installing.env-installer@1102.0.12":
   dir: pnpm11/installing/env-installer
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.env-installer@1102.0.15":
+  dir: pnpm11/installing/env-installer
+  intents:
+    - env-lockfile-skips-pnpm-exe-from-v12
+"@pnpm/installing.env-installer@1102.0.16":
+  dir: pnpm11/installing/env-installer
+  intents:
+    - pm-bootstrap-nonderivable-tarball-registries
 "@pnpm/installing.linking.direct-dep-linker@1100.0.14":
   dir: pnpm11/installing/linking/direct-dep-linker
   intents:
@@ -550,6 +838,10 @@
   dir: pnpm11/installing/linking/modules-cleaner
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.linking.modules-cleaner@1100.1.16":
+  dir: pnpm11/installing/linking/modules-cleaner
+  intents:
+    - fast-exact-overrides
 "@pnpm/installing.linking.real-hoist@1100.1.9":
   dir: pnpm11/installing/linking/real-hoist
   intents:
@@ -574,6 +866,10 @@
   dir: pnpm11/lockfile/filtering
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.filtering@1100.2.0":
+  dir: pnpm11/lockfile/filtering
+  intents:
+    - headless-edge-aware-engine-strict
 "@pnpm/lockfile.fs@1100.1.12":
   dir: pnpm11/lockfile/fs
   intents:
@@ -583,6 +879,14 @@
   dir: pnpm11/lockfile/fs
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.fs@1100.2.0":
+  dir: pnpm11/lockfile/fs
+  intents:
+    - named-registries-lockfile-format
+"@pnpm/lockfile.fs@1100.2.1":
+  dir: pnpm11/lockfile/fs
+  intents:
+    - inert-lockfile-setting-updates
 "@pnpm/lockfile.make-dedicated-lockfile@1100.0.30":
   dir: pnpm11/lockfile/make-dedicated-lockfile
   intents:
@@ -603,6 +907,11 @@
   dir: pnpm11/lockfile/settings-checker
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.settings-checker@1100.2.0":
+  dir: pnpm11/lockfile/settings-checker
+  intents:
+    - ignored-optional-dependencies-order-preserved
+    - inert-lockfile-setting-updates
 "@pnpm/lockfile.to-pnp@1100.1.9":
   dir: pnpm11/lockfile/to-pnp
   intents:
@@ -615,6 +924,11 @@
   dir: pnpm11/lockfile/utils
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.utils@1101.0.0":
+  dir: pnpm11/lockfile/utils
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
 "@pnpm/lockfile.verification@1100.0.26":
   dir: pnpm11/lockfile/verification
   intents:
@@ -623,6 +937,10 @@
   dir: pnpm11/lockfile/verification
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.verification@1100.0.32":
+  dir: pnpm11/lockfile/verification
+  intents:
+    - quick-oranges-ignore-optionals
 "@pnpm/lockfile.walker@1100.0.16":
   dir: pnpm11/lockfile/walker
   intents:
@@ -636,6 +954,29 @@
   dir: pnpm/npm/napi
   intents:
     - pacquet-licenses
+"@pnpm/napi@12.0.0-beta.1":
+  dir: pnpm/npm/napi
+  intents:
+    - fix-napi-in-memory-repeat-install
+    - napi-trust-lockfile
+"@pnpm/napi@12.0.0-beta.2":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-read-config
+"@pnpm/napi@12.0.0-beta.3":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-explicit-settings
+    - tidy-moons-repeat
+"@pnpm/napi@12.0.0-rc.0":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-global-virtual-store
+    - napi-resolve-full-metadata
+"@pnpm/napi@12.0.0-rc.1":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-allow-unused-patches
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -658,6 +999,10 @@
     - harden-web-auth-poll-body
     - republish-all-lib-packages
     - web-auth-qr-code-fallback
+"@pnpm/network.web-auth@1101.4.0":
+  dir: pnpm11/network/web-auth
+  intents:
+    - login-non-interactive-web-auth
 "@pnpm/object.key-sorting@1100.0.2":
   dir: pnpm11/object/key-sorting
   intents:
@@ -678,6 +1023,10 @@
   dir: pnpm11/patching/config
   intents:
     - republish-all-lib-packages
+"@pnpm/patching.config@1100.1.0":
+  dir: pnpm11/patching/config
+  intents:
+    - inert-patched-dependencies-updates
 "@pnpm/patching.types@1100.0.1":
   dir: pnpm11/patching/types
   intents:
@@ -702,6 +1051,12 @@
   dir: pnpm11/pkg-manifest/utils
   intents:
     - republish-all-lib-packages
+"@pnpm/pkg-manifest.utils@1100.3.0":
+  dir: pnpm11/pkg-manifest/utils
+  intents:
+    - preserve-equals-pin-operator
+    - rename-pinned-version-to-range-spec-style
+    - save-prefix-equals
 "@pnpm/pnpr.client@1.3.5":
   dir: pnpr/client
   intents:
@@ -711,6 +1066,10 @@
   intents:
     - pnpr-catalog-overrides
     - republish-all-lib-packages
+"@pnpm/pnpr.client@1.3.8":
+  dir: pnpr/client
+  intents:
+    - pnpr-forward-verification-policy
 "@pnpm/pnpr@0.1.0-alpha.1":
   dir: pnpr/npm/pnpr
   intents:
@@ -732,6 +1091,10 @@
   dir: pnpr/npm/pnpr
   intents:
     - pnpr-catalog-overrides
+"@pnpm/pnpr@0.1.0-alpha.6":
+  dir: pnpr/npm/pnpr
+  intents:
+    - secure-catalogs-route
 "@pnpm/prepare-temp-dir@1100.0.1":
   dir: pnpm11/__utils__/prepare-temp-dir
   intents:
@@ -779,6 +1142,14 @@
   intents:
     - republish-all-lib-packages
     - support-version-from-git
+"@pnpm/releasing.commands@1100.8.0":
+  dir: pnpm11/releasing/commands
+  intents:
+    - publish-config-name
+"@pnpm/releasing.commands@1100.8.3":
+  dir: pnpm11/releasing/commands
+  intents:
+    - version-json-empty-output
 "@pnpm/releasing.exportable-manifest@1100.1.10":
   dir: pnpm11/releasing/exportable-manifest
   intents:
@@ -787,6 +1158,10 @@
   dir: pnpm11/releasing/exportable-manifest
   intents:
     - republish-all-lib-packages
+"@pnpm/releasing.exportable-manifest@1100.2.0":
+  dir: pnpm11/releasing/exportable-manifest
+  intents:
+    - publish-config-name
 "@pnpm/releasing.versioning@1100.1.0":
   dir: pnpm11/releasing/versioning
   intents:
@@ -808,6 +1183,10 @@
   dir: pnpm11/resolving/default-resolver
   intents:
     - republish-all-lib-packages
+"@pnpm/resolving.default-resolver@1100.4.0":
+  dir: pnpm11/resolving/default-resolver
+  intents:
+    - offline-lockfile-verification-cache
 "@pnpm/resolving.git-resolver@1100.1.11":
   dir: pnpm11/resolving/git-resolver
   intents:
@@ -817,6 +1196,15 @@
   intents:
     - github-actions-server-setting
     - republish-all-lib-packages
+"@pnpm/resolving.git-resolver@1100.1.14":
+  dir: pnpm11/resolving/git-resolver
+  intents:
+    - fix-git-resolver-prompt
+"@pnpm/resolving.git-resolver@1100.1.16":
+  dir: pnpm11/resolving/git-resolver
+  intents:
+    - git-ci-https-fallback
+    - ls-remote-prompt-guard-reaches-git
 "@pnpm/resolving.jsr-specifier-parser@1100.0.3":
   dir: pnpm11/resolving/jsr-specifier-parser
   intents:
@@ -843,6 +1231,23 @@
   dir: pnpm11/resolving/npm-resolver
   intents:
     - republish-all-lib-packages
+"@pnpm/resolving.npm-resolver@1103.0.0":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - policy-aware-install-summary-latest
+    - preserve-equals-pin-operator
+    - rename-pinned-version-to-range-spec-style
+"@pnpm/resolving.npm-resolver@1103.1.0":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
+    - perf-resolver-caches
+"@pnpm/resolving.npm-resolver@1103.2.0":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - held-back-warning-release-age
+    - offline-lockfile-verification-cache
 "@pnpm/resolving.parse-wanted-dependency@1100.0.2":
   dir: pnpm11/resolving/parse-wanted-dependency
   intents:
@@ -851,6 +1256,18 @@
   dir: pnpm11/resolving/registry/pkg-metadata-filter
   intents:
     - republish-all-lib-packages
+"@pnpm/resolving.registry.pkg-metadata-filter@1100.0.14":
+  dir: pnpm11/resolving/registry/pkg-metadata-filter
+  intents:
+    - minimum-release-age-latest-bound
+"@pnpm/resolving.registry.pkg-metadata-filter@1100.0.15":
+  dir: pnpm11/resolving/registry/pkg-metadata-filter
+  intents:
+    - perf-resolver-caches
+"@pnpm/resolving.registry.pkg-metadata-filter@1100.0.16":
+  dir: pnpm11/resolving/registry/pkg-metadata-filter
+  intents:
+    - chilly-foxes-brush
 "@pnpm/resolving.registry.types@1100.1.6":
   dir: pnpm11/resolving/registry/types
   intents:
@@ -859,6 +1276,14 @@
   dir: pnpm11/resolving/resolver-base
   intents:
     - republish-all-lib-packages
+"@pnpm/resolving.resolver-base@1101.0.0":
+  dir: pnpm11/resolving/resolver-base
+  intents:
+    - rename-pinned-version-to-range-spec-style
+"@pnpm/resolving.resolver-base@1101.1.0":
+  dir: pnpm11/resolving/resolver-base
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/resolving.tarball-resolver@1100.1.9":
   dir: pnpm11/resolving/tarball-resolver
   intents:
@@ -895,6 +1320,14 @@
   dir: pnpm11/store/controller-types
   intents:
     - republish-all-lib-packages
+"@pnpm/store.controller-types@1101.0.0":
+  dir: pnpm11/store/controller-types
+  intents:
+    - rename-pinned-version-to-range-spec-style
+"@pnpm/store.controller-types@1101.1.0":
+  dir: pnpm11/store/controller-types
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/store.controller@1102.0.8":
   dir: pnpm11/store/controller
   intents:
@@ -931,6 +1364,10 @@
   dir: pnpm11/text/naming-cases
   intents:
     - republish-all-lib-packages
+"@pnpm/text.ordinal-comparator@1100.0.0":
+  dir: pnpm11/text/ordinal-comparator
+  intents:
+    - inline-string-and-npmrc-key-utils
 "@pnpm/text.tree-renderer@1100.0.1":
   dir: pnpm11/text/tree-renderer
   intents:
@@ -950,6 +1387,20 @@
   intents:
     - github-actions-server-setting
     - republish-all-lib-packages
+"@pnpm/types@1101.7.0":
+  dir: pnpm11/core/types
+  intents:
+    - interactive-update-github-actions-opt-in
+    - publish-config-name
+"@pnpm/types@1101.8.0":
+  dir: pnpm11/core/types
+  intents:
+    - preserve-equals-pin-operator
+    - rename-pinned-version-to-range-spec-style
+"@pnpm/types@1101.9.0":
+  dir: pnpm11/core/types
+  intents:
+    - known-registries-single-owner
 "@pnpm/worker@1100.2.7":
   dir: pnpm11/worker
   intents:
@@ -978,6 +1429,10 @@
   dir: pnpm11/workspace/projects-graph
   intents:
     - republish-all-lib-packages
+"@pnpm/workspace.projects-graph@1100.0.30":
+  dir: pnpm11/workspace/projects-graph
+  intents:
+    - workspace-relative-path-deps-resolved
 "@pnpm/workspace.projects-reader@1101.0.19":
   dir: pnpm11/workspace/projects-reader
   intents:
@@ -1184,6 +1639,282 @@ pacquet@12.0.0-alpha.9:
     - rust-wrapper-dev-checkout-guard
     - tidy-deploy-graphs
     - workspace-pack-gitignore
+pacquet@12.0.0-beta.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - aliased-jsr-dependency-importer
+    - allow-builds-placeholder-is-parsable
+    - astro-lockfile-resolution-parity
+    - bundled-dependencies-true
+    - calm-cats-report
+    - calm-pugs-list
+    - calm-spiders-smile
+    - calm-wolves-reuse-lockfile
+    - concurrent-package-manager-switch
+    - config-warnings-stderr
+    - dedupe-check-reports-the-diff
+    - deprecated-and-ignored-build-lists
+    - deterministic-gvs-hashes-for-cycles
+    - engine-lock-failure-is-reported
+    - fast-catalog-ranges
+    - fast-exact-overrides
+    - fix-git-side-effects-cache-index-key
+    - friendly-dedupes-report
+    - frozen-install-checks-drifted-settings
+    - frozen-noop-with-skipped-optionals
+    - frozen-pnpmfile-checksum
+    - fuzzy-dodos-report
+    - gate-peer-hoist-on-dedupe-peer-dependents
+    - gvs-local-directory-deps
+    - hoist-peers-include-prerelease
+    - install-tarballs-without-integrity
+    - interactive-update-blank-workspace-name
+    - interactive-update-groups-choices
+    - interactive-update-wide-character-columns
+    - interactive-update-workspace-column
+    - libc-lockfile-scalar
+    - local-tarball-dependency-install
+    - lockfile-config-mismatch-code
+    - manifestless-package-lockfile-entry
+    - mui-optional-peer-parity
+    - neat-taxis-report
+    - nested-file-dep-declaring-manifest
+    - npm-config-user-agent-in-scripts
+    - optional-peer-hoist-respects-workspace-root
+    - optional-peer-prerelease-strictness
+    - optional-peers-stay-out-of-importers
+    - overrides-reach-auto-installed-peers
+    - pacquet-approve-builds-short-global
+    - pacquet-beta-release
+    - pacquet-catalog-name-control-chars
+    - pacquet-dedupe-importer-peer-pins
+    - pacquet-dedupe-locked-peers
+    - pacquet-hoisted-no-duplicate-root-version
+    - pacquet-install-save-settings
+    - pacquet-legacy-pnpm-field-warning
+    - pacquet-licenses-global-store
+    - pacquet-missing-workspace-glob-dir
+    - pacquet-pnpr-catalogs
+    - pacquet-pre-command-checks
+    - pacquet-preclap-escape-boundary
+    - pacquet-preserve-string-libc
+    - pacquet-preserve-tmpdir
+    - pacquet-publish-config-name
+    - pacquet-run-forwards-script-args
+    - pacquet-save-workspace-protocol
+    - pacquet-script-shortcut-args
+    - pacquet-update-workspace-and-depth
+    - pacquet-workspace-root-flag
+    - patch-applier-tolerances
+    - peer-edge-keeps-the-providers-suffix
+    - peer-hoist-reads-workspace-root-deps
+    - peer-hoist-skips-project-relative-root-deps
+    - peer-shadowed-deps-in-parent-scope
+    - pin-unscoped-npmrc-settings-follow-up
+    - project-lifecycle-scripts-follow-the-mutated-projects
+    - quiet-beans-sing
+    - quiet-dodos-verify
+    - quiet-ravens-hoist
+    - quiet-wolves-remember
+    - read-bom-prefixed-manifests
+    - read-pnpm-10-patched-dependencies
+    - recursive-run-keeps-failures
+    - regexp-script-selectors
+    - report-missing-versions-and-packages
+    - resolve-bare-workspace-adds
+    - resolve-override-version-references
+    - run-the-dev-preinstall-hook
+    - rust-engine-dates-cached-verification
+    - rust-engine-reports-scope
+    - rust-engine-scaffolds-allow-builds
+    - rust-parallel-recursive-run
+    - script-shell-for-lifecycle-scripts
+    - self-update-release-age
+    - shamefully-hoist-root-links
+    - shared-peer-owner-barrier
+    - store-index-keys-non-registry-deps-by-resolution-id
+    - sync-package-manager-deps-on-every-command
+    - tidy-moles-list
+    - update-latest-rewrites-jsr-specifiers
+    - update-latest-rewrites-named-registry-specifiers
+    - v12-engine-strict-optional-subtree
+    - verifier-rejects-integrity-less-tarballs
+    - wise-wolves-report
+    - workspace-root-dir-outside-workspace
+pacquet@12.0.0-beta.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - allow-git-tarball-builds-by-repo-url
+    - dedupe-release-age-upgrade-fetch
+    - fair-warnings-report
+    - faster-peer-resolution
+    - fix-git-resolver-prompt
+    - honor-save-exact-setting
+    - huge-lockfiles-scalar-budget
+    - large-lockfiles-parse
+    - login-non-interactive-web-auth
+    - long-snapshot-keys-explicit
+    - minimum-release-age-latest-bound
+    - napi-hook-free-install
+    - napi-install-engine-perf
+    - napi-overrides-order-stable
+    - napi-trace-env
+    - no-cross-importer-peer-provider-replay
+    - normalize-empty-bundled-dependencies
+    - peer-walker-map-churn
+    - policy-aware-install-summary-latest
+    - preserve-equals-pin-operator
+    - preserve-workspace-link-on-partial-update
+    - prod-spec-wins-over-dev
+    - quiet-policy-order
+    - resolver-overrides-after-hook
+    - save-prefix-equals
+    - shared-preferred-versions-fold
+    - workspace-hoist-discovery-linear
+pacquet@12.0.0-beta.2:
+  dir: pnpm/npm/pnpm
+  intents:
+    - ignore-broken-wanted-lockfile
+    - optional-platform-prefetch
+pacquet@12.0.0-beta.3:
+  dir: pnpm/npm/pnpm
+  intents:
+    - exclude-links-keeps-workspace-internal-links
+    - lockfile-only-records-tarball-integrity
+    - perf-resolver-caches
+    - quick-plums-hoist
+pacquet@12.0.0-beta.4:
+  dir: pnpm/npm/pnpm
+  intents:
+    - amortize-hoist-round-workspace-scans
+    - bounded-peer-chain-resolution
+    - deterministic-peer-hoist-candidates
+    - deterministic-workspace-resolution
+    - empty-proxy-values-are-unset
+    - env-lockfile-skips-pnpm-exe-from-v12
+    - faster-peer-dep-path-finalization
+    - friendly-spiders-smile
+    - hoist-scope-suffix-memo
+    - incremental-discovery-tree-sync
+    - install-without-system-ca-certificates
+    - known-registries-single-owner
+    - named-registries-lockfile-format
+    - pacquet-login-scope-setting
+    - peer-cycle-graph-name-once
+    - prefix-alias-of-dir
+    - ship-node-gyp-with-the-rust-cli
+pacquet@12.0.0-rc.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - backslash-entry-paths
+    - directory-dep-recopy
+    - fix-pacquet-allow-builds-workspace
+    - gvs-concurrent-slot-import
+    - gvs-link-deps-in-slots
+    - headless-hoisted-workspace-bins
+    - pnp-loader-virtual-store-only
+    - protect-workspace-root-modules-purge
+    - read-crlf-multi-document-lockfile
+    - refuse-sudo-global
+    - sandbox-store-path
+    - stray-node-modules-entry-no-longer-fails-install
+pacquet@12.0.0-rc.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - chilly-foxes-brush
+    - drop-removed-dependencies-without-resolving
+    - empty-version-range-resolves
+    - exact-catalog-version-rewrite
+    - friendly-global-groups
+    - git-specs-are-identities
+    - gvs-dedup-slot-materialization
+    - held-back-warning-release-age
+    - inert-lockfile-setting-updates
+    - inert-patched-dependencies-updates
+    - loose-minimum-release-age-persist
+    - mirror-file-span-metadata
+    - offline-lockfile-verification-cache
+    - pacquet-binstub-symlink-resolution
+    - quick-oranges-ignore-optionals
+    - root-bin-stderr-clean-path
+    - self-update-ignores-ambient-workspace
+    - tidy-hoops-shine
+    - update-no-save-respects-kept-range
+    - version-json-empty-output
+    - windows-symlink-privilege-fallback
+pacquet@12.0.0-rc.2:
+  dir: pnpm/npm/pnpm
+  intents:
+    - dlx-ignores-caller-patches
+    - faster-global-runtime-shims
+    - global-context-shims
+    - gvs-compat-angular-nuxt-phantom-deps
+    - pm-bootstrap-nonderivable-tarball-registries
+    - pm-signature-fallback-registry
+    - setup-writes-module-type
+pacquet@12.0.0-rc.3:
+  dir: pnpm/npm/pnpm
+  intents:
+    - shim-exec-preserves-signals
+pacquet@12.0.0-rc.4:
+  dir: pnpm/npm/pnpm
+  intents:
+    - add-command-fast-path
+    - atomic-global-install-activation
+    - audit-fix-age-excludes-only-when-needed
+    - bound-pnpmfile-worker-requests
+    - catalog-strict-range-satisfies
+    - ci-frozen-lockfile-default
+    - composed-catalog-and-override-rewrites
+    - composed-fast-updates
+    - cycle-verdict-cache
+    - dedupe-missing-peer-ranges
+    - dedupe-removes-redundant-project-links
+    - deploy-injects-workspace-packages-again
+    - deploy-no-optional-symlinks
+    - deploy-the-workspace-root
+    - deterministic-children-ownership-handover
+    - fast-update-single-staging
+    - frozen-lockfile-package-extensions-peer
+    - git-fetch-failure-hint
+    - git-resolution-integrity-parses
+    - git-resolve-failure-hint
+    - group-moves-fast-update
+    - ignore-pnpmfile-flag
+    - injected-syncer-stale-bins
+    - level-synchronous-children-ownership
+    - locked-version-reuse
+    - lockfile-time-section-round-trips
+    - lowest-direct-under-minimum-release-age
+    - minimum-release-age-exclude-prune
+    - new-importer-fast-update
+    - override-range-fast-update
+    - pacquet-catalog-locked-version-noop
+    - pacquet-sync-injected-deps-after-scripts
+    - parent-scoped-overrides
+    - peer-resolution-memory
+    - peer-suffix-version-precision
+    - pinned-children-survive-a-fresh-walk
+    - pnpmfile-hooks-project-specifiers
+    - prune-reports-workspace-scope
+    - prune-stale-importers
+    - remove-command-fast-path
+    - repair-shared-slot-in-place
+    - sbom-exclude-uninstallable-platform-packages
+    - shallow-pacquet-links
+    - shared-package-ids
+    - ssh-git-url-without-user-info
+    - stream-env-lockfile-document
+    - unused-patch-after-removal
+pacquet@12.0.0-rc.5:
+  dir: pnpm/npm/pnpm
+  intents:
+    - canonical-cycle-breaking
+    - hoisted-peers-resolve-as-subdeps
+    - importer-order-invariance
+    - peer-cache-partial-view
+    - preserve-unchanged-package-metadata
+    - update-writes-the-new-range
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
@@ -1264,3 +1995,86 @@ pnpm@11.17.0:
     - some-games-smash
     - support-version-from-git
     - web-auth-qr-code-fallback
+pnpm@11.18.0:
+  dir: pnpm11/pnpm
+  intents:
+    - brave-pandas-list
+    - calm-dedupes-report
+    - calm-spiders-smile
+    - fast-catalog-ranges
+    - fast-exact-overrides
+    - gvs-local-directory-deps
+    - headless-edge-aware-engine-strict
+    - interactive-update-blank-workspace-name
+    - interactive-update-github-actions-opt-in
+    - interactive-update-wide-character-columns
+    - interactive-update-workspace-labels
+    - optional-peer-hoist-respects-workspace-root
+    - overrides-reach-auto-installed-peers
+    - peer-hoist-skips-project-relative-root-deps
+    - pnpm-setup-github-actions
+    - pnpr-forward-verification-policy
+    - pnpr-install-policy-violations
+    - publish-config-name
+    - quiet-catalogs-dedupe
+    - recursive-run-keeps-failures
+    - restore-package-import-method-log
+    - run-the-dev-preinstall-hook
+    - self-update-release-age
+    - tidy-donkeys-check
+    - update-workspace-only-links-named-deps
+pnpm@11.19.0:
+  dir: pnpm11/pnpm
+  intents:
+    - allow-git-tarball-builds-by-repo-url
+    - fix-git-resolver-prompt
+    - login-non-interactive-web-auth
+    - minimum-release-age-latest-bound
+    - normalize-empty-bundled-dependencies
+    - policy-aware-install-summary-latest
+    - preserve-equals-pin-operator
+    - preserve-workspace-link-on-partial-update
+    - rename-pinned-version-to-range-spec-style
+    - reporter-own-config-type
+    - save-prefix-equals
+    - workspace-relative-path-deps-resolved
+pnpm@11.20.0:
+  dir: pnpm11/pnpm
+  intents:
+    - empty-proxy-values-are-unset
+    - env-lockfile-skips-pnpm-exe-from-v12
+    - inline-string-and-npmrc-key-utils
+    - known-registries-single-owner
+    - named-registries-lockfile-format
+    - perf-resolver-caches
+    - rebuild-depath-name-traversal
+pnpm@11.21.0:
+  dir: pnpm11/pnpm
+  intents:
+    - calm-loaders-probe
+    - chilly-foxes-brush
+    - drop-removed-dependencies-without-resolving
+    - exact-catalog-version-rewrite
+    - friendly-global-groups
+    - git-ci-https-fallback
+    - gvs-compat-angular-nuxt-phantom-deps
+    - gvs-link-deps-in-slots
+    - headless-removal-bookkeeping
+    - held-back-warning-release-age
+    - ignored-optional-dependencies-order-preserved
+    - inert-lockfile-setting-updates
+    - inert-patched-dependencies-updates
+    - ls-remote-prompt-guard-reaches-git
+    - offline-lockfile-verification-cache
+    - pacquet-binstub-symlink-resolution
+    - pm-bootstrap-nonderivable-tarball-registries
+    - pm-signature-fallback-registry
+    - pnp-loader-virtual-store-only
+    - protect-workspace-root-modules-purge
+    - quick-oranges-ignore-optionals
+    - reapply-executable-bit-to-restored-bins
+    - root-bin-stderr-clean-path
+    - setup-writes-module-type
+    - update-no-save-respects-kept-range
+    - version-json-empty-output
+    - warn-sudo-global

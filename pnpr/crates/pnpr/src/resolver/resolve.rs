@@ -217,7 +217,9 @@ pub async fn resolve(
         node_linker: NodeLinker::Isolated,
         lockfile_only: true,
         dry_run: false,
+        persist_policy_excludes: false,
         update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         // Resolve as the caller (forwarded credentials) without baking
         // per-user auth into the interned `&'static Config`.
         auth_override: Some(Arc::clone(auth_headers)),
@@ -227,6 +229,7 @@ pub async fn resolve(
         // single terminal `done` frame carrying the whole lockfile.
         resolution_observer: observer,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         // The reconstructed workspace carries no catalog sections, so the
         // client's catalogs are forwarded here and used to resolve
         // `catalog:` specifiers in dependencies and overrides.

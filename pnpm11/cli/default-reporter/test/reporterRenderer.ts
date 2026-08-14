@@ -2,7 +2,6 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { expect, test } from '@jest/globals'
 import { initDefaultReporter } from '@pnpm/cli.default-reporter'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
 import {
   lockfileVerificationLogger,
@@ -13,6 +12,8 @@ import {
 } from '@pnpm/core-loggers'
 import type { StreamParser } from '@pnpm/logger'
 import { createStreamParser } from '@pnpm/logger'
+
+import type { ReporterPnpmConfig } from '../src/ReporterPnpmConfig.js'
 
 const ERASE_TO_END_OF_DISPLAY = '\x1b[0J'
 
@@ -61,7 +62,7 @@ test('differential renderer does not reprint unchanged sticky blocks', async () 
     reportingOptions: { throttleProgress: 0 },
     context: {
       argv: ['install'],
-      config: { dir: cwd } as Config & ConfigContext,
+      config: { dir: cwd } as ReporterPnpmConfig,
       process: mockProcess as unknown as NodeJS.Process,
     },
   })
@@ -124,7 +125,7 @@ test('each write clears external output below the frame', async () => {
     reportingOptions: { throttleProgress: 0 },
     context: {
       argv: ['install'],
-      config: { dir: cwd } as Config & ConfigContext,
+      config: { dir: cwd } as ReporterPnpmConfig,
       process: mockProcess as unknown as NodeJS.Process,
     },
   })
@@ -172,7 +173,7 @@ test('holds frame redraws while an interactive prompt owns the terminal', async 
     reportingOptions: { throttleProgress: 0 },
     context: {
       argv: ['install'],
-      config: { dir: cwd } as Config & ConfigContext,
+      config: { dir: cwd } as ReporterPnpmConfig,
       process: mockProcess as unknown as NodeJS.Process,
     },
   })

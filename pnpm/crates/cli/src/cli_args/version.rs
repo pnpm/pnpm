@@ -411,7 +411,11 @@ impl VersionArgs {
                     &confirmed,
                 )?;
             }
-            println!(r#"No pending changes. Record one with "pnpm change"."#);
+            if self.json {
+                println!("[]");
+            } else {
+                println!(r#"No pending changes. Record one with "pnpm change"."#);
+            }
             return Ok(());
         }
         if self.dry_run {
@@ -429,6 +433,14 @@ impl VersionArgs {
             Some(&config.versioning),
             &confirmed,
         )?;
+
+        if self.json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&applied).expect("serialize applied releases"),
+            );
+            return Ok(());
+        }
 
         use std::fmt::Write as _;
         let mut output = String::from("Versions applied:\n");
@@ -485,7 +497,7 @@ fn run_version_lifecycle_hook<Reporter: pacquet_reporter::Reporter>(
         node_gyp_path: None,
         user_agent: Some(&config.user_agent),
         unsafe_perm: config.unsafe_perm,
-        node_gyp_bin: None,
+        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: super::run::exec_scripts_prepend_node_path(
             config.scripts_prepend_node_path,
         ),

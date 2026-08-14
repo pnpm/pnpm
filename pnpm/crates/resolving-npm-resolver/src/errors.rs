@@ -2,6 +2,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_network::redact_and_sanitize;
 
 /// Failure to fetch a registry metadata document. Used by
 /// [`crate::fetch_full_metadata()`] and
@@ -20,6 +21,15 @@ use miette::Diagnostic;
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FetchMetadataError {
+    #[display("Failed to resolve {pkg_name} in package mirror {}", pkg_mirror.display())]
+    #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
+    NoOfflineMeta {
+        #[error(not(source))]
+        pkg_name: String,
+        #[error(not(source))]
+        pkg_mirror: std::path::PathBuf,
+    },
+
     #[display("Failed to fetch metadata from {url}: {error}")]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
     Network {
@@ -165,6 +175,31 @@ pub struct GuardRepickLimitError {
     pub name: String,
     pub limit: usize,
     pub reason: String,
+}
+
+/// Raised when a registry version carries no `dist.integrity` and its
+/// `dist.shasum` is not a hex digest, so no SRI string can be derived
+/// from it.
+///
+/// Both fields are quoted registry metadata, so [`Self::new`] redacts
+/// and sanitizes them — see [`FetchMetadataError`] for why.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(r#"Tarball "{tarball}" has invalid shasum specified in its metadata: {shasum}"#)]
+#[diagnostic(code(ERR_PNPM_INVALID_TARBALL_INTEGRITY))]
+pub struct InvalidTarballIntegrityError {
+    #[error(not(source))]
+    pub tarball: String,
+    pub shasum: String,
+}
+
+impl InvalidTarballIntegrityError {
+    #[must_use]
+    pub fn new(tarball: &str, shasum: &str) -> Self {
+        InvalidTarballIntegrityError {
+            tarball: redact_and_sanitize(tarball),
+            shasum: redact_and_sanitize(shasum),
+        }
+    }
 }
 
 #[cfg(test)]

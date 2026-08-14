@@ -1,4 +1,4 @@
-import { fetchShasumsFile, fetchVerifiedNodeShasumsFile } from '@pnpm/crypto.shasums-file'
+import { fetchShasumsFileCached, fetchVerifiedNodeShasumsFileCached } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type {
@@ -41,6 +41,7 @@ export async function resolveNodeRuntime (
     fetchFromRegistry: FetchFromRegistry
     nodeDownloadMirrors?: Record<string, string>
     offline?: boolean
+    cacheDir?: string
   },
   wantedDependency: WantedDependency,
   opts?: Partial<ResolveOptions>
@@ -59,11 +60,31 @@ export async function resolveNodeRuntime (
   const versionSpec = normalizeRuntimeSpec(wantedDependency.bareSpecifier.substring('runtime:'.length))
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
-  const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
-  if (!version) {
-    throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
+  // An exact stable-release specifier is its own resolution, so the
+  // release-index fetch is skipped for it and existence is proven by the
+  // asset-list fetch below.
+  const exactVersion = exactReleaseVersion(releaseChannel, versionSpecifier)
+  let version = exactVersion
+  if (version == null) {
+    version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl) ?? undefined
+    if (!version) {
+      throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
+    }
   }
-  const variants = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version, releaseChannel)
+  let variants: PlatformAssetResolution[]
+  try {
+    variants = await readNodeAssets(ctx.fetchFromRegistry, { nodeMirrorBaseUrl, version, releaseChannel, cacheDir: ctx.cacheDir })
+  } catch (err: unknown) {
+    // The exact-specifier pick skipped the release index, so a failed asset
+    // read is ambiguous: the version may simply not exist. Consult the index
+    // now, purely to raise the same NODEJS_VERSION_NOT_FOUND the index-first
+    // path raises for a nonexistent version; any other outcome re-raises the
+    // asset error unchanged.
+    if (exactVersion != null && await versionMissingFromIndex(ctx.fetchFromRegistry, exactVersion, nodeMirrorBaseUrl)) {
+      throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
+    }
+    throw err
+  }
   const range = createNodeRuntimeVersionSpec(versionSpec, version, wantedDependency)
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
@@ -113,13 +134,44 @@ function createNodeRuntimeVersionSpec (
   return resolvedVersion
 }
 
-async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string, releaseChannel: string): Promise<PlatformAssetResolution[]> {
+/**
+ * The concrete version an exact stable-release specifier names, when the
+ * specifier is already in canonical `X.Y.Z` form. Such a specifier needs no
+ * release-index lookup: the index would resolve it to itself. Prereleases are
+ * excluded — on the `release` channel they never exist, so routing them
+ * through the index keeps the canonical not-found error path.
+ */
+function exactReleaseVersion (releaseChannel: string, versionSpecifier: string): string | undefined {
+  if (releaseChannel !== 'release') return undefined
+  const parsed = semver.parse(versionSpecifier)
+  if (parsed == null || parsed.prerelease.length > 0 || parsed.build.length > 0 || parsed.version !== versionSpecifier) return undefined
+  return parsed.version
+}
+
+async function versionMissingFromIndex (fetch: FetchFromRegistry, version: string, nodeMirrorBaseUrl: string): Promise<boolean> {
+  try {
+    return (await resolveNodeVersion(fetch, version, nodeMirrorBaseUrl)) == null
+  } catch {
+    return false
+  }
+}
+
+async function readNodeAssets (
+  fetch: FetchFromRegistry,
+  opts: {
+    nodeMirrorBaseUrl: string
+    version: string
+    releaseChannel: string
+    cacheDir?: string
+  }
+): Promise<PlatformAssetResolution[]> {
+  const { nodeMirrorBaseUrl, version, releaseChannel, cacheDir } = opts
   // The mirror is repository-configurable, so the SHASUMS file's hashes are only
   // trustworthy once its OpenPGP signature is verified against the Node.js
   // release keys embedded in pnpm. Only the `release` channel publishes a signed
   // SHASUMS256.txt; pre-release channels (rc, nightly, …) are unsigned by Node,
   // so they cannot be verified this way.
-  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: releaseChannel === 'release' })
+  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: releaseChannel === 'release', cacheDir })
 
   // When using the default mirror, also fetch musl variants from unofficial-builds.nodejs.org,
   // since musl builds are not available on the official mirror. That URL is hardcoded (not
@@ -127,7 +179,7 @@ async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: stri
   // over TLS rather than verified against the official release keys.
   if (nodeMirrorBaseUrl === DEFAULT_NODE_MIRROR_BASE_URL) {
     try {
-      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true, verifySignature: false })
+      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true, verifySignature: false, cacheDir })
       assets.push(...muslAssets)
     } catch {
       // Musl variants may not be available for all Node.js versions (e.g. very old ones)
@@ -144,13 +196,16 @@ async function readNodeAssetsFromMirror (
     version: string
     muslOnly: boolean
     verifySignature: boolean
+    cacheDir?: string
   }
 ): Promise<PlatformAssetResolution[]> {
-  const { nodeMirrorBaseUrl, version, muslOnly, verifySignature } = opts
+  const { nodeMirrorBaseUrl, version, muslOnly, verifySignature, cacheDir } = opts
+  // The URL is pinned to one released version, which is what makes it
+  // eligible for the SHASUMS disk cache.
   const integritiesFileUrl = `${nodeMirrorBaseUrl}v${version}/SHASUMS256.txt`
   const shasumsFileItems = verifySignature
-    ? await fetchVerifiedNodeShasumsFile(fetch, integritiesFileUrl)
-    : await fetchShasumsFile(fetch, integritiesFileUrl)
+    ? await fetchVerifiedNodeShasumsFileCached(fetch, integritiesFileUrl, { cacheDir })
+    : await fetchShasumsFileCached(fetch, integritiesFileUrl, { cacheDir })
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
   // The second capture group uses [^.-]+ to stop at a dash, so that the optional
   // third group can capture the '-musl' suffix separately (e.g. 'x64' + '-musl').

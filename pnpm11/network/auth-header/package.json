@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.auth-header",
-  "version": "1101.1.6",
+  "version": "1101.1.9",
   "description": "Gets the authorization header for the given URI",
   "keywords": [
     "pnpm",
@@ -32,7 +32,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/config.nerf-dart": "catalog:",
+    "@pnpm/config.registry-auth-key": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*"
   },

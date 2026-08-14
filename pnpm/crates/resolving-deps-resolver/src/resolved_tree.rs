@@ -1,10 +1,8 @@
 use crate::node_id::NodeId;
 use pacquet_deps_path::DepPath;
 use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    sync::Arc,
-};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Per-occurrence tree carried by [`ResolvedTree::dependencies_tree`].
 pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;
@@ -28,7 +26,7 @@ pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;
 #[derive(Debug, Default, Clone)]
 pub struct ResolvedTree {
     pub direct: Vec<DirectDep>,
-    pub packages: HashMap<String, ResolvedPackage>,
+    pub packages: HashMap<Arc<str>, ResolvedPackage>,
     pub dependencies_tree: DependenciesTree,
     pub all_peer_dep_names: HashSet<String>,
     pub policy_violations: Vec<ResolutionPolicyViolation>,
@@ -44,23 +42,61 @@ pub struct ResolvedTree {
     /// entry. The peer-resolver's `realize_children` walks this to
     /// allocate per-occurrence `NodeId`s for a
     /// [`TreeChildren::Lazy`] node.
-    pub children_by_id: HashMap<String, Arc<Vec<ChildEdge>>>,
+    pub children_by_id: HashMap<Arc<str>, Arc<Vec<ChildEdge>>>,
 }
 
 /// One entry on [`ResolvedTree::children_by_id`] — the resolved
 /// shape of a package's children list as recorded by the first walk.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChildEdge {
     /// Install alias in `node_modules` (the manifest key under
     /// `dependencies` / `optionalDependencies`).
     pub alias: String,
-    /// Resolved `pkgIdWithPatchHash` the alias points at.
-    pub pkg_id: String,
+    /// Resolved `pkgIdWithPatchHash` the alias points at. Shared: the
+    /// peer walk copies this onto every occurrence node it realizes,
+    /// millions of them for a few thousand distinct ids.
+    pub pkg_id: Arc<str>,
     /// `true` when the edge came from `optionalDependencies`. Used
     /// to thread `current_is_optional` correctly through lazy
     /// realisation so the [`ResolvedPackage::optional`] AND-fold
     /// stays consistent with the eager-walk path.
     pub optional: bool,
+}
+
+/// Ancestor package ids for a lazy occurrence. The dependency walk keeps its
+/// already-built contiguous vector as the base, while peer discovery appends
+/// shallow vectors of shared string storage instead of copying every package
+/// id for each context-sensitive revisit.
+#[derive(Debug, Default, Clone)]
+pub struct AncestorIds {
+    base: Arc<Vec<String>>,
+    appended: Arc<Vec<Arc<str>>>,
+}
+
+impl AncestorIds {
+    /// The dependency walk's contiguous base ids, in order.
+    pub fn base_ids(&self) -> impl Iterator<Item = &str> {
+        self.base.iter().map(String::as_str)
+    }
+
+    /// The ids peer discovery appended after the base, in order.
+    pub fn appended_ids(&self) -> impl Iterator<Item = &str> {
+        self.appended.iter().map(|id| &**id)
+    }
+
+    #[must_use]
+    pub fn pushed(&self, id: String) -> Self {
+        let mut appended = Vec::with_capacity(self.appended.len() + 1);
+        appended.extend(self.appended.iter().cloned());
+        appended.push(Arc::from(id));
+        Self { base: Arc::clone(&self.base), appended: Arc::new(appended) }
+    }
+}
+
+impl From<Arc<Vec<String>>> for AncestorIds {
+    fn from(base: Arc<Vec<String>>) -> Self {
+        Self { base, appended: Arc::new(Vec::new()) }
+    }
 }
 
 /// One edge in the resolved tree: the local install name (`alias`) and
@@ -92,7 +128,7 @@ pub struct DirectDep {
 /// [`ResolvedPackage`] is the dedup-shared *envelope*, not a tree node.
 #[derive(Debug, Clone)]
 pub struct ResolvedPackage {
-    pub id: String,
+    pub id: Arc<str>,
     /// Held as `Arc` so cloning a [`ResolvedPackage`] (which the
     /// per-occurrence tree walk does on every snapshot, and which
     /// the peer-resolution pass does when it carves
@@ -144,21 +180,12 @@ pub struct PeerDep {
     pub optional: bool,
 }
 
-/// One per-occurrence node in the dependencies tree.
-#[derive(Debug, Clone)]
-pub struct DependenciesTreeNode {
-    /// Key into [`ResolvedTree::packages`].
-    pub resolved_package_id: String,
-    /// `alias → child NodeId` edges, possibly deferred.
-    pub children: TreeChildren,
-    /// Distance from the root importer (root = 0). A `depth = -1` marks
-    /// linked / pruned nodes; pacquet doesn't emit `-1` today because
-    /// workspace-link resolution hasn't been implemented.
-    pub depth: i32,
-    /// Whether the package may be skipped when an optional dep fails
-    /// for its host platform. Always `true` for the npm-shaped slice
-    /// pacquet currently exposes.
-    pub installable: bool,
+/// The wanted-lockfile carry-over a [`DependenciesTreeNode`] may hold.
+///
+/// Split out of the node so the common case — a fresh resolution, with
+/// none of these set — costs one null pointer instead of four `Option`s.
+#[derive(Debug, Default, Clone)]
+pub struct LockedResolution {
     /// `DepPath` this occurrence's package resolved to in the wanted
     /// lockfile, when its resolution was reused from it. Feeds the
     /// reverse index that locked-peer-provider reuse looks providers
@@ -188,25 +215,77 @@ pub struct DependenciesTreeNode {
     pub locked_peer_names: Option<Arc<HashSet<String>>>,
 }
 
+/// One per-occurrence node in the dependencies tree.
+#[derive(Debug, Clone)]
+pub struct DependenciesTreeNode {
+    /// Key into [`ResolvedTree::packages`]. Shared rather than owned —
+    /// see [`ChildEdge::pkg_id`], which is where most of these come from.
+    pub resolved_package_id: Arc<str>,
+    /// `alias → child NodeId` edges, possibly deferred.
+    pub children: TreeChildren,
+    /// Distance from the root importer (root = 0). A `depth = -1` marks
+    /// linked / pruned nodes; pacquet doesn't emit `-1` today because
+    /// workspace-link resolution hasn't been implemented.
+    pub depth: i32,
+    /// Whether the package may be skipped when an optional dep fails
+    /// for its host platform. Always `true` for the npm-shaped slice
+    /// pacquet currently exposes.
+    pub installable: bool,
+    /// Wanted-lockfile carry-over for this occurrence, boxed because it
+    /// is `None` for every fresh resolution — which is every node the
+    /// resolver produces today. Inline, its four rarely-set fields cost
+    /// ~88 bytes on each of the millions of nodes the peer walk realizes.
+    pub locked: Option<Box<LockedResolution>>,
+}
+
 impl DependenciesTreeNode {
     /// Node with no wanted-lockfile carry-over (a fresh resolution).
     #[must_use]
     pub fn new(
-        resolved_package_id: String,
+        resolved_package_id: Arc<str>,
         children: TreeChildren,
         depth: i32,
         installable: bool,
     ) -> Self {
-        DependenciesTreeNode {
-            resolved_package_id,
-            children,
-            depth,
-            installable,
-            previous_dep_path: None,
-            locked_peer_context: None,
-            dependency_names_whose_current_provider_must_win: None,
-            locked_peer_names: None,
-        }
+        DependenciesTreeNode { resolved_package_id, children, depth, installable, locked: None }
+    }
+
+    /// Wanted-lockfile `DepPath` for this occurrence, if it carried one.
+    #[must_use]
+    pub fn previous_dep_path(&self) -> Option<&DepPath> {
+        self.locked.as_ref()?.previous_dep_path.as_ref()
+    }
+
+    /// Locked `peer name → provider DepPath` bindings, if any.
+    #[must_use]
+    pub fn locked_peer_context(&self) -> Option<&BTreeMap<String, DepPath>> {
+        self.locked.as_ref()?.locked_peer_context.as_ref()
+    }
+
+    /// Child aliases whose current provider must win over a locked one.
+    #[must_use]
+    pub fn must_win_dependency_names(&self) -> Option<&HashSet<String>> {
+        self.locked.as_ref()?.dependency_names_whose_current_provider_must_win.as_ref()
+    }
+
+    /// Peer names from this direct dependency's wanted-lockfile suffix.
+    #[must_use]
+    pub fn locked_peer_names(&self) -> Option<&Arc<HashSet<String>>> {
+        self.locked.as_ref()?.locked_peer_names.as_ref()
+    }
+
+    /// `true` when neither locked peer names nor a locked peer context is
+    /// recorded — the fast-cache precondition.
+    #[must_use]
+    pub fn has_no_locked_peers(&self) -> bool {
+        self.locked.as_ref().is_none_or(|locked| {
+            locked.locked_peer_names.is_none() && locked.locked_peer_context.is_none()
+        })
+    }
+
+    /// The carry-over slot, allocated on first write.
+    pub fn locked_mut(&mut self) -> &mut LockedResolution {
+        self.locked.get_or_insert_with(Box::default)
     }
 }
 
@@ -224,16 +303,20 @@ pub enum TreeChildren {
     /// `alias → child NodeId` map, fully populated. `BTreeMap` keeps
     /// iteration order stable so downstream peer-suffix construction
     /// is deterministic.
-    Realized(BTreeMap<String, NodeId>),
+    /// Shared: a node's realized children are immutable once built, and
+    /// the peer walk hands the same map to every revisit of the node.
+    Realized(Arc<BTreeMap<String, NodeId>>),
     /// Children are known by spec only. `parent_ids` is the chain of
     /// `pkgIdWithPatchHash` ancestors this occurrence reached the
-    /// node through, threaded so the peer resolver's tree builder can
+    /// node through, excluding the node itself. The reader appends the
+    /// node from `resolved_package_id`, which lets all siblings share one
+    /// chain allocation. The chain is threaded so the peer resolver can
     /// apply the parent-ids-contain-sequence cycle-break
     /// per-occurrence. Without it, a revisit's subtree would
     /// silently include cycle edges that the first walk correctly
     /// rejected, or omit valid edges the first walk's ancestor
     /// chain happened to exclude.
-    Lazy { parent_ids: Arc<Vec<String>> },
+    Lazy { parent_ids: AncestorIds },
 }
 
 impl TreeChildren {
@@ -241,7 +324,7 @@ impl TreeChildren {
     /// to construct an empty `BTreeMap` themselves.
     #[must_use]
     pub fn empty() -> Self {
-        TreeChildren::Realized(BTreeMap::new())
+        TreeChildren::Realized(Arc::new(BTreeMap::new()))
     }
 
     /// Borrow the realized children map.
@@ -261,3 +344,6 @@ impl TreeChildren {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

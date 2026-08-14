@@ -816,6 +816,23 @@ test('installing in a workspace', async () => {
   ])
 })
 
+test('does not write the PnP loader when virtualStoreOnly skips linking', async () => {
+  const prefix = f.prepare('simple')
+
+  await headlessInstall(await testDefaults({
+    enablePnp: true,
+    lockfileDir: prefix,
+    virtualStoreOnly: true,
+  }))
+
+  // The virtual store is still populated — assert an extracted file, so
+  // the check cannot pass on a directory that was merely created.
+  expect(fs.existsSync(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules/rimraf/package.json')))
+    .toBeTruthy()
+  // Only the project-level artifacts are withheld, and the loader is one.
+  expect(fs.existsSync(path.join(prefix, '.pnp.cjs'))).toBeFalsy()
+})
+
 test('installing with no symlinks but with PnP', async () => {
   const prefix = f.prepare('simple')
 

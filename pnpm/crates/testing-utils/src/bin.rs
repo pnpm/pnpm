@@ -1,4 +1,4 @@
-use crate::registry::TestRegistry;
+use crate::{command_env::CommandTestExt, registry::TestRegistry};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use std::{fs, path::PathBuf, process::Command};
@@ -35,9 +35,11 @@ impl CommandTempCwd<()> {
             .expect("create temporary directory");
         let workspace = root.path().join("workspace");
         fs::create_dir(&workspace).expect("create temporary workspace for the commands");
-        let pacquet =
-            Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(&workspace);
-        let pnpm = Command::new("pnpm").with_current_dir(&workspace);
+        let pacquet = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config();
+        let pnpm = Command::new("pnpm").with_current_dir(&workspace).without_ambient_pnpm_config();
         CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info: () }
     }
 }
@@ -62,7 +64,18 @@ impl CommandTempCwd<()> {
     /// pnpm 11 reads those from the workspace YAML rather than `.npmrc`.
     #[must_use]
     pub fn add_mocked_registry(self) -> CommandTempCwd<AddMockedRegistry> {
-        self.add_mocked_registry_with_substitutions(&[])
+        self.add_mocked_registry_with_substitutions_and_mode(&[], false)
+    }
+
+    #[must_use]
+    pub fn add_mocked_registry_with_pnpm_version(
+        self,
+        version: &str,
+    ) -> CommandTempCwd<AddMockedRegistry> {
+        self.add_mocked_registry_with_substitutions_and_mode(
+            &[("0.0.0-test-current-pnpm", version)],
+            true,
+        )
     }
 
     /// Create a mock registry whose generated fixture manifests have exact
@@ -73,6 +86,14 @@ impl CommandTempCwd<()> {
     pub fn add_mocked_registry_with_substitutions(
         self,
         substitutions: &[(&str, &str)],
+    ) -> CommandTempCwd<AddMockedRegistry> {
+        self.add_mocked_registry_with_substitutions_and_mode(substitutions, false)
+    }
+
+    fn add_mocked_registry_with_substitutions_and_mode(
+        self,
+        substitutions: &[(&str, &str)],
+        static_registry: bool,
     ) -> CommandTempCwd<AddMockedRegistry> {
         let store_dir = self.root.path().join("pacquet-store");
         let cache_dir = self.root.path().join("pacquet-cache");
@@ -90,7 +111,11 @@ impl CommandTempCwd<()> {
                 &registry_storage,
                 substitutions,
             );
-            TestRegistry::start_with_storage(&registry_storage)
+            if static_registry {
+                TestRegistry::start_static_with_storage(&registry_storage)
+            } else {
+                TestRegistry::start_with_storage(&registry_storage)
+            }
         };
         let mocked_registry = mock_instance.url();
         let npmrc_text = format!("registry={mocked_registry}\n{npmrc_text}");

@@ -42,6 +42,7 @@ fn empty_lockfile() -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 
@@ -104,6 +105,7 @@ fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
             resolution: LockfileResolution::Git(GitResolution {
                 repo: "file:///repo".to_string(),
                 commit: "0123456789012345678901234567890123456789".to_string(),
+                integrity: None,
                 path: None,
             }),
             version: Some("1.0.0".to_string()),
@@ -194,6 +196,7 @@ fn synthesizes_a_git_resolution_with_the_locked_commit_and_manifest_version() {
     metadata.resolution = LockfileResolution::Git(GitResolution {
         repo: "file:///repo".to_string(),
         commit: "0123456789012345678901234567890123456789".to_string(),
+        integrity: None,
         path: None,
     });
     metadata.version = Some("1.2.3".to_string());
@@ -238,8 +241,9 @@ fn current_pkg_materializes_a_registry_resolution_into_its_tarball_url() {
     lockfile.packages =
         Some(HashMap::from([("react@18.2.0".parse().expect("parse key"), registry_metadata())]));
 
-    let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &default_registry())
-        .expect("packages entry exists");
+    let current_pkg =
+        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+            .expect("packages entry exists");
 
     assert_eq!(current_pkg.id.to_string(), "react@18.2.0");
     assert_eq!(current_pkg.name.as_deref(), Some("react"));
@@ -259,8 +263,9 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
     let mut registries = default_registry();
     registries.insert("@scope".to_string(), "https://scoped.example.test/".to_string());
 
-    let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &registries)
-        .expect("packages entry exists");
+    let current_pkg =
+        super::current_pkg_from_lockfile(&lockfile, &key, &registries, &HashMap::new())
+            .expect("packages entry exists");
 
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
         panic!("registry resolution must materialize as a tarball");
@@ -281,8 +286,9 @@ fn current_pkg_passes_a_recorded_tarball_resolution_through() {
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
 
-    let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &default_registry())
-        .expect("packages entry exists");
+    let current_pkg =
+        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+            .expect("packages entry exists");
 
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
         panic!("tarball resolution must pass through");
@@ -294,7 +300,10 @@ fn current_pkg_passes_a_recorded_tarball_resolution_through() {
 fn current_pkg_is_none_without_a_packages_entry() {
     let key: PkgNameVerPeer = "react@18.2.0".parse().expect("parse key");
     let lockfile = empty_lockfile();
-    assert!(super::current_pkg_from_lockfile(&lockfile, &key, &default_registry()).is_none());
+    assert!(
+        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+            .is_none(),
+    );
 }
 
 #[test]
@@ -302,7 +311,10 @@ fn current_pkg_is_withheld_for_a_registry_entry_without_a_registry_map() {
     let key: PkgNameVerPeer = "react@18.2.0".parse().expect("parse key");
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
-    assert!(super::current_pkg_from_lockfile(&lockfile, &key, &HashMap::new()).is_none());
+    assert!(
+        super::current_pkg_from_lockfile(&lockfile, &key, &HashMap::new(), &HashMap::new())
+            .is_none(),
+    );
 }
 
 #[test]
@@ -319,4 +331,27 @@ fn prior_child_key_applies_the_satisfies_gate() {
         "an edited range the recorded version no longer satisfies yields no prior key",
     );
     assert!(super::prior_child_key(&snapshot, "baz", "^1.0.0").is_none(), "unrecorded alias");
+}
+
+#[test]
+fn reduce_named_registry_spec_matches_registry_and_package_name() {
+    let key_name: PkgName = "@scope/old".parse().unwrap();
+
+    // Bare range: the alias carries the package name, nothing to compare.
+    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "gh:^1.0.0"), Some("^1.0.0"));
+
+    // Aliased shape naming the same package.
+    assert_eq!(
+        super::reduce_named_registry_spec("gh", &key_name, "gh:@scope/old@^1.0.0"),
+        Some("^1.0.0"),
+    );
+
+    // Aliased shape naming a *different* package: reusing the recorded entry
+    // would install `@scope/old` for a dependency that asked for
+    // `@scope/new`.
+    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "gh:@scope/new@^1.0.0"), None);
+
+    // A spec aimed at another registry never satisfies this key.
+    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "work:^1.0.0"), None);
+    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "^1.0.0"), None);
 }

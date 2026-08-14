@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
 use pacquet_network::{AuthHeaders, ThrottledClient};
@@ -61,6 +61,20 @@ pub struct Package {
 
     #[serde(skip_serializing, skip_deserializing)]
     pub mutex: Arc<Mutex<u8>>,
+
+    /// Packuments derived from this one by a policy filter, keyed by
+    /// the deriving code's opaque policy key. See
+    /// [`DerivedPackuments`].
+    #[serde(skip_serializing, skip_deserializing)]
+    pub derived: DerivedPackuments,
+
+    /// `true` once a release-age upgrade fetch for this document answered
+    /// `304 Not Modified` in this process: the registry holds no fuller
+    /// form than what is already cached, so re-asking within the install
+    /// is pure waste. In-memory only — never written to the mirror, so a
+    /// later install re-validates once and re-stamps.
+    #[serde(skip_serializing, skip_deserializing)]
+    pub release_age_upgrade_checked: bool,
 }
 
 impl Package {
@@ -92,6 +106,72 @@ impl PartialEq for Package {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
     }
+}
+
+/// Memo of the packuments derived from one document by a policy
+/// filter, hung on the document they derive from so the derived copies
+/// die with it.
+///
+/// A pick runs for every dependency edge and re-derives the same view
+/// each time, and a derivation allocates a whole versions map, so the
+/// per-edge cost is what this removes. The key is opaque here: the
+/// deriving code (the resolver's publish-date filter) folds every input
+/// its output depends on into the key, because one packument can be
+/// served to installs running different policies.
+///
+/// A single install derives one view per packument, so the memo is
+/// capped rather than grown: a long-lived host (the napi bindings, a
+/// daemon) runs many installs against one shared meta cache, and an
+/// uncapped memo would retain a derived copy from every one of them.
+#[derive(Debug, Default, Clone)]
+pub struct DerivedPackuments(Arc<Mutex<DerivedMemo>>);
+
+/// Derived packuments in insertion order, so the eviction that keeps
+/// [`DerivedPackuments`] bounded drops the oldest policy.
+type DerivedMemo = Vec<(String, Arc<Package>)>;
+
+const MAX_DERIVED_PACKUMENTS: usize = 4;
+
+impl DerivedPackuments {
+    /// The packument stored under `policy_key`, derived with `derive`
+    /// on the first request for that key.
+    ///
+    /// `derive` runs outside the lock, so two threads racing on the
+    /// same key can both run it; the loser drops its copy and takes the
+    /// winner's, which keeps every caller of one key on one `Arc`.
+    pub fn get_or_derive(
+        &self,
+        policy_key: &str,
+        derive: impl FnOnce() -> Package,
+    ) -> Arc<Package> {
+        if let Some(derived) = self.get(policy_key) {
+            return derived;
+        }
+        let derived = Arc::new(derive());
+        let mut memo = self.lock();
+        if let Some(winner) = find(&memo, policy_key) {
+            return winner;
+        }
+        if memo.len() >= MAX_DERIVED_PACKUMENTS {
+            memo.remove(0);
+        }
+        memo.push((policy_key.to_string(), Arc::clone(&derived)));
+        derived
+    }
+
+    fn get(&self, policy_key: &str) -> Option<Arc<Package>> {
+        find(&self.lock(), policy_key)
+    }
+
+    /// A poisoned memo is still readable: every entry is a fully-built
+    /// packument, and a panic mid-`push` can't leave a half-written one.
+    fn lock(&self) -> MutexGuard<'_, DerivedMemo> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+fn find(memo: &DerivedMemo, policy_key: &str) -> Option<Arc<Package>> {
+    memo.iter().find(|(key, _)| key == policy_key).map(|(_, derived)| Arc::clone(derived))
 }
 
 impl Package {

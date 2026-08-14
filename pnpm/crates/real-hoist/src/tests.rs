@@ -46,6 +46,7 @@ fn empty_lockfile() -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 
@@ -71,6 +72,7 @@ fn hoist_throws_on_broken_lockfile() {
         importers,
         packages: None,
         snapshots: None,
+        time: None,
     };
 
     let err = hoist(&lockfile, &HoistOpts::default()).expect_err("missing snapshot should error");
@@ -118,6 +120,7 @@ fn one_transitive_dep_hoists_to_root() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("happy hoist should succeed");
@@ -168,6 +171,7 @@ fn diamond_dep_hoists_once_to_root() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -206,6 +210,7 @@ fn version_conflict_keeps_loser_at_parent() {
     let mut root_deps = ResolvedDependencyMap::new();
     root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
     root_deps.insert(pkg_name("c"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("d"), resolved_dep("1.0.0"));
     importers.insert(
         Lockfile::ROOT_IMPORTER_KEY.to_string(),
         ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
@@ -225,7 +230,14 @@ fn version_conflict_keeps_loser_at_parent() {
         SnapshotEntry { dependencies: Some(c_deps), ..SnapshotEntry::default() },
     );
     snapshots.insert(dep_key("b", "1.0.0"), SnapshotEntry::default());
-    snapshots.insert(dep_key("b", "2.0.0"), SnapshotEntry::default());
+    let mut b_two_deps = HashMap::new();
+    b_two_deps.insert(pkg_name("d"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    snapshots.insert(
+        dep_key("b", "2.0.0"),
+        SnapshotEntry { dependencies: Some(b_two_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("d", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("d", "2.0.0"), SnapshotEntry::default());
 
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
@@ -239,23 +251,28 @@ fn version_conflict_keeps_loser_at_parent() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort_unstable();
-    assert_eq!(names, ["a", "b", "c"], "root has a, c, and one b");
+    assert_eq!(names, ["a", "b", "c", "d"], "root keeps its direct d and one b");
     let b_at_root = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
     let b_refs = b_at_root.references.borrow();
     assert!(b_refs.contains("b@1.0.0"), "first DFS visitor wins root slot: {b_refs:?}");
     assert_eq!(b_refs.len(), 1, "no other reference accumulated yet: {b_refs:?}");
     let dep_c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
     let c_kids = dep_c.dependencies.borrow();
-    assert_eq!(c_kids.len(), 1, "c kept its conflicting b@2");
-    let b_under_c_refs = c_kids[0].0.references.borrow();
+    assert_eq!(c_kids.len(), 2, "c kept b@2 and hoisted its conflicting d@2");
+    let b_under_c = Rc::clone(&c_kids.iter().find(|dep| dep.0.name == "b").unwrap().0);
+    let b_under_c_refs = b_under_c.references.borrow();
     assert!(b_under_c_refs.contains("b@2.0.0"), "loser stays under c: {b_under_c_refs:?}");
     assert_eq!(b_under_c_refs.len(), 1);
+    assert!(b_under_c.dependencies.borrow().is_empty(), "b's descendants hoist to nested root c");
+    let d_under_c_refs = c_kids.iter().find(|dep| dep.0.name == "d").unwrap().0.references.borrow();
+    assert!(d_under_c_refs.contains("d@2.0.0"), "d@2 stays below the root's d@1 conflict");
 }
 
 /// The most-depended-on version of a shared name wins the root
@@ -309,6 +326,7 @@ fn most_used_version_wins_root_slot() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -375,6 +393,7 @@ fn deep_chain_flattens_in_one_pass() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -412,6 +431,7 @@ fn external_dependencies_are_stripped_from_the_result() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let opts = HoistOpts {
@@ -455,6 +475,7 @@ fn transitive_npm_alias_resolves_target_snapshot() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result =
@@ -550,6 +571,7 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("peer-aware hoist should succeed");
@@ -611,6 +633,7 @@ fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -668,6 +691,7 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("peer-aware hoist should succeed");
@@ -723,6 +747,7 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("multi-round should converge");
@@ -769,6 +794,7 @@ fn hoisting_limits_border_keeps_descendants_nested() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let mut blocked = BTreeSet::new();
@@ -822,6 +848,7 @@ fn hoisting_limits_border_keeps_all_descendants_nested() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let mut blocked = BTreeSet::new();
@@ -876,6 +903,7 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let mut blocked = BTreeSet::new();
@@ -889,6 +917,83 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort_unstable();
     assert_eq!(names, ["a", "b"], "limits keyed elsewhere don't affect root hoist: {result:#?}");
+}
+
+#[test]
+fn nested_hoist_uses_the_nested_root_locator() {
+    let mut importers = HashMap::new();
+    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
+    let mut workspace_deps = ResolvedDependencyMap::new();
+    workspace_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
+    importers.insert(
+        "packages/foo".to_string(),
+        ProjectSnapshot { dependencies: Some(workspace_deps), ..ProjectSnapshot::default() },
+    );
+
+    let mut snapshots = HashMap::new();
+    let mut a_deps = HashMap::new();
+    a_deps.insert(pkg_name("b"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
+    let mut b_deps = HashMap::new();
+    b_deps.insert(pkg_name("c"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
+    snapshots.insert(
+        dep_key("a", "1.0.0"),
+        SnapshotEntry { dependencies: Some(a_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(
+        dep_key("b", "1.0.0"),
+        SnapshotEntry { dependencies: Some(b_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("c", "1.0.0"), SnapshotEntry::default());
+
+    let mut opts = HoistOpts::default();
+    opts.hoisting_limits.insert(".@".to_string(), BTreeSet::from(["packages%2Ffoo".to_string()]));
+    opts.hoisting_limits.insert(
+        "packages%2Ffoo@workspace:packages/foo".to_string(),
+        BTreeSet::from(["b".to_string()]),
+    );
+
+    let result = hoist(
+        &Lockfile {
+            lockfile_version: lockfile_version(),
+            settings: None,
+            catalogs: None,
+            overrides: None,
+            package_extensions_checksum: None,
+            pnpmfile_checksum: None,
+            ignored_optional_dependencies: None,
+            patched_dependencies: None,
+            importers,
+            packages: None,
+            snapshots: Some(snapshots),
+            time: None,
+        },
+        &opts,
+    )
+    .expect("nested hoist with importer limits should succeed");
+
+    let root_children = result.dependencies.borrow();
+    let workspace = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "packages%2Ffoo")
+            .expect("workspace stays at the virtual root")
+            .0,
+    );
+    let workspace_deps = workspace.dependencies.borrow();
+    let mut workspace_names: Vec<&str> =
+        workspace_deps.iter().map(|dep| dep.0.name.as_str()).collect();
+    workspace_names.sort_unstable();
+    assert_eq!(
+        workspace_names,
+        ["a", "b"],
+        "the root border no longer applies inside the workspace, while its own b border does",
+    );
+    let dep_b = Rc::clone(
+        &workspace_deps.iter().find(|dep| dep.0.name == "b").expect("b hoists within workspace").0,
+    );
+    let b_deps = dep_b.dependencies.borrow();
+    let b_names: Vec<&str> = b_deps.iter().map(|dep| dep.0.name.as_str()).collect();
+    assert_eq!(b_names, ["c"], "the workspace's b border keeps c below b");
 }
 
 #[test]
@@ -921,6 +1026,7 @@ fn self_dependency_does_not_loop() {
         importers,
         packages: None,
         snapshots: Some(snapshots),
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("self-dep should not loop");
@@ -968,6 +1074,7 @@ fn basic_cyclic_dependency_terminates() {
             importers,
             packages: None,
             snapshots: Some(snapshots),
+            time: None,
         },
         &HoistOpts::default(),
     )
@@ -1001,6 +1108,7 @@ fn multi_importer_lockfile_emits_workspace_children() {
         importers,
         packages: None,
         snapshots: None,
+        time: None,
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("workspace hoist succeeds");
@@ -1049,6 +1157,7 @@ fn hoist_workspace_packages_false_keeps_workspace_children() {
         importers,
         packages: None,
         snapshots: None,
+        time: None,
     };
 
     let opts = HoistOpts { hoist_workspace_packages: false, ..HoistOpts::default() };

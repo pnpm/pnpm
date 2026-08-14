@@ -1,14 +1,22 @@
 use super::{
-    AuditAdvisory, AuditFinding, AuditMetadata, AuditPathIndex, AuditReport,
-    AuditVulnerabilityCounts, BTreeMap, Config, ConfigAuditLevel, Cwe, HashMap, Include,
-    InstalledPackages, MAX_PATHS_PER_FINDING, PackageVersionGuard, PackageVersionGuardDecision,
-    PathInfo, Range, RawBulkAdvisory, SnapshotDepRef, VulnerabilityGuard, build_audit_path_index,
-    bulk_response_to_audit_report, caret_range_for_patched, classify_for_update, create_overrides,
-    filter_advisories_for_fix, filter_ignored_advisories, format_fix_with_update_output,
-    lockfile_to_audit_request, minimum_release_age_excludes, normalize_ghsa_id,
-    redact_url_userinfo, render_json_report, render_text_report, report_fixed_remaining,
-    sanitize_control_chars, satisfies_safe,
+    BTreeMap, Config, ConfigAuditLevel, HashMap, MAX_PATHS_PER_FINDING, PackageVersionGuard,
+    PackageVersionGuardDecision, Range, SnapshotDepRef, filter_ignored_advisories,
+    fix::{
+        InstalledPackages, VulnerabilityGuard, classify_for_update, create_overrides,
+        filter_advisories_for_fix, format_fix_with_update_output, minimum_release_age_excludes,
+        report_fixed_remaining,
+    },
+    paths::{AuditPathIndex, PathInfo, build_audit_path_index},
+    render::{render_json_report, render_text_report},
+    report::{
+        AuditAdvisory, AuditFinding, AuditMetadata, AuditReport, AuditVulnerabilityCounts, Cwe,
+        RawBulkAdvisory, bulk_response_to_audit_report, normalize_ghsa_id, redact_url_userinfo,
+        sanitize_control_chars,
+    },
+    request::{Include, lockfile_to_audit_request},
+    version_ranges::{caret_range_for_patched, satisfies_safe},
 };
+use chrono::{DateTime, Utc};
 use pacquet_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
 use std::{collections::HashSet, fmt::Write as _};
 
@@ -1163,6 +1171,22 @@ fn format_fix_with_update_output_lists_fixed_and_remaining() {
     assert!(output.contains("stuck-pkg"));
 }
 
+fn age_cutoff() -> DateTime<Utc> {
+    DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z").expect("valid cutoff").with_timezone(&Utc)
+}
+
+fn publish_times(
+    package: &str,
+    entries: &[(&str, &str)],
+) -> HashMap<String, Option<HashMap<String, String>>> {
+    HashMap::from([(
+        package.to_string(),
+        Some(
+            entries.iter().map(|(version, time)| (version.to_string(), time.to_string())).collect(),
+        ),
+    )])
+}
+
 #[test]
 fn minimum_release_age_excludes_uses_patched_minimums_and_skips_unfixable() {
     let advisories = report_of(vec![
@@ -1172,9 +1196,91 @@ fn minimum_release_age_excludes_uses_patched_minimums_and_skips_unfixable() {
     ])
     .advisories;
 
-    let excludes = minimum_release_age_excludes(&advisories).expect("compute excludes");
+    // No publish-time information at all: fail open, keep the entry.
+    let excludes = minimum_release_age_excludes(&advisories, &HashMap::new(), age_cutoff())
+        .expect("compute excludes");
 
     assert_eq!(excludes, vec!["foo@2.0.0".to_string()]);
+}
+
+#[test]
+fn minimum_release_age_excludes_drops_versions_older_than_the_cutoff() {
+    let advisories = report_of(vec![
+        fix_advisory(1, "old", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
+        fix_advisory(2, "fresh", "<3.0.0", Some(">=3.0.0"), ConfigAuditLevel::High, "GHSA-b"),
+    ])
+    .advisories;
+    let times = HashMap::from([
+        (
+            "old".to_string(),
+            Some(HashMap::from([("2.0.0".to_string(), "2020-01-01T00:00:00Z".to_string())])),
+        ),
+        (
+            "fresh".to_string(),
+            Some(HashMap::from([("3.0.0".to_string(), "2026-06-01T00:00:00Z".to_string())])),
+        ),
+    ]);
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(excludes, vec!["fresh@3.0.0".to_string()], "the old fix needs no bypass");
+}
+
+#[test]
+fn minimum_release_age_excludes_drops_versions_published_exactly_at_the_cutoff() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "foo",
+        "<2.0.0",
+        Some(">=2.0.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    let times = publish_times("foo", &[("2.0.0", "2026-01-01T00:00:00Z")]);
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert!(excludes.is_empty(), "a version at the cutoff is mature: {excludes:?}");
+}
+
+#[test]
+fn minimum_release_age_excludes_keeps_versions_with_unknown_publish_times() {
+    let advisories = report_of(vec![
+        fix_advisory(1, "absent", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
+        fix_advisory(2, "garbled", "<3.0.0", Some(">=3.0.0"), ConfigAuditLevel::High, "GHSA-b"),
+        fix_advisory(3, "unfetchable", "<4.0.0", Some(">=4.0.0"), ConfigAuditLevel::High, "GHSA-c"),
+    ])
+    .advisories;
+    let times = HashMap::from([
+        // The version is absent from the packument's `time` map.
+        (
+            "absent".to_string(),
+            Some(HashMap::from([("1.0.0".to_string(), "2020-01-01T00:00:00Z".to_string())])),
+        ),
+        // The timestamp does not parse.
+        (
+            "garbled".to_string(),
+            Some(HashMap::from([("3.0.0".to_string(), "not-a-date".to_string())])),
+        ),
+        // The fetch failed outright.
+        ("unfetchable".to_string(), None),
+    ]);
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec![
+            "absent@2.0.0".to_string(),
+            "garbled@3.0.0".to_string(),
+            "unfetchable@4.0.0".to_string()
+        ],
+        "unknown publish times fail open so a fresh fix stays installable",
+    );
 }
 
 #[test]

@@ -64,6 +64,19 @@ pub struct DirectoryResolution {
 pub struct GitResolution {
     pub repo: String,
     pub commit: String,
+    /// Accepted so that a lockfile carrying one still loads, and dropped
+    /// on the next write.
+    ///
+    /// No pnpm version computes this: git content is pinned by `commit`,
+    /// and the store key is git-hosted rather than integrity-addressed,
+    /// so nothing checks a checkout against it. Re-emitting it would keep
+    /// advertising a hash that was never verified — in the lockfile, and
+    /// through `pnpm sbom` into a CycloneDX/SPDX `hashes` entry.
+    ///
+    /// Kept as an unvalidated `String` because the value is discarded:
+    /// rejecting a malformed one would fail a lockfile pnpm reads fine.
+    #[serde(default, skip_serializing)]
+    pub integrity: Option<String>,
     /// Sub-directory inside the cloned tree to package. The git fetcher
     /// uses it so the build runs inside the sub-directory rather than the
     /// repo root.
@@ -311,7 +324,9 @@ impl LockfileResolution {
             LockfileResolution::Tarball(resolution) => resolution.integrity.as_ref(),
             LockfileResolution::Registry(resolution) => Some(&resolution.integrity),
             LockfileResolution::Binary(resolution) => Some(&resolution.integrity),
-            // Directory / Git resolutions have no integrity.
+            // Directory resolutions have no integrity, and a git
+            // resolution's recorded one is never a checkable hash — it is
+            // accepted and dropped (see [`GitResolution::integrity`]).
             // Variations is a meta-shape — the integrity lives on the
             // picked variant's inner resolution, so callers must
             // resolve through `pick_variant` first. Custom resolutions
@@ -503,7 +518,13 @@ impl From<ResolutionSerde> for LockfileResolution {
             }
             ResolutionSerde::Registry(resolution) => resolution.into(),
             ResolutionSerde::Tagged(TaggedResolution::Directory(resolution)) => resolution.into(),
-            ResolutionSerde::Tagged(TaggedResolution::Git(resolution)) => resolution.into(),
+            ResolutionSerde::Tagged(TaggedResolution::Git(mut resolution)) => {
+                // Drop a recorded integrity the moment the entry is read, so
+                // it can never reach the lockfile writer, an SBOM, or a
+                // resolution comparison. See [`GitResolution::integrity`].
+                resolution.integrity = None;
+                resolution.into()
+            }
             ResolutionSerde::Tagged(TaggedResolution::Binary(resolution)) => resolution.into(),
             ResolutionSerde::Tagged(TaggedResolution::Variations(resolution)) => resolution.into(),
             ResolutionSerde::Custom(resolution) => resolution.into(),

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.verification",
-  "version": "1100.0.28",
+  "version": "1100.0.32",
   "description": "Checks a lockfile",
   "keywords": [
     "pnpm",
@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.matcher": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/installing.context": "workspace:*",

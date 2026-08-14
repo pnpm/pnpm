@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.env-installer",
-  "version": "1102.0.12",
+  "version": "1102.0.16",
   "description": "Installer for configurational dependencies",
   "keywords": [
     "pnpm",
@@ -39,6 +39,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",

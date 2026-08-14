@@ -33,11 +33,13 @@ use crate::{
 };
 
 static CWD: OnceLock<String> = OnceLock::new();
+static USE_STDERR: OnceLock<bool> = OnceLock::new();
 static PACKAGE_VERSION: OnceLock<String> = OnceLock::new();
 static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
 static SUMMARY_SCOPE: OnceLock<SummaryScope> = OnceLock::new();
 static REPORTS_SCOPE: OnceLock<bool> = OnceLock::new();
 static HIDE_ADDED_PKGS_PROGRESS: OnceLock<bool> = OnceLock::new();
+static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
 
 /// Which prefixes contribute to the packages-diff summary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +72,19 @@ pub fn force_append_only() {
     let _ = FORCE_APPEND_ONLY.set(true);
 }
 
+/// Route all reporter output (warnings, progress, the summary) to stderr
+/// instead of stdout — pnpm's `useStderr`, set for the commands in its
+/// `COMMANDS_WITH_STDERR_REPORTER` whose stdout is a machine-readable
+/// value. TTY detection and terminal width follow the selected stream.
+/// Call once before the first event.
+pub fn use_stderr() {
+    let _ = USE_STDERR.set(true);
+}
+
+fn is_stderr_output() -> bool {
+    USE_STDERR.get().copied().unwrap_or(false)
+}
+
 /// Configure which prefixes contribute to the packages-diff summary.
 pub fn set_summary_scope(scope: SummaryScope) {
     let _ = SUMMARY_SCOPE.set(scope);
@@ -90,13 +105,22 @@ pub fn set_hide_added_pkgs_progress(hide_added_pkgs_progress: bool) {
     let _ = HIDE_ADDED_PKGS_PROGRESS.set(hide_added_pkgs_progress);
 }
 
+/// Configure whether the running command operates recursively.
+///
+/// This must be called before the reporter is initialized. Only the first
+/// configured value is retained.
+pub fn set_is_recursive(is_recursive: bool) {
+    let _ = IS_RECURSIVE.set(is_recursive);
+}
+
 fn cwd() -> String {
     CWD.get().cloned().unwrap_or_else(|| {
         std::env::current_dir().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default()
     })
 }
 
-/// `--reporter=default`: renders pnpm-style visual output to stdout.
+/// `--reporter=default`: renders pnpm-style visual output to stdout, or to
+/// stderr when [`use_stderr`] was configured.
 pub struct DefaultReporter;
 
 impl Reporter for DefaultReporter {
@@ -142,7 +166,11 @@ struct Sink {
 
 impl Sink {
     fn new() -> Self {
-        let is_tty = std::io::stdout().is_terminal();
+        let is_tty = if is_stderr_output() {
+            std::io::stderr().is_terminal()
+        } else {
+            std::io::stdout().is_terminal()
+        };
         let append_only = !is_tty || FORCE_APPEND_ONLY.get().copied().unwrap_or(false);
         let columns = if is_tty { terminal_columns().unwrap_or(80) } else { 80 };
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
@@ -157,6 +185,7 @@ impl Sink {
                 summary_scope: SUMMARY_SCOPE.get().copied().unwrap_or(SummaryScope::CurrentPrefix),
                 reports_scope: REPORTS_SCOPE.get().copied().unwrap_or(false),
                 hide_added_pkgs_progress: HIDE_ADDED_PKGS_PROGRESS.get().copied().unwrap_or(false),
+                is_recursive: IS_RECURSIVE.get().copied().unwrap_or(false),
                 ..state::ReporterOptions::default()
             },
         );
@@ -176,8 +205,13 @@ impl Sink {
     }
 
     fn on_prompt(&mut self, action: PromptAction) {
-        let mut out = std::io::stdout().lock();
-        self.on_prompt_to(action, &mut out);
+        if is_stderr_output() {
+            let mut out = std::io::stderr().lock();
+            self.on_prompt_to(action, &mut out);
+        } else {
+            let mut out = std::io::stdout().lock();
+            self.on_prompt_to(action, &mut out);
+        }
     }
 
     fn on_prompt_to(&mut self, action: PromptAction, out: &mut impl Write) {
@@ -207,8 +241,13 @@ impl Sink {
     }
 
     fn write(&mut self, output: Output, coalesceable: bool) {
-        let mut out = std::io::stdout().lock();
-        self.write_to(output, coalesceable, &mut out);
+        if is_stderr_output() {
+            let mut out = std::io::stderr().lock();
+            self.write_to(output, coalesceable, &mut out);
+        } else {
+            let mut out = std::io::stdout().lock();
+            self.write_to(output, coalesceable, &mut out);
+        }
     }
 
     fn write_to(&mut self, output: Output, coalesceable: bool, out: &mut impl Write) {
@@ -269,11 +308,12 @@ impl Sink {
 
 #[cfg(unix)]
 fn terminal_columns() -> Option<usize> {
+    let fd = if is_stderr_output() { libc::STDERR_FILENO } else { libc::STDOUT_FILENO };
     // SAFETY: `winsize` is plain-old-data; `ioctl` only writes into it and we
     // check the return code before reading.
     unsafe {
         let mut ws: libc::winsize = std::mem::zeroed();
-        (libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
+        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
             .then_some(ws.ws_col as usize)
     }
 }

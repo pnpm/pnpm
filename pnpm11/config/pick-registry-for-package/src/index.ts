@@ -1,4 +1,4 @@
-import type { Registries } from '@pnpm/types'
+import type { NamedRegistries, Registries } from '@pnpm/types'
 
 export function pickRegistryForPackage (registries: Registries, packageName: string, bareSpecifier?: string): string {
   const scope = getScope(packageName, bareSpecifier)
@@ -22,3 +22,36 @@ function getScope (pkgName: string, bareSpecifier?: string): string | null {
   }
   return null
 }
+
+/**
+ * URL prefixes a recorded tarball URL is matched against to pick the registry
+ * to verify it with, longest first.
+ *
+ * Adding a built-in registry is therefore not a local change: it also decides
+ * where verification traffic goes for entries that name no registry. Memoized
+ * on the map because the caller sits behind a per-package walk.
+ */
+export function namedRegistryTarballPrefixes (namedRegistries: NamedRegistries): readonly string[] {
+  let prefixes = tarballPrefixesCache.get(namedRegistries)
+  if (prefixes) return prefixes
+
+  prefixes = Object.values(namedRegistries)
+    .map((url) => {
+      let parsed: URL
+      try {
+        parsed = new URL(url)
+      } catch {
+        return null
+      }
+      // Trailing slash so `https://npm.pkg.github.com-evil/` cannot match.
+      const pathname = parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`
+      return `${parsed.origin}${pathname}`
+    })
+    .filter((prefix): prefix is string => prefix != null)
+    // Tie-break equal lengths so the order does not depend on key order.
+    .sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0))
+  tarballPrefixesCache.set(namedRegistries, prefixes)
+  return prefixes
+}
+
+const tarballPrefixesCache = new WeakMap<NamedRegistries, readonly string[]>()

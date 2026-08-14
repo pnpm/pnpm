@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 
 import { expect, jest, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
+import gfs from '@pnpm/fs.graceful-fs'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { temporaryDirectory } from 'tempy'
 
@@ -139,6 +140,38 @@ test('offline resolution promotes the disk-loaded packument into the in-memory c
   rmSync(pkgMirror)
   const second = await pickPackage(ctx, spec, opts)
   expect(second.pickedPackage?.version).toBe('1.0.0')
+})
+
+test('simultaneous offline picks of one package read and parse the mirror once', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const ctx = {
+    fetch: async () => {
+      throw new Error('offline resolution must not hit the network')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    offline: true,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+
+  const readFileSpy = jest.spyOn(gfs, 'readFile')
+  try {
+    // All picks start before any completes, so every one misses the pre-queue
+    // in-memory cache check and queues behind the per-package limiter. The
+    // first dequeued pick must promote the parsed mirror before the limiter
+    // releases; the rest are then served from the in-memory cache.
+    const picks = await Promise.all(Array.from({ length: 10 }, async () => pickPackage(ctx, spec, opts)))
+    expect(picks.every((pick) => pick.pickedPackage?.version === '1.0.0')).toBe(true)
+    const mirrorReads = readFileSpy.mock.calls.filter(([file]) => file === pkgMirror).length
+    expect(mirrorReads).toBe(1)
+  } finally {
+    readFileSpy.mockRestore()
+  }
 })
 
 test('prefer-offline resolution promotes the disk-loaded packument into the in-memory cache', async () => {

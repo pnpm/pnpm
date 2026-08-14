@@ -20,7 +20,7 @@ use super::{
 
 #[tokio::test]
 async fn should_throw_when_web_login_returns_invalid_response() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost);
     reset();
     reset_login();
@@ -49,7 +49,7 @@ async fn should_throw_when_web_login_returns_invalid_response() {
 
 #[tokio::test]
 async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost, set_ini_read);
     reset();
     reset_login();
@@ -86,7 +86,7 @@ async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
 /// exercising the `Http` arm of `From<WebLoginFlowError>`.
 #[tokio::test]
 async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost);
     reset();
     reset_login();
@@ -120,7 +120,7 @@ async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
 /// socket yields a port that refuses the connection.
 #[tokio::test]
 async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost);
     reset();
     reset_login();
@@ -146,7 +146,7 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
 
 #[tokio::test]
 async fn should_fall_back_to_url_only_display_when_the_login_url_exceeds_qr_capacity() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos, warns);
     login_fake!(FakeHost);
     reset();
     reset_login();
@@ -185,7 +185,7 @@ async fn should_fall_back_to_url_only_display_when_the_login_url_exceeds_qr_capa
 /// the five-minute budget, so the next poll iteration times out.
 #[tokio::test]
 async fn should_time_out_when_the_web_auth_poll_never_completes() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_sleep_behavior, set_fetch);
     login_fake!(FakeHost);
     reset();
     reset_login();
@@ -214,12 +214,43 @@ async fn should_time_out_when_the_web_auth_poll_never_completes() {
     assert_eq!(err.to_string(), "Web-based authentication timed out before it could be completed");
 }
 
+/// A non-string `loginUrl` is rejected as an invalid response by the same
+/// narrowing that catches a missing field, never reaching the URL checks.
+#[tokio::test]
+async fn should_treat_a_non_string_login_url_as_an_invalid_response() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": 12345,
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_LOGIN_INVALID_RESPONSE"),
+    );
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
 /// A registry-controlled `loginUrl` carrying a control character is never a
 /// valid URL; the login is rejected as a possible terminal-spoofing attempt
 /// (rather than sanitized and used), and nothing reaches the terminal raw.
 #[tokio::test]
 async fn rejects_a_login_url_containing_control_characters() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
     login_fake!(FakeHost);
     reset();
     reset_login();
@@ -244,4 +275,35 @@ async fn rejects_a_login_url_containing_control_characters() {
         Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),
     );
     assert!(infos().iter().all(|message| !message.contains('\u{1b}')), "got {:?}", infos());
+}
+
+/// The `doneUrl` twin of the check above: a control character in the poll URL
+/// is rejected before the URL is used or anything is printed.
+#[tokio::test]
+async fn rejects_a_done_url_containing_control_characters() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": "https://example.org/auth/login",
+        "doneUrl": "https://example.org/auth/done\r\nspoofed line",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),
+    );
+    assert!(infos().is_empty(), "got {:?}", infos());
 }

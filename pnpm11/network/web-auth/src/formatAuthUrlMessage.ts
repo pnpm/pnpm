@@ -15,7 +15,15 @@ export function formatAuthUrlMessage (authUrl: string, globalWarn: (message: str
     qrCode = generateQrCode(authUrl)
   } catch (err) {
     globalWarn(`Could not generate a QR code: ${String(err)}`)
-    return `Authenticate your account at:\n${authUrl}`
+    return formatAuthUrlOnlyMessage(authUrl)
   }
-  return `Authenticate your account at:\n${authUrl}\n\n${qrCode}`
+  return `${formatAuthUrlOnlyMessage(authUrl)}\n\n${qrCode}`
+}
+
+/**
+ * Formats the "Authenticate your account at" message without a QR code — for
+ * output that is not a terminal and cannot render one.
+ */
+export function formatAuthUrlOnlyMessage (authUrl: string): string {
+  return `Authenticate your account at:\n${authUrl}`
 }

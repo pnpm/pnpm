@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.17.0",
+  "version": "11.21.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -73,7 +73,7 @@
   },
   "dependencies": {
     "@reflink/reflink": "catalog:",
-    "node-gyp": "^12.3.0",
+    "node-gyp": "catalog:",
     "v8-compile-cache": "2.4.0"
   },
   "devDependencies": {
@@ -131,8 +131,8 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.registry-mock": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.commands": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",

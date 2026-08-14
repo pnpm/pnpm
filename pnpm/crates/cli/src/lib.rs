@@ -2,11 +2,14 @@ mod boolean_negations;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod executable_link;
 mod flag_relocation;
 mod github_actions;
 mod job_control;
 mod leading_separator;
 mod parse_boundary;
+mod renamed_options;
+mod shim_dispatch;
 mod shorthands;
 mod state;
 mod with_current;
@@ -57,6 +60,16 @@ fn run_cli() -> miette::Result<()> {
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let argv_with_alias = argv_with_alias_subcommand();
+    // Context-aware global shims invoke the versioned dispatcher with
+    // `--shim <name> <shim> <target> -- <args>` on every bare invocation,
+    // so this runs before any argv rewriting or clap machinery below.
+    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv_with_alias) {
+        #[expect(
+            clippy::exit,
+            reason = "the shim dispatcher propagates the dispatched command's exit status"
+        )]
+        std::process::exit(exit_code);
+    }
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
@@ -75,6 +88,10 @@ fn run_cli() -> miette::Result<()> {
     // `--reporter=silent`) over argv before parsing; mirror that so they
     // work with every command. See `shorthands`.
     let argv = shorthands::expand_universal_shorthands(&command, argv);
+    // npm's spellings of two of pnpm's options (`--prefix`, `--store`) are
+    // hidden clap aliases; pnpm additionally lets the canonical spelling win
+    // when a command line uses both. See `renamed_options`.
+    let argv = renamed_options::drop_shadowed_aliases(&command, argv);
     // pnpm's option parser is position-independent; move subcommand
     // options written before the subcommand to after it so clap agrees.
     // See `flag_relocation`.
@@ -111,6 +128,7 @@ fn run_cli() -> miette::Result<()> {
     args.apply_workspace_root()?;
     args.promote_recursive_by_default();
     args.configure_reporter();
+    cli_args::sudo_guard::check_sudo(&args.command)?;
     if let Some(plan) = cli_args::pre_command::pre_command_plan(&args, &config_overrides)?
         && block_on_runtime(
             "pacquet-pre-command",

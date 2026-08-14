@@ -21,7 +21,7 @@ use crate::{
     },
     resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
-        ImporterPeerInput, ResolvePeersOptions, WorkspaceResolvePeersResult,
+        ImporterPeerInput, PeerHoistDiscovery, ResolvePeersOptions, WorkspaceResolvePeersResult,
         resolve_peers_workspace,
     },
     resolved_tree::ResolvedTree,
@@ -29,11 +29,7 @@ use crate::{
 use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
 pub struct WorkspaceImporter<'a> {
@@ -71,6 +67,10 @@ pub struct WorkspaceResolveOptions {
     /// install); the install layer typically threads
     /// `packageExtensions` here. See [`ManifestHook`].
     pub manifest_hook: Option<ManifestHook>,
+
+    /// Post-pnpmfile manifest hook (overrides). See
+    /// `WorkspaceTreeCtx::overrides_hook` for the ordering contract.
+    pub overrides_hook: Option<ManifestHook>,
 
     /// When `true`, every importer's direct dependencies are resolved
     /// to their lowest satisfying version (`resolutionMode: time-based`
@@ -143,7 +143,10 @@ pub struct WorkspaceResolveOptions {
     /// materializing a prior `Registry` lockfile resolution back into
     /// its tarball URL when building the `currentPkg` payload custom
     /// resolvers receive.
-    pub registries: HashMap<String, String>,
+    pub registries: std::collections::HashMap<String, String>,
+    /// Alias → URL map of named registries (built-ins merged with the
+    /// user's setting). See [`WorkspaceResolveOptions::registries`].
+    pub named_registries: std::collections::HashMap<String, String>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -154,6 +157,9 @@ pub struct WorkspaceResolveOptions {
 pub struct ResolveWorkspaceResult {
     pub merged_tree: ResolvedTree,
     pub peers: WorkspaceResolvePeersResult,
+    /// Publish date of every direct dependency, for the lockfile's
+    /// `time:` section. Empty unless the install ran `time-based`.
+    pub time: BTreeMap<String, String>,
 }
 
 /// Resolve every importer's dependencies, then run one workspace-wide
@@ -183,6 +189,7 @@ where
         lockfile_dir,
         peers_suffix_max_length,
         manifest_hook,
+        overrides_hook,
         pnpmfile_hook,
         read_package_log,
         skipped_optional_log,
@@ -196,10 +203,19 @@ where
         update_depth,
         auto_install_peers,
         registries,
+        named_registries,
     } = opts;
+    // Taken before the lockfile moves into the workspace ctx below, and
+    // only for the pre-pass that reads it — a lockfile is untrusted
+    // input, so an install that will not consult the recorded dates
+    // must not copy them.
+    let recorded_time = time_based
+        .then(|| wanted_lockfile.as_ref().and_then(|lockfile| lockfile.time.clone()))
+        .flatten();
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(manifest_hook)
+            .with_overrides_hook(overrides_hook)
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
             .with_update_reuse_scopes_by_importer(update_reuse_scopes_by_importer)
@@ -210,7 +226,8 @@ where
             .with_allowed_deprecated_versions(allowed_deprecated_versions)
             .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
-            .with_registries(registries),
+            .with_registries(registries)
+            .with_named_registries(named_registries),
     );
 
     // Build every importer's options up front so the `time-based`
@@ -229,30 +246,53 @@ where
         })
         .collect();
 
+    // Resolve importers in id order. Children-owner claims are ranked
+    // by importer position and the hoist rounds run sequentially in
+    // list order, so a stable order makes ownership, the first-walk
+    // missing scope, and every auto-install decision a function of the
+    // importer set rather than of the caller's listing order
+    // (pnpm/pnpm#13846).
+    let (importers, importer_opts): (Vec<&WorkspaceImporter<'a>>, Vec<ResolveImporterOptions>) = {
+        let mut paired: Vec<(&WorkspaceImporter<'a>, ResolveImporterOptions)> =
+            importers.iter().zip(importer_opts).collect();
+        paired.sort_by(|(left, _), (right, _)| left.id.cmp(&right.id));
+        paired.into_iter().unzip()
+    };
+
     // The `minimumReleaseAge` cutoff is set uniformly on every
     // importer's `base_opts.published_by` by the install layer; it is
     // the upper bound on the time-based cutoff.
     let maximum_published_by = importer_opts.first().and_then(|opts| opts.base_opts.published_by);
-    let subdep_published_by = if time_based {
+    let TimeBasedCutoff { published_by: subdep_published_by, time } = if time_based {
         compute_time_based_cutoff(
             resolver,
-            importers,
+            &importers,
             &importer_opts,
             dependency_groups,
             pick_lowest_direct,
             maximum_published_by,
+            recorded_time.as_ref(),
         )
         .await
     } else {
-        maximum_published_by
+        TimeBasedCutoff { published_by: maximum_published_by, time: BTreeMap::new() }
     };
 
     // Phase 1: every importer's initial wave resolves before any peer
     // hoist runs, then hoist rounds repeat across all importers until
     // none hoists — a workspace-wide barrier, so an optional-peer pick
     // sees every importer's resolved versions.
-    let mut states = Vec::with_capacity(importers.len());
+    //
+    // The initial waves run concurrently, like the TypeScript resolver's
+    // importer fan-out: the shared context's children-owner claims are
+    // rank-ordered (not arrival-ordered) and the peer-hoist pickers'
+    // preferred-version candidates are derived from the settled
+    // reachable tree (see `WorkspaceTreeCtx::run_preferred_versions`),
+    // so the resolved graph is the same regardless of interleaving, and
+    // a large workspace's walks overlap their resolver and hook waits
+    // instead of paying them importer by importer.
     let mut input_dirs = Vec::with_capacity(importers.len());
+    let mut states = Vec::with_capacity(importers.len());
     for (importer_order, (importer, mut importer_opts)) in
         importers.iter().zip(importer_opts).enumerate()
     {
@@ -260,18 +300,18 @@ where
         importer_opts.subdep_published_by = subdep_published_by;
         input_dirs
             .push((importer_opts.base_opts.project_dir.clone(), importer_opts.modules_dir.clone()));
-        states.push(
-            ImporterHoistState::init(
-                resolver,
-                &importer.id,
-                importer_order,
-                importer.manifest,
-                dependency_groups.iter().copied(),
-                importer_opts,
-                Arc::clone(&workspace),
-            )
-            .await?,
-        );
+        // Boxed to keep the enclosing install future small: inlining a
+        // wave's frame into it trips the workspace's large-future lint.
+        let wave = Box::pin(ImporterHoistState::init(
+            resolver,
+            &importer.id,
+            importer_order,
+            importer.manifest,
+            dependency_groups.iter().copied(),
+            importer_opts,
+            Arc::clone(&workspace),
+        ));
+        states.push(wave.await?);
     }
     // Computed after the init barrier and shared unchanged: recomputing it
     // per round would let the root's own hoisted peers become candidates for
@@ -287,16 +327,33 @@ where
     for state in &mut states {
         state.set_workspace_root_deps(Arc::clone(&root_deps));
     }
-    let mut initial_required_rounds: Vec<_> =
-        states.iter_mut().map(ImporterHoistState::prepare_initial_required_round).collect();
+    // One discovery engine serves every hoist round of the workspace:
+    // its persistent tree view + walker caches are what keep the
+    // barrier below linear in workspace size (each importer's pass
+    // short-circuits on the subtree verdicts recorded by the passes
+    // before it).
+    let mut peer_discovery = PeerHoistDiscovery::new();
+    let mut initial_required_rounds: Vec<_> = states
+        .iter_mut()
+        .map(|state| state.prepare_initial_required_round(&mut peer_discovery))
+        .collect();
+    // The context is quiescent between the prepare barrier above and
+    // the completes below, so one snapshot of the owner-scope maps
+    // serves every importer.
+    let first_importer_by_pkg = workspace.first_importer_by_pkg();
+    let first_walk_missing_by_pkg = workspace.first_walk_missing_by_pkg();
     for (state, round) in states.iter().zip(&mut initial_required_rounds) {
         if let Some(round) = round {
-            state.apply_owner_missing_scope(round);
+            state.apply_owner_missing_scope(
+                round,
+                &first_importer_by_pkg,
+                &first_walk_missing_by_pkg,
+            );
         }
     }
     for (state, round) in states.iter_mut().zip(initial_required_rounds) {
         if let Some(round) = round {
-            state.complete_initial_required_round(resolver, round).await?;
+            state.complete_initial_required_round(resolver, round, &mut peer_discovery).await?;
         }
     }
     loop {
@@ -308,11 +365,14 @@ where
             break;
         }
         for state in &mut states {
-            state.run_required_round(resolver).await?;
+            state.run_required_round(resolver, &mut peer_discovery).await?;
         }
     }
+    // Release the engine's tree view before the merged-tree snapshot
+    // below clones the context again, so the two never coexist at peak.
+    drop(peer_discovery);
     let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
-    let mut hoisted_peer_provider_node_ids = std::collections::HashSet::new();
+    let mut hoisted_peer_provider_node_ids = std::collections::HashSet::default();
     for ((importer, state), (project_dir, modules_dir)) in
         importers.iter().zip(states).zip(input_dirs)
     {
@@ -360,29 +420,45 @@ where
         resolve_peers_from_workspace_root,
         peer_opts,
     );
+    Ok(ResolveWorkspaceResult { merged_tree, peers, time })
+}
 
-    Ok(ResolveWorkspaceResult { merged_tree, peers })
+/// What a `time-based` pre-pass learned about the direct dependencies.
+struct TimeBasedCutoff {
+    /// The ceiling every transitive dependency's publish date must
+    /// respect.
+    published_by: Option<DateTime<Utc>>,
+    /// Publish date per direct dependency, for the lockfile's `time:`
+    /// section.
+    time: BTreeMap<String, String>,
 }
 
 /// Resolve every importer's direct dependencies and derive the
 /// `time-based` publish-date cutoff for transitive deps.
 ///
-/// Only the direct deps' `published_at` is read here, so the throwaway
+/// Each direct dependency's publish date comes from its packument, or —
+/// against a registry whose abbreviated metadata omits publish times —
+/// from `recorded_time`, the date the lockfile's `time:` section
+/// recorded for it. The cutoff is the newest of those dates plus an
+/// hour, clamped by `maximum_published_by`.
+///
+/// Only the direct deps' publish date is read here, so the throwaway
 /// resolves warm the resolver's packument cache for the real walk that
 /// follows. Resolver errors are ignored here — the real walk surfaces
 /// them.
 async fn compute_time_based_cutoff<Chain>(
     resolver: &Chain,
-    importers: &[WorkspaceImporter<'_>],
+    importers: &[&WorkspaceImporter<'_>],
     importer_opts: &[ResolveImporterOptions],
     dependency_groups: &[DependencyGroup],
     pick_lowest_direct: bool,
     maximum_published_by: Option<DateTime<Utc>>,
-) -> Option<DateTime<Utc>>
+    recorded_time: Option<&BTreeMap<String, String>>,
+) -> TimeBasedCutoff
 where
     Chain: Resolver + ?Sized,
 {
-    let mut newest: Option<DateTime<Utc>> = None;
+    let mut time = BTreeMap::new();
     for (importer, opts) in importers.iter().zip(importer_opts) {
         let Ok(specs) = importer_direct_wanted_specs(
             importer.manifest,
@@ -402,21 +478,25 @@ where
                 injected: injected.then_some(true),
                 ..WantedDependency::default()
             };
-            if let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await
-                && let Some(published_at) = result.published_at.as_deref()
-                && let Some(parsed) = parse_packument_timestamp(published_at)
-            {
-                newest = Some(newest.map_or(parsed, |current| current.max(parsed)));
+            let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await else { continue };
+            let published_at = result.published_at.or_else(|| {
+                recorded_time.and_then(|recorded| recorded.get(result.id.as_str())).cloned()
+            });
+            if let Some(published_at) = published_at {
+                time.insert(result.id.into_inner(), published_at);
             }
         }
     }
 
+    let newest =
+        time.values().filter_map(|published_at| parse_packument_timestamp(published_at)).max();
     let candidate = newest.and_then(|date| date.checked_add_signed(Duration::hours(1)));
-    match (candidate, maximum_published_by) {
+    let published_by = match (candidate, maximum_published_by) {
         (Some(candidate), Some(maximum)) => Some(candidate.min(maximum)),
         (Some(candidate), None) => Some(candidate),
         (None, maximum) => maximum,
-    }
+    };
+    TimeBasedCutoff { published_by, time }
 }
 
 #[cfg(test)]

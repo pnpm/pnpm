@@ -1,6 +1,5 @@
-<!-- A maintainer will only start reviewing once the automated code reviewers
-(CodeRabbit and Qodo) have approved and CI is green. Please wait for those to
-pass before expecting human review. -->
+<!-- A maintainer will only start reviewing once CodeRabbit has approved and
+CI is green. Please wait for those to pass before expecting human review. -->
 
 ## Summary
 
@@ -25,6 +24,8 @@ Explain what changed and why. Reference issues here too (Closes pnpm/pnpm#123).
 
 <!-- Mark items with [x] once done. Remove items that don't apply. -->
 
+- [ ] I checked the referenced issue and verified that none of the PRs
+  already linked to it solves it.
 - [ ] The change is implemented in both the TypeScript CLI and the Rust
   `pnpm/` port, or the description notes what still needs porting.
 - [ ] Added a changeset (`pnpm changeset`) if this PR changes any published

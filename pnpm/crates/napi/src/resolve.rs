@@ -134,6 +134,13 @@ fn run_resolve_blocking(
     );
 
     let full_metadata = options.full_metadata.unwrap_or(false);
+    // `filter_metadata` stays off even under `full_metadata`, unlike the
+    // install path: a caller asking this API for full metadata wants the
+    // version object's non-abbreviated fields (Bit reads `componentId`),
+    // and `clear_meta` would drop exactly those. Matches pnpm's
+    // `createClient({ fullMetadata: true })` with no `filterMetadata`,
+    // which is what this API replaces.
+    let filter_metadata = false;
     let retry_opts = RetryOpts {
         retries: config.fetch_retries,
         factor: config.fetch_retry_factor,
@@ -161,7 +168,7 @@ fn run_resolve_blocking(
         prefer_offline: config.prefer_offline,
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata,
-        filter_metadata: full_metadata,
+        filter_metadata,
         retry_opts,
     });
 
@@ -188,6 +195,7 @@ fn run_resolve_blocking(
 
     let mut node_resolver = NodeResolver::new(Arc::clone(&http_client));
     node_resolver.offline = config.offline;
+    node_resolver.cache_dir = Some(config.cache_dir.clone());
     let deno_resolver = DenoResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
     let bun_resolver = BunResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
 
@@ -214,7 +222,7 @@ fn run_resolve_blocking(
         prefer_offline: config.prefer_offline,
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata,
-        filter_metadata: full_metadata,
+        filter_metadata,
         retry_opts,
     };
 

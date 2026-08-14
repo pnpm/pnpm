@@ -42,6 +42,7 @@ export async function buildDependenciesTree (
     excludePeerDependencies?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     registries?: Registries
+    namedRegistries?: Record<string, string>
     onlyProjects?: boolean
     search?: Finder
     showDedupedSearchMatches?: boolean
@@ -93,6 +94,7 @@ export async function buildDependenciesTree (
     checkWantedLockfileOnly: maybeOpts.checkWantedLockfileOnly,
     onlyProjects: maybeOpts.onlyProjects,
     registries,
+    namedRegistries: maybeOpts.namedRegistries,
     search: maybeOpts.search,
     showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches ?? (maybeOpts.search != null),
     skipped: new Set(modules?.skipped ?? []),

@@ -1,7 +1,10 @@
 import path from 'node:path'
 
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { checkPackageInstallability } from '@pnpm/config.package-is-installable'
+import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, LockfileResolution, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import {
   lockfileWalkerGroupImporterSteps,
@@ -9,7 +12,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
+import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
@@ -37,8 +40,10 @@ export interface CollectSbomComponentsOptions {
   sbomType?: SbomComponentType
   include?: { [dependenciesField in DependenciesField]: boolean }
   registries: Registries
+  namedRegistries?: Record<string, string>
   lockfileDir: string
   includedImporterIds?: ProjectId[]
+  supportedArchitectures?: SupportedArchitectures
   lockfileOnly?: boolean
   storeDir?: string
   virtualStoreDirMaxLength?: number
@@ -200,23 +205,61 @@ async function walkStep (
   await Promise.all(
     step.dependencies.map(async (dep) => {
       const { depPath, pkgSnapshot, next } = dep
-      const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       if (!name || !version) return
 
-      const purl = buildPurl({ name, version, nonSemverVersion: nonSemverVersion ?? undefined })
+      // An optional dependency for another platform is in the lockfile but was
+      // never fetched, so the store holds no metadata to describe it with.
+      // `checkPackageInstallability`, not `packageIsInstallable`: the latter
+      // reports every skip through the install loggers, which reading a
+      // lockfile must not do.
+      if (!opts.lockfileOnly && pkgSnapshot.optional === true && checkPackageInstallability(pkgSnapshot.id ?? depPath, {
+        name,
+        version,
+        cpu: pkgSnapshot.cpu,
+        os: pkgSnapshot.os,
+        libc: pkgSnapshot.libc,
+      }, {
+        optional: true,
+        supportedArchitectures: opts.supportedArchitectures,
+      }) != null) {
+        return
+      }
+
+      // Resolve the alias before the purl is built. An unknown alias would
+      // otherwise yield an unqualified purl that collides with the same
+      // package from the default registry, and the `componentsMap.has(purl)`
+      // shortcut below would drop this component before
+      // `pkgSnapshotToResolution` ever got to reject it — silently omitting an
+      // artifact from a compliance document.
+      const registryUrl = registryName == null
+        ? undefined
+        : normalizeNamedRegistries(opts.namedRegistries)[registryName]
+      if (registryName != null && registryUrl == null) {
+        throw new PnpmError('MISSING_NAMED_REGISTRY',
+          `Cannot describe package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,
+          { hint: `Add '${registryName}' to the namedRegistries setting in pnpm-workspace.yaml.` })
+      }
+
+      const purl = buildPurl({
+        name,
+        version,
+        nonSemverVersion: nonSemverVersion ?? undefined,
+        registryUrl,
+      })
 
       relationships.push({ from: parentPurl, to: purl })
 
       if (componentsMap.has(purl)) return
 
-      const integrity = (pkgSnapshot.resolution as TarballResolution).integrity
-      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+      const integrity = verifiedIntegrity(pkgSnapshot.resolution)
+      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
       const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
 
       let metadata: { license?: string, description?: string, author?: string, homepage?: string, repository?: string, bugsUrl?: string } = {}
       if (metadataOpts) {
-        metadata = await getPkgMetadata(depPath, pkgSnapshot, opts.registries, metadataOpts)
+        metadata = await getPkgMetadata(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries }, metadataOpts)
       }
 
       const component: SbomComponent = {
@@ -305,4 +348,22 @@ export function resolveWorkspaceDeps (
   }
 
   return { links, additionalImporterIds }
+}
+
+/**
+ * The resolution's integrity, but only where pnpm verifies the downloaded
+ * bytes against it: the tarball/registry hash and a `type: binary` runtime
+ * archive's. Nothing checks a git checkout against a hash, so an `integrity`
+ * recorded on one is not a checksum and is never published as one.
+ *
+ * Read from an untyped lockfile, so the shape is probed rather than trusted:
+ * reading a checksum out of a malformed resolution yields nothing instead of
+ * throwing, and a non-string integrity never reaches `ssri.parse` downstream.
+ * (A malformed resolution still fails the walk further along, in
+ * `pkgSnapshotToResolution` — this only keeps the checksum lookup total.)
+ */
+function verifiedIntegrity (resolution: LockfileResolution): string | undefined {
+  const { type, integrity } = (resolution ?? {}) as { type?: string, integrity?: unknown }
+  if (typeof integrity !== 'string') return undefined
+  return (type === undefined || type === 'binary') ? integrity : undefined
 }

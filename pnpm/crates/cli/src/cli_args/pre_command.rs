@@ -26,7 +26,7 @@ use super::{
         spawn_pnpm,
     },
 };
-use crate::{config_deps, config_overrides::ConfigOverrides};
+use crate::{config_deps, config_overrides::ConfigOverrides, flag_relocation::ArgTable};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};
@@ -105,6 +105,7 @@ pub(crate) async fn execute_plan(
                 &package_manager.specifier,
                 &package_manager.version,
                 false,
+                false,
             )
             .await?;
             Ok(false)
@@ -127,11 +128,25 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 Box::pin(install_pnpm_from_env::<SilentReporter>(config, &env, &version)).await?;
             (version, bin_dir)
         }
-        SwitchSource::Resolve { env_root } => {
+        SwitchSource::Resolve { env_root, force_resync } => {
             let resolved = config_deps::resolve_pnpm_version(config, &spec)
                 .await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
             if resolved.version == PNPM_VERSION {
+                if force_resync {
+                    // No switch to perform, but the recorded entries are
+                    // invalid — heal them now or every later invocation
+                    // re-resolves over the network.
+                    config_deps::sync_package_manager_dependencies(
+                        config,
+                        &env_root,
+                        &spec,
+                        &resolved.version,
+                        false,
+                        true,
+                    )
+                    .await?;
+                }
                 return Ok(false);
             }
             assert_release_is_installable(&resolved.version)?;
@@ -140,6 +155,7 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 &env_root,
                 &spec,
                 &resolved.version,
+                force_resync,
             ))
             .await?;
             (resolved.version, bin_dir)
@@ -283,9 +299,9 @@ fn env_lockfile_sync(
 }
 
 /// Whether the caller already holds the parsed env lockfile. The download
-/// path reads it to look for a version to switch to, and `pnpm-lock.yaml`
-/// is read whole, so reading it a second time to answer the same question
-/// would double the cost of every command in a pinned project.
+/// path reads it to look for a version to switch to, so reading and parsing
+/// it a second time to answer the same question would repeat that work on
+/// every command in a pinned project.
 #[derive(Clone, Copy)]
 enum ReadEnvLockfile<'a> {
     Already(&'a EnvLockfile),
@@ -560,7 +576,21 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
         && let Some(env) = read_env_lockfile(root_dir)?
         && let Some(version) = locked_package_manager_version(&env, &spec)?
     {
-        return Ok(Some(SwitchTarget { spec, source: SwitchSource::LockedEnv { env, version } }));
+        if assert_package_manager_lockfile_uses_registry_resolutions(&env).is_ok() {
+            return Ok(Some(SwitchTarget {
+                spec,
+                source: SwitchSource::LockedEnv { env, version },
+            }));
+        }
+        // Entries that don't satisfy the bootstrap rules — e.g. resolutions
+        // carrying tarball URLs written by an earlier pnpm — are not an
+        // error: they are discarded and re-resolved afresh through the
+        // trusted bootstrap registries, which yields entries in the accepted
+        // shape.
+        return Ok(Some(SwitchTarget {
+            spec,
+            source: SwitchSource::Resolve { env_root: root_dir.to_path_buf(), force_resync: true },
+        }));
     }
 
     let env_root = if persist_lockfile {
@@ -572,7 +602,7 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
             )
         })?
     };
-    Ok(Some(SwitchTarget { spec, source: SwitchSource::Resolve { env_root } }))
+    Ok(Some(SwitchTarget { spec, source: SwitchSource::Resolve { env_root, force_resync: false } }))
 }
 
 fn locked_package_manager_version(
@@ -594,7 +624,6 @@ fn locked_package_manager_version(
     if !package_manager_dependencies_are_resolved(env, &version) {
         return Ok(None);
     }
-    assert_package_manager_lockfile_uses_registry_resolutions(env)?;
     Ok(Some(version))
 }
 
@@ -813,8 +842,18 @@ pub(crate) struct EnvLockfileSync {
 
 #[derive(Debug)]
 enum SwitchSource {
-    LockedEnv { env: EnvLockfile, version: String },
-    Resolve { env_root: PathBuf },
+    LockedEnv {
+        env: EnvLockfile,
+        version: String,
+    },
+    Resolve {
+        env_root: PathBuf,
+        /// Discard the recorded `packageManagerDependencies` and re-resolve
+        /// them even when they look up to date — set when the recorded
+        /// entries failed the bootstrap validation, so the resync heals the
+        /// env lockfile instead of no-op'ing on the invalid entries.
+        force_resync: bool,
+    },
 }
 
 struct SwitchInput {
@@ -833,6 +872,7 @@ impl SwitchInput {
     }
 
     fn from_version_argv(argv: &[OsString]) -> Self {
+        let global_options = ArgTable::top_level(super::grammar());
         let mut input = Self { dir: PathBuf::from("."), npmrc_auth_file: None, command: None };
         let mut index = 1;
         while index < argv.len() {
@@ -855,7 +895,9 @@ impl SwitchInput {
                 continue;
             }
             if let Some((value, width)) =
-                long_value(token, "dir", argv.get(index + 1).map(OsString::as_os_str))
+                long_value(token, "dir", argv.get(index + 1).map(OsString::as_os_str)).or_else(
+                    || long_value(token, "prefix", argv.get(index + 1).map(OsString::as_os_str)),
+                )
             {
                 input.dir = PathBuf::from(value);
                 index += width;
@@ -875,7 +917,7 @@ impl SwitchInput {
                 index += width;
                 continue;
             }
-            index += if value_taking_global_option(token) { 2 } else { 1 };
+            index += if consumes_next_token(token, &global_options) { 2 } else { 1 };
         }
         input
     }
@@ -992,20 +1034,19 @@ fn long_value<'a>(
         .map(|value| (value, 1))
 }
 
-fn value_taking_global_option(token: &str) -> bool {
-    if matches!(token, "-F") {
-        return true;
+/// Whether an option token takes the following argv token as its value, so
+/// the scan steps over it instead of mistaking it for the command name.
+/// Read from the clap grammar rather than a list of names, so an option (or
+/// alias) added to [`CliArgs`] is accounted for here without a second edit.
+fn consumes_next_token(token: &str, global_options: &ArgTable) -> bool {
+    if let Some(name) = token.strip_prefix("--") {
+        return !name.contains('=') && global_options.long_consumes_value(name).unwrap_or(false);
     }
-    if token.starts_with("-F") {
-        return false;
-    }
-    let Some(name) = token.strip_prefix("--") else {
+    let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) else {
         return false;
     };
-    if name.contains('=') {
-        return false;
-    }
-    matches!(name, "filter" | "filter-prod" | "npmrc-auth-file" | "reporter" | "userconfig")
+    let short = rest.chars().next().expect("checked non-empty");
+    rest.chars().count() == 1 && global_options.short_consumes_value(short).unwrap_or(false)
 }
 
 #[cfg(test)]

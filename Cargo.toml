@@ -56,10 +56,12 @@ pacquet-directory-fetcher                 = { path = "pnpm/crates/directory-fetc
 pacquet-git-fetcher                       = { path = "pnpm/crates/git-fetcher" }
 pacquet-global                            = { path = "pnpm/crates/global" }
 pacquet-deps-path                         = { path = "pnpm/crates/deps-path" }
+pacquet-deps-restorer                     = { path = "pnpm/crates/deps-restorer" }
 pacquet-detect-libc                       = { path = "pnpm/crates/detect-libc" }
 pacquet-diagnostics                       = { path = "pnpm/crates/diagnostics" }
 pacquet-graph-hasher                      = { path = "pnpm/crates/graph-hasher" }
 pacquet-hooks                             = { path = "pnpm/crates/hooks" }
+pacquet-injected-deps-syncer              = { path = "pnpm/crates/injected-deps-syncer" }
 pacquet-store-dir                         = { path = "pnpm/crates/store-dir" }
 pacquet-reporter                          = { path = "pnpm/crates/reporter" }
 pacquet-patching                          = { path = "pnpm/crates/patching" }
@@ -125,7 +127,13 @@ flate2 = { version = "1.1.9" }
 gethostname = { version = "1" }
 getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
-napi = { version = "3.10.3", default-features = false, features = ["napi8", "serde-json", "tokio_rt", "async"] }
+napi = { version = "3.10.3", default-features = false, features = [
+  "napi8",
+  "object_indexmap",
+  "serde-json",
+  "tokio_rt",
+  "async",
+] }
 napi-build = { version = "2.3.2" }
 napi-derive = { version = "3.5.9" }
 num_cpus = { version = "1.17.0" }
@@ -157,6 +165,7 @@ rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["preserve_order", "raw_value"] }
+rustc-hash = { version = "2.1.1" }
 serde-saphyr = { version = "0.0.29" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
@@ -177,6 +186,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
 url                = { version = "2.5.8" }
 walkdir            = { version = "2.5.0" }
+webpki-root-certs  = { version = "1.0.7" }
 windows-sys        = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
 yaml_serde         = { version = "0.10.4" }
 yamlpatch          = { version = "1.25.2" }

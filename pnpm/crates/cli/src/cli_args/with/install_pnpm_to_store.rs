@@ -44,25 +44,40 @@ use crate::{
 /// `pnpm` + `@pnpm/exe` closure) is written, under the pnpm home
 /// directory. `spec` is the user's bare specifier (a version, range,
 /// or dist-tag) and `version` the exact version it resolved to.
+/// `force_resync` discards recorded `packageManagerDependencies` and
+/// re-resolves them even when they look up to date.
 pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     env_root: &Path,
     spec: &str,
     version: &str,
+    force_resync: bool,
 ) -> miette::Result<PathBuf> {
     let config = package_manager_engine_config(config)?.leak();
     fs::create_dir_all(env_root).into_diagnostic().wrap_err_with(|| {
         format!("create the package-manager env directory at {}", env_root.display())
     })?;
-    // Resolve the package-manager closure into the env lockfile (a no-op
-    // when this spec+version is already recorded there).
-    config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false).await?;
-    let env = EnvLockfile::read(env_root)
-        .map_err(miette::Report::new)
-        .wrap_err("read the package-manager env lockfile")?
-        .ok_or_else(|| {
-            miette::miette!("the package-manager env lockfile is missing after resolution")
-        })?;
+    let env = {
+        let _lock = package_manager_env_lock::<Reporter>(config).await?;
+        // Resolve the package-manager closure into the env lockfile (a no-op
+        // when this spec+version is already recorded there and a resync is
+        // not forced).
+        config_deps::sync_package_manager_dependencies(
+            config,
+            env_root,
+            spec,
+            version,
+            false,
+            force_resync,
+        )
+        .await?;
+        EnvLockfile::read(env_root)
+            .map_err(miette::Report::new)
+            .wrap_err("read the package-manager env lockfile")?
+            .ok_or_else(|| {
+                miette::miette!("the package-manager env lockfile is missing after resolution")
+            })?
+    };
     install_pnpm_from_env::<Reporter>(config, &env, version).await
 }
 
@@ -90,8 +105,11 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
     // then re-derives the slot from the install's own symlink).
     if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
         let pkg_dir = package_dir(&slot, package_name);
-        if pkg_dir.join("package.json").exists() {
-            return link_cached_engine_bins(&slot, package_name, package.links_native_binary);
+        if pkg_dir.join("package.json").exists()
+            && let Ok(bin_dir) =
+                link_cached_engine_bins(&slot, package_name, package.links_native_binary)
+        {
+            return Ok(bin_dir);
         }
     }
 
@@ -107,17 +125,27 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
     // we want, so ask the cache again before paying for the download.
     if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
         let pkg_dir = package_dir(&slot, package_name);
-        if pkg_dir.join("package.json").exists() {
-            return link_cached_engine_bins(&slot, package_name, package.links_native_binary);
+        if pkg_dir.join("package.json").exists()
+            && let Ok(bin_dir) =
+                link_cached_engine_bins(&slot, package_name, package.links_native_binary)
+        {
+            return Ok(bin_dir);
         }
     }
 
     // Genuine download: verify the engine's registry signature before
     // installing or executing it.
-    verify_pnpm_engine_identity(env, version, config)
+    if let Some(warning) = verify_pnpm_engine_identity(env, version, config)
         .await
         .map_err(miette::Report::new)
-        .wrap_err("verify the pnpm engine identity")?;
+        .wrap_err("verify the pnpm engine identity")?
+    {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: warning,
+            prefix: String::new(),
+        }));
+    }
 
     // Install into a throwaway directory with the global virtual store
     // enabled, so the engine itself materializes in `<store>/links/...`
@@ -165,6 +193,24 @@ fn engine_install_lock<Reporter: self::Reporter>(
     package_name: &str,
     version: &str,
 ) -> Option<DirLock> {
+    let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
+    let path = config.store_dir.tmp().join("engine-locks").join(name);
+    acquire_install_lock::<Reporter>(&path, "the pnpm engine install")
+}
+
+async fn package_manager_env_lock<Reporter: self::Reporter>(
+    config: &Config,
+) -> miette::Result<Option<DirLock>> {
+    let path = config.store_dir.tmp().join("engine-locks/package-manager-env.lock");
+    tokio::task::spawn_blocking(move || {
+        acquire_install_lock::<Reporter>(&path, "the package-manager environment")
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("wait for the package-manager environment lock")
+}
+
+fn acquire_install_lock<Reporter: self::Reporter>(path: &Path, subject: &str) -> Option<DirLock> {
     /// Long enough for a cold install of the engine over a slow link,
     /// short enough that a wedged host isn't hung on indefinitely.
     const WAIT: Duration = Duration::from_mins(5);
@@ -172,9 +218,7 @@ fn engine_install_lock<Reporter: self::Reporter>(
     /// installing never has its lock stolen by one that gave up waiting.
     const ABANDONED_AFTER: Duration = Duration::from_mins(30);
 
-    let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
-    let path = config.store_dir.tmp().join("engine-locks").join(name);
-    let error = match DirLock::acquire(path.clone(), WAIT, ABANDONED_AFTER) {
+    let error = match DirLock::acquire(path.to_path_buf(), WAIT, ABANDONED_AFTER) {
         Ok(lock) => return lock,
         Err(error) => error,
     };
@@ -184,7 +228,7 @@ fn engine_install_lock<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
         message: format!(
-            "Could not lock the pnpm engine install at {}: {error}. Installing without it, which is unsafe if another pnpm is installing the same version.",
+            "Could not lock {subject} at {}: {error}. Installing without it, which is unsafe if another pnpm is installing concurrently.",
             path.display(),
         ),
         prefix: String::new(),

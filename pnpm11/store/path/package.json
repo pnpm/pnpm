@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.path",
-  "version": "1100.0.3",
+  "version": "1100.0.4",
   "description": "Resolves the pnpm store path",
   "keywords": [
     "pnpm",
@@ -43,10 +43,8 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/store.path": "workspace:*",
-    "@types/is-windows": "catalog:",
     "@types/node": "catalog:",
     "@types/touch": "catalog:",
-    "is-windows": "catalog:",
     "rimraf": "catalog:"
   },
   "engines": {

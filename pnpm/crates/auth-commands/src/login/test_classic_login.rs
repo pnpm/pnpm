@@ -23,7 +23,7 @@ use super::{
 
 #[tokio::test]
 async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
     reset();
     reset_login();
@@ -64,7 +64,7 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
 
 #[tokio::test]
 async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trailing_slash() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
     reset();
     reset_login();
@@ -103,7 +103,7 @@ async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trail
 
 #[tokio::test]
 async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
     reset();
     reset_login();
@@ -139,7 +139,7 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
 
 #[tokio::test]
 async fn should_handle_classic_otp_challenge_during_login() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_input, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -181,7 +181,7 @@ async fn should_handle_classic_otp_challenge_during_login() {
 
 #[tokio::test]
 async fn should_handle_webauth_otp_challenge_during_login() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -227,7 +227,7 @@ async fn should_handle_webauth_otp_challenge_during_login() {
 
 #[tokio::test]
 async fn should_not_trigger_otp_for_non_401_errors() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -258,7 +258,7 @@ async fn should_not_trigger_otp_for_non_401_errors() {
 
 #[tokio::test]
 async fn should_not_trigger_otp_for_401_without_www_authenticate_otp_header() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -289,7 +289,7 @@ async fn should_not_trigger_otp_for_401_without_www_authenticate_otp_header() {
 
 #[tokio::test]
 async fn should_throw_when_username_is_empty_in_classic_login() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -319,7 +319,7 @@ async fn should_throw_when_username_is_empty_in_classic_login() {
 
 #[tokio::test]
 async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -351,7 +351,7 @@ async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
 
 #[tokio::test]
 async fn should_throw_when_classic_login_returns_no_token() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -385,7 +385,7 @@ async fn should_throw_when_classic_login_returns_no_token() {
 /// `PromptError::Other` classification and `read_credential`'s catch-all arm.
 #[tokio::test]
 async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input);
     reset();
     reset_login();

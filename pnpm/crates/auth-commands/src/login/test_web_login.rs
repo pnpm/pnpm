@@ -22,7 +22,7 @@ use super::{
 
 #[tokio::test]
 async fn should_use_web_login_when_registry_supports_it() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -58,8 +58,43 @@ async fn should_use_web_login_when_registry_supports_it() {
 }
 
 #[tokio::test]
+async fn should_complete_web_login_without_an_interactive_terminal() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty, set_stdout_tty, set_fetch, infos);
+    login_fake!(FakeHost, login_writes);
+    reset();
+    reset_login();
+    set_stdin_tty(false);
+    set_stdout_tty(false);
+    set_fetch(Box::new(|| Ok(ok_token("headless-token"))));
+
+    let mut server = mockito::Server::new_async().await;
+    let login_mock = server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("web login succeeds without a TTY");
+
+    login_mock.assert_async().await;
+    assert_eq!(result, format!("Logged in on {registry}/"));
+
+    let writes = login_writes();
+    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
+    assert_eq!(written_settings(&writes).get(&token_key), Some("headless-token"));
+
+    // No QR code (stdout is not a terminal) and no "Press ENTER" prompt.
+    assert_eq!(infos(), ["Authenticate your account at:\nhttps://example.com/auth/login"]);
+}
+
+#[tokio::test]
 async fn should_log_in_to_a_registry_under_a_subpath_without_a_trailing_slash() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -89,7 +124,7 @@ async fn should_log_in_to_a_registry_under_a_subpath_without_a_trailing_slash() 
 
 #[tokio::test]
 async fn should_succeed_when_config_file_does_not_exist() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost, set_ini_read, login_writes);
     reset();
     reset_login();

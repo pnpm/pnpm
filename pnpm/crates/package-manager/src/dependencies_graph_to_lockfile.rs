@@ -20,7 +20,9 @@ use pacquet_lockfile::{
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
+use pacquet_resolving_deps_resolver::{
+    DepPath, DependenciesGraph, DependenciesGraphNode, UpdateReuseScope,
+};
 use pacquet_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 
@@ -105,9 +107,47 @@ pub struct GraphToLockfileOptions<'a> {
     /// package's tarball URL is reconstructible (and so droppable from the
     /// lockfile in favor of bare `{integrity}`).
     pub registry: &'a str,
+    /// Alias → URL map of named registries (built-ins merged with the
+    /// user's setting). Registry-qualified package keys route their
+    /// tarball-reconstructibility check through this map instead of the
+    /// default registry.
+    pub named_registries: &'a HashMap<String, String>,
     /// When `true`, registry tarball URLs are kept in the lockfile even when
     /// reconstructible (the `lockfileIncludeTarballUrl` setting).
     pub lockfile_include_tarball_url: bool,
+    /// The previous run's importer entries (the wanted lockfile's
+    /// `importers:` map), keyed by the same importer ids as
+    /// [`Self::importers`]. Used to preserve a workspace dependency's
+    /// prior `link:` entry when this install does not target it — see
+    /// `build_importer` and pnpm/pnpm#10433. `None` when there is no
+    /// previous lockfile (a first install) or when `dedupeInjectedDeps`
+    /// is off.
+    pub previous_importers: Option<&'a HashMap<String, ProjectSnapshot>>,
+    /// The previous run's `packages:` map. A rebuilt entry whose
+    /// resolution is unchanged never loses a recorded `deprecated`
+    /// marker to registry metadata drift. `None` on a first install.
+    pub previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    /// How this install reuses the prior resolution, mapped from the
+    /// `pacquet update` seed policy. Together with a spec change it
+    /// decides whether an importer's workspace dependency is *targeted*
+    /// by the run (and so may legitimately change its `link:`/`file:`
+    /// form) — see `build_importer`. This is the workspace-wide default;
+    /// [`Self::update_reuse_scopes_by_importer`] overrides it per importer.
+    pub update_reuse_scope: UpdateReuseScope,
+    /// Per-importer update scopes, mirroring the resolver's
+    /// `update_reuse_scope_for`: a `pacquet update <name> --recursive`
+    /// lowers to a `ByImporter` policy whose workspace-wide scope is `All`
+    /// with the named packages recorded per importer here. The guard
+    /// resolves each importer's effective scope as: global when the global
+    /// is `None`, else this map's entry, else the global — so a recursive
+    /// update targets the named dependency in the importer that declares
+    /// it while leaving untouched importers' `link:` entries intact.
+    pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// The lockfile's `time:` section: the prior lockfile's recorded
+    /// publish dates with this run's freshly resolved ones layered over
+    /// them. Empty on a first install that did not resolve `time-based`.
+    /// Saving prunes it to the importers' direct dependencies.
+    pub time: BTreeMap<String, String>,
 }
 
 /// Error returned while converting a resolver graph into a lockfile.
@@ -175,35 +215,60 @@ pub fn dependencies_graph_to_lockfile(
         pnpmfile_checksum,
         catalogs,
         registry,
+        named_registries,
         lockfile_include_tarball_url,
+        previous_importers,
+        previous_packages,
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
+        time,
     } = opts;
 
     let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
     let (packages, snapshots) = build_packages_and_snapshots(
         graph,
         &optional_overrides,
-        registry,
-        lockfile_include_tarball_url,
+        &PackageMetadataSources {
+            registry,
+            named_registries,
+            lockfile_include_tarball_url,
+            previous_packages,
+        },
     )?;
 
     let mut importers: HashMap<String, ProjectSnapshot> =
         HashMap::with_capacity(importer_inputs.len());
     for (id, input) in &importer_inputs {
+        let previous_importer = previous_importers.and_then(|imps| imps.get(id));
+        // Effective update scope for this importer, mirroring the resolver's
+        // `update_reuse_scope_for`: a global `None` (bare `update`) applies to
+        // every importer; otherwise the per-importer entry wins, falling back
+        // to the global. This is what lets a `pacquet update <name> --recursive`
+        // target the named dependency in the importer that declares it while
+        // leaving untouched importers on their global scope.
+        let effective_update_reuse_scope = if matches!(update_reuse_scope, UpdateReuseScope::None) {
+            &update_reuse_scope
+        } else {
+            update_reuse_scopes_by_importer.get(id).unwrap_or(&update_reuse_scope)
+        };
         importers.insert(
             id.clone(),
             build_importer(
                 input,
                 graph,
                 &ImporterLockfileFlags { exclude_links_from_lockfile, auto_install_peers },
+                previous_importer,
+                effective_update_reuse_scope,
             )?,
         );
     }
 
     let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
 
+    let lockfile_version = ComVer::new(9, 0);
     Ok(Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
-            .expect("lockfileVersion 9.0 is always compatible with MAJOR=9"),
+        lockfile_version: LockfileVersion::<9>::try_from(lockfile_version)
+            .expect("the generated lockfile version is supported"),
         settings: Some(LockfileSettings {
             auto_install_peers,
             dedupe_peers: dedupe_peers.then_some(true),
@@ -221,6 +286,7 @@ pub fn dependencies_graph_to_lockfile(
         importers,
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
+        time: (!time.is_empty()).then_some(time),
     })
 }
 
@@ -285,6 +351,8 @@ fn build_importer(
     input: &ImporterLockfileInput<'_>,
     graph: &DependenciesGraph,
     flags: &ImporterLockfileFlags,
+    previous_importer: Option<&ProjectSnapshot>,
+    update_reuse_scope: &UpdateReuseScope,
 ) -> Result<ProjectSnapshot, DependenciesGraphToLockfileError> {
     let ImporterLockfileFlags { exclude_links_from_lockfile, auto_install_peers } = *flags;
     let manifest = input.manifest;
@@ -316,7 +384,7 @@ fn build_importer(
         // version directly from the `link:` depPath instead. Non-link
         // direct deps must be present in the graph — a missing entry
         // means the resolver dropped the edge, so skip.
-        let version = if let Some(target) = dep_path.as_str().strip_prefix("link:") {
+        let mut version = if let Some(target) = dep_path.as_str().strip_prefix("link:") {
             if exclude_links_from_lockfile && !specifier.starts_with("workspace:") {
                 continue;
             }
@@ -331,6 +399,46 @@ fn build_importer(
                 }
             })?
         };
+        // pnpm/pnpm#10433: a fresh-lockfile install re-resolves every
+        // importer, and an injected workspace dependency whose peer context
+        // genuinely diverges reaches `importer_dep_version`'s `file:` arm
+        // instead of deduping back to `link:`. When this install does not
+        // *target* that dependency, keep its previous `link:` importer entry
+        // rather than rewriting it to a peer-suffixed `file:`.
+        // `dedupe_injected_deps` runs earlier in the resolver and does not
+        // reach this finalization path.
+        if let ImporterDepVersion::File(_) = &version
+            && let Some(previous) =
+                previous_importer.and_then(|prev| previous_importer_dep(prev, &name_for_key))
+            && let ImporterDepVersion::Link(_) = &previous.version
+        {
+            // A workspace dependency the run doesn't target keeps its
+            // `link:`. It is targeted when this importer's update scope names
+            // it (`pacquet update <name>`, including the per-importer scope of
+            // a `--recursive` run), when the scope is `None` (a scope-wide
+            // bare `update` / forced re-resolve), or when its specifier
+            // changed (a new or edited manifest entry). `KeepAll` (plain
+            // install / add) never targets on its own, so an untouched
+            // workspace dep is preserved. `update_reuse_scope` here is already
+            // resolved for this importer (see `update_reuse_scope_for` in the
+            // caller), so `pacquet update <name> --recursive` targets the
+            // named dep in the importer that declares it while untouched
+            // importers keep their `link:`. Matches the TS resolver's
+            // `updateTargetedAliases` / `updateMatching` guard, where a plain
+            // install's blanket spec re-check must not count as targeting.
+            let targeted_by_update = match update_reuse_scope {
+                UpdateReuseScope::All => false,
+                UpdateReuseScope::None => true,
+                UpdateReuseScope::Except(names) => graph
+                    .get(dep_path)
+                    .and_then(node_pkg_name)
+                    .is_some_and(|name| names.contains(&name)),
+            };
+            let targeted_by_spec_change = previous.specifier != specifier;
+            if !targeted_by_update && !targeted_by_spec_change {
+                version = previous.version.clone();
+            }
+        }
         let spec = ResolvedDependencySpec { specifier: specifier.clone(), version };
         specifiers.insert(alias.clone(), specifier);
         let group = alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod);
@@ -475,6 +583,36 @@ fn self_aliased_file_ver<'a>(alias: &str, key: &'a PkgNameVerPeer) -> Option<&'a
         .then_some(&key.suffix)
 }
 
+/// The previous importer's recorded entry for `name`, searched across
+/// its `dependencies` / `optionalDependencies` / `devDependencies` maps
+/// (mirrors the lookup order in
+/// [`pacquet_resolving_deps_resolver`]'s `lockfile_reuse`). Used by the
+/// pnpm/pnpm#10433 guard in [`build_importer`] to recover a workspace
+/// dependency's prior `link:` entry.
+fn previous_importer_dep<'a>(
+    importer: &'a ProjectSnapshot,
+    name: &PkgName,
+) -> Option<&'a ResolvedDependencySpec> {
+    importer
+        .dependencies
+        .as_ref()
+        .and_then(|map| map.get(name))
+        .or_else(|| importer.optional_dependencies.as_ref().and_then(|map| map.get(name)))
+        .or_else(|| importer.dev_dependencies.as_ref().and_then(|map| map.get(name)))
+}
+
+/// The resolved package name for a graph node — the structured
+/// `name_ver` when the resolver produced one, otherwise the `name` from
+/// the fetched manifest (the case for a directory/workspace resolution,
+/// whose `name_ver` is unset). Used to match a workspace dependency
+/// against an `update <name>` scope in [`build_importer`].
+fn node_pkg_name(node: &DependenciesGraphNode) -> Option<String> {
+    if let Some(name_ver) = node.resolve_result.name_ver.as_ref() {
+        return Some(name_ver.name.to_string());
+    }
+    node.resolve_result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
+}
+
 /// `Some(real_name)` when the resolver produced a structured name; `None`
 /// for resolvers that learn the name from the fetched manifest (git,
 /// tarball, file).
@@ -528,11 +666,19 @@ type PackagesAndSnapshots =
 /// `optional_overrides` carries the corrected `optional` flag per
 /// depPath produced by [`compute_corrected_optional`]; a missing
 /// entry falls back to [`DependenciesGraphNode::optional`].
+/// What [`build_packages_and_snapshots`] renders `packages:` entries
+/// from, beyond the graph itself.
+struct PackageMetadataSources<'a> {
+    registry: &'a str,
+    named_registries: &'a HashMap<String, String>,
+    lockfile_include_tarball_url: bool,
+    previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+}
+
 fn build_packages_and_snapshots(
     graph: &DependenciesGraph,
     optional_overrides: &HashMap<DepPath, bool>,
-    registry: &str,
-    lockfile_include_tarball_url: bool,
+    sources: &PackageMetadataSources<'_>,
 ) -> Result<PackagesAndSnapshots, DependenciesGraphToLockfileError> {
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
@@ -558,7 +704,36 @@ fn build_packages_and_snapshots(
         snapshots.insert(snapshot_key, snapshot);
 
         packages.entry(metadata_key).or_insert_with_key(|key| {
-            build_package_metadata(node, key, registry, lockfile_include_tarball_url)
+            // A registry-qualified key names its registry; that registry —
+            // not the scope-routed default — decides whether the tarball
+            // URL is canonical and can be dropped from the entry.
+            //
+            // Fail closed on an alias we can't resolve: testing the URL for
+            // canonicality against the *default* registry could drop a URL
+            // that only the named registry can rebuild, leaving a `work:`
+            // entry that no install can fetch. Keeping the URL is always
+            // recoverable, so an unknown alias forces it to be written.
+            let (registry, include_tarball_url) = match key.suffix.registry_qualified() {
+                Some((registry_name, _)) => match sources.named_registries.get(registry_name) {
+                    Some(named_registry) => {
+                        (named_registry.as_str(), sources.lockfile_include_tarball_url)
+                    }
+                    None => (sources.registry, true),
+                },
+                None => (sources.registry, sources.lockfile_include_tarball_url),
+            };
+            let mut metadata = build_package_metadata(node, key, registry, include_tarball_url);
+            // `deprecated` is the only registry-mutable field of a
+            // published version; an unchanged resolution must not lose
+            // a recorded deprecation to a registry serving it
+            // inconsistently (pnpm/pnpm#13846).
+            if metadata.deprecated.is_none()
+                && let Some(previous) = sources.previous_packages.and_then(|prev| prev.get(key))
+                && previous.resolution == metadata.resolution
+            {
+                metadata.deprecated.clone_from(&previous.deprecated);
+            }
+            metadata
         });
     }
 
@@ -625,9 +800,13 @@ fn build_package_metadata(
 
     let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node);
 
+    let resolution_version = match metadata_key.suffix.registry_qualified() {
+        Some((_, version)) => version.to_string(),
+        None => metadata_key.suffix.version().to_string(),
+    };
     let resolution = node.resolve_result.resolution.to_lockfile_form(
         &metadata_key.name.to_string(),
-        &metadata_key.suffix.version().to_string(),
+        &resolution_version,
         registry,
         lockfile_include_tarball_url,
     );
@@ -636,7 +815,11 @@ fn build_package_metadata(
     // a `:`), and only when the manifest declares one and the resolution
     // isn't a local directory. Registry packages omit it because their
     // version is already the depPath suffix.
+    // A registry-qualified dep path carries a parseable semver of its own,
+    // so the explicit version field written for other `:`-containing dep
+    // paths would be redundant.
     let version = (node.dep_path.as_str().contains(':')
+        && metadata_key.suffix.registry_qualified().is_none()
         && !matches!(resolution, LockfileResolution::Directory(_)))
     .then(|| {
         manifest.and_then(|m| m.get("version")).and_then(Value::as_str).map(ToString::to_string)
@@ -876,8 +1059,8 @@ fn walk_subgraph<'g>(
 /// Aliases this node treats as optional — its manifest's
 /// `optionalDependencies` entries plus the names of peers marked
 /// optional by `peerDependenciesMeta`.
-fn optional_children_of(node: &DependenciesGraphNode) -> HashSet<String> {
-    let mut out: HashSet<String> = node.optional_children.clone();
+fn optional_children_of(node: &DependenciesGraphNode) -> rustc_hash::FxHashSet<String> {
+    let mut out: rustc_hash::FxHashSet<String> = node.optional_children.clone();
     if let Some(manifest) = node.resolve_result.manifest.as_ref()
         && let Some(map) = manifest.get("optionalDependencies").and_then(Value::as_object)
     {

@@ -20,6 +20,7 @@ export async function allProjectsAreUpToDate (
     catalogs: Catalogs
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
+    ignoredOptionalDependencies?: string[]
     linkWorkspacePackages: boolean
     wantedLockfile: LockfileObject
     workspacePackages: WorkspacePackages
@@ -37,6 +38,7 @@ export async function allProjectsAreUpToDate (
   const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+    ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
   })
   const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, {
     linkWorkspacePackages: opts.linkWorkspacePackages,

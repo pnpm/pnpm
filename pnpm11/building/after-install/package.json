@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.after-install",
-  "version": "1102.0.12",
+  "version": "1102.0.16",
   "description": "Rebuild packages that are already installed by running their lifecycle scripts",
   "keywords": [
     "pnpm",
@@ -43,6 +43,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

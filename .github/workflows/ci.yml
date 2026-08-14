@@ -42,7 +42,7 @@ jobs:
         if: github.event_name != 'merge_group'
         with:
           persist-credentials: false
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'merge_group'
         id: filter
         with:
@@ -81,7 +81,11 @@ jobs:
       with:
         persist-credentials: false
     - name: Install pnpm
-      uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+    - name: Test release publication scripts
+      run: |
+        .github/scripts/npm-package-publication-state.test.sh
+        .github/scripts/npm-staged-publication.test.sh
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint
@@ -120,21 +124,9 @@ jobs:
     with:
       os: blacksmith-8vcpu-windows-2025
 
-  test-smoke:
-    name: TS CI / Test / ubuntu
-    needs: [compile-and-lint, build-pnpr-linux]
-    uses: ./.github/workflows/test.yml
-    with:
-      node: '24.0.0'
-      node_major: '24'
-      platform: blacksmith-8vcpu-ubuntu-2404
-      garnet: true
-    secrets:
-      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
-
   test:
     name: TS CI / Test / ${{ matrix.platform_label }}
-    needs: test-smoke
+    needs: [compile-and-lint, build-pnpr-linux]
     strategy:
       fail-fast: false
       matrix:
@@ -145,7 +137,14 @@ jobs:
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
-          - node: '26.5.0'
+          - node: '24.0.0'
+            node_major: '24'
+            platform: blacksmith-8vcpu-ubuntu-2404
+            platform_label: ubuntu
+            test_chunk: '1'
+            test_chunk_total: '1'
+            garnet: true
+          - node: '26.7.0'
             node_major: '26'
             platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu
@@ -158,10 +157,10 @@ jobs:
       platform: ${{ matrix.platform }}
       test_chunk: ${{ matrix.test_chunk }}
       test_chunk_total: ${{ matrix.test_chunk_total }}
+      garnet: ${{ matrix.garnet == true }}
+    secrets:
+      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
-  # Windows is the slowest platform. Gate it only on compile-and-lint so its
-  # shards run in parallel with the ubuntu smoke job, instead of waiting for
-  # the smoke job like the other Node.js versions do.
   test-windows:
     name: TS CI / Test / ${{ matrix.platform_label }}
     needs: [compile-and-lint, build-pnpr-windows]
@@ -211,7 +210,6 @@ jobs:
       - compile-and-lint
       - build-pnpr-linux
       - build-pnpr-windows
-      - test-smoke
       - test
       - test-windows
     runs-on: blacksmith-4vcpu-ubuntu-2404

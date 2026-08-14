@@ -28,11 +28,17 @@ fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
 
 /// Read an env var by suffix, keeping an empty value as `Some("")`.
 ///
-/// For nearly every setting an empty env var is indistinguishable from
-/// an unset one, which is why [`read_env`] drops it. `savePrefix` is the
-/// exception: `""` is the value that selects an exact version pin, and
 /// pnpm's own env pass only skips a variable that is absent, never one
-/// that is empty.
+/// that is empty, so an empty value clobbers lower-priority layers. For
+/// nearly every setting an empty value is indistinguishable from an unset
+/// one, which is why [`read_env`] drops it. Two settings are exceptions,
+/// where `""` is observably different from unset:
+///
+/// - `savePrefix`: `""` is the value that selects an exact version pin.
+/// - `scope`: `""` must override a scope from `pnpm-workspace.yaml` or the
+///   global `config.yaml` so that `PNPM_CONFIG_SCOPE=` yields an unscoped
+///   `pnpm login`. Dropping it would let the lower layer's scope leak
+///   through, diverging from the TypeScript CLI.
 fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());
@@ -129,6 +135,7 @@ impl WorkspaceSettings {
             };
         }
 
+        json_field!(ci, "CI");
         json_field!(hoist, "HOIST");
         tri_array_field!(hoist_pattern, "HOIST_PATTERN");
         tri_array_field!(public_hoist_pattern, "PUBLIC_HOIST_PATTERN");
@@ -141,6 +148,7 @@ impl WorkspaceSettings {
         json_field!(symlink, "SYMLINK");
         string_field!(virtual_store_dir, "VIRTUAL_STORE_DIR");
         json_field!(enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");
+        json_field!(global_shims, "GLOBAL_SHIMS");
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
         enum_field!(package_import_method, "PACKAGE_IMPORT_METHOD", PackageImportMethod);
         json_field!(modules_cache_max_age, "MODULES_CACHE_MAX_AGE");
@@ -156,6 +164,11 @@ impl WorkspaceSettings {
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
         string_field!(registry, "REGISTRY");
+        // Unlike its `string_field!` neighbors, `scope` keeps an empty value;
+        // see [`read_env_allow_empty`] for why.
+        if let Some(scope) = read_env_allow_empty::<Sys>("SCOPE") {
+            settings.scope = Some(scope);
+        }
         string_field!(pnpr_server, "PNPR_SERVER");
         string_field!(https_proxy, "HTTPS_PROXY");
         string_field!(http_proxy, "HTTP_PROXY");
@@ -212,6 +225,7 @@ impl WorkspaceSettings {
         json_field!(workspace_concurrency, "WORKSPACE_CONCURRENCY");
         json_field!(git_shallow_hosts, "GIT_SHALLOW_HOSTS");
         json_field!(test_pattern, "TEST_PATTERN");
+        json_field!(sync_injected_deps_after_scripts, "SYNC_INJECTED_DEPS_AFTER_SCRIPTS");
         json_field!(changed_files_ignore_pattern, "CHANGED_FILES_IGNORE_PATTERN");
         json_field!(supported_architectures, "SUPPORTED_ARCHITECTURES");
         json_field!(ignored_optional_dependencies, "IGNORED_OPTIONAL_DEPENDENCIES");
@@ -255,6 +269,7 @@ impl WorkspaceSettings {
         if let Some(save_prefix) = read_env_allow_empty::<Sys>("SAVE_PREFIX") {
             settings.save_prefix = Some(save_prefix);
         }
+        json_field!(save_exact, "SAVE_EXACT");
         json_field!(save_peer, "SAVE_PEER");
         enum_field!(save_workspace_protocol, "SAVE_WORKSPACE_PROTOCOL", SaveWorkspaceProtocol);
         json_field!(registry_supports_time_field, "REGISTRY_SUPPORTS_TIME_FIELD");

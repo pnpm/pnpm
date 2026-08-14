@@ -31,6 +31,16 @@ fn extract_separates_config_tokens_from_argv() {
 }
 
 #[test]
+fn extract_reads_the_login_scope() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.scope=@my-org", "login"]));
+    assert_eq!(remaining, argv(["pacquet", "login"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.scope.as_deref(), Some("@my-org"));
+}
+
+#[test]
 fn extract_accepts_the_on_fail_settings_as_bare_flags() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",

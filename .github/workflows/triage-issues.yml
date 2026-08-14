@@ -38,7 +38,7 @@ jobs:
           persist-credentials: false
 
       - name: Triage with Oz agent
-        uses: warpdotdev/oz-agent-action@851b4af8e23dbc2c9558ab0e240c589b0f59e490 # v1.0.26
+        uses: warpdotdev/oz-agent-action@f82e5e6a9d4043d8e057b4455ce22afa6c44aa34 # v1.0.31
         id: triage
         timeout-minutes: 20
         env:

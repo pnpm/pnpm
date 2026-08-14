@@ -45,6 +45,20 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             command: None,
         },
         Case {
+            name: "prefix alias of dir",
+            argv: &["pnpm", "--prefix", "/tmp/prefix-dir", "--version"],
+            dir: "/tmp/prefix-dir",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "equals prefix alias of dir",
+            argv: &["pnpm", "--prefix=/tmp/equals-prefix", "--version"],
+            dir: "/tmp/equals-prefix",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
             name: "separator stops command detection",
             argv: &["pnpm", "--dir=/tmp/separator", "--", "run"],
             dir: "/tmp/separator",
@@ -57,6 +71,20 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             dir: ".",
             npmrc_auth_file: None,
             command: Some("install"),
+        },
+        Case {
+            name: "store directory value is not mistaken for the command",
+            argv: &["pnpm", "--store", "/tmp/store", "--prefix", "/tmp/scanned", "--version"],
+            dir: "/tmp/scanned",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "canonical store directory value is not mistaken for the command",
+            argv: &["pnpm", "--store-dir", "/tmp/store", "--dir", "/tmp/scanned", "--version"],
+            dir: "/tmp/scanned",
+            npmrc_auth_file: None,
+            command: None,
         },
     ];
 
@@ -408,25 +436,31 @@ fn switch_target_accepts_v12_lockfile_without_legacy_wrapper_entry() {
 }
 
 #[test]
-fn switch_target_rejects_package_manager_lockfile_resolution_with_non_integrity_fields() {
+fn switch_target_discards_package_manager_lockfile_resolution_with_non_integrity_fields() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), "9.3.0");
     write_lockfile(root.path(), LOCKED_9_3_0_WITH_TARBALL_RESOLUTION);
 
-    let error = switch_target_error(root.path());
+    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
 
-    assert!(error.to_string().contains("integrity-only resolution"), "unexpected error: {error:?}");
+    let SwitchSource::Resolve { env_root, force_resync: true } = target.source else {
+        panic!("expected a forced re-resolve, got {:?}", target.source);
+    };
+    assert_eq!(env_root, root.path());
 }
 
 #[test]
-fn switch_target_rejects_package_manager_lockfile_dependency_with_non_registry_dep_path() {
+fn switch_target_discards_package_manager_lockfile_dependency_with_non_registry_dep_path() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), "9.3.0");
     write_lockfile(root.path(), LOCKED_9_3_0_WITH_FILE_DEP_PATH);
 
-    let error = switch_target_error(root.path());
+    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
 
-    assert!(error.to_string().contains("registry package path"), "unexpected error: {error:?}");
+    let SwitchSource::Resolve { env_root, force_resync: true } = target.source else {
+        panic!("expected a forced re-resolve, got {:?}", target.source);
+    };
+    assert_eq!(env_root, root.path());
 }
 
 #[test]
@@ -438,7 +472,7 @@ fn switch_target_reresolves_when_locked_version_no_longer_satisfies_range() {
     let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
 
     assert_eq!(target.spec, ">=9.1.2 <9.1.4");
-    let SwitchSource::Resolve { env_root } = target.source else {
+    let SwitchSource::Resolve { env_root, force_resync: false } = target.source else {
         panic!("expected resolve target");
     };
     assert_eq!(env_root, root.path());
@@ -457,7 +491,7 @@ fn switch_target_uses_global_env_for_legacy_package_manager_field() {
     .expect("target")
     .expect("switch");
 
-    let SwitchSource::Resolve { env_root } = target.source else {
+    let SwitchSource::Resolve { env_root, force_resync: false } = target.source else {
         panic!("expected resolve target");
     };
     assert_eq!(target.spec, "9.3.0");
@@ -524,36 +558,21 @@ importers:
   .:
     configDependencies: {{}}
     packageManagerDependencies:
-      '@pnpm/exe':
-        specifier: '{specifier}'
-        version: {version}
       pnpm:
         specifier: '{specifier}'
         version: {version}
 
 packages:
 
-  '@pnpm/exe@{version}':
-    resolution: {{integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}}
-
   pnpm@{version}:
     resolution: {{integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}}
 
 snapshots:
 
-  '@pnpm/exe@{version}': {{}}
-
   pnpm@{version}: {{}}
 ---
 ",
     )
-}
-
-fn switch_target_error(root: &Path) -> miette::Report {
-    match switch_target(&Config::default(), root) {
-        Ok(_) => panic!("expected poisoned lockfile to fail"),
-        Err(error) => error,
-    }
 }
 
 const LOCKED_9_3_0_WITH_PEER_SUFFIX: &str = r"---

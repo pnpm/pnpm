@@ -111,7 +111,7 @@ pub struct CliArgs {
 
     /// Set working directory. Accepted anywhere on the command line,
     /// before or after the subcommand, like every other rc-option.
-    #[clap(short = 'C', long, default_value = ".", global = true)]
+    #[clap(short = 'C', long, alias = "prefix", default_value = ".", global = true)]
     pub dir: PathBuf,
 
     /// Directory in which the package store is created. Relative paths
@@ -119,6 +119,7 @@ pub struct CliArgs {
     /// workspace.
     #[clap(
         long = "store-dir",
+        alias = "store",
         value_name = "DIR",
         global = true,
         overrides_with = "store_dir",
@@ -647,7 +648,7 @@ impl CliCommand {
     /// projects it selected. pnpm gates this on two things at once: the
     /// command must be one of the few that report scope, and the run must
     /// be workspace-wide — either asked for with `-r` / `--filter`, or
-    /// because the command is workspace-wide by nature (`install`).
+    /// because the command is workspace-wide by nature (`install`, `prune`).
     pub(crate) fn reports_scope(&self, recursive: bool) -> bool {
         let reports_scope = matches!(
             self,
@@ -661,7 +662,27 @@ impl CliCommand {
                 | CliCommand::Run(_)
                 | CliCommand::Test(_),
         );
-        reports_scope && (recursive || matches!(self, CliCommand::Install(_)))
+        reports_scope
+            && (recursive || matches!(self, CliCommand::Install(_) | CliCommand::Prune(_)))
+    }
+
+    /// Whether reporter output (warnings, progress) goes to stderr so this
+    /// command's stdout stays a clean, machine-readable value — pnpm's
+    /// `COMMANDS_WITH_STDERR_REPORTER`. pnpm's set also lists the top-level
+    /// `set` / `get` commands, which pacquet does not have.
+    pub(crate) fn uses_stderr_reporter(&self) -> bool {
+        matches!(
+            self,
+            CliCommand::Dlx(_)
+                | CliCommand::Create(_)
+                | CliCommand::Config(_)
+                | CliCommand::Sbom(_)
+                | CliCommand::With(_)
+                | CliCommand::Store(_)
+                | CliCommand::Prefix(_)
+                | CliCommand::Root(_)
+                | CliCommand::Bin(_),
+        )
     }
 
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {

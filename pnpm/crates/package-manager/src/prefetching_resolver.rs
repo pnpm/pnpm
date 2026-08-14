@@ -21,6 +21,11 @@
 //! prefetch is already done) or briefly blocks on the `Notify` (the
 //! prefetch is still in flight). Errors are surfaced to the install
 //! path as `TarballError::SiblingFetchFailed`.
+//!
+//! That prefetch is speculative, and a run may switch it off
+//! ([`PrefetchContext::prefetch_downloads`]). Hashing a resolution
+//! that carries no integrity is not speculative — the lockfile records
+//! that hash — so it runs either way.
 
 use crate::{
     install_package_from_registry::{extract_tarball, manifest_file_count, manifest_unpacked_size},
@@ -70,6 +75,10 @@ pub struct PrefetchContext<'a> {
     /// consults the set so prefetch progress is visible immediately
     /// without being counted again.
     pub progress_reported: &'a SharedReportedProgressKeys,
+    /// Whether a resolved tarball is prefetched. `false` for a run
+    /// whose install pass will never ask for those bytes, so the store
+    /// isn't filled with tarballs nobody installs.
+    pub prefetch_downloads: bool,
 }
 
 /// Owned, `'static`-friendly clones of [`PrefetchContext`] stored on
@@ -109,6 +118,7 @@ struct OwnedFetchCtx {
     /// edge downloads and computes the integrity; later edges await the
     /// same cell instead of fetching the URL again.
     integrity_cache: Arc<DashMap<String, Arc<OnceCell<Integrity>>>>,
+    prefetch_downloads: bool,
 }
 
 /// Wraps an inner [`Resolver`] and, after each successful resolve that
@@ -149,6 +159,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             requester,
             supported_architectures,
             progress_reported,
+            prefetch_downloads,
         } = prefetch_ctx;
         let ctx = OwnedFetchCtx {
             http_client: Arc::clone(http_client),
@@ -169,6 +180,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             progress_reported: SharedReportedProgressKeys::clone(progress_reported),
             spawned_urls: Arc::new(DashSet::new()),
             integrity_cache: Arc::new(DashMap::new()),
+            prefetch_downloads,
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
     }
@@ -380,7 +392,9 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
             let mut result = self.inner.resolve(wanted_dependency, opts).await?;
             if let Some(result_mut) = result.as_mut() {
                 self.populate_missing_integrity(result_mut).await?;
-                if !self.should_skip_prefetch(wanted_dependency, result_mut) {
+                if self.ctx.prefetch_downloads
+                    && !self.should_skip_prefetch(wanted_dependency, result_mut)
+                {
                     self.maybe_kickoff_download(result_mut);
                 }
             }

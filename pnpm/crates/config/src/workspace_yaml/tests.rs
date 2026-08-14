@@ -1,7 +1,8 @@
 use super::{AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
-    AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker,
-    NodePackageMapType, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    AuditLevel, CatalogMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
+    LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
+    ShimPolicy, TrustPolicy, api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
@@ -34,6 +35,65 @@ packages:
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
     assert_eq!(settings.node_experimental_package_map, Some(true));
     assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
+}
+
+#[test]
+fn global_shims_defaults_enable_the_managed_runtimes() {
+    let shims = Config::default().global_shims;
+    for name in ["node", "deno", "bun"] {
+        assert!(shims.is_enabled(name), "{name} should be enabled by default");
+    }
+    assert!(!shims.is_enabled("typescript"));
+    assert!(!shims.dispatches_nothing());
+}
+
+#[test]
+fn global_shims_record_merges_over_the_defaults() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("globalShims: {bun: false, typescript: true}\n").unwrap();
+    assert!(matches!(settings.global_shims, Some(GlobalShimsSetting::Entries(_))));
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.global_shims.is_enabled("node"), "untouched defaults must survive");
+    assert!(!config.global_shims.is_enabled("bun"), "one default can be switched off");
+    assert!(config.global_shims.is_enabled("typescript"));
+}
+
+#[test]
+fn global_shims_scalar_shorthands_reset_the_record() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("globalShims: false\n").unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.global_shims.dispatches_nothing());
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str("globalShims: true\n").unwrap();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.global_shims, GlobalShims::default());
+}
+
+#[test]
+fn global_shims_named_policies_parse() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("globalShims: {node: prompt, deno: always, bun: auto}\n").unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let shims = config.global_shims;
+    assert_eq!(shims.policy("node"), ShimPolicy::Prompt);
+    assert_eq!(shims.policy("deno"), ShimPolicy::Always);
+    assert_eq!(shims.policy("bun"), ShimPolicy::Auto, "explicit auto equals the true shorthand");
+    assert_eq!(shims.policy("typescript"), ShimPolicy::Off);
+    assert!(shims.is_enabled("node"), "prompt still counts as enabled");
+}
+
+#[test]
+fn global_shims_later_layers_win_per_key() {
+    let mut shims = GlobalShims::default();
+    shims.apply(&serde_saphyr::from_str::<GlobalShimsSetting>("{node: false}").unwrap());
+    shims
+        .apply(&serde_saphyr::from_str::<GlobalShimsSetting>("{node: true, deno: false}").unwrap());
+    assert!(shims.is_enabled("node"));
+    assert!(!shims.is_enabled("deno"));
+    assert!(shims.is_enabled("bun"));
 }
 
 #[test]
@@ -84,6 +144,39 @@ registry: https://reg.example
     assert!(!config.lockfile);
     assert_eq!(config.registry, "https://reg.example/");
     assert_ne!(before_registry, config.registry);
+}
+
+#[test]
+fn parses_and_applies_scope_from_yaml() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@my-org'\n").unwrap();
+    assert_eq!(settings.scope.as_deref(), Some("@my-org"));
+
+    let mut config = Config::new();
+    assert_eq!(config.scope, None);
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.scope.as_deref(), Some("@my-org"));
+}
+
+/// `scope` is a valid key in the global `config.yaml` (pnpm's
+/// `isConfigFileKey` accepts it), so it must survive the workspace-only
+/// stripping that runs on that file.
+#[test]
+fn scope_survives_workspace_only_field_clearing() {
+    let mut settings: WorkspaceSettings =
+        serde_saphyr::from_str("scope: '@from-global'\n").unwrap();
+    settings.clear_workspace_only_fields();
+    assert_eq!(settings.scope.as_deref(), Some("@from-global"));
+}
+
+#[test]
+fn apply_scope_overrides_an_earlier_layer() {
+    // The workspace yaml is applied over the global `config.yaml`, so the
+    // project's scope wins — mirroring `registry`.
+    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-yaml'\n").unwrap();
+    let mut config = Config::new();
+    config.scope = Some("@from-global-config".to_owned());
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
 }
 
 #[test]

@@ -115,6 +115,16 @@ fn added_root(name: &str, version: &str, dt: DependencyType) -> LogEvent {
 }
 
 fn added_root_at(prefix: &str, name: &str, version: &str, dt: DependencyType) -> LogEvent {
+    added_root_with_latest_at(prefix, name, version, None, dt)
+}
+
+fn added_root_with_latest_at(
+    prefix: &str,
+    name: &str,
+    version: &str,
+    latest: Option<&str>,
+    dt: DependencyType,
+) -> LogEvent {
     LogEvent::Root(RootLog {
         level: LogLevel::Debug,
         message: RootMessage::Added {
@@ -125,7 +135,7 @@ fn added_root_at(prefix: &str, name: &str, version: &str, dt: DependencyType) ->
                 version: Some(version.to_string()),
                 dependency_type: Some(dt),
                 id: None,
-                latest: None,
+                latest: latest.map(str::to_string),
                 linked_from: None,
             },
         },
@@ -466,6 +476,64 @@ fn summary_groups_by_dependency_type_in_order() {
 }
 
 #[test]
+fn summary_prints_is_available_when_latest_is_newer_than_version() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(CWD, "foo", "1.0.0", Some("2.0.0"), DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0 (2.0.0 is available)\n");
+}
+
+#[test]
+fn summary_omits_is_available_when_latest_equals_version() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(CWD, "foo", "3.9.5", Some("3.9.5"), DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 3.9.5\n");
+}
+
+#[test]
+fn summary_omits_is_available_when_latest_is_older_than_version() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(CWD, "foo", "2.0.0", Some("1.0.0"), DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 2.0.0\n");
+}
+
+#[test]
+fn summary_omits_is_available_when_latest_is_not_semver() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(
+                CWD,
+                "foo",
+                "1.0.0",
+                Some("not-a-version"),
+                DependencyType::Prod,
+            ),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
+}
+
+#[test]
 fn summary_ignores_root_events_outside_current_prefix() {
     let mut reporter = state(false);
     let frame = render(
@@ -684,6 +752,20 @@ fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
         prefix: CWD.to_string(),
     }));
     assert!(matches!(pending, Output::None));
+
+    let stats = reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { added: 1, prefix: CWD.to_string() },
+    }));
+    match stats {
+        Output::Lines(lines) => {
+            assert!(!lines.iter().any(|line| line.contains("Lockfile is up to date")));
+        }
+        Output::None => {}
+        Output::Frame(_) => {
+            panic!("install stats should not flush the pending frozen-install message");
+        }
+    }
 
     let started = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
         level: LogLevel::Debug,
@@ -988,6 +1070,17 @@ fn direct_deprecation_renders_immediately_with_the_message() {
     let mut reporter = state(false);
     let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
     assert_eq!(frame, "[WARN] deprecated express@0.14.1: no longer supported");
+}
+
+#[test]
+fn recursive_direct_deprecation_is_zoomed_and_omits_the_message() {
+    let mut reporter =
+        state_with_options(ReporterOptions { is_recursive: true, ..ReporterOptions::default() });
+    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
+    assert_eq!(
+        frame,
+        pacquet_default_reporter::format::zoom_out(CWD, CWD, "[WARN] deprecated express@0.14.1",),
+    );
 }
 
 /// Upstream's zoomed variant carries only `deprecated name@version` — the

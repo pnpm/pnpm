@@ -8,8 +8,8 @@
 //! [`ConfigOverrides::extract`]: crate::config_overrides::ConfigOverrides::extract
 //! [`expand_universal_shorthands`]: crate::shorthands::expand_universal_shorthands
 
-use crate::{cli_args::CliArgs, flag_relocation::ArgTable};
-use clap::{Command, CommandFactory};
+use crate::{cli_args::grammar, flag_relocation::ArgTable};
+use clap::Command;
 use std::ffi::OsString;
 
 /// Commands whose own arguments are unconditionally a foreign command line.
@@ -64,11 +64,11 @@ pub(crate) struct CommandBoundary {
 
 /// The boundary implied by the command alone, ignoring any `--`.
 pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
-    let command = CliArgs::command();
+    let command = grammar();
     // Both halves of the union: a global lives on the top-level command,
     // a command's own options on its subcommand.
-    let mut arity = ArgTable::top_level(&command);
-    arity.absorb_subcommands(&command);
+    let mut arity = ArgTable::top_level(command);
+    arity.absorb_subcommands(command);
     let mut index = 1;
     let mut prefix_allowed = true;
     while index < argv.len() {
@@ -90,7 +90,7 @@ pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
             index += 1;
             continue;
         }
-        let Some(subcommand) = matching_subcommand(&command, arg) else {
+        let Some(subcommand) = matching_subcommand(command, arg) else {
             // Names no command: the `pnpm <script>` fallback.
             return Some(CommandBoundary { index: index + 1, is_script_shortcut: false });
         };

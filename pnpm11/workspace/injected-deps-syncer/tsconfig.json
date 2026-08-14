@@ -16,6 +16,12 @@
       "path": "../../bins/linker"
     },
     {
+      "path": "../../bins/remover"
+    },
+    {
+      "path": "../../bins/resolver"
+    },
+    {
       "path": "../../core/error"
     },
     {
@@ -32,6 +38,9 @@
     },
     {
       "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
     },
     {
       "path": "../projects-reader"

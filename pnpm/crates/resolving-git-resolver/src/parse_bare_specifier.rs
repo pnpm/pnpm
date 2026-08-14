@@ -1,18 +1,20 @@
 //! Recognise and normalise a git-shaped `bareSpecifier`.
 //!
-//! Two-phase API splits the sync protocol-prefix dispatch from the
-//! async hosted-repo probe:
+//! Parsing is pure: no network, no probing. A hosted spec (`github:`,
+//! `gitlab:`, `bitbucket:`, `owner/repo`, or any URL of a known host —
+//! HTTPS *and* SSH alike) is treated as an *identity*, not a transport
+//! choice, and always finalises to the host's canonical HTTPS URL.
+//! Which transport a given machine actually uses to reach the host is
+//! that machine's git configuration (credential helpers,
+//! `url.<base>.insteadOf` rewrites) — never something recorded in the
+//! manifest or lockfile, because it would be wrong on the next machine.
 //!
-//! * [`parse_bare_specifier`] runs the synchronous part. Returns
-//!   `None` when the input isn't a git-shaped specifier (so the
-//!   resolver chain falls through to the next resolver).
-//! * [`PartialSpec::finalize`] runs the async part. For hosted
-//!   specs it picks between https / ssh based on the
-//!   [`GitProbe`] callbacks (HTTP HEAD + `git ls-remote --exit-code`);
-//!   for protocol-prefix specs the spec is already complete and the
-//!   probe is unused.
-
-use std::{future::Future, pin::Pin};
+//! * [`parse_bare_specifier`] returns `None` when the input isn't a
+//!   git-shaped specifier (so the resolver chain falls through to the
+//!   next resolver).
+//! * [`PartialSpec::finalize`] completes the hosted branch. URLs of
+//!   unknown hosts pass through verbatim — for them the URL *is* the
+//!   identity, transport included.
 
 use crate::hosted_git::{HostedGit, HostedOpts};
 
@@ -21,11 +23,12 @@ use crate::hosted_git::{HostedGit, HostedOpts};
 pub struct HostedPackageSpec {
     /// URL passed to `git ls-remote`. Always carries no committish —
     /// the committish lives in [`Self::git_committish`] /
-    /// [`Self::git_range`].
+    /// [`Self::git_range`]. For hosted inputs this is the canonical
+    /// HTTPS URL regardless of the representation the user wrote.
     pub fetch_spec: String,
     /// Original `HostedGit` parse, when the input matched a known
-    /// host. Drives [`crate::GitResolver`]'s tarball vs git-resolution
-    /// decision.
+    /// host and carried no URL-embedded credentials. Makes the repo
+    /// eligible for [`crate::GitResolver`]'s host-archive resolution.
     pub hosted: Option<HostedGit>,
     /// What the resolver echoes back to the manifest as
     /// `normalizedBareSpecifier`. For hosted inputs this is the
@@ -39,46 +42,21 @@ pub struct HostedPackageSpec {
 
 /// Output of the sync prefilter [`parse_bare_specifier`].
 pub enum PartialSpec {
-    /// Hosted input: needs an async probe to decide https/ssh routing.
+    /// Input matched a known host: identity parsed, canonical URL
+    /// still to be derived.
     Hosted(HostedGit),
-    /// Protocol-prefix input: already finalised, no probe needed.
+    /// URL of an unknown host: already final, kept verbatim.
     Direct(HostedPackageSpec),
 }
 
 impl PartialSpec {
-    /// Drive the async leg. For [`PartialSpec::Direct`] the probe is
-    /// ignored.
-    pub async fn finalize<Probe: GitProbe + ?Sized>(self, probe: &Probe) -> HostedPackageSpec {
+    #[must_use]
+    pub fn finalize(self) -> HostedPackageSpec {
         match self {
             PartialSpec::Direct(spec) => spec,
-            PartialSpec::Hosted(hosted) => from_hosted_git(hosted, probe).await,
+            PartialSpec::Hosted(hosted) => from_hosted_git(hosted),
         }
     }
-}
-
-/// Boxed-future return type used by [`GitProbe`]. Same shape as the
-/// rest of pacquet's async traits (see `ResolveFuture`).
-pub type ProbeFuture<'a> = Pin<Box<dyn Future<Output = bool> + Send + 'a>>;
-
-/// Capability seam for the network and git invocations the hosted
-/// branch needs.
-///
-/// Real installs supply an implementation that issues an HTTP HEAD via
-/// the install-wide [`pacquet_network::ThrottledClient`] and shells
-/// out to `git ls-remote --exit-code`. Tests supply a fake that
-/// records calls and yields canned values without touching the
-/// network or the system git binary.
-pub trait GitProbe: Send + Sync {
-    /// `true` when an HTTP HEAD to the given URL returned a 2xx /
-    /// 3xx. Used to detect public repos before running `git ls-remote`
-    /// (which would otherwise prompt for credentials on a private
-    /// repo).
-    fn https_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a>;
-
-    /// `true` when `git ls-remote --exit-code <url> HEAD` exited zero.
-    /// Used as a reachability test on both the https and ssh
-    /// candidates.
-    fn ls_remote_exit_code<'a>(&'a self, repo: &'a str) -> ProbeFuture<'a>;
 }
 
 const GIT_PROTOCOLS: &[&str] =
@@ -163,18 +141,21 @@ fn correct_url(input: &str) -> String {
     // that the URL parser cannot consume. Convert the last colon in
     // the host into a `/`, unless it's followed by a numeric port.
     let host = auth.rsplit_once('@').map_or(auth, |(_, host)| host);
-    let port_pattern_present = host.rfind(':').is_some_and(|idx| {
-        host[idx + 1..].chars().all(|byte| byte.is_ascii_digit()) && !host[idx + 1..].is_empty()
+    // The colons of a bracketed IPv6 literal belong to the address.
+    let after_host = if host.starts_with('[') {
+        host.find(']').map_or(host, |idx| &host[idx + 1..])
+    } else {
+        host
+    };
+    let port_pattern_present = after_host.rfind(':').is_some_and(|idx| {
+        after_host[idx + 1..].chars().all(|byte| byte.is_ascii_digit())
+            && !after_host[idx + 1..].is_empty()
     });
-    let host_has_colon = host.contains(':');
+    let host_has_colon = after_host.contains(':');
     if host_has_colon && !port_pattern_present {
-        let auth_parts: Vec<&str> = auth.split(':').collect();
         let protocol = "ssh";
-        // `auth_parts[..-1] join ':' + '/' + auth_parts[-1]`
-        let new_auth = if auth_parts.len() >= 2 {
-            let last = auth_parts[auth_parts.len() - 1];
-            let rest = auth_parts[..auth_parts.len() - 1].join(":");
-            format!("{rest}/{last}")
+        let new_auth = if let Some(separator) = auth.rfind(':') {
+            format!("{}/{}", &auth[..separator], &auth[separator + 1..])
         } else {
             auth.to_string()
         };
@@ -218,83 +199,29 @@ fn parse_git_params(committish: Option<&str>) -> GitParsedParams {
     out
 }
 
-/// Async leg: probe the hosted host for public-vs-private + ssh
-/// reachability, pick a `fetchSpec`.
-async fn from_hosted_git<Probe: GitProbe + ?Sized>(
-    hosted: HostedGit,
-    probe: &Probe,
-) -> HostedPackageSpec {
-    let mut fetch_spec: Option<String> = None;
-
-    let git_https_url = hosted.https(HostedGit::no_committish_no_git_plus());
-    if let Some(ref https_url) = git_https_url
-        && probe.https_head_ok(https_url).await
-        && probe.ls_remote_exit_code(https_url).await
-    {
-        fetch_spec = Some(https_url.clone());
-    }
-
-    if fetch_spec.is_none() {
-        let ssh_url = hosted.ssh(HostedGit::no_committish());
-        if let Some(ref url) = ssh_url
-            && probe.ls_remote_exit_code(url).await
-        {
-            fetch_spec = Some(url.clone());
-        }
-    }
-
-    if fetch_spec.is_none()
-        && let Some(https_url) = hosted.https(HostedGit::no_committish_no_git_plus())
-    {
-        // Private repo or HEAD probe failed: try `https` (with auth if
-        // present) directly, gated on ls-remote reachability.
-        let has_auth = hosted.auth.is_some();
-        let probe_succeeded = if has_auth || !probe.https_head_ok(&https_url).await {
-            probe.ls_remote_exit_code(&https_url).await
-        } else {
-            false
-        };
-        if probe_succeeded {
-            let params = parse_git_params(hosted.committish.as_deref());
-            return HostedPackageSpec {
-                fetch_spec: https_url.clone(),
-                // `hosted: None` drops the host-archive option, so the
-                // resolution stays `type: git` against the URL that
-                // just probed reachable. A host's archive endpoint
-                // carries none of this URL's credentials, so a private
-                // repo resolved to its `codeload`-style archive would
-                // record a URL nothing can fetch. Mirrors upstream
-                // returning `hosted: { ...hosted, tarball: undefined }`
-                // here.
-                hosted: None,
-                normalized_bare_specifier: format!("git+{https_url}"),
-                git_committish: params.git_committish,
-                git_range: params.git_range,
-                path: params.path,
-            };
-        }
-        // Try an additional HEAD probe on the bare URL (no `.git`
-        // suffix) to confirm the path resolves at all before falling
-        // through to ssh. Done only when there's no `auth`: with auth,
-        // the path is the auth-gated private URL above. Without auth,
-        // retest as below.
-        if !has_auth {
-            let stripped = https_url.strip_suffix(".git").unwrap_or(&https_url);
-            if probe.https_head_ok(stripped).await {
-                fetch_spec = Some(https_url.clone());
-            }
-        }
-    }
-
-    // Final fallback: `git+ssh` URL form (the committish-less
-    // ssh URL).
-    let fetch_spec = fetch_spec
-        .or_else(|| hosted.sshurl(HostedGit::no_committish()))
-        .unwrap_or_else(|| hosted.shortcut(HostedOpts::default()));
-
+/// Finalise a hosted spec to its canonical HTTPS URL. See the module
+/// doc for why no other representation (notably SSH) is ever derived
+/// here.
+fn from_hosted_git(hosted: HostedGit) -> HostedPackageSpec {
     let params = parse_git_params(hosted.committish.as_deref());
+    let https_url = hosted.https(HostedGit::no_committish_no_git_plus());
+    // URL-embedded credentials are explicit user content, not
+    // transport — and the host's archive endpoint would not carry
+    // them, so the spec stays archive-ineligible.
+    if hosted.auth.is_some()
+        && let Some(https_url) = &https_url
+    {
+        return HostedPackageSpec {
+            fetch_spec: https_url.clone(),
+            hosted: None,
+            normalized_bare_specifier: format!("git+{https_url}"),
+            git_committish: params.git_committish,
+            git_range: params.git_range,
+            path: params.path,
+        };
+    }
     HostedPackageSpec {
-        fetch_spec,
+        fetch_spec: https_url.unwrap_or_else(|| hosted.shortcut(HostedOpts::default())),
         normalized_bare_specifier: hosted.shortcut(HostedOpts::default()),
         hosted: Some(hosted),
         git_committish: params.git_committish,

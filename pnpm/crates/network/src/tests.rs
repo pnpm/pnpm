@@ -257,19 +257,40 @@ fn for_installs_with_valid_proxy_url_builds() {
 }
 
 #[test]
-fn for_installs_with_invalid_proxy_url_errors() {
-    let proxy =
-        ProxyConfig { https_proxy: Some("://nonsense".into()), http_proxy: None, no_proxy: None };
-    let err = ThrottledClient::for_installs(
+fn for_installs_with_empty_proxy_urls_treats_them_as_unset() {
+    // pnpm/pnpm#13533: exporting `HTTP_PROXY=` disables the proxy, so an
+    // empty value must not reach `parse_proxy_url`.
+    let proxy = ProxyConfig {
+        https_proxy: Some(String::new()),
+        http_proxy: Some(String::new()),
+        no_proxy: None,
+    };
+    ThrottledClient::for_installs(
         &proxy,
         &TlsConfig::default(),
         &PerRegistryTls::default(),
         &NetworkSettings::default(),
     )
-    .expect_err("must error");
-    eprintln!("err={err:?}");
-    let is_invalid = matches!(err, ForInstallsError::Proxy(ProxyError::InvalidProxy { .. }));
-    assert!(is_invalid, "err={err:?}: expected ForInstallsError::Proxy(InvalidProxy)");
+    .expect("empty proxy values are treated as unset");
+}
+
+#[test]
+fn for_installs_with_invalid_proxy_url_errors() {
+    for proxy in [
+        ProxyConfig { https_proxy: Some("://nonsense".into()), http_proxy: None, no_proxy: None },
+        ProxyConfig { https_proxy: None, http_proxy: Some("://nonsense".into()), no_proxy: None },
+    ] {
+        let err = ThrottledClient::for_installs(
+            &proxy,
+            &TlsConfig::default(),
+            &PerRegistryTls::default(),
+            &NetworkSettings::default(),
+        )
+        .expect_err("must error");
+        eprintln!("proxy={proxy:?} err={err:?}");
+        let is_invalid = matches!(err, ForInstallsError::Proxy(ProxyError::InvalidProxy { .. }));
+        assert!(is_invalid, "err={err:?}: expected ForInstallsError::Proxy(InvalidProxy)");
+    }
 }
 
 #[test]
@@ -737,6 +758,63 @@ fn node_extra_ca_certs_is_loaded_and_failures_are_non_fatal() {
     env.set("NODE_EXTRA_CA_CERTS", "/pacquet/does-not-exist.pem");
     assert!(super::load_node_extra_ca_certs().is_empty());
     // `env` restores NODE_EXTRA_CA_CERTS on drop.
+}
+
+// `SSL_CERT_FILE` alone switches `rustls-native-certs` to env-only
+// loading, so pointing it at an empty file is a portable stand-in for a
+// machine whose system trust store holds nothing — the nixpkgs sandbox
+// of pnpm/pnpm#13588. Only the Linux/BSD platform verifier reads that
+// variable; the Apple and Windows ones go to the OS keychain.
+#[cfg(all(unix, not(target_vendor = "apple")))]
+#[test]
+fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
+    let env = EnvGuard::snapshot(["SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"]);
+    let empty_bundle =
+        std::env::temp_dir().join(format!("pacquet-empty-ca-{}.pem", std::process::id()));
+    std::fs::write(&empty_bundle, b"").expect("write empty ca bundle");
+    env.set("SSL_CERT_FILE", &empty_bundle);
+    env.set("SSL_CERT_DIR", &empty_bundle);
+    // An extra root of any kind keeps the platform verifier alive, so
+    // the fallback would go untested with the developer's own value.
+    env.set("NODE_EXTRA_CA_CERTS", "");
+
+    assert!(
+        reqwest::Client::builder().build().is_err(),
+        "precondition: the platform verifier must fail without a system trust store",
+    );
+
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("bundled Mozilla roots stand in for the missing system trust store");
+
+    // A configured `ca` is itself enough to keep the platform verifier
+    // constructible, so a user with custom roots never reaches the
+    // fallback — their roots cannot be displaced by it.
+    let ca =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-ca.pem"))
+            .expect("read test ca fixture");
+    assert!(
+        reqwest::Client::builder()
+            .add_root_certificate(
+                reqwest::Certificate::from_pem(ca.as_bytes()).expect("parse test ca fixture")
+            )
+            .build()
+            .is_ok(),
+        "a custom CA root keeps the platform verifier constructible",
+    );
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig { ca: vec![ca], ..TlsConfig::default() },
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("a configured ca builds without a system trust store");
+
+    let _ = std::fs::remove_file(&empty_bundle);
 }
 
 #[test]

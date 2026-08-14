@@ -5,7 +5,7 @@ use std::{
 };
 
 use chrono::TimeZone;
-use pacquet_config::TrustPolicy;
+use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pacquet_lockfile::LockfileResolution;
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{
@@ -18,6 +18,7 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::{
+    errors::InvalidTarballIntegrityError,
     npm_resolver::NpmResolver,
     pick_package::{
         InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
@@ -205,6 +206,25 @@ async fn range_specifier_picks_max_in_range() {
     assert_eq!(result.alias.as_deref(), Some("acme"));
     assert!(result.policy_violation.is_none());
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
+}
+
+#[tokio::test]
+async fn empty_specifier_resolves_to_the_max_published_version() {
+    // Regression test for pnpm/pnpm#13673.
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some(String::new()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.id.as_str(), "acme@1.1.0");
+    assert_eq!(result.resolved_via, "npm-registry");
 }
 
 #[tokio::test]
@@ -829,7 +849,7 @@ fn workspace_resolve_options(packages: WorkspacePackages) -> ResolveOptions {
     ResolveOptions {
         project_dir: Path::new("/repo/packages/consumer").to_path_buf(),
         lockfile_dir: Path::new("/repo").to_path_buf(),
-        workspace_packages: Some(packages),
+        workspace_packages: Some(std::sync::Arc::new(packages)),
         always_try_workspace_packages: true,
         ..ResolveOptions::default()
     }
@@ -1369,5 +1389,281 @@ async fn non_404_registry_error_not_masked_by_workspace_version_mismatch() {
     assert!(
         !err_msg.contains("inside the workspace"),
         "workspace mismatch must not mask a non-404 registry error, got: {err_msg}",
+    );
+}
+
+#[tokio::test]
+async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // PACKAGE_BODY has 1.0.0 (2024-01-10) and 1.1.0 (2024-12-10),
+    // dist-tags.latest = 1.1.0. Cutoff 2024-06-01 leaves 1.1.0 immature:
+    // the hint must not fire rather than name a non-latest version.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
+    let opts = ResolveOptions { published_by, ..ResolveOptions::default() };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+    assert!(result.policy_violation.is_none(), "1.0.0 is mature, no violation");
+}
+
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_it_satisfies_published_by() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Cutoff 2025-01-01 is after both versions, so the pinned 1.0.0 install
+    // still advertises the mature 1.1.0.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap());
+    let opts = ResolveOptions { published_by, ..ResolveOptions::default() };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_published_by_is_none() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_published_by_exclude_matches_package() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // The exclude policy disables the maturity policy for `acme` entirely, so
+    // neither the pick nor the latest hint may be affected by the cutoff.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
+    let exclude = create_package_version_policy(["acme"]).expect("policy");
+    let opts = ResolveOptions {
+        published_by,
+        published_by_exclude: Some(exclude),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert!(result.policy_violation.is_none(), "excluded package has no violation");
+}
+
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_published_by_exclude_trusts_that_version() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
+    let exclude = create_package_version_policy(["acme@1.1.0"]).expect("policy");
+    let opts = ResolveOptions {
+        published_by,
+        published_by_exclude: Some(exclude),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn latest_is_suppressed_when_all_versions_are_immature_fallback_case() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Cutoff 2023-12-01 is before both versions → the pick falls back to the
+    // lowest version; latest stays suppressed because the raw tag is immature.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2023, 12, 1, 0, 0, 0).unwrap());
+    let opts = ResolveOptions { published_by, ..ResolveOptions::default() };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+}
+
+#[tokio::test]
+async fn jsr_specifier_suppresses_latest_when_published_by_holds_back_raw_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@jsr%2Ffoo__bar")
+        .with_status(200)
+        .with_body(JSR_PACKAGE_BODY)
+        .create_async()
+        .await;
+    let jsr_registry = format!("{}/", server.url());
+    let mut registries = HashMap::new();
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
+    registries.insert("@jsr".to_string(), jsr_registry);
+    let (resolver, _tempdir) = build_resolver_with_registries(registries);
+
+    let wanted = WantedDependency {
+        alias: Some("@foo/bar".to_string()),
+        bare_specifier: Some("jsr:@foo/bar@^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap()),
+        ..ResolveOptions::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+}
+
+/// A packument whose `dist` carries only the legacy `shasum`, the shape
+/// behind <https://github.com/pnpm/pnpm/issues/13547>.
+fn shasum_only_package_body(shasum: &str) -> String {
+    json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "shasum": shasum,
+                    "tarball": "https://registry/acme-1.0.0.tgz",
+                },
+            },
+        },
+    })
+    .to_string()
+}
+
+#[tokio::test]
+async fn shasum_only_metadata_resolves_to_a_sha1_integrity() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(shasum_only_package_body("e21bf1d18b7ce29d1cd45f6d8e0e8bcd0a4ca8ba"))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+
+    let LockfileResolution::Tarball(tarball) = &result.resolution else {
+        panic!("expected a tarball resolution, got {:?}", result.resolution);
+    };
+    assert_eq!(
+        tarball.integrity.as_ref().map(ToString::to_string).as_deref(),
+        Some("sha1-4hvx0Yt84p0c1F9tjg6LzQpMqLo="),
+    );
+}
+
+#[tokio::test]
+async fn unparsable_shasum_fails_the_resolve() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(shasum_only_package_body("not-a-hex-digest"))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let error = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("an unusable shasum must fail the resolve");
+
+    let error = error.downcast_ref::<InvalidTarballIntegrityError>().expect("integrity error");
+    assert_eq!(error.shasum, "not-a-hex-digest");
+    assert_eq!(error.tarball, "https://registry/acme-1.0.0.tgz");
+}
+
+#[tokio::test]
+async fn invalid_shasum_error_redacts_registry_metadata() {
+    let mut server = mockito::Server::new_async().await;
+    let body = json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "shasum": "not\u{7}-a-hex-digest",
+                    "tarball": "https://user:hunter2@registry/acme-1.0.0.tgz",
+                },
+            },
+        },
+    })
+    .to_string();
+    let _mock = server.mock("GET", "/acme").with_status(200).with_body(body).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let error = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("an unusable shasum must fail the resolve")
+        .to_string();
+
+    assert!(!error.contains("hunter2"), "inline credentials must not reach the message: {error}");
+    assert!(
+        !error.chars().any(char::is_control),
+        "control characters must not reach the message: {error:?}",
     );
 }

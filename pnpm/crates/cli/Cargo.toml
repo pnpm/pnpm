@@ -30,7 +30,9 @@ pacquet-fs                                = { workspace = true }
 pacquet-global                            = { workspace = true }
 pacquet-graph-hasher                      = { workspace = true }
 pacquet-hooks                             = { workspace = true }
+pacquet-injected-deps-syncer              = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
+pacquet-lockfile-verification             = { workspace = true }
 pacquet-modules-yaml                      = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-network-web-auth                  = { workspace = true }
@@ -105,6 +107,7 @@ wax                  = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
   "Win32_Storage_FileSystem",
+  "Win32_System_SystemInformation",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
 ] }

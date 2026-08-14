@@ -76,6 +76,7 @@ export async function searchForPackages (
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
     registries?: Registries
+    namedRegistries?: Record<string, string>
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -92,6 +93,7 @@ export async function searchForPackages (
       checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
       onlyProjects: opts.onlyProjects,
       registries: opts.registries,
+      namedRegistries: opts.namedRegistries,
       search,
       showDedupedSearchMatches: true,
       modulesDir: opts.modulesDir,
@@ -124,6 +126,7 @@ export async function listForPackages (
     onlyProjects?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
+    namedRegistries?: Record<string, string>
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -158,6 +161,7 @@ export async function list (
     onlyProjects?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
+    namedRegistries?: Record<string, string>
     showExtraneous?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
@@ -182,6 +186,7 @@ export async function list (
           checkWantedLockfileOnly: maybeOpts?.checkWantedLockfileOnly,
           onlyProjects: maybeOpts?.onlyProjects,
           registries: opts.registries,
+          namedRegistries: opts.namedRegistries,
           modulesDir: opts.modulesDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         })
@@ -237,6 +242,7 @@ export async function whyForPackages (
     include?: { [dependenciesField in DependenciesField]: boolean }
     long?: boolean
     registries?: Registries
+    namedRegistries?: Record<string, string>
     reportAs?: 'parseable' | 'tree' | 'json'
     modulesDir?: string
     finders?: Finder[]
@@ -272,6 +278,7 @@ export async function whyForPackages (
     include: opts.include,
     modulesDir: opts.modulesDir,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     finders: opts.finders,
     importerInfoMap,
     lockfile,

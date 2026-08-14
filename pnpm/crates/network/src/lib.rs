@@ -11,7 +11,7 @@ mod token_helper;
 pub use auth::{
     AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
     base64_encode, hide_auth_information, nerf_dart, normalize_auth_key, redact_and_sanitize,
-    redact_url_credentials,
+    redact_and_sanitize_multiline, redact_url_credentials,
 };
 pub use limited_body::{LimitedBody, read_limited_body};
 pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
@@ -36,7 +36,7 @@ use std::{
     collections::HashMap,
     num::NonZeroUsize,
     ops::Deref,
-    sync::{Arc, Mutex},
+    sync::{Arc, LazyLock, Mutex},
     time::Duration,
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -329,6 +329,9 @@ impl ThrottledClient {
     ///   as Node's `rejectUnauthorized=false` short-circuit.
     /// * **`local_address`.** Pinned via
     ///   `reqwest::ClientBuilder::local_address`.
+    /// * **Trust store.** The platform's, falling back to the Mozilla
+    ///   roots bundled into the binary when the platform verifier
+    ///   cannot be constructed (a system with no trust store at all).
     ///
     /// Returns [`ProxyError::InvalidProxy`] when either configured
     /// proxy URL fails to parse even after the auto-`http://` prefix
@@ -393,15 +396,28 @@ impl ThrottledClient {
         if settings.network_concurrency == 0 {
             return Err(ForInstallsError::ZeroNetworkConcurrency);
         }
-        let https = proxy.https_proxy.as_deref().map(parse_proxy_url).transpose()?;
-        let http = proxy.http_proxy.as_deref().map(parse_proxy_url).transpose()?;
+        // See the empty-value contract on `ProxyConfig`.
+        let https = proxy
+            .https_proxy
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .map(parse_proxy_url)
+            .transpose()?;
+        let http = proxy
+            .http_proxy
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .map(parse_proxy_url)
+            .transpose()?;
         let no_proxy = Arc::new(NoProxyMatcher::from(proxy.no_proxy.as_ref()));
         // Read once here, not inside `build_client`: `for_installs`
         // builds one client per per-registry override, so loading the
         // bundle per call would re-read and re-parse it N times.
         let extra_ca_certs = load_node_extra_ca_certs();
 
-        let build_client = |effective_tls: &TlsConfig| -> Result<Client, ForInstallsError> {
+        let make_builder = |effective_tls: &TlsConfig,
+                            trust_roots: TrustRoots|
+         -> Result<reqwest::ClientBuilder, ForInstallsError> {
             let mut builder = default_client_builder(settings);
             if let Some(url) = https.clone() {
                 builder = builder.proxy(build_scheme_proxy(url, "https", Arc::clone(&no_proxy)));
@@ -415,10 +431,22 @@ impl ThrottledClient {
                 builder = builder.add_root_certificate(cert.clone());
             }
             builder = apply_tls(builder, effective_tls)?;
+            if trust_roots == TrustRoots::Bundled {
+                builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
+            }
             if let Some(guard) = redirect_guard {
                 builder = builder.redirect(allowlist_redirect_policy(Arc::clone(guard)));
             }
-            Ok(builder.build().expect("build reqwest client with default timeouts and proxy"))
+            Ok(builder)
+        };
+
+        let build_client = |effective_tls: &TlsConfig| -> Result<Client, ForInstallsError> {
+            match make_builder(effective_tls, TrustRoots::Platform)?.build() {
+                Ok(client) => Ok(client),
+                Err(platform) => make_builder(effective_tls, TrustRoots::Bundled)?
+                    .build()
+                    .map_err(|bundled| ForInstallsError::ClientBuild { platform, bundled }),
+            }
         };
 
         let default_client = build_client(tls)?;
@@ -648,6 +676,42 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
     configure_dns(builder)
 }
 
+/// Which trust anchors a client built by
+/// [`ThrottledClient::for_installs`] verifies registry certificates
+/// against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TrustRoots {
+    /// The OS trust store, via reqwest's `rustls-platform-verifier`
+    /// backend. Picks up corporate / MITM roots an administrator
+    /// installed system-wide, which the bundled set cannot.
+    Platform,
+
+    /// The Mozilla root set compiled into the binary. Used only when
+    /// the platform verifier cannot be constructed at all — on a
+    /// machine with no system trust store, `rustls-platform-verifier`
+    /// fails the client build outright rather than degrading, and
+    /// pnpm-on-Node keeps working there because Node ships the same
+    /// bundled roots. Falling back restores that parity; it is never
+    /// preferred over the platform store, so a user who deliberately
+    /// distrusts a Mozilla root system-wide keeps that decision as
+    /// long as their store loads at all.
+    Bundled,
+}
+
+/// The Mozilla CA root set compiled into the binary, in reqwest's
+/// [`Certificate`] form. Parsed once — `for_installs` builds one
+/// client per per-registry override, and the fallback path is taken
+/// by every one of them on a system without a trust store.
+fn bundled_root_certs() -> &'static [Certificate] {
+    static CERTS: LazyLock<Vec<Certificate>> = LazyLock::new(|| {
+        webpki_root_certs::TLS_SERVER_ROOT_CERTS
+            .iter()
+            .map(|der| Certificate::from_der(der).expect("bundled Mozilla root is valid DER"))
+            .collect()
+    });
+    &CERTS
+}
+
 /// Load the PEM bundle named by `NODE_EXTRA_CA_CERTS` as extra trust
 /// roots, to be added to every client `for_installs` builds.
 ///
@@ -671,7 +735,7 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
 ///
 /// The resulting certs are additive and lowest-priority: layered under
 /// the `.npmrc` `ca` / `cafile` roots that [`apply_tls`] adds afterward
-/// and under the built-in webpki roots (ordering is immaterial — the
+/// and under the platform trust store (ordering is immaterial — the
 /// rustls root store is a union). A missing, unreadable, or malformed
 /// file yields an empty list, matching pnpm's silent treatment of a
 /// missing `cafile` rather than failing the client build.
@@ -817,6 +881,18 @@ pub enum ForInstallsError {
     /// fails fast rather than deadlock.
     #[display("networkConcurrency must be at least 1")]
     ZeroNetworkConcurrency,
+
+    /// reqwest rejected the assembled client configuration, with both
+    /// the platform trust store and the bundled Mozilla roots. The
+    /// platform attempt is the source (it is the one that describes
+    /// the environment); the retry's own failure is spelled out too,
+    /// since the two can differ.
+    #[display("Failed to build the HTTP client (retry with bundled CA roots: {bundled})")]
+    ClientBuild {
+        #[error(source)]
+        platform: reqwest::Error,
+        bundled: reqwest::Error,
+    },
 }
 
 impl From<ProxyError> for ForInstallsError {

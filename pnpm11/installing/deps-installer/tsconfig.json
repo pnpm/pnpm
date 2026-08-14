@@ -106,6 +106,9 @@
       "path": "../../fs/symlink-dependency"
     },
     {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
       "path": "../../hooks/read-package-hook"
     },
     {
@@ -185,6 +188,9 @@
     },
     {
       "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
     },
     {
       "path": "../../worker"

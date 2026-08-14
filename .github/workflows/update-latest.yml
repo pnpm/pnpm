@@ -27,10 +27,7 @@ env:
   # The pnpm that operates this workflow, never the version being released:
   # validate and verify-upgrade decide what the release is measured against, and
   # tag-in-registry holds the publish token. Bump deliberately, to a version that
-  # has already proven itself as `latest`. Until this moves to v12, the
-  # `pnpm/setup` steps below stay pinned to 77cf0683 — the last revision of the
-  # action able to install pnpm 11; newer revisions only install the
-  # standalone pnpm v12+.
+  # has already proven itself as `latest`.
   RELEASE_TOOL_PNPM_VERSION: 11.13.1
 
 jobs:
@@ -40,11 +37,12 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
         install: false
+        token: ''
     # The latest-<major> tag is derived from the version instead of being
     # hardcoded per release branch, so dispatching this workflow from the wrong
     # branch cannot point a newer line's tag at an older release
@@ -99,11 +97,12 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
         install: false
+        token: ''
     - name: Verify upgrading onto the new version
       if: ${{ !inputs.skip_upgrade_check }}
       env:
@@ -201,11 +200,12 @@ jobs:
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
         install: false
+        token: ''
     - name: Update tag
       env:
         # Written to pnpm's config below, not passed as
@@ -231,7 +231,7 @@ jobs:
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: vedantmgoyal9/winget-releaser@7bd472be23763def6e16bd06cc8b1cdfab0e2fd5 # main
+      - uses: vedantmgoyal9/winget-releaser@7bd472be23763def6e16bd06cc8b1cdfab0e2fd5 # 2026-03-15 pin, no longer on a named ref # zizmor: ignore[ref-version-mismatch]
         with:
           identifier: pnpm.pnpm
           version: ${{ github.event.inputs.version }}
@@ -260,7 +260,7 @@ jobs:
     steps:
       - name: Send toot to Mastodon
         id: mastodon
-        uses: cbrgm/mastodon-github-action@ac2d8e8c9986a17b824dd12dd9df4ce5fcd813c1 # v2.2.2
+        uses: cbrgm/mastodon-github-action@7fcc3650150fc062d707eeffb50e8f7a2704fd0f # v2.2.3
         with:
           message: |
             pnpm@${{ github.event.inputs.version }} is out!

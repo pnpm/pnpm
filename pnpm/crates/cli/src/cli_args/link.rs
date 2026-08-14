@@ -159,13 +159,16 @@ impl LinkArgs {
             node_linker: config.node_linker,
             lockfile_only: false,
             dry_run: false,
+            persist_policy_excludes: false,
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,
+            deps_requiring_build_sink: None,
             catalogs_override: None,
         }
         .run::<Reporter>()

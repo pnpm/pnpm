@@ -4110,6 +4110,62 @@ test('proxy settings are still read from .npmrc', async () => {
   expect(config.noProxy).toBe('internal.example.com')
 })
 
+test('an empty legacy proxy setting in .npmrc falls through to the environment', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'proxy=', 'utf8')
+
+  const originalHttpsProxy = process.env.HTTPS_PROXY
+  process.env.HTTPS_PROXY = 'http://env-proxy.example.com:8080'
+  try {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.httpsProxy).toBe('http://env-proxy.example.com:8080')
+    expect(config.httpProxy).toBe('http://env-proxy.example.com:8080')
+  } finally {
+    if (originalHttpsProxy != null) {
+      process.env.HTTPS_PROXY = originalHttpsProxy
+    } else {
+      delete process.env.HTTPS_PROXY
+    }
+  }
+})
+
+test('a legacy proxy setting disabled with false is not re-enabled by the environment', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'proxy=false', 'utf8')
+
+  const originalHttpProxy = process.env.HTTP_PROXY
+  process.env.HTTP_PROXY = 'http://env-proxy.example.com:8080'
+  try {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.httpsProxy).toBe(false)
+    expect(config.httpProxy).toBe(false)
+  } finally {
+    if (originalHttpProxy != null) {
+      process.env.HTTP_PROXY = originalHttpProxy
+    } else {
+      delete process.env.HTTP_PROXY
+    }
+  }
+})
+
 test('lockfile: false in pnpm-workspace.yaml sets useLockfile to false', async () => {
   prepareEmpty()
 
@@ -4414,4 +4470,64 @@ test('warning stays when PNPM_CONFIG_NPMRC_AUTH_FILE is a relative path that doe
       delete process.env.XDG_CONFIG_HOME
     }
   }
+})
+
+test('catalogPrune is read from pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    catalogPrune: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.catalogPrune).toBe(true)
+})
+
+// `catalogPrune` was released as `cleanupUnusedCatalogs`, which every
+// pnpm-workspace.yaml written since pnpm 10.15 may still carry.
+test('catalogPrune is read from its former name, cleanupUnusedCatalogs', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    cleanupUnusedCatalogs: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.catalogPrune).toBe(true)
+})
+
+test('catalogPrune overrides its former name', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    cleanupUnusedCatalogs: true,
+    catalogPrune: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.catalogPrune).toBe(false)
 })

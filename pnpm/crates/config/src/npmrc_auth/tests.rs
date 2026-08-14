@@ -69,6 +69,16 @@ fn preserves_existing_trailing_slash() {
     assert_eq!(config.registry, "https://r.example/");
 }
 
+/// pnpm keeps only auth/registry keys when reading an `.npmrc`
+/// (`isNpmrcReadableKey`), and `scope` is not among them, so a `scope=` line
+/// there is dropped rather than becoming the default login scope.
+#[test]
+fn scope_is_ignored_in_npmrc() {
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>("scope=@my-org\n", Path::new("")).apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.scope, None);
+}
+
 #[test]
 fn parses_scoped_registry_and_applies() {
     let auth = NpmrcAuth::from_ini::<NoEnv>(
@@ -677,6 +687,138 @@ fn cascade_http_proxy_env_fallback_chain_proxy_var() {
     auth.apply_to::<BareProxy>(&mut config);
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://barenv.example:80"));
     assert_eq!(config.proxy.https_proxy, None);
+}
+
+/// `false` and `null` read as "not configured" on every key except the
+/// legacy `proxy` one, so the environment still applies.
+#[test]
+fn cascade_disabling_tokens_on_the_scheme_keys_fall_through_to_env() {
+    static_env!(
+        AllProxyEnvs,
+        &[
+            ("HTTPS_PROXY", "http://https-env.example:8080"),
+            ("HTTP_PROXY", "http://http-env.example:8080"),
+            ("NO_PROXY", "skip.example"),
+        ]
+    );
+    for ini in ["https-proxy=false\nhttp-proxy=false\nno-proxy=false\n", "https-proxy=null\n"] {
+        let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+        let mut config = Config::new();
+        auth.apply_to::<AllProxyEnvs>(&mut config);
+        assert_eq!(
+            config.proxy.https_proxy.as_deref(),
+            Some("http://https-env.example:8080"),
+            "ini={ini:?}",
+        );
+    }
+}
+
+#[test]
+fn cascade_legacy_proxy_false_disables_proxying_instead_of_falling_through() {
+    static_env!(
+        AllProxyEnvs,
+        &[
+            ("HTTPS_PROXY", "http://https-env.example:8080"),
+            ("HTTP_PROXY", "http://http-env.example:8080"),
+            ("PROXY", "http://bare-env.example:8080"),
+        ]
+    );
+    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=false\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<AllProxyEnvs>(&mut config);
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+}
+
+#[test]
+fn cascade_legacy_proxy_null_falls_through_to_env() {
+    static_env!(HttpsEnv, &[("HTTPS_PROXY", "http://https-env.example:8080")]);
+    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=null\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<HttpsEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https-env.example:8080"));
+}
+
+#[test]
+fn cascade_https_proxy_key_wins_over_a_disabling_legacy_proxy() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>(
+        "proxy=false\nhttps-proxy=http://https.example:8080\n",
+        Path::new(""),
+    );
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https.example:8080"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://https.example:8080"));
+}
+
+/// Only the lowercase tokens are special — pnpm's INI scalars produce
+/// `false` / `null` verbatim, so any other spelling is a hostname.
+#[test]
+fn cascade_capitalised_disabling_tokens_are_proxy_hosts() {
+    static_env!(HttpsEnv, &[("HTTPS_PROXY", "http://https-env.example:8080")]);
+    for (ini, expected) in
+        [("proxy=False\n", "False"), ("proxy=NULL\n", "NULL"), ("https-proxy=False\n", "False")]
+    {
+        let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+        let mut config = Config::new();
+        auth.apply_to::<HttpsEnv>(&mut config);
+        assert_eq!(config.proxy.https_proxy.as_deref(), Some(expected), "ini={ini:?}");
+    }
+}
+
+#[test]
+fn cascade_empty_npmrc_proxy_keys_fall_through_to_env() {
+    static_env!(
+        AllProxyEnvs,
+        &[
+            ("HTTPS_PROXY", "http://https-env.example:8080"),
+            ("HTTP_PROXY", "http://http-env.example:8080"),
+            ("NO_PROXY", "skip.example"),
+        ]
+    );
+    let auth =
+        NpmrcAuth::from_ini::<NoEnv>("https-proxy=\nhttp-proxy=\nno-proxy=\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<AllProxyEnvs>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https-env.example:8080"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://https-env.example:8080"));
+    assert_eq!(config.proxy.no_proxy, Some(NoProxySetting::List(vec!["skip.example".to_string()])));
+}
+
+#[test]
+fn cascade_empty_legacy_proxy_key_falls_through_to_env() {
+    static_env!(HttpsEnv, &[("HTTPS_PROXY", "http://https-env.example:8080")]);
+    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<HttpsEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https-env.example:8080"));
+}
+
+#[test]
+fn cascade_empty_https_proxy_key_falls_through_to_legacy_proxy_key() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>(
+        "https-proxy=\nproxy=http://legacy.example:8080\n",
+        Path::new(""),
+    );
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://legacy.example:8080"));
+}
+
+/// An empty env var still shadows the lower-priority env vars below it,
+/// leaving no proxy — the TypeScript CLI resolves `HTTPS_PROXY=` the same
+/// way, and the empty value is dropped when the client is built.
+#[test]
+fn cascade_empty_https_proxy_env_shadows_http_proxy_env() {
+    static_env!(
+        EmptyHttpsEnv,
+        &[("HTTPS_PROXY", ""), ("HTTP_PROXY", "http://http-env.example:8080")]
+    );
+    let auth = NpmrcAuth::default();
+    let mut config = Config::new();
+    auth.apply_to::<EmptyHttpsEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some(""));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some(""));
 }
 
 #[test]

@@ -12,9 +12,9 @@ import { createResolver, policyViolationToError, type ResolutionPolicyViolation 
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { MINIMUM_RELEASE_AGE_VIOLATION_CODE, whichVersionIsPinned } from '@pnpm/resolving.npm-resolver'
+import { inferRangeSpecStyle, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
-import type { PinnedVersion } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { isCI } from 'ci-info'
 import { pick } from 'ramda'
@@ -369,21 +369,12 @@ function updateVersionConstraint (current: string | undefined, newVersion: strin
   // Range that still satisfies the new version — leave it as-is (lockfile handles pinning)
   if (semver.satisfies(newVersion, current, { includePrerelease: true })) return current
   // Determine the pinning style of the current specifier
-  const pinnedVersion = whichVersionIsPinned(current)
-  if (pinnedVersion == null) {
+  const rangeSpecStyle = inferRangeSpecStyle(current)
+  if (rangeSpecStyle == null) {
     // Complex range that can't be updated while preserving its structure — fall back to ^version
     return `^${newVersion}`
   }
-  return versionSpecFromPinned(newVersion, pinnedVersion)
-}
-
-function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): string {
-  switch (pinnedVersion) {
-    case 'none':
-    case 'major': return `^${version}`
-    case 'minor': return `~${version}`
-    case 'patch': return version
-  }
+  return versionWithRangeSpecStyle(newVersion, rangeSpecStyle)
 }
 
 async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spec: string | undefined): Promise<string | undefined> {

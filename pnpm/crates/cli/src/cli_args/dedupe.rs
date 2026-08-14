@@ -18,6 +18,7 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
+use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
 use pacquet_modules_yaml::{Host, read_modules_manifest};
 use pacquet_package_manager::{
@@ -38,9 +39,18 @@ use tempfile::NamedTempFile;
 pub struct DedupeArgs {
     #[clap(long)]
     pub check: bool,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
 }
 
 impl DedupeArgs {
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+    }
+
     /// Run the deduplication install pipeline. In `--check` mode the method
     /// receives a pre-computed snapshot (`existing`) and drop guard created by
     /// the caller *before* config-dependency steps, so the gate covers any
@@ -107,7 +117,12 @@ impl DedupeArgs {
             node_linker: config.node_linker,
             lockfile_only: true,
             dry_run: false,
+            // `--check` must leave the working tree untouched: the lockfile
+            // guard restores `pnpm-lock.yaml`, and this gate keeps loose
+            // minimumReleaseAge picks out of `pnpm-workspace.yaml`.
+            persist_policy_excludes: !self.check,
             update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter> {
                 requester: lockfile_path
@@ -115,15 +130,12 @@ impl DedupeArgs {
                     .unwrap_or_else(|| Path::new("."))
                     .display()
                     .to_string(),
-                store_index: if config.frozen_store {
-                    StoreIndex::shared_immutable_in(&config.store_dir)
-                } else {
-                    StoreIndex::shared_readonly_in(&config.store_dir)
-                },
+                store_index: StoreIndex::shared_for(&config.store_dir, config.frozen_store),
                 reusable_skipped_package_ids,
                 reporter: PhantomData,
             })),
             peer_issues_sink: None,
+            deps_requiring_build_sink: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,

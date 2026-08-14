@@ -26,12 +26,12 @@ import type {
   BundledManifest,
   PackageManifest,
   PackageVersionPolicy,
-  PinnedVersion,
+  RangeSpecStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
 
-export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse }
+export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse, ResolvedFrom }
 
 export * from '@pnpm/resolving.resolver-base'
 export type { BundledManifest }
@@ -155,7 +155,7 @@ export interface RequestPackageOptions {
   onFetchError?: OnFetchError
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number

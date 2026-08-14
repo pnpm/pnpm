@@ -1,8 +1,10 @@
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
-    npmrc_auth::parse_no_proxy, resolve_child_concurrency,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    api::EnvVar,
+    proxy_keys::{ProxyKeys, ProxyValue},
+    resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -94,6 +96,7 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
+    pub ci: Option<bool>,
     pub hoist: Option<bool>,
 
     /// Tri-state `hoistPattern` — see `deserialize_double_option`.
@@ -122,6 +125,11 @@ pub struct WorkspaceSettings {
     /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
     /// [`Config::virtual_store_only`].
     pub virtual_store_only: Option<bool>,
+    /// `globalShims` from `pnpm-workspace.yaml` or the global
+    /// `config.yaml`. One layer of the record; merged key-wise into
+    /// [`Config::global_shims`] rather than assigned
+    /// wholesale. See [`crate::GlobalShims`].
+    pub global_shims: Option<crate::GlobalShimsSetting>,
     /// `enableModulesDir` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_modules_dir`].
     pub enable_modules_dir: Option<bool>,
@@ -146,6 +154,7 @@ pub struct WorkspaceSettings {
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+    pub scope: Option<String>,
     pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
     pub https_proxy: Option<String>,
@@ -379,6 +388,10 @@ pub struct WorkspaceSettings {
     /// [`Config::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Option<Vec<String>>,
 
+    /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` — see
+    /// [`Config::sync_injected_deps_after_scripts`].
+    pub sync_injected_deps_after_scripts: Option<Vec<String>>,
+
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Drives the
     /// optional-dependency platform check at install time: a
     /// `name: ['darwin'], cpu: ['arm64']` setting tells pacquet to
@@ -439,6 +452,11 @@ pub struct WorkspaceSettings {
 
     /// `minimumReleaseAgeExclude` from `pnpm-workspace.yaml`.
     pub minimum_release_age_exclude: Option<Vec<String>>,
+
+    /// `minimumReleaseAgeExcludePrune` from `pnpm-workspace.yaml`.
+    /// See [`Config::minimum_release_age_exclude_prune`]. Default
+    /// `false`.
+    pub minimum_release_age_exclude_prune: Option<bool>,
 
     /// `minimumReleaseAgeIgnoreMissingTime` from `pnpm-workspace.yaml`.
     pub minimum_release_age_ignore_missing_time: Option<bool>,
@@ -511,8 +529,12 @@ pub struct WorkspaceSettings {
     /// `catalogMode` from `pnpm-workspace.yaml`. See [`CatalogMode`].
     pub catalog_mode: Option<CatalogMode>,
 
-    /// `cleanupUnusedCatalogs` from `pnpm-workspace.yaml`. See
-    /// [`Config::cleanup_unused_catalogs`]. Default `false`.
+    /// `catalogPrune` from `pnpm-workspace.yaml`. See
+    /// [`Config::catalog_prune`]. Default `false`.
+    pub catalog_prune: Option<bool>,
+
+    /// `catalogPrune`'s former name, still accepted. [`Self::catalog_prune`]
+    /// wins when a file carries both.
     pub cleanup_unused_catalogs: Option<bool>,
 
     /// `saveCatalogName` from `pnpm-workspace.yaml`. See
@@ -526,6 +548,12 @@ pub struct WorkspaceSettings {
     ///
     /// [`Config::save_prefix`]: crate::Config::save_prefix
     pub save_prefix: Option<String>,
+
+    /// `saveExact` from `pnpm-workspace.yaml`. See
+    /// [`Config::save_exact`]. Default `false`.
+    ///
+    /// [`Config::save_exact`]: crate::Config::save_exact
+    pub save_exact: Option<bool>,
 
     /// `savePeer` from `pnpm-workspace.yaml`. See
     /// [`Config::save_peer`]. Default `false`.
@@ -867,44 +895,42 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.sync_injected_deps_after_scripts = None;
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
         self.save_peer = None;
     }
 
+    /// Read `<dir>/pnpm-workspace.yaml` without walking ancestors.
+    /// Returns `Ok(None)` only when nothing exists at that exact path;
+    /// every other error (including `EISDIR` for a directory named
+    /// `pnpm-workspace.yaml`, or permission denied) propagates, matching
+    /// pnpm where `ENOENT` is the only silent case.
+    pub fn load_at(dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
+        let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
+        };
+        let settings = text
+            .pipe_as_ref(serde_saphyr::from_str)
+            .map_err(Box::new)
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+        Ok(Some(settings))
+    }
+
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
-    /// Returns `Ok(None)` if no ancestor has one. Read or parse failures
-    /// other than `ENOENT` propagate, matching pnpm.
+    /// Returns `Ok(None)` if no ancestor has one. Per-level semantics are
+    /// [`Self::load_at`]'s.
     pub fn find_and_load(
         start_dir: &Path,
     ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
         for dir in start_dir.ancestors() {
-            let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-            let read_result = fs::read_to_string(&path);
-
-            // Walk up only when the read failed because nothing exists at
-            // this level. Every other error (including `EISDIR` for a
-            // directory named `pnpm-workspace.yaml`, or permission denied)
-            // propagates, matching pnpm where `ENOENT` is the only silent
-            // case.
-            if let Err(error) = &read_result
-                && error.kind() == ErrorKind::NotFound
-            {
-                continue;
+            if let Some(settings) = Self::load_at(dir)? {
+                return Ok(Some((dir.join(WORKSPACE_MANIFEST_FILENAME), settings)));
             }
-
-            let settings: WorkspaceSettings = read_result
-                .map_err(|source| LoadWorkspaceYamlError::ReadFile { path: path.clone(), source })?
-                .pipe_as_ref(serde_saphyr::from_str)
-                .map_err(Box::new)
-                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                    path: path.clone(),
-                    source,
-                })?;
-
-            return Ok(Some((path, settings)));
         }
-
         Ok(None)
     }
 
@@ -966,6 +992,7 @@ impl WorkspaceSettings {
     }
 
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
+        substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.store_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
@@ -983,8 +1010,7 @@ impl WorkspaceSettings {
     /// Path-valued settings are resolved against `base_dir` if relative —
     /// anchored at the workspace root where the yaml was found, matching pnpm.
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
-        let http_proxy_is_explicit = config.http_proxy_is_explicit;
-        self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
+        self.apply_proxy_to(&mut config.proxy, &mut config.proxy_keys);
 
         // Captured before the `apply!` macro and audit if-lets below move
         // these out of `self`; consumed after, to warn on the redundant
@@ -992,6 +1018,12 @@ impl WorkspaceSettings {
         let update_config_in_yaml = self.update_config.is_some();
         let audit_level_in_yaml = self.audit_level.is_some();
         let audit_config_in_yaml = self.audit_config.is_some();
+
+        // `catalogPrune`'s former name, applied before the macro so the
+        // canonical key wins when a file carries both.
+        if let Some(v) = self.cleanup_unused_catalogs {
+            config.catalog_prune = v;
+        }
 
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
@@ -1002,7 +1034,7 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            hoist, shamefully_hoist,
+            ci, hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
@@ -1017,7 +1049,8 @@ impl WorkspaceSettings {
             hoist_workspace_packages,
             extend_node_path,
             hoisting_limits, external_dependencies,
-            dedupe_peer_dependents, dedupe_peers, dedupe_direct_deps, dedupe_injected_deps,
+            dedupe_peer_dependents, dedupe_peers,
+            dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
             verify_deps_before_run,
@@ -1034,11 +1067,19 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
-            resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer,
+            sync_injected_deps_after_scripts,
+            resolution_mode, catalog_mode, catalog_prune,
+            minimum_release_age_exclude_prune, save_peer, save_exact,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
             allow_unused_patches,
+        }
+
+        // `globalShims` merges key-wise instead of replacing,
+        // so a layer can flip one package without restating the defaults.
+        if let Some(global_shims) = self.global_shims {
+            config.global_shims.apply(&global_shims);
         }
 
         // The `update` section supersedes the deprecated `updateConfig`.
@@ -1109,6 +1150,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.registry {
             config.registry = normalize_registry_url(&v);
+        }
+        if let Some(v) = self.scope {
+            config.scope = Some(v);
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
@@ -1261,27 +1305,47 @@ impl WorkspaceSettings {
         }
     }
 
+    /// Overlay this file's proxy keys onto the merged view and re-resolve.
+    ///
+    /// A key named here occupies it even when the value reads as unset —
+    /// see the [`crate::proxy_keys`] module docs.
     pub(crate) fn apply_proxy_to(
         &self,
         proxy_config: &mut pacquet_network::ProxyConfig,
-        http_proxy_is_explicit: bool,
+        keys: &mut ProxyKeys,
     ) {
-        if let Some(value) = self.https_proxy.as_ref().or(self.proxy.as_ref()) {
-            proxy_config.https_proxy = Some(value.clone());
+        for (key, raw) in [
+            (&mut keys.https_proxy, self.https_proxy.as_deref()),
+            (&mut keys.http_proxy, self.http_proxy.as_deref()),
+        ] {
+            if let Some(raw) = raw {
+                *key = ProxyValue::from_config(raw);
+            }
         }
-        if let Some(value) = &self.http_proxy {
-            proxy_config.http_proxy = Some(value.clone());
-        } else if (self.https_proxy.is_some() || self.proxy.is_some()) && !http_proxy_is_explicit {
-            proxy_config.http_proxy.clone_from(&proxy_config.https_proxy);
+        if let Some(raw) = self.proxy.as_deref() {
+            keys.legacy_proxy = ProxyValue::legacy_from_config(raw);
         }
-        if let Some(value) = self.no_proxy.as_ref().or(self.noproxy.as_ref()) {
-            proxy_config.no_proxy = match value {
-                serde_json::Value::Bool(true) => Some(pacquet_network::NoProxySetting::Bypass),
-                serde_json::Value::Bool(false) | serde_json::Value::Null => None,
-                serde_json::Value::String(value) => Some(parse_no_proxy(value)),
-                _ => None,
-            };
+        for (key, raw) in [
+            (&mut keys.no_proxy, self.no_proxy.as_ref()),
+            (&mut keys.noproxy, self.noproxy.as_ref()),
+        ] {
+            if let Some(raw) = raw {
+                *key = ProxyValue::from_config(&no_proxy_scalar(raw));
+            }
         }
+        *proxy_config = keys.resolve();
+    }
+}
+
+/// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`
+/// spelling of the key would carry. `true` becomes the literal token the
+/// `no-proxy` parser reads as "bypass every proxy"; anything that is
+/// neither a string nor `true` becomes a token that reads as unset.
+fn no_proxy_scalar(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Bool(true) => "true".to_string(),
+        serde_json::Value::String(value) => value.clone(),
+        _ => "null".to_string(),
     }
 }
 

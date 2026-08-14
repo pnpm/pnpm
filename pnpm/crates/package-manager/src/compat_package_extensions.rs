@@ -3,14 +3,23 @@ use indexmap::IndexMap;
 use pacquet_config::{PackageExtension, PeerDependencyMeta};
 use std::{collections::BTreeMap, sync::LazyLock};
 
+// `pnpm_compat_package_extensions.json` holds pnpm-specific entries not in
+// `@yarnpkg/extensions` yet; keep it identical to the TypeScript CLI's
+// `pnpmCompatPackageExtensions`.
 static COMPAT_PACKAGE_EXTENSIONS: LazyLock<IndexMap<String, PackageExtension>> =
     LazyLock::new(|| {
-        let entries: Vec<(String, PackageExtension)> =
-            serde_json::from_str(include_str!("compat_package_extensions.json"))
-                .expect("@yarnpkg/extensions compatibility DB JSON is valid");
         let mut extensions = IndexMap::new();
-        for (selector, extension) in entries {
-            merge_package_extension_entry(&mut extensions, selector, extension);
+        for (source, name) in [
+            (include_str!("compat_package_extensions.json"), "@yarnpkg/extensions"),
+            (include_str!("pnpm_compat_package_extensions.json"), "pnpm"),
+        ] {
+            let entries: Vec<(String, PackageExtension)> = serde_json::from_str(source)
+                .unwrap_or_else(|error| {
+                    panic!("failed to parse {name} compatibility DB JSON: {error}")
+                });
+            for (selector, extension) in entries {
+                merge_package_extension_entry(&mut extensions, selector, extension);
+            }
         }
         extensions
     });
@@ -67,3 +76,6 @@ fn merge_peer_meta_map(
     }
     *previous = Some(merged);
 }
+
+#[cfg(test)]
+mod tests;

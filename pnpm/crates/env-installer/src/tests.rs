@@ -4,7 +4,7 @@ use crate::{
 };
 use pacquet_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_reporter::{InstallingConfigDepsStatus, LogEvent, Reporter, SilentReporter};
@@ -132,6 +132,10 @@ fn clean_spec(version: &str) -> ConfigDependency {
 #[derive(Default)]
 struct FixtureResolver {
     packages: HashMap<(String, String), serde_json::Value>,
+    /// Resolve to tarball resolutions whose URL is not derivable from the
+    /// registry — the shape a load-balanced proxy or Artifactory-style
+    /// mirror produces.
+    non_derivable_tarball_urls: bool,
 }
 
 impl FixtureResolver {
@@ -143,6 +147,11 @@ impl FixtureResolver {
         let name = manifest["name"].as_str().expect("fixture package name").to_string();
         let version = manifest["version"].as_str().expect("fixture package version").to_string();
         self.packages.insert((name, version), manifest);
+        self
+    }
+
+    fn with_non_derivable_tarball_urls(mut self) -> Self {
+        self.non_derivable_tarball_urls = true;
         self
     }
 }
@@ -172,12 +181,23 @@ impl Resolver for FixtureResolver {
             Ok(Some(ResolveResult {
                 id: PkgResolutionId::from(id.as_str()),
                 name_ver: Some(id.parse().expect("fixture name/version parses")),
-                latest: Some(version),
+                latest: Some(version.clone()),
                 published_at: None,
                 manifest: Some(Arc::new(manifest)),
-                resolution: LockfileResolution::Registry(RegistryResolution {
-                    integrity: ssri::Integrity::from(id.as_bytes()),
-                }),
+                resolution: if self.non_derivable_tarball_urls {
+                    LockfileResolution::Tarball(TarballResolution {
+                        tarball: format!(
+                            "https://mirror-pool-7.example.com/registry/{name}/-/{name}-{version}.tgz",
+                        ),
+                        integrity: Some(ssri::Integrity::from(id.as_bytes())),
+                        git_hosted: None,
+                        path: None,
+                    })
+                } else {
+                    LockfileResolution::Registry(RegistryResolution {
+                        integrity: ssri::Integrity::from(id.as_bytes()),
+                    })
+                },
                 resolved_via: "npm-registry".to_string(),
                 normalized_bare_specifier: Some(specifier.to_string()),
                 alias: Some(alias.to_string()),
@@ -268,16 +288,16 @@ async fn resolves_package_manager_dependencies_graph() {
     let resolver = FixtureResolver::new()
         .package(serde_json::json!({
             "name": "pnpm",
-            "version": "100.0.0",
+            "version": "11.0.0",
             "bin": "bin/pnpm.cjs",
             "engines": { "node": ">=22.0.0" },
         }))
         .package(serde_json::json!({
             "name": "@pnpm/exe",
-            "version": "100.0.0",
+            "version": "11.0.0",
             "bin": { "pnpm": "bin/pnpm.cjs" },
             "dependencies": { "detect-libc": "2.0.0" },
-            "optionalDependencies": { "@pnpm/linuxstatic-x64": "100.0.0" },
+            "optionalDependencies": { "@pnpm/linuxstatic-x64": "11.0.0" },
         }))
         .package(serde_json::json!({
             "name": "detect-libc",
@@ -286,17 +306,18 @@ async fn resolves_package_manager_dependencies_graph() {
         }))
         .package(serde_json::json!({
             "name": "@pnpm/linuxstatic-x64",
-            "version": "100.0.0",
+            "version": "11.0.0",
             "cpu": ["x64"],
             "os": ["linux"],
             "libc": "musl",
         }));
 
     resolve_package_manager_integrities(
-        "^100.0.0",
-        "100.0.0",
+        "^11.0.0",
+        "11.0.0",
         &resolver,
         &options(&harness, root.path(), false),
+        false,
     )
     .await
     .unwrap();
@@ -306,15 +327,15 @@ async fn resolves_package_manager_dependencies_graph() {
         .package_manager_dependencies
         .as_ref()
         .expect("package manager deps recorded");
-    assert_eq!(pm_deps["pnpm"].specifier, "^100.0.0");
-    assert_eq!(pm_deps["pnpm"].version, "100.0.0");
-    assert_eq!(pm_deps["@pnpm/exe"].specifier, "^100.0.0");
-    assert_eq!(pm_deps["@pnpm/exe"].version, "100.0.0");
+    assert_eq!(pm_deps["pnpm"].specifier, "^11.0.0");
+    assert_eq!(pm_deps["pnpm"].version, "11.0.0");
+    assert_eq!(pm_deps["@pnpm/exe"].specifier, "^11.0.0");
+    assert_eq!(pm_deps["@pnpm/exe"].version, "11.0.0");
 
-    let pnpm_key: PackageKey = "pnpm@100.0.0".parse().unwrap();
-    let exe_key: PackageKey = "@pnpm/exe@100.0.0".parse().unwrap();
+    let pnpm_key: PackageKey = "pnpm@11.0.0".parse().unwrap();
+    let exe_key: PackageKey = "@pnpm/exe@11.0.0".parse().unwrap();
     let libc_key: PackageKey = "detect-libc@2.0.0".parse().unwrap();
-    let platform_key: PackageKey = "@pnpm/linuxstatic-x64@100.0.0".parse().unwrap();
+    let platform_key: PackageKey = "@pnpm/linuxstatic-x64@11.0.0".parse().unwrap();
 
     assert_eq!(env.packages[&pnpm_key].has_bin, Some(true));
     assert_eq!(env.packages[&pnpm_key].engines.as_ref().unwrap()["node"], ">=22.0.0");
@@ -329,12 +350,12 @@ async fn resolves_package_manager_dependencies_graph() {
     assert_eq!(detect_libc_ref, "2.0.0");
     assert_eq!(
         exe_snapshot.optional_dependencies.as_ref().unwrap()[&platform_name].to_string(),
-        "100.0.0",
+        "11.0.0",
     );
     assert!(env.snapshots[&platform_key].optional);
     assert!(!env.snapshots[&libc_key].optional);
-    assert!(is_package_manager_resolved(&env, "^100.0.0", "100.0.0"));
-    assert!(!is_package_manager_resolved(&env, "~100.0.0", "100.0.0"));
+    assert!(is_package_manager_resolved(&env, "^11.0.0", "11.0.0"));
+    assert!(!is_package_manager_resolved(&env, "~11.0.0", "11.0.0"));
 
     let mut env_with_extra_pm_dep = env.clone();
     env_with_extra_pm_dep
@@ -348,7 +369,147 @@ async fn resolves_package_manager_dependencies_graph() {
             "yarn".to_string(),
             SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
         );
-    assert!(!is_package_manager_resolved(&env_with_extra_pm_dep, "^100.0.0", "100.0.0",));
+    assert!(!is_package_manager_resolved(&env_with_extra_pm_dep, "^11.0.0", "11.0.0",));
+}
+
+/// A registry that advertises tarballs on another host (a load-balanced
+/// proxy or Artifactory-style mirror) must still yield integrity-only
+/// package-manager entries, or the bootstrap validation rejects them.
+/// See <https://github.com/pnpm/pnpm/issues/13619>.
+#[tokio::test]
+async fn records_integrity_only_resolutions_for_non_derivable_tarball_urls() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let resolver = FixtureResolver::new()
+        .with_non_derivable_tarball_urls()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "11.0.0",
+            "bin": "bin/pnpm.cjs",
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/exe",
+            "version": "11.0.0",
+            "bin": { "pnpm": "bin/pnpm.cjs" },
+            "optionalDependencies": { "@pnpm/linuxstatic-x64": "11.0.0" },
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/linuxstatic-x64",
+            "version": "11.0.0",
+        }));
+
+    resolve_package_manager_integrities(
+        "^11.0.0",
+        "11.0.0",
+        &resolver,
+        &options(&harness, root.path(), false),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    for (key, metadata) in &env.packages {
+        assert!(
+            matches!(&metadata.resolution, LockfileResolution::Registry(resolution) if !resolution.integrity.to_string().is_empty()),
+            "expected an integrity-only resolution for {key}, got {:?}",
+            metadata.resolution,
+        );
+    }
+}
+
+/// `force_resync` discards recorded entries that look up to date, so
+/// invalid resolutions written by an earlier pnpm are healed instead of
+/// surviving the fast path.
+#[tokio::test]
+async fn force_resync_overwrites_recorded_package_manager_entries() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let fixtures = || {
+        FixtureResolver::new().package(serde_json::json!({
+            "name": "pnpm",
+            "version": "12.0.0",
+            "bin": "bin/pnpm.cjs",
+        }))
+    };
+
+    resolve_package_manager_integrities(
+        "^12.0.0",
+        "12.0.0",
+        &fixtures().with_non_derivable_tarball_urls(),
+        &options(&harness, root.path(), false),
+        false,
+    )
+    .await
+    .unwrap();
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    assert!(is_package_manager_resolved(&env, "^12.0.0", "12.0.0"));
+
+    // Without force, the recorded entries short-circuit resolution; with
+    // force, they are re-resolved and rewritten.
+    resolve_package_manager_integrities(
+        "^12.0.0",
+        "12.0.0",
+        &fixtures(),
+        &options(&harness, root.path(), false),
+        true,
+    )
+    .await
+    .unwrap();
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let key: PackageKey = "pnpm@12.0.0".parse().unwrap();
+    assert!(matches!(&env.packages[&key].resolution, LockfileResolution::Registry(_)));
+}
+
+#[tokio::test]
+async fn resolves_package_manager_dependencies_without_exe_from_v12() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let resolver = FixtureResolver::new()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "12.0.0",
+            "bin": { "pnpm": "pnpm" },
+            "optionalDependencies": { "@pnpm/exe.linux-x64": "12.0.0" },
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/exe.linux-x64",
+            "version": "12.0.0",
+            "cpu": ["x64"],
+            "os": ["linux"],
+        }));
+
+    resolve_package_manager_integrities(
+        "^12.0.0",
+        "12.0.0",
+        &resolver,
+        &options(&harness, root.path(), false),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("package manager deps recorded");
+    assert_eq!(pm_deps.len(), 1);
+    assert_eq!(pm_deps["pnpm"].specifier, "^12.0.0");
+    assert_eq!(pm_deps["pnpm"].version, "12.0.0");
+    assert!(!pm_deps.contains_key("@pnpm/exe"));
+
+    let pnpm_key: PackageKey = "pnpm@12.0.0".parse().unwrap();
+    let platform_key: PackageKey = "@pnpm/exe.linux-x64@12.0.0".parse().unwrap();
+    assert!(env.packages.contains_key(&pnpm_key));
+    assert!(env.packages.contains_key(&platform_key));
+    let platform_name = "@pnpm/exe.linux-x64".parse().unwrap();
+    assert_eq!(
+        env.snapshots[&pnpm_key].optional_dependencies.as_ref().unwrap()[&platform_name]
+            .to_string(),
+        "12.0.0",
+    );
+    assert!(is_package_manager_resolved(&env, "^12.0.0", "12.0.0"));
 }
 
 #[tokio::test]
@@ -366,6 +527,7 @@ async fn resolves_package_manager_dependencies_without_exe_before_it_was_publish
         "6.16.0",
         &resolver,
         &options(&harness, root.path(), false),
+        false,
     )
     .await
     .unwrap();
@@ -415,6 +577,7 @@ async fn resolves_package_manager_dependencies_with_exe_at_first_published_versi
         "6.17.1",
         &resolver,
         &options(&harness, root.path(), false),
+        false,
     )
     .await
     .unwrap();

@@ -136,6 +136,12 @@ export interface HeadlessOptions {
   ignoreLocalPackages?: boolean
   include: IncludedDependencies
   selectedProjectDirs: string[]
+  /**
+   * The selected projects whose own lifecycle scripts may run. Defaults to
+   * every selected project; an `uninstallSome` mutation materializes for its
+   * project without running its scripts, matching the resolution path.
+   */
+  projectDirsRunningScripts?: string[]
   allProjects: Record<string, Project>
   prunedAt?: string
   hoistedDependencies: HoistedDependencies
@@ -165,6 +171,7 @@ export interface HeadlessOptions {
   unsafePerm: boolean
   userAgent: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   reporter?: ReporterFunction
   packageManager: {
     name: string
@@ -243,6 +250,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   )
   const publicHoistedModulesDir = rootModulesDir
   const selectedProjects = Object.values(pick(opts.selectedProjectDirs, opts.allProjects))
+  const projectsRunningScripts = opts.projectDirsRunningScripts == null
+    ? selectedProjects
+    : Object.values(pick(opts.projectDirsRunningScripts, opts.allProjects))
 
   const scriptsOpts = {
     optional: false,
@@ -368,7 +378,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     supportedArchitectures: opts.supportedArchitectures,
     includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
       (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])) ||
-      (opts.enableGlobalVirtualStore === true && !equals(opts.modulesFile?.allowBuilds ?? {}, opts.allowBuilds ?? {})),
+      (opts.enableGlobalVirtualStore === true && !equals(opts.modulesFile?.allowBuilds ?? {}, opts.allowBuilds ?? {})) ||
+      lockfileRemovesPackages(currentLockfile, wantedLockfile),
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
@@ -391,7 +402,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         lockfileToDepGraphOpts
       )
   )
-  if (opts.enablePnp) {
+  // `.pnp.cjs` is a project-level resolution artifact, so it follows the
+  // same rule as the importer links and the package map above.
+  if (opts.enablePnp && !skipPostImportLinking) {
     const importerNames = Object.fromEntries(
       selectedProjects.map(({ manifest, id }) => [id, manifest.name ?? id])
     )
@@ -404,6 +417,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })
   }
   const depNodes = Object.values(graph)
+  // A node the graph carries without a fetch was already materialized by an
+  // earlier install. It is in the graph so hoisting can see it; the build
+  // step must not run its scripts or re-apply its patch.
+  for (const depNode of depNodes) {
+    if (depNode.fetching == null) depNode.isBuilt = true
+  }
 
   const added = depNodes.filter(({ fetching }) => fetching).length
   const skipGvsInternalLinking = opts.enableGlobalVirtualStore === true && added === 0
@@ -484,37 +503,48 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })
 
     if (opts.ignorePackageManifest !== true && !skipPostImportLinking && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
-      newHoistedDependencies = {
-        ...opts.hoistedDependencies,
-        ...await hoist({
-          extraNodePath: opts.extraNodePaths,
-          graph,
-          directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
-            projectId,
-            new Map(Object.entries(deps)),
-          ])),
-          importerIds,
-          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          privateHoistedModulesDir: hoistedModulesDir,
-          privateHoistPattern: opts.hoistPattern ?? [],
-          publicHoistedModulesDir,
-          publicHoistPattern: opts.publicHoistPattern ?? [],
-          virtualStoreDir,
-          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-          hoistedWorkspacePackages: opts.hoistWorkspacePackages
-            ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
-              if (project.manifest.name && project.id !== '.') {
-                hoistedWorkspacePackages[project.id] = {
-                  dir: project.rootDir,
-                  name: project.manifest.name,
-                }
+      // With the full graph the recomputed hoist map is complete, so it
+      // replaces the recorded one and drops the entries this install made
+      // ineligible. The incremental graph only knows the packages it
+      // imported, so there the recorded map fills in the rest.
+      const hoisted = await hoist({
+        extraNodePath: opts.extraNodePaths,
+        graph,
+        directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
+          projectId,
+          new Map(Object.entries(deps)),
+        ])),
+        importerIds,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        privateHoistedModulesDir: hoistedModulesDir,
+        privateHoistPattern: opts.hoistPattern ?? [],
+        publicHoistedModulesDir,
+        publicHoistPattern: opts.publicHoistPattern ?? [],
+        virtualStoreDir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages
+          ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
+            if (project.manifest.name && project.id !== '.') {
+              hoistedWorkspacePackages[project.id] = {
+                dir: project.rootDir,
+                name: project.manifest.name,
               }
-              return hoistedWorkspacePackages
-            }, {} as Record<string, HoistedWorkspaceProject>)
-            : undefined,
-          skipped: opts.skipped,
-        }),
-      }
+            }
+            return hoistedWorkspacePackages
+          }, {} as Record<string, HoistedWorkspaceProject>)
+          : undefined,
+        skipped: opts.skipped,
+      }) ?? {}
+      // The recomputed map only replaces the recorded one when the graph is
+      // the whole workspace: a filtered install hoists from the filtered
+      // lockfile, so replacing there would forget the unselected importers'
+      // entries. Everywhere else the recorded map fills in what the graph
+      // does not know.
+      const hoistMapIsComplete = lockfileToDepGraphOpts.includeUnchangedDeps &&
+        equals([...importerIds].sort(), Object.keys(wantedLockfile.importers).sort())
+      newHoistedDependencies = hoistMapIsComplete
+        ? hoisted
+        : { ...opts.hoistedDependencies, ...hoisted }
     } else {
       newHoistedDependencies = {}
     }
@@ -580,9 +610,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
+  // Reconcile in every mode, not only when scripts are ignored: an entry
+  // whose package the wanted lockfile no longer records would otherwise
+  // stay pending forever.
+  opts.pendingBuilds = opts.pendingBuilds
+    .filter((id) => wantedLockfile.packages?.[id as DepPath] != null || wantedLockfile.importers[id as ProjectId] != null)
   if (opts.ignoreScripts) {
-    for (const { id, manifest } of selectedProjects) {
-      if (opts.ignoreScripts && ((manifest?.scripts) != null) &&
+    for (const { id, manifest } of projectsRunningScripts) {
+      if (((manifest?.scripts) != null) &&
         (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
           manifest.scripts.install ??
           manifest.scripts.postinstall ??
@@ -591,13 +626,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         opts.pendingBuilds.push(id)
       }
     }
-    // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
-    opts.pendingBuilds = opts.pendingBuilds
-      .concat(
+    opts.pendingBuilds = Array.from(new Set(
+      opts.pendingBuilds.concat(
         depNodes
           .filter(({ requiresBuild }) => requiresBuild)
           .map(({ depPath }) => depPath)
       )
+    ))
   }
   let ignoredBuilds: IgnoredBuilds | undefined
   if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
@@ -615,7 +650,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
     }
     let extraEnv: Record<string, string> | undefined = opts.extraEnv
-    if (opts.enablePnp) {
+    // Only point Node at the loader when it was actually written —
+    // `--require` on a missing file fails the script before it runs.
+    if (opts.enablePnp && !skipPostImportLinking) {
       extraEnv = {
         ...extraEnv,
         ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'), extraEnv),
@@ -774,7 +811,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     await opts.verifyLockfile?.()
     await runLifecycleHooksConcurrently(
       ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
-      projectsToBeBuilt,
+      projectsToBeBuilt.filter((project) => projectsRunningScripts.some(({ rootDir }) => rootDir === project.rootDir)),
       opts.childConcurrency ?? 5,
       scriptsOpts
     )
@@ -951,6 +988,21 @@ async function getRootPackagesToLink (
 
 const limitLinking = pLimit(16)
 const limitModulesDirReads = pLimit(16)
+
+/**
+ * Whether moving from the installed state to the wanted lockfile removes any
+ * package. A removal changes the hoist eligibility of packages that stay, and
+ * the incremental graph of an install that only removes packages is empty, so
+ * the graph must include the unchanged packages for the hoist layer to be
+ * recomputed. Compared against the full wanted lockfile, not the filtered
+ * one, so a filtered install is not mistaken for a removal.
+ */
+function lockfileRemovesPackages (currentLockfile: LockfileObject | null, wantedLockfile: LockfileObject): boolean {
+  if (currentLockfile?.packages == null) return false
+  const wantedPackages = wantedLockfile.packages
+  if (wantedPackages == null) return Object.keys(currentLockfile.packages).length > 0
+  return Object.keys(currentLockfile.packages).some((depPath) => wantedPackages[depPath as DepPath] == null)
+}
 
 async function linkAllPkgs (
   storeController: StoreController,

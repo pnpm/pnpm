@@ -30,16 +30,17 @@ use node_semver::Version;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pacquet_registry::{Package, PackageVersion, PinnedVersion};
+use pacquet_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
 use pacquet_resolving_resolver_base::{
-    LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision,
+    LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId,
     RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
     ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
     WantedDependency, WorkspacePackages, parse_packument_timestamp,
 };
+use ssri::{Algorithm, Integrity};
 
 use crate::{
-    errors::{AllVersionsBlockedError, GuardRepickLimitError},
+    errors::{AllVersionsBlockedError, GuardRepickLimitError, InvalidTarballIntegrityError},
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{
@@ -166,7 +167,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 lockfile_dir: opts.lockfile_dir.as_path(),
                 registry: &registry,
                 default_tag,
-                workspace_packages: opts.workspace_packages.as_ref(),
+                workspace_packages: opts.workspace_packages.as_deref(),
                 inject_workspace_packages: opts.inject_workspace_packages,
                 saved_specifier: saved_specifier_options(opts),
             };
@@ -266,7 +267,12 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 opts,
             )
         {
-            result.latest = picked.meta.dist_tag("latest").map(str::to_string);
+            result.latest = latest_allowed_by_policy(
+                &picked.meta,
+                opts.published_by,
+                opts.published_by_exclude.as_ref(),
+            )
+            .map(str::to_string);
             return Ok(Some(result));
         }
 
@@ -277,6 +283,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             alias: wanted_dependency.alias.as_deref(),
             resolved_via: NPM_REGISTRY_RESOLVED_VIA,
             registry: &registry,
+            registry_name: None,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
@@ -338,6 +345,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             alias: Some(jsr_spec.jsr_pkg_name.as_str()),
             resolved_via: JSR_REGISTRY_RESOLVED_VIA,
             registry,
+            registry_name: None,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
@@ -554,7 +562,7 @@ fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOpti
         lockfile_dir: opts.lockfile_dir.as_path(),
         registry: UNUSED,
         default_tag: UNUSED,
-        workspace_packages: opts.workspace_packages.as_ref(),
+        workspace_packages: opts.workspace_packages.as_deref(),
         inject_workspace_packages: opts.inject_workspace_packages,
         saved_specifier: saved_specifier_options(opts),
     }
@@ -565,7 +573,7 @@ fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOpti
 fn saved_specifier_options(opts: &ResolveOptions) -> SavedSpecifierOptions {
     SavedSpecifierOptions {
         calc_specifier: opts.calc_specifier,
-        pinned_version: opts.pinned_version,
+        range_spec_style: opts.range_spec_style,
         save_workspace_protocol: opts.save_workspace_protocol,
     }
 }
@@ -769,6 +777,10 @@ pub(crate) struct BuildResolveResult<'a> {
     pub alias: Option<&'a str>,
     pub resolved_via: &'a str,
     pub registry: &'a str,
+    /// `Some(alias)` when the caller resolves from a named registry and
+    /// registry-qualified ids are enabled — the minted id then becomes
+    /// `<name>@<alias>:<version>` (lockfile format 12.0).
+    pub registry_name: Option<&'a str>,
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
@@ -789,6 +801,7 @@ pub(crate) fn build_resolve_result(
         alias,
         resolved_via,
         registry,
+        registry_name,
         published_by,
         published_by_exclude,
         picked_manifest_cache,
@@ -798,7 +811,12 @@ pub(crate) fn build_resolve_result(
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
-    let id = (&name_ver).into();
+    let id = match registry_name {
+        Some(registry_name) => {
+            PkgResolutionId::from(format!("{}@{registry_name}:{}", picked.name, picked.version))
+        }
+        None => (&name_ver).into(),
+    };
     // The picker always carries a tarball URL on its `dist` payload —
     // every npm registry serves `dist.tarball` on a successful pick
     // and pacquet's deserializer requires it (`dist.tarball: String`,
@@ -809,7 +827,7 @@ pub(crate) fn build_resolve_result(
     // the URL the install path needs.
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: picked.dist.tarball.clone(),
-        integrity: picked.dist.integrity.clone(),
+        integrity: dist_integrity(&picked.dist)?,
         git_hosted: None,
         path: None,
     });
@@ -844,7 +862,8 @@ pub(crate) fn build_resolve_result(
     Ok(ResolveResult {
         id,
         name_ver: Some(name_ver),
-        latest: meta.dist_tag("latest").map(str::to_string),
+        latest: latest_allowed_by_policy(meta, published_by, published_by_exclude)
+            .map(str::to_string),
         published_at,
         manifest,
         resolution,
@@ -852,6 +871,24 @@ pub(crate) fn build_resolve_result(
         normalized_bare_specifier: spec.normalized_bare_specifier.clone().or(calculated_specifier),
         alias: alias.map(str::to_string),
         policy_violation,
+    })
+}
+
+/// The integrity a registry version's `dist` pins its tarball with.
+///
+/// A registry predating subresource integrity publishes only the legacy
+/// `dist.shasum` hex digest, which pins the bytes just as well, so it is
+/// promoted to its `sha1-` SRI form. `None` when the version pins
+/// nothing at all.
+fn dist_integrity(dist: &PackageDistribution) -> Result<Option<Integrity>, ResolveError> {
+    if let Some(integrity) = &dist.integrity {
+        return Ok(Some(integrity.clone()));
+    }
+    let Some(shasum) = dist.shasum.as_deref().filter(|shasum| !shasum.is_empty()) else {
+        return Ok(None);
+    };
+    Integrity::from_hex(shasum, Algorithm::Sha1).map(Some).map_err(|_| {
+        Box::new(InvalidTarballIntegrityError::new(&dist.tarball, shasum)) as ResolveError
     })
 }
 
@@ -865,12 +902,12 @@ pub(crate) fn calc_specifier_from<'a>(
     wanted_dependency: &'a WantedDependency,
     opts: &ResolveOptions,
     spec: &RegistryPackageSpec,
-) -> Option<(&'a str, PinnedVersion)> {
+) -> Option<(&'a str, RangeSpecStyle)> {
     if !opts.calc_specifier || spec.normalized_bare_specifier.is_some() {
         return None;
     }
     let bare_specifier = wanted_dependency.bare_specifier.as_deref()?;
-    Some((bare_specifier, opts.pinned_version.unwrap_or(PinnedVersion::Major)))
+    Some((bare_specifier, opts.range_spec_style.unwrap_or(RangeSpecStyle::Major)))
 }
 
 /// Resolver-time `trustPolicy='no-downgrade'` check on a fresh pick.
@@ -893,6 +930,40 @@ fn fail_if_trust_downgraded_for_pick(
     };
     fail_if_trust_downgraded(&picked.meta, &picked.version.version.to_string(), &trust_opts)
         .map_err(|err| Box::new(err) as ResolveError)
+}
+
+/// The raw `dist-tags.latest` when the active `minimumReleaseAge`
+/// policy would allow installing it, `None` otherwise. The install
+/// summary's `(X is available)` hint must only ever name the actual
+/// latest tag, so an immature latest suppresses the hint instead of
+/// being rewritten to an older mature version. Suppression requires
+/// positive evidence of immaturity: a missing or unparsable
+/// timestamp keeps the raw tag, matching
+/// [`detect_min_release_age_violation`], which likewise only flags a
+/// version it can date.
+fn latest_allowed_by_policy<'a>(
+    meta: &'a Package,
+    published_by: Option<DateTime<Utc>>,
+    published_by_exclude: Option<&PackageVersionPolicy>,
+) -> Option<&'a str> {
+    let latest = meta.dist_tag("latest")?;
+    let Some(cutoff) = published_by else { return Some(latest) };
+    if let Some(policy) = published_by_exclude {
+        use pacquet_config::version_policy::PolicyMatch;
+        match policy.matches(&meta.name) {
+            PolicyMatch::AnyVersion => return Some(latest),
+            PolicyMatch::ExactVersions(versions)
+                if versions.iter().any(|exact| exact == latest) =>
+            {
+                return Some(latest);
+            }
+            _ => {}
+        }
+    }
+    match meta.published_at(latest).and_then(parse_packument_timestamp) {
+        Some(published_at) if published_at > cutoff => None,
+        _ => Some(latest),
+    }
 }
 
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry

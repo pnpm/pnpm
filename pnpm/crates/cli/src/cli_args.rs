@@ -74,6 +74,7 @@ pub mod stage;
 pub mod star;
 pub mod stars;
 pub mod store;
+pub mod sudo_guard;
 pub mod supported_architectures;
 pub mod team;
 pub mod undeprecate;
@@ -101,6 +102,15 @@ pub(crate) mod reporter;
 mod verify_deps;
 
 pub(crate) use cli_command::CliArgs;
+
+/// The CLI grammar, built once per process. Constructing it walks every
+/// subcommand, and the passes that run before the parse each need the same
+/// view of it — argument arity, aliases, and which positionals name a
+/// subcommand.
+pub(crate) fn grammar() -> &'static clap::Command {
+    static GRAMMAR: std::sync::OnceLock<clap::Command> = std::sync::OnceLock::new();
+    GRAMMAR.get_or_init(<CliArgs as clap::CommandFactory>::command)
+}
 
 #[cfg(test)]
 mod tests;

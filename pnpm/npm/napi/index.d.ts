@@ -30,6 +30,15 @@ export interface NodeApiProject {
   rootDir: string
   /** In-memory manifest; the engine never reads package.json from disk for listed projects. */
   manifest: PackageManifest
+  /**
+   * Manifest used when this project is resolved as a *dependency* of another
+   * importer (an injected workspace instance) instead of `manifest`. Lets a
+   * host pre-transform its importer manifests (e.g. strip workspace-sibling
+   * deps it links itself) while dependency instances keep the raw graph —
+   * without a `readPackage` hook round trip. Omit when both views are the
+   * same.
+   */
+  dependencyManifest?: PackageManifest
 }
 
 export interface ProxyConfig {
@@ -95,6 +104,14 @@ export interface SharedEngineOptions {
   cacheDir?: string
 }
 
+/** Manifest fields to add to a matching package. */
+export interface PackageExtension {
+  dependencies?: Record<string, string>
+  optionalDependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>
+}
+
 export interface InstallOptions extends SharedEngineOptions {
   /** Lockfile / workspace root directory. */
   dir: string
@@ -123,8 +140,29 @@ export interface InstallOptions extends SharedEngineOptions {
   preferOffline?: boolean
   offline?: boolean
   virtualStoreDirMaxLength?: number
+  /** Whether to use the shared global virtual store for dependency slots. */
+  enableGlobalVirtualStore?: boolean
+  /** Overrides the global virtual store directory. */
+  globalVirtualStoreDir?: string
+  /** Manifest fields to add to packages selected by name or version range. */
+  packageExtensions?: Record<string, PackageExtension>
+  /** Patch paths keyed by package selector. Relative paths resolve from `dir`. */
+  patchedDependencies?: Record<string, string>
+  /**
+   * Warn instead of failing with `ERR_PNPM_UNUSED_PATCH` when a
+   * `patchedDependencies` entry matches no installed package. Lets an embedder
+   * ship a patch keyed to a version range that only some workspaces resolve.
+   */
+  allowUnusedPatches?: boolean
   peersSuffixMaxLength?: number
   dedupePeerDependents?: boolean
+  /**
+   * Render every resolved-peer slot in depPath suffixes as `name@version`
+   * instead of the peer's own depPath (the `dedupePeers` setting). Must match
+   * the value the existing lockfile was generated with, or the install
+   * re-resolves from scratch.
+   */
+  dedupePeers?: boolean
   dedupeDirectDeps?: boolean
   dedupeInjectedDeps?: boolean
   resolvePeersFromWorkspaceRoot?: boolean
@@ -134,6 +172,11 @@ export interface InstallOptions extends SharedEngineOptions {
   minimumReleaseAgeExclude?: string[]
   includeOptionalDeps?: boolean
   ignoreScripts?: boolean
+  /**
+   * Trust lockfile resolutions without verifying them against current registry
+   * metadata.
+   */
+  trustLockfile?: boolean
   /**
    * Re-resolve the whole dependency graph to the highest in-range version
    * (pnpm's `update: true` / `depth: Infinity`). The binding takes no package
@@ -176,6 +219,15 @@ export interface InstallOptions extends SharedEngineOptions {
    * `InstallResult.depsRequiringBuild` instead.
    */
   strictDepBuilds?: boolean
+  /**
+   * Report in `InstallResult.depsRequiringBuild` the dep path of every
+   * package whose files carry install scripts, regardless of the
+   * allow-build policy. The list is computed only when a fresh resolve
+   * materializes `node_modules`; an install served from the
+   * frozen-lockfile path (or `lockfileOnly`) leaves the field undefined
+   * so the embedder keeps its previously recorded list.
+   */
+  returnListOfDepsRequiringBuild?: boolean
   /** Customizations for how peer-dependency mismatches are treated. */
   peerDependencyRules?: PeerDependencyRules
 }
@@ -193,7 +245,13 @@ export interface InstallResult {
     removed: number
     linkedToRoot: number
   }
-  /** Dep paths whose build scripts were skipped and require approval to run. */
+  /**
+   * With `returnListOfDepsRequiringBuild`: the dep path of every package
+   * whose files carry install scripts, whether or not the scripts were
+   * allowed to run; undefined when the install did not compute the list
+   * (see the option). Without it: the dep paths whose build scripts were
+   * skipped and require approval to run.
+   */
   depsRequiringBuild?: string[]
   /** The resolved content-addressable store directory used by this install. */
   storeDir: string
@@ -307,6 +365,101 @@ export interface ParsedBareSpecifier {
 
 /** Parses/validates a dependency specifier. Returns null for unparsable input. */
 export function parseBareSpecifier(spec: string, alias?: string): ParsedBareSpecifier | null
+
+export interface ReadConfigOptions {
+  /**
+   * Directory whose config cascade to resolve — its `.npmrc`, the enclosing
+   * workspace's `pnpm-workspace.yaml` and `.npmrc`, the user and global
+   * config files, and `npm_config_*` environment variables.
+   */
+  dir: string
+}
+
+/** One configured registry: the `default` entry plus one per `@scope`. */
+export interface ResolvedRegistry {
+  /** `"default"` or the package scope (`"@teambit"`). */
+  name: string
+  url: string
+  /**
+   * Ready-to-send `Authorization` header for this registry, when the config
+   * carries a static credential for it. `tokenHelper` credentials are not
+   * executed here and yield no header.
+   */
+  authHeader?: string
+}
+
+export interface ResolvedConfig {
+  registries: ResolvedRegistry[]
+  /**
+   * Static `Authorization` headers keyed by nerf-darted registry URI
+   * (`//host[:port]/path/`) — the shape `install`'s `authHeaderByUri`
+   * accepts.
+   */
+  authHeaderByUri: Record<string, string>
+  httpProxy?: string
+  httpsProxy?: string
+  /** `true` (bypass every proxy) or a comma-separated host list. */
+  noProxy?: boolean | string
+  /** PEM-encoded CA certificates (`ca` / `cafile` already merged). */
+  ca?: string[]
+  cert?: string
+  key?: string
+  strictSsl?: boolean
+  storeDir: string
+  cacheDir: string
+  virtualStoreDirMaxLength: number
+  /** Whether the resolved configuration uses the global virtual store. */
+  enableGlobalVirtualStore: boolean
+  /** Shared virtual-store root. */
+  globalVirtualStoreDir: string
+  /** Project-local virtual-store directory. */
+  virtualStoreDir: string
+  /** Virtual-store directory used by this configuration and recorded in `.modules.yaml`. */
+  effectiveVirtualStoreDir: string
+  networkConcurrency: number
+  maxSockets?: number
+  fetchRetries: number
+  fetchRetryFactor: number
+  fetchRetryMintimeout: number
+  fetchRetryMaxtimeout: number
+  fetchTimeout: number
+  /**
+   * The explicitly configured user agent, when the cascade set one. The
+   * engine's own computed default is omitted — an embedder that passes
+   * nothing back to `install` gets that same default.
+   */
+  userAgent?: string
+  engineStrict: boolean
+  nodeVersion?: string
+  /** `"auto"` / `"hardlink"` / `"copy"` / `"clone"` / `"clone-or-copy"`. */
+  packageImportMethod: string
+  hoistPattern?: string[]
+  publicHoistPattern?: string[]
+  /**
+   * The legacy `shamefullyHoist` flag; `publicHoistPattern` already
+   * reflects it, exposed for embedders that branch on the flag itself.
+   */
+  shamefullyHoist: boolean
+  /**
+   * The engine's pnpm home directory (`PNPM_HOME` or the platform default) —
+   * not a per-project setting. Absent when no home directory is resolvable.
+   */
+  pnpmHomeDir?: string
+  /**
+   * The camelCase names of settings the cascade set explicitly
+   * (`pnpm-workspace.yaml`, the global config, `pnpm_config_*` env vars).
+   * Every other projected value is an engine default; an embedder that
+   * layers this config over its own must forward only the explicit ones.
+   */
+  explicitSettings: string[]
+}
+
+/**
+ * Resolve the configuration the engine's own installs use — registries,
+ * credentials, proxy, TLS, and network settings from the `.npmrc` cascade —
+ * so the embedder needs no JavaScript config reader.
+ */
+export function readConfig(options: ReadConfigOptions): ResolvedConfig
 
 /** Version of the underlying Rust engine (pacquet). */
 export function engineVersion(): string

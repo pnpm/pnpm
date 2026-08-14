@@ -112,6 +112,16 @@ fn ignore_manifest_check_flag_parses() {
 }
 
 #[test]
+fn ignore_pnpmfile_flag_parses() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert!(!parsed.args.ignore_pnpmfile, "flag absent → false");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--ignore-pnpmfile"])
+        .expect("parses --ignore-pnpmfile");
+    assert!(parsed.args.ignore_pnpmfile, "flag present → true");
+}
+
+#[test]
 fn dry_run_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
     assert!(!parsed.args.dry_run, "flag absent → false");

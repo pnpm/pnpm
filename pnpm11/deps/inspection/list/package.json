@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.list",
-  "version": "1100.0.29",
+  "version": "1100.1.1",
   "description": "List installed packages in a symlinked `node_modules`",
   "keywords": [
     "pnpm",
@@ -39,9 +39,9 @@
     "@pnpm/deps.inspection.tree-builder": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/text.tree-renderer": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "chalk": "catalog:",
     "p-limit": "catalog:",

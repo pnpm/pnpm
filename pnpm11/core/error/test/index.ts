@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { FetchError, PnpmError, redactAndSanitize, redactUrlCredentials } from '@pnpm/error'
+import { FetchError, PnpmError, redactAndSanitize, redactAndSanitizeMultiline, redactUrlCredentials } from '@pnpm/error'
 
 test('PnpmError exposes cause when provided', () => {
   const cause = new Error('original failure')
@@ -90,4 +90,17 @@ test('redactAndSanitize', () => {
   // A control character inside the userinfo must not break the redaction:
   // controls are stripped first, then credentials are redacted.
   expect(redactAndSanitize('https://user:pass\r@host/x')).toBe('https://host/x')
+})
+
+test('redactAndSanitizeMultiline', () => {
+  // Only the ESC introducer is removed, as in redactAndSanitize; the residual
+  // "[0m" is inert text.
+  expect(redactAndSanitizeMultiline('fatal: could not read\r\nfrom remote\u001b[0m'))
+    .toBe('fatal: could not read\nfrom remote[0m')
+  expect(redactAndSanitizeMultiline('cloning https://user:pass@host/x.git\nfailed'))
+    .toBe('cloning https://host/x.git\nfailed')
+  // A newline inside the userinfo would leave the credentials split but
+  // readable if each line were redacted on its own, so the collapsed form wins.
+  expect(redactAndSanitizeMultiline('url: https://user:pass\n@host/x.git\nfailed'))
+    .toBe('url: https://host/x.gitfailed')
 })

@@ -79,6 +79,7 @@ fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
 #[derive(Debug, Default)]
 pub struct ConfigOverrides {
     registry: Option<String>,
+    scope: Option<String>,
     registries: BTreeMap<String, String>,
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
@@ -125,6 +126,10 @@ impl ConfigOverrides {
     fn set(&mut self, key: &str, value: &str) {
         if key == "registry" {
             self.registry = Some(normalize_registry_url(value));
+            return;
+        }
+        if key == "scope" {
+            self.scope = Some(value.to_string());
             return;
         }
         if key == "https-proxy" {
@@ -187,6 +192,9 @@ impl ConfigOverrides {
         );
         if let Some(registry) = &self.registry {
             apply_registry_override(config, registry);
+        }
+        if let Some(scope) = &self.scope {
+            config.scope = Some(scope.clone());
         }
         for (scope, registry) in &self.registries {
             config.registries.insert(scope.clone(), registry.clone());

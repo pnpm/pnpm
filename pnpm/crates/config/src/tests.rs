@@ -1,6 +1,6 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, fs,
+    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, default_ci, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -57,6 +57,45 @@ fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
     let subscriber = tracing_subscriber::registry().with(CaptureLayer(messages_clone));
     tracing::subscriber::with_default(subscriber, f);
     Arc::try_unwrap(messages).unwrap().into_inner().unwrap()
+}
+
+#[test]
+fn ci_false_disables_github_actions_detection() {
+    struct GithubActionsWithCiFalse;
+
+    impl EnvVar for GithubActionsWithCiFalse {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CI" => Some("false".to_string()),
+                "GITHUB_ACTIONS" => Some("true".to_string()),
+                _ => None,
+            }
+        }
+
+        fn vars() -> Vec<(String, String)> {
+            Vec::new()
+        }
+    }
+
+    assert!(!default_ci::<GithubActionsWithCiFalse>(|| true));
+}
+
+#[test]
+fn ci_detection_uses_injected_detector() {
+    struct InjectedCi;
+
+    impl EnvVar for InjectedCi {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+
+        fn vars() -> Vec<(String, String)> {
+            Vec::new()
+        }
+    }
+
+    assert!(default_ci::<InjectedCi>(|| true));
+    assert!(!default_ci::<InjectedCi>(|| false));
 }
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage
@@ -1299,6 +1338,194 @@ pub fn cli_https_proxy_precedes_standard_http_proxy_environment_fallback() {
     assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
 }
 
+/// A flag names its key even when the value reads as unset, so the
+/// `.npmrc` below it cannot win the key back — the cascade falls through
+/// to the other keys and the environment, and here to neither.
+#[test]
+pub fn empty_cli_proxy_flags_mask_the_project_npmrc() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8443\nno-proxy=skip.example\n",
+    );
+    set_fake_env(&[]);
+
+    let mut config = load_with_fake_env(project.path());
+    config.apply_proxy_cli_overrides(Some(""), Some(""), Some(""));
+
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+    assert_eq!(config.proxy.no_proxy, None);
+}
+
+#[test]
+pub fn empty_cli_proxy_flags_fall_through_to_the_environment() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "https-proxy=http://npmrc-proxy.example.com:8443\n");
+    set_fake_env(&[("HTTPS_PROXY", "http://env-proxy.example.com:8080")]);
+
+    let mut config = load_with_fake_env(project.path());
+    config.apply_proxy_cli_overrides(Some(""), None, None);
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://env-proxy.example.com:8080"));
+}
+
+/// A yaml key set to an unset-reading value still masks the `.npmrc`
+/// below it, so nothing is left for the cascade to fall through to.
+#[test]
+pub fn empty_workspace_yaml_proxy_settings_mask_the_project_npmrc() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8443\nno-proxy=skip.example\n",
+    );
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "httpsProxy: \"\"\nhttpProxy: \"\"\nproxy: \"\"\nnoProxy: \"\"\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+    assert_eq!(config.proxy.no_proxy, None);
+}
+
+/// The two `noProxy` spellings are separate yaml keys, so an empty
+/// primary must not consume the alias's turn.
+/// A flag value is not a typed scalar, so `false` is a hostname on the
+/// command line even though it disables proxying in an `.npmrc`.
+#[test]
+pub fn cli_proxy_flags_take_false_as_a_hostname() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("HTTPS_PROXY", "http://env-proxy.example.com:8080")]);
+
+    let mut config = load_with_fake_env(project.path());
+    config.apply_proxy_cli_overrides(Some("false"), None, None);
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("false"));
+}
+
+#[test]
+pub fn workspace_yaml_proxy_false_disables_an_environment_proxy() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "proxy: false\n")
+        .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[("HTTPS_PROXY", "http://env-proxy.example.com:8080")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+}
+
+/// `proxy` and `https-proxy` are separate keys, and the more specific one
+/// wins regardless of which file set it — so a repo yaml turning proxying
+/// off does not drop the user's `https-proxy`.
+#[test]
+pub fn workspace_yaml_proxy_false_yields_to_an_npmrc_https_proxy() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "https-proxy=http://npmrc-proxy.example.com:8443\n");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "proxy: false\n")
+        .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+}
+
+#[test]
+pub fn workspace_yaml_proxy_false_overrides_an_npmrc_legacy_proxy() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "proxy=http://npmrc-legacy.example.com:8443\n");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "proxy: false\n")
+        .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+}
+
+#[test]
+pub fn workspace_yaml_scheme_proxy_keys_set_to_false_mask_the_project_npmrc() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8443\nno-proxy=skip.example\n",
+    );
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "httpsProxy: false\nhttpProxy: false\nnoProxy: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[("NO_PROXY", "env.example")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec!["env.example".to_string()])),
+        "a masked key still falls through to the environment",
+    );
+}
+
+#[test]
+pub fn empty_workspace_yaml_no_proxy_falls_through_to_its_alias() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "noProxy: \"\"\nnoproxy: alias.example\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec!["alias.example".to_string()])),
+    );
+}
+
+#[test]
+pub fn empty_global_config_yaml_proxy_settings_mask_the_project_npmrc() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8443\nno-proxy=skip.example\n",
+    );
+    let xdg = tempdir().expect("config tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create global config dir");
+    fs::write(config_dir.join("config.yaml"), "httpsProxy: \"\"\nhttpProxy: \"\"\nnoProxy: \"\"\n")
+        .expect("write global config.yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+    assert_eq!(config.proxy.no_proxy, None);
+}
+
 /// Explicitly URL-scoped credentials pass through unchanged — they
 /// are never rescoped, so they stay on exactly the registry the user
 /// wrote, regardless of a workspace registry override.
@@ -1773,6 +2000,25 @@ pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.registry, "https://from-yaml.test/");
+}
+
+#[test]
+pub fn pnpm_workspace_yaml_supplies_the_login_scope() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
+}
+
+#[test]
+pub fn npmrc_scope_alone_never_reaches_the_config() {
+    // pnpm's `.npmrc` reader keeps only auth/registry keys, so this is the one
+    // config source that must *not* supply the login scope.
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join(".npmrc"), "scope=@from-npmrc\n").expect("write to .npmrc");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
+    assert_eq!(config.scope, None);
 }
 
 #[test]
@@ -2712,14 +2958,49 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
 }
 
 #[test]
-pub fn cleanup_unused_catalogs_from_workspace_yaml() {
+pub fn catalog_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
-    assert!(!config.cleanup_unused_catalogs);
+    assert!(!config.catalog_prune);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "catalogPrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.catalog_prune);
+}
+
+/// `catalogPrune` was released as `cleanupUnusedCatalogs`, which every
+/// `pnpm-workspace.yaml` written since pnpm 10.15 may still carry.
+#[test]
+pub fn catalog_prune_from_its_former_name_in_workspace_yaml() {
+    let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "cleanupUnusedCatalogs: true\n")
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-    assert!(config.cleanup_unused_catalogs);
+    assert!(config.catalog_prune);
+}
+
+/// The canonical name wins, whichever order the two appear in.
+#[test]
+pub fn catalog_prune_overrides_its_former_name() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "cleanupUnusedCatalogs: true\ncatalogPrune: false\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(!config.catalog_prune);
+}
+
+#[test]
+pub fn minimum_release_age_exclude_prune_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.minimum_release_age_exclude_prune);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAgeExcludePrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.minimum_release_age_exclude_prune);
 }
 
 #[test]
