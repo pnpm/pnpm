@@ -67,6 +67,8 @@ pub struct GitHostedTarballFetcher<'a> {
     pub script_shell: Option<&'a Path>,
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,
+    /// See the matching field on [`crate::GitFetcher`].
+    pub pnpm_execpath: Option<&'a Path>,
     pub store_dir: &'a StoreDir,
     /// Used in log lines; see the matching field on
     /// [`crate::GitFetcher`] for its other role.
@@ -103,6 +105,7 @@ impl GitHostedTarballFetcher<'_> {
         // returns `pkg_dir` (which respects `self.path`) plus the
         // `should_be_built` flag.
         let empty_env: HashMap<String, String> = HashMap::new();
+        let shims_dir = self.pnpm_execpath.and_then(|_| tempfile::tempdir().ok());
         let prepare_opts = PreparePackageOptions {
             allow_build: Box::new(|dep_path| (self.allow_build)(dep_path)),
             pkg_resolution_id: self.package_id,
@@ -113,6 +116,10 @@ impl GitHostedTarballFetcher<'_> {
             script_shell: self.script_shell,
             node_execpath: self.node_execpath,
             npm_execpath: self.npm_execpath,
+            package_manager_shims: crate::prepare_package::package_manager_shims(
+                shims_dir.as_ref(),
+                self.pnpm_execpath,
+            ),
             extra_bin_paths: &[],
             extra_env: &empty_env,
         };

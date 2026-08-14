@@ -53,6 +53,10 @@ pub struct GitFetcher<'a> {
     pub script_shell: Option<&'a Path>,
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,
+    /// The running pnpm, used to provide the package manager the
+    /// dependency's build needs. `None` leaves the build to whatever is
+    /// installed on the host.
+    pub pnpm_execpath: Option<&'a Path>,
     pub store_dir: &'a StoreDir,
     /// Used in log lines, and as the resolution id
     /// [`crate::prepare_package()`] synthesizes its gated dep path from.
@@ -125,6 +129,7 @@ impl GitFetcher<'_> {
         // temporary-lifetime extension here would work today but is
         // brittle to future expression-reshape edits in this block.
         let empty_env: HashMap<String, String> = HashMap::new();
+        let shims_dir = self.pnpm_execpath.and_then(|_| tempfile::tempdir().ok());
         let prepare_opts = PreparePackageOptions {
             allow_build: Box::new(|dep_path| (self.allow_build)(dep_path)),
             pkg_resolution_id: self.package_id,
@@ -135,6 +140,10 @@ impl GitFetcher<'_> {
             script_shell: self.script_shell,
             node_execpath: self.node_execpath,
             npm_execpath: self.npm_execpath,
+            package_manager_shims: crate::prepare_package::package_manager_shims(
+                shims_dir.as_ref(),
+                self.pnpm_execpath,
+            ),
             extra_bin_paths: &[],
             extra_env: &empty_env,
         };

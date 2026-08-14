@@ -1,0 +1,97 @@
+use super::write_pm_shims;
+use crate::preferred_pm::{PreferredPm, WantedPm};
+use std::{fs, path::Path};
+use tempfile::tempdir;
+
+fn shim_body(dir: &Path, name: &str) -> String {
+    let file_name = if cfg!(windows) { format!("{name}.cmd") } else { name.to_string() };
+    fs::read_to_string(dir.join(file_name)).expect("read the generated shim")
+}
+
+#[test]
+fn a_pinned_package_manager_is_forwarded_with_its_version() {
+    let dir = tempdir().unwrap();
+    let wanted =
+        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("1".to_string()), pinned: true };
+    write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
+
+    let body = shim_body(dir.path(), "yarn");
+    assert!(body.contains("with"), "{body}");
+    assert!(body.contains("yarn@1"), "{body}");
+    assert!(body.contains("/opt/pnpm"), "{body}");
+}
+
+/// Without a pin the package manager's own name is the whole spec, so
+/// `pnpm with` falls through to that channel's current line.
+#[test]
+fn an_unpinned_package_manager_is_forwarded_by_name() {
+    let dir = tempdir().unwrap();
+    let wanted = WantedPm { pm: PreferredPm::Bun, version_spec: None, pinned: false };
+    write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
+
+    let body = shim_body(dir.path(), "bun");
+    let spec = if cfg!(windows) { r#"with "bun""# } else { "with 'bun'" };
+    assert!(body.contains(spec), "an unpinned spec carries no version: {body}");
+}
+
+/// A build that shells out to `yarnpkg` has to find the same Yarn.
+#[test]
+fn yarn_is_reachable_under_both_of_its_names() {
+    let dir = tempdir().unwrap();
+    let wanted = WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: false };
+    let written = write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write");
+    assert_eq!(written.len(), 2);
+    assert_eq!(shim_body(dir.path(), "yarn"), shim_body(dir.path(), "yarnpkg"));
+}
+
+#[cfg(unix)]
+#[test]
+fn the_shims_are_executable() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let wanted = WantedPm { pm: PreferredPm::Npm, version_spec: None, pinned: false };
+    write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
+
+    let mode = fs::metadata(dir.path().join("npm")).unwrap().permissions().mode();
+    assert_eq!(mode & 0o111, 0o111, "mode was {mode:o}");
+}
+
+/// A path holding a shell metacharacter must not change what the shim
+/// runs.
+#[cfg(unix)]
+#[test]
+fn a_hostile_pnpm_path_is_quoted() {
+    let dir = tempdir().unwrap();
+    let wanted = WantedPm { pm: PreferredPm::Npm, version_spec: None, pinned: false };
+    write_pm_shims(dir.path(), &wanted, Path::new("/opt/p'; touch /tmp/pwned; '")).expect("write");
+
+    // Every quote in the path closes and reopens the literal, so the
+    // whole path stays one shell word and nothing in it is ever parsed
+    // as a command.
+    assert_eq!(
+        shim_body(dir.path(), "npm"),
+        "#!/bin/sh\nexec '/opt/p'\\''; touch /tmp/pwned; '\\''' with 'npm' \"$@\"\n",
+    );
+}
+
+/// The shim is regenerated every time, so an entry planted at its path
+/// cannot survive to be executed — and a symlink there cannot redirect
+/// the write.
+#[test]
+fn a_planted_entry_is_replaced() {
+    let dir = tempdir().unwrap();
+    let planted = dir.path().join(if cfg!(windows) { "npm.cmd" } else { "npm" });
+    let elsewhere = dir.path().join("elsewhere");
+    fs::write(&elsewhere, "original\n").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&elsewhere, &planted).unwrap();
+    #[cfg(windows)]
+    fs::write(&planted, "@echo planted\r\n").unwrap();
+
+    let wanted = WantedPm { pm: PreferredPm::Npm, version_spec: None, pinned: false };
+    write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
+
+    assert!(shim_body(dir.path(), "npm").contains("with"));
+    assert_eq!(fs::read_to_string(&elsewhere).unwrap(), "original\n");
+}

@@ -6,7 +6,7 @@
 //! scripts. Honors the `allowBuild` gate, and rejects sub-paths that
 //! escape the git root via [`safe_join_path`].
 
-use crate::{error::PreparePackageError, preferred_pm::detect_preferred_pm};
+use crate::{error::PreparePackageError, pm_shims::write_pm_shims, preferred_pm::detect_wanted_pm};
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
 };
@@ -53,8 +53,30 @@ pub struct PreparePackageOptions<'a> {
     pub script_shell: Option<&'a Path>,
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,
+    /// The running pnpm, and a directory to write package-manager shims
+    /// into. Given both, the package manager the dependency asks for is
+    /// provisioned and put on the build's `PATH`; without them the build
+    /// falls back to whatever is already installed on the host.
+    pub package_manager_shims: Option<PackageManagerShims<'a>>,
     pub extra_bin_paths: &'a [PathBuf],
     pub extra_env: &'a HashMap<String, String>,
+}
+
+/// Where to write the shims that make the dependency's package manager
+/// reachable by name, and the pnpm they forward to.
+pub struct PackageManagerShims<'a> {
+    pub dir: &'a Path,
+    pub pnpm_execpath: &'a Path,
+}
+
+/// Pair a scratch directory with the running pnpm, when the caller has
+/// both. The directory is a `TempDir` the caller keeps alive for the
+/// duration of the prepare, so the shims are removed with it.
+pub fn package_manager_shims<'a>(
+    dir: Option<&'a tempfile::TempDir>,
+    pnpm_execpath: Option<&'a Path>,
+) -> Option<PackageManagerShims<'a>> {
+    Some(PackageManagerShims { dir: dir?.path(), pnpm_execpath: pnpm_execpath? })
 }
 
 /// Result of [`prepare_package`]. `should_be_built` drives the
@@ -109,15 +131,39 @@ pub fn prepare_package<Reporter: self::Reporter>(
         });
     }
 
-    let pm = detect_preferred_pm(git_root_dir);
+    let wanted_pm = detect_wanted_pm(git_root_dir, Some(&manifest));
+    let pm = wanted_pm.pm;
     let dep_path = format!("{name}@{version}");
+
+    // The dependency's scripts invoke the package manager by name, so it
+    // has to be on the build's PATH. pnpm provides it when the dependency
+    // pinned a version — that pin is what its authors test against — or
+    // when the host has none; otherwise the host's own install is left to
+    // do the job it has always done. A host that already has it also
+    // keeps working when the shims cannot be written.
+    let mut extra_bin_paths = opts.extra_bin_paths.to_vec();
+    if let Some(shims) = opts
+        .package_manager_shims
+        .as_ref()
+        .filter(|_| wanted_pm.pinned || which::which(pm.name()).is_err())
+    {
+        match write_pm_shims(shims.dir, &wanted_pm, shims.pnpm_execpath) {
+            Ok(_) => extra_bin_paths.insert(0, shims.dir.to_path_buf()),
+            Err(error) => tracing::warn!(
+                target: "pacquet::git_fetcher",
+                "could not provide {} for the build at {}: {error}",
+                pm.name(),
+                shims.dir.display(),
+            ),
+        }
+    }
 
     let run_opts = RunPostinstallHooks {
         dep_path: &dep_path,
         pkg_root: &pkg_dir,
         root_modules_dir: &pkg_dir,
         init_cwd: &pkg_dir,
-        extra_bin_paths: opts.extra_bin_paths,
+        extra_bin_paths: &extra_bin_paths,
         extra_env: opts.extra_env,
         node_execpath: opts.node_execpath,
         npm_execpath: opts.npm_execpath,

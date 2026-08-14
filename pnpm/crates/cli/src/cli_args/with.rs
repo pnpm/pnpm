@@ -66,11 +66,14 @@ impl WithArgs {
         let Some((spec, args)) = self.params.split_first() else {
             return Err(WithError::MissingSpec.into());
         };
-        if is_executed_by_corepack() {
+        let (pm, version_spec) = parse_engine_spec(spec);
+        // Corepack owns which pnpm runs, so running a different one behind
+        // its back is refused. It has no say over the other package
+        // managers pnpm provisions, so those are unaffected.
+        if pm == PackageManager::Pnpm && is_executed_by_corepack() {
             return Err(WithError::CantUseWithInCorepack.into());
         }
 
-        let (pm, version_spec) = parse_engine_spec(spec);
         let engine = Box::pin(provision::<Reporter>(config, pm, version_spec)).await?;
 
         let status = if pm == PackageManager::Pnpm {

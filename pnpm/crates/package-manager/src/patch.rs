@@ -263,6 +263,9 @@ impl WritePackageForPatch<'_> {
                     script_shell: None,
                     node_execpath: None,
                     npm_execpath: None,
+                    // Nothing here is allowed to build, so no package
+                    // manager has to be provided to it.
+                    pnpm_execpath: None,
                     store_dir: &config.store_dir,
                     package_id: &package_id,
                     requester: "",

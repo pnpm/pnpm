@@ -32,8 +32,21 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU8},
+    sync::{Arc, LazyLock, atomic::AtomicU8},
 };
+
+/// The running pnpm, which a git-hosted dependency's build is given so it
+/// can install with the package manager it asks for.
+///
+/// `None` when the executable is something other than pnpm itself — the
+/// Node.js addon runs this code inside `node`, where there is no pnpm
+/// binary to forward to — and the build then falls back to whatever
+/// package managers the host has installed.
+static PNPM_EXECPATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
+    let path = std::env::current_exe().ok()?;
+    let stem = path.file_stem()?.to_str()?;
+    (stem == "pnpm").then_some(path)
+});
 
 /// This subroutine downloads a package tarball, extracts it, installs it to a
 /// virtual dir, then creates the symlink layout for the package. CAS file
@@ -484,6 +497,7 @@ impl InstallPackageBySnapshot<'_> {
                         script_shell: None,
                         node_execpath: None,
                         npm_execpath: None,
+                        pnpm_execpath: PNPM_EXECPATH.as_deref(),
                         store_dir: &config.store_dir,
                         package_id: &package_id,
                         requester,
@@ -618,6 +632,7 @@ impl InstallPackageBySnapshot<'_> {
                     script_shell: None,
                     node_execpath: None,
                     npm_execpath: None,
+                    pnpm_execpath: PNPM_EXECPATH.as_deref(),
                     store_dir: &config.store_dir,
                     package_id: &package_id,
                     package_name: &package_name,

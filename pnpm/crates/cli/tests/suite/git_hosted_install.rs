@@ -856,3 +856,55 @@ fn allow_builds(workspace: &Path, keys: &[&str]) {
     }
     std::fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
 }
+
+/// A dependency that pins its own package manager is prepared with that
+/// package manager, provisioned by pnpm rather than expected on the host.
+///
+/// The pin is Yarn Classic, which no fixture can stand in for: pnpm
+/// verifies an engine against npm's published signature before running
+/// it, so the bytes have to be the real ones. The dependency's own
+/// `prepare` script records the user agent it ran under, which is what
+/// names the package manager that prepared it.
+#[test]
+fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "pins-yarn");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"pins-yarn","version":"1.0.0","main":"index.js","packageManager":"yarn@1.22.22","scripts":{"prepare":"node record-user-agent.js"}}"#,
+    );
+    repo.write_file("index.js", "module.exports = 'ok'\n");
+    repo.write_file(
+        "record-user-agent.js",
+        "require('fs').writeFileSync('prepared-by.txt', process.env.npm_config_user_agent || '')\n",
+    );
+    repo.write_file("yarn.lock", "# yarn lockfile v1\n");
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+
+    write_dependencies(&workspace, &[("pins-yarn", &spec)]);
+    allow_builds(&workspace, &[&format!("pins-yarn@{spec}")]);
+
+    // The provisioning runs in a child pnpm, outside this project, so the
+    // registry to provision from travels in the environment. The engine
+    // store hangs off `PNPM_HOME`, which is pinned into the test's own
+    // directory so the run cannot reach into the developer's.
+    let output = pnpm_at(&workspace)
+        .with_args(["install"])
+        .with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url())
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+        .output()
+        .expect("run pnpm install");
+    dbg!(&output);
+    assert_success(&output);
+
+    let user_agent = fs::read_to_string(workspace.join("node_modules/pins-yarn/prepared-by.txt"))
+        .expect("the pinned package manager should have run the dependency's prepare script");
+    assert!(
+        user_agent.starts_with("yarn/1.22.22"),
+        "prepared by the pinned yarn, not {user_agent:?}",
+    );
+
+    drop((root, npmrc_info));
+}

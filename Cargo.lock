@@ -4498,6 +4498,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "which 8.0.4",
 ]
 
 [[package]]
