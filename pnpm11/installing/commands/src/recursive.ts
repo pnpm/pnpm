@@ -454,6 +454,7 @@ export async function recursive (
                   dependencyNames: currentInput,
                   mutation: 'uninstallSome',
                   rootDir,
+                  targetDependenciesField,
                 },
               ], opts)
               return {

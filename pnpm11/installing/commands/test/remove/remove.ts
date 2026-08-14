@@ -173,6 +173,40 @@ test('recursive remove with unmatched dependency glob patterns is a no-op', asyn
   })
 })
 
+test('recursive remove with a dependency glob respects the selected field without a shared lockfile', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await remove.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    saveProd: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['is-*'])
+
+  const manifest = JSON.parse(await readFile('project-1/package.json', 'utf8'))
+  expect(manifest.dependencies).toBeUndefined()
+  expect(manifest.devDependencies).toStrictEqual({
+    'is-positive': '1.0.0',
+  })
+})
+
 test('remove with mixed missing exact dependency and glob pattern fails', async () => {
   prepare({
     dependencies: {
