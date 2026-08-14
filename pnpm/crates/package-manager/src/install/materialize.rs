@@ -47,12 +47,15 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) can_prompt: bool,
     pub(super) persist_policy_excludes: bool,
     pub(super) update_seed_policy: UpdateSeedPolicy,
+    pub(super) preferred_versions_override:
+        Option<pacquet_resolving_resolver_base::PreferredVersions>,
     pub(super) auth_override: Option<Arc<AuthHeaders>>,
     pub(super) resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
     pub(super) peer_issues_sink: Option<PeerIssuesSink>,
     pub(super) deps_requiring_build_sink: Option<DepsRequiringBuildSink>,
     pub(super) pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     pub(super) save_lockfile: bool,
+    pub(super) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
     pub(super) catalogs: &'a Catalogs,
     pub(super) prefix: &'a str,
 }
@@ -107,12 +110,14 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         can_prompt,
         persist_policy_excludes,
         update_seed_policy,
+        preferred_versions_override,
         auth_override,
         resolution_observer,
         peer_issues_sink,
         deps_requiring_build_sink,
         pnpmfile_hook,
         save_lockfile,
+        manifest_spec_bumps,
         catalogs,
         prefix,
     } = inputs;
@@ -345,6 +350,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             persist_policy_excludes,
             is_full_install: mutation.is_full_install(),
             update_seed_policy,
+            preferred_versions_override,
             auth_override,
             resolution_observer,
             peer_issues_sink: peer_issues_sink.clone(),
@@ -355,6 +361,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             current_lockfile,
             prior_hoisted_dependencies,
             prune_orphans,
+            manifest_spec_bumps,
         }
         .run::<Reporter>()
         .await

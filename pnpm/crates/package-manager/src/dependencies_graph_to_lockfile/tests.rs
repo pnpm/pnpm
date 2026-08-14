@@ -7,8 +7,9 @@ use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
     DirectoryResolution, GitResolution, ImporterDepVersion, LockfileResolution, PackageKey,
-    PkgName, PkgNameVer, ProjectSnapshot, RegistryResolution, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, TarballResolution, VariationsResolution,
+    PackageMetadata, PkgName, PkgNameVer, ProjectSnapshot, RegistryResolution,
+    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, TarballResolution,
+    VariationsResolution,
 };
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_deps_resolver::{
@@ -82,6 +83,7 @@ fn single_importer_opts<'a>(
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
@@ -477,6 +479,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
@@ -509,6 +512,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
@@ -595,6 +599,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             registry: "https://registry.npmjs.org",
             lockfile_include_tarball_url: false,
             previous_importers: None,
+            previous_packages: None,
             update_reuse_scope: UpdateReuseScope::All,
             update_reuse_scopes_by_importer: BTreeMap::new(),
             time: BTreeMap::new(),
@@ -754,6 +759,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
@@ -1242,21 +1248,21 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         "dependencies": { "outer": "^1.0.0" },
     }));
 
-    let outer_id = "outer@1.0.0".to_string();
-    let inner_id = "inner@1.0.0".to_string();
+    let outer_id: Arc<str> = "outer@1.0.0".into();
+    let inner_id: Arc<str> = "inner@1.0.0".into();
     let outer_node_id = NodeId::next();
 
     let mut tree = ResolvedTree {
         direct: vec![DirectDep {
             alias: "outer".to_string(),
             node_id: outer_node_id.clone(),
-            id: outer_id.clone(),
+            id: outer_id.to_string(),
         }],
         packages: HashMap::from_iter([
             (
-                outer_id.clone(),
+                Arc::<str>::clone(&outer_id),
                 ResolvedPackage {
-                    id: outer_id.clone(),
+                    id: Arc::<str>::clone(&outer_id),
                     result: Arc::new(make_resolve_result(
                         "outer",
                         "1.0.0",
@@ -1268,9 +1274,9 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
                 },
             ),
             (
-                inner_id.clone(),
+                Arc::<str>::clone(&inner_id),
                 ResolvedPackage {
-                    id: inner_id.clone(),
+                    id: Arc::<str>::clone(&inner_id),
                     result: Arc::new(make_resolve_result(
                         "inner",
                         "1.0.0",
@@ -1285,7 +1291,7 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         dependencies_tree: HashMap::from_iter([(
             outer_node_id,
             DependenciesTreeNode::new(
-                outer_id.clone(),
+                Arc::<str>::clone(&outer_id),
                 TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
                 0,
                 true,
@@ -1813,6 +1819,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
@@ -1905,6 +1912,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
@@ -2015,6 +2023,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
@@ -2151,6 +2160,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
@@ -2469,6 +2479,7 @@ fn injected_workspace_dep_renders_file_without_prior_link() {
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
     });
@@ -2822,4 +2833,66 @@ fn an_unresolvable_alias_keeps_the_tarball_url() {
         LockfileResolution::Tarball(resolution) => assert_eq!(resolution.tarball, tarball),
         other => panic!("an unresolvable alias must keep its tarball URL, got {other:?}"),
     }
+}
+
+/// pnpm/pnpm#13846: registries serve `deprecated` inconsistently for
+/// the same published version.
+#[test]
+fn unchanged_resolutions_keep_their_previous_package_metadata() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let build = |previous: Option<&std::collections::HashMap<PackageKey, PackageMetadata>>| {
+        let node = make_node(
+            "react",
+            "17.0.2",
+            json!({ "name": "react", "version": "17.0.2" }),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::default(),
+        );
+        let mut graph = DependenciesGraph::default();
+        graph.insert(node.dep_path.clone(), node);
+        let direct =
+            BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
+        let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+        opts.previous_packages = previous;
+        let lockfile = dependencies_graph_to_lockfile(opts);
+        let key: PackageKey = "react@17.0.2".parse().unwrap();
+        lockfile.packages.expect("packages map")[&key].clone()
+    };
+
+    let fresh = build(None);
+    assert_eq!(fresh.deprecated, None, "the freshly served metadata carries no deprecation");
+
+    let mut previous_entry = fresh;
+    previous_entry.deprecated = Some("No longer maintained".to_string());
+    let previous = std::collections::HashMap::from([(
+        "react@17.0.2".parse::<PackageKey>().unwrap(),
+        previous_entry.clone(),
+    )]);
+    assert_eq!(
+        build(Some(&previous)),
+        previous_entry,
+        "an unchanged resolution keeps its recorded deprecation",
+    );
+
+    let mut republished = previous_entry;
+    republished.resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: Integrity::from_str(
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        )
+        .expect("parse fake integrity"),
+    });
+    let previous = std::collections::HashMap::from([(
+        "react@17.0.2".parse::<PackageKey>().unwrap(),
+        republished,
+    )]);
+    assert_eq!(
+        build(Some(&previous)).deprecated,
+        None,
+        "a changed resolution takes the freshly served metadata",
+    );
 }

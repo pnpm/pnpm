@@ -184,6 +184,10 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// satisfying their manifest range. Drives `pacquet update`'s
     /// compatible bump; see [`UpdateSeedPolicy`].
     pub update_seed_policy: UpdateSeedPolicy,
+    /// Preferences layered onto the seed, by package name. `add` / `update`
+    /// put a version named on the command line here so the re-resolve lands
+    /// on it instead of on the highest one its range allows.
+    pub preferred_versions_override: Option<pacquet_resolving_resolver_base::PreferredVersions>,
     /// Per-invocation `Authorization`-header override; `None` uses
     /// `config.auth_headers`. See [`crate::Install::auth_override`].
     pub auth_override: Option<Arc<AuthHeaders>>,
@@ -222,6 +226,10 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// drives `<virtual_store_dir>/lock.yaml`. See
     /// [`crate::Install::run_legacy_deploy`].
     pub save_lockfile: bool,
+    /// The declared ranges `pacquet update` asks this run to move onto the
+    /// versions it resolves, and the sink it reports them back through.
+    /// `None` for every other install.
+    pub manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -267,6 +275,35 @@ pub enum UpdateSeedPolicy {
         policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
         max_depth: UpdateDepth,
     },
+}
+
+/// Record `version` as the preferred one for `name`, outranking the pin the
+/// lockfile seeds.
+///
+/// A version named on the command line has to reach the lockfile even when
+/// the specifier written to the manifest doesn't carry it — a `catalog:`
+/// entry keeps the version in the catalog, so without this the entry's
+/// recorded resolution is reused and the request is dropped silently.
+pub(crate) fn prefer_requested_version(
+    preferred: &mut pacquet_resolving_resolver_base::PreferredVersions,
+    name: &str,
+    version: &str,
+) {
+    use pacquet_resolving_resolver_base::{
+        EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
+        VersionSelectorWithWeight,
+    };
+
+    if node_semver::Version::parse(version).is_err() {
+        return;
+    }
+    preferred.entry(name.to_string()).or_default().insert(
+        version.to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1,
+        }),
+    );
 }
 
 impl UpdateSeedPolicy {
@@ -683,6 +720,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             persist_policy_excludes,
             is_full_install,
             update_seed_policy,
+            preferred_versions_override,
             auth_override,
             resolution_observer,
             peer_issues_sink,
@@ -694,6 +732,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             prior_hoisted_dependencies,
             prune_orphans,
             save_lockfile,
+            manifest_spec_bumps,
         } = self;
 
         // Shared once so the per-edge `ResolveOptions` clones below stay
@@ -855,6 +894,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 &update_seed_policy,
                 wanted_lockfile,
                 &importer_manifests,
+                preferred_versions_override.as_ref(),
             );
         // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
         // per install. The resolver consults the grouped record at
@@ -1149,6 +1189,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 selected_importer_ids,
                 lockfile_dir,
                 resolved_time,
+                manifest_spec_bumps,
             })?;
             return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
                 built_lockfile,
@@ -1239,6 +1280,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             selected_importer_ids,
             lockfile_dir,
             resolved_time,
+            manifest_spec_bumps,
         })?;
         tracing::info!(
             target: "pacquet::install::phase",
@@ -2011,6 +2053,8 @@ struct FreshLockfileBuildOptions<'a> {
     /// layered over the ones [`Self::wanted_lockfile`] recorded. Empty
     /// unless the install resolved `time-based`.
     resolved_time: BTreeMap<String, String>,
+    /// See [`InstallWithFreshLockfile::manifest_spec_bumps`].
+    manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
 }
 
 /// Build the fresh lockfile, then — under a filtered install — splice it
@@ -2022,10 +2066,11 @@ fn build_lockfile(
     let real_importer_ids = opts.real_importer_ids;
     let selected_importer_ids = opts.selected_importer_ids;
     let lockfile_dir = opts.lockfile_dir;
+    let manifest_spec_bumps = opts.manifest_spec_bumps;
     let freshly_resolved = build_fresh_lockfile(opts).map_err(|error| {
         InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
     })?;
-    match (real_importer_ids, selected_importer_ids) {
+    let mut built = match (real_importer_ids, selected_importer_ids) {
         (Some(real_importer_ids), Some(selected_importer_ids)) => {
             crate::merge_filtered_wanted_lockfile(
                 wanted_lockfile,
@@ -2034,10 +2079,14 @@ fn build_lockfile(
                 selected_importer_ids,
                 lockfile_dir,
             )
-            .map_err(InstallWithFreshLockfileError::MergeFilteredWantedLockfile)
+            .map_err(InstallWithFreshLockfileError::MergeFilteredWantedLockfile)?
         }
-        _ => Ok(freshly_resolved),
+        _ => freshly_resolved,
+    };
+    if let Some(bumps) = manifest_spec_bumps {
+        crate::manifest_spec_bumps::apply_manifest_spec_bumps(&mut built, bumps);
     }
+    Ok(built)
 }
 
 fn build_fresh_lockfile(
@@ -2060,6 +2109,7 @@ fn build_fresh_lockfile(
         previous_importers,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
+        manifest_spec_bumps: _,
     } = opts;
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
@@ -2097,6 +2147,7 @@ fn build_fresh_lockfile(
         named_registries: &named_registries,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
         previous_importers,
+        previous_packages: wanted_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         time: merge_recorded_time(wanted_lockfile, resolved_time),

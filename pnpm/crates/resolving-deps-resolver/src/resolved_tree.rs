@@ -26,7 +26,7 @@ pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;
 #[derive(Debug, Default, Clone)]
 pub struct ResolvedTree {
     pub direct: Vec<DirectDep>,
-    pub packages: HashMap<String, ResolvedPackage>,
+    pub packages: HashMap<Arc<str>, ResolvedPackage>,
     pub dependencies_tree: DependenciesTree,
     pub all_peer_dep_names: HashSet<String>,
     pub policy_violations: Vec<ResolutionPolicyViolation>,
@@ -42,7 +42,7 @@ pub struct ResolvedTree {
     /// entry. The peer-resolver's `realize_children` walks this to
     /// allocate per-occurrence `NodeId`s for a
     /// [`TreeChildren::Lazy`] node.
-    pub children_by_id: HashMap<String, Arc<Vec<ChildEdge>>>,
+    pub children_by_id: HashMap<Arc<str>, Arc<Vec<ChildEdge>>>,
 }
 
 /// One entry on [`ResolvedTree::children_by_id`] — the resolved
@@ -52,8 +52,10 @@ pub struct ChildEdge {
     /// Install alias in `node_modules` (the manifest key under
     /// `dependencies` / `optionalDependencies`).
     pub alias: String,
-    /// Resolved `pkgIdWithPatchHash` the alias points at.
-    pub pkg_id: String,
+    /// Resolved `pkgIdWithPatchHash` the alias points at. Shared: the
+    /// peer walk copies this onto every occurrence node it realizes,
+    /// millions of them for a few thousand distinct ids.
+    pub pkg_id: Arc<str>,
     /// `true` when the edge came from `optionalDependencies`. Used
     /// to thread `current_is_optional` correctly through lazy
     /// realisation so the [`ResolvedPackage::optional`] AND-fold
@@ -72,40 +74,22 @@ pub struct AncestorIds {
 }
 
 impl AncestorIds {
+    /// The dependency walk's contiguous base ids, in order.
+    pub fn base_ids(&self) -> impl Iterator<Item = &str> {
+        self.base.iter().map(String::as_str)
+    }
+
+    /// The ids peer discovery appended after the base, in order.
+    pub fn appended_ids(&self) -> impl Iterator<Item = &str> {
+        self.appended.iter().map(|id| &**id)
+    }
+
     #[must_use]
     pub fn pushed(&self, id: String) -> Self {
         let mut appended = Vec::with_capacity(self.appended.len() + 1);
         appended.extend(self.appended.iter().cloned());
         appended.push(Arc::from(id));
         Self { base: Arc::clone(&self.base), appended: Arc::new(appended) }
-    }
-
-    #[must_use]
-    pub fn forms_cycle(&self, pkg_id: &str, child_pkg_id: &str) -> bool {
-        if pkg_id == child_pkg_id {
-            return true;
-        }
-
-        if let Some(pkg_index) = self.base.iter().position(|ancestor| ancestor == pkg_id) {
-            if self
-                .base
-                .iter()
-                .rposition(|ancestor| ancestor == child_pkg_id)
-                .is_some_and(|child_index| pkg_index < child_index)
-            {
-                return true;
-            }
-            return self.appended.iter().any(|ancestor| ancestor.as_ref() == child_pkg_id);
-        }
-
-        let oldest_pkg_index =
-            self.appended.iter().position(|ancestor| ancestor.as_ref() == pkg_id);
-        let newest_child_index =
-            self.appended.iter().rposition(|ancestor| ancestor.as_ref() == child_pkg_id);
-        matches!(
-            (oldest_pkg_index, newest_child_index),
-            (Some(pkg_index), Some(child_index)) if pkg_index < child_index,
-        )
     }
 }
 
@@ -144,7 +128,7 @@ pub struct DirectDep {
 /// [`ResolvedPackage`] is the dedup-shared *envelope*, not a tree node.
 #[derive(Debug, Clone)]
 pub struct ResolvedPackage {
-    pub id: String,
+    pub id: Arc<str>,
     /// Held as `Arc` so cloning a [`ResolvedPackage`] (which the
     /// per-occurrence tree walk does on every snapshot, and which
     /// the peer-resolution pass does when it carves
@@ -234,8 +218,9 @@ pub struct LockedResolution {
 /// One per-occurrence node in the dependencies tree.
 #[derive(Debug, Clone)]
 pub struct DependenciesTreeNode {
-    /// Key into [`ResolvedTree::packages`].
-    pub resolved_package_id: String,
+    /// Key into [`ResolvedTree::packages`]. Shared rather than owned —
+    /// see [`ChildEdge::pkg_id`], which is where most of these come from.
+    pub resolved_package_id: Arc<str>,
     /// `alias → child NodeId` edges, possibly deferred.
     pub children: TreeChildren,
     /// Distance from the root importer (root = 0). A `depth = -1` marks
@@ -257,7 +242,7 @@ impl DependenciesTreeNode {
     /// Node with no wanted-lockfile carry-over (a fresh resolution).
     #[must_use]
     pub fn new(
-        resolved_package_id: String,
+        resolved_package_id: Arc<str>,
         children: TreeChildren,
         depth: i32,
         installable: bool,

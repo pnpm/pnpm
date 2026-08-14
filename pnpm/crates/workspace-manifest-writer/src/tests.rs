@@ -1153,6 +1153,12 @@ fn delete_unset_field_is_noop() {
     assert_eq!(parsed["cacheDir"], serde_json::json!("~/cache"));
 }
 
+#[test]
+fn delete_field_without_a_manifest_is_noop() {
+    let out = run_update_field(None, "virtualStoreDir", &serde_json::Value::Null);
+    assert_eq!(out, None);
+}
+
 /// Ported from upstream `removeCatalogs.test.ts`. The upstream tests
 /// assert the parsed shape; these assert the format-preserving text the
 /// pacquet writer produces for the same inputs.

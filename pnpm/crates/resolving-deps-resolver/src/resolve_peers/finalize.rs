@@ -164,7 +164,33 @@ impl Walker<'_> {
         // suffix. A peer a descendant resolved (e.g. `debug`'s optional
         // `supports-color`) is symlinked at the descendant that declares
         // it, so it must not appear in this node's dependencies.
+        // A back-edge child whose occurrence node the walk skipped would
+        // render as its bare package id — a snapshot no variant of the
+        // target has. Remap it to the target's shared canonical
+        // occurrence, which the drivers walk at importer context.
+        let canonical_scc = self.canonical_scc();
+        let mut remapped_backedges: Vec<(String, NodeId)> = Vec::new();
+        for (alias, child_node_id) in children {
+            if self.node_dep_paths.contains_key(child_node_id) {
+                continue;
+            }
+            let Some(child_pkg_id) = self
+                .tree
+                .dependencies_tree
+                .get(child_node_id)
+                .map(|child| Arc::clone(&child.resolved_package_id))
+            else {
+                continue;
+            };
+            if Self::cuts_cycle_edge(&canonical_scc, &pkg.id, &child_pkg_id) {
+                remapped_backedges
+                    .push((alias.clone(), self.canonical_backedge_node(&child_pkg_id, depth + 1)));
+            }
+        }
         record_edges.extend(children.clone());
+        for (alias, node_id) in remapped_backedges {
+            record_edges.insert(alias, node_id);
+        }
         for (peer_alias, peer_node_id) in own_resolved_peers {
             record_edges.insert(peer_alias.clone(), peer_node_id.clone());
         }
@@ -196,7 +222,7 @@ impl Walker<'_> {
             })
             .or_insert(DependenciesGraphNode {
                 dep_path: dep_path.clone(),
-                resolved_package_id: pkg.id.clone(),
+                resolved_package_id: std::sync::Arc::<str>::clone(&pkg.id).to_string(),
                 resolve_result: Arc::clone(&pkg.result),
                 children: graph_children,
                 optional_children: optional_child_aliases,
@@ -396,7 +422,7 @@ impl Walker<'_> {
             if peers.is_empty() {
                 continue;
             }
-            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.as_str();
+            let pkg_id = &*self.tree.dependencies_tree[node_id].resolved_package_id;
             let edges = edges_of_pkg.entry(pkg_id).or_default();
             for peer_alias in peers.keys() {
                 edges.insert(peer_alias.as_str());
@@ -628,7 +654,9 @@ impl Walker<'_> {
         for (node_id, record) in &self.node_records {
             let dep_path = record_dep_paths[node_id].clone();
             let depth = min_depth.get(&dep_path).copied().unwrap_or(record.depth);
-            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.clone();
+            let pkg_id = std::sync::Arc::<str>::clone(
+                &self.tree.dependencies_tree[node_id].resolved_package_id,
+            );
             let pkg = &self.tree.packages[&pkg_id];
             let mut children: BTreeMap<String, DepPath> = BTreeMap::new();
             for (alias, edge_node_id) in &record.edges {
@@ -642,7 +670,7 @@ impl Walker<'_> {
                 .unwrap_or_default();
             let mut candidate = DependenciesGraphNode {
                 dep_path: dep_path.clone(),
-                resolved_package_id: pkg_id.clone(),
+                resolved_package_id: std::sync::Arc::<str>::clone(&pkg_id).to_string(),
                 resolve_result: Arc::clone(&pkg.result),
                 children,
                 optional_children: record.optional_child_aliases.clone(),

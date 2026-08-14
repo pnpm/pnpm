@@ -81,14 +81,18 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   const updatedFields = { ...opts.updatedFields }
 
   for (const [key, value] of Object.entries(updatedFields)) {
-    if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
+    if (value == null) {
+      // Clearing a field the manifest never had changes nothing. Counting it as
+      // an update would take the empty-manifest branch below and try to remove a
+      // file that may not exist.
+      if (!Object.hasOwn(manifest, key)) continue
       shouldBeUpdated = true
-      if (value == null) {
-        delete manifest[key as keyof WorkspaceManifest]
-      } else {
-        manifest[key as keyof WorkspaceManifest] = value
-      }
+      delete manifest[key as keyof WorkspaceManifest]
+      continue
     }
+    if (equals(manifest[key as keyof WorkspaceManifest], value)) continue
+    shouldBeUpdated = true
+    manifest[key as keyof WorkspaceManifest] = value
   }
   if (opts.updatedOverrides) {
     manifest.overrides ??= {}

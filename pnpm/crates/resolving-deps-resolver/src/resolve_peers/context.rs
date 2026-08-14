@@ -54,7 +54,7 @@ pub(super) type ParentRefs = HashMap<String, ParentRef>;
 /// fall back to a pure `version` comparison.
 #[derive(Debug, Clone)]
 pub(super) struct ParentPkgInfo {
-    pub(super) pkg_id: Option<String>,
+    pub(super) pkg_id: Option<Arc<str>>,
     pub(super) version: Option<String>,
     pub(super) depth: i32,
     pub(super) occurrence: u32,
@@ -86,8 +86,14 @@ impl<Element> SharedChain<Element> {
 }
 
 impl<Element: PartialEq> SharedChain<Element> {
-    pub(super) fn contains(&self, value: &Element) -> bool {
-        self.iter().any(|item| item == value)
+    /// Takes `&str` rather than `&Element` so a caller holding a
+    /// shared package id can test membership without allocating a
+    /// `String` to compare against.
+    pub(super) fn contains_str(&self, value: &str) -> bool
+    where
+        Element: AsRef<str>,
+    {
+        self.iter().any(|item| item.as_ref() == value)
     }
 }
 
@@ -199,7 +205,7 @@ impl Walker<'_> {
                 .node_id
                 .as_ref()
                 .and_then(|nid| self.tree.dependencies_tree.get(nid))
-                .map(|tn| tn.resolved_package_id.clone());
+                .map(|tn| std::sync::Arc::<str>::clone(&tn.resolved_package_id));
             let version = pkg_id.is_none().then(|| parent_ref.version.clone());
             out.insert(
                 name.clone(),
@@ -285,7 +291,7 @@ impl Walker<'_> {
             TreeChildren::Realized(children) => children
                 .values()
                 .filter_map(|child_node_id| self.tree.dependencies_tree.get(child_node_id))
-                .map(|child| child.resolved_package_id.as_str())
+                .map(|child| &*child.resolved_package_id)
                 .collect(),
             TreeChildren::Lazy { .. } => self
                 .tree
@@ -293,7 +299,7 @@ impl Walker<'_> {
                 .get(&node.resolved_package_id)
                 .into_iter()
                 .flat_map(|children| children.iter())
-                .map(|child| child.pkg_id.as_str())
+                .map(|child| &*child.pkg_id)
                 .collect(),
         };
         for child_pkg_id in child_pkg_ids {
@@ -321,7 +327,7 @@ impl Walker<'_> {
                 .tree
                 .dependencies_tree
                 .get(current_node_id)
-                .is_none_or(|node| node.resolved_package_id != *inherited_pkg_id);
+                .is_none_or(|node| *node.resolved_package_id != **inherited_pkg_id);
         }
         inherited_peer.version.as_ref() != Some(&current_peer.version)
     }

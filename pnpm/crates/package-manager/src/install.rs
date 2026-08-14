@@ -84,7 +84,6 @@ use modules_state::{
 use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
 };
-pub(crate) use workspace_state::build_workspace_state;
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
     build_selected_project_manifests_list, configured_or_discovered_workspace_dir,
@@ -94,6 +93,7 @@ pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
     check_deps_status_before_run_at, install_already_up_to_date,
 };
+pub(crate) use workspace_state::{build_workspace_state, lockfile_root_dir};
 
 #[cfg(test)]
 mod tests;
@@ -398,6 +398,11 @@ where
     /// short-circuit is also bypassed so an `update` that finds newer
     /// in-range versions isn't skipped as "already up to date".
     pub update_seed_policy: UpdateSeedPolicy,
+    /// Preferences layered onto the preferred-versions seed, by package
+    /// name. `add` / `update` put a version named on the command line here
+    /// so the re-resolve lands on it rather than on the highest version its
+    /// range allows. Forwarded to [`InstallWithFreshLockfile`].
+    pub preferred_versions_override: Option<pacquet_resolving_resolver_base::PreferredVersions>,
     /// Per-invocation `Authorization`-header override for resolve/verify;
     /// `None` (every local install) uses `config.auth_headers`. The pnpr
     /// resolver threads request-scoped [`AuthHeaders`] here so it
@@ -457,6 +462,14 @@ pub enum InstallError {
     )]
     #[diagnostic(code(ERR_PNPM_NO_LOCKFILE))]
     NoLockfile,
+
+    /// A `packageExtensions` selector the freshness gates could not parse.
+    /// The resolver reports the same error; this reaches it first because
+    /// the gates apply the extensions before deciding whether to resolve.
+    #[diagnostic(transparent)]
+    InvalidPackageExtensionSelector(
+        #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
+    ),
 
     // The three `*_DIFF` errors below mirror pnpm's `validateModules`:
     // a non-plain-install mutation refuses to touch a modules directory
@@ -749,6 +762,8 @@ struct InstallRunOptions<'install, 'selection> {
     /// whose resolution belongs to a project other than the one that
     /// owns that lockfile, so the run must leave it untouched.
     save_lockfile: bool,
+    /// See [`crate::ManifestSpecBumps`]. Only `pacquet update` sets it.
+    manifest_spec_bumps: Option<&'install crate::ManifestSpecBumps>,
     /// Forces the interactive-prompt eligibility that is otherwise derived
     /// from the process environment, so tests can exercise both branches.
     prompt_eligibility_override: Option<bool>,
@@ -762,6 +777,7 @@ impl Default for InstallRunOptions<'_, '_> {
             selection: None,
             root_manifest_as_workspace_root: false,
             save_lockfile: true,
+            manifest_spec_bumps: None,
             prompt_eligibility_override: None,
         }
     }
@@ -805,6 +821,35 @@ where
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             selection: Some(selection),
+            ..Default::default()
+        }))
+        .await
+    }
+
+    /// `pacquet update`'s install: the same run as [`Self::run`], with the
+    /// declared ranges of `bumps`'s targets moved onto the versions the
+    /// resolve settles on. See [`crate::ManifestSpecBumps`].
+    pub async fn run_with_manifest_spec_bumps<Reporter: self::Reporter + 'static>(
+        self,
+        bumps: &'a crate::ManifestSpecBumps,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            manifest_spec_bumps: Some(bumps),
+            ..Default::default()
+        }))
+        .await
+    }
+
+    /// [`Self::run_selected`] with the range rewrites of
+    /// [`Self::run_with_manifest_spec_bumps`].
+    pub async fn run_selected_with_manifest_spec_bumps<Reporter: self::Reporter + 'static>(
+        self,
+        selection: WorkspaceInstallSelection<'_>,
+        bumps: &'a crate::ManifestSpecBumps,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            selection: Some(selection),
+            manifest_spec_bumps: Some(bumps),
             ..Default::default()
         }))
         .await

@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from '@jest/globals'
+import type { PackageExtension } from '@pnpm/types'
 
 import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
 
@@ -124,4 +125,175 @@ test('getOptionsFromPnpmSettings() rejects non-object overrides values', () => {
     code: 'ERR_PNPM_INVALID_OVERRIDES',
     message: 'The overrides field should be an object, but got array',
   }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-string range in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        peerDependencies: {
+          bar: null,
+        },
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].peerDependencies.bar" setting should be a string, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-boolean optional flag in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        peerDependenciesMeta: {
+          bar: {
+            optional: 'yes',
+          },
+        },
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].peerDependenciesMeta.bar.optional" setting should be a boolean, but got string',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-object package extension', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': [],
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\']" setting should be an object, but got array',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-object dependency field in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        dependencies: [],
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].dependencies" setting should be an object, but got array',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-string range in optionalDependencies of packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        optionalDependencies: {
+          bar: 1,
+        },
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].optionalDependencies.bar" setting should be a string, but got number',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-object peerDependenciesMeta in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        peerDependenciesMeta: 'bar',
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].peerDependenciesMeta" setting should be an object, but got string',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-object peerDependenciesMeta entry in packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        peerDependenciesMeta: {
+          bar: true,
+        },
+      },
+    } as unknown as Record<string, PackageExtension>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions[\'foo@*\'].peerDependenciesMeta.bar" setting should be an object, but got boolean',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects non-object packageExtensions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: false,
+  } as unknown as Record<string, unknown>)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "packageExtensions" setting should be an object, but got boolean',
+  }))
+})
+
+// A key left empty in pnpm-workspace.yaml parses to null. pacquet reads the same
+// shapes into `Option` fields, where null and an absent key are the same thing.
+// The nulls are passed through rather than stripped: every reader of these
+// fields already treats them as unset, so normalizing them here would only add a
+// second spelling of the same state.
+test('getOptionsFromPnpmSettings() accepts null packageExtensions fields', () => {
+  expect(getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        dependencies: null,
+        peerDependenciesMeta: {
+          bar: {
+            optional: null,
+          },
+        },
+      },
+    },
+  } as unknown as Record<string, unknown>).packageExtensions).toStrictEqual({
+    'foo@*': {
+      dependencies: null,
+      peerDependenciesMeta: {
+        bar: {
+          optional: null,
+        },
+      },
+    },
+  })
+})
+
+test('getOptionsFromPnpmSettings() accepts valid packageExtensions', () => {
+  expect(getOptionsFromPnpmSettings(process.cwd(), {
+    packageExtensions: {
+      'foo@*': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        peerDependencies: {
+          bar: '*',
+        },
+        peerDependenciesMeta: {
+          bar: {
+            optional: true,
+          },
+        },
+      },
+    },
+  }).packageExtensions).toStrictEqual({
+    'foo@*': {
+      dependencies: {
+        foo: '1.0.0',
+      },
+      peerDependencies: {
+        bar: '*',
+      },
+      peerDependenciesMeta: {
+        bar: {
+          optional: true,
+        },
+      },
+    },
+  })
 })
