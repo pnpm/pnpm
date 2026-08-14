@@ -163,6 +163,19 @@ pub enum ShimPolicyValue {
     Named(NamedShimPolicy),
 }
 
+impl ShimPolicy {
+    /// The `globalShims` value this policy is written as.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ShimPolicy::Off => "off",
+            ShimPolicy::Auto => "auto",
+            ShimPolicy::Prompt => "prompt",
+            ShimPolicy::Always => "always",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NamedShimPolicy {
@@ -237,6 +250,11 @@ impl GlobalShims {
                 }
             }
         }
+    }
+
+    /// Every package with an entry, and the policy it resolved to.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, ShimPolicy)> {
+        self.entries.iter().map(|(name, policy)| (name.as_str(), *policy))
     }
 
     #[must_use]

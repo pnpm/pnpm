@@ -108,6 +108,9 @@ pub async fn sync_engine_dependencies(
 #[derive(Debug)]
 pub struct ResolvedEngine {
     pub version: String,
+    /// The resolved package's manifest, when the resolver returned one.
+    /// `pnpm shim` reads the `bin` field from it.
+    pub manifest: Option<Arc<Value>>,
     /// Set when the resolver picked a version despite the maturity
     /// (`minimumReleaseAge`) or `trustPolicy` gate. Self-update fails
     /// closed on this under strict resolution; the code tells the two
@@ -217,6 +220,7 @@ pub async fn resolve_engine_version(
     }
     Ok(Some(ResolvedEngine {
         version: name_ver.suffix.to_string(),
+        manifest: result.manifest.clone(),
         policy_violation: result.policy_violation.map(|violation| EnginePolicyViolation {
             code: violation.code,
             reason: violation.reason,

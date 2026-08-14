@@ -18,6 +18,12 @@ use std::{
 
 pub(super) const RUNTIME_ENVS_DIR_NAME: &str = "global-shim-runtimes";
 
+/// Where package-manager provisioning anchors its configuration, for the
+/// same reason [`RUNTIME_ENVS_DIR_NAME`] exists: a seeded workspace
+/// manifest there stops ancestor discovery, so no project can steer the
+/// install.
+pub(super) const PACKAGE_MANAGER_ENVS_DIR_NAME: &str = "global-shim-package-managers";
+
 /// The configuration the managed runtime installs under. The runtime's
 /// store, mirrors, and registry selection must not be
 /// project-controllable: a repository that redirects `storeDir` could
@@ -26,7 +32,7 @@ pub(super) const RUNTIME_ENVS_DIR_NAME: &str = "global-shim-runtimes";
 /// inside pnpm's own state dir — the seeded empty workspace manifest
 /// stops ancestor discovery, so only the global `config.yaml`, user
 /// files, and the environment contribute.
-pub(super) fn trusted_runtime_config(environments_dir: &Path) -> miette::Result<Config> {
+pub(crate) fn trusted_runtime_config(environments_dir: &Path) -> miette::Result<Config> {
     fs::create_dir_all(environments_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("create {}", environments_dir.display()))?;

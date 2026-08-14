@@ -695,3 +695,77 @@ fn native_node_dispatcher_preserves_the_global_executable_fallback() {
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(String::from_utf8_lossy(&output.stdout).contains("native-fallback"));
 }
+
+/// A `pnpm` invocation against an isolated pnpm home, for the commands
+/// that manage shims rather than dispatch through one.
+fn pnpm_command(root: &TempDir, cwd: &Path) -> Command {
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .without_ambient_pnpm_config()
+        .with_current_dir(cwd)
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+}
+
+fn stdout_of(output: &std::process::Output) -> String {
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+/// `pnpm shim add` writes shims for a package that is not installed at
+/// all, records the opt-in that governs them, and `rm` undoes both.
+#[test]
+fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let global_bin = root.path().join("pnpm-home").join("bin");
+
+    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    assert!(stdout_of(&added).contains("yarn, yarnpkg"));
+    assert!(global_bin.join("yarn").exists());
+    assert!(global_bin.join("yarnpkg").exists());
+    let config =
+        fs::read_to_string(root.path().join("config/pnpm/config.yaml")).expect("read config.yaml");
+    assert!(config.contains("yarn: auto"), "{config}");
+
+    let listed = pnpm_command(&root, &project).with_args(["shim", "ls"]).output().unwrap();
+    assert!(stdout_of(&listed).contains("yarn (auto): yarn, yarnpkg"));
+
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    assert!(stdout_of(&removed).contains("Removed yarn, yarnpkg"));
+    assert!(!global_bin.join("yarn").exists());
+    let config =
+        fs::read_to_string(root.path().join("config/pnpm/config.yaml")).expect("read config.yaml");
+    assert!(!config.contains("yarn: auto"), "{config}");
+}
+
+/// Nothing installed the package behind the shim, so a project that
+/// neither pins nor depends on it has nothing to run — and the shim says
+/// so instead of falling through to whatever else is on `PATH`.
+#[cfg(unix)]
+#[test]
+fn a_shim_without_a_project_target_reports_it() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(project.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#).unwrap();
+
+    pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let output = Command::new(root.path().join("pnpm-home").join("bin").join("yarn"))
+        .without_ambient_pnpm_config()
+        .with_current_dir(&project)
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_arg("--version")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_SHIM_NO_TARGET"), "{stderr}");
+    assert!(stderr.contains("yarn"), "{stderr}");
+}

@@ -185,7 +185,7 @@ fn disable_package_manager_switching(cmd: &mut Command) {
 /// the directories here are the engine's store-resident `bin` directory
 /// and, for a JavaScript engine on a host without Node.js, the managed
 /// runtime's.
-fn prepend_to_path(dirs: &[PathBuf]) -> Result<OsString, WithError> {
+pub(crate) fn prepend_to_path(dirs: &[PathBuf]) -> Result<OsString, WithError> {
     let delimiter = if cfg!(windows) { ';' } else { ':' };
     let separator = if cfg!(windows) { ";" } else { ":" };
     let mut out = OsString::new();

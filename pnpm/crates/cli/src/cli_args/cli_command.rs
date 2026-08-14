@@ -61,6 +61,7 @@ use super::{
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
     setup::SetupArgs,
+    shim::ShimArgs,
     stage::StageArgs,
     star::StarArgs,
     stars::StarsArgs,
@@ -530,6 +531,9 @@ pub enum CliCommand {
     /// Manage runtimes.
     #[clap(visible_alias = "rt")]
     Runtime(RuntimeArgs),
+    /// Manage context-aware shims for packages that are not installed
+    /// globally, so a project decides which version runs.
+    Shim(ShimArgs),
     /// Print the directory where pnpm will install executables.
     Bin(BinArgs),
     /// Safely remove `node_modules` directories from the current project

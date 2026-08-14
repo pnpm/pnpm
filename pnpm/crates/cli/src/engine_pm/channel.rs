@@ -87,6 +87,19 @@ impl PackageManager {
         }
     }
 
+    /// The bin names this package manager publishes, and therefore the
+    /// shims `pnpm shim add <pm>` creates for it. Listed rather than read
+    /// from a manifest because a shim is created before any version is
+    /// chosen, and because the aliases differ across releases.
+    pub(crate) fn bins(self) -> &'static [&'static str] {
+        match self {
+            PackageManager::Bun => &["bun", "bunx"],
+            PackageManager::Npm => &["npm", "npx"],
+            PackageManager::Pnpm => &["pnpm", "pnpx", "pn", "pnx"],
+            PackageManager::Yarn => &["yarn", "yarnpkg"],
+        }
+    }
+
     pub(crate) fn channel(self, version_spec: &str) -> Channel {
         match self {
             PackageManager::Bun => Channel::Binary(BinaryChannel::Bun),

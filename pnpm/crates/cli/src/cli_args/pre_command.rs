@@ -770,6 +770,7 @@ fn should_skip_command(command: &CliCommand) -> bool {
             | CliCommand::Runtime(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
+            | CliCommand::Shim(_)
             | CliCommand::Store(_)
             | CliCommand::With(_),
     )
@@ -790,6 +791,7 @@ fn should_skip_command_name(command: &str) -> bool {
             | "rt"
             | "self-update"
             | "setup"
+            | "shim"
             | "store"
             | "with",
     )
@@ -982,6 +984,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Restart(_) => "restart",
         CliCommand::FindHash(_) => "find-hash",
         CliCommand::Runtime(_) => "runtime",
+        CliCommand::Shim(_) => "shim",
         CliCommand::Bin(_) => "bin",
         CliCommand::Clean(_) => "clean",
         CliCommand::Purge(_) => "purge",

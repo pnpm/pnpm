@@ -36,6 +36,7 @@ use super::{
     search::SearchArgs,
     self_update::SelfUpdateArgs,
     setup::SetupArgs,
+    shim::ShimArgs,
     stage::StageArgs,
     star::StarArgs,
     stars::StarsArgs,
@@ -524,6 +525,14 @@ pub(super) fn root<'a>(ctx: &RunCtx<'a>, args: RootArgs) -> miette::Result<Comma
 pub(super) fn prefix<'a>(ctx: &RunCtx<'a>, args: PrefixArgs) -> miette::Result<CommandFuture<'a>> {
     args.run(ctx.dir, (ctx.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn shim<'a>(ctx: &RunCtx<'a>, args: ShimArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        print!("{}", args.run(config).await?);
+        Ok(())
+    }))
 }
 
 pub(super) fn config<'a>(ctx: &RunCtx<'a>, args: ConfigArgs) -> miette::Result<CommandFuture<'a>> {

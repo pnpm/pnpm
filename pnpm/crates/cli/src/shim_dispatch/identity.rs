@@ -1,6 +1,7 @@
 //! Candidate identity: which package provides a bin, and the
 //! fingerprint a trust approval is bound to.
 
+use pacquet_cmd_shim::VIRTUAL_TARGET_PREFIX;
 use pacquet_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -16,6 +17,17 @@ pub(super) struct Provider {
 pub(super) struct LocalBinIdentity {
     pub(super) provider: Provider,
     pub(super) fingerprint: String,
+}
+
+/// The package a target-less shim declares, when `target` is the
+/// [`VIRTUAL_TARGET_PREFIX`] sentinel rather than a path.
+///
+/// Nothing is installed behind such a shim, so there is no manifest to
+/// read the package from — the shim pnpm generated names it. The name only
+/// selects which project pin or local bin may satisfy the shim; whatever
+/// it selects is still checked against its own manifest before running.
+pub(super) fn declared_package(target: &Path) -> Option<&str> {
+    target.to_str()?.strip_prefix(VIRTUAL_TARGET_PREFIX)
 }
 
 /// Resolve a target through aliases/workspace links, then read the nearest
