@@ -378,7 +378,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                 // `filtered_install` forward: clearing it would claim every
                 // importer is materialized when a filtered install left the
                 // unselected ones untouched.
-                let new_state = crate::install::build_workspace_state::<Host>(
+                let mut new_state = crate::install::build_workspace_state::<Host>(
                     workspace_root,
                     config,
                     node_linker,
@@ -388,6 +388,11 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                     project_manifests,
                     state.filtered_install,
                 );
+                // Increment by 1 to post-date the validated mtimes and prevent
+                // same-millisecond mtime collisions from permanently forcing the
+                // content check.
+                new_state.last_validated_timestamp =
+                    new_state.last_validated_timestamp.saturating_add(1);
                 if let Err(error) = update_workspace_state(workspace_root, &new_state) {
                     tracing::warn!(
                         target: "pacquet::install",

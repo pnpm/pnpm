@@ -170,6 +170,11 @@ pub fn check_deps_status_before_run(
                     project_manifests,
                     state.filtered_install,
                 );
+                // Increment by 1 to post-date the validated mtimes and prevent
+                // same-millisecond mtime collisions from permanently forcing the
+                // content check.
+                new_state.last_validated_timestamp =
+                    new_state.last_validated_timestamp.saturating_add(1);
                 // The gate ignored `dev`/`optional`/`production` drift
                 // above; writing today's (default-group) values here
                 // would clobber what the last real install recorded and
