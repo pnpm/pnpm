@@ -3802,6 +3802,33 @@ describe('global config.yaml', () => {
     expect(config.dangerouslyAllowAllBuilds).toBeDefined()
   })
 
+  test('warns about a kebab-case key in the global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      'state-dir': path.resolve('kebab-state'),
+      storeDir: path.resolve('camel-store'),
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.stateDir).not.toBe(path.resolve('kebab-state'))
+    expect(config.storeDir).toBe(path.resolve('camel-store'))
+    expect(warnings).toStrictEqual([
+      `The following settings in the global config file ("${path.resolve('.config/pnpm/config.yaml')}") were ignored because they are not written in camelCase: "state-dir" (use "stateDir").`,
+    ])
+  })
+
   test('expands request destination values from trusted global config.yaml', async () => {
     prepareEmpty()
 
