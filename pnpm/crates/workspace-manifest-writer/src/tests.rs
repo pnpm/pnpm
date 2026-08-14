@@ -1580,3 +1580,10 @@ fn prune_allow_builds_deletes_block_and_file_when_empty() {
     let out = run_prune_allow_builds(Some(original), &[]);
     assert_eq!(out, None);
 }
+
+#[test]
+fn prune_allow_builds_handles_flow_style_and_converts_to_block_style() {
+    let original = "allowBuilds: {foo: true, bar: set this to true or false}\n";
+    let out = run_prune_allow_builds(Some(original), &[]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  foo: true\n"));
+}
