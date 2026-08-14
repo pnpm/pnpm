@@ -216,17 +216,13 @@ pub enum BenchmarkScenario {
     #[value(name = "isolated-linker.fresh-restore.hot-cache.hot-store")]
     IsolatedFreshRestoreHotCacheHotStore,
     /// Populated, up-to-date `node_modules` + lockfile, hot cache + hot
-    /// store: the plain repeat `pnpm install` in a current tree, which the
-    /// up-to-date short-circuit should answer in tens of milliseconds.
-    /// Nothing is wiped between iterations. Guards pnpm/pnpm#13904: with a
-    /// pnpr server configured this must cost the same as a direct install
-    /// (no server exchange when there is nothing to resolve).
+    /// store: the plain repeat `pnpm install` in a current tree, measuring
+    /// the up-to-date short-circuit. Nothing is wiped between iterations.
     #[value(name = "isolated-linker.repeat-install.hot-cache.hot-store")]
     IsolatedRepeatInstallHotCacheHotStore,
     /// Same populated repeat install with `cache-dir` wiped per iteration:
     /// the up-to-date answer must be reached without any metadata (or
-    /// verification-cache) reads, so a cold cache may not slow it down —
-    /// and may not tempt either arm into a network exchange.
+    /// verification-cache) reads.
     #[value(name = "isolated-linker.repeat-install.cold-cache.hot-store")]
     IsolatedRepeatInstallColdCacheHotStore,
     /// `pnpm add <dep>` against an existing lockfile, hot cache + hot store.

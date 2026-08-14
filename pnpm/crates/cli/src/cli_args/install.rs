@@ -307,10 +307,8 @@ impl InstallArgs {
     /// dependencies, and pnpmfile `updateConfig` hooks (both can
     /// mutate the config the check compares against). A configured
     /// pnpr server deliberately does NOT bail: the check decides
-    /// purely locally that nothing changed since the previous
-    /// (workspace-state-recording) install, and asking the server
-    /// cannot change that answer — while trust/policy setting changes
-    /// fall through via the settings drift comparison
+    /// purely locally that nothing changed, and asking the server
+    /// cannot change that answer
     /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
     ///
     /// `false` means "not decided" — the caller proceeds with the full

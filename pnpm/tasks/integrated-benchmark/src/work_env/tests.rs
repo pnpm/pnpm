@@ -47,11 +47,8 @@ fn online_scenario_writes_no_prewarm_script() {
     assert!(!has_prewarm);
 }
 
-/// The repeat-install scenarios' contract is a populated, up-to-date
-/// `node_modules`: their per-iteration cleanup must not wipe it (or
-/// restore the lockfile, whose bumped mtime would push iterations off
-/// the pure-mtime fast path), and the pre-warm predicate must be set so
-/// the pre-benchmark wipe is repaired before hyperfine measures.
+/// The whys live on the `cleanup()` arm and the
+/// `prewarms_node_modules` predicate this test pins.
 #[test]
 fn repeat_install_scenarios_keep_node_modules_populated() {
     for scenario in [

@@ -2016,12 +2016,8 @@ fn migrated_keys_are_reported_by_the_up_to_date_fast_path() {
     drop(root);
 }
 
-/// Trust/policy settings key the lockfile-verification gate, so a
-/// change must look like settings drift and defeat the repeat-install
-/// fast path — the full install re-runs the verifier fan-out and
-/// re-records the workspace state, after which the fast path applies
-/// again. pnpm records `trustPolicy*` in the workspace state for
-/// exactly this reason.
+/// Trust/policy settings key the lockfile-verification gate, which is
+/// why pnpm records `trustPolicy*` in the workspace state.
 #[test]
 fn trust_policy_change_defeats_the_up_to_date_fast_path() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

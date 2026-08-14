@@ -1594,13 +1594,8 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
-/// Newly configuring `trustPolicy` invalidates the cached state: the
-/// lockfile-verification gate is keyed by the policy settings, so an
-/// install must not report up-to-date under a policy the previous
-/// verification never checked. The recorded value is gated on the
-/// setting being explicitly configured (pnpm records the raw,
-/// default-`undefined` config value), which is what `explicit_settings`
-/// stands in for here.
+/// `explicit_settings` stands in for pnpm's raw (default-`undefined`)
+/// config value, which is what gates whether the policy is recorded.
 #[test]
 fn returns_skipped_when_trust_policy_is_newly_configured() {
     let dir = tempdir().unwrap();
@@ -1644,10 +1639,8 @@ fn returns_skipped_when_trust_policy_is_newly_configured() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
-/// An explicitly configured `minimumReleaseAge` resolves the unset
-/// `minimumReleaseAgeStrict` to `true`, mirroring pnpm's config reader,
-/// so the recorded state matches what pnpm would write for the same
-/// configuration.
+/// See `WorkspaceStateSettings::minimum_release_age_strict` for the
+/// resolution rule being mirrored.
 #[test]
 fn records_minimum_release_age_strict_like_pnpm_resolves_it() {
     let mut config = Config::new();

@@ -269,10 +269,7 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
     drop((root, mock_instance));
 }
 
-/// A repeat `pnpm install` in an up-to-date tree finishes through the
-/// pre-runtime "Already up to date" fast path even with a pnpr server
-/// configured — the up-to-date verdict is decided purely locally, so no
-/// request reaches the server
+/// The up-to-date verdict is decided purely locally
 /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
 #[test]
 fn repeat_install_via_pnpr_short_circuits_without_contacting_the_server() {
@@ -317,12 +314,8 @@ fn repeat_install_via_pnpr_short_circuits_without_contacting_the_server() {
     drop((root, mock_instance));
 }
 
-/// An install whose lockfile still satisfies the manifest has nothing to
-/// resolve, so even with `node_modules` wiped (where the up-to-date fast
-/// path can't answer) the client materializes from the on-disk lockfile
-/// without any server exchange: no resolve — the satisfaction check is
-/// local — and no verification round trip, because the previous install
-/// recorded the lockfile in the local verification cache
+/// Zero exchanges, not one: the verification round trip is covered by
+/// the record the previous install left in the local verification cache
 /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
 #[test]
 fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() {
@@ -370,10 +363,8 @@ fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() 
     drop((root, mock_instance));
 }
 
-/// The satisfaction check skips only the *resolve* exchange on its own;
-/// with the local verification cache cold, the input lockfile is still
-/// verified through the server — one `verify-lockfile` request and no
-/// `resolve` ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+/// The satisfaction check skips only the *resolve* exchange on its own
+/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
 #[test]
 fn satisfied_install_via_pnpr_delegates_verification_when_the_cache_is_cold() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

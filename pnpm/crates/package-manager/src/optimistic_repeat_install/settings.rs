@@ -294,10 +294,8 @@ pub(crate) fn current_settings(
         minimum_release_age_ignore_missing_time: Some(
             config.minimum_release_age_ignore_missing_time,
         ),
-        // pnpm's config reader flips the unset value to `true` when
-        // `minimumReleaseAge` was explicitly configured, so the same
-        // resolution has to happen here for a pnpm-written state to
-        // match a pacquet run (and vice versa).
+        // The resolved form pnpm records — see
+        // `WorkspaceStateSettings::minimum_release_age_strict`.
         minimum_release_age_strict: config
             .minimum_release_age_strict
             .or_else(|| config.explicit_settings.contains_key("minimumReleaseAge").then_some(true)),
