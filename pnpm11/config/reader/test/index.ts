@@ -779,8 +779,8 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
 
     expect(config.configDir).not.toBe('/tmp/attacker-config-dir')
     expect(warnings).toContainEqual(expect.stringContaining('"config-dir"'))
-    // The warning carries the same hint `pnpm config set` gives, since both
-    // read it from `whereRefusedKeyBelongs`.
+    // `whereRefusedKeyBelongs` has its own unit test. This pins that the
+    // warning renders it, which is the part the reader owns.
     expect(warnings).toContainEqual(expect.stringContaining('This is not a pnpm setting'))
   })
 
@@ -790,8 +790,6 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     const cliOptions = {}
     const packageManager = { name: 'pnpm', version: '1.0.0' }
     const workspaceDir = process.cwd()
-    // These are assembled from the user's own `.npmrc`, so compare against what
-    // the reader resolves without the manifest rather than against a literal.
     const real = await getConfig({ cliOptions, packageManager, workspaceDir })
 
     writeYamlFileSync('pnpm-workspace.yaml', {
@@ -806,6 +804,9 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
 
     const { config } = await getConfig({ cliOptions, packageManager, workspaceDir })
 
+    // A literal would have to restate how the reader assembles each of these
+    // from the user's own `.npmrc`, so the run without the manifest is the
+    // expectation.
     expect(config.authConfig).toStrictEqual(real.config.authConfig)
     expect(config.userConfig).toStrictEqual(real.config.userConfig)
     expect(config.configByUri).toStrictEqual(real.config.configByUri)
