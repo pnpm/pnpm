@@ -803,12 +803,8 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
 
     let catalogs = pnpr_catalogs(state)?;
 
-    // The local satisfaction gate ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)):
-    // when the on-disk lockfile still satisfies every manifest, there is
-    // nothing for the server to resolve, so the install goes straight to
-    // the frozen materialization below — the same dispatch the
-    // non-pnpr path takes via `preferFrozenLockfile`. Filtered installs
-    // keep the server exchange: their merge semantics live there.
+    // Filtered installs keep the server exchange even when satisfied:
+    // their merge semantics live there.
     let satisfied_without_server = !link.frozen_lockfile
         && !link.lockfile_only
         && link.prefer_frozen_lockfile
@@ -936,12 +932,6 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             Some(prefetcher)
         };
 
-        // Delegated to the server only when the local verification cache
-        // can't already vouch for this lockfile under the current policy
-        // — a warm `lockfile-verified.jsonl` makes the round trip pure
-        // overhead ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
-        // A server pass is recorded into the same cache, so the next
-        // install of the unchanged lockfile skips the exchange.
         let lockfile_verification_override: Option<LockfileVerificationOverride<'_>> = if link
             .trust_lockfile
         {
@@ -1141,10 +1131,9 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             .save_to_path(&lockfile_path)
             .map_err(|err| miette::miette!("{err}"))
             .wrap_err("writing the pnpr-resolved lockfile")?;
-        // The server resolved and verified this lockfile under our
-        // policy, so mark it verified locally — pnpm's
-        // `writeWantedLockfileAndRecordVerified` — letting the next
-        // install's cache probe skip the server verification exchange.
+        // Recording is sound here because the server resolved and
+        // verified this lockfile under the client's own forwarded
+        // policy (pnpm's `writeWantedLockfileAndRecordVerified`).
         if !link.trust_lockfile
             && let Ok(verifiers) = build_resolution_verifiers(
                 state.config,
