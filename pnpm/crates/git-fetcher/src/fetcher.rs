@@ -129,7 +129,6 @@ impl GitFetcher<'_> {
         // temporary-lifetime extension here would work today but is
         // brittle to future expression-reshape edits in this block.
         let empty_env: HashMap<String, String> = HashMap::new();
-        let shims_dir = self.pnpm_execpath.and_then(|_| tempfile::tempdir().ok());
         let prepare_opts = PreparePackageOptions {
             allow_build: Box::new(|dep_path| (self.allow_build)(dep_path)),
             pkg_resolution_id: self.package_id,
@@ -140,10 +139,7 @@ impl GitFetcher<'_> {
             script_shell: self.script_shell,
             node_execpath: self.node_execpath,
             npm_execpath: self.npm_execpath,
-            package_manager_shims: crate::prepare_package::package_manager_shims(
-                shims_dir.as_ref(),
-                self.pnpm_execpath,
-            ),
+            pnpm_execpath: self.pnpm_execpath,
             extra_bin_paths: &[],
             extra_env: &empty_env,
         };

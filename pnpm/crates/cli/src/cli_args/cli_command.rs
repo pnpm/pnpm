@@ -681,6 +681,7 @@ impl CliCommand {
                 | CliCommand::Create(_)
                 | CliCommand::Config(_)
                 | CliCommand::Sbom(_)
+                | CliCommand::Shim(_)
                 | CliCommand::With(_)
                 | CliCommand::Store(_)
                 | CliCommand::Prefix(_)

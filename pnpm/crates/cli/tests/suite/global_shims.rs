@@ -742,6 +742,34 @@ fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
     assert!(!config.contains("yarn: auto"), "{config}");
 }
 
+/// Re-adding a package's own shims is how they get repaired, but a bin
+/// something else already provides is not this command's to take: it
+/// would break that command, and `pnpm shim rm` would then delete it
+/// rather than give it back.
+#[test]
+fn adding_a_shim_over_another_package_s_bin_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let global_bin = root.path().join("pnpm-home").join("bin");
+
+    pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let readded =
+        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    assert!(readded.status.success(), "{}", String::from_utf8_lossy(&readded.stderr));
+
+    pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let installed_globally = "#!/bin/sh\necho a global install\n";
+    fs::write(global_bin.join("yarn"), installed_globally).unwrap();
+    let refused =
+        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+
+    assert!(!refused.status.success());
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(stderr.contains("ERR_PNPM_SHIM_BIN_CONFLICT"), "{stderr}");
+    assert_eq!(fs::read_to_string(global_bin.join("yarn")).unwrap(), installed_globally);
+}
+
 /// Nothing installed the package behind the shim, so a project that
 /// neither pins nor depends on it has nothing to run — and the shim says
 /// so instead of falling through to whatever else is on `PATH`.

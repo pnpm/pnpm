@@ -717,9 +717,10 @@ pub fn generate_virtual_sh_shim(package: &str, shim_path: &Path) -> String {
 /// The `.cmd` flavor of [`generate_virtual_sh_shim`].
 #[must_use]
 pub fn generate_virtual_cmd_shim(package: &str, shim_path: &Path) -> String {
-    let bin = cmd_escape(generated_shim_name(shim_path, ".cmd"));
+    let name = generated_shim_name(shim_path, ".cmd");
+    let bin = cmd_escape(name);
     let target = cmd_escape(&virtual_shim_target(package));
-    let message = cmd_escape(&no_target_message(&bin, package));
+    let message = cmd_escape(&no_target_message(name, package));
     let mut cmd = String::from("@SETLOCAL\r\n");
     write!(
         cmd,

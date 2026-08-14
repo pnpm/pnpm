@@ -39,12 +39,12 @@ use pacquet_env_installer::is_package_manager_resolved;
 use pacquet_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
 use pacquet_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
 use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::Value;
 use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
+    slice,
 };
 use system_runtime_version::system_runtime_version;
 
@@ -173,8 +173,9 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
         }
     };
 
-    let status = spawn_pnpm(&bin_dir, child_argv.iter(), PackageManagerCheck::Enabled)
-        .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
+    let status =
+        spawn_pnpm(slice::from_ref(&bin_dir), child_argv.iter(), PackageManagerCheck::Enabled)
+            .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));
     }
@@ -784,11 +785,10 @@ fn should_skip_command(command: &CliCommand) -> bool {
     // else stays its manager's job and still fails the check.
     if let CliCommand::Add(args) = command
         && !args.package_names.is_empty()
-        && args.package_names.iter().all(|request| {
-            parse_wanted_dependency(request).alias.as_deref().is_some_and(|alias| {
-                crate::engine_pm::channel::PackageManager::parse(alias).is_some()
-            })
-        })
+        && args
+            .package_names
+            .iter()
+            .all(|request| crate::engine_pm::pin::declared_package_manager(request).is_some())
     {
         return true;
     }

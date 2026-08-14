@@ -73,12 +73,12 @@ fn a_classic_yarn_lockfile_pins_yarn_1() {
 }
 
 #[test]
-fn a_berry_yarn_lockfile_leaves_the_version_open() {
+fn a_berry_yarn_lockfile_pins_the_berry_line() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("yarn.lock"), "__metadata:\n  version: 8\n").unwrap();
     assert_eq!(
         detect_wanted_pm(dir.path(), None),
-        WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: false },
+        WantedPm { pm: PreferredPm::Yarn, version_spec: Some(">=2".to_string()), pinned: false },
     );
 }
 
@@ -117,16 +117,40 @@ fn a_dev_engines_pin_wins_over_the_lockfile() {
     );
 }
 
-/// A dependency's manifest is untrusted input: a reference that is a URL
-/// rather than a version leaves the version to pnpm.
+/// A dependency's manifest is untrusted input and its pin reaches a
+/// command line, so only a plain semver range is carried over. Everything
+/// else — a URL, a dist-tag, a shell payload — leaves the version to pnpm.
 #[test]
-fn a_url_reference_does_not_become_a_version() {
+fn only_a_semver_range_is_carried_over_from_a_pin() {
     let dir = tempdir().unwrap();
-    let manifest = serde_json::json!({ "packageManager": "yarn@https://example.test/yarn.js" });
-    assert_eq!(
-        detect_wanted_pm(dir.path(), Some(&manifest)),
-        WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: true },
-    );
+    for reference in [
+        "https://example.test/yarn.js",
+        "latest",
+        r#"1.0.0" & calc & ""#,
+        "1.0.0; touch /tmp/pwned",
+    ] {
+        let manifest = serde_json::json!({ "packageManager": format!("yarn@{reference}") });
+        assert_eq!(
+            detect_wanted_pm(dir.path(), Some(&manifest)),
+            WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: true },
+            "reference was {reference}",
+        );
+    }
+}
+
+/// `devEngines.packageManager` holds a range rather than an exact version,
+/// and it reaches the same command line.
+#[test]
+fn a_dev_engines_version_is_held_to_the_same_bar() {
+    let dir = tempdir().unwrap();
+    let pin = |version: &str| {
+        let manifest = serde_json::json!({
+            "devEngines": { "packageManager": { "name": "yarn", "version": version } },
+        });
+        detect_wanted_pm(dir.path(), Some(&manifest)).version_spec
+    };
+    assert_eq!(pin(">=2 <5").as_deref(), Some(">=2 <5"));
+    assert_eq!(pin(r#"4" & calc & ""#), None);
 }
 
 /// A pin naming something pnpm cannot provision falls back to the
@@ -137,4 +161,20 @@ fn an_unknown_package_manager_pin_is_ignored() {
     fs::write(dir.path().join("pnpm-lock.yaml"), "").unwrap();
     let manifest = serde_json::json!({ "packageManager": "cnpm@1.0.0" });
     assert_eq!(detect_wanted_pm(dir.path(), Some(&manifest)).pm, PreferredPm::Pnpm);
+}
+
+/// `devEngines` outranks `packageManager`, but only for a package manager
+/// pnpm can provision — an unknown one there must not bury the pin below
+/// it.
+#[test]
+fn an_unknown_dev_engines_pin_leaves_package_manager_in_charge() {
+    let dir = tempdir().unwrap();
+    let manifest = serde_json::json!({
+        "devEngines": { "packageManager": { "name": "cnpm", "version": "1.0.0" } },
+        "packageManager": "yarn@4.9.2",
+    });
+    assert_eq!(
+        detect_wanted_pm(dir.path(), Some(&manifest)),
+        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("4.9.2".to_string()), pinned: true },
+    );
 }

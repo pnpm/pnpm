@@ -209,11 +209,8 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     }) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
-    // `pnpm add -g yarn@4` means the Yarn 4 line, which npm publishes
-    // under another name, and `pnpm add -g node@22` means the Node.js
-    // release rather than the wrapper package that downloads one. The
-    // request becomes the selector that installs the tool itself, and the
-    // ordinary install pipeline takes it from there — so the result is a
+    // A tool name becomes the selector that installs the tool itself,
+    // which the ordinary pipeline then handles — so the result stays a
     // normal global install that `pnpm ls -g` and `pnpm remove -g` see.
     let params: Vec<String> = params
         .iter()

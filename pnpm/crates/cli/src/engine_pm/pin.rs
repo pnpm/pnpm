@@ -6,9 +6,27 @@
 //! the field pnpm's own package-manager check reads, and the one every
 //! other tool reading a project's manager understands.
 
+use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Map, Value};
 
 use crate::engine_pm::channel::PackageManager;
+
+/// The package manager `request` declares, and the version it asks for.
+///
+/// `None` is an ordinary install request. pnpm itself is one: its pin
+/// makes the next command switch the running CLI, which is
+/// `pnpm self-update`'s job to do deliberately. So is a specifier
+/// carrying a protocol, which names a package to install under the
+/// package manager's name rather than the package manager.
+pub(crate) fn declared_package_manager(request: &str) -> Option<(PackageManager, Option<String>)> {
+    let parsed = parse_wanted_dependency(request);
+    if parsed.bare_specifier.as_deref().is_some_and(|spec| spec.contains(':')) {
+        return None;
+    }
+    let pm =
+        PackageManager::parse(parsed.alias.as_deref()?).filter(|pm| *pm != PackageManager::Pnpm)?;
+    Some((pm, parsed.bare_specifier))
+}
 
 /// Write `pm` into the manifest's `devEngines.packageManager`, replacing
 /// whatever package manager was declared there.

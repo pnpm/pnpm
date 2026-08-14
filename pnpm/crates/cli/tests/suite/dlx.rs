@@ -194,7 +194,7 @@ fn dlx_ignores_an_ambient_workspace_manifest_above_the_cache_dir() {
 /// Yarn 4 line, which npm publishes under `@yarnpkg/cli-dist` and which
 /// would be a missing version under `yarn`'s own name.
 ///
-/// Yarn Classic is what this asserts, because no fixture can stand in
+/// The real releases are what this runs, because no fixture can stand in
 /// for a package manager — pnpm verifies an engine against npm's
 /// published signature before running it, so the bytes have to be real.
 #[test]
@@ -204,13 +204,13 @@ fn dlx_provisions_a_package_manager_by_name() {
 
     let registry_arg = format!("--config.registry={}", npmrc_info.mock_instance.url());
     let output = pacquet
-        .args([registry_arg.as_str(), "dlx", "yarn@1.22.22", "--version"])
+        .args([registry_arg.as_str(), "dlx", "yarn@4.9.2", "--version"])
         .output()
-        .expect("run pacquet dlx yarn@1.22.22");
+        .expect("run pacquet dlx yarn@4.9.2");
     dbg!(&output);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "stderr:\n{stderr}");
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "1.22.22");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "4.9.2");
 
     drop((root, npmrc_info));
 }

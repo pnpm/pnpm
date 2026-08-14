@@ -18,11 +18,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_reporter::Reporter;
-use std::{
-    ffi::OsString,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{ffi::OsString, path::PathBuf, process::Command};
 
 use crate::{
     cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
@@ -71,7 +67,7 @@ impl WithArgs {
 
         let engine = Box::pin(provision::<Reporter>(config, PackageManager::Pnpm, spec)).await?;
 
-        let status = spawn_pnpm(&engine.bin_dirs[0], args, PackageManagerCheck::Disabled)?;
+        let status = spawn_pnpm(&engine.bin_dirs, args, PackageManagerCheck::Disabled)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
@@ -87,10 +83,11 @@ pub(crate) enum PackageManagerCheck {
     Disabled,
 }
 
-/// Spawn the downloaded `pnpm` with `bin_dir` prepended to `PATH`,
-/// inheriting stdio.
+/// Spawn the downloaded `pnpm` with `bin_dirs` prepended to `PATH`,
+/// inheriting stdio. The first entry is the engine's own bin directory;
+/// any that follow are what it needs to run, such as a managed Node.js.
 pub(crate) fn spawn_pnpm<Args, Arg>(
-    bin_dir: &Path,
+    bin_dirs: &[PathBuf],
     args: Args,
     package_manager_check: PackageManagerCheck,
 ) -> miette::Result<std::process::ExitStatus>
@@ -98,7 +95,8 @@ where
     Args: IntoIterator<Item = Arg>,
     Arg: AsRef<std::ffi::OsStr>,
 {
-    let path = prepend_to_path(&[bin_dir.to_path_buf()])?;
+    let bin_dir = bin_dirs.first().expect("an installed engine has a bin directory");
+    let path = prepend_to_path(bin_dirs)?;
     // Resolve `pnpm` strictly within `bin_dir`, never the full PATH, so a
     // missing or broken shim is an error rather than silently falling
     // through to a different `pnpm` elsewhere on PATH (which would run the

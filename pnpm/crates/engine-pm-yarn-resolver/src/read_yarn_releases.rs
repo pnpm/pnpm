@@ -157,7 +157,13 @@ pub fn asset_variants(
     let has_glibc_build = release
         .assets
         .iter()
-        .filter_map(|asset| parse_asset_name(&asset.file_name))
+        .filter_map(|asset| {
+            let target = parse_asset_name(&asset.file_name)?;
+            // An asset the loop below skips is not a build to choose
+            // between, so it cannot be what constrains the musl one.
+            asset.digest.as_deref().and_then(sha256_digest_to_sri)?;
+            Some(target)
+        })
         .any(|target| target.os == "linux" && !target.musl);
 
     let mut variants = Vec::new();

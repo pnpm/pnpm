@@ -23,6 +23,7 @@ use pacquet_config::{
     Config, GLOBAL_CONFIG_YAML_FILENAME, GlobalShims, GlobalShimsSetting, Host, NamedShimPolicy,
     ShimPolicyValue, WorkspaceSettings, default_config_dir,
 };
+use pacquet_global::bin_slot_exists;
 use pacquet_workspace_manifest_writer::update_manifest_field;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -66,6 +67,19 @@ pub enum ShimError {
         )
     )]
     NoGlobalDir,
+
+    #[display("Cannot create a shim for {package}: {bin} is already in the global bin directory")]
+    #[diagnostic(
+        code(ERR_PNPM_SHIM_BIN_CONFLICT),
+        help(
+            r#"Another package already provides that command. Remove it with "pnpm remove -g <package>", or remove its shim with "pnpm shim rm <package>"."#
+        )
+    )]
+    BinConflict {
+        #[error(not(source))]
+        package: String,
+        bin: String,
+    },
 
     #[display("Cannot find the bins of {package}")]
     #[diagnostic(
@@ -115,6 +129,15 @@ async fn add(
     let mut report = String::new();
     for package in packages {
         let bins = bins_of(config, package).await?;
+        // A bin already in the global bin directory belongs to something
+        // else — a globally installed package, or another shim. Replacing
+        // it would take a working command away, and `pnpm shim rm` would
+        // then delete it rather than give it back.
+        if let Some(bin) = bins.iter().find(|bin| taken_by_another(bin_dir, bin, package)) {
+            return Err(
+                ShimError::BinConflict { package: package.clone(), bin: bin.clone() }.into()
+            );
+        }
         let bin_refs: Vec<&str> = bins.iter().map(String::as_str).collect();
         // The shims are useless without the dispatcher they call into, and
         // a user who never ran a global install has none yet.
@@ -197,6 +220,16 @@ async fn bins_of(config: &'static Config, package: &str) -> miette::Result<Vec<S
     Ok(bins.into_iter().map(|bin| bin.name).collect())
 }
 
+/// Whether `bin` is occupied in `bin_dir` by anything other than
+/// `package`'s own shim, which [`add`] rewrites freely.
+fn taken_by_another(bin_dir: &Path, bin: &str, package: &str) -> bool {
+    bin_slot_exists(bin_dir, bin)
+        && fs::read_to_string(bin_dir.join(bin))
+            .ok()
+            .and_then(|content| virtual_shim_package(&content))
+            .is_none_or(|owner| owner != package)
+}
+
 /// The bins in `bin_dir` whose shim stands for `package`.
 fn installed_shims(bin_dir: &Path, package: &str) -> Vec<String> {
     let mut bins: Vec<String> =
@@ -275,8 +308,9 @@ fn set_policy(
 /// A globally installed package manager should defer to the version a
 /// project pins, the way a globally installed runtime already defers to
 /// `devEngines.runtime` — the global install stays the fallback for
-/// projects that pin nothing. Only a package with no entry is recorded:
-/// an existing one (including `false`) is the user's own decision.
+/// projects that pin nothing. Only a package the user has not decided
+/// about is recorded: an entry of its own, or a `globalShims: false` that
+/// turns every shim off, is a decision and stands.
 pub(crate) fn record_package_manager_shims<'a>(
     config: &Config,
     packages: impl IntoIterator<Item = &'a str>,
@@ -286,6 +320,9 @@ pub(crate) fn record_package_manager_shims<'a>(
         .clone()
         .or_else(default_config_dir::<Host>)
         .ok_or(ShimError::NoGlobalDir)?;
+    if shims_disabled_globally(&config_dir)? {
+        return Ok(BTreeSet::new());
+    }
     let recorded = recorded_entries(&config_dir)?;
     let mut added = BTreeSet::new();
     for package in packages {
@@ -296,6 +333,19 @@ pub(crate) fn record_package_manager_shims<'a>(
         added.insert(package.to_string());
     }
     Ok(added)
+}
+
+/// Whether the global `config.yaml` turns every context-aware shim off.
+/// Recording an opt-in on the user's behalf would quietly undo that;
+/// asking for a shim outright still narrows it to what was asked for.
+fn shims_disabled_globally(config_dir: &Path) -> miette::Result<bool> {
+    let settings = WorkspaceSettings::load_global(config_dir)
+        .map_err(miette::Report::new)
+        .wrap_err("read the global config.yaml")?;
+    Ok(matches!(
+        settings.and_then(|settings| settings.global_shims),
+        Some(GlobalShimsSetting::Toggle(false)),
+    ))
 }
 
 /// The `globalShims` record as the global `config.yaml` holds it today.

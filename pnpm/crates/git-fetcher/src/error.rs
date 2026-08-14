@@ -39,6 +39,16 @@ pub enum PreparePackageError {
     #[diagnostic(transparent)]
     ReadManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
 
+    /// The dependency pins the package manager that prepares it, and pnpm
+    /// could not put that package manager on the build's `PATH`.
+    #[display("Cannot provide {package_manager} to prepare the git-hosted package: {source}")]
+    #[diagnostic(code(ERR_PNPM_GIT_DEP_PACKAGE_MANAGER_UNAVAILABLE))]
+    PackageManagerUnavailable {
+        package_manager: String,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
     #[display("I/O error during preparePackage: {_0}")]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_PREPARE_PACKAGE_IO))]
     Io(#[error(source)] std::io::Error),

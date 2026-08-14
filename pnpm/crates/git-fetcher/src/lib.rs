@@ -30,7 +30,5 @@ pub use fetcher::{
 };
 pub use pacquet_fs_packlist::{PacklistError, packlist};
 pub use preferred_pm::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
-pub use prepare_package::{
-    PackageManagerShims, PreparePackageOptions, PreparedPackage, prepare_package,
-};
+pub use prepare_package::{PreparePackageOptions, PreparedPackage, prepare_package};
 pub use tarball_fetcher::GitHostedTarballFetcher;

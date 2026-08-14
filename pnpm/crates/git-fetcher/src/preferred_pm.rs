@@ -65,24 +65,26 @@ impl PreferredPm {
 ///
 /// A `packageManager` / `devEngines.packageManager` pin in the
 /// dependency's own manifest wins — it is what its authors test against.
-/// Otherwise the lockfile names the package manager, and the version is
-/// left open except for Yarn, whose Classic and Berry lines are different
-/// enough that the wrong one cannot install the other's lockfile.
+/// Otherwise the lockfile names the package manager, and for Yarn it also
+/// names the line: Classic and Berry cannot read each other's lockfiles,
+/// so which one a `yarn.lock` came from is a constraint, not a preference.
 #[must_use]
 pub fn detect_wanted_pm(dir: &Path, manifest: Option<&Value>) -> WantedPm {
     if let Some(wanted) = manifest.and_then(manifest_pin) {
         return wanted;
     }
     let pm = detect_preferred_pm(dir);
-    let version_spec = (pm == PreferredPm::Yarn && !ships_berry_lockfile(dir))
-        .then(|| YARN_CLASSIC_SPEC.to_string());
+    let version_spec = (pm == PreferredPm::Yarn)
+        .then(|| if ships_berry_lockfile(dir) { YARN_BERRY_SPEC } else { YARN_CLASSIC_SPEC })
+        .map(ToString::to_string);
     WantedPm { pm, version_spec, pinned: false }
 }
 
 /// Yarn Berry rewrote the lockfile format, so a `yarn.lock` without its
 /// `__metadata` block was written by Yarn Classic and only Classic can
-/// read it.
+/// read it — and one carrying that block needs Berry.
 const YARN_CLASSIC_SPEC: &str = "1";
+const YARN_BERRY_SPEC: &str = ">=2";
 
 /// Sniff `dir` for a lockfile and return the matching package manager.
 /// Defaults to [`PreferredPm::Npm`] when no lockfile is present.
@@ -104,22 +106,23 @@ pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
 }
 
 /// The package manager the dependency pins for itself, if it pins one
-/// pnpm can provision.
+/// pnpm can provision. A pin naming something else is not a pin pnpm can
+/// honor, so the next declaration — and then the lockfile — still gets a
+/// say.
 fn manifest_pin(manifest: &Value) -> Option<WantedPm> {
-    let (name, version) = dev_engines_pin(manifest).or_else(|| package_manager_pin(manifest))?;
-    Some(WantedPm { pm: PreferredPm::parse(&name)?, version_spec: version, pinned: true })
+    [dev_engines_pin(manifest), package_manager_pin(manifest)].into_iter().flatten().find_map(
+        |(name, version_spec)| {
+            Some(WantedPm { pm: PreferredPm::parse(&name)?, version_spec, pinned: true })
+        },
+    )
 }
 
 fn package_manager_pin(manifest: &Value) -> Option<(String, Option<String>)> {
     let package_manager = manifest.get("packageManager")?.as_str()?;
-    // `<name>@<version>[+<integrity>]`. A reference holding a `:` is a URL
-    // rather than a version — pnpm resolves the version itself, and a
-    // dependency's manifest is untrusted input, so anything that is not a
-    // plain version leaves the version open.
+    // `<name>@<version>[+<integrity>]`.
     let (name, reference) = package_manager.split_once('@')?;
     let version = reference.split_once('+').map_or(reference, |(version, _)| version);
-    let version = (!version.is_empty() && !version.contains(':')).then(|| version.to_string());
-    Some((name.to_string(), version))
+    Some((name.to_string(), pinned_version(version)))
 }
 
 fn dev_engines_pin(manifest: &Value) -> Option<(String, Option<String>)> {
@@ -129,12 +132,17 @@ fn dev_engines_pin(manifest: &Value) -> Option<(String, Option<String>)> {
         other => other,
     };
     let name = entry.get("name")?.as_str()?.to_string();
-    let version = entry
-        .get("version")
-        .and_then(Value::as_str)
-        .filter(|version| !version.is_empty() && !version.contains(':'))
-        .map(ToString::to_string);
+    let version = entry.get("version").and_then(Value::as_str).and_then(pinned_version);
     Some((name, version))
+}
+
+/// The version a dependency's manifest pins, kept only when it is a plain
+/// semver range. The manifest is untrusted input and the version reaches a
+/// command line pnpm builds for the prepare, so a reference naming a URL, a
+/// dist-tag, or anything else that is not a range leaves the version open
+/// for pnpm to resolve rather than being passed through.
+fn pinned_version(version: &str) -> Option<String> {
+    node_semver::Range::parse(version).is_ok().then(|| version.to_string())
 }
 
 /// Whether the `yarn.lock` in `dir` was written by Yarn Berry, which

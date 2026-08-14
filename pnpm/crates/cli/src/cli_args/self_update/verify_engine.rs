@@ -199,9 +199,17 @@ fn collect_engine_components(
     };
 
     for name in engine.packages {
-        if let Some(dep) = pm_deps.get(*name) {
-            to_verify.push(engine_component(env, config, name, &dep.version)?);
-        }
+        // The engine's package list is derived from the version being
+        // installed, so a package missing from the lockfile that pins it
+        // means the two disagree about what is about to run.
+        let dep =
+            pm_deps.get(*name).ok_or_else(|| SelfUpdateError::EngineIdentityUnverifiable {
+                message: format!(
+                    "Cannot verify the identity of {}: {name} is missing from pnpm-lock.yaml.",
+                    engine.label,
+                ),
+            })?;
+        to_verify.push(engine_component(env, config, name, &dep.version)?);
     }
 
     if engine.platform_binaries == PlatformBinaries::None {

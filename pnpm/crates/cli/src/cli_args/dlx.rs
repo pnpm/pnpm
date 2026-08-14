@@ -157,28 +157,40 @@ impl DlxArgs {
             return Err(DlxError::MissingCommand.into());
         };
 
-        // A package manager is not an ordinary package to fetch and throw
-        // away: `pnx yarn@4` means the Yarn 4 line, which is published as
-        // `@yarnpkg/cli-dist` and would be a missing version under the
-        // package's own name. Provisioning knows where each line lives,
-        // verifies the release, and reuses the engine every other
-        // package-manager path already installed. An explicit `--package`
-        // is the user naming what to install, so it stays literal.
+        // Read the config values every dlx spawn applies, before the
+        // install path below consumes `config` to anchor it at the cache
+        // directory.
+        let extra_bin_paths = config.extra_bin_paths.clone();
+        let extra_env = config.extra_env.clone();
+        let user_agent = config.user_agent.clone();
+        let spawn_env = SpawnEnv {
+            extra_bin_paths: &extra_bin_paths,
+            extra_env: &extra_env,
+            user_agent: &user_agent,
+        };
+
+        // An explicit `--package` is the user naming what to install, so
+        // it stays literal; a bare tool name is provisioned instead of
+        // fetched (see `engine_pm::selector` for why the name alone is
+        // not enough to install one).
         if package.is_empty()
             && let Some((pm, version_spec)) = parse_package_manager_spec(bin_command)
         {
-            return run_package_manager::<Reporter>(config, pm, version_spec, bin_command, args)
-                .await;
+            return run_package_manager::<Reporter>(
+                config,
+                pm,
+                version_spec,
+                bin_command,
+                args,
+                &spawn_env,
+            )
+            .await;
         }
 
-        // A runtime is the same story: `node` and `deno` on npm are
-        // wrappers that fetch a build, not the build itself, and pnpm
-        // already manages the real releases for `devEngines.runtime`.
-        // `pnx node@22 script.js` gets that release.
         if package.is_empty()
             && let Some((name, version_spec)) = parse_runtime_spec(bin_command)
         {
-            return run_runtime(name, version_spec, bin_command, args).await;
+            return run_runtime(name, version_spec, bin_command, args, &spawn_env).await;
         }
 
         // `pkgs = package ?? [command]`. With `--package`, the command
@@ -201,10 +213,6 @@ impl DlxArgs {
             supported_architectures.apply_to(config.supported_architectures.clone());
         let cache_key =
             create_cache_key(&pkgs, &registries, &allow_build, effective_architectures.as_ref());
-        let extra_bin_paths = config.extra_bin_paths.clone();
-        let extra_env = config.extra_env.clone();
-        let user_agent = config.user_agent.clone();
-
         let dlx_command_cache_dir = cache_dir.join("dlx").join(&cache_key);
         fs::create_dir_all(&dlx_command_cache_dir).map_err(|source| DlxError::Cache {
             dir: dlx_command_cache_dir.display().to_string(),
@@ -254,18 +262,7 @@ impl DlxArgs {
         // The dlx bin runs in the process working directory
         // (`cwd: process.cwd()`), independent of `--dir`.
         let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-        run_bin(
-            &bin_name,
-            args,
-            &run_cwd,
-            bins_dir,
-            &SpawnEnv {
-                extra_bin_paths: &extra_bin_paths,
-                extra_env: &extra_env,
-                user_agent: &user_agent,
-            },
-            shell_mode,
-        )
+        run_bin(&bin_name, args, &run_cwd, bins_dir, &spawn_env, shell_mode)
     }
 }
 
@@ -487,11 +484,12 @@ async fn run_runtime(
     version_spec: &str,
     command: &str,
     args: &[String],
+    env: &SpawnEnv<'_>,
 ) -> miette::Result<()> {
     let executable =
         Box::pin(materialize_runtime(name.to_string(), version_spec.to_string())).await?;
     let bin_dirs: Vec<PathBuf> = executable.parent().map(Path::to_path_buf).into_iter().collect();
-    spawn_provisioned(&executable, &bin_dirs, command, args)
+    spawn_provisioned(&executable, &bin_dirs, command, args, env)
 }
 
 /// Provision `pm` and run it with the caller's arguments, propagating its
@@ -502,27 +500,35 @@ async fn run_package_manager<Reporter: self::Reporter + 'static>(
     version_spec: &str,
     command: &str,
     args: &[String],
+    env: &SpawnEnv<'_>,
 ) -> miette::Result<()> {
     let engine = Box::pin(provision::<Reporter>(config, pm, version_spec)).await?;
-    spawn_provisioned(&engine.program, &engine.bin_dirs, command, args)
+    spawn_provisioned(&engine.program, &engine.bin_dirs, command, args, env)
 }
 
 /// Run a provisioned executable with `bin_dirs` prepended to `PATH`,
-/// propagating its exit status the way the rest of dlx does.
+/// propagating its exit status the way the rest of dlx does. The rest of
+/// the environment is what [`run_bin`] gives an ordinary dlx command.
 fn spawn_provisioned(
     program: &Path,
     bin_dirs: &[PathBuf],
     command: &str,
     args: &[String],
+    env: &SpawnEnv<'_>,
 ) -> miette::Result<()> {
-    let path = prepend_to_path(bin_dirs)?;
+    let SpawnEnv { extra_bin_paths, extra_env, user_agent } = *env;
+    let mut prepend = bin_dirs.to_vec();
+    prepend.extend(extra_bin_paths.iter().cloned());
+    let path = prepend_to_path(&prepend)?;
     let mut cmd = Command::new(program);
     cmd.args(args);
+    cmd.envs(extra_env);
     // Drop any inherited PATH-like key before re-inserting our own, so a
     // Windows `Path`/`PATH` pair can't collapse to an unspecified winner.
     cmd.env_remove("PATH");
     cmd.env_remove("Path");
     cmd.env("PATH", &path);
+    cmd.env("npm_config_user_agent", user_agent);
     let status =
         cmd.status().map_err(|source| DlxError::Spawn { command: command.to_string(), source })?;
     if !status.success() {

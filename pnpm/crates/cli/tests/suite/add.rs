@@ -747,6 +747,23 @@ fn add_npm_alias_spec_is_kept_verbatim() {
     drop((root, anchor)); // cleanup
 }
 
+/// Naming a package manager records which one the project uses instead of
+/// installing it — but an alias only borrows the name, so it is an
+/// ordinary dependency and must still be installed.
+#[test]
+fn add_aliasing_a_package_manager_name_installs_the_aliased_package() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "yarn@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
+        "--lockfile-only",
+    ]);
+    assert_eq!(prod_spec(&dir, "yarn"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0");
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest.get("devEngines"), None, "{manifest}");
+    drop((root, anchor)); // cleanup
+}
+
 /// A previous specifier that is a non-registry path/URL must not influence
 /// the pin: `infer_range_spec_style` scans for a version anywhere in the
 /// spec, so a `file:` tarball path whose only range-like element is an

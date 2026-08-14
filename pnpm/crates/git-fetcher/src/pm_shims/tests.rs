@@ -75,6 +75,22 @@ fn a_hostile_pnpm_path_is_quoted() {
     );
 }
 
+/// A quote cannot be escaped inside a quoted `cmd.exe` argument, so a
+/// specifier that is not a semver range never reaches the command line at
+/// all — on either platform, since only the check is shared.
+#[test]
+fn a_hostile_version_spec_is_dropped() {
+    let dir = tempdir().unwrap();
+    let hostile = r#"1.0.0" & calc & ""#.to_string();
+    let wanted = WantedPm { pm: PreferredPm::Yarn, version_spec: Some(hostile), pinned: true };
+    write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
+
+    let body = shim_body(dir.path(), "yarn");
+    let spec = if cfg!(windows) { r#"dlx "yarn""# } else { "dlx 'yarn'" };
+    assert!(body.contains(spec), "{body}");
+    assert!(!body.contains("calc"), "{body}");
+}
+
 /// The shim is regenerated every time, so an entry planted at its path
 /// cannot survive to be executed — and a symlink there cannot redirect
 /// the write.

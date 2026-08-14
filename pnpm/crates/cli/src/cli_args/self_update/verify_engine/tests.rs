@@ -1,12 +1,13 @@
 use super::{
-    EngineComponent, FailureCategory, NpmSigningKey, PackageSignature, SignatureFailure,
-    build_client, find_signature_failure, native_engine_wrapper, plain_version,
-    signature_validates_against, verify_one,
+    EngineComponent, EngineToVerify, FailureCategory, NpmSigningKey, PackageSignature,
+    PlatformBinaries, SelfUpdateError, SignatureFailure, build_client, collect_engine_components,
+    find_signature_failure, native_engine_wrapper, plain_version, signature_validates_against,
+    verify_one,
 };
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
 use pacquet_config::Config;
-use pacquet_lockfile::{SnapshotDepRef, SpecifierAndResolution};
+use pacquet_lockfile::{EnvLockfile, SnapshotDepRef, SpecifierAndResolution};
 use pacquet_network::RetryOpts;
 use std::{collections::BTreeMap, time::Duration};
 
@@ -141,6 +142,28 @@ fn native_engine_wrapper_follows_the_package_that_ships_the_binary() {
     assert_eq!(native_engine_wrapper(&pm_deps(&[("pnpm", "12.0.0")])), Some(("pnpm", "12.0.0")));
     assert_eq!(native_engine_wrapper(&pm_deps(&[("pnpm", "6.16.0")])), None);
     assert_eq!(native_engine_wrapper(&pm_deps(&[])), None);
+}
+
+/// Verification covers every package the engine pins, so a lockfile that
+/// records only some of them is unverifiable rather than half-verified.
+#[test]
+fn an_incomplete_engine_package_set_is_unverifiable() {
+    let mut env = EnvLockfile::create();
+    env.importers
+        .entry(EnvLockfile::ROOT_IMPORTER_KEY.to_string())
+        .or_default()
+        .package_manager_dependencies = Some(pm_deps(&[("pnpm", "11.0.0")]));
+    let engine = EngineToVerify {
+        label: "pnpm@11.0.0",
+        packages: &["pnpm", "@pnpm/exe"],
+        platform_binaries: PlatformBinaries::PnpmExe,
+    };
+
+    let Err(error) = collect_engine_components(&env, &Config::default(), &engine) else {
+        panic!("a half-recorded engine cannot be verified");
+    };
+
+    assert!(matches!(error, SelfUpdateError::EngineIdentityUnverifiable { .. }), "{error:?}");
 }
 
 #[test]

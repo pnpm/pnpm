@@ -96,6 +96,27 @@ fn the_musl_constraint_is_recorded_only_when_a_glibc_build_exists() {
     assert_eq!(musl, [None, Some("musl".to_string())]);
 }
 
+/// A glibc build pnpm cannot verify is not a build to choose between, so
+/// it must not push the musl archive out of reach of a glibc host.
+#[test]
+fn an_unverifiable_glibc_build_leaves_the_musl_archive_unconstrained() {
+    let unsigned_glibc = r#",
+              {
+                "name": "yarn-x86_64-unknown-linux-gnu.zip",
+                "browser_download_url": "https://github.com/yarnpkg/zpm/releases/download/v6.0.0-rc.19/yarn-x86_64-unknown-linux-gnu.zip",
+                "digest": "md5:0123456789abcdef0123456789abcdef"
+              }"#;
+    let releases = parse_releases(&releases_body(unsigned_glibc)).expect("parse the release list");
+    let variants = asset_variants(&releases[0]).expect("decode the archives");
+
+    let linux: Vec<Option<String>> = variants
+        .iter()
+        .filter(|variant| variant.targets[0].os == "linux")
+        .map(|variant| variant.targets[0].libc.clone())
+        .collect();
+    assert_eq!(linux, [None]);
+}
+
 #[test]
 fn an_asset_without_a_usable_digest_is_skipped() {
     let unsigned = r#",

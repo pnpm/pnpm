@@ -6,8 +6,7 @@ use crate::{
     },
     config_deps,
     engine_pm::{
-        channel::PackageManager,
-        pin::{describe_pin, record_package_manager_pin},
+        pin::{declared_package_manager, describe_pin, record_package_manager_pin},
         selector::tool_install_selector,
     },
 };
@@ -261,11 +260,6 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
-        // A package manager is not a dependency of the project it
-        // installs: naming one declares which package manager the project
-        // uses, so it is recorded in `devEngines.packageManager` and
-        // nothing is installed for it. A runtime *is* installable, and
-        // becomes the `runtime:` request that records it as an engine.
         let mut state = state;
         let Some(package_names) =
             record_package_manager_pins::<Reporter>(&mut state, &self.package_names)?
@@ -490,14 +484,8 @@ fn record_package_manager_pins<Reporter: self::Reporter>(
     let mut remaining = Vec::new();
     let mut recorded = Vec::new();
     for request in package_names {
-        let parsed = parse_wanted_dependency(request);
-        let pin = parsed
-            .alias
-            .as_deref()
-            .and_then(PackageManager::parse)
-            .filter(|pm| *pm != PackageManager::Pnpm);
-        if let Some(pm) = pin {
-            let version_spec = parsed.bare_specifier.as_deref();
+        if let Some((pm, version_spec)) = declared_package_manager(request) {
+            let version_spec = version_spec.as_deref();
             record_package_manager_pin(state.manifest.value_mut(), pm, version_spec);
             recorded.push(describe_pin(pm, version_spec));
         } else {

@@ -16,7 +16,7 @@ use crate::preferred_pm::WantedPm;
 
 /// The shims written for a package manager: the command it is invoked as,
 /// plus the aliases its own scripts may reach for.
-fn shim_names(pm: crate::preferred_pm::PreferredPm) -> &'static [&'static str] {
+pub(crate) fn shim_names(pm: crate::preferred_pm::PreferredPm) -> &'static [&'static str] {
     match pm {
         crate::preferred_pm::PreferredPm::Bun => &["bun"],
         crate::preferred_pm::PreferredPm::Npm => &["npm"],
@@ -34,7 +34,7 @@ pub(crate) fn write_pm_shims(
     pnpm_execpath: &Path,
 ) -> io::Result<Vec<PathBuf>> {
     fs::create_dir_all(dir)?;
-    let spec = match &wanted.version_spec {
+    let spec = match wanted.version_spec.as_deref().and_then(command_line_safe) {
         Some(version_spec) => format!("{}@{version_spec}", wanted.pm.name()),
         None => wanted.pm.name().to_string(),
     };
@@ -64,6 +64,22 @@ fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, Stri
     let pnpm = pnpm_execpath.display();
     let contents = format!("@\"{pnpm}\" dlx \"{spec}\" %*\r\n");
     vec![(format!("{name}.cmd"), contents)]
+}
+
+/// `version_spec` if every character of it can appear in a semver range,
+/// and `None` otherwise — the version is then left to the channel default.
+///
+/// `cmd.exe` has no way to escape a quote inside a quoted argument, so the
+/// Windows shim cannot make an arbitrary specifier safe by quoting it. The
+/// specifier originates in a dependency's manifest, so it is checked here,
+/// at the point where it becomes part of a command line, and not only
+/// where [`crate::preferred_pm`] parses it.
+fn command_line_safe(version_spec: &str) -> Option<&str> {
+    const RANGE_PUNCTUATION: &str = ".-+^~<>=*| ,";
+    version_spec
+        .chars()
+        .all(|char| char.is_ascii_alphanumeric() || RANGE_PUNCTUATION.contains(char))
+        .then_some(version_spec)
 }
 
 /// Single-quote a value for `sh`, so a path holding a space or a shell

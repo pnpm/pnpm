@@ -6,7 +6,11 @@
 //! scripts. Honors the `allowBuild` gate, and rejects sub-paths that
 //! escape the git root via [`safe_join_path`].
 
-use crate::{error::PreparePackageError, pm_shims::write_pm_shims, preferred_pm::detect_wanted_pm};
+use crate::{
+    error::PreparePackageError,
+    pm_shims::{shim_names, write_pm_shims},
+    preferred_pm::{WantedPm, detect_wanted_pm},
+};
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
 };
@@ -17,6 +21,7 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 /// Scripts to re-run after `<pm>-install` finishes. `prepare` itself
@@ -53,30 +58,12 @@ pub struct PreparePackageOptions<'a> {
     pub script_shell: Option<&'a Path>,
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,
-    /// The running pnpm, and a directory to write package-manager shims
-    /// into. Given both, the package manager the dependency asks for is
-    /// provisioned and put on the build's `PATH`; without them the build
-    /// falls back to whatever is already installed on the host.
-    pub package_manager_shims: Option<PackageManagerShims<'a>>,
+    /// The running pnpm, which the package-manager shims forward to.
+    /// Without it pnpm cannot provide the package manager a dependency
+    /// asks for, and the build falls back to whatever the host has.
+    pub pnpm_execpath: Option<&'a Path>,
     pub extra_bin_paths: &'a [PathBuf],
     pub extra_env: &'a HashMap<String, String>,
-}
-
-/// Where to write the shims that make the dependency's package manager
-/// reachable by name, and the pnpm they forward to.
-pub struct PackageManagerShims<'a> {
-    pub dir: &'a Path,
-    pub pnpm_execpath: &'a Path,
-}
-
-/// Pair a scratch directory with the running pnpm, when the caller has
-/// both. The directory is a `TempDir` the caller keeps alive for the
-/// duration of the prepare, so the shims are removed with it.
-pub fn package_manager_shims<'a>(
-    dir: Option<&'a tempfile::TempDir>,
-    pnpm_execpath: Option<&'a Path>,
-) -> Option<PackageManagerShims<'a>> {
-    Some(PackageManagerShims { dir: dir?.path(), pnpm_execpath: pnpm_execpath? })
 }
 
 /// Result of [`prepare_package`]. `should_be_built` drives the
@@ -138,23 +125,36 @@ pub fn prepare_package<Reporter: self::Reporter>(
     // The dependency's scripts invoke the package manager by name, so it
     // has to be on the build's PATH. pnpm provides it when the dependency
     // pinned a version — that pin is what its authors test against — or
-    // when the host has none; otherwise the host's own install is left to
-    // do the job it has always done. A host that already has it also
-    // keeps working when the shims cannot be written.
+    // when the host cannot satisfy what the dependency ships; otherwise
+    // the host's own install is left to do the job it has always done. A
+    // host that already has it also keeps working when the shims cannot
+    // be written.
     let mut extra_bin_paths = opts.extra_bin_paths.to_vec();
-    if let Some(shims) = opts
-        .package_manager_shims
-        .as_ref()
-        .filter(|_| wanted_pm.pinned || which::which(pm.name()).is_err())
+    // Kept alive until the prepare is over: dropping it takes the shims
+    // with it.
+    let _shims_dir;
+    if let Some(pnpm_execpath) =
+        opts.pnpm_execpath.filter(|_| wanted_pm.pinned || !host_can_prepare(&wanted_pm))
     {
-        match write_pm_shims(shims.dir, &wanted_pm, shims.pnpm_execpath) {
-            Ok(_) => extra_bin_paths.insert(0, shims.dir.to_path_buf()),
+        match provide_package_manager(&wanted_pm, pnpm_execpath) {
+            Ok(dir) => {
+                extra_bin_paths.insert(0, dir.path().to_path_buf());
+                _shims_dir = dir;
+            }
+            // A pin is what the dependency's own authors test against, so
+            // preparing it with whatever the host happens to have would
+            // silently produce a different tree.
+            Err(error) if wanted_pm.pinned => {
+                return Err(PreparePackageError::PackageManagerUnavailable {
+                    package_manager: describe_wanted_pm(&wanted_pm),
+                    source: error,
+                });
+            }
             Err(error) => {
                 let name = pm.name();
-                let dir = shims.dir.display();
                 tracing::warn!(
                     target: "pacquet::git_fetcher",
-                    "could not provide {name} for the build at {dir}: {error}",
+                    "could not provide {name} for the build: {error}",
                 );
             }
         }
@@ -225,6 +225,60 @@ pub fn prepare_package<Reporter: self::Reporter>(
     }
 
     Ok(PreparedPackage { pkg_dir, should_be_built: true })
+}
+
+/// Whether the package manager on `PATH` can install what the dependency
+/// ships.
+///
+/// Having the command is not enough when the lockfile constrains the
+/// line: Yarn Classic cannot read a Berry lockfile, and a host copy from
+/// the wrong line is no more usable than no copy at all. A host version
+/// that cannot be read counts as unusable, so the dependency gets the one
+/// it asked for rather than a coin flip.
+/// Write the shims for `wanted` into a scratch directory, returning it so
+/// the caller can put it on the build's `PATH` and drop it afterwards.
+fn provide_package_manager(
+    wanted: &WantedPm,
+    pnpm_execpath: &Path,
+) -> std::io::Result<tempfile::TempDir> {
+    let dir = tempfile::tempdir()?;
+    write_pm_shims(dir.path(), wanted, pnpm_execpath)?;
+    Ok(dir)
+}
+
+fn describe_wanted_pm(wanted: &WantedPm) -> String {
+    match &wanted.version_spec {
+        Some(version_spec) => format!("{}@{version_spec}", wanted.pm.name()),
+        None => wanted.pm.name().to_string(),
+    }
+}
+
+fn host_can_prepare(wanted: &WantedPm) -> bool {
+    // A dependency's scripts reach for any of the package manager's
+    // names — `yarnpkg` as readily as `yarn` — so a host that provides
+    // only some of them still leaves the build to pnpm.
+    let mut programs = shim_names(wanted.pm).iter().map(which::which);
+    let Some(Ok(program)) = programs.next() else {
+        return false;
+    };
+    if programs.any(|name| name.is_err()) {
+        return false;
+    }
+    let Some(wanted_range) = wanted.version_spec.as_deref() else {
+        return true;
+    };
+    let Ok(wanted_range) = node_semver::Range::parse(wanted_range) else {
+        return true;
+    };
+    let Ok(output) = Command::new(program).arg("--version").output() else {
+        return false;
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .next()
+        .map(str::trim)
+        .and_then(|version| node_semver::Version::parse(version).ok())
+        .is_some_and(|version| version.satisfies(&wanted_range))
 }
 
 /// Decide whether the package needs building.

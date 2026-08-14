@@ -22,6 +22,7 @@ pacquet-store-dir        = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }
+node-semver = { workspace = true }
 pipe-trait  = { workspace = true }
 serde_json  = { workspace = true }
 tempfile    = { workspace = true }
