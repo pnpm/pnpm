@@ -693,10 +693,16 @@ jobs:
         # workflow. The PR number and runner OS are derived from the
         # trusted workflow_run event payload in that workflow, not
         # from fork-controlled artifact contents.
+        #
+        # The raw per-scenario hyperfine exports ride along too: they
+        # keep the per-run sample distributions that the summary's
+        # embedded JSON strips to stay under GitHub's comment size
+        # limit, so noise investigations still have the full data.
         shell: bash
         run: |
           mkdir -p benchmark-artifact
           cp bench-work-env/SUMMARY.md benchmark-artifact/SUMMARY.md
+          cp bench-work-env/BENCHMARK_REPORT_*.json benchmark-artifact/
           cp bench-work-env/bencher-results.json benchmark-artifact/bencher-results.json
           cp bench-work-env/bencher-results-pnpr.json benchmark-artifact/bencher-results-pnpr.json
 
