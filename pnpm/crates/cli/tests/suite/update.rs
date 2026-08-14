@@ -181,11 +181,22 @@ fn update_preserves_the_declared_range_operator() {
 fn update_preserves_an_existing_prerelease_range_operator() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(&workspace, &format!(r#"{{ "{HAS_PRERELEASE}": "^3.0.0-rc.0" }}"#));
+    write_manifest(&workspace, &format!(r#"{{ "{HAS_PRERELEASE}": "3.0.0-rc.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+has-prerelease@3.0.0-rc.0"),
+        "virtual store entries: {:?}",
+        list_virtual_store(&workspace),
+    );
 
+    write_manifest(&workspace, &format!(r#"{{ "{HAS_PRERELEASE}": "^3.0.0-rc.0" }}"#));
     pacquet(&workspace, ["update"]).assert().success();
 
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+has-prerelease@3.0.0-rc.1"),
+        "virtual store entries: {:?}",
+        list_virtual_store(&workspace),
+    );
     assert_eq!(dep_spec(&workspace, HAS_PRERELEASE).as_deref(), Some("^3.0.0-rc.1"));
     pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 

@@ -170,8 +170,13 @@ fn bumped_range(
         // A link or an injected directory has no version to pin.
         ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
     };
-    let style = infer_range_spec_style(declared_range).unwrap_or(default_style);
-    let range = format!("{}{resolved}", style.range_prefix());
+    let range = match infer_range_spec_style(declared_range) {
+        Some(style) => format!("{}{resolved}", style.range_prefix()),
+        // Match the TypeScript resolver's prerelease fallback: an unsupported
+        // comparator or compound range becomes an exact prerelease pick.
+        None if !resolved.pre_release.is_empty() => resolved.to_string(),
+        None => format!("{}{resolved}", default_style.range_prefix()),
+    };
     let bumped = format!("{prefix}{range}");
     (bumped != declared).then_some(bumped)
 }

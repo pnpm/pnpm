@@ -25,6 +25,8 @@ test('calcVersionRange() preserves an existing prerelease range style', () => {
   expect(calcVersionRange('3.0.0-rc.11', { prevSpecifier: '~3.0.0-rc.8' })).toBe('~3.0.0-rc.11')
   expect(calcVersionRange('3.0.0-rc.11', { prevSpecifier: '3.0.0-rc.8' })).toBe('3.0.0-rc.11')
   expect(calcVersionRange('3.0.0-rc.11', { prevSpecifier: '=3.0.0-rc.8' })).toBe('=3.0.0-rc.11')
+  expect(calcVersionRange('3.0.0-rc.11', { prevSpecifier: '>=3.0.0-rc.8' })).toBe('3.0.0-rc.11')
+  expect(calcVersionRange('3.0.0-rc.11', { prevSpecifier: '2 || 3' })).toBe('3.0.0-rc.11')
   expect(calcVersionRange('3.0.0-rc.11', {})).toBe('3.0.0-rc.11')
 })
 
