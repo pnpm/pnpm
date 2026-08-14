@@ -1112,7 +1112,7 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
  * the repository. The policy therefore comes from the built-in defaults, the
  * global config yaml, the environment, and CLI flags only.
  */
-const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+const SELF_UPDATE_SKIPPED_SETTINGS = [
   'ci',
   'minimumReleaseAge',
   'minimumReleaseAgeExclude',
@@ -1121,7 +1121,7 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'trustPolicy',
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',
-] satisfies Array<keyof Config>)
+] satisfies Array<keyof Config>
 
 /**
  * Where the machine keeps what it holds across runs, which no project chooses.
@@ -1175,7 +1175,15 @@ const CREDENTIAL_KEYS = [
  * project may legitimately place, and the Rust `WorkspaceSettings` accepts
  * both.
  */
-const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<string> = new Set([
+type ProjectManifestSkippedKey =
+  | typeof MACHINE_LOCATION_KEYS[number]
+  | typeof CURRENT_RUN_LOCATION_KEYS[number]
+  | typeof CREDENTIAL_KEYS[number]
+
+/** Every key a caller of {@link addSettingsFromWorkspaceManifestToConfig} may skip. */
+type SkippableKey = ProjectManifestSkippedKey | typeof SELF_UPDATE_SKIPPED_SETTINGS[number]
+
+const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set([
   ...MACHINE_LOCATION_KEYS,
   ...CURRENT_RUN_LOCATION_KEYS,
   ...CREDENTIAL_KEYS,
@@ -1189,7 +1197,7 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<string> = new Set([
  * `--config.config-dir` would land back on a key the reader resolves for
  * itself, and only for the users who happen to have a `config.yaml`.
  */
-const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<string> = new Set(
+const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set(
   [...PROJECT_MANIFEST_SKIPPED_KEYS].filter((key) => !isConfigFileKey(kebabCase(key)))
 )
 
@@ -1198,7 +1206,8 @@ const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<string> = new Set(
  * See {@link PROJECT_MANIFEST_SKIPPED_KEYS}.
  */
 export function isProjectManifestSkippedKey (camelKey: string): boolean {
-  return PROJECT_MANIFEST_SKIPPED_KEYS.has(camelKey)
+  const keys: ReadonlySet<string> = PROJECT_MANIFEST_SKIPPED_KEYS
+  return keys.has(camelKey)
 }
 
 /**
@@ -1296,16 +1305,18 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
   /** Settings this manifest may not contribute, chosen by the caller. */
-  skipSettings?: ReadonlySet<string>
+  skipSettings?: ReadonlySet<SkippableKey>
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
+  // The keys tested against it come from a YAML file, so the lookup is by string.
+  const skipped: ReadonlySet<string> | undefined = skipSettings
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
     // Unlike `skipSettings` below, this is not the caller's to opt out of.
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
-    if (skipSettings?.has(key)) continue
+    if (skipped?.has(key)) continue
 
     // @ts-expect-error
     pnpmConfig[key] = value
