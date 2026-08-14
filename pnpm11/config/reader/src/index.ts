@@ -684,6 +684,10 @@ export async function getConfig (opts: {
     pnpmConfig.filterProd = (pnpmConfig.filterProd as string).split(' ')
   }
 
+  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
+    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
+  }
+
   if (pnpmConfig.workspaceDir) {
     pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspaceDir, 'node_modules', '.bin')]
   } else {
@@ -763,10 +767,6 @@ export async function getConfig (opts: {
   }
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
-
-  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
-    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
-  }
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
