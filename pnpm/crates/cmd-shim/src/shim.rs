@@ -692,7 +692,8 @@ fn no_target_message(bin: &str, package: &str) -> String {
 
 /// Generate the Unix shell shim for a `package` that is not installed
 /// globally: it dispatches into the project like any context-aware shim,
-/// and reports [`no_target_message`] when the dispatcher finds nothing.
+/// and reports that nothing satisfied it when the dispatcher finds
+/// nothing to run.
 #[must_use]
 pub fn generate_virtual_sh_shim(package: &str, shim_path: &Path) -> String {
     let mut sh = String::from(SH_SHIM_HEADER);
