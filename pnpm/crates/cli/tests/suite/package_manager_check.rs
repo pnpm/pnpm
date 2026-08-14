@@ -672,6 +672,22 @@ fn a_project_pinned_to_another_package_manager_can_still_be_repinned() {
     assert_eq!(manifest.get("packageManager"), None, "{manifest}");
 }
 
+/// A `package.json` that parses but is not an object has nowhere to
+/// record a package manager. That is the project's own file rather than
+/// an impossible state, so it fails as an error.
+#[test]
+fn a_manifest_that_is_not_an_object_fails_instead_of_panicking() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "[]").unwrap();
+
+    let output = run(pacquet, root.path(), &["add", "npm@11"]);
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "ERR_PNPM_INVALID_MANIFEST");
+    assert!(!stderr.contains("panicked"), "{stderr}");
+}
+
 /// Yarn is started from a project pin by corepack, which reads only
 /// `packageManager` and only accepts an exact version there — so a Yarn
 /// pin is resolved and written the way `corepack use` writes it, down to

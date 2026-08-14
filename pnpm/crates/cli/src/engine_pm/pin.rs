@@ -63,12 +63,11 @@ fn declares_a_version(spec: &str) -> bool {
 /// bare `pnpm add npm` asks for npm without asking for a version, so none
 /// is invented for it.
 pub(crate) fn record_package_manager_pin(
-    manifest: &mut Value,
+    manifest: &mut Map<String, Value>,
     pm: PackageManager,
     reference: Option<&str>,
 ) {
     let reference = reference.map(str::trim).filter(|reference| !reference.is_empty());
-    let manifest = manifest.as_object_mut().expect("a manifest is a JSON object");
     if pm == PackageManager::Yarn {
         clear_dev_engines_package_manager(manifest);
         let pin = match reference {

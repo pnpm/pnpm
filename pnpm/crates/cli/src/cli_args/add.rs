@@ -6,6 +6,7 @@ use crate::{
     },
     config_deps,
     engine_pm::{
+        error::EngineError,
         pin::{
             declared_package_manager, describe_pin, record_package_manager_pin, resolve_project_pin,
         },
@@ -489,7 +490,12 @@ async fn record_package_manager_pins<Reporter: self::Reporter>(
         if let Some((pm, version_spec)) = declared_package_manager(request) {
             let reference = resolve_project_pin(state.config, pm, version_spec.as_deref()).await?;
             let reference = reference.as_deref();
-            record_package_manager_pin(state.manifest.value_mut(), pm, reference);
+            let manifest = state
+                .manifest
+                .value_mut()
+                .as_object_mut()
+                .ok_or(EngineError::ManifestIsNotAnObject)?;
+            record_package_manager_pin(manifest, pm, reference);
             recorded.push(describe_pin(pm, reference));
         } else {
             let selector = tool_install_selector(request);

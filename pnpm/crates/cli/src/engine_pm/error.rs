@@ -19,6 +19,13 @@ pub(crate) enum EngineError {
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PACKAGE_MANAGER))]
     CannotResolvePackageManager { name: &'static str, spec: String },
 
+    #[display("The package.json of this project is not a JSON object")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_MANIFEST),
+        help("A package.json holds an object. Fix it before declaring a package manager in it.")
+    )]
+    ManifestIsNotAnObject,
+
     #[display("Unable to find the global packages directory")]
     #[diagnostic(
         code(ERR_PNPM_NO_GLOBAL_BIN_DIR),

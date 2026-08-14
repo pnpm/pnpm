@@ -9,7 +9,11 @@ use serde_json::json;
 #[test]
 fn a_yarn_pin_is_recorded_in_the_package_manager_field() {
     let mut manifest = json!({ "name": "project", "version": "1.0.0" });
-    record_package_manager_pin(&mut manifest, PackageManager::Yarn, Some("4.9.2"));
+    record_package_manager_pin(
+        manifest.as_object_mut().unwrap(),
+        PackageManager::Yarn,
+        Some("4.9.2"),
+    );
     assert_eq!(
         manifest,
         json!({ "name": "project", "version": "1.0.0", "packageManager": "yarn@4.9.2" }),
@@ -19,7 +23,7 @@ fn a_yarn_pin_is_recorded_in_the_package_manager_field() {
 #[test]
 fn another_package_manager_is_recorded_under_dev_engines() {
     let mut manifest = json!({ "name": "project", "version": "1.0.0" });
-    record_package_manager_pin(&mut manifest, PackageManager::Npm, Some("11"));
+    record_package_manager_pin(manifest.as_object_mut().unwrap(), PackageManager::Npm, Some("11"));
     assert_eq!(
         manifest,
         json!({
@@ -35,7 +39,7 @@ fn another_package_manager_is_recorded_under_dev_engines() {
 #[test]
 fn a_request_without_a_version_records_only_the_name() {
     let mut manifest = json!({ "name": "project" });
-    record_package_manager_pin(&mut manifest, PackageManager::Bun, None);
+    record_package_manager_pin(manifest.as_object_mut().unwrap(), PackageManager::Bun, None);
     assert_eq!(manifest["devEngines"]["packageManager"], json!({ "name": "bun" }));
     assert_eq!(describe_pin(PackageManager::Bun, None), "bun");
     assert_eq!(describe_pin(PackageManager::Yarn, Some("4.9.2")), "yarn@4.9.2");
@@ -51,7 +55,11 @@ fn recording_a_pin_keeps_the_rest_of_dev_engines() {
             "packageManager": { "name": "npm", "version": "10" },
         },
     });
-    record_package_manager_pin(&mut manifest, PackageManager::Bun, Some("1.3.0"));
+    record_package_manager_pin(
+        manifest.as_object_mut().unwrap(),
+        PackageManager::Bun,
+        Some("1.3.0"),
+    );
     assert_eq!(
         manifest["devEngines"],
         json!({
@@ -70,10 +78,14 @@ fn recording_a_pin_clears_the_declaration_it_replaces() {
         "packageManager": "pnpm@12.0.0",
         "devEngines": { "packageManager": { "name": "npm", "version": "10" } },
     });
-    record_package_manager_pin(&mut manifest, PackageManager::Yarn, Some("4.9.2"));
+    record_package_manager_pin(
+        manifest.as_object_mut().unwrap(),
+        PackageManager::Yarn,
+        Some("4.9.2"),
+    );
     assert_eq!(manifest, json!({ "packageManager": "yarn@4.9.2" }));
 
-    record_package_manager_pin(&mut manifest, PackageManager::Npm, Some("11"));
+    record_package_manager_pin(manifest.as_object_mut().unwrap(), PackageManager::Npm, Some("11"));
     assert_eq!(
         manifest,
         json!({ "devEngines": { "packageManager": { "name": "npm", "version": "11" } } }),
@@ -90,7 +102,11 @@ fn clearing_the_package_manager_keeps_a_dev_engines_runtime() {
             "packageManager": { "name": "npm", "version": "10" },
         },
     });
-    record_package_manager_pin(&mut manifest, PackageManager::Yarn, Some("4.9.2"));
+    record_package_manager_pin(
+        manifest.as_object_mut().unwrap(),
+        PackageManager::Yarn,
+        Some("4.9.2"),
+    );
     assert_eq!(
         manifest,
         json!({

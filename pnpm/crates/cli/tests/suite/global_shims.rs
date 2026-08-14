@@ -762,7 +762,16 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     let stderr = String::from_utf8_lossy(&refused.stderr);
     assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{stderr}");
     assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
-    assert!(!root.path().join("pnpm-home").join("bin").join("yarn").exists());
+    // Nothing was linked at all — not the bare shim, not a Windows
+    // flavor, not the dispatcher beside them.
+    let global_bin = root.path().join("pnpm-home").join("bin");
+    let linked: Vec<_> = fs::read_dir(&global_bin)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.file_name())
+        .collect();
+    assert!(linked.is_empty(), "{linked:?}");
 
     // Removing shims under it still works, and still leaves the setting
     // as the user wrote it.
