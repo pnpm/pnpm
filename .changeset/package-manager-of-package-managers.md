@@ -15,3 +15,5 @@ Installing a package manager globally (`pnpm add -g yarn`) now makes it follow a
 `pnpm add` follows the same rule about what a name means. `pnpm add -g yarn@4` installs Yarn Berry — it used to fail, because npm's `yarn` package stops at Classic — and `pnpm add -g node@22` installs that Node.js release rather than a wrapper package that downloads one. In a project, naming a package manager records which one the project uses in `devEngines.packageManager` instead of installing it as a dependency, and naming a runtime records it under `engines.runtime` as `node@runtime:22` already did.
 
 A JavaScript package manager on a machine without Node.js gets a managed LTS runtime to run on.
+
+What changes for a project coming from v11: `pnpm add yarn` records the project's package manager instead of installing the npm package that shares the name (that package is still reachable as `pnpm add yarn@npm:yarn@1.22.22`), `pnpm add -g yarn` installs the current Yarn line rather than Classic, `pnpm add -g node` and `pnx node` install a Node.js release rather than a wrapper package, and a globally installed package manager defers to a project's pin where there is one.
