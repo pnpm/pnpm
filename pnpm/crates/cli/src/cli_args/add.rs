@@ -6,7 +6,9 @@ use crate::{
     },
     config_deps,
     engine_pm::{
-        pin::{declared_package_manager, describe_pin, record_package_manager_pin},
+        pin::{
+            declared_package_manager, describe_pin, record_package_manager_pin, resolve_project_pin,
+        },
         selector::tool_install_selector,
     },
 };
@@ -262,7 +264,7 @@ impl AddArgs {
 
         let mut state = state;
         let Some(package_names) =
-            record_package_manager_pins::<Reporter>(&mut state, &self.package_names)?
+            record_package_manager_pins::<Reporter>(&mut state, &self.package_names).await?
         else {
             return Ok(());
         };
@@ -465,10 +467,10 @@ where
     .await
 }
 
-/// Record every package manager among `package_names` in the project's
-/// `devEngines.packageManager`, and return the requests that are left to
-/// install — `None` when the whole command was package managers and
-/// there is nothing to install.
+/// Record every package manager among `package_names` as the one the
+/// project uses, and return the requests that are left to install —
+/// `None` when the whole command was package managers and there is
+/// nothing to install.
 ///
 /// A runtime is left in the list: unlike a package manager it is
 /// installed, and [`tool_install_selector`] turns it into the `runtime:`
@@ -477,7 +479,7 @@ where
 /// pnpm's own pin is deliberately not written here. Changing it makes the
 /// next command switch the running CLI, which is `pnpm self-update`'s job
 /// to do deliberately rather than an `add`'s to do as a side effect.
-fn record_package_manager_pins<Reporter: self::Reporter>(
+async fn record_package_manager_pins<Reporter: self::Reporter>(
     state: &mut State,
     package_names: &[String],
 ) -> miette::Result<Option<Vec<String>>> {
@@ -485,9 +487,10 @@ fn record_package_manager_pins<Reporter: self::Reporter>(
     let mut recorded = Vec::new();
     for request in package_names {
         if let Some((pm, version_spec)) = declared_package_manager(request) {
-            let version_spec = version_spec.as_deref();
-            record_package_manager_pin(state.manifest.value_mut(), pm, version_spec);
-            recorded.push(describe_pin(pm, version_spec));
+            let reference = resolve_project_pin(state.config, pm, version_spec.as_deref()).await?;
+            let reference = reference.as_deref();
+            record_package_manager_pin(state.manifest.value_mut(), pm, reference);
+            recorded.push(describe_pin(pm, reference));
         } else {
             let selector = tool_install_selector(request);
             remaining.push(selector.unwrap_or_else(|| request.clone()));
@@ -500,7 +503,7 @@ fn record_package_manager_pins<Reporter: self::Reporter>(
     for pin in recorded {
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
-            message: format!("Recorded {pin} in devEngines.packageManager"),
+            message: format!("Recorded {pin} as the project's package manager"),
             prefix: String::new(),
         }));
     }

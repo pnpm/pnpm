@@ -22,6 +22,7 @@ pacquet-catalogs-types                    = { workspace = true }
 pacquet-cmd-shim                          = { workspace = true }
 pacquet-crypto-hash                       = { workspace = true }
 pacquet-detect-libc                       = { workspace = true }
+pacquet-engine-pm-yarn-resolver           = { workspace = true }
 pacquet-engine-runtime-node-resolver      = { workspace = true }
 pacquet-pnpr-client                       = { workspace = true }
 pacquet-env-installer                     = { workspace = true }
@@ -89,6 +90,7 @@ rmp-serde            = { workspace = true }
 same-file            = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
+ssri                 = { workspace = true }
 tabled               = { workspace = true }
 tar                  = { workspace = true }
 tempfile             = { workspace = true }

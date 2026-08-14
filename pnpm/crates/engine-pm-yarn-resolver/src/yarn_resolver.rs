@@ -123,6 +123,22 @@ impl YarnResolver {
     }
 }
 
+/// The exact version `version_spec` selects, without installing it.
+///
+/// Recording which Yarn a project uses needs the version the release list
+/// resolves to, because the `packageManager` field holds an exact version
+/// rather than a range.
+pub async fn resolve_yarn_version(
+    http_client: &ThrottledClient,
+    version_spec: &str,
+) -> Result<String, YarnResolverError> {
+    let releases =
+        fetch_yarn_releases(http_client).await.map_err(YarnResolverError::ReadReleases)?;
+    pick_release(&releases, version_spec)
+        .map(|release| release.version.clone())
+        .ok_or_else(|| YarnResolverError::ResolutionFailure { spec: version_spec.to_string() })
+}
+
 /// The newest release satisfying `version_spec`.
 ///
 /// Yarn 6 is still a release candidate, so a plain range like `^6.0.0`

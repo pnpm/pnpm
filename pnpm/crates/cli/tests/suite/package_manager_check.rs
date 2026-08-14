@@ -658,15 +658,46 @@ fn a_project_pinned_to_another_package_manager_can_still_be_repinned() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
 
-    let output = run(pacquet, root.path(), &["add", "yarn@1"]);
+    let output = run(pacquet, root.path(), &["add", "npm@11"]);
 
     assert_success(&output);
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
     assert_eq!(
         manifest["devEngines"]["packageManager"],
-        serde_json::json!({ "name": "yarn", "version": "1" }),
+        serde_json::json!({ "name": "npm", "version": "11" }),
     );
+    // The two fields declare the same thing, so the one that was replaced
+    // is gone rather than left to contradict the new declaration.
+    assert_eq!(manifest.get("packageManager"), None, "{manifest}");
+}
+
+/// Yarn is started from a project pin by corepack, which reads only
+/// `packageManager` and only accepts an exact version there — so a Yarn
+/// pin is resolved and written the way `corepack use` writes it, down to
+/// the integrity corepack verifies the Classic tarball with.
+#[test]
+fn a_yarn_pin_is_recorded_the_way_corepack_writes_it() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "devEngines": { "packageManager": { "name": "npm" } } }),
+    );
+
+    let output = run(pacquet, root.path(), &["add", "yarn@1"]);
+
+    assert_success(&output);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    let pin = manifest["packageManager"].as_str().expect("a recorded package manager");
+    let (version, integrity) = pin
+        .strip_prefix("yarn@")
+        .and_then(|reference| reference.split_once('+'))
+        .unwrap_or_else(|| panic!("expected an exact version with an integrity, got {pin}"));
+    let version = node_semver::Version::parse(version).expect("an exact version");
+    assert_eq!(version.major, 1, "{pin}");
+    assert!(integrity.starts_with("sha512."), "{pin}");
+    assert_eq!(manifest.get("devEngines"), None, "{manifest}");
 }
 
 #[test]

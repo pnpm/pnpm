@@ -14,4 +14,4 @@ mod read_yarn_releases;
 mod yarn_resolver;
 
 pub use read_yarn_releases::{ReadYarnReleasesError, YarnRelease};
-pub use yarn_resolver::{YarnResolver, YarnResolverError};
+pub use yarn_resolver::{YarnResolver, YarnResolverError, resolve_yarn_version};
