@@ -66,8 +66,9 @@ pub(crate) use settings::{
     recorded_supported_architectures_match, settings_match,
 };
 pub(crate) use timestamps::{
-    FileMtime, file_mtime, file_mtime_from_metadata, lockfile_modified_since, modified_at_or_after,
-    mtime_ms, validation_baseline_ms, wanted_lockfile_modified,
+    FileMtime, current_filesystem_time_ms, file_mtime, file_mtime_from_metadata,
+    lockfile_modified_since, modified_at_or_after, mtime_ms, validation_baseline_ms,
+    wanted_lockfile_modified,
 };
 
 use std::{
@@ -363,11 +364,23 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                     project_manifests,
                     state.filtered_install,
                 );
-                // Increment by 1 to post-date the validated mtimes and prevent
-                // same-millisecond mtime collisions from permanently forcing the
-                // content check.
-                new_state.last_validated_timestamp =
-                    new_state.last_validated_timestamp.saturating_add(1);
+                // On a second-granularity filesystem (e.g. ext4 with 128-byte inodes,
+                // HFS+, or some CI runner disks), a file changed within the same
+                // second of the install is indistinguishable from the baseline by
+                // whole-second mtimes alone. In that case, we must post-date by a
+                // full second to ensure subsequent checks converge. On sub-second
+                // filesystems, post-dating by 1ms is sufficient. We take the max of
+                // the current filesystem time and this calculated baseline to ensure
+                // it post-dates both the validated mtimes and the time the check ran.
+                let fs_time = current_filesystem_time_ms(workspace_root)
+                    .unwrap_or(new_state.last_validated_timestamp);
+                let manifest_mtimes_are_coarse = project_manifests
+                    .iter()
+                    .filter_map(|(_, manifest)| file_mtime(manifest.path()))
+                    .any(|mtime| mtime.whole_second);
+                let delta = if manifest_mtimes_are_coarse { 1000 } else { 1 };
+                let baseline = new_state.last_validated_timestamp.saturating_add(delta);
+                new_state.last_validated_timestamp = std::cmp::max(fs_time, baseline);
                 if let Err(error) = update_workspace_state(workspace_root, &new_state) {
                     tracing::warn!(
                         target: "pacquet::install",
