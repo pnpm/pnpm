@@ -13,7 +13,10 @@ use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use yamlpatch::{Op, Patch};
 use yamlpath::{Component, Document, Route};
 
-use crate::{model::Manifest, render};
+use crate::{
+    model::{AllowBuildValue, Manifest},
+    render,
+};
 
 /// Merge `updated` into `manifest`'s catalog blocks. Returns whether anything
 /// changed.
@@ -577,7 +580,9 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
         if mapping.entries.iter().any(|entry| entry.key == name) {
             // Already present with the same value — a true no-op, so don't
             // rewrite the file (which would bump its mtime).
-            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name)) == Some(&value) {
+            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name))
+                == Some(&AllowBuildValue::Bool(value))
+            {
                 return false;
             }
             let new_text = replace_bool_value_at(text, &[BLOCK], name, value);
@@ -597,7 +602,10 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
     };
     // Keep the decoded view in sync so later upserts in the same write see
     // this entry (for both no-op detection and block-presence checks).
-    manifest.allow_builds.get_or_insert_with(IndexMap::new).insert(name.to_string(), value);
+    manifest
+        .allow_builds
+        .get_or_insert_with(IndexMap::new)
+        .insert(name.to_string(), AllowBuildValue::Bool(value));
     changed
 }
 
@@ -622,6 +630,10 @@ pub(crate) fn add_undecided_allow_build(
         manifest.set_text(new_text);
         manifest.top_level_keys =
             render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        manifest
+            .allow_builds
+            .get_or_insert_with(IndexMap::new)
+            .insert(name.to_string(), AllowBuildValue::String(placeholder.to_string()));
         return true;
     };
     if mapping.entries.iter().any(|entry| entry.key == name) {
@@ -630,6 +642,10 @@ pub(crate) fn add_undecided_allow_build(
     let new_text =
         insert_rendered_entry_at(text, &[BLOCK], name, &render::render_value(placeholder));
     manifest.set_text(new_text);
+    manifest
+        .allow_builds
+        .get_or_insert_with(IndexMap::new)
+        .insert(name.to_string(), AllowBuildValue::String(placeholder.to_string()));
     true
 }
 
@@ -1379,4 +1395,97 @@ fn has_blank_before(all: &[Line<'_>], idx: usize) -> bool {
         return false;
     }
     false
+}
+
+pub(crate) fn prune_allow_builds(
+    manifest: &mut Manifest,
+    resolved: &pacquet_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    const BLOCK: &str = "allowBuilds";
+    let Some(allow_builds) = manifest.allow_builds.as_ref() else {
+        return false;
+    };
+
+    let present: Vec<String> = allow_builds
+        .iter()
+        .filter_map(|(name, value)| {
+            if let AllowBuildValue::String(val) = value
+                && val == crate::UNDECIDED_ALLOW_BUILD
+                && !resolved.contains_key(name)
+            {
+                return Some(name.clone());
+            }
+            None
+        })
+        .collect();
+
+    if present.is_empty() {
+        return false;
+    }
+
+    let all_keys = allow_builds_keys_in_text(manifest.text());
+    let remaining_keys: Vec<&String> =
+        all_keys.iter().filter(|key| !present.contains(key)).collect();
+
+    if let Some(builds) = manifest.allow_builds.as_mut() {
+        for name in &present {
+            builds.shift_remove(name);
+        }
+    }
+
+    if remaining_keys.is_empty() {
+        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.allow_builds = None;
+        manifest.top_level_keys.retain(|key| key != BLOCK);
+        return true;
+    }
+
+    let line_based =
+        locate(manifest.text(), &[BLOCK]).is_some_and(|mapping| !mapping.entries.is_empty());
+
+    if line_based {
+        manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &present));
+        true
+    } else if manifest.allow_builds.as_ref().map_or(0, IndexMap::len) == remaining_keys.len() {
+        rerender_allow_builds_block(manifest, BLOCK);
+        true
+    } else {
+        false
+    }
+}
+
+fn allow_builds_keys_in_text(text: &str) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct OnlyAllowBuilds {
+        #[serde(default, rename = "allowBuilds")]
+        allow_builds: Option<IndexMap<String, serde::de::IgnoredAny>>,
+    }
+    serde_saphyr::from_str::<OnlyAllowBuilds>(text)
+        .ok()
+        .and_then(|parsed| parsed.allow_builds)
+        .map(|map| map.into_keys().collect())
+        .unwrap_or_default()
+}
+
+fn rerender_allow_builds_block(manifest: &mut Manifest, block_name: &str) {
+    let block = {
+        let allow_builds = manifest.allow_builds.as_ref().expect("non-empty allowBuilds above");
+        let mut block = format!("{block_name}:\n");
+        for (name, value) in allow_builds {
+            let rendered_val = match value {
+                AllowBuildValue::Bool(b) => render_bool(*b).to_string(),
+                AllowBuildValue::String(s) => render::render_value(s),
+                AllowBuildValue::Other(_) => String::new(),
+            };
+            writeln!(block, "  {}: {}", render::render_value(name), rendered_val)
+                .expect("writing to a String never fails");
+        }
+        block
+    };
+    manifest.set_text(remove_top_level_block(manifest.text(), block_name));
+    manifest.top_level_keys.retain(|key| key != block_name);
+    let new_text = insert_top_level_block(manifest, block_name, &block);
+    manifest.set_text(new_text);
+    manifest.top_level_keys =
+        render::target_order(&manifest.top_level_keys, &[block_name.to_string()]);
 }

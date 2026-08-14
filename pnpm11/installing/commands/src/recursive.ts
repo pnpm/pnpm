@@ -365,6 +365,7 @@ export async function recursive (
         updatedCatalogs,
         catalogPrune: opts.catalogPrune,
         resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+        minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
         allProjects,
         ...policyUpdates,
       }))

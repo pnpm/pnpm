@@ -3,7 +3,7 @@ use crate::{
     ImporterUpdateSeedPolicy, Install, InstallError, ProjectMutation, ResolvedPackages,
     UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
     decide_catalog_outcome, emit_initial_package_manifest, package_manifest_prefix,
@@ -330,7 +330,7 @@ where
 
         persist_manifest::<Reporter>(manifest)?;
 
-        prune_minimum_release_age_excludes(config, Some(&catalog_ctx.workspace_dir), manifest)
+        post_install_prune(config, Some(&catalog_ctx.workspace_dir), manifest)
             .map_err(AddError::WriteWorkspaceManifest)?;
 
         Ok(())
@@ -478,7 +478,7 @@ where
 
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
 
-        prune_minimum_release_age_excludes(config, Some(&prepared.workspace_dir), manifest)
+        post_install_prune(config, Some(&prepared.workspace_dir), manifest)
             .map_err(AddError::WriteWorkspaceManifest)?;
         Ok(())
     }
