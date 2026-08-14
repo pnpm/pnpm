@@ -1,6 +1,11 @@
 use crate::{
     State,
-    cli_args::{add::add_package, supported_architectures::SupportedArchitecturesArgs},
+    cli_args::{
+        add::add_package, supported_architectures::SupportedArchitecturesArgs,
+        with::prepend_to_path,
+    },
+    engine_pm::{channel::PackageManager, provision::provision},
+    shim_dispatch::materialize_runtime,
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -13,7 +18,7 @@ use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::force_symlink_dir;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{
-    DependencyGroup, convert_engines_runtime_to_dependencies, parse_manifest,
+    DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias, parse_manifest,
 };
 use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
@@ -29,6 +34,12 @@ use std::{
 };
 
 /// Run a package in a temporary environment.
+///
+/// A command naming a package manager (`yarn`, `npm`, `bun`, `pnpm`) or a
+/// runtime (`node`, `deno`, `bun`) is provisioned rather than installed
+/// from the package that shares its name: those npm packages are either a
+/// different line of the tool (`yarn` stops at Classic) or a wrapper that
+/// downloads it.
 #[derive(Debug, Args)]
 pub struct DlxArgs {
     /// The command to run, followed by its arguments.
@@ -145,6 +156,30 @@ impl DlxArgs {
         let Some((bin_command, args)) = command.split_first() else {
             return Err(DlxError::MissingCommand.into());
         };
+
+        // A package manager is not an ordinary package to fetch and throw
+        // away: `pnx yarn@4` means the Yarn 4 line, which is published as
+        // `@yarnpkg/cli-dist` and would be a missing version under the
+        // package's own name. Provisioning knows where each line lives,
+        // verifies the release, and reuses the engine every other
+        // package-manager path already installed. An explicit `--package`
+        // is the user naming what to install, so it stays literal.
+        if package.is_empty()
+            && let Some((pm, version_spec)) = parse_package_manager_spec(bin_command)
+        {
+            return run_package_manager::<Reporter>(config, pm, version_spec, bin_command, args)
+                .await;
+        }
+
+        // A runtime is the same story: `node` and `deno` on npm are
+        // wrappers that fetch a build, not the build itself, and pnpm
+        // already manages the real releases for `devEngines.runtime`.
+        // `pnx node@22 script.js` gets that release.
+        if package.is_empty()
+            && let Some((name, version_spec)) = parse_runtime_spec(bin_command)
+        {
+            return run_runtime(name, version_spec, bin_command, args).await;
+        }
 
         // `pkgs = package ?? [command]`. With `--package`, the command
         // names the bin to run; otherwise the command is also the package.
@@ -405,6 +440,79 @@ fn run_bin(
 
     let status =
         cmd.status().map_err(|source| DlxError::Spawn { command: bin_name.to_string(), source })?;
+    if !status.success() {
+        #[expect(
+            clippy::exit,
+            reason = "dlx propagates the spawned command's exit status, like pnpm"
+        )]
+        std::process::exit(status.code().unwrap_or(1));
+    }
+    Ok(())
+}
+
+/// Split a dlx command word into the package manager it names and the
+/// version specifier it asks for, or `None` when it names something else.
+///
+/// The bare name is the package manager's own line — `pnx yarn` is
+/// whatever Yarn currently ships — matching how a `dlx` package spec
+/// without a version resolves.
+fn parse_package_manager_spec(command: &str) -> Option<(PackageManager, &str)> {
+    let (name, version_spec) = command.split_once('@').unwrap_or((command, "latest"));
+    Some((PackageManager::parse(name)?, version_spec))
+}
+
+/// Split a dlx command word into the runtime it names and the version
+/// specifier it asks for, or `None` when it names something else.
+fn parse_runtime_spec(command: &str) -> Option<(&str, &str)> {
+    let (name, version_spec) = command.split_once('@').unwrap_or((command, "latest"));
+    is_runtime_alias(name).then_some((name, version_spec))
+}
+
+/// Materialize `name` at `version_spec` and run it, the runtime half of
+/// [`run_package_manager`].
+async fn run_runtime(
+    name: &str,
+    version_spec: &str,
+    command: &str,
+    args: &[String],
+) -> miette::Result<()> {
+    let executable =
+        Box::pin(materialize_runtime(name.to_string(), version_spec.to_string())).await?;
+    let bin_dirs: Vec<PathBuf> = executable.parent().map(Path::to_path_buf).into_iter().collect();
+    spawn_provisioned(&executable, &bin_dirs, command, args)
+}
+
+/// Provision `pm` and run it with the caller's arguments, propagating its
+/// exit status the way the rest of dlx does.
+async fn run_package_manager<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    pm: PackageManager,
+    version_spec: &str,
+    command: &str,
+    args: &[String],
+) -> miette::Result<()> {
+    let engine = Box::pin(provision::<Reporter>(config, pm, version_spec)).await?;
+    spawn_provisioned(&engine.program, &engine.bin_dirs, command, args)
+}
+
+/// Run a provisioned executable with `bin_dirs` prepended to `PATH`,
+/// propagating its exit status the way the rest of dlx does.
+fn spawn_provisioned(
+    program: &Path,
+    bin_dirs: &[PathBuf],
+    command: &str,
+    args: &[String],
+) -> miette::Result<()> {
+    let path = prepend_to_path(bin_dirs)?;
+    let mut cmd = Command::new(program);
+    cmd.args(args);
+    // Drop any inherited PATH-like key before re-inserting our own, so a
+    // Windows `Path`/`PATH` pair can't collapse to an unspecified winner.
+    cmd.env_remove("PATH");
+    cmd.env_remove("Path");
+    cmd.env("PATH", &path);
+    let status =
+        cmd.status().map_err(|source| DlxError::Spawn { command: command.to_string(), source })?;
     if !status.success() {
         #[expect(
             clippy::exit,

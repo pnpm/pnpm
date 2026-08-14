@@ -16,7 +16,7 @@ fn a_pinned_package_manager_is_forwarded_with_its_version() {
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
     let body = shim_body(dir.path(), "yarn");
-    assert!(body.contains("with"), "{body}");
+    assert!(body.contains("dlx"), "{body}");
     assert!(body.contains("yarn@1"), "{body}");
     assert!(body.contains("/opt/pnpm"), "{body}");
 }
@@ -30,7 +30,7 @@ fn an_unpinned_package_manager_is_forwarded_by_name() {
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
     let body = shim_body(dir.path(), "bun");
-    let spec = if cfg!(windows) { r#"with "bun""# } else { "with 'bun'" };
+    let spec = if cfg!(windows) { r#"dlx "bun""# } else { "dlx 'bun'" };
     assert!(body.contains(spec), "an unpinned spec carries no version: {body}");
 }
 
@@ -71,7 +71,7 @@ fn a_hostile_pnpm_path_is_quoted() {
     // as a command.
     assert_eq!(
         shim_body(dir.path(), "npm"),
-        "#!/bin/sh\nexec '/opt/p'\\''; touch /tmp/pwned; '\\''' with 'npm' \"$@\"\n",
+        "#!/bin/sh\nexec '/opt/p'\\''; touch /tmp/pwned; '\\''' dlx 'npm' \"$@\"\n",
     );
 }
 
@@ -92,6 +92,6 @@ fn a_planted_entry_is_replaced() {
     let wanted = WantedPm { pm: PreferredPm::Npm, version_spec: None, pinned: false };
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
-    assert!(shim_body(dir.path(), "npm").contains("with"));
+    assert!(shim_body(dir.path(), "npm").contains("dlx"));
     assert_eq!(fs::read_to_string(&elsewhere).unwrap(), "original\n");
 }

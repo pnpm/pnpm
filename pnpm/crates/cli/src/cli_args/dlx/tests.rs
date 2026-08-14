@@ -278,3 +278,22 @@ fn get_bin_name_finds_a_runtime_recorded_as_engines_runtime() {
     );
     assert_eq!(get_bin_name(dir.path()).expect("bin name"), "node");
 }
+
+/// The command word decides whether dlx provisions a tool or installs a
+/// package. Only the names pnpm actually manages are routed away from the
+/// ordinary path.
+#[test]
+fn only_managed_tools_are_provisioned_by_name() {
+    use super::{parse_package_manager_spec, parse_runtime_spec};
+    use crate::engine_pm::channel::PackageManager;
+
+    assert_eq!(parse_package_manager_spec("yarn@4"), Some((PackageManager::Yarn, "4")));
+    assert_eq!(parse_package_manager_spec("npm"), Some((PackageManager::Npm, "latest")));
+    assert_eq!(parse_package_manager_spec("typescript@5"), None);
+    // A scoped package's leading `@` is not a version separator.
+    assert_eq!(parse_package_manager_spec("@yarnpkg/cli-dist@4.9.2"), None);
+
+    assert_eq!(parse_runtime_spec("node@22"), Some(("node", "22")));
+    assert_eq!(parse_runtime_spec("deno"), Some(("deno", "latest")));
+    assert_eq!(parse_runtime_spec("nodemon@3"), None);
+}

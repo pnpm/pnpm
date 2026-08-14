@@ -498,7 +498,7 @@ fn other_pm_hint(name: &str) -> String {
         return format!("pnpm cannot provide {name}. Install it to work on this project.");
     }
     format!(
-        r#"Run a one-off command with "pnpm with {name} <command>", or link a {name} command that follows this project's pin with "pnpm shim add {name}"."#,
+        r#"Run a one-off command with "pnpm dlx {name} <command>", or link a {name} command that follows this project's pin with "pnpm shim add {name}"."#,
     )
 }
 

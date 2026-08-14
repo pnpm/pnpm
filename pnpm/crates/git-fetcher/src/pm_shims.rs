@@ -4,7 +4,7 @@
 //! The dependency's install and prepublish scripts invoke `yarn`, `npm` or
 //! `bun` by name — its own scripts do too — so the package manager has to
 //! be reachable as a command, not just as a path pnpm knows. Each shim
-//! forwards to `pnpm with <pm>@<spec>`, which resolves, verifies and
+//! forwards to `pnpm dlx <pm>@<spec>`, which resolves, verifies and
 //! installs that package manager once and reuses it afterwards.
 
 use std::{
@@ -52,7 +52,7 @@ pub(crate) fn write_pm_shims(
 #[cfg(unix)]
 fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, String)> {
     let contents = format!(
-        "#!/bin/sh\nexec {pnpm} with {spec} \"$@\"\n",
+        "#!/bin/sh\nexec {pnpm} dlx {spec} \"$@\"\n",
         pnpm = sh_quote(&pnpm_execpath.to_string_lossy()),
         spec = sh_quote(spec),
     );
@@ -62,7 +62,7 @@ fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, Stri
 #[cfg(windows)]
 fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, String)> {
     let pnpm = pnpm_execpath.display();
-    let contents = format!("@\"{pnpm}\" with \"{spec}\" %*\r\n");
+    let contents = format!("@\"{pnpm}\" dlx \"{spec}\" %*\r\n");
     vec![(format!("{name}.cmd"), contents)]
 }
 

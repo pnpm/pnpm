@@ -1,14 +1,17 @@
-//! `pacquet with <spec|current> <args...>` — run a package manager at a
-//! specific version for a single invocation, ignoring the project's
-//! `packageManager` / `devEngines.packageManager` pin.
+//! `pacquet with <version|current> <args...>` — run pnpm at a specific
+//! version (or the currently running one) for a single invocation,
+//! ignoring the project's `packageManager` / `devEngines.packageManager`
+//! pin.
 //!
-//! The spec is a pnpm version, range, or dist-tag, or another package
-//! manager as `<name>@<spec>` (`yarn@4`, `npm@10`, `bun`).
+//! This is about pnpm's own version. Running one of the *other* package
+//! managers is `pnpm dlx <pm>@<spec>` (`pnx yarn@4 install`), which
+//! provisions it through the same engine installer.
 //!
 //! `with current <cmd>` is rewritten before clap parses argv (see
 //! [`crate::with_current`]) into a direct dispatch of `<cmd>` with
-//! `pmOnFail` forced to `ignore`, so this handler only ever sees a spec,
-//! which it resolves, installs into the global virtual store, and spawns.
+//! `pmOnFail` forced to `ignore`, so this handler only ever sees a
+//! version / range / dist-tag spec, which it resolves, installs into the
+//! global virtual store, and spawns.
 
 use clap::Args;
 use derive_more::{Display, Error};
@@ -23,10 +26,7 @@ use std::{
 
 use crate::{
     cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
-    engine_pm::{
-        channel::PackageManager,
-        provision::{ProvisionedEngine, provision},
-    },
+    engine_pm::{channel::PackageManager, provision::provision},
 };
 
 /// Errors specific to `pacquet with`. The codes carry the shared
@@ -50,10 +50,9 @@ pub enum WithError {
 
 #[derive(Debug, Args)]
 pub struct WithArgs {
-    /// The package manager to run: a pnpm version, range, or dist-tag,
-    /// another package manager as `<name>@<spec>`, or `current` to use the
-    /// pnpm that is already running. Followed by the command and its
-    /// arguments.
+    /// The pnpm version, range, or dist-tag to run — or `current` to use
+    /// the pnpm that is already running — followed by the pnpm command and
+    /// its arguments.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub params: Vec<String>,
 }
@@ -66,23 +65,13 @@ impl WithArgs {
         let Some((spec, args)) = self.params.split_first() else {
             return Err(WithError::MissingSpec.into());
         };
-        let (pm, version_spec) = parse_engine_spec(spec);
-        // Corepack owns which pnpm runs, so running a different one behind
-        // its back is refused. It has no say over the other package
-        // managers pnpm provisions, so those are unaffected.
-        if pm == PackageManager::Pnpm && is_executed_by_corepack() {
+        if is_executed_by_corepack() {
             return Err(WithError::CantUseWithInCorepack.into());
         }
 
-        let engine = Box::pin(provision::<Reporter>(config, pm, version_spec)).await?;
+        let engine = Box::pin(provision::<Reporter>(config, PackageManager::Pnpm, spec)).await?;
 
-        let status = if pm == PackageManager::Pnpm {
-            // The child is pnpm, so it has to be told not to switch itself
-            // back to the project's pin.
-            spawn_pnpm(&engine.bin_dirs[0], args, PackageManagerCheck::Disabled)?
-        } else {
-            spawn_engine(&engine, args)?
-        };
+        let status = spawn_pnpm(&engine.bin_dirs[0], args, PackageManagerCheck::Disabled)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
@@ -90,36 +79,6 @@ impl WithArgs {
         }
         Ok(())
     }
-}
-
-/// Split a `pnpm with` spec into the package manager to run and its
-/// version specifier. A spec that names no package manager is a pnpm
-/// version, range, or dist-tag — the original form of the command, so
-/// `pnpm with 10.5.0` keeps meaning pnpm 10.5.0.
-fn parse_engine_spec(spec: &str) -> (PackageManager, &str) {
-    let (name, version_spec) = spec.split_once('@').unwrap_or((spec, "latest"));
-    PackageManager::parse(name).map_or((PackageManager::Pnpm, spec), |pm| (pm, version_spec))
-}
-
-/// Spawn a provisioned package manager with its directories prepended to
-/// `PATH`, inheriting stdio.
-fn spawn_engine<Args, Arg>(
-    engine: &ProvisionedEngine,
-    args: Args,
-) -> miette::Result<std::process::ExitStatus>
-where
-    Args: IntoIterator<Item = Arg>,
-    Arg: AsRef<std::ffi::OsStr>,
-{
-    let path = prepend_to_path(&engine.bin_dirs)?;
-    let mut cmd = Command::new(&engine.program);
-    cmd.args(args);
-    // Drop any inherited PATH-like key before re-inserting our own, so a
-    // Windows `Path`/`PATH` pair can't collapse to an unspecified winner.
-    cmd.env_remove("PATH");
-    cmd.env_remove("Path");
-    cmd.env("PATH", &path);
-    cmd.status().into_diagnostic().wrap_err("run the requested package manager")
 }
 
 #[derive(Clone, Copy)]

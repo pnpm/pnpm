@@ -147,28 +147,6 @@ fn with_version_downloads_and_runs_the_specified_pnpm_version() {
     drop((root, mock_instance));
 }
 
-/// A spec naming another package manager provisions that one instead of
-/// pnpm — the same install path, resolved against the package the channel
-/// table maps Yarn Classic to.
-#[test]
-fn with_downloads_and_runs_another_package_manager() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
-
-    let registry_arg = format!("--config.registry={}", mock_instance.url());
-    let output = test_command(pacquet, root.path())
-        .args([registry_arg.as_str(), "with", "yarn@1.22.22", "--version"])
-        .output()
-        .expect("run pacquet with a specified yarn version");
-    dbg!(&output);
-    assert_success(&output);
-    assert_eq!(stdout(&output).trim(), "1.22.22");
-
-    drop((root, mock_instance));
-}
-
 #[test]
 fn with_version_ignores_the_package_manager_pin_and_uses_the_requested_version() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
