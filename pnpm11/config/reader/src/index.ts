@@ -657,6 +657,10 @@ export async function getConfig (opts: {
     pnpmConfig.extraBinPaths = []
   }
 
+  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
+    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
+  }
+
   pnpmConfig.extraEnv = {
     pnpm_config_verify_deps_before_run: 'false',
   }
@@ -722,10 +726,6 @@ export async function getConfig (opts: {
   }
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
-
-  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
-    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
-  }
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 

@@ -191,6 +191,75 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
   expect(result.stdout.toString()).toContain(`${path.sep}foo${path.sep}bar${path.sep}node_modules`)
 })
 
+testOnPosix('pnpm run from a workspace package uses the shared virtual store in NODE_PATH', () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'workspace',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        private: true,
+        scripts: {
+          build: 'node -e "console.log(process.env.NODE_PATH)"',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    preferSymlinkedExecutables: true,
+  })
+
+  const result = execPnpmSync(['run', 'build'], {
+    cwd: projects.app.dir(),
+    expectSuccess: true,
+  })
+
+  expect(result.stdout.toString()).toContain(path.join(process.cwd(), 'node_modules/.pnpm/node_modules'))
+})
+
+testOnPosix('pnpm run from a workspace package uses its own virtual store when lockfiles are not shared', () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'workspace',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        private: true,
+        scripts: {
+          build: 'node -e "console.log(process.env.NODE_PATH)"',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    preferSymlinkedExecutables: true,
+    sharedWorkspaceLockfile: false,
+  })
+
+  const result = execPnpmSync(['run', 'build'], {
+    cwd: projects.app.dir(),
+    expectSuccess: true,
+  })
+
+  expect(result.stdout.toString()).toContain(path.join(projects.app.dir(), 'node_modules/.pnpm/node_modules'))
+})
+
 test('collapse output when running multiple scripts in one project', async () => {
   prepare({
     scripts: {
