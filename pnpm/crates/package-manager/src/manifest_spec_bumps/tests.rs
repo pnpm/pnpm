@@ -36,8 +36,8 @@ fn a_dist_tag_keeps_tracking_its_tag() {
 
 #[test]
 fn a_prerelease_pick_keeps_the_declared_range_operator() {
-    assert_eq!(bump("^1.0.0-beta.1", "1.0.0-beta.2").as_deref(), Some("^1.0.0-beta.2"),);
-    assert_eq!(bump("~1.0.0-beta.1", "1.0.0-beta.2").as_deref(), Some("~1.0.0-beta.2"),);
+    assert_eq!(bump("^1.0.0-beta.1", "1.0.0-beta.2").as_deref(), Some("^1.0.0-beta.2"));
+    assert_eq!(bump("~1.0.0-beta.1", "1.0.0-beta.2").as_deref(), Some("~1.0.0-beta.2"));
 }
 
 #[test]
