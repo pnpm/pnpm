@@ -83,7 +83,9 @@ test('remove unreferenced packages', async () => {
       message: 'Removed 1 package',
     })
   )
-  expect(fs.readdirSync(cacheDir)).toStrictEqual([])
+  const cacheEntriesExceptVerificationLog = fs.readdirSync(cacheDir)
+    .filter((entry) => entry !== 'lockfile-verified.jsonl')
+  expect(cacheEntriesExceptVerificationLog).toStrictEqual([])
 })
 
 test('prune outputs total size of removed files', async () => {
