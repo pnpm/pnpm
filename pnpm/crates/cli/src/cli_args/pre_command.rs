@@ -22,11 +22,15 @@ use super::{
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{PackageManagerCheck, spawn_pnpm},
 };
-use crate::engine_pm::{
-    channel::PackageManager,
-    install::{install_engine_from_env, install_engine_to_store},
+use crate::{
+    config_deps,
+    config_overrides::ConfigOverrides,
+    engine_pm::{
+        channel::PackageManager,
+        install::{install_engine_from_env, install_engine_to_store},
+    },
+    flag_relocation::ArgTable,
 };
-use crate::{config_deps, config_overrides::ConfigOverrides, flag_relocation::ArgTable};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};

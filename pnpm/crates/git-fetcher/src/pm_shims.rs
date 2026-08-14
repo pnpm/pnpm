@@ -61,8 +61,8 @@ fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, Stri
 
 #[cfg(windows)]
 fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, String)> {
-    let contents =
-        format!("@\"{pnpm}\" with \"{spec}\" %*\r\n", pnpm = pnpm_execpath.display(), spec = spec,);
+    let pnpm = pnpm_execpath.display();
+    let contents = format!("@\"{pnpm}\" with \"{spec}\" %*\r\n");
     vec![(format!("{name}.cmd"), contents)]
 }
 

@@ -149,12 +149,14 @@ pub fn prepare_package<Reporter: self::Reporter>(
     {
         match write_pm_shims(shims.dir, &wanted_pm, shims.pnpm_execpath) {
             Ok(_) => extra_bin_paths.insert(0, shims.dir.to_path_buf()),
-            Err(error) => tracing::warn!(
-                target: "pacquet::git_fetcher",
-                "could not provide {} for the build at {}: {error}",
-                pm.name(),
-                shims.dir.display(),
-            ),
+            Err(error) => {
+                let name = pm.name();
+                let dir = shims.dir.display();
+                tracing::warn!(
+                    target: "pacquet::git_fetcher",
+                    "could not provide {name} for the build at {dir}: {error}",
+                );
+            }
         }
     }
 

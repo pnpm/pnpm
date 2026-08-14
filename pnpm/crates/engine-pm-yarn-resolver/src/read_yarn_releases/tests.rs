@@ -26,7 +26,7 @@ fn releases_body(extra_assets: &str) -> String {
             "tag_name": "v6.0.0-rc.18",
             "assets": []
           }}
-        ]"#
+        ]"#,
     )
 }
 

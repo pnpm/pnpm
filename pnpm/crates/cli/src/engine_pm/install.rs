@@ -99,8 +99,9 @@ pub(crate) async fn install_engine_from_env<Reporter: self::Reporter + 'static>(
 /// ships as a platform archive instead of npm packages — the binary
 /// channels never reach this installer.
 fn registry_engine_packages(pm: PackageManager, version: &str) -> miette::Result<EnginePackages> {
+    let name = pm.name();
     pm.engine_packages(version)
-        .ok_or_else(|| miette::miette!("{}@{version} is not published to a registry", pm.name()))
+        .ok_or_else(|| miette::miette!("{name}@{version} is not published to a registry"))
 }
 
 async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>(
