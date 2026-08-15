@@ -2,8 +2,10 @@
 // Corepack uses them: a wrapper directory without the `@pnpm/exe.<target>`
 // dependency, against a registry that serves a stand-in for the native binary.
 //
-// The stand-in is a shell script, so the tests that spawn it are Unix-only; the
-// download it comes through is get-pnpm's, and tested there.
+// The stand-in is a shell script, so only the tests that reach the point of
+// spawning it are Unix-only. Everything that ends before that — a refused
+// download, a misconfigured key set, a forbidden network — runs everywhere,
+// which is what covers the paths where Windows differs.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -28,18 +30,19 @@ if [ "$1" = fail ]; then exit 3; fi
 echo "ran: $*"
 `
 
-const SKIP_ON_WINDOWS = process.platform === 'win32' &&
+const SPAWNS_THE_BINARY = process.platform === 'win32' &&
   'the stand-in for the native binary is a shell script, which Windows cannot spawn'
+const DOWNLOADED_BINARY = process.platform === 'win32' ? 'pnpm-native.exe' : 'pnpm-native'
 
-describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
-  it('downloads the native binary on first use, then reuses it', async () => {
+describe('corepack entry point', () => {
+  it('downloads the native binary on first use, then reuses it', { skip: SPAWNS_THE_BINARY }, async () => {
     const fixture = await createFixture()
 
     const first = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
     assert.equal(first.status, 0, first.stderr)
     assert.match(first.stdout, /ran: --version/)
     assert.match(first.stderr, /Downloading the pnpm 99\.0\.0 binary/)
-    assert.ok(fs.existsSync(path.join(fixture.dir, 'pnpm-native')))
+    assert.ok(fs.existsSync(path.join(fixture.dir, DOWNLOADED_BINARY)))
 
     // Nothing but the cached binary can answer once the registry is gone.
     await fixture.closeRegistry()
@@ -49,13 +52,13 @@ describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
     assert.doesNotMatch(second.stderr, /Downloading/)
   })
 
-  it('propagates the exit code of the native binary', async () => {
+  it('propagates the exit code of the native binary', { skip: SPAWNS_THE_BINARY }, async () => {
     const fixture = await createFixture()
 
     assert.equal((await runEntry(fixture, 'bin/pnpm.mjs', ['fail'])).status, 3)
   })
 
-  it('runs `pnpx` as `pnpm dlx`', async () => {
+  it('runs `pnpx` as `pnpm dlx`', { skip: SPAWNS_THE_BINARY }, async () => {
     const fixture = await createFixture()
 
     const result = await runEntry(fixture, 'bin/pnpx.mjs', ['create-vite', 'app'])
@@ -63,7 +66,7 @@ describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
     assert.match(result.stdout, /ran: dlx create-vite app/)
   })
 
-  it('prefers the installed platform package over a download', async () => {
+  it('prefers the installed platform package over a download', { skip: SPAWNS_THE_BINARY }, async () => {
     const fixture = await createFixture()
     const installedDir = path.join(fixture.dir, 'node_modules', packageName)
     fs.mkdirSync(installedDir, { recursive: true })
@@ -73,7 +76,7 @@ describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
     const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
     assert.equal(result.status, 0, result.stderr)
     assert.match(result.stdout, /installed: --version/)
-    assert.equal(fs.existsSync(path.join(fixture.dir, 'pnpm-native')), false)
+    assert.equal(fs.existsSync(path.join(fixture.dir, DOWNLOADED_BINARY)), false)
   })
 
   it('refuses a download the published checksum does not cover', async () => {
@@ -82,7 +85,7 @@ describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
     const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /does not match the checksum/)
-    assert.equal(fs.existsSync(path.join(fixture.dir, 'pnpm-native')), false)
+    assert.equal(fs.existsSync(path.join(fixture.dir, DOWNLOADED_BINARY)), false)
   })
 
   it('refuses a download signed by a key the environment does not name', async () => {
@@ -95,18 +98,22 @@ describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
     assert.match(result.stderr, /unexpected npm key/)
   })
 
-  it('downloads from a registry that publishes no signature when Corepack is told to skip', async () => {
+  it('refuses a registry that publishes no signature', async () => {
     const fixture = await createFixture({ unsigned: true })
 
-    const refused = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
-    assert.notEqual(refused.status, 0)
-    assert.match(refused.stderr, /carries no npm registry signature/)
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /carries no npm registry signature/)
+  })
 
-    // Corepack's own opt-out, which such a registry already needs for Corepack
-    // to have installed this wrapper from it.
-    const skipped = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], { COREPACK_INTEGRITY_KEYS: '0' })
-    assert.equal(skipped.status, 0, skipped.stderr)
-    assert.match(skipped.stdout, /ran: --version/)
+  // Corepack's own opt-out, which a registry that publishes no signature
+  // already needs for Corepack to have installed this wrapper from it.
+  it('takes an unsigned download when Corepack is told to skip', { skip: SPAWNS_THE_BINARY }, async () => {
+    const fixture = await createFixture({ unsigned: true })
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], { COREPACK_INTEGRITY_KEYS: '0' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /ran: --version/)
   })
 
   it('reports a key set it cannot read instead of silently trusting npm', async () => {

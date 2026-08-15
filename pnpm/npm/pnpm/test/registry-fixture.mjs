@@ -77,7 +77,12 @@ export function startRegistry ({ payload, tamper = false, unsigned = false }) {
     server.listen(0, '127.0.0.1', () => {
       resolve({
         url: `http://127.0.0.1:${server.address().port}`,
-        close: () => new Promise((closed) => { server.close(closed) }),
+        close: () => new Promise((closed) => {
+          server.close(closed)
+          // `close` alone waits out an idle keep-alive connection; absent
+          // before Node.js 18.2, which the package still claims to support.
+          server.closeAllConnections?.()
+        }),
       })
     })
   })
