@@ -471,12 +471,15 @@ where
         } else {
             shim_node_path(pkg, &options.extra_node_paths)
         };
+        let pkg_name = pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("");
+        let make_powershell_shim = pkg_name != "pnpm";
         write_shim::<Sys>(
             &command.path,
             &bins_dir.join(bin_name),
             &node_path,
             options.prefer_symlinked_executables,
             style,
+            make_powershell_shim,
         )
     })?;
 
@@ -554,6 +557,7 @@ fn write_shim<Sys>(
     node_path: &[String],
     prefer_symlinked_executables: bool,
     style: ShimStyle,
+    make_powershell_shim: bool,
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
@@ -628,8 +632,9 @@ where
         let ps1_path = with_extension_appended(shim_path, "ps1");
         let cmd_body =
             generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path, style);
-        let ps1_body =
-            generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path, style);
+        let ps1_body = make_powershell_shim.then(|| {
+            generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path, style)
+        });
         (cmd_path, cmd_body, ps1_path, ps1_body)
     });
 
@@ -667,10 +672,13 @@ where
                 Sys::read_to_string(cmd_path),
                 Ok(existing) if &existing == cmd_body,
             );
-            let ps1_ok = matches!(
-                Sys::read_to_string(ps1_path),
-                Ok(existing) if &existing == ps1_body,
-            );
+            let ps1_ok = match ps1_body {
+                Some(body) => matches!(
+                    Sys::read_to_string(ps1_path),
+                    Ok(existing) if &existing == body,
+                ),
+                None => Sys::read_to_string(ps1_path).is_err(),
+            };
             cmd_ok && ps1_ok
         }
     };
@@ -690,8 +698,10 @@ where
             Sys::write(cmd_path, cmd_body.as_bytes())
                 .map_err(|error| LinkBinsError::WriteShim { path: cmd_path.clone(), error })?;
             remove_stale_bin(ps1_path)?;
-            Sys::write(ps1_path, ps1_body.as_bytes())
-                .map_err(|error| LinkBinsError::WriteShim { path: ps1_path.clone(), error })?;
+            if let Some(body) = ps1_body {
+                Sys::write(ps1_path, body.as_bytes())
+                    .map_err(|error| LinkBinsError::WriteShim { path: ps1_path.clone(), error })?;
+            }
         }
     }
 

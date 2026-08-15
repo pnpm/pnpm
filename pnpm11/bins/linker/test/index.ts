@@ -154,6 +154,23 @@ test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => 
   expect(bins).not.toContain('pnpm.ps1')
 })
 
+test('linkBins() deletes any pre-existing/stale pnpm.ps1 shim for the pnpm CLI', async () => {
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('pnpm-cli')
+  const warn = jest.fn()
+
+  const stalePs1 = path.join(binTarget, 'pnpm.ps1')
+  fs.mkdirSync(binTarget, { recursive: true })
+  fs.writeFileSync(stalePs1, 'stale content')
+
+  await linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })
+
+  const bins = fs.readdirSync(binTarget)
+  expect(bins).toContain('pnpm')
+  expect(bins).not.toContain('pnpm.ps1')
+  expect(fs.existsSync(stalePs1)).toBe(false)
+})
+
 test('linkBins() finds exotic manifests', async () => {
   const binTarget = temporaryDirectory()
   const exoticManifestFixture = f.prepare('exotic-manifest')

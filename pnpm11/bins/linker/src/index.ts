@@ -274,6 +274,13 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       const content = await fs.readFile(externalBinPath, 'utf8')
       isCorrectlyLinked = isShimPointingAt(content, cmd.path)
     }
+    if (isCorrectlyLinked) {
+      if (cmd.makePowerShellShim) {
+        isCorrectlyLinked = existsSync(`${externalBinPath}.ps1`)
+      } else {
+        isCorrectlyLinked = !existsSync(`${externalBinPath}.ps1`)
+      }
+    }
   } catch {}
   if (isCorrectlyLinked) {
     // If a previous install failed, we may have re-copied the bin script from
@@ -354,6 +361,13 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       nodePath,
       nodeExecPath: cmd.nodeExecPath,
     })
+    if (!cmd.makePowerShellShim) {
+      try {
+        await fs.unlink(`${externalBinPath}.ps1`)
+      } catch (err: any) { // eslint-disable-line
+        if (err.code !== 'ENOENT') throw err
+      }
+    }
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {
       globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)

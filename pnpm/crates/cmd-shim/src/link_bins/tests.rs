@@ -1482,3 +1482,43 @@ fn prefer_symlinked_executables_links_a_bin_whose_target_is_missing() {
         Path::new("../foo/cli.js"),
     );
 }
+
+#[test]
+fn does_not_write_powershell_shim_for_pnpm_package_on_windows() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp.path().join("node_modules/pnpm");
+    create_dir_all(&pkg_dir).unwrap();
+    write_file(
+        pkg_dir.join("package.json"),
+        json!({"name": "pnpm", "version": "1.0.0", "bin": {"pnpm": "cli.js", "pn": "cli.js"}})
+            .to_string(),
+    )
+    .unwrap();
+    write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let manifest_value: Value =
+        serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
+
+    // Create a stale pnpm.ps1 to make sure it gets cleaned up
+    let stale_ps1 = bins_dir.join("pnpm.ps1");
+    create_dir_all(&bins_dir).unwrap();
+    write_file(&stale_ps1, "stale content").unwrap();
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let sh = bins_dir.join("pnpm");
+    let cmd = bins_dir.join("pnpm.cmd");
+    let ps1 = bins_dir.join("pnpm.ps1");
+
+    assert!(sh.exists());
+    if cfg!(windows) {
+        assert!(cmd.exists());
+        assert!(!ps1.exists(), "stale pnpm.ps1 must be removed and not recreated");
+    }
+}
