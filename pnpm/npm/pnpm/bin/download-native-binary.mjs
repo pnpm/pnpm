@@ -30,7 +30,7 @@ const TAR_BLOCK_SIZE = 512
  */
 export async function downloadNativeBinary ({ packageName, version, binFile, destPath }) {
   const registry = registryUrl()
-  const metadata = await fetchJson(`${registry}/${packageName.replace('/', '%2F')}/${version}`)
+  const metadata = await fetchJson(`${registry}/${packageName.replaceAll('/', '%2F')}/${version}`)
   const dist = metadata?.dist
   if (typeof dist?.tarball !== 'string') {
     throw new Error(`The registry returned no tarball URL for ${packageName}@${version}`)
@@ -62,11 +62,16 @@ function registryUrl () {
 
 // Registries that proxy npm hand back npmjs.org tarball URLs; Corepack rewrites
 // those to the configured registry, and so must we, or the download escapes an
-// air-gapped mirror that the metadata request stayed inside of.
+// air-gapped mirror that the metadata request stayed inside of. Matched by
+// origin rather than by prefix, so a host that merely starts with npm's — say
+// `registry.npmjs.org.example.com` — is left alone instead of being spliced
+// onto the configured registry.
 function rehostTarballUrl (tarballUrl, registry) {
-  return tarballUrl.startsWith(DEFAULT_REGISTRY)
-    ? `${registry}${tarballUrl.slice(DEFAULT_REGISTRY.length)}`
-    : tarballUrl
+  const url = new URL(tarballUrl)
+  if (url.origin !== new URL(DEFAULT_REGISTRY).origin) {
+    return tarballUrl
+  }
+  return `${registry}${url.pathname}${url.search}`
 }
 
 async function fetchJson (url) {

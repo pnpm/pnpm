@@ -285,9 +285,11 @@ jobs:
 
       # The wrapper that carries the native binary to npm is plain Node.js with
       # no dependencies (Corepack installs none), so it needs nothing but the
-      # runner's Node.js to test.
+      # runner's Node.js to test. The shell expands the glob, because `--test`
+      # only takes patterns itself on Node.js >=22.
       - name: Test
-        run: node --test 'pnpm/npm/pnpm/test/*.test.mjs'
+        working-directory: pnpm/npm/pnpm/test
+        run: node --test *.test.mjs
 
   typos:
     name: Rust CI / Spell Check

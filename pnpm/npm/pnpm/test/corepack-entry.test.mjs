@@ -152,7 +152,7 @@ async function createFixture ({ corruptIntegrity = false } = {}) {
 function startRegistry ({ tarball, integrity }) {
   const tarballPath = `/${packageName}/-/${VERSION}.tgz`
   const server = http.createServer((req, res) => {
-    if (req.url === `/${packageName.replace('/', '%2F')}/${VERSION}`) {
+    if (req.url === `/${packageName.replaceAll('/', '%2F')}/${VERSION}`) {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({
         name: packageName,
