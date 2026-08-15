@@ -274,10 +274,21 @@ jobs:
         run: cargo doc --no-deps --workspace --document-private-items
 
   npm-wrapper:
-    name: Rust CI / npm Wrapper
+    name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Both, because the wrapper places and spawns a native executable and
+          # those are where Windows differs. The tests that need to spawn one
+          # skip themselves there; the download half runs everywhere.
+          - os: blacksmith-4vcpu-ubuntu-2404
+            os_label: ubuntu
+          - os: blacksmith-8vcpu-windows-2025
+            os_label: windows
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -285,9 +296,11 @@ jobs:
 
       # The wrapper that carries the native binary to npm is plain Node.js with
       # no dependencies (Corepack installs none), so it needs nothing but the
-      # runner's Node.js to test. The shell expands the glob, because `--test`
-      # only takes patterns itself on Node.js >=22.
+      # runner's Node.js to test. bash on both platforms: the shell has to
+      # expand the glob, because `--test` only takes patterns itself on
+      # Node.js >=22.
       - name: Test
+        shell: bash
         working-directory: pnpm/npm/pnpm/test
         run: node --test *.test.mjs
 
