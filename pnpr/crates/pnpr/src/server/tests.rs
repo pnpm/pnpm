@@ -459,3 +459,23 @@ async fn team_listing_masks_callers_the_registry_denies() {
     let allowed = app.oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
     assert_eq!(allowed.status(), StatusCode::OK);
 }
+
+#[test]
+fn packument_last_modified_formats_the_documents_modified_time() {
+    let doc = serde_json::json!({
+        "name": "acme",
+        "time": { "modified": "2024-01-02T03:04:05.678Z" },
+    });
+    assert_eq!(
+        super::packument_last_modified(&doc).as_deref(),
+        Some("Tue, 02 Jan 2024 03:04:05 GMT"),
+    );
+    // No / malformed time.modified omits the header instead of guessing.
+    assert_eq!(super::packument_last_modified(&serde_json::json!({"name": "acme"})), None);
+    assert_eq!(
+        super::packument_last_modified(
+            &serde_json::json!({"time": {"modified": "not-a-date"}}),
+        ),
+        None,
+    );
+}

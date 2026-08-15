@@ -40,7 +40,8 @@ pub use resolve::{
 };
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use verifier::{
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    PlannedCanonicalFetches, ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier,
+    VerifyCtx, VerifyFuture,
 };
 
 #[cfg(test)]

@@ -39,6 +39,9 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) skip_runtimes: bool,
     pub(super) modules_manifest: Option<&'a pacquet_modules_yaml::ModulesLayout>,
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
+    /// Filled by the frozen path's `CreateVirtualStore` after its
+    /// warm/cold partition; consumed by the npm verifier's age gate.
+    pub(super) planned_canonical_fetches: pacquet_resolving_resolver_base::PlannedCanonicalFetches,
     pub(super) prune_orphans: bool,
     pub(super) logged_methods: &'a AtomicU8,
     pub(super) update_checksums: bool,
@@ -102,6 +105,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         skip_runtimes,
         modules_manifest,
         prior_hoisted_dependencies,
+        planned_canonical_fetches,
         prune_orphans,
         logged_methods,
         update_checksums,
@@ -263,6 +267,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             rebuild,
             prior_hoisted_dependencies,
             prune_orphans,
+            planned_canonical_fetches: Some(&planned_canonical_fetches),
         }
         .run::<Reporter>()
         .await

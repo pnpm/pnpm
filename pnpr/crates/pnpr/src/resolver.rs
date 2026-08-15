@@ -1339,6 +1339,7 @@ async fn verify_input_lockfile(
         Some(meta_cache as Arc<dyn PackageMetaCache>),
         Some(Arc::clone(auth_headers)),
         Some(Arc::clone(&dist_stats)),
+        None,
     )
     .map_err(|err| {
         VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))

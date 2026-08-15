@@ -186,6 +186,13 @@ pub struct CreateVirtualStore<'a> {
     /// Custom fetchers from the pnpmfile. Consulted per snapshot
     /// before the built-in resolution-type dispatch.
     pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
+    /// Fetch-evidence cell filled right after the warm/cold partition
+    /// with the cold registry-resolved snapshots this run downloads —
+    /// see [`pacquet_resolving_resolver_base::PlannedCanonicalFetches`].
+    /// `None` for callers with no concurrent verification fan-out to
+    /// feed (the fresh-resolve path, `--filter` passes, tests).
+    pub planned_canonical_fetches:
+        Option<&'a pacquet_resolving_resolver_base::PlannedCanonicalFetches>,
     #[cfg(test)]
     pub link_concurrency_probe:
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
@@ -254,6 +261,7 @@ impl CreateVirtualStore<'_> {
             progress_reported,
             tarball_mem_cache,
             custom_fetcher_picker,
+            planned_canonical_fetches,
             #[cfg(test)]
             link_concurrency_probe,
         } = self;
@@ -444,6 +452,35 @@ impl CreateVirtualStore<'_> {
             &marker_rebuilds,
             node_linker,
         );
+
+        // Publish the cold-batch fetch plan for the concurrent
+        // verification fan-out: every cold registry-resolved snapshot
+        // with a pinned hash is downloaded from its canonical registry
+        // URL by this run (or fails the install / is dropped as an
+        // uninstallable optional), which is the existence evidence the
+        // npm verifier's age gate may substitute for a metadata body.
+        // First fill wins; entries outside the plan keep the
+        // metadata-backed path.
+        if let Some(cell) = planned_canonical_fetches {
+            let mut planned = HashSet::with_capacity(cold.len());
+            for (snapshot_key, _snapshot) in &cold {
+                let metadata_key = snapshot_key.without_peer();
+                let Some(metadata) = packages.get(&metadata_key) else { continue };
+                if !matches!(metadata.resolution, LockfileResolution::Registry(_))
+                    || metadata.resolution.checkable_integrity().is_none()
+                {
+                    continue;
+                }
+                // Mirror the verification runner's candidate keying: a
+                // registry-qualified key contributes its bare semver.
+                let version = match metadata_key.suffix.registry_qualified() {
+                    Some((_, version)) => version.to_string(),
+                    None => metadata_key.suffix.version().to_string(),
+                };
+                planned.insert((metadata_key.name.to_string(), version));
+            }
+            let _ = cell.set(planned);
+        }
 
         // Hoisted-mode CAS index assembly. Collected here, *before*
         // the warm-batch closure consumes `warm` under the

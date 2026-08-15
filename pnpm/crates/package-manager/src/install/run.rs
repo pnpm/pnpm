@@ -657,6 +657,12 @@ where
         // a policy could apply, independent of whether a lockfile is loaded, so the
         // fresh-resolve path can record the freshly written lockfile as
         // already-verified (see `record_lockfile_verified` below).
+        // Shared with `CreateVirtualStore`, which fills it after its
+        // warm/cold partition so the verifier's age gate can lean on
+        // this install's own canonical tarball fetches instead of a
+        // metadata body per entry.
+        let planned_canonical_fetches =
+            pacquet_resolving_resolver_base::PlannedCanonicalFetches::default();
         let resolution_verifiers = if trust_lockfile {
             Vec::new()
         } else {
@@ -667,6 +673,7 @@ where
                     as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
                 auth_override.clone(),
                 None,
+                Some(std::sync::Arc::clone(&planned_canonical_fetches)),
             )
             .map_err(InstallError::BuildVerifiers)?
         };
@@ -975,6 +982,7 @@ where
             skip_runtimes,
             modules_manifest,
             prior_hoisted_dependencies,
+            planned_canonical_fetches,
             prune_orphans,
             logged_methods: &logged_methods,
             update_checksums,

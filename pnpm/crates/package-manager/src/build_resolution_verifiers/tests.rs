@@ -19,8 +19,14 @@ fn reserved_named_registry_is_an_error_not_a_panic() {
     let mut config = Config::default();
     config.named_registries.insert("workspace".to_string(), "https://npm.example/".to_string());
 
-    let result =
-        build_resolution_verifiers(&config, Arc::new(ThrottledClient::default()), None, None, None);
+    let result = build_resolution_verifiers(
+        &config,
+        Arc::new(ThrottledClient::default()),
+        None,
+        None,
+        None,
+        None,
+    );
 
     assert!(
         matches!(result, Err(BuildVerifiersError::InvalidNamedRegistries { .. })),
@@ -43,9 +49,15 @@ async fn offline_config_threads_to_resolution_verifier() {
         ..Default::default()
     };
 
-    let verifiers =
-        build_resolution_verifiers(&config, Arc::new(ThrottledClient::default()), None, None, None)
-            .expect("build verifiers");
+    let verifiers = build_resolution_verifiers(
+        &config,
+        Arc::new(ThrottledClient::default()),
+        None,
+        None,
+        None,
+        None,
+    )
+    .expect("build verifiers");
     let name: PkgName = "acme".parse().expect("parse name");
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{registry}acme/-/acme-1.0.0.tgz"),

@@ -910,6 +910,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
                 None,
                 None,
                 None,
+                None,
             )
             .map_err(miette::Report::new)?;
             if lockfile_verification_is_cached(
@@ -1160,6 +1161,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             && let Ok(verifiers) = build_resolution_verifiers(
                 state.config,
                 std::sync::Arc::clone(&state.http_client),
+                None,
                 None,
                 None,
                 None,
