@@ -24,8 +24,11 @@ const findInNodePaths = (specifier) => {
 `
 
 /*
- * Fallback for Node.js versions without module.registerHooks()
- * (>=18.19 <22.15): an off-thread hooks module for module.register().
+ * Fallback for Node.js versions that have module.register() but not
+ * module.registerHooks() (>=18.19 <22.15): an off-thread hooks module for
+ * module.register(). Runtimes with neither API (--import parses from
+ * 18.18/19.0) get no hook at all — CJS NODE_PATH resolution still works
+ * natively there.
  */
 const ASYNC_LOADER_SOURCE = `\
 import { createRequire } from 'node:module'
@@ -63,7 +66,7 @@ if (process.env.NODE_PATH) {
         }
       },
     })
-  } else {
+  } else if (register) {
     register(${JSON.stringify(`data:text/javascript,${strictUriEncode(ASYNC_LOADER_SOURCE)}`)})
   }
 }
