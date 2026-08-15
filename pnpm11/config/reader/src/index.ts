@@ -334,8 +334,13 @@ export async function getConfig (opts: {
     }
     if (ignoredKeys.length > 0 || kebabKeys.length > 0) {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
-      if (ignoredKeys.length > 0) {
-        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      const movable = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key))
+      const nowhere = ignoredKeys.filter(isRefusedByAProjectManifest)
+      if (movable.length > 0) {
+        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(movable)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      }
+      if (nowhere.length > 0) {
+        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndExplain(nowhere)}.`)
       }
       if (kebabKeys.length > 0) {
         warnings.push(`The following settings in the global config file ("${globalYamlConfigPath}") were ignored because they are not written in camelCase: ${kebabKeys.map(k => `"${k}" (use "${camelcase(k)}")`).join(', ')}.`)
@@ -345,6 +350,7 @@ export async function getConfig (opts: {
       configFromCliOpts,
       expandRequestDestinationEnv: true,
       projectManifest: undefined,
+      skipSettings: GLOBAL_CONFIG_SKIPPED_KEYS,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
@@ -469,7 +475,7 @@ export async function getConfig (opts: {
       }
       const ignoredPnpmFieldKeys = getIgnoredPnpmFieldKeys(pnpmConfig.rootProjectManifest)
       if (ignoredPnpmFieldKeys.length > 0) {
-        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${ignoredPnpmFieldKeys.map(k => `"pnpm.${k}"`).join(', ')}. See https://pnpm.io/settings for the new home of each setting.`)
+        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${quoteAndJoin(ignoredPnpmFieldKeys.map(k => `pnpm.${k}`))}. See https://pnpm.io/settings for the new home of each setting.`)
       }
       const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
       if (wantedPmResult.pm) {
@@ -486,10 +492,16 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
+        const ignoredKeys = Object.keys(workspaceManifest).filter(isRefusedByAProjectManifest)
+        if (ignoredKeys.length > 0) {
+          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndExplain(ignoredKeys)}.`)
+        }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
-          skipSettings: opts.forSelfUpdate ? SELF_UPDATE_SKIPPED_SETTINGS : undefined,
+          skipSettings: opts.forSelfUpdate
+            ? new Set([...PROJECT_MANIFEST_SKIPPED_KEYS, ...SELF_UPDATE_SKIPPED_SETTINGS])
+            : PROJECT_MANIFEST_SKIPPED_KEYS,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
@@ -1096,7 +1108,7 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
  * the repository. The policy therefore comes from the built-in defaults, the
  * global config yaml, the environment, and CLI flags only.
  */
-const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+const SELF_UPDATE_SKIPPED_SETTINGS = [
   'ci',
   'minimumReleaseAge',
   'minimumReleaseAgeExclude',
@@ -1105,7 +1117,176 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'trustPolicy',
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',
-] satisfies Array<keyof Config>)
+] as const satisfies ReadonlyArray<keyof Config>
+
+/**
+ * Where the machine keeps what it holds across runs, which no project chooses.
+ *
+ * A repository setting one would redirect where pnpm writes: `pnpm login`'s
+ * `auth.ini`, `pnpm setup`'s PATH entry, the bins `pnpm install` links.
+ */
+const MACHINE_LOCATION_KEYS = [
+  'configDir',
+  'globalBinDir',
+  'globalDir',
+  'globalPkgDir',
+  'npmrcAuthFile',
+  'pnpmHomeDir',
+  'stateDir',
+  'userconfig',
+] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
+
+/**
+ * The directories the current command reads and writes in.
+ *
+ * The reader resolves these from the command line and the cwd, and it needs
+ * them before it can find a manifest at all, so a manifest cannot supply them.
+ */
+const CURRENT_RUN_LOCATION_KEYS = [
+  'bin',
+  'dir',
+  'rootProjectManifestDir',
+  'workspaceDir',
+] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
+
+/**
+ * Which credentials pnpm sends, and to whom.
+ *
+ * The reader assembles these from the trusted config sources. `userConfig` is
+ * the parsed contents of the user's `.npmrc`, so it carries credentials rather
+ * than the path `npmrcAuthFile` holds.
+ */
+const CREDENTIAL_KEYS = [
+  'authConfig',
+  'userConfig',
+  'configByUri',
+  'packageManagerNetworkConfig',
+  'packageManagerRegistries',
+] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
+
+/**
+ * Keys a project's `pnpm-workspace.yaml` does not contribute.
+ *
+ * `cacheDir` and `storeDir` are deliberately absent: those name caches a
+ * project may legitimately place.
+ */
+type ProjectManifestSkippedKey =
+  | typeof MACHINE_LOCATION_KEYS[number]
+  | typeof CURRENT_RUN_LOCATION_KEYS[number]
+  | typeof CREDENTIAL_KEYS[number]
+
+/** Every key a caller of {@link addSettingsFromWorkspaceManifestToConfig} may skip. */
+type SkippableKey = ProjectManifestSkippedKey | typeof SELF_UPDATE_SKIPPED_SETTINGS[number]
+
+const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set([
+  ...MACHINE_LOCATION_KEYS,
+  ...CURRENT_RUN_LOCATION_KEYS,
+  ...CREDENTIAL_KEYS,
+])
+
+/**
+ * The refused keys the global config file does not accept either.
+ *
+ * That file's own contents are already filtered by {@link isConfigFileKey},
+ * but the CLI options are merged in again alongside them, so without this a
+ * `--config.config-dir` would land back on a key the reader resolves for
+ * itself, and only for the users who happen to have a `config.yaml`.
+ */
+const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set(
+  [...PROJECT_MANIFEST_SKIPPED_KEYS].filter((key) => !isConfigFileKey(kebabCase(key)))
+)
+
+/**
+ * Whether a project's `pnpm-workspace.yaml` would ignore this camelCase key.
+ * See {@link PROJECT_MANIFEST_SKIPPED_KEYS}.
+ */
+export function isProjectManifestSkippedKey (camelKey: string): boolean {
+  const keys: ReadonlySet<string> = PROJECT_MANIFEST_SKIPPED_KEYS
+  return keys.has(camelKey)
+}
+
+/**
+ * Whether a project's `pnpm-workspace.yaml` drops {@link key}, given in either
+ * camelCase or kebab-case, whether as a value a project may not contribute or
+ * as the reader's own bookkeeping.
+ *
+ * Shared by the warnings so that they cannot disagree on what was dropped.
+ */
+function isRefusedByAProjectManifest (key: string): boolean {
+  const camelKey = camelcase(key, { locale: 'en-US' })
+  return isProjectManifestSkippedKey(camelKey) || CONFIG_CONTEXT_KEY_SET.has(camelKey)
+}
+
+/**
+ * The reader's own bookkeeping, which shares one object with the settings but
+ * is not settable by anyone.
+ *
+ * A manifest naming one of these would not choose a setting: it would
+ * overwrite what the reader worked out, with a value of the wrong type.
+ */
+const CONFIG_CONTEXT_KEYS = [
+  'hooks',
+  'finders',
+  'allProjects',
+  'selectedProjectsGraph',
+  'allProjectsGraph',
+  'prodAllProjectsGraph',
+  'prodOnlySelectedProjectDirs',
+  'rootProjectManifest',
+  'rootProjectManifestDir',
+  'cliOptions',
+  'explicitlySetKeys',
+  'packageManager',
+  'wantedPackageManager',
+] as const satisfies ReadonlyArray<keyof ConfigContext>
+
+type ProofConfigContextKeysIsExhaustive =
+  (_: Record<typeof CONFIG_CONTEXT_KEYS[number], unknown>) => Record<keyof ConfigContext, unknown>
+
+const _proofConfigContextKeysIsExhaustive: ProofConfigContextKeysIsExhaustive = (x) => x
+
+const CONFIG_CONTEXT_KEY_SET: ReadonlySet<string> = new Set(CONFIG_CONTEXT_KEYS)
+
+/**
+ * The global config file key that sets a refused setting, where it is not that
+ * setting's own name.
+ */
+const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
+  /** Derived from the global bin directory. */
+  bin: 'global-bin-dir',
+  /** Derived from the global directory. */
+  globalPkgDir: 'global-dir',
+  /**
+   * Accepted under its own name, but never read back: the user-level `.npmrc`
+   * comes from `npmrcAuthFile` or `--userconfig`, so its own name would send
+   * the user to a command that changes nothing.
+   */
+  userconfig: 'npmrc-auth-file',
+}
+
+/**
+ * Where {@link camelKey} can be set, for a key a project manifest refuses.
+ *
+ * Lives here rather than in the config command so that the reader's warnings
+ * and the command's errors cannot drift into naming different routes for the
+ * same setting.
+ */
+export function whereRefusedKeyBelongs (camelKey: string): string {
+  if (camelKey === 'dir') return 'Pass --dir on the command line instead'
+  const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelKey] ?? kebabCase(camelKey)
+  if (isConfigFileKey(kebabKey)) {
+    return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
+  }
+  return 'This is not a pnpm setting'
+}
+
+function quoteRefusedKey (key: string): string {
+  return `"${key}" (${whereRefusedKeyBelongs(camelcase(key, { locale: 'en-US' }))})`
+}
+
+function quoteAndExplain (keys: string[]): string {
+  return keys.map(quoteRefusedKey).join(', ')
+}
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
@@ -1118,15 +1299,17 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   configFromCliOpts: Record<string, unknown>
   expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
-  /** Settings this manifest may not contribute. See {@link SELF_UPDATE_SKIPPED_SETTINGS}. */
-  skipSettings?: ReadonlySet<string>
+  /** Settings this manifest may not contribute, chosen by the caller. */
+  skipSettings?: ReadonlySet<SkippableKey>
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
+  const skipped: ReadonlySet<string> | undefined = skipSettings
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
-    if (skipSettings?.has(key)) continue
+    if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
+    if (skipped?.has(key)) continue
 
     // @ts-expect-error
     pnpmConfig[key] = value
@@ -1141,4 +1324,9 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+}
+
+/** Renders keys for a warning that lists the settings it ignored. */
+function quoteAndJoin (keys: string[]): string {
+  return keys.map(key => `"${key}"`).join(', ')
 }

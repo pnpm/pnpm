@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import type { Config } from '@pnpm/config.reader'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -704,6 +705,286 @@ describe("forSelfUpdate (the project manifest doesn't set self-update's release-
 
     expect(config.minimumReleaseAge).toBe(4320)
     expect(config.minimumReleaseAgeStrict).toBe(true)
+  })
+})
+
+describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and writes", () => {
+  const machineLocations = {
+    bin: '/tmp/attacker-bin',
+    configDir: '/tmp/attacker-config-dir',
+    dir: '/tmp/attacker-dir',
+    globalBinDir: '/tmp/attacker-global-bin-dir',
+    globalDir: '/tmp/attacker-global-dir',
+    globalPkgDir: '/tmp/attacker-global-pkg-dir',
+    npmrcAuthFile: '/tmp/attacker-npmrc',
+    pnpmHomeDir: '/tmp/attacker-home',
+    rootProjectManifestDir: '/tmp/attacker-root',
+    stateDir: '/tmp/attacker-state',
+    userconfig: '/tmp/attacker-userconfig',
+    workspaceDir: '/tmp/attacker-workspace',
+  }
+
+  test('the machine-level directories keep the values the reader resolved', async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+    const real = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    writeYamlFileSync('pnpm-workspace.yaml', machineLocations)
+
+    const { config, context } = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    // `pnpm login` writes the granted token to `<configDir>/auth.ini`, and
+    // `pnpm setup` puts `<pnpmHomeDir>/bin` on the user's PATH. Assertions are
+    // driven off the manifest so that extending the fixture is enough to cover
+    // a new setting.
+    const resolved = { ...config, ...context } as Record<string, unknown>
+    const realResolved = { ...real.config, ...real.context } as Record<string, unknown>
+    for (const [key, attackerValue] of Object.entries(machineLocations)) {
+      expect(resolved[key]).toBe(realResolved[key])
+      expect(resolved[key]).not.toBe(attackerValue)
+    }
+  })
+
+  test('the ignored settings are reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      configDir: '/tmp/attacker-config-dir',
+      nodeLinker: 'hoisted',
+    })
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toContainEqual(expect.stringContaining('"configDir"'))
+    expect(warnings).not.toContainEqual(expect.stringContaining('"nodeLinker"'))
+  })
+
+  test('a kebab-case spelling is reported too', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { 'config-dir': '/tmp/attacker-config-dir' })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.configDir).not.toBe('/tmp/attacker-config-dir')
+    expect(warnings).toContainEqual(expect.stringContaining('"config-dir"'))
+    // `whereRefusedKeyBelongs` has its own unit test. This pins that the
+    // warning renders it, which is the part the reader owns.
+    expect(warnings).toContainEqual(expect.stringContaining('This is not a pnpm setting'))
+  })
+
+  test('auth and the bootstrap download routes stay out of the manifest', async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+    const real = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      authConfig: { '//registry.example.com/:_authToken': 'attacker-token' },
+      // The parsed contents of the user's own .npmrc, so it carries
+      // credentials even though `userconfig` is only the path to it.
+      userConfig: { '//registry.example.com/:_authToken': 'attacker-token' },
+      configByUri: { 'https://registry.example.com/': { authHeaderValue: 'Bearer attacker-token' } },
+      packageManagerRegistries: { default: 'https://attacker.example.com/' },
+      packageManagerNetworkConfig: { configByUri: {}, strictSsl: !real.config.packageManagerNetworkConfig?.strictSsl },
+    })
+
+    const { config } = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    // A literal would have to restate how the reader assembles each of these
+    // from the user's own `.npmrc`, so the run without the manifest is the
+    // expectation.
+    expect(config.authConfig).toStrictEqual(real.config.authConfig)
+    expect(config.userConfig).toStrictEqual(real.config.userConfig)
+    expect(config.configByUri).toStrictEqual(real.config.configByUri)
+    expect(config.packageManagerRegistries).toStrictEqual(real.config.packageManagerRegistries)
+    expect(config.packageManagerNetworkConfig).toStrictEqual(real.config.packageManagerNetworkConfig)
+  })
+
+  // `explicitlySetKeys` is a `Set` the merge loop calls `.add` on, so a
+  // manifest supplying any other type would take down every command that reads
+  // config, letting a repository stop pnpm from running at all.
+  test("a manifest cannot overwrite the reader's own bookkeeping", async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      explicitlySetKeys: ['storeDir'],
+      cliOptions: { otp: 'attacker-otp' },
+      packageManager: { name: 'attacker-pm', version: '99.0.0' },
+      wantedPackageManager: { name: 'attacker-pm', version: '99.0.0' },
+      rootProjectManifest: { name: 'attacker-root' },
+    })
+
+    const { context, warnings } = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    // The global config file reports these; a project manifest has to as well,
+    // or the same key is named in one file and dropped in silence in the other.
+    expect(warnings).toContainEqual(expect.stringContaining('"packageManager"'))
+    expect(context.cliOptions).toStrictEqual({})
+    expect(context.packageManager).toStrictEqual(packageManager)
+    expect(context.explicitlySetKeys).toBeInstanceOf(Set)
+    expect(context.wantedPackageManager).not.toStrictEqual({ name: 'attacker-pm', version: '99.0.0' })
+    expect(context.rootProjectManifest?.name).not.toBe('attacker-root')
+  })
+
+  // The global config file's warning offers to move an ignored setting to a
+  // project manifest, which refuses a subset of them. For those, following it
+  // would land on the other warning, which offers no remedy.
+  test('the global config file does not send a refused setting to the project manifest', async () => {
+    prepareEmpty()
+
+    // `getConfigDir` reads `process.env` directly and appends `pnpm`.
+    const xdgConfigHome = process.cwd()
+    const configDir = path.join(xdgConfigHome, 'pnpm')
+    fs.mkdirSync(configDir, { recursive: true })
+    writeYamlFileSync(path.join(configDir, 'config.yaml'), {
+      configDir: '/tmp/attacker-config-dir',
+      bail: false,
+    })
+
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = xdgConfigHome
+    let warnings: string[]
+    try {
+      ;({ warnings } = await getConfig({
+        cliOptions: {},
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      // Assigning `undefined` would store the string "undefined", leaving every
+      // later test in this file resolving configDir under `undefined/pnpm`.
+      if (previousXdgConfigHome == null) {
+        delete process.env.XDG_CONFIG_HOME
+      } else {
+        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      }
+    }
+
+    const aboutConfigDir = warnings.filter((warning) => warning.includes('"configDir"'))
+    expect(aboutConfigDir).not.toEqual([])
+    for (const warning of aboutConfigDir) {
+      expect(warning).not.toContain('Move them to a project-level pnpm-workspace.yaml')
+    }
+  })
+
+  // The global config file's own contents are filtered before the merge, but
+  // the CLI options are merged in again there, so an unfiltered escape hatch
+  // would work only for the users who happen to have a `config.yaml`.
+  test.each([true, false])('the --config escape hatch is inert whether or not a global config.yaml exists (%s)', async (withGlobalYaml) => {
+    prepareEmpty()
+
+    const xdgConfigHome = process.cwd()
+    const globalConfigDir = path.join(xdgConfigHome, 'pnpm')
+    fs.mkdirSync(globalConfigDir, { recursive: true })
+    if (withGlobalYaml) {
+      writeYamlFileSync(path.join(globalConfigDir, 'config.yaml'), { stateDir: '/tmp/from-global-yaml' })
+    }
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
+
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = xdgConfigHome
+    let config: Config
+    try {
+      ;({ config } = await getConfig({
+        cliOptions: { 'config-dir': '/tmp/from-cli', dir: process.cwd() },
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      if (previousXdgConfigHome == null) {
+        delete process.env.XDG_CONFIG_HOME
+      } else {
+        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      }
+    }
+
+    expect(config.configDir).not.toBe('/tmp/from-cli')
+    // The dedicated flags and the keys the global file does take are unaffected.
+    expect(config.dir).toBe(process.cwd())
+    if (withGlobalYaml) {
+      expect(config.stateDir).toBe('/tmp/from-global-yaml')
+    }
+  })
+
+  test('the skips still apply when self-update resolves the config', async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+    const real = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      minimumReleaseAge: 4320,
+    })
+
+    const { config } = await getConfig({ cliOptions, packageManager, workspaceDir, forSelfUpdate: true })
+
+    expect(config.configDir).toBe(real.config.configDir)
+    expect(config.pnpmHomeDir).toBe(real.config.pnpmHomeDir)
+    // The two skip sets combine; self-update does not trade one for the other.
+    expect(config.minimumReleaseAge).toBe(1440)
+  })
+
+  test('the command line and the environment still set them', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', machineLocations)
+    fs.mkdirSync('nested')
+
+    const { config } = await getConfig({
+      cliOptions: {
+        dir: path.resolve('nested'),
+        'global-bin-dir': '/tmp/cli-global-bin',
+        'global-dir': '/tmp/cli-global',
+      },
+      env: { ...env, PNPM_CONFIG_STATE_DIR: '/tmp/env-state' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.dir).toBe(fs.realpathSync(path.resolve('nested')))
+    expect(config.globalBinDir).toBe('/tmp/cli-global-bin')
+    expect(config.globalDir).toBe('/tmp/cli-global')
+    expect(config.stateDir).toBe('/tmp/env-state')
+  })
+
+  test('a directory the project does own still comes from the manifest', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'custom_modules',
+      storeDir: '/tmp/project-store',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.modulesDir).toBe('custom_modules')
+    expect(config.storeDir).toBe('/tmp/project-store')
   })
 })
 
