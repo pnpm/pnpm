@@ -41,7 +41,6 @@ const WRAPPER_FILES = [
   "native-binary.mjs",
   "bin/pnpm.mjs",
   "bin/pnpx.mjs",
-  "bin/download-native-binary.mjs",
   "README.md",
   NOTICES_FILE,
 ];

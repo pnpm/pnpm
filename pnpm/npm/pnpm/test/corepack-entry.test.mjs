@@ -2,27 +2,25 @@
 // Corepack uses them: a wrapper directory without the `@pnpm/exe.<target>`
 // dependency, against a registry that serves a stand-in for the native binary.
 //
-// Skipped on Windows, where the stand-in — a shell script, so it can report how
-// it was called — is not executable. Everything up to spawning that stand-in is
-// covered on every platform by download-native-binary.test.mjs.
+// The stand-in is a shell script, so the tests that spawn it are Unix-only; the
+// download it comes through is get-pnpm's, and tested there.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { VERSION, binFile, digest, packageName, startRegistry } from './registry-fixture.mjs'
+import { INTEGRITY_KEYS, VERSION, binFile, packageName, startRegistry } from './registry-fixture.mjs'
 
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const WRAPPER_FILES = [
-  'native-binary.mjs',
-  'bin/pnpm.mjs',
-  'bin/pnpx.mjs',
-  'bin/download-native-binary.mjs',
-]
+const WRAPPER_FILES = ['native-binary.mjs', 'bin/pnpm.mjs', 'bin/pnpx.mjs']
+// Where the published wrapper carries get-pnpm; scripts/bundle-node-gyp.mjs
+// puts it there, and the fixture stands in for that.
+const BUNDLED_DOWNLOADER = 'dist/node_modules/get-pnpm'
 // A stand-in for the 40 MB native binary: reports how it was called, and turns
 // a `fail` argument into a non-zero exit so exit codes can be asserted.
 const FAKE_BINARY = `#!/bin/sh
@@ -31,7 +29,7 @@ echo "ran: $*"
 `
 
 const SKIP_ON_WINDOWS = process.platform === 'win32' &&
-  'the stand-in for the native binary is a shell script; download-native-binary.test.mjs covers everything up to spawning it'
+  'the stand-in for the native binary is a shell script, which Windows cannot spawn'
 
 describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
   it('downloads the native binary on first use, then reuses it', async () => {
@@ -40,7 +38,7 @@ describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
     const first = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
     assert.equal(first.status, 0, first.stderr)
     assert.match(first.stdout, /ran: --version/)
-    assert.match(first.stderr, /Downloading the pnpm 12\.0\.0-test\.0 binary/)
+    assert.match(first.stderr, /Downloading the pnpm 99\.0\.0 binary/)
     assert.ok(fs.existsSync(path.join(fixture.dir, 'pnpm-native')))
 
     // Nothing but the cached binary can answer once the registry is gone.
@@ -78,13 +76,45 @@ describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
     assert.equal(fs.existsSync(path.join(fixture.dir, 'pnpm-native')), false)
   })
 
-  it('reports a refused download instead of running something else', async () => {
-    const fixture = await createFixture({ integrity: () => digest('sha512', 'not the tarball') })
+  it('refuses a download the published checksum does not cover', async () => {
+    const fixture = await createFixture({ tamper: true })
 
     const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
     assert.notEqual(result.status, 0)
-    assert.match(result.stderr, /Integrity check failed/)
+    assert.match(result.stderr, /does not match the checksum/)
     assert.equal(fs.existsSync(path.join(fixture.dir, 'pnpm-native')), false)
+  })
+
+  it('refuses a download signed by a key the environment does not name', async () => {
+    const fixture = await createFixture()
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], {
+      COREPACK_INTEGRITY_KEYS: JSON.stringify({ npm: [] }),
+    })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /unexpected npm key/)
+  })
+
+  it('downloads from a registry that publishes no signature when Corepack is told to skip', async () => {
+    const fixture = await createFixture({ unsigned: true })
+
+    const refused = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
+    assert.notEqual(refused.status, 0)
+    assert.match(refused.stderr, /carries no npm registry signature/)
+
+    // Corepack's own opt-out, which such a registry already needs for Corepack
+    // to have installed this wrapper from it.
+    const skipped = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], { COREPACK_INTEGRITY_KEYS: '0' })
+    assert.equal(skipped.status, 0, skipped.stderr)
+    assert.match(skipped.stdout, /ran: --version/)
+  })
+
+  it('reports a disabled network instead of reaching for one', async () => {
+    const fixture = await createFixture()
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], { COREPACK_ENABLE_NETWORK: '0' })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Network access is disabled/)
   })
 })
 
@@ -92,10 +122,10 @@ describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
 // the child would deadlock the download.
 function runEntry (fixture, entry, args, env) {
   const child = spawn(process.execPath, [path.join(fixture.dir, entry), ...args], {
-    encoding: 'utf8',
     env: {
       ...process.env,
       COREPACK_NPM_REGISTRY: fixture.registryUrl,
+      COREPACK_INTEGRITY_KEYS: INTEGRITY_KEYS,
       ...env,
     },
   })
@@ -112,11 +142,11 @@ function runEntry (fixture, entry, args, env) {
 }
 
 /**
- * A wrapper directory holding only what Corepack unpacks — the entry points and
- * a manifest pinning the platform package — plus a registry serving that
- * package.
+ * A wrapper directory holding what Corepack unpacks — the entry points, the
+ * manifest, and the `dist/` payload the downloader travels in — plus a registry
+ * serving the platform package.
  */
-async function createFixture (registryOptions) {
+async function createFixture (registryOptions = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-corepack-entry-'))
   after(() => fs.rmSync(dir, { force: true, recursive: true }))
 
@@ -124,14 +154,17 @@ async function createFixture (registryOptions) {
     fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
     fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(dir, file))
   }
-  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
-    name: 'pnpm',
-    version: VERSION,
-    optionalDependencies: { [packageName]: VERSION },
-  }))
+  fs.cpSync(downloaderDir(), path.join(dir, BUNDLED_DOWNLOADER), { dereference: true, recursive: true })
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pnpm', version: VERSION }))
 
   const registry = await startRegistry({ payload: FAKE_BINARY, ...registryOptions })
   after(registry.close)
 
   return { dir, registryUrl: registry.url, closeRegistry: registry.close }
+}
+
+/** The installed get-pnpm, which the release bundles into `dist/`. */
+function downloaderDir () {
+  const entryPoint = createRequire(import.meta.url).resolve('get-pnpm')
+  return path.resolve(entryPoint, '../..')
 }

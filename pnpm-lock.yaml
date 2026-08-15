@@ -473,6 +473,9 @@ catalogs:
     fuse-native:
       specifier: ^2.2.6
       version: 2.2.6
+    get-pnpm:
+      specifier: ^0.0.3
+      version: 0.0.3
     get-port:
       specifier: ^7.2.0
       version: 7.2.0
@@ -1025,6 +1028,9 @@ importers:
 
   pnpm/npm/pnpm:
     dependencies:
+      get-pnpm:
+        specifier: 'catalog:'
+        version: 0.0.3
       node-gyp:
         specifier: 'catalog:'
         version: 12.3.0
@@ -14074,6 +14080,11 @@ packages:
     resolution: {integrity: sha512-pjzuKtY64GYfWizNAJ0fr9VqttZkNiK2iS430LtIHzjBEr6bX8Am2zm4sW4Ro5wjWW5cAlRL1qAMTcXbjNAO2Q==}
     engines: {node: '>=8.0.0'}
 
+  get-pnpm@0.0.3:
+    resolution: {integrity: sha512-icuCs2/4Y2/Vv+w71/uGlBs1Tuh+tK3TASDnwmzbDm4THhwrVoJK1PDqaHu7ehPh5VuEGtwdT3mZZdV4E7Kuwg==}
+    engines: {node: '>=22.13'}
+    hasBin: true
+
   get-port@7.2.0:
     resolution: {integrity: sha512-afP4W205ONCuMoPBqcR6PSXnzX35KTcJygfJfcp+QY+uwm3p20p1YczWXhlICIzGMCxYBQcySEcOgsJcrkyobg==}
     engines: {node: '>=16'}
@@ -21836,6 +21847,8 @@ snapshots:
   get-npm-tarball-url@2.1.0: {}
 
   get-package-type@0.1.0: {}
+
+  get-pnpm@0.0.3: {}
 
   get-port@7.2.0: {}
 

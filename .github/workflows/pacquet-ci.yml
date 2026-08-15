@@ -294,11 +294,18 @@ jobs:
         with:
           persist-credentials: false
 
-      # The wrapper that carries the native binary to npm is plain Node.js with
-      # no dependencies (Corepack installs none), so it needs nothing but the
-      # runner's Node.js to test. bash on both platforms: the shell has to
-      # expand the glob, because `--test` only takes patterns itself on
-      # Node.js >=22.
+      - name: Install pnpm
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        with:
+          install: false
+
+      # Only the wrapper's own dependencies: get-pnpm, which the published
+      # package carries in its dist/ payload and the tests stand in for.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter pacquet
+
+      # bash on both platforms: the shell has to expand the glob, because
+      # `--test` only takes patterns itself on Node.js >=22.
       - name: Test
         shell: bash
         working-directory: pnpm/npm/pnpm/test

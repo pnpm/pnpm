@@ -1,87 +1,90 @@
 // A stand-in npm registry serving one `@pnpm/exe.<target>` version, for the
-// tests around the Corepack entry point. Shared so the entry-point tests and
-// the download tests describe the same registry.
+// tests around the Corepack entry point.
+//
+// The download verifies npm's signature over the checksum, so the fixture signs
+// with a key of its own and the tests hand that key to the entry point through
+// `COREPACK_INTEGRITY_KEYS` — the same way a user on a registry that re-signs
+// does, and the same knob Corepack itself reads.
 import { Buffer } from 'node:buffer'
-import { createHash } from 'node:crypto'
+import { createHash, createSign, generateKeyPairSync } from 'node:crypto'
 import http from 'node:http'
+import process from 'node:process'
 import zlib from 'node:zlib'
 
-import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
+import { isMusl, platformPackageName } from 'get-pnpm'
 
-export const VERSION = '12.0.0-test.0'
-export const { packageName, binFile } = splitBinSpecifier(getBinCandidates()[0])
+export const VERSION = '99.0.0'
+export const packageName = platformPackageName({
+  major: 99,
+  platform: process.platform,
+  arch: process.arch,
+  musl: isMusl(),
+})
+export const binFile = process.platform === 'win32' ? 'pnpm.exe' : 'pnpm'
+
+const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+
+/** What `COREPACK_INTEGRITY_KEYS` has to hold for a fixture download to verify. */
+export const INTEGRITY_KEYS = JSON.stringify({
+  npm: [{
+    keyid: 'SHA256:fixture-key',
+    key: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
+    expires: null,
+  }],
+})
 
 /**
- * Serve `payload` as the platform package's tarball, published under the
- * checksums `integrity` and `shasum` produce (either may return `undefined`, to
- * describe a registry that publishes neither).
+ * Serve `payload` as the platform package's tarball.
  *
  * @param {object} opts
  * @param {Buffer | string} opts.payload Contents of the binary inside the tarball.
- * @param {(tarball: Buffer) => string | undefined} [opts.integrity]
- * @param {(tarball: Buffer) => string | undefined} [opts.shasum]
- * @param {string} [opts.tarballUrl] URL to advertise, when the test needs the
- *   registry to hand back a URL of a different host than the one asked.
- * @param {boolean} [opts.tarballElsewhere] Serve the tarball from a second
- *   origin, as a registry that offloads downloads to a CDN does.
- * @returns {Promise<Registry>}
+ * @param {boolean} [opts.tamper] Serve bytes the published checksum does not cover.
+ * @param {boolean} [opts.unsigned] Publish the package without a signature.
+ * @returns {Promise<{url: string, close: () => Promise<void>}>}
  */
-export async function startRegistry ({ payload, integrity = strongestIntegrity, shasum, tarballUrl, tarballElsewhere }) {
+export function startRegistry ({ payload, tamper = false, unsigned = false }) {
   const tarball = zlib.gzipSync(tarArchive(`package/${binFile}`, Buffer.from(payload)))
+  const served = tamper ? Buffer.concat([tarball, Buffer.from('tampered')]) : tarball
+  const integrity = `sha512-${createHash('sha512').update(tarball).digest('base64')}`
   const tarballPath = `/${packageName}/-/${VERSION}.tgz`
 
-  const respondWithTarball = (res) => {
-    res.writeHead(200, { 'content-type': 'application/octet-stream' })
-    res.end(tarball)
-  }
-
-  const cdn = tarballElsewhere ? await listen((req, res) => respondWithTarball(res)) : null
-  const registry = await listen((req, res) => {
-    if (req.url === `/${packageName.replaceAll('/', '%2F')}/${VERSION}`) {
+  const server = http.createServer((req, res) => {
+    if (req.url === `/${packageName}/${VERSION}`) {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({
         name: packageName,
         version: VERSION,
         dist: {
-          integrity: integrity(tarball),
-          shasum: shasum?.(tarball),
-          tarball: tarballUrl ?? `${cdn?.url ?? registry.url}${tarballPath}`,
+          integrity,
+          tarball: `http://127.0.0.1:${server.address().port}${tarballPath}`,
+          signatures: unsigned ? [] : [{
+            keyid: 'SHA256:fixture-key',
+            sig: createSign('SHA256')
+              .update(`${packageName}@${VERSION}:${integrity}`)
+              .sign(privateKey, 'base64'),
+          }],
         },
       }))
     } else if (req.url === tarballPath) {
-      respondWithTarball(res)
+      res.writeHead(200, { 'content-type': 'application/octet-stream' })
+      res.end(served)
     } else {
       res.writeHead(404).end()
     }
   })
 
-  return {
-    url: registry.url,
-    tarballUrl: `${cdn?.url ?? registry.url}${tarballPath}`,
-    requests: registry.requests,
-    tarballRequests: (cdn ?? registry).requests,
-    close: async () => {
-      await registry.close()
-      await cdn?.close()
-    },
-  }
-}
-
-export function strongestIntegrity (tarball) {
-  return digest('sha512', tarball)
-}
-
-export function digest (algorithm, content) {
-  return `${algorithm}-${createHash(algorithm).update(content).digest('base64')}`
-}
-
-/** The legacy `dist.shasum` form: SHA-1, hex, no algorithm prefix. */
-export function shasumOf (content) {
-  return createHash('sha1').update(content).digest('hex')
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      resolve({
+        url: `http://127.0.0.1:${server.address().port}`,
+        close: () => new Promise((closed) => { server.close(closed) }),
+      })
+    })
+  })
 }
 
 /** A single-file ustar archive, terminated by the two empty blocks. */
-export function tarArchive (name, content) {
+function tarArchive (name, content) {
   const header = Buffer.alloc(512)
   header.write(name, 0, 100)
   header.write('000755 \0', 100, 8)
@@ -97,26 +100,4 @@ export function tarArchive (name, content) {
 
   const padding = Buffer.alloc((512 - (content.length % 512)) % 512)
   return Buffer.concat([header, content, padding, Buffer.alloc(1024)])
-}
-
-/**
- * An HTTP server on a free port, recording every request it answers so a test
- * can assert what was asked for and which headers came with it.
- */
-function listen (handler) {
-  const requests = []
-  const server = http.createServer((req, res) => {
-    requests.push({ path: req.url, headers: req.headers })
-    handler(req, res)
-  })
-
-  return new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', () => {
-      resolve({
-        url: `http://127.0.0.1:${server.address().port}`,
-        requests,
-        close: () => new Promise((closed) => { server.close(closed) }),
-      })
-    })
-  })
 }

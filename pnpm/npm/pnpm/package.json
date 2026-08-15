@@ -52,6 +52,7 @@
     "THIRD-PARTY-NOTICES.md"
   ],
   "dependencies": {
+    "get-pnpm": "catalog:",
     "node-gyp": "catalog:"
   },
   "devDependencies": {
