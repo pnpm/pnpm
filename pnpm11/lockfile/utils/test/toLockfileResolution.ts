@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { toLockfileResolution } from '@pnpm/lockfile.utils'
+import { pkgSnapshotToResolution, toLockfileResolution } from '@pnpm/lockfile.utils'
 
 const REGISTRY = 'https://registry.npmjs.org/'
 const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
@@ -34,6 +34,25 @@ test('drops the tarball for standard registry URLs when lockfileIncludeTarballUr
     false
   )).toEqual({
     integrity: 'sha512-AAAA',
+  })
+})
+
+test('drops reconstructible scoped Artifactory tarballs unless explicitly included', () => {
+  const registry = 'https://artifactory.example/artifactory/api/npm/npm-virtual/'
+  const pkg = { name: '@acme/widget', version: '1.2.3' }
+  const resolution = {
+    integrity: 'sha512-AAAA',
+    tarball: `${registry}@acme/widget/-/@acme/widget-1.2.3.tgz`,
+  }
+
+  expect(toLockfileResolution(pkg, resolution, registry)).toEqual({ integrity: resolution.integrity })
+  expect(toLockfileResolution(pkg, resolution, registry, false)).toEqual({ integrity: resolution.integrity })
+  expect(toLockfileResolution(pkg, resolution, registry, true)).toEqual(resolution)
+  expect(pkgSnapshotToResolution('@acme/widget@1.2.3', {
+    resolution: toLockfileResolution(pkg, resolution, registry),
+  }, { registries: { default: registry } })).toEqual({
+    integrity: resolution.integrity,
+    tarball: `${registry}@acme/widget/-/widget-1.2.3.tgz`,
   })
 })
 

@@ -412,10 +412,11 @@ pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
     format!("{registry}{name}/-/{scopeless}-{version}.tgz")
 }
 
-/// Whether `tarball` is the canonical npm registry URL derived from `name`,
-/// `version`, and `registry` — i.e. it can be dropped from the lockfile and
-/// rebuilt on demand. Percent-encoding is case-insensitive, so the unescape
-/// matches both `%2f` and `%2F` in the URLs npm produces for scoped packages.
+/// Whether `tarball` is the canonical npm registry URL or its equivalent
+/// Artifactory scoped-filename variant derived from `name`, `version`, and
+/// `registry` — i.e. it can be dropped from the lockfile and rebuilt on demand.
+/// Percent-encoding is case-insensitive, so the unescape matches both `%2f`
+/// and `%2F` in the URLs npm produces for scoped packages.
 fn is_canonical_registry_tarball_url(
     tarball: &str,
     name: &str,
@@ -424,7 +425,17 @@ fn is_canonical_registry_tarball_url(
 ) -> bool {
     let expected = npm_tarball_url(name, version, registry);
     let actual = tarball.replace("%2f", "/").replace("%2F", "/");
-    remove_protocol(&expected) == remove_protocol(&actual)
+    if remove_protocol(&expected) == remove_protocol(&actual) {
+        return true;
+    }
+
+    let Some((scope, _)) = name.strip_prefix('@').and_then(|scoped| scoped.split_once('/')) else {
+        return false;
+    };
+    let Some((prefix, filename)) = expected.rsplit_once("/-/") else {
+        return false;
+    };
+    remove_protocol(&format!("{prefix}/-/@{scope}/{filename}")) == remove_protocol(&actual)
 }
 
 /// Default-vs-scope routing for an npm package.

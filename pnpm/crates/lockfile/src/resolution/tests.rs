@@ -759,6 +759,31 @@ fn to_lockfile_form_drops_reconstructible_registry_tarball() {
         actual,
         LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
     );
+
+    let registry = "https://artifactory.example/artifactory/api/npm/npm-virtual/";
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{registry}@acme/widget/-/@acme/widget-1.2.3.tgz"),
+        integrity: Some(integrity(SHA512)),
+        git_hosted: None,
+        path: None,
+    });
+    for version in ["1.2.3", "1.2.3+build.4"] {
+        assert_eq!(
+            resolution.to_lockfile_form("@acme/widget", version, registry, false),
+            LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
+        );
+    }
+    for (name, version, configured_registry, include_tarball_url) in [
+        ("@acme/widget", "1.2.3", registry, true),
+        ("@other/widget", "1.2.3", registry, false),
+        ("@acme/widget", "1.2.4", registry, false),
+        ("@acme/widget", "1.2.3", "https://artifactory.example/other/", false),
+    ] {
+        assert_eq!(
+            resolution.to_lockfile_form(name, version, configured_registry, include_tarball_url),
+            resolution,
+        );
+    }
 }
 
 /// The `path` selects the subdirectory to extract from a monorepo tarball

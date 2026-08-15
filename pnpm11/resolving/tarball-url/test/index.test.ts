@@ -65,4 +65,33 @@ describe('isCanonicalRegistryTarballUrl', () => {
     const tarball = getNpmTarballUrl('lodash', '4.17.20', { registry })
     expect(isCanonicalRegistryTarballUrl(tarball, { name: 'lodash', version: '4.17.21' }, registry)).toBe(false)
   })
+
+  test('recognizes equivalent scoped Artifactory tarballs for the exact package and registry', () => {
+    const artifactoryRegistry = 'https://artifactory.example/artifactory/api/npm/npm-virtual/'
+    const packageName = '@acme/widget'
+    const tarball = `${artifactoryRegistry}${packageName}/-/${packageName}-1.2.3.tgz`
+
+    for (const [url, version] of [
+      [tarball, '1.2.3'],
+      [tarball.replaceAll('@acme/widget', '@acme%2Fwidget'), '1.2.3'],
+      [tarball, '1.2.3+build.4'],
+      [tarball.replace('1.2.3.tgz', '1.2.3-beta.1.tgz'), '1.2.3-beta.1'],
+    ]) {
+      expect(isCanonicalRegistryTarballUrl(url, { name: packageName, version }, artifactoryRegistry)).toBe(true)
+    }
+
+    for (const [url, name, version, configuredRegistry] of [
+      [tarball.replace('artifactory.example', 'other.example'), packageName, '1.2.3', artifactoryRegistry],
+      [tarball.replace('/npm-virtual/', '/other/'), packageName, '1.2.3', artifactoryRegistry],
+      [tarball, '@other/widget', '1.2.3', artifactoryRegistry],
+      [tarball, '@acme/other', '1.2.3', artifactoryRegistry],
+      [tarball, packageName, '1.2.4', artifactoryRegistry],
+      [`${tarball}?download=true`, packageName, '1.2.3', artifactoryRegistry],
+      [`${tarball}#archive`, packageName, '1.2.3', artifactoryRegistry],
+      [tarball.replace('https://', 'https://anonymous@'), packageName, '1.2.3', artifactoryRegistry],
+      [tarball, packageName, '1.2.3', `${artifactoryRegistry}other/`],
+    ]) {
+      expect(isCanonicalRegistryTarballUrl(url, { name, version }, configuredRegistry)).toBe(false)
+    }
+  })
 })

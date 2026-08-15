@@ -17,9 +17,9 @@ export function getNpmTarballUrl (
 }
 
 /**
- * Whether `tarball` is the canonical npm registry URL derived from the package
- * name, version, and registry — i.e. it can be dropped from the lockfile and
- * rebuilt on demand by {@link getNpmTarballUrl}.
+ * Whether `tarball` is the canonical npm registry URL or equivalent scoped
+ * Artifactory URL derived from the package name, version, and registry. Either
+ * URL can be dropped from the lockfile and rebuilt by {@link getNpmTarballUrl}.
  *
  * The lockfile writer uses this to decide whether to persist a tarball URL.
  * It is exported so custom resolvers (pnpmfile `resolvers`) can emit a URL the
@@ -38,8 +38,19 @@ export function isCanonicalRegistryTarballUrl (
   registry: string
 ): boolean {
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
-  const actualTarball = tarball.replace(/%2f/gi, '/')
-  return removeProtocol(expectedTarball) === removeProtocol(actualTarball)
+  const normalizedExpectedTarball = removeProtocol(expectedTarball)
+  const normalizedActualTarball = removeProtocol(tarball.replace(/%2f/gi, '/'))
+  if (normalizedExpectedTarball === normalizedActualTarball) {
+    return true
+  }
+
+  const scopeSeparator = pkg.name.indexOf('/')
+  if (pkg.name[0] !== '@' || scopeSeparator === -1) {
+    return false
+  }
+  const filenameStart = normalizedExpectedTarball.lastIndexOf('/-/') + 3
+  const scope = pkg.name.slice(0, scopeSeparator)
+  return `${normalizedExpectedTarball.slice(0, filenameStart)}${scope}/${normalizedExpectedTarball.slice(filenameStart)}` === normalizedActualTarball
 }
 
 function normalizeRegistry (registry?: string): string {
