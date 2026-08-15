@@ -672,6 +672,57 @@ fn a_project_pinned_to_another_package_manager_can_still_be_repinned() {
     assert_eq!(manifest.get("packageManager"), None, "{manifest}");
 }
 
+/// Declaring a package manager and adding a dependency in one command
+/// lands both together: the declaration is written into the manifest the
+/// install saves, not into one of its own.
+#[test]
+fn a_mixed_add_writes_the_declaration_with_the_dependency() {
+    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_manifest(&workspace, &serde_json::json!({}));
+    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+
+    let output = run(
+        pacquet,
+        root.path(),
+        &["add", "yarn@1", "@pnpm.e2e/dep-of-pkg-with-1-dep", "--lockfile-only"],
+    );
+
+    assert_success(&output);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    assert!(
+        manifest["packageManager"].as_str().is_some_and(|pin| pin.starts_with("yarn@1.")),
+        "{manifest}",
+    );
+    assert!(manifest["dependencies"]["@pnpm.e2e/dep-of-pkg-with-1-dep"].is_string(), "{manifest}");
+    drop((root, npmrc_info));
+}
+
+/// And an install that fails takes the declaration with it, rather than
+/// leaving the project declaring a package manager it never installed
+/// anything for.
+#[test]
+fn a_failed_add_leaves_the_declaration_unwritten() {
+    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let original = serde_json::json!({ "name": "project", "version": "1.0.0" });
+    write_manifest(&workspace, &original);
+    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+
+    let output = run(
+        pacquet,
+        root.path(),
+        &["add", "yarn@1", "@pnpm.e2e/this-package-does-not-exist", "--lockfile-only"],
+    );
+
+    assert_failure(&output);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest, original);
+    drop((root, npmrc_info));
+}
+
 /// A `package.json` that parses but is not an object has nowhere to
 /// record a package manager. That is the project's own file rather than
 /// an impossible state, so it fails as an error.

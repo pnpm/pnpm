@@ -264,16 +264,20 @@ impl AddArgs {
             .or_else(|| state.config.save_catalog_name.clone());
 
         let mut state = state;
-        let Some(package_names) =
-            record_package_manager_pins::<Reporter>(&mut state, &self.package_names).await?
-        else {
+        let pins = record_package_manager_pins(&mut state, &self.package_names).await?;
+        if pins.remaining.is_empty() {
+            pins.save(&mut state)?;
+            pins.report::<Reporter>();
             return Ok(());
-        };
+        }
+        let package_names = pins.remaining.clone();
 
         let range_spec_style = self.range_spec_style(state.config);
         let dependency_options =
             self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
 
+        // The install saves the manifest, so the declarations recorded
+        // above reach disk with the dependencies or not at all.
         add_packages::<Reporter, _>(
             state,
             &package_names,
@@ -283,7 +287,9 @@ impl AddArgs {
             supported_architectures,
             dependency_options.save_target(),
         )
-        .await
+        .await?;
+        pins.report::<Reporter>();
+        Ok(())
     }
 
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
@@ -468,10 +474,22 @@ where
     .await
 }
 
+/// What [`record_package_manager_pins`] made of a command's requests.
+struct RecordedPins {
+    /// The requests left to install. Empty when the whole command was
+    /// package managers and there is nothing to install.
+    remaining: Vec<String>,
+    /// The declarations written into the manifest, as they read back.
+    recorded: Vec<String>,
+}
+
 /// Record every package manager among `package_names` as the one the
-/// project uses, and return the requests that are left to install —
-/// `None` when the whole command was package managers and there is
-/// nothing to install.
+/// project uses, into `state`'s in-memory manifest.
+///
+/// The manifest is not saved here: an `add` that also installs something
+/// saves it once the install succeeds, so a failed command leaves the
+/// project as it found it. [`RecordedPins::save`] is for the command that
+/// installs nothing.
 ///
 /// A runtime is left in the list: unlike a package manager it is
 /// installed, and [`tool_install_selector`] turns it into the `runtime:`
@@ -480,10 +498,10 @@ where
 /// pnpm's own pin is deliberately not written here. Changing it makes the
 /// next command switch the running CLI, which is `pnpm self-update`'s job
 /// to do deliberately rather than an `add`'s to do as a side effect.
-async fn record_package_manager_pins<Reporter: self::Reporter>(
+async fn record_package_manager_pins(
     state: &mut State,
     package_names: &[String],
-) -> miette::Result<Option<Vec<String>>> {
+) -> miette::Result<RecordedPins> {
     let mut remaining = Vec::new();
     let mut recorded = Vec::new();
     for request in package_names {
@@ -502,18 +520,28 @@ async fn record_package_manager_pins<Reporter: self::Reporter>(
             remaining.push(selector.unwrap_or_else(|| request.clone()));
         }
     }
-    if recorded.is_empty() {
-        return Ok(Some(remaining));
+    Ok(RecordedPins { remaining, recorded })
+}
+
+impl RecordedPins {
+    /// Save the declarations, for a command with nothing to install.
+    fn save(&self, state: &mut State) -> miette::Result<()> {
+        if self.recorded.is_empty() {
+            return Ok(());
+        }
+        state.manifest.save().map_err(miette::Report::new).wrap_err("save the manifest")
     }
-    state.manifest.save().map_err(miette::Report::new).wrap_err("save the manifest")?;
-    for pin in recorded {
-        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Info,
-            message: format!("Recorded {pin} as the project's package manager"),
-            prefix: String::new(),
-        }));
+
+    /// Report what was declared, once it is on disk.
+    fn report<Reporter: self::Reporter>(&self) {
+        for pin in &self.recorded {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message: format!("Recorded {pin} as the project's package manager"),
+                prefix: String::new(),
+            }));
+        }
     }
-    Ok((!remaining.is_empty()).then_some(remaining))
 }
 
 /// Add packages to `state`'s manifest and install them in one operation.

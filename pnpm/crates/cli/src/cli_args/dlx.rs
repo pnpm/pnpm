@@ -410,15 +410,16 @@ enum DlxProgram<'a> {
 }
 
 impl DlxProgram<'_> {
-    /// The word the command is reported as, and the word a shell runs it
-    /// by. Both forms are reachable through the prepended directories.
-    fn word(&self) -> &str {
+    /// The word a shell runs the command by — both forms are reachable
+    /// through the prepended directories — or `None` when there is no
+    /// word a shell could carry, which only a provisioned executable
+    /// whose file name is not valid UTF-8 can produce.
+    fn shell_word(&self) -> Option<&str> {
         match self {
-            DlxProgram::Named(name) => name,
-            DlxProgram::Provisioned { executable, .. } => executable
-                .file_name()
-                .and_then(std::ffi::OsStr::to_str)
-                .expect("a provisioned engine is a file"),
+            DlxProgram::Named(name) => Some(name),
+            DlxProgram::Provisioned { executable, .. } => {
+                executable.file_name().and_then(std::ffi::OsStr::to_str)
+            }
         }
     }
 
@@ -444,7 +445,10 @@ fn run_bin(
     let mut cmd = if shell_mode {
         let shell = pacquet_executor::select_shell(None, cfg!(windows))
             .expect("default shell selection never fails");
-        let mut joined = vec![program.word().to_string()];
+        let word = program
+            .shell_word()
+            .ok_or_else(|| DlxError::CommandNotFound { command: program.command().to_string() })?;
+        let mut joined = vec![word.to_string()];
         joined.extend(args.iter().cloned());
         let mut cmd = Command::new(&shell.program);
         cmd.args(&shell.args);
