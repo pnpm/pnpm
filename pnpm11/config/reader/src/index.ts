@@ -1304,12 +1304,10 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
-  // The keys tested against it come from a YAML file, so the lookup is by string.
   const skipped: ReadonlySet<string> | undefined = skipSettings
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
-    // Unlike `skipSettings` below, this is not the caller's to opt out of.
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
     if (skipped?.has(key)) continue
 
