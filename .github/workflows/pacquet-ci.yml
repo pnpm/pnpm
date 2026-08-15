@@ -311,11 +311,13 @@ jobs:
         working-directory: pnpm/npm/pnpm/test
         run: node --test *.test.mjs
 
-      # The floor the package claims in `engines`. Corepack ships with newer
-      # Node.js than that, but the entry point pulls in get-pnpm, whose own
-      # engines floor is higher, so what the wrapper promises has to be the
-      # version it is actually run on.
-      - name: Test on the oldest supported Node.js
+      # The oldest Node.js line the package claims in `engines`, at its latest
+      # release rather than its first — the line is what a user can still be on,
+      # and an exact floor would pin a long-superseded patch nobody runs.
+      # Corepack ships with newer Node.js than this, but the entry point pulls in
+      # get-pnpm, whose own engines floor is higher, so what the wrapper promises
+      # has to be a version it is actually run on.
+      - name: Test on the oldest supported Node.js line
         if: runner.os == 'Linux'
         shell: bash
         run: |
