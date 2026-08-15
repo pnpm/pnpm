@@ -725,6 +725,45 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
     );
 }
 
+/// A range pin resolves to no exact version on its own, so the running
+/// pnpm's version is recorded when it satisfies the range. The range is
+/// built from `PNPM_VERSION` so the source checkout's version (a different
+/// major) can never satisfy it and answer first.
+#[test]
+fn package_manager_to_sync_records_the_running_version_for_a_satisfied_range_pin() {
+    let root = TempDir::new().expect("tmp dir");
+    let manifest_path = root.path().join("package.json");
+    let range = format!("^{}", pacquet_config::PNPM_VERSION);
+    std::fs::write(
+        &manifest_path,
+        format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{range}","onFail":"download"}}}}}}"#,
+        ),
+    )
+    .expect("write manifest");
+
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    let package_manager =
+        package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
+
+    assert_eq!(package_manager.specifier, range);
+    assert_eq!(package_manager.version, pacquet_config::PNPM_VERSION);
+}
+
+#[test]
+fn package_manager_to_sync_records_nothing_for_a_pin_nothing_satisfies() {
+    let root = TempDir::new().expect("tmp dir");
+    let manifest_path = root.path().join("package.json");
+    std::fs::write(
+        &manifest_path,
+        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"^999.0.0","onFail":"download"}}}"#,
+    )
+    .expect("write manifest");
+
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    assert_eq!(package_manager_to_sync(&manifest, root.path(), None), None);
+}
+
 #[test]
 fn resolve_bool_override_tri_state() {
     // force_on wins, force_off wins over a config `true`, and an unset

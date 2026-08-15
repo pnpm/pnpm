@@ -1,5 +1,5 @@
 use miette::IntoDiagnostic;
-use pnpm_config::PmOnFail;
+use pnpm_config::{PNPM_VERSION, PmOnFail};
 use pnpm_env_installer::is_package_manager_resolved;
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::{
@@ -57,9 +57,20 @@ pub(crate) fn package_manager_to_sync(
     {
         return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
     }
-    exact_version(wanted_version)
+    if let Some(version) = exact_version(wanted_version)
         .filter(|version| version_satisfies(version, wanted_version))
-        .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version })
+    {
+        return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
+    }
+    // A range pin resolves to no exact version on its own, so when the
+    // running pnpm satisfies it, the running version is the one the project
+    // actually uses — record that. Without this, a range pin written by hand
+    // (or by a tool other than `pnpm add` / `self-update`) only reached the
+    // lockfile when a version switch resolved it on the way.
+    version_satisfies(PNPM_VERSION, wanted_version).then(|| PackageManagerToSync {
+        specifier: wanted_version.to_string(),
+        version: PNPM_VERSION.to_string(),
+    })
 }
 
 /// Whether the pnpm version the manifest at `root_dir` pins still has to be
