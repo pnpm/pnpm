@@ -22,7 +22,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
-    sync::{LazyLock, Mutex},
+    sync::{LazyLock, Mutex, PoisonError},
 };
 
 /// Scripts to re-run after `<pm>-install` finishes. `prepare` itself
@@ -277,46 +277,46 @@ fn host_can_prepare(wanted: &WantedPm) -> bool {
 
     static ANSWERS: LazyLock<Mutex<HashMap<HostQuestion, bool>>> = LazyLock::new(Mutex::default);
 
+    // A panic while the cache was held says nothing about the answers
+    // already in it, and refusing to prepare a dependency over it would
+    // be a worse outcome than a stale entry could ever be.
+    let lock = || ANSWERS.lock().unwrap_or_else(PoisonError::into_inner);
+
     let key = (wanted.pm, wanted.version_spec.clone());
-    if let Some(answer) =
-        ANSWERS.lock().expect("the host capability cache is never poisoned").get(&key)
-    {
+    if let Some(answer) = lock().get(&key) {
         return *answer;
     }
     let answer = probe_host(wanted);
-    ANSWERS.lock().expect("the host capability cache is never poisoned").insert(key, answer);
+    lock().insert(key, answer);
     answer
 }
 
 fn probe_host(wanted: &WantedPm) -> bool {
-    // A dependency's scripts reach for any of the package manager's
-    // names — `yarnpkg` as readily as `yarn` — so a host that provides
-    // only some of them still leaves the build to pnpm.
-    let mut programs = shim_names(wanted.pm).map(which::which);
-    let Some(Ok(program)) = programs.next() else {
-        return false;
-    };
-    if programs.any(|name| name.is_err()) {
-        return false;
-    }
-    let Some(wanted_range) = wanted.version_spec.as_deref() else {
-        return true;
-    };
-    let Ok(wanted_range) = node_semver::Range::parse(wanted_range) else {
-        return true;
-    };
-    let Ok(output) = Command::new(program).arg("--version").output() else {
-        return false;
-    };
-    // A version printed by a command that then failed says nothing about
-    // what that command can do.
-    output.status.success()
-        && String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .next()
-            .map(str::trim)
-            .and_then(|version| node_semver::Version::parse(version).ok())
-            .is_some_and(|version| version.satisfies(&wanted_range))
+    let wanted_range =
+        wanted.version_spec.as_deref().and_then(|range| node_semver::Range::parse(range).ok());
+    // A dependency's scripts reach for any of the package manager's names
+    // — `yarnpkg` as readily as `yarn` — and nothing says two of them on
+    // one host are the same install, so each has to answer for itself.
+    shim_names(wanted.pm).all(|name| {
+        let Ok(program) = which::which(name) else {
+            return false;
+        };
+        let Some(wanted_range) = wanted_range.as_ref() else {
+            return true;
+        };
+        let Ok(output) = Command::new(program).arg("--version").output() else {
+            return false;
+        };
+        // A version printed by a command that then failed says nothing
+        // about what that command can do.
+        output.status.success()
+            && String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .map(str::trim)
+                .and_then(|version| node_semver::Version::parse(version).ok())
+                .is_some_and(|version| version.satisfies(wanted_range))
+    })
 }
 
 /// Decide whether the package needs building.

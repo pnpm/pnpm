@@ -40,7 +40,7 @@ use pacquet_package_manifest::is_runtime_alias;
 use pacquet_reporter::SilentReporter;
 use serde_json::Value;
 use std::{
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -612,7 +612,7 @@ fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsSt
         // process's own environment: an `exec` hands the child the
         // command's environment just the same, and nothing here has to
         // reason about which threads are running.
-        Ok(path) => exec_program_with_path(program, args, Some(&path)),
+        Ok(path) => exec_program_with_path(program, args, Some(path.as_os_str())),
         Err(error) => {
             // Rendered as a report so the failure carries the same
             // `ERR_PNPM_BAD_PATH_DIR` code the commands report it under.
@@ -630,7 +630,7 @@ fn exec_program(program: &Path, args: &[OsString]) -> i32 {
 }
 
 #[cfg(unix)]
-fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsString>) -> i32 {
+fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr>) -> i32 {
     use std::os::unix::process::CommandExt as _;
     let mut command = Command::new(program);
     command.args(args);
@@ -652,7 +652,7 @@ fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::i
 }
 
 #[cfg(windows)]
-fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsString>) -> i32 {
+fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr>) -> i32 {
     // `.cmd`/`.bat` targets go to `Command::new` directly: the standard
     // library spawns them through `cmd.exe` itself with the
     // CVE-2024-24576 argument escaping, and rejects arguments it cannot
