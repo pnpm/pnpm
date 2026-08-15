@@ -346,8 +346,6 @@ pub(crate) fn record_package_manager_shims<'a>(
     Ok(added)
 }
 
-/// The directory holding the global `config.yaml` the shim settings live
-/// in.
 fn global_config_dir(config: &Config) -> miette::Result<PathBuf> {
     config
         .config_dir
