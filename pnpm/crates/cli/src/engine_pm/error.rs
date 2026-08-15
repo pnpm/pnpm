@@ -19,6 +19,15 @@ pub(crate) enum EngineError {
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PACKAGE_MANAGER))]
     CannotResolvePackageManager { name: &'static str, spec: String },
 
+    #[display("Cannot find the {name} executable in {dir}")]
+    #[diagnostic(
+        code(ERR_PNPM_ENGINE_BIN_MISSING),
+        help(
+            "The installed engine is incomplete. Remove that directory and run the command again."
+        )
+    )]
+    MissingEngineBin { name: &'static str, dir: String },
+
     #[display("The package.json of this project is not a JSON object")]
     #[diagnostic(
         code(ERR_PNPM_INVALID_MANIFEST),

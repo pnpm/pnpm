@@ -305,4 +305,10 @@ fn only_managed_tools_are_provisioned_by_name() {
     assert_eq!(parse_package_manager_spec("yarn@yarnpkg/berry#main"), None);
     assert_eq!(parse_runtime_spec("node@github:nodejs/node"), None);
     assert_eq!(parse_runtime_spec("node@nodejs/node"), None);
+
+    // `--package` names the engine, and the command names which of its
+    // bins to run: every one the channel table publishes qualifies.
+    assert!(PackageManager::Npm.bins().contains(&"npx"));
+    assert!(PackageManager::Yarn.bins().contains(&"yarnpkg"));
+    assert!(!PackageManager::Npm.bins().contains(&"yarn"));
 }

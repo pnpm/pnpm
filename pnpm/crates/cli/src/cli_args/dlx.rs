@@ -192,6 +192,26 @@ impl DlxArgs {
                 pm,
                 version_spec,
                 bin_command,
+                None,
+                args,
+                &spawn,
+            )
+            .await;
+        }
+
+        // A package manager publishes more than one command, so naming it
+        // with `--package` says which engine to provision while the
+        // command says which of its bins to run: `pnx --package npm@11 npx`.
+        if let [spec] = package.as_slice()
+            && let Some((pm, version_spec)) = parse_package_manager_spec(spec)
+            && pm.bins().contains(&bin_command.as_str())
+        {
+            return run_package_manager::<Reporter>(
+                config,
+                pm,
+                version_spec,
+                spec,
+                Some(bin_command),
                 args,
                 &spawn,
             )
@@ -540,19 +560,25 @@ async fn run_runtime(
     run_bin(DlxProgram::Provisioned { command, executable: &executable }, args, bin_dirs, spawn)
 }
 
-/// Provision `pm` and run it with the caller's arguments, propagating its
-/// exit status the way the rest of dlx does.
+/// Provision `pm` and run `bin` — or the engine's own command, when the
+/// caller named none — with the caller's arguments, propagating the exit
+/// status the way the rest of dlx does.
 async fn run_package_manager<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     pm: PackageManager,
     version_spec: &str,
     command: &str,
+    bin: Option<&str>,
     args: &[String],
     spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
     let engine = Box::pin(provision::<Reporter>(config, pm, version_spec)).await?;
+    let executable = match bin {
+        Some(bin) => engine.command(bin),
+        None => engine.program.clone(),
+    };
     run_bin(
-        DlxProgram::Provisioned { command, executable: &engine.program },
+        DlxProgram::Provisioned { command, executable: &executable },
         args,
         engine.bin_dirs,
         spawn,

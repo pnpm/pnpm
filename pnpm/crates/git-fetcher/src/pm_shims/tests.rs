@@ -30,7 +30,7 @@ fn an_unpinned_package_manager_is_forwarded_by_name() {
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
     let body = shim_body(dir.path(), "bun");
-    let spec = if cfg!(windows) { r#"dlx "bun""# } else { "dlx 'bun'" };
+    let spec = if cfg!(windows) { r#"--package "bun""# } else { "--package 'bun'" };
     assert!(body.contains(spec), "an unpinned spec carries no version: {body}");
 }
 
@@ -41,7 +41,26 @@ fn yarn_is_reachable_under_both_of_its_names() {
     let wanted = WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: false };
     let written = write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write");
     assert_eq!(written.len(), 2);
-    assert_eq!(shim_body(dir.path(), "yarn"), shim_body(dir.path(), "yarnpkg"));
+    for name in ["yarn", "yarnpkg"] {
+        let body = shim_body(dir.path(), name);
+        assert!(body.contains("--package"), "{name}: {body}");
+        assert!(body.contains(name), "{name}: {body}");
+    }
+}
+
+/// `npx` is a command npm publishes beside itself, not another name for
+/// it, so the shim has to run npm's `npx` rather than npm.
+#[test]
+fn npm_is_reachable_through_npx_too() {
+    let dir = tempdir().unwrap();
+    let version_spec = Some("11".to_string());
+    let wanted = WantedPm { pm: PreferredPm::Npm, version_spec, pinned: true };
+    let written = write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write");
+
+    assert_eq!(written.len(), 2);
+    let body = shim_body(dir.path(), "npx");
+    let runs = if cfg!(windows) { r#""npm@11" "npx""# } else { "'npm@11' 'npx'" };
+    assert!(body.contains(runs), "{body}");
 }
 
 #[cfg(unix)]
@@ -71,7 +90,7 @@ fn a_hostile_pnpm_path_is_quoted() {
     // as a command.
     assert_eq!(
         shim_body(dir.path(), "npm"),
-        "#!/bin/sh\nexec '/opt/p'\\''; touch /tmp/pwned; '\\''' dlx 'npm' \"$@\"\n",
+        "#!/bin/sh\nexec '/opt/p'\\''; touch /tmp/pwned; '\\''' dlx --package 'npm' 'npm' \"$@\"\n",
     );
 }
 
@@ -86,7 +105,7 @@ fn a_hostile_version_spec_is_dropped() {
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
     let body = shim_body(dir.path(), "yarn");
-    let spec = if cfg!(windows) { r#"dlx "yarn""# } else { "dlx 'yarn'" };
+    let spec = if cfg!(windows) { r#"--package "yarn""# } else { "--package 'yarn'" };
     assert!(body.contains(spec), "{body}");
     assert!(!body.contains("calc"), "{body}");
 }

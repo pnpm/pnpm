@@ -24,6 +24,7 @@ use crate::{
     cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
     engine_pm::{
         channel::PackageManager,
+        error::EngineError,
         provision::{engine_bin, provision},
     },
     path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
@@ -107,8 +108,10 @@ where
 {
     let bin_dir = bin_dirs.first().expect("an installed engine has a bin directory");
     let path = prepend_dirs_to_path(bin_dirs).map_err(WithError::from)?;
-    let program = engine_bin(bin_dir, "pnpm")
-        .ok_or_else(|| miette::miette!("cannot locate pnpm in the engine's bin directory"))?;
+    let program = engine_bin(bin_dir, "pnpm").ok_or_else(|| EngineError::MissingEngineBin {
+        name: "pnpm",
+        dir: bin_dir.display().to_string(),
+    })?;
 
     let mut cmd = Command::new(program);
     cmd.args(args);

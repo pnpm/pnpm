@@ -1,6 +1,7 @@
 //! Build the `PATH` a spawned child sees.
 
 use derive_more::{Display, Error};
+use pacquet_diagnostics::miette::Diagnostic;
 use std::{
     ffi::{OsStr, OsString},
     path::PathBuf,
@@ -11,8 +12,9 @@ use std::{
 /// it contains the separator entries are split on. Each command that
 /// prepends directories reports it under its own error type, so the
 /// `ERR_PNPM_BAD_PATH_DIR` diagnostic keeps the command's own context.
-#[derive(Debug, Display, Error)]
+#[derive(Debug, Display, Error, Diagnostic)]
 #[display("Cannot add {dir:?} to PATH: it contains the {delimiter:?} path separator")]
+#[diagnostic(code(ERR_PNPM_BAD_PATH_DIR))]
 pub(crate) struct BadPathDir {
     #[error(not(source))]
     pub(crate) dir: String,

@@ -3,10 +3,14 @@
 //!
 //! The engine lands in `<store>/links/...` (shared across invocations and,
 //! unlike `self-update`, not registered in the global packages directory,
-//! so `pnpm ls -g` does not see it), its registry signature is verified on
-//! a genuine download, native target installs have their platform binary
-//! linked, and the package bins are linked into a `bin/` directory the
-//! caller prepends to `PATH`.
+//! so `pnpm ls -g` does not see it). A genuine download has its registry
+//! signature checked before the engine runs; where no signature can be
+//! obtained and the release was resolved through the user's own trusted
+//! configuration, the install proceeds on the lockfile's integrity pin
+//! with a warning (see [`crate::cli_args::self_update::verify_engine`]).
+//! Native target installs have their platform binary linked, and the
+//! package bins are linked into a `bin/` directory the caller prepends to
+//! `PATH`.
 
 use miette::{Context, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, PackageBinSource, link_bins_of_packages};

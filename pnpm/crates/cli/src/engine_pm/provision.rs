@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::{
     engine_pm::{
         channel::{BinaryChannel, Channel, EnginePackages, PackageManager},
+        error::EngineError,
         install::{engine_env_root, install_engine_to_store},
         resolve::resolve_release,
     },
@@ -109,8 +110,10 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     ))
     .await?;
 
-    let program = engine_bin(&bin_dir, name)
-        .ok_or_else(|| miette::miette!("cannot locate {name} in the installed engine"))?;
+    let program = engine_bin(&bin_dir, name).ok_or_else(|| EngineError::MissingEngineBin {
+        name,
+        dir: bin_dir.display().to_string(),
+    })?;
 
     let mut bin_dirs = vec![bin_dir];
     let packages = pm

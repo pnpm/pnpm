@@ -528,7 +528,10 @@ pub(super) fn prefix<'a>(ctx: &RunCtx<'a>, args: PrefixArgs) -> miette::Result<C
 }
 
 pub(super) fn shim<'a>(ctx: &RunCtx<'a>, args: ShimArgs) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
+    // Writes the global bin directory and the global `config.yaml`, so it
+    // reads the configuration anchored at the pnpm home — a project the
+    // command happens to run in does not get to steer either.
+    let config = (ctx.global_config)()?;
     Ok(Box::pin(async move {
         print!("{}", args.run(config).await?);
         Ok(())

@@ -4,8 +4,10 @@
 //! The dependency's install and prepublish scripts invoke `yarn`, `npm` or
 //! `bun` by name — its own scripts do too — so the package manager has to
 //! be reachable as a command, not just as a path pnpm knows. Each shim
-//! forwards to `pnpm dlx <pm>@<spec>`, which resolves, verifies and
-//! installs that package manager once and reuses it afterwards.
+//! forwards to `pnpm dlx --package <pm>@<spec> <command>`, which resolves,
+//! verifies and installs that package manager once, reuses it afterwards,
+//! and runs the command the script actually asked for: `npx` is npm's
+//! other bin, not another name for it.
 
 use pacquet_fs::write_atomic;
 use std::{
@@ -15,12 +17,15 @@ use std::{
 
 use crate::preferred_pm::WantedPm;
 
-/// The shims written for a package manager: the command it is invoked as,
-/// plus the aliases its own scripts may reach for.
+/// The commands a package manager answers to, all of which a dependency's
+/// scripts may reach for: the alias of the same executable (`yarnpkg`) and
+/// the separate command it publishes beside itself (`npx`) alike.
 pub(crate) fn shim_names(pm: crate::preferred_pm::PreferredPm) -> &'static [&'static str] {
     match pm {
+        // `bunx` is a link Bun's own installer makes, and `bun x` does the
+        // same job.
         crate::preferred_pm::PreferredPm::Bun => &["bun"],
-        crate::preferred_pm::PreferredPm::Npm => &["npm"],
+        crate::preferred_pm::PreferredPm::Npm => &["npm", "npx"],
         crate::preferred_pm::PreferredPm::Pnpm => &["pnpm"],
         crate::preferred_pm::PreferredPm::Yarn => &["yarn", "yarnpkg"],
     }
@@ -55,9 +60,10 @@ fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, Stri
     use pacquet_cmd_shim::sh_single_quote;
 
     let contents = format!(
-        "#!/bin/sh\nexec {pnpm} dlx {spec} \"$@\"\n",
+        "#!/bin/sh\nexec {pnpm} dlx --package {spec} {name} \"$@\"\n",
         pnpm = sh_single_quote(&pnpm_execpath.to_string_lossy()),
         spec = sh_single_quote(spec),
+        name = sh_single_quote(name),
     );
     vec![(name.to_string(), contents)]
 }
@@ -68,7 +74,8 @@ fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, Stri
 
     let pnpm = cmd_escape(&pnpm_execpath.to_string_lossy());
     let spec = cmd_escape(spec);
-    let contents = format!("@\"{pnpm}\" dlx \"{spec}\" %*\r\n");
+    let escaped_name = cmd_escape(name);
+    let contents = format!("@\"{pnpm}\" dlx --package \"{spec}\" \"{escaped_name}\" %*\r\n");
     vec![(format!("{name}.cmd"), contents)]
 }
 

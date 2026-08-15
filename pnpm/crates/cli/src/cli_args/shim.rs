@@ -163,10 +163,26 @@ async fn add(
         crate::shim_dispatch::install_dispatcher(bin_dir)
             .into_diagnostic()
             .wrap_err("install the shim dispatcher")?;
-        link_virtual_shims::<CmdShimHost>(package, &bin_refs, bin_dir)
+        let repairing = !installed_shims(bin_dir, package).is_empty();
+        let written = link_virtual_shims::<CmdShimHost>(package, &bin_refs, bin_dir)
             .map_err(miette::Report::new)
             .wrap_err_with(|| format!("link the {package} shims"))?;
-        set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))?;
+        if let Err(error) =
+            set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))
+        {
+            // A shim the setting does not govern shadows the command
+            // without dispatching, so an add that cannot record the
+            // opt-in leaves nothing behind. Repairing an existing set is
+            // different: those shims were already on `PATH`, governed by
+            // the entry this failed to rewrite, and removing them would
+            // break what was working.
+            if !repairing {
+                for path in written {
+                    let _ = remove_bin(&path);
+                }
+            }
+            return Err(error);
+        }
         writeln!(report, "Added {} for {package}", bins.join(", ")).unwrap();
     }
     Ok(report)
@@ -265,11 +281,9 @@ fn installed_shims(bin_dir: &Path, package: &str) -> Vec<String> {
 fn virtual_shims(bin_dir: &Path) -> impl Iterator<Item = (String, String)> + use<'_> {
     fs::read_dir(bin_dir).into_iter().flatten().flatten().filter_map(|entry| {
         let path = entry.path();
-        // Only the extensionless flavor carries the marker; its Windows
-        // siblings are removed and rewritten with it.
-        if path.extension().is_some() {
-            return None;
-        }
+        // The marker is what identifies a shim, not the absence of an
+        // extension: a package can publish a bin named `tool.js`. The
+        // Windows siblings carry no marker, so they are skipped by it.
         let bin = path.file_name()?.to_str()?.to_string();
         let content = fs::read_to_string(&path).ok()?;
         let package = virtual_shim_package(&content)?;

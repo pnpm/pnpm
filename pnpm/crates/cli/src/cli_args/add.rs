@@ -297,6 +297,17 @@ impl AddArgs {
         mut state: State,
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
+        // Which package manager a project uses is that project's own
+        // declaration, so it is recorded where the command runs rather
+        // than written into each project a filter happens to select.
+        // Refusing is the honest answer: the alternative is installing
+        // the npm package that shares the name, which is not what naming
+        // a package manager asks for anywhere else.
+        if let Some(request) =
+            self.package_names.iter().find(|request| declared_package_manager(request).is_some())
+        {
+            return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
+        }
         let supported_architectures =
             self.supported_architectures.apply_to(state.config.supported_architectures.clone());
         let save_catalog_name = self
@@ -425,6 +436,24 @@ pub(crate) fn apply_allow_build(
         config.allow_builds.insert(pkg.clone(), true);
     }
     Ok(())
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum AddError {
+    #[display(
+        "Cannot declare {request} as the package manager of a filtered selection of projects"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_PACKAGE_MANAGER_IN_SELECTION),
+        help(
+            "Which package manager a project uses is declared in that project. Run the command in the project itself, without a filter."
+        )
+    )]
+    PackageManagerInSelection {
+        #[error(not(source))]
+        request: String,
+    },
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

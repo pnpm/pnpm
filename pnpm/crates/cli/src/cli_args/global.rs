@@ -202,19 +202,25 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     allow_build: &[String],
     cwd: &Path,
 ) -> miette::Result<()> {
-    // Normalize each selector to its package name first, so versioned forms
-    // like `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
-    if params.iter().any(|param| {
-        matches!(parse_wanted_dependency(param).alias.as_deref(), Some("pnpm" | "@pnpm/exe"))
+    // Both of the rules below apply to what actually gets installed, so
+    // they run on the tokens a comma-separated group splits into rather
+    // than on the group: `pnpm,lodash` is a request to install pnpm.
+    let groups = split_into_groups(params, cwd);
+    // Each selector is read as its package name, so versioned forms like
+    // `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
+    if groups.iter().flatten().any(|token| {
+        matches!(parse_wanted_dependency(token).alias.as_deref(), Some("pnpm" | "@pnpm/exe"))
     }) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
     // A tool name becomes the selector that installs the tool itself,
     // which the ordinary pipeline then handles — so the result stays a
     // normal global install that `pnpm ls -g` and `pnpm remove -g` see.
-    let params: Vec<String> = params
-        .iter()
-        .map(|param| tool_install_selector(param).unwrap_or_else(|| param.clone()))
+    let groups: Vec<Vec<String>> = groups
+        .into_iter()
+        .map(|group| {
+            group.into_iter().map(|token| tool_install_selector(&token).unwrap_or(token)).collect()
+        })
         .collect();
 
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
@@ -224,7 +230,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         .wrap_err("create the global packages directory")?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    for group in split_into_groups(&params, cwd) {
+    for group in groups {
         let (install_dir, config) = Box::pin(run_group_install::<Reporter>(
             base_config,
             &global_pkg_dir,

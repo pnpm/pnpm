@@ -723,6 +723,28 @@ fn a_failed_add_leaves_the_declaration_unwritten() {
     drop((root, npmrc_info));
 }
 
+/// Which package manager a project uses is that project's declaration,
+/// not something a filter writes across a selection — and it must not
+/// quietly become an install of the npm package that shares the name.
+#[test]
+fn declaring_a_package_manager_for_a_filtered_selection_is_refused() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &serde_json::json!({ "name": "root", "version": "1.0.0" }));
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let project = workspace.join("packages").join("app");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+
+    let output = run(pacquet, root.path(), &["add", "yarn@4", "--filter", "app"]);
+
+    assert_failure(&output);
+    assert_contains(&stderr(&output), "ERR_PNPM_PACKAGE_MANAGER_IN_SELECTION");
+}
+
 /// A `package.json` that parses but is not an object has nowhere to
 /// record a package manager. That is the project's own file rather than
 /// an impossible state, so it fails as an error.

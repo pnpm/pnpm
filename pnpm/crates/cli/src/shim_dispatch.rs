@@ -618,7 +618,9 @@ fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsSt
             exec_program(program, args)
         }
         Err(error) => {
-            eprintln!("pnpm: {error}");
+            // Rendered as a report so the failure carries the same
+            // `ERR_PNPM_BAD_PATH_DIR` code the commands report it under.
+            eprintln!("pnpm: {:?}", miette::Report::new(error));
             1
         }
     }

@@ -170,8 +170,8 @@ pub(crate) async fn verify_engine_identity(
         failures.iter().all(|failure| failure.category == FailureCategory::Unreachable);
     let message = format!(
         "Refusing to run {label}: its npm registry signature could not be verified \
-         ({described}). The bytes selected by this project's lockfile/registry do not match a \
-         published, signed release.",
+         ({described}). The bytes its environment lockfile pins, resolved through the configured \
+         package-manager registry, do not match a published, signed release.",
     );
     if only_unreachable {
         Err(SelfUpdateError::EngineIdentityUnverifiable { message })

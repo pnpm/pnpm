@@ -95,3 +95,14 @@ fn a_global_disable_is_not_undone_by_installing_a_package_manager() {
         "globalShims: false",
     );
 }
+
+/// A package can publish a bin whose name carries an extension, and the
+/// shim written for it is found by its marker like any other — `pnpm shim
+/// ls` and `rm` would otherwise never see it.
+#[test]
+fn a_bin_name_with_an_extension_is_still_discovered() {
+    let dir = tempdir().unwrap();
+    link_virtual_shims::<CmdShimHost>("tool", &["tool.js"], dir.path()).expect("link the shim");
+
+    assert_eq!(installed_shims(dir.path(), "tool"), ["tool.js"]);
+}

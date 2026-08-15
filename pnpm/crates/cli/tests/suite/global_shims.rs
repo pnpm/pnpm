@@ -820,7 +820,15 @@ fn adding_a_shim_under_a_higher_precedence_disable_is_refused() {
         assert!(!refused.status.success(), "{label}");
         let stderr = String::from_utf8_lossy(&refused.stderr);
         assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{label}: {stderr}");
-        assert!(!pnpm_home.join("bin").join("yarn").exists(), "{label}");
+        // Nothing was linked: not the shim, not a Windows flavor of it,
+        // not the dispatcher beside them.
+        let linked: Vec<_> = fs::read_dir(pnpm_home.join("bin"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|entry| entry.file_name())
+            .collect();
+        assert!(linked.is_empty(), "{label}: {linked:?}");
     }
 }
 
