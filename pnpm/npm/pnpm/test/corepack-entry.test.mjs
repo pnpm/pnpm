@@ -30,7 +30,10 @@ if [ "$1" = fail ]; then exit 3; fi
 echo "ran: $*"
 `
 
-describe('corepack entry point', { skip: process.platform === 'win32' }, () => {
+const SKIP_ON_WINDOWS = process.platform === 'win32' &&
+  'the stand-in for the native binary is a shell script; download-native-binary.test.mjs covers everything up to spawning it'
+
+describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
   it('downloads the native binary on first use, then reuses it', async () => {
     const fixture = await createFixture()
 
