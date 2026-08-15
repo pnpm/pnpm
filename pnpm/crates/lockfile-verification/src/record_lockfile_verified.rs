@@ -59,7 +59,10 @@ pub fn record_lockfile_verified(
     // Mirror next to the current lockfile so the verdict survives a
     // wiped cache dir — see
     // [`crate::VerifyLockfileResolutionsOptions::verdict_fallback_dir`].
-    if let Some(fallback_dir) = verdict_fallback_dir {
+    // Only into a virtual store that already exists: the record write
+    // creates its directory, and a lockfile-only run must not conjure
+    // `node_modules/.pnpm` out of a cache write.
+    if let Some(fallback_dir) = verdict_fallback_dir.filter(|dir| dir.is_dir()) {
         record_verification(
             fallback_dir,
             lockfile_path,

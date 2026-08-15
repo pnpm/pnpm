@@ -287,7 +287,13 @@ fn record_verification_with_fallback(
         &mut hash_once,
         cache_precomputed.clone(),
     );
-    if let Some(fallback_dir) = verdict_fallback_dir {
+    // Mirror only into a virtual store that already exists: the record
+    // write creates its directory, and a verification-only run (e.g.
+    // `dedupe --check`) must not conjure `node_modules/.pnpm` out of a
+    // cache write.
+    if let Some(fallback_dir) = verdict_fallback_dir
+        && fallback_dir.is_dir()
+    {
         record_verification(
             fallback_dir,
             lockfile_path,
