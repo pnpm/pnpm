@@ -16,7 +16,9 @@ use crate::{
         approve_builds::ApproveBuildsArgs,
         ignored_builds::get_automatically_ignored_builds,
         rebuild::run_rebuild,
+        shim::record_package_manager_shims,
     },
+    engine_pm::selector::tool_install_selector,
     shim_dispatch::install_dispatcher,
 };
 use derive_more::{Display, Error};
@@ -115,10 +117,19 @@ fn link_global_bins(
     global_bin_dir: &Path,
     bins_to_skip: &std::collections::HashSet<String>,
 ) -> miette::Result<()> {
+    // A package manager installed globally opts into project-aware
+    // dispatch, so it defers to whatever version a project pins and stays
+    // the fallback for projects that pin nothing — the arrangement a
+    // globally installed runtime already has. The entry is recorded before
+    // the split below, so the bins this very run writes are the
+    // dispatching flavor.
+    let names = pkgs.iter().filter_map(|pkg| pkg.manifest.get("name")?.as_str());
+    let newly_enabled = record_package_manager_shims(config, names)?;
+
     let (direct, context_aware): (Vec<_>, Vec<_>) = pkgs.iter().cloned().partition(|pkg| {
         let name = pkg.manifest.get("name").and_then(serde_json::Value::as_str);
         !name.is_some_and(|name| {
-            config.global_shims.is_enabled(name)
+            (config.global_shims.is_enabled(name) || newly_enabled.contains(name))
                 && (!pacquet_package_manifest::is_runtime_alias(name)
                     || dependencies
                         .iter()
@@ -191,13 +202,27 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     allow_build: &[String],
     cwd: &Path,
 ) -> miette::Result<()> {
-    // Normalize each selector to its package name first, so versioned forms
-    // like `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
-    if params.iter().any(|param| {
-        matches!(parse_wanted_dependency(param).alias.as_deref(), Some("pnpm" | "@pnpm/exe"))
+    // Both of the rules below apply to what actually gets installed, so
+    // they run on the tokens a comma-separated group splits into rather
+    // than on the group: `pnpm,lodash` is a request to install pnpm.
+    let groups = split_into_groups(params, cwd);
+    // Each selector is read as its package name, so versioned forms like
+    // `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
+    if groups.iter().flatten().any(|token| {
+        matches!(parse_wanted_dependency(token).alias.as_deref(), Some("pnpm" | "@pnpm/exe"))
     }) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
+    // A tool name becomes the selector that installs the tool itself,
+    // which the ordinary pipeline then handles — so the result stays a
+    // normal global install that `pnpm ls -g` and `pnpm remove -g` see.
+    let groups: Vec<Vec<String>> = groups
+        .into_iter()
+        .map(|group| {
+            group.into_iter().map(|token| tool_install_selector(&token).unwrap_or(token)).collect()
+        })
+        .collect();
+
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
     fs::create_dir_all(&global_pkg_dir)
@@ -205,7 +230,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         .wrap_err("create the global packages directory")?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    for group in split_into_groups(params, cwd) {
+    for group in groups {
         let (install_dir, config) = Box::pin(run_group_install::<Reporter>(
             base_config,
             &global_pkg_dir,

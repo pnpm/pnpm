@@ -432,6 +432,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Restart(args) => dispatch_script::restart(ctx, args),
         CliCommand::FindHash(args) => dispatch_query::find_hash(ctx, args),
         CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
+        CliCommand::Shim(args) => dispatch_query::shim(ctx, args),
         CliCommand::Bin(args) => dispatch_query::bin(ctx, args),
         CliCommand::Clean(args) => dispatch_query::clean(ctx, args, "clean"),
         CliCommand::Purge(args) => dispatch_query::clean(ctx, args, "purge"),

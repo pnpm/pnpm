@@ -4017,6 +4017,7 @@ dependencies = [
  "pacquet-detect-libc",
  "pacquet-diagnostics",
  "pacquet-directory-fetcher",
+ "pacquet-engine-pm-yarn-resolver",
  "pacquet-engine-runtime-node-resolver",
  "pacquet-env-installer",
  "pacquet-executor",
@@ -4305,6 +4306,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-engine-pm-yarn-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-crypto-shasums-file",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-engine-runtime-bun-resolver"
 version = "0.0.1"
 dependencies = [
@@ -4464,6 +4484,8 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
+ "node-semver",
+ "pacquet-cmd-shim",
  "pacquet-diagnostics",
  "pacquet-executor",
  "pacquet-fs",
@@ -4479,6 +4501,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "which 8.0.4",
 ]
 
 [[package]]
@@ -4691,6 +4714,7 @@ dependencies = [
  "pacquet-catalogs-types",
  "pacquet-config",
  "pacquet-diagnostics",
+ "pacquet-engine-pm-yarn-resolver",
  "pacquet-engine-runtime-bun-resolver",
  "pacquet-engine-runtime-deno-resolver",
  "pacquet-engine-runtime-node-resolver",
@@ -4840,6 +4864,7 @@ dependencies = [
  "pacquet-deps-path",
  "pacquet-deps-restorer",
  "pacquet-directory-fetcher",
+ "pacquet-engine-pm-yarn-resolver",
  "pacquet-engine-runtime-bun-resolver",
  "pacquet-engine-runtime-deno-resolver",
  "pacquet-engine-runtime-node-resolver",

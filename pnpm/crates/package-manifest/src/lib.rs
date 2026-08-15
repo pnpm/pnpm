@@ -12,6 +12,8 @@ use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
 
+pub mod package_manager_spec;
+
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum PackageManifestError {

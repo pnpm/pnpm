@@ -64,8 +64,8 @@ struct NpmSigningKey<'a> {
 /// actually installed. See <https://github.com/pnpm/pnpm/issues/13147>.
 const CANONICAL_NPM_REGISTRY: &str = "https://registry.npmjs.org/";
 
-/// A pnpm-engine component whose registry signature must validate over the
-/// bytes the lockfile pins.
+/// A package-manager engine component whose registry signature must
+/// validate over the bytes the lockfile pins.
 struct EngineComponent {
     name: String,
     registry: String,
@@ -73,7 +73,28 @@ struct EngineComponent {
     integrity: String,
 }
 
-/// Verify the pnpm engine recorded in `env` against npm's embedded keys.
+/// The engine whose identity is being checked.
+pub(crate) struct EngineToVerify<'a> {
+    /// `<name>@<version>` as the user asked for it, for diagnostics.
+    pub(crate) label: &'a str,
+    /// The packages the env lockfile pins for the engine.
+    pub(crate) packages: &'a [&'a str],
+    pub(crate) platform_binaries: PlatformBinaries,
+}
+
+/// How an engine ships the native code that actually executes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PlatformBinaries {
+    /// `@pnpm/exe.<target>` packages, listed as optional dependencies of
+    /// the pnpm wrapper.
+    PnpmExe,
+    /// The engine is a JavaScript CLI — the pinned packages are all there
+    /// is to verify.
+    None,
+}
+
+/// Verify the package-manager engine recorded in `env` against npm's
+/// embedded keys.
 ///
 /// Registries that serve no `dist.signatures` (private mirrors and feed
 /// proxies commonly strip them) do not fail the check outright: the
@@ -97,16 +118,17 @@ struct EngineComponent {
 /// metadata, or when the canonical registry is the configured registry and
 /// is unreachable — the lockfile integrity is project-controlled and not a
 /// safe fallback there.
-pub(crate) async fn verify_pnpm_engine_identity(
+pub(crate) async fn verify_engine_identity(
     env: &EnvLockfile,
-    pnpm_version: &str,
+    engine: &EngineToVerify<'_>,
     config: &Config,
 ) -> Result<Option<String>, SelfUpdateError> {
-    let to_verify = collect_engine_components(env, config)?;
+    let label = engine.label;
+    let to_verify = collect_engine_components(env, config, engine)?;
     if to_verify.is_empty() {
         return Err(SelfUpdateError::EngineIdentityUnverifiable {
             message: format!(
-                "Cannot verify the identity of pnpm@{pnpm_version}: its integrity metadata is missing from pnpm-lock.yaml.",
+                "Cannot verify the identity of {label}: its integrity metadata is missing from pnpm-lock.yaml.",
             ),
         });
     }
@@ -137,7 +159,7 @@ pub(crate) async fn verify_pnpm_engine_identity(
 
     if failures.iter().all(SignatureFailure::tolerable_without_signature) {
         return Ok(Some(format!(
-            "The authenticity of pnpm@{pnpm_version} could not be verified against npm's registry \
+            "The authenticity of {label} could not be verified against npm's registry \
              signatures: {described}. Proceeding anyway, because the release was resolved through \
              the registry configured in your own (non-project) configuration and stays pinned by \
              its integrity checksum.",
@@ -147,9 +169,9 @@ pub(crate) async fn verify_pnpm_engine_identity(
     let only_unreachable =
         failures.iter().all(|failure| failure.category == FailureCategory::Unreachable);
     let message = format!(
-        "Refusing to run pnpm@{pnpm_version}: its npm registry signature could not be verified \
-         ({described}). The bytes selected by this project's lockfile/registry do not match a \
-         published, signed pnpm release.",
+        "Refusing to run {label}: its npm registry signature could not be verified \
+         ({described}). The bytes its environment lockfile pins, resolved through the configured \
+         package-manager registry, do not match a published, signed release.",
     );
     if only_unreachable {
         Err(SelfUpdateError::EngineIdentityUnverifiable { message })
@@ -158,13 +180,14 @@ pub(crate) async fn verify_pnpm_engine_identity(
     }
 }
 
-/// Collect the engine components to verify from the env lockfile: `pnpm`,
-/// `@pnpm/exe`, and the host's platform binary (an optional dependency of
-/// the native wrapper, see [`native_engine_wrapper`]). Errors if a present
-/// component carries no integrity.
+/// Collect the engine components to verify from the env lockfile: the
+/// engine's own packages, plus — for pnpm — the host's platform binary (an
+/// optional dependency of the native wrapper, see [`native_engine_wrapper`]).
+/// Errors if a present component carries no integrity.
 fn collect_engine_components(
     env: &EnvLockfile,
     config: &Config,
+    engine: &EngineToVerify<'_>,
 ) -> Result<Vec<EngineComponent>, SelfUpdateError> {
     let mut to_verify = Vec::new();
     let pm_deps = env
@@ -175,17 +198,29 @@ fn collect_engine_components(
         return Ok(to_verify);
     };
 
-    for name in ["pnpm", "@pnpm/exe"] {
-        if let Some(dep) = pm_deps.get(name) {
-            to_verify.push(engine_component(env, config, name, &dep.version)?);
-        }
+    for name in engine.packages {
+        // The engine's package list is derived from the version being
+        // installed, so a package missing from the lockfile that pins it
+        // means the two disagree about what is about to run.
+        let dep =
+            pm_deps.get(*name).ok_or_else(|| SelfUpdateError::EngineIdentityUnverifiable {
+                message: format!(
+                    "Cannot verify the identity of {}: {name} is missing from pnpm-lock.yaml.",
+                    engine.label,
+                ),
+            })?;
+        to_verify.push(engine_component(env, config, name, &dep.version)?);
+    }
+
+    if engine.platform_binaries == PlatformBinaries::None {
+        return Ok(to_verify);
     }
 
     // The bytes actually executed are the host's platform binary, listed as
     // an optional dependency of the native wrapper. Since this is the native
-    // code self-update will run, a missing snapshot, missing optional deps,
-    // or no host candidate fails closed rather than letting verification pass
-    // on the wrappers alone.
+    // code that will run, a missing snapshot, missing optional deps, or no
+    // host candidate fails closed rather than letting verification pass on
+    // the wrappers alone.
     if let Some((wrapper_name, wrapper_version)) = native_engine_wrapper(pm_deps) {
         let snapshot_label = format!("{wrapper_name}@{wrapper_version}");
         let snapshot_key = snapshot_label.parse::<PackageKey>().map_err(|_| {

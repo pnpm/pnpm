@@ -695,3 +695,281 @@ fn native_node_dispatcher_preserves_the_global_executable_fallback() {
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(String::from_utf8_lossy(&output.stdout).contains("native-fallback"));
 }
+
+/// A `pnpm` invocation against an isolated pnpm home, for the commands
+/// that manage shims rather than dispatch through one.
+fn pnpm_command(root: &TempDir, cwd: &Path) -> Command {
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .without_ambient_pnpm_config()
+        .with_current_dir(cwd)
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+}
+
+fn stdout_of(output: &std::process::Output) -> String {
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+/// `pnpm shim add` writes shims for a package that is not installed at
+/// all, records the opt-in that governs them, and `rm` undoes both.
+#[test]
+fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let global_bin = root.path().join("pnpm-home").join("bin");
+
+    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    assert!(stdout_of(&added).contains("yarn, yarnpkg"));
+    assert!(global_bin.join("yarn").exists());
+    assert!(global_bin.join("yarnpkg").exists());
+    let config =
+        fs::read_to_string(root.path().join("config/pnpm/config.yaml")).expect("read config.yaml");
+    assert!(config.contains("yarn: auto"), "{config}");
+
+    let listed = pnpm_command(&root, &project).with_args(["shim", "ls"]).output().unwrap();
+    assert!(stdout_of(&listed).contains("yarn (auto): yarn, yarnpkg"));
+
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    assert!(stdout_of(&removed).contains("Removed yarn, yarnpkg"));
+    let left: Vec<_> = fs::read_dir(&global_bin)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("yarn"))
+        .collect();
+    assert!(left.is_empty(), "{left:?}");
+    let config =
+        fs::read_to_string(root.path().join("config/pnpm/config.yaml")).expect("read config.yaml");
+    assert!(!config.contains("yarn: auto"), "{config}");
+}
+
+/// `globalShims: false` turns every context-aware shim off, so a shim
+/// added under it would sit on `PATH` doing nothing — and recording the
+/// opt-in would replace that off switch with a record that turns the
+/// built-in runtime shims back on. The command says so instead.
+#[test]
+fn adding_a_shim_under_a_global_disable_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
+
+    let refused =
+        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+
+    assert!(!refused.status.success());
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{stderr}");
+    assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
+    // Nothing was linked at all — not the bare shim, not a Windows
+    // flavor, not the dispatcher beside them.
+    let global_bin = root.path().join("pnpm-home").join("bin");
+    let linked: Vec<_> = fs::read_dir(&global_bin)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.file_name())
+        .collect();
+    assert!(linked.is_empty(), "{linked:?}");
+
+    // Removing shims under it still works, and still leaves the setting
+    // as the user wrote it.
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
+}
+
+/// Removing a shim the record never held changes nothing, so it writes
+/// nothing — spelling the built-in defaults into the user's
+/// configuration is not what `pnpm shim rm` was asked to do.
+#[test]
+fn removing_a_shim_that_was_never_recorded_leaves_the_config_alone() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let config = root.path().join("config").join("pnpm").join("config.yaml");
+
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    assert!(stdout_of(&removed).contains("No shims for yarn"));
+    assert!(!config.exists(), "{}", fs::read_to_string(&config).unwrap_or_default());
+}
+
+/// Switching a built-in shim off is done by recording it off, so
+/// clearing that entry would switch it back on. `pnpm shim rm` never
+/// enables anything.
+#[test]
+fn removing_a_disabled_shim_does_not_enable_it() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims:\n  node: false\n").unwrap();
+
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "node"]).output().unwrap();
+
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    assert_eq!(
+        fs::read_to_string(config_dir.join("config.yaml")).unwrap(),
+        "globalShims:\n  node: false\n",
+    );
+}
+
+/// A package that dispatches nothing by default is a different matter:
+/// its off entry enables nothing when cleared, so it is the user's to
+/// take back.
+#[test]
+fn removing_a_disabled_shim_clears_it_when_nothing_would_switch_on() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims:\n  typescript: false\n").unwrap();
+
+    let removed =
+        pnpm_command(&root, &project).with_args(["shim", "rm", "typescript"]).output().unwrap();
+
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
+    assert!(!config.contains("typescript"), "{config}");
+}
+
+/// Removing a shim while a higher-precedence disable is active rewrites
+/// only what the user's own record held: the built-in defaults are not
+/// spelled into it, so lifting that disable later enables nothing the
+/// record did not already enable.
+#[test]
+fn removing_a_shim_under_a_higher_precedence_disable_records_no_defaults() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home).unwrap();
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+
+    // The record the user has, and a disable that outranks it.
+    fs::write(config_dir.join("config.yaml"), "globalShims:\n  yarn: auto\n  node: false\n")
+        .unwrap();
+    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
+
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
+    assert!(!config.contains("yarn"), "{config}");
+    // The rest of the record stands, and nothing else was added to it.
+    assert!(config.contains("node: false"), "{config}");
+    for defaulted in ["deno", "bun"] {
+        assert!(!config.contains(defaulted), "{defaulted} was written into {config}");
+    }
+}
+
+/// The pnpm home's `pnpm-workspace.yaml` and the environment both outrank
+/// the file `pnpm shim` writes into, so a disable in either is a disable:
+/// the shim would sit on `PATH` doing nothing.
+#[test]
+fn adding_a_shim_under_a_higher_precedence_disable_is_refused() {
+    for (label, disable) in [("workspace yaml", true), ("environment", false)] {
+        let root = tempfile::tempdir().unwrap();
+        let project = root.path().join("project");
+        fs::create_dir_all(&project).unwrap();
+        let pnpm_home = root.path().join("pnpm-home");
+        fs::create_dir_all(&pnpm_home).unwrap();
+
+        let mut command = pnpm_command(&root, &project);
+        if disable {
+            fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
+        } else {
+            command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false");
+        }
+        let refused = command.with_args(["shim", "add", "yarn"]).output().unwrap();
+
+        assert!(!refused.status.success(), "{label}");
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{label}: {stderr}");
+        // Nothing was linked: not the shim, not a Windows flavor of it,
+        // not the dispatcher beside them.
+        let linked: Vec<_> = fs::read_dir(pnpm_home.join("bin"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|entry| entry.file_name())
+            .collect();
+        assert!(linked.is_empty(), "{label}: {linked:?}");
+    }
+}
+
+/// Re-adding a package's own shims is how they get repaired, but a bin
+/// something else already provides is not this command's to take: it
+/// would break that command, and `pnpm shim rm` would then delete it
+/// rather than give it back.
+#[test]
+fn adding_a_shim_over_another_package_s_bin_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let global_bin = root.path().join("pnpm-home").join("bin");
+
+    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
+    let readded =
+        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    assert!(readded.status.success(), "{}", String::from_utf8_lossy(&readded.stderr));
+
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    assert!(!global_bin.join("yarn").exists());
+    let installed_globally = "#!/bin/sh\necho a global install\n";
+    fs::write(global_bin.join("yarn"), installed_globally).unwrap();
+    let refused =
+        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+
+    assert!(!refused.status.success());
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(stderr.contains("ERR_PNPM_SHIM_BIN_CONFLICT"), "{stderr}");
+    assert_eq!(fs::read_to_string(global_bin.join("yarn")).unwrap(), installed_globally);
+}
+
+/// Nothing installed the package behind the shim, so a project that
+/// neither pins nor depends on it has nothing to run — and the shim says
+/// so instead of falling through to whatever else is on `PATH`.
+#[cfg(unix)]
+#[test]
+fn a_shim_without_a_project_target_reports_it() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(project.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#).unwrap();
+
+    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
+    let output = Command::new(root.path().join("pnpm-home").join("bin").join("yarn"))
+        .without_ambient_pnpm_config()
+        .with_current_dir(&project)
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        // The dispatched shim must not reach into the developer's cache
+        // either, whatever it decides to run.
+        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+        .with_arg("--version")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_SHIM_NO_TARGET"), "{stderr}");
+    assert!(stderr.contains("yarn"), "{stderr}");
+}

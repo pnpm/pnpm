@@ -54,7 +54,7 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
         "@pnpm.e2e/hello-world-js-bin",
         "1.0.0",
         None,
-        false,
+        None,
     )
     .await
     .expect("install the stand-in engine package");

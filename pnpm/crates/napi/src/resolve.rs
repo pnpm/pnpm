@@ -10,7 +10,9 @@
 //! (`name@version` / `range` / `tag`, incl. the `foo@npm:bar` alias
 //! form), git URLs, `http(s)` tarball URLs, `file:` / `link:` /
 //! `workspace:` and bare filesystem paths, the node / deno / bun
-//! runtime specs, and `<alias>:` named-registry specs. A specifier no
+//! runtime specs — including the `yarn@runtime:` line that ships as
+//! release archives rather than as an npm package — and `<alias>:`
+//! named-registry specs. A specifier no
 //! resolver in the chain claims surfaces as
 //! `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 //!
@@ -29,6 +31,7 @@ use std::{
 };
 
 use napi_derive::napi;
+use pacquet_engine_pm_yarn_resolver::YarnResolver;
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
@@ -198,6 +201,7 @@ fn run_resolve_blocking(
     node_resolver.cache_dir = Some(config.cache_dir.clone());
     let deno_resolver = DenoResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
     let bun_resolver = BunResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
+    let yarn_resolver = YarnResolver::new(Arc::clone(&http_client));
 
     // User-supplied named-registry aliases from
     // `pnpm-workspace.yaml#namedRegistries`, merged with pacquet's
@@ -241,6 +245,7 @@ fn run_resolve_blocking(
         Box::new(node_resolver),
         Box::new(deno_resolver),
         Box::new(bun_resolver),
+        Box::new(yarn_resolver),
         Box::new(named_registry_resolver),
         Box::new(local_path_resolver),
     ];

@@ -24,6 +24,7 @@ use pacquet_config::{
     CatalogMode, Config, SaveWorkspaceProtocol, matcher::create_matcher,
     version_policy::PackageVersionPolicy,
 };
+use pacquet_engine_pm_yarn_resolver::YarnResolver;
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
@@ -1532,6 +1533,7 @@ fn ensure_latest_resolver_chain<'chain>(
             Box::new(node_resolver),
             Box::new(DenoResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
             Box::new(BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
+            Box::new(YarnResolver::new(Arc::clone(ctx.http_client_arc))),
         ]);
         *chain = Some(LatestResolverChain {
             resolver,

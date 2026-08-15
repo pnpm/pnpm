@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-cmd-shim         = { workspace = true }
 pacquet-diagnostics      = { workspace = true }
 pacquet-executor         = { workspace = true }
 pacquet-fs               = { workspace = true }
@@ -22,11 +23,13 @@ pacquet-store-dir        = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }
+node-semver = { workspace = true }
 pipe-trait  = { workspace = true }
 serde_json  = { workspace = true }
 tempfile    = { workspace = true }
 tokio       = { workspace = true }
 tracing     = { workspace = true }
+which       = { workspace = true }
 
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }

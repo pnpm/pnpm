@@ -31,6 +31,24 @@ const CONTEXT_AWARE_MARKER: &str = "pnpm-shim-style=context-aware";
 /// main executable is replaced by a version that predates `--shim`.
 pub const CONTEXT_AWARE_DISPATCHER_NAME: &str = ".pnpm-shim-v1";
 
+/// Marks the target slot of a shim that has no installed target: what
+/// follows is the package the shim stands for, not a path.
+///
+/// A shim carrying it exists for a package that was never installed
+/// globally, so only the project the shim runs in can satisfy it. The
+/// dispatcher reads the package from here; a dispatcher that predates
+/// target-less shims resolves the slot as a path, finds nothing, and
+/// falls back to the shim's own body — which reports that nothing
+/// satisfied it. Keeping the slot in place is what makes that fallback
+/// land somewhere sensible.
+pub const VIRTUAL_TARGET_PREFIX: &str = "pkg:";
+
+/// The target slot a target-less shim for `package` carries.
+#[must_use]
+pub fn virtual_shim_target(package: &str) -> String {
+    format!("{VIRTUAL_TARGET_PREFIX}{package}")
+}
+
 /// Whether an on-disk shim was generated with
 /// [`ShimStyle::ContextAware`]. Used by the idempotency check so a
 /// style change (e.g. the `globalShims` setting being toggled, or a
@@ -350,7 +368,7 @@ pub fn generate_sh_shim(
     if style == ShimStyle::ContextAware {
         writeln!(sh, "# {CONTEXT_AWARE_MARKER}").unwrap();
     }
-    writeln!(sh, "# {}", shim_target_marker(target_path)).unwrap();
+    writeln!(sh, "# {}", shim_target_marker(&target_path.to_string_lossy())).unwrap();
     sh
 }
 
@@ -375,16 +393,21 @@ fn pwsh_single_quote(text: &str) -> String {
 }
 
 /// Escape `text` for interpolation into a double-quoted `cmd` argument:
-/// `%` would otherwise expand as a variable reference. (`"` cannot occur
-/// in a Windows file name.)
-fn cmd_escape(text: &str) -> String {
+/// `%` would otherwise expand as a variable reference.
+///
+/// `cmd.exe` cannot escape a quote inside a quoted argument at all, so a
+/// caller interpolating something other than a file name (which cannot
+/// hold one) has to reject quotes before it gets here.
+#[must_use]
+pub fn cmd_escape(text: &str) -> String {
     text.replace('%', "%%")
 }
 
 /// Wrap `text` in single quotes for POSIX `sh`, escaping embedded single
 /// quotes. Bin names come from package manifests, so they must not be
 /// able to break out of the generated script.
-fn sh_single_quote(text: &str) -> String {
+#[must_use]
+pub fn sh_single_quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', r"'\''"))
 }
 
@@ -662,11 +685,97 @@ fn strip_exe_suffix(prog: &str) -> Option<&str> {
     prog.as_bytes()[suffix_start..].eq_ignore_ascii_case(b".exe").then(|| &prog[..suffix_start])
 }
 
+/// What a target-less shim prints when nothing in the project satisfies
+/// it. It is the whole point of the shim's own body: the dispatcher runs
+/// first and only returns here when it found nothing to run.
+fn no_target_message(bin: &str, package: &str) -> String {
+    format!(
+        "ERR_PNPM_SHIM_NO_TARGET  Nothing provides {bin} in this project. \
+         Add {package} to it, or pin it with \"packageManager\" in package.json.",
+    )
+}
+
+/// Generate the Unix shell shim for a `package` that is not installed
+/// globally: it dispatches into the project like any context-aware shim,
+/// and reports that nothing satisfied it when the dispatcher finds
+/// nothing to run.
+#[must_use]
+pub fn generate_virtual_sh_shim(package: &str, shim_path: &Path) -> String {
+    let mut sh = String::from(SH_SHIM_HEADER);
+    let bin = shim_name(shim_path);
+    let quoted_name = sh_single_quote(bin);
+    let quoted_shim_win = format!(r#""$basedir_win/"{}"#, sh_single_quote(bin));
+    let target = virtual_shim_target(package);
+    let quoted_target = sh_single_quote(&target);
+    writeln!(
+        sh,
+        "if [ -z \"$PNPM_SHIM_BYPASS\" ] && [ -x \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" ]; then\n  exec \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" --shim {quoted_name} {quoted_shim_win} {quoted_target} -- \"$@\"\nfi",
+    )
+    .unwrap();
+    writeln!(sh, "echo {} >&2", sh_single_quote(&no_target_message(bin, package))).unwrap();
+    writeln!(sh, "exit 1").unwrap();
+    writeln!(sh, "# {CONTEXT_AWARE_MARKER}").unwrap();
+    writeln!(sh, "# {}", shim_target_marker(&target)).unwrap();
+    sh
+}
+
+/// The `.cmd` flavor of [`generate_virtual_sh_shim`].
+#[must_use]
+pub fn generate_virtual_cmd_shim(package: &str, shim_path: &Path) -> String {
+    let name = generated_shim_name(shim_path, ".cmd");
+    let bin = cmd_escape(name);
+    let target = cmd_escape(&virtual_shim_target(package));
+    let message = cmd_escape(&no_target_message(name, package));
+    let mut cmd = String::from("@SETLOCAL\r\n");
+    write!(
+        cmd,
+        "@IF DEFINED PNPM_SHIM_BYPASS GOTO :pnpm_shim_fallback\r\n@IF NOT EXIST \"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" GOTO :pnpm_shim_fallback\r\n@\"%~dp0\\{CONTEXT_AWARE_DISPATCHER_NAME}.exe\" --shim \"{bin}\" \"%~f0\" \"{target}\" -- %*\r\n@EXIT /B\r\n:pnpm_shim_fallback\r\n",
+    )
+    .unwrap();
+    write!(cmd, "@ECHO {message} 1>&2\r\n@EXIT /B 1\r\n").unwrap();
+    cmd
+}
+
+/// The `.ps1` flavor of [`generate_virtual_sh_shim`].
+#[must_use]
+pub fn generate_virtual_pwsh_shim(package: &str, shim_path: &Path) -> String {
+    let bin = generated_shim_name(shim_path, ".ps1");
+    let quoted_name = pwsh_single_quote(bin);
+    let quoted_target = pwsh_single_quote(&virtual_shim_target(package));
+    let quoted_message = pwsh_single_quote(&no_target_message(bin, package));
+    let mut pwsh = String::from(PWSH_SHIM_HEADER);
+    writeln!(pwsh).unwrap();
+    writeln!(
+        pwsh,
+        r#"if (!$env:PNPM_SHIM_BYPASS -and (Test-Path "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe")) {{"#,
+    )
+    .unwrap();
+    writeln!(pwsh, "  # Support pipeline input").unwrap();
+    writeln!(pwsh, "  if ($MyInvocation.ExpectingInput) {{").unwrap();
+    writeln!(
+        pwsh,
+        r#"    $input | & "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe" '--shim' {quoted_name} $MyInvocation.MyCommand.Definition {quoted_target} '--' $args"#,
+    )
+    .unwrap();
+    writeln!(pwsh, "  }} else {{").unwrap();
+    writeln!(
+        pwsh,
+        r#"    & "$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe" '--shim' {quoted_name} $MyInvocation.MyCommand.Definition {quoted_target} '--' $args"#,
+    )
+    .unwrap();
+    writeln!(pwsh, "  }}").unwrap();
+    writeln!(pwsh, "  exit $LASTEXITCODE").unwrap();
+    writeln!(pwsh, "}}").unwrap();
+    writeln!(pwsh, "Write-Error {quoted_message}").unwrap();
+    writeln!(pwsh, "exit 1").unwrap();
+    pwsh
+}
+
 /// Trailing `# cmd-shim-target=<rel>` marker. [`is_shim_pointing_at`]
 /// reads it to detect whether an existing shim already targets the same
 /// source without re-parsing its body, short-circuiting warm reinstalls.
-fn shim_target_marker(target_path: &Path) -> String {
-    format!("cmd-shim-target={}", target_path.to_string_lossy().replace('\\', "/"))
+fn shim_target_marker(target: &str) -> String {
+    format!("cmd-shim-target={}", target.replace('\\', "/"))
 }
 
 /// Whether an already-on-disk shim targets `target_path`. The check looks
@@ -674,7 +783,19 @@ fn shim_target_marker(target_path: &Path) -> String {
 /// byte-identical between cmd-shim versions.
 #[must_use]
 pub fn is_shim_pointing_at(shim_content: &str, target_path: &Path) -> bool {
-    let marker = format!("# {}", shim_target_marker(target_path));
+    is_shim_carrying_target(shim_content, &target_path.to_string_lossy())
+}
+
+/// Whether an already-on-disk shim is the target-less shim for
+/// `package` — the [`is_shim_pointing_at`] check for a shim whose target
+/// slot holds a package rather than a path.
+#[must_use]
+pub fn is_virtual_shim_for(shim_content: &str, package: &str) -> bool {
+    is_shim_carrying_target(shim_content, &virtual_shim_target(package))
+}
+
+fn is_shim_carrying_target(shim_content: &str, target: &str) -> bool {
+    let marker = format!("# {}", shim_target_marker(target));
     shim_content.lines().any(|line| line == marker)
 }
 

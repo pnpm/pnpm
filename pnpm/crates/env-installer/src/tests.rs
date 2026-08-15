@@ -1,6 +1,7 @@
 use crate::{
     ConfigDepError, ConfigDepsInstallOptions, install_config_deps, is_package_manager_resolved,
-    prune_env_lockfile, resolve_and_install_config_deps, resolve_package_manager_integrities,
+    pnpm_engine_packages, prune_env_lockfile, resolve_and_install_config_deps,
+    resolve_package_manager_integrities,
 };
 use pacquet_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
@@ -313,6 +314,7 @@ async fn resolves_package_manager_dependencies_graph() {
         }));
 
     resolve_package_manager_integrities(
+        pnpm_engine_packages("11.0.0"),
         "^11.0.0",
         "11.0.0",
         &resolver,
@@ -399,6 +401,7 @@ async fn records_integrity_only_resolutions_for_non_derivable_tarball_urls() {
         }));
 
     resolve_package_manager_integrities(
+        pnpm_engine_packages("11.0.0"),
         "^11.0.0",
         "11.0.0",
         &resolver,
@@ -434,6 +437,7 @@ async fn force_resync_overwrites_recorded_package_manager_entries() {
     };
 
     resolve_package_manager_integrities(
+        pnpm_engine_packages("12.0.0"),
         "^12.0.0",
         "12.0.0",
         &fixtures().with_non_derivable_tarball_urls(),
@@ -448,6 +452,7 @@ async fn force_resync_overwrites_recorded_package_manager_entries() {
     // Without force, the recorded entries short-circuit resolution; with
     // force, they are re-resolved and rewritten.
     resolve_package_manager_integrities(
+        pnpm_engine_packages("12.0.0"),
         "^12.0.0",
         "12.0.0",
         &fixtures(),
@@ -480,6 +485,7 @@ async fn resolves_package_manager_dependencies_without_exe_from_v12() {
         }));
 
     resolve_package_manager_integrities(
+        pnpm_engine_packages("12.0.0"),
         "^12.0.0",
         "12.0.0",
         &resolver,
@@ -523,6 +529,7 @@ async fn resolves_package_manager_dependencies_without_exe_before_it_was_publish
     }));
 
     resolve_package_manager_integrities(
+        pnpm_engine_packages("6.16.0"),
         "^6.0.0",
         "6.16.0",
         &resolver,
@@ -573,6 +580,7 @@ async fn resolves_package_manager_dependencies_with_exe_at_first_published_versi
         }));
 
     resolve_package_manager_integrities(
+        pnpm_engine_packages("6.17.1"),
         "^6.0.0",
         "6.17.1",
         &resolver,

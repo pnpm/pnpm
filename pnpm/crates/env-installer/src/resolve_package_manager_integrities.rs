@@ -17,12 +17,17 @@ const PACKAGE_MANAGER_DEPS_WITH_EXE: [&str; 2] = ["pnpm", "@pnpm/exe"];
 const PACKAGE_MANAGER_DEPS_PNPM_ONLY: [&str; 1] = ["pnpm"];
 const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 
+/// Resolve the closure of `package_manager_deps` — the packages a package
+/// manager is installed from — at `version`, and record it in the env
+/// lockfile at `opts.root_dir`.
+///
 /// `force_resync` skips the recorded-entries fast path, so entries that look
 /// up to date but are invalid (e.g. resolutions carrying tarball URLs
 /// written by an earlier pnpm) are discarded and re-resolved.
 pub async fn resolve_package_manager_integrities(
+    package_manager_deps: &[&str],
     wanted_specifier: &str,
-    pnpm_version: &str,
+    version: &str,
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
     force_resync: bool,
@@ -30,12 +35,11 @@ pub async fn resolve_package_manager_integrities(
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
-    let package_manager_deps = package_manager_deps(pnpm_version);
     if !force_resync
         && is_package_manager_resolved_with_deps(
             &env_lockfile,
             wanted_specifier,
-            pnpm_version,
+            version,
             package_manager_deps,
         )
     {
@@ -50,9 +54,9 @@ pub async fn resolve_package_manager_integrities(
     let mut package_manager_dependencies = std::collections::BTreeMap::new();
     let mut resolved = Vec::new();
     for name in package_manager_deps {
-        let package = resolve_dep(name, pnpm_version, false, resolver, opts).await?;
+        let package = resolve_dep(name, version, false, resolver, opts).await?;
         package_manager_dependencies.insert(
-            name.to_string(),
+            (*name).to_string(),
             SpecifierAndResolution {
                 specifier: wanted_specifier.to_string(),
                 version: package.version.clone(),
@@ -144,7 +148,7 @@ pub fn is_package_manager_resolved(
         env_lockfile,
         wanted_specifier,
         pnpm_version,
-        package_manager_deps(pnpm_version),
+        pnpm_engine_packages(pnpm_version),
     )
 }
 
@@ -177,7 +181,8 @@ fn is_package_manager_resolved_with_deps(
 /// packages, and both are pinned, because the pin is shared and teammates
 /// may run either one. Every other version publishes `pnpm` alone: as the JS
 /// CLI below 6.17.1, and as the native executable itself from 12.
-fn package_manager_deps(pnpm_version: &str) -> &'static [&'static str] {
+#[must_use]
+pub fn pnpm_engine_packages(pnpm_version: &str) -> &'static [&'static str] {
     let Some(version) = node_semver::Version::parse(pnpm_version).ok() else {
         return &PACKAGE_MANAGER_DEPS_WITH_EXE;
     };

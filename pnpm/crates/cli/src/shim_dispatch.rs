@@ -21,30 +21,39 @@
 //! or replacement bin cannot inherit an earlier approval.
 //! Without a terminal the dispatcher falls back to the global target.
 
+use crate::{
+    cli_args::package_manager::wanted_package_manager,
+    engine_pm::{
+        channel::{Channel, PackageManager},
+        provision::provision,
+    },
+};
 use derive_more::Display;
 use pacquet_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pacquet_config::{
-    GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy, WorkspaceSettings,
-    default_config_dir, default_pnpm_home_dir,
+    Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy,
+    WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
 };
 use pacquet_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pacquet_engine_runtime_node_resolver::parse_node_specifier;
 use pacquet_package_manifest::is_runtime_alias;
+use pacquet_reporter::SilentReporter;
 use serde_json::Value;
 use std::{
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     path::{Path, PathBuf},
     process::Command,
 };
 
 mod identity;
-mod runtime_env;
+pub(crate) mod runtime_env;
 mod trust;
 #[cfg(windows)]
 mod windows;
 
-use identity::{Provider, local_bin_identity, provider_of_target};
-use runtime_env::materialize_runtime;
+use identity::{declared_package, local_bin_identity, provider_of_target};
+pub(crate) use runtime_env::materialize_runtime;
+use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use trust::is_trusted;
 #[cfg(windows)]
 pub(crate) use windows::install_windows_node_dispatcher;
@@ -139,25 +148,35 @@ fn dispatch_target(
     if bypass_requested() || shims.dispatches_nothing() {
         return run_global_fallback(shim_path, global_target, args);
     }
-    // Eligibility is keyed by the global bin's providing package, so an
-    // entry for `typescript` covers its `tsc` bin. Identity comes from
-    // the provider manifest, which also anchors the candidate match.
+    // Eligibility is keyed by the package the shim stands for, so an entry
+    // for `typescript` covers its `tsc` bin. A shim with a global install
+    // behind it takes that package from the target's manifest, which also
+    // anchors the candidate match; a target-less shim declares it.
     let provider = provider_of_target(global_target);
-    let policy = provider.as_ref().map_or(ShimPolicy::Off, |provider| shims.policy(&provider.name));
+    let Some(package) = declared_package(global_target)
+        .map(str::to_string)
+        .or_else(|| provider.as_ref().map(|provider| provider.name.clone()))
+    else {
+        return run_global_fallback(shim_path, global_target, args);
+    };
+    let policy = shims.policy(&package);
     if policy == ShimPolicy::Off {
         return run_global_fallback(shim_path, global_target, args);
     }
-    let candidate = provider.as_ref().and_then(|provider| {
-        std::env::current_dir()
-            .ok()
-            .and_then(|cwd| find_candidate(&cwd, name))
-            .and_then(|candidate| validate_candidate(candidate, provider, name))
-    });
+    let candidate = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| find_candidate(&cwd, name, &package))
+        .and_then(|candidate| validate_candidate(candidate, &package, name));
     match candidate {
         Some(Candidate::RuntimePin { version_spec, .. })
             if runtime_runs_promptless(policy, name, &version_spec) =>
         {
             run_runtime_from_store(name, &version_spec, args)
+        }
+        Some(Candidate::PackageManagerPin { pm, version_spec, .. })
+            if package_manager_runs_promptless(policy, pm, &version_spec) =>
+        {
+            run_package_manager_from_pin(pm, &version_spec, name, args)
         }
         Some(candidate) if policy == ShimPolicy::Always || is_trusted(&candidate, name) => {
             match candidate {
@@ -175,6 +194,9 @@ fn dispatch_target(
                 }
                 Candidate::RuntimePin { version_spec, .. } => {
                     run_runtime_from_store(name, &version_spec, args)
+                }
+                Candidate::PackageManagerPin { pm, version_spec, .. } => {
+                    run_package_manager_from_pin(pm, &version_spec, name, args)
                 }
             }
         }
@@ -254,7 +276,7 @@ fn global_shims_setting() -> GlobalShims {
 }
 
 #[derive(Debug, Display)]
-enum LoadGlobalShimsSettingError {
+pub(crate) enum LoadGlobalShimsSettingError {
     #[display("{_0}")]
     Workspace(LoadWorkspaceYamlError),
     #[display("malformed {env_name} value {value:?}: {source}")]
@@ -270,6 +292,19 @@ fn load_global_shims_setting() -> Result<GlobalShims, LoadGlobalShimsSettingErro
             shims.apply(&layer);
         }
     }
+    apply_settings_above_global_config(&mut shims)?;
+    Ok(shims)
+}
+
+/// Apply the `globalShims` layers that outrank the global `config.yaml`:
+/// `$PNPM_HOME/pnpm-workspace.yaml`, then the environment.
+///
+/// `pnpm shim` uses this to answer whether the shim it is about to write
+/// would ever dispatch, so the command and the dispatcher cannot disagree
+/// about which settings are in force.
+pub(crate) fn apply_settings_above_global_config(
+    shims: &mut GlobalShims,
+) -> Result<(), LoadGlobalShimsSettingError> {
     if let Some(home) = default_pnpm_home_dir::<Host>() {
         let settings =
             WorkspaceSettings::load_at(&home).map_err(LoadGlobalShimsSettingError::Workspace)?;
@@ -288,7 +323,7 @@ fn load_global_shims_setting() -> Result<GlobalShims, LoadGlobalShimsSettingErro
             break;
         }
     }
-    Ok(shims)
+    Ok(())
 }
 
 /// The context switch only ever substitutes a different version of the
@@ -297,26 +332,33 @@ fn load_global_shims_setting() -> Result<GlobalShims, LoadGlobalShimsSettingErro
 /// A project shipping a same-named bin from a *different* package (a
 /// lookalike `tsc` from `evil-pkg`) fails the match and the global
 /// version runs.
-fn validate_candidate(
-    candidate: Candidate,
-    global_provider: &Provider,
-    name: &str,
-) -> Option<Candidate> {
+fn validate_candidate(candidate: Candidate, package: &str, name: &str) -> Option<Candidate> {
     match candidate {
         Candidate::LocalBin { project_dir, bin, .. } => {
             let local = local_bin_identity(&bin, name)?;
-            (local.provider.name == global_provider.name).then_some(Candidate::LocalBin {
+            (local.provider.name == package).then_some(Candidate::LocalBin {
                 project_dir,
                 bin,
                 identity: local.fingerprint,
             })
         }
-        Candidate::RuntimePin { project_dir, version_spec, manifest_hash, .. } => {
-            (global_provider.name == name).then(|| Candidate::RuntimePin {
+        Candidate::RuntimePin { project_dir, version_spec, manifest_hash, .. } => (package == name)
+            .then(|| Candidate::RuntimePin {
                 project_dir,
                 identity: create_hex_hash(&format!(
                     "runtime\0{name}\0{version_spec}\0{manifest_hash}",
                 )),
+                version_spec,
+                manifest_hash,
+            }),
+        Candidate::PackageManagerPin { project_dir, pm, version_spec, manifest_hash, .. } => {
+            (package == pm.name()).then(|| Candidate::PackageManagerPin {
+                project_dir,
+                identity: create_hex_hash(&format!(
+                    "package-manager\0{}\0{version_spec}\0{manifest_hash}",
+                    pm.name(),
+                )),
+                pm,
                 version_spec,
                 manifest_hash,
             })
@@ -338,33 +380,48 @@ enum Candidate {
         manifest_hash: String,
         identity: String,
     },
+    /// The project pins its package manager in `packageManager` /
+    /// `devEngines.packageManager`. Like a runtime pin, the version is
+    /// provisioned on demand rather than expected on the host.
+    PackageManagerPin {
+        project_dir: PathBuf,
+        pm: PackageManager,
+        version_spec: String,
+        manifest_hash: String,
+        identity: String,
+    },
 }
 
 impl Candidate {
     fn project_dir(&self) -> &Path {
         match self {
-            Candidate::LocalBin { project_dir, .. } | Candidate::RuntimePin { project_dir, .. } => {
-                project_dir
-            }
+            Candidate::LocalBin { project_dir, .. }
+            | Candidate::RuntimePin { project_dir, .. }
+            | Candidate::PackageManagerPin { project_dir, .. } => project_dir,
         }
     }
 
     fn identity(&self) -> &str {
         match self {
-            Candidate::LocalBin { identity, .. } | Candidate::RuntimePin { identity, .. } => {
-                identity
-            }
+            Candidate::LocalBin { identity, .. }
+            | Candidate::RuntimePin { identity, .. }
+            | Candidate::PackageManagerPin { identity, .. } => identity,
         }
     }
 }
 
-/// Walk up from `cwd` to the nearest directory providing `name`. Runtime
-/// shims only consider manifest pins and never inspect `.bin`; ordinary
+/// Walk up from `cwd` to the nearest directory providing `name`, the bin
+/// that was invoked, on behalf of `package`.
+///
+/// Runtime shims only consider manifest pins and never inspect `.bin`;
+/// a package manager's pin outranks an installed copy of itself, because
+/// the pin is the project's own statement of what installs it; ordinary
 /// package bins resolve through `node_modules/.bin`. Directories inside
 /// the pnpm home are skipped because global installs are not projects.
-fn find_candidate(cwd: &Path, name: &str) -> Option<Candidate> {
+fn find_candidate(cwd: &Path, name: &str, package: &str) -> Option<Candidate> {
     let pnpm_home = default_pnpm_home_dir::<Host>();
     let runtime = is_runtime_alias(name);
+    let package_manager = PackageManager::parse(package);
     for dir in cwd.ancestors() {
         if pnpm_home.as_deref().is_some_and(|home| dir.starts_with(home)) {
             continue;
@@ -372,6 +429,17 @@ fn find_candidate(cwd: &Path, name: &str) -> Option<Candidate> {
         if runtime && let Some((version_spec, manifest_hash)) = manifest_runtime_pin(dir, name) {
             return Some(Candidate::RuntimePin {
                 project_dir: dir.to_path_buf(),
+                version_spec,
+                manifest_hash,
+                identity: String::new(),
+            });
+        }
+        if let Some(pm) = package_manager
+            && let Some((version_spec, manifest_hash)) = manifest_package_manager_pin(dir, pm)
+        {
+            return Some(Candidate::PackageManagerPin {
+                project_dir: dir.to_path_buf(),
+                pm,
                 version_spec,
                 manifest_hash,
                 identity: String::new(),
@@ -386,6 +454,39 @@ fn find_candidate(cwd: &Path, name: &str) -> Option<Candidate> {
         }
     }
     None
+}
+
+/// The version a project's `package.json` pins for the package manager
+/// `pm`, with the manifest's hash so an approval is bound to the file it
+/// was given for. A pin naming a different package manager is not this
+/// shim's business, and a pin without a version cannot be provisioned.
+fn manifest_package_manager_pin(dir: &Path, pm: PackageManager) -> Option<(String, String)> {
+    let bytes = std::fs::read(dir.join("package.json")).ok()?;
+    let manifest_hash = create_hex_hash_bytes(&bytes);
+    let manifest: Value = serde_json::from_slice(&bytes).ok()?;
+    let wanted = wanted_package_manager(&manifest)?;
+    (wanted.name == pm.name()).then_some(())?;
+    Some((wanted.version?, manifest_hash))
+}
+
+/// Whether a package-manager pin may run without the trust gate.
+///
+/// A package manager published to npm is verified against npm's own
+/// signature for its exact `name@version` before it executes — the same
+/// standard that lets pnpm switch itself to a project's pin without
+/// asking. Bun and Yarn 6 ship as release archives pinned by a publisher
+/// checksum, which authenticates the bytes but not the publisher, so they
+/// stay behind the gate like the checksum-only runtime channels.
+fn package_manager_runs_promptless(
+    policy: ShimPolicy,
+    pm: PackageManager,
+    version_spec: &str,
+) -> bool {
+    match policy {
+        ShimPolicy::Always => true,
+        ShimPolicy::Auto => matches!(pm.channel(version_spec), Channel::Registry { .. }),
+        ShimPolicy::Off | ShimPolicy::Prompt => false,
+    }
 }
 
 /// Stable Node releases are authenticated by the Node.js release-team keys
@@ -464,13 +565,79 @@ fn run_runtime_from_store(name: &str, version_spec: &str, args: &[OsString]) -> 
     }
 }
 
+/// Provision the package manager a project pins and run it.
+///
+/// The provisioning configuration is pnpm's own, anchored in its state
+/// directory: the project decides *which* package manager runs, never
+/// where its bytes come from.
+fn run_package_manager_from_pin(
+    pm: PackageManager,
+    version_spec: &str,
+    name: &str,
+    args: &[OsString],
+) -> i32 {
+    let spec = version_spec.to_string();
+    let result = crate::block_on_runtime("pacquet-global-shim-pm", async move {
+        let config = Config::leak(trusted_package_manager_config()?);
+        provision::<SilentReporter>(config, pm, &spec).await
+    });
+    match result {
+        Ok(engine) => {
+            let program = engine.command(name);
+            exec_program_with_bin_dirs(&program, &engine.bin_dirs, args)
+        }
+        Err(error) => {
+            eprintln!("pnpm: failed to prepare {}@{version_spec}: {error:?}", pm.name());
+            1
+        }
+    }
+}
+
+/// The configuration package-manager provisioning runs under: pnpm's own
+/// trusted layers, anchored inside its state directory so no project's
+/// `pnpm-workspace.yaml` can redirect the store the executable comes from.
+fn trusted_package_manager_config() -> miette::Result<Config> {
+    let state_dir = default_state_dir::<Host>()
+        .ok_or_else(|| miette::miette!("the pnpm state directory could not be resolved"))?;
+    trusted_runtime_config(&state_dir.join(PACKAGE_MANAGER_ENVS_DIR_NAME))
+}
+
+/// Run `program` with `bin_dirs` prepended to `PATH`. A JavaScript
+/// package manager needs the Node.js it was provisioned with to be
+/// reachable, and its own directory has to come first so a nested
+/// invocation finds the same version.
+fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsString]) -> i32 {
+    match crate::path_env::prepend_dirs_to_path(bin_dirs) {
+        // The `PATH` travels on the command rather than through this
+        // process's own environment: an `exec` hands the child the
+        // command's environment just the same, and nothing here has to
+        // reason about which threads are running.
+        Ok(path) => exec_program_with_path(program, args, Some(path.as_os_str())),
+        Err(error) => {
+            // Rendered as a report so the failure carries the same
+            // `ERR_PNPM_BAD_PATH_DIR` code the commands report it under.
+            eprintln!("pnpm: {:?}", miette::Report::new(error));
+            1
+        }
+    }
+}
+
 /// Run `program` with `args`, replacing this process where the platform
 /// allows. Exit codes follow the shell convention: 127 when the program
 /// does not exist, 126 when it cannot be executed.
-#[cfg(unix)]
 fn exec_program(program: &Path, args: &[OsString]) -> i32 {
+    exec_program_with_path(program, args, None)
+}
+
+#[cfg(unix)]
+fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr>) -> i32 {
     use std::os::unix::process::CommandExt as _;
-    let error = Command::new(program).args(args).exec();
+    let mut command = Command::new(program);
+    command.args(args);
+    if let Some(path) = path {
+        crate::path_env::set_command_path(&mut command, path);
+    }
+    let error = command.exec();
     eprintln!("pnpm: failed to exec {}: {error}", program.display());
     if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
 }
@@ -485,12 +652,17 @@ fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::i
 }
 
 #[cfg(windows)]
-fn exec_program(program: &Path, args: &[OsString]) -> i32 {
+fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr>) -> i32 {
     // `.cmd`/`.bat` targets go to `Command::new` directly: the standard
     // library spawns them through `cmd.exe` itself with the
     // CVE-2024-24576 argument escaping, and rejects arguments it cannot
     // pass safely — a hand-rolled `cmd /c` would reintroduce that bug.
-    match Command::new(program).args(args).status() {
+    let mut command = Command::new(program);
+    command.args(args);
+    if let Some(path) = path {
+        crate::path_env::set_command_path(&mut command, path);
+    }
+    match command.status() {
         Ok(status) => status.code().unwrap_or(1),
         Err(error) => {
             eprintln!("pnpm: failed to run {}: {error}", program.display());

@@ -21,6 +21,7 @@ pacquet-crypto-hash                       = { workspace = true }
 pacquet-deps-path                         = { workspace = true }
 pacquet-deps-restorer                     = { workspace = true }
 pacquet-directory-fetcher                 = { workspace = true }
+pacquet-engine-pm-yarn-resolver           = { workspace = true }
 pacquet-engine-runtime-bun-resolver       = { workspace = true }
 pacquet-engine-runtime-deno-resolver      = { workspace = true }
 pacquet-engine-runtime-node-resolver      = { workspace = true }

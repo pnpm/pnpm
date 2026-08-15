@@ -20,13 +20,17 @@ use super::{
     reporter::reporter_emit,
     sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
-    with::{
-        PackageManagerCheck,
-        install_pnpm_to_store::{install_pnpm_from_env, install_pnpm_to_store},
-        spawn_pnpm,
-    },
+    with::{PackageManagerCheck, spawn_pnpm},
 };
-use crate::{config_deps, config_overrides::ConfigOverrides, flag_relocation::ArgTable};
+use crate::{
+    config_deps,
+    config_overrides::ConfigOverrides,
+    engine_pm::{
+        channel::PackageManager,
+        install::{install_engine_from_env, install_engine_to_store},
+    },
+    flag_relocation::ArgTable,
+};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};
@@ -40,6 +44,7 @@ use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
+    slice,
 };
 use system_runtime_version::system_runtime_version;
 
@@ -124,12 +129,17 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 return Ok(false);
             }
             assert_release_is_installable(&version)?;
-            let bin_dir =
-                Box::pin(install_pnpm_from_env::<SilentReporter>(config, &env, &version)).await?;
+            let bin_dir = Box::pin(install_engine_from_env::<SilentReporter>(
+                config,
+                PackageManager::Pnpm,
+                &env,
+                &version,
+            ))
+            .await?;
             (version, bin_dir)
         }
         SwitchSource::Resolve { env_root, force_resync } => {
-            let resolved = config_deps::resolve_pnpm_version(config, &spec)
+            let resolved = config_deps::resolve_engine_version(config, "pnpm", &spec)
                 .await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
             if resolved.version == PNPM_VERSION {
@@ -150,8 +160,9 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 return Ok(false);
             }
             assert_release_is_installable(&resolved.version)?;
-            let bin_dir = Box::pin(install_pnpm_to_store::<SilentReporter>(
+            let bin_dir = Box::pin(install_engine_to_store::<SilentReporter>(
                 config,
+                PackageManager::Pnpm,
                 &env_root,
                 &spec,
                 &resolved.version,
@@ -162,8 +173,9 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
         }
     };
 
-    let status = spawn_pnpm(&bin_dir, child_argv.iter(), PackageManagerCheck::Enabled)
-        .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
+    let status =
+        spawn_pnpm(slice::from_ref(&bin_dir), child_argv.iter(), PackageManagerCheck::Enabled)
+            .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));
     }
@@ -332,7 +344,8 @@ fn check_package_manager(
     if pm.name != "pnpm" {
         let name = sanitize_inline(&pm.name).into_owned();
         if should_error {
-            return Err(PreCommandError::OtherPmExpected { name }.into());
+            let hint = other_pm_hint(&name);
+            return Err(PreCommandError::OtherPmExpected { name, hint }.into());
         }
         global_warn(emit, &format!("This project is configured to use {name}"));
         return Ok(());
@@ -477,13 +490,27 @@ const COREPACK_NOTE: &str = "\nCorepack invoked pnpm with this version, and pnpm
 
 const COREPACK_PM_HINT_PREFIX: &str = r#"Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically."#;
 
+/// What to do about a project that another package manager installs.
+///
+/// pnpm does not become that package manager just because a project asks
+/// for one — typing `pnpm` would then silently run something else — but it
+/// can provide it, so the way out is worth naming.
+fn other_pm_hint(name: &str) -> String {
+    if PackageManager::parse(name).is_none() {
+        return format!("pnpm cannot provide {name}. Install it to work on this project.");
+    }
+    format!(
+        r#"Run a one-off command with "pnpm dlx {name} <command>", or link a {name} command that follows this project's pin with "pnpm shim add {name}"."#,
+    )
+}
+
 const RUNTIME_ON_FAIL_HINT: &str = r#"If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore""#;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum PreCommandError {
     #[display("This project is configured to use {name}")]
-    #[diagnostic(code(ERR_PNPM_OTHER_PM_EXPECTED))]
-    OtherPmExpected { name: String },
+    #[diagnostic(code(ERR_PNPM_OTHER_PM_EXPECTED), help("{hint}"))]
+    OtherPmExpected { name: String, hint: String },
 
     #[display(
         "This project is configured to use {wanted} of pnpm. Your current pnpm is v{PNPM_VERSION}{note}"
@@ -752,6 +779,19 @@ fn effective_on_fail(config: &Config, pm: &WantedPackageManager) -> PmOnFail {
 /// (`store`, `doctor`, and so on), or run something that is not the project
 /// (`dlx`).
 fn should_skip_command(command: &CliCommand) -> bool {
+    // Declaring which package manager a project uses is not that package
+    // manager's work, so a project pinned to another one can still be
+    // told to use a different one — or to use this one. Adding anything
+    // else stays its manager's job and still fails the check.
+    if let CliCommand::Add(args) = command
+        && !args.package_names.is_empty()
+        && args
+            .package_names
+            .iter()
+            .all(|request| crate::engine_pm::pin::declared_package_manager(request).is_some())
+    {
+        return true;
+    }
     matches!(
         command,
         CliCommand::CatFile(_)
@@ -764,6 +804,7 @@ fn should_skip_command(command: &CliCommand) -> bool {
             | CliCommand::Runtime(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
+            | CliCommand::Shim(_)
             | CliCommand::Store(_)
             | CliCommand::With(_),
     )
@@ -784,6 +825,7 @@ fn should_skip_command_name(command: &str) -> bool {
             | "rt"
             | "self-update"
             | "setup"
+            | "shim"
             | "store"
             | "with",
     )
@@ -976,6 +1018,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Restart(_) => "restart",
         CliCommand::FindHash(_) => "find-hash",
         CliCommand::Runtime(_) => "runtime",
+        CliCommand::Shim(_) => "shim",
         CliCommand::Bin(_) => "bin",
         CliCommand::Clean(_) => "clean",
         CliCommand::Purge(_) => "purge",

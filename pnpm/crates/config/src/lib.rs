@@ -163,6 +163,19 @@ pub enum ShimPolicyValue {
     Named(NamedShimPolicy),
 }
 
+impl ShimPolicy {
+    /// The `globalShims` value this policy is written as.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ShimPolicy::Off => "off",
+            ShimPolicy::Auto => "auto",
+            ShimPolicy::Prompt => "prompt",
+            ShimPolicy::Always => "always",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NamedShimPolicy {
@@ -172,6 +185,16 @@ pub enum NamedShimPolicy {
 }
 
 impl ShimPolicyValue {
+    /// Whether a package recorded with this value dispatches at all.
+    ///
+    /// A recorded value that does not is the user switching a shim off —
+    /// including one of the built-in defaults, which is the only way to
+    /// switch those off. Clearing such an entry turns the shim back on.
+    #[must_use]
+    pub fn dispatches(self) -> bool {
+        self.resolve() != ShimPolicy::Off
+    }
+
     fn resolve(self) -> ShimPolicy {
         match self {
             ShimPolicyValue::Toggle(false) => ShimPolicy::Off,
@@ -237,6 +260,11 @@ impl GlobalShims {
                 }
             }
         }
+    }
+
+    /// Every package with an entry, and the policy it resolved to.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, ShimPolicy)> {
+        self.entries.iter().map(|(name, policy)| (name.as_str(), *policy))
     }
 
     #[must_use]

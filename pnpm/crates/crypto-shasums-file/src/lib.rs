@@ -408,6 +408,16 @@ pub fn pick_file_checksum_from_shasums_file(
     Ok(encode_sri(sha256))
 }
 
+/// Encode a sha256 hex digest as the `sha256-<base64>` integrity string
+/// the lockfile records, for artifact sources that report a bare hex
+/// digest instead of shipping a `SHASUMS256.txt`. `None` when `hex` is not
+/// a well-formed sha256 digest, so a malformed one can be skipped rather
+/// than installed unverified.
+#[must_use]
+pub fn sha256_hex_to_sri(hex: &str) -> Option<String> {
+    is_sha256_hex(hex).then(|| encode_sri(hex))
+}
+
 /// Decode a 64-character lower-case hex string into `sha256-<base64>`.
 ///
 /// Pre-condition: `hex` is the value [`is_sha256_hex`] already

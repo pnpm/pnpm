@@ -12,7 +12,8 @@ use miette::{IntoDiagnostic, Result, WrapErr};
 use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
 use pacquet_config::{Config, Host, WorkspaceSettings};
 use pacquet_env_installer::{
-    ConfigDepsInstallOptions, resolve_and_install_config_deps, resolve_package_manager_integrities,
+    ConfigDepsInstallOptions, pnpm_engine_packages, resolve_and_install_config_deps,
+    resolve_package_manager_integrities,
 };
 use pacquet_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
@@ -51,7 +52,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
 }
 
-/// Resolve the package-manager engine dependencies into the env lockfile's
+/// Resolve pnpm's own engine dependencies into the env lockfile's
 /// `packageManagerDependencies` block before the wanted lockfile is
 /// loaded. `force_resync` discards recorded entries and re-resolves them
 /// even when they look up to date.
@@ -63,11 +64,36 @@ pub async fn sync_package_manager_dependencies(
     frozen_lockfile: bool,
     force_resync: bool,
 ) -> Result<()> {
+    sync_engine_dependencies(
+        config,
+        root_dir,
+        pnpm_engine_packages(pnpm_version),
+        wanted_specifier,
+        pnpm_version,
+        frozen_lockfile,
+        force_resync,
+    )
+    .await
+}
+
+/// Resolve the packages a package manager is installed from into the env
+/// lockfile at `root_dir`, so its bytes are pinned by integrity before any
+/// of them are downloaded or executed.
+pub async fn sync_engine_dependencies(
+    config: &Config,
+    root_dir: &Path,
+    packages: &[&str],
+    wanted_specifier: &str,
+    version: &str,
+    frozen_lockfile: bool,
+    force_resync: bool,
+) -> Result<()> {
     let context = EnvInstallerContext::for_package_manager(config)?;
     let options = context.options(root_dir, frozen_lockfile);
     resolve_package_manager_integrities(
+        packages,
         wanted_specifier,
-        pnpm_version,
+        version,
         &context.resolver,
         &options,
         force_resync,
@@ -77,30 +103,34 @@ pub async fn sync_package_manager_dependencies(
     .wrap_err("resolve package manager dependencies")
 }
 
-/// The version `pnpm self-update` resolved a specifier to, plus whether
-/// the pick violated the active maturity/trust policy.
+/// The version a package-manager specifier resolved to, plus whether the
+/// pick violated the active maturity/trust policy.
 #[derive(Debug)]
-pub struct ResolvedPnpm {
+pub struct ResolvedEngine {
     pub version: String,
+    /// The resolved package's manifest, when the resolver returned one.
+    /// `pnpm shim` reads the `bin` field from it.
+    pub manifest: Option<Arc<Value>>,
     /// Set when the resolver picked a version despite the maturity
     /// (`minimumReleaseAge`) or `trustPolicy` gate. Self-update fails
     /// closed on this under strict resolution; the code tells the two
     /// gates apart, and the reason is the user-facing explanation.
-    pub policy_violation: Option<PnpmPolicyViolation>,
+    pub policy_violation: Option<EnginePolicyViolation>,
 }
 
-/// Why the resolver's pnpm pick violates a policy.
+/// Why the resolver's pick violates a policy.
 #[derive(Debug)]
-pub struct PnpmPolicyViolation {
+pub struct EnginePolicyViolation {
     pub code: &'static str,
     pub reason: String,
 }
 
-/// Resolve `pnpm@<bare_specifier>` against the trusted package-manager
-/// bootstrap registry (never the repository-controlled project
-/// registries), applying the same `minimumReleaseAge` and `trustPolicy`
-/// gates the install path uses. Returns `None` when the specifier cannot
-/// be resolved. Backs `pacquet self-update`'s "check for updates" probe.
+/// Resolve `<package>@<bare_specifier>` against the trusted
+/// package-manager bootstrap registry (never the repository-controlled
+/// project registries), applying the same `minimumReleaseAge` and
+/// `trustPolicy` gates the install path uses. Returns `None` when the
+/// specifier cannot be resolved. Backs `pacquet self-update`'s "check for
+/// updates" probe and every package-manager provisioning path.
 ///
 /// The metadata mode follows [`Config::requires_full_metadata_for_resolution`]
 /// (via [`EnvInstallerContext`]), so under `trustPolicy=no-downgrade` or
@@ -108,10 +138,11 @@ pub struct PnpmPolicyViolation {
 /// trust and maturity checks need — the same resolver behaviour as a
 /// regular install, rather than a self-update-specific abbreviated-metadata
 /// path that would fail closed with "missing time".
-pub async fn resolve_pnpm_version(
+pub async fn resolve_engine_version(
     config: &Config,
+    package: &str,
     bare_specifier: &str,
-) -> Result<Option<ResolvedPnpm>> {
+) -> Result<Option<ResolvedEngine>> {
     let context = EnvInstallerContext::for_package_manager(config)?;
 
     // `minimumReleaseAge` cutoff, computed the same way as the install
@@ -155,7 +186,7 @@ pub async fn resolve_pnpm_version(
         .wrap_err("compile the trust-policy-exclude policy")?;
 
     let wanted = WantedDependency {
-        alias: Some("pnpm".to_string()),
+        alias: Some(package.to_string()),
         bare_specifier: Some(bare_specifier.to_string()),
         ..WantedDependency::default()
     };
@@ -173,23 +204,24 @@ pub async fn resolve_pnpm_version(
         .resolve(&wanted, &opts)
         .await
         .map_err(|error| miette::miette!("{error}"))
-        .wrap_err_with(|| format!("resolve pnpm@{bare_specifier}"))?;
+        .wrap_err_with(|| format!("resolve {package}@{bare_specifier}"))?;
     let Some(result) = result else {
         return Ok(None);
     };
     let Some(name_ver) = result.name_ver else {
         return Ok(None);
     };
-    // Fail closed if the specifier resolved to something other than `pnpm`
-    // (e.g. an `npm:other-pkg@x` alias): otherwise the maturity/trust
-    // policy decision would be made against the wrong package's metadata
-    // while self-update still installs `pnpm@<version>`.
-    if name_ver.name.to_string() != "pnpm" {
+    // Fail closed if the specifier resolved to a different package (e.g. an
+    // `npm:other-pkg@x` alias): otherwise the maturity/trust policy decision
+    // would be made against the wrong package's metadata while the caller
+    // still installs `<package>@<version>`.
+    if name_ver.name.to_string() != package {
         return Ok(None);
     }
-    Ok(Some(ResolvedPnpm {
+    Ok(Some(ResolvedEngine {
         version: name_ver.suffix.to_string(),
-        policy_violation: result.policy_violation.map(|violation| PnpmPolicyViolation {
+        manifest: result.manifest.clone(),
+        policy_violation: result.policy_violation.map(|violation| EnginePolicyViolation {
             code: violation.code,
             reason: violation.reason,
         }),

@@ -16,7 +16,12 @@ fn install_fails_when_the_project_pins_another_package_manager() {
     let output = run(pacquet, root.path(), &["install"]);
 
     assert_failure(&output);
-    assert_contains(&stderr(&output), "This project is configured to use yarn");
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "This project is configured to use yarn");
+    // pnpm can provide that package manager, so the failure says how
+    // rather than leaving the project unusable.
+    assert_contains(&stderr, "pnpm dlx yarn");
+    assert_contains(&stderr, "pnpm shim add yarn");
 }
 
 #[test]
@@ -642,4 +647,155 @@ fn stdout(output: &Output) -> String {
 
 fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+/// Naming a package manager records which one the project uses, so it
+/// stays possible in a project pinned to another one — changing that
+/// declaration is not the pinned manager's work. Adding anything else
+/// still is.
+#[test]
+fn a_project_pinned_to_another_package_manager_can_still_be_repinned() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
+
+    let output = run(pacquet, root.path(), &["add", "npm@11"]);
+
+    assert_success(&output);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    assert_eq!(
+        manifest["devEngines"]["packageManager"],
+        serde_json::json!({ "name": "npm", "version": "11" }),
+    );
+    // The two fields declare the same thing, so the one that was replaced
+    // is gone rather than left to contradict the new declaration.
+    assert_eq!(manifest.get("packageManager"), None, "{manifest}");
+}
+
+/// Declaring a package manager and adding a dependency in one command
+/// lands both together: the declaration is written into the manifest the
+/// install saves, not into one of its own.
+#[test]
+fn a_mixed_add_writes_the_declaration_with_the_dependency() {
+    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_manifest(&workspace, &serde_json::json!({}));
+    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+
+    let output = run(
+        pacquet,
+        root.path(),
+        &["add", "yarn@1", "@pnpm.e2e/dep-of-pkg-with-1-dep", "--lockfile-only"],
+    );
+
+    assert_success(&output);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    assert!(
+        manifest["packageManager"].as_str().is_some_and(|pin| pin.starts_with("yarn@1.")),
+        "{manifest}",
+    );
+    assert!(manifest["dependencies"]["@pnpm.e2e/dep-of-pkg-with-1-dep"].is_string(), "{manifest}");
+    drop((root, npmrc_info));
+}
+
+/// And an install that fails takes the declaration with it, rather than
+/// leaving the project declaring a package manager it never installed
+/// anything for.
+#[test]
+fn a_failed_add_leaves_the_declaration_unwritten() {
+    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let original = serde_json::json!({ "name": "project", "version": "1.0.0" });
+    write_manifest(&workspace, &original);
+    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+
+    let output = run(
+        pacquet,
+        root.path(),
+        &["add", "yarn@1", "@pnpm.e2e/this-package-does-not-exist", "--lockfile-only"],
+    );
+
+    assert_failure(&output);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest, original);
+    drop((root, npmrc_info));
+}
+
+/// Which package manager a project uses is that project's declaration,
+/// not something a filter writes across a selection — and it must not
+/// quietly become an install of the npm package that shares the name.
+#[test]
+fn declaring_a_package_manager_for_a_filtered_selection_is_refused() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &serde_json::json!({ "name": "root", "version": "1.0.0" }));
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let project = workspace.join("packages").join("app");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+
+    let output = run(pacquet, root.path(), &["add", "yarn@4", "--filter", "app"]);
+
+    assert_failure(&output);
+    assert_contains(&stderr(&output), "ERR_PNPM_PACKAGE_MANAGER_IN_SELECTION");
+}
+
+/// A `package.json` that parses but is not an object has nowhere to
+/// record a package manager. That is the project's own file rather than
+/// an impossible state, so it fails as an error.
+#[test]
+fn a_manifest_that_is_not_an_object_fails_instead_of_panicking() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "[]").unwrap();
+
+    let output = run(pacquet, root.path(), &["add", "npm@11"]);
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "ERR_PNPM_INVALID_MANIFEST");
+    assert!(!stderr.contains("panicked"), "{stderr}");
+}
+
+/// Yarn is started from a project pin by corepack, which reads only
+/// `packageManager` and only accepts an exact version there — so a Yarn
+/// pin is resolved and written the way `corepack use` writes it, down to
+/// the integrity corepack verifies the Classic tarball with.
+#[test]
+fn a_yarn_pin_is_recorded_the_way_corepack_writes_it() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "devEngines": { "packageManager": { "name": "npm" } } }),
+    );
+
+    let output = run(pacquet, root.path(), &["add", "yarn@1"]);
+
+    assert_success(&output);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    let pin = manifest["packageManager"].as_str().expect("a recorded package manager");
+    let (version, integrity) = pin
+        .strip_prefix("yarn@")
+        .and_then(|reference| reference.split_once('+'))
+        .unwrap_or_else(|| panic!("expected an exact version with an integrity, got {pin}"));
+    let version = node_semver::Version::parse(version).expect("an exact version");
+    assert_eq!(version.major, 1, "{pin}");
+    assert!(integrity.starts_with("sha512."), "{pin}");
+    assert_eq!(manifest.get("devEngines"), None, "{manifest}");
+}
+
+#[test]
+fn a_project_pinned_to_another_package_manager_still_refuses_an_ordinary_add() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
+
+    let output = run(pacquet, root.path(), &["add", "lodash"]);
+
+    assert_failure(&output);
+    assert_contains(&stderr(&output), "This project is configured to use yarn");
 }

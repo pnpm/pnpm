@@ -5,8 +5,9 @@ use crate::{
         FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
-        ShimStyle, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, is_context_aware_shim,
-        is_shim_pointing_at, search_script_runtime,
+        ShimStyle, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
+        generate_virtual_cmd_shim, generate_virtual_pwsh_shim, generate_virtual_sh_shim,
+        is_context_aware_shim, is_shim_pointing_at, search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
@@ -844,6 +845,47 @@ fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
     result.push(".");
     result.push(ext);
     result.into()
+}
+
+/// Write the target-less shims for `package`'s `bins` into `bins_dir`.
+///
+/// Unlike [`link_bins_of_packages_context_aware`], nothing is installed
+/// behind these: the package is not in the global bin dir, and only the
+/// project a shim runs in can say what to execute. Returns the shim paths
+/// that now exist, in the order they were written.
+pub fn link_virtual_shims<Sys>(
+    package: &str,
+    bins: &[&str],
+    bins_dir: &Path,
+) -> Result<Vec<PathBuf>, LinkBinsError>
+where
+    Sys: FsCreateDirAll + FsWrite + FsSetExecutable,
+{
+    Sys::create_dir_all(bins_dir)
+        .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
+    let mut written = Vec::new();
+    for bin in bins {
+        let shim_path = bins_dir.join(bin);
+        let mut flavors = vec![(shim_path.clone(), generate_virtual_sh_shim(package, &shim_path))];
+        if cfg!(windows) {
+            let cmd_path = with_extension_appended(&shim_path, "cmd");
+            let ps1_path = with_extension_appended(&shim_path, "ps1");
+            flavors.push((cmd_path.clone(), generate_virtual_cmd_shim(package, &cmd_path)));
+            flavors.push((ps1_path.clone(), generate_virtual_pwsh_shim(package, &ps1_path)));
+        }
+        for (path, body) in flavors {
+            // Unlink first for the same reason [`write_shim`] does: a
+            // symlink planted at the bin path would otherwise redirect
+            // the write.
+            remove_stale_bin(&path)?;
+            Sys::write(&path, body.as_bytes())
+                .map_err(|error| LinkBinsError::WriteShim { path: path.clone(), error })?;
+            written.push(path);
+        }
+        Sys::set_executable(&shim_path)
+            .map_err(|error| LinkBinsError::Chmod { path: shim_path.clone(), error })?;
+    }
+    Ok(written)
 }
 
 /// Remove a bin shim previously written by [`link_bins_of_packages`].
