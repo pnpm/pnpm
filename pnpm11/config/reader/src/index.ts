@@ -1250,15 +1250,17 @@ const CONFIG_CONTEXT_KEY_SET: ReadonlySet<string> = new Set(CONFIG_CONTEXT_KEYS)
 /**
  * The global config file key that sets a refused setting, where it is not that
  * setting's own name.
- *
- * `bin` and `globalPkgDir` are derived from the two directory keys. The global
- * config file does accept `userconfig` under its own name but never reads it
- * back: the user-level `.npmrc` comes from `npmrcAuthFile` or `--userconfig`.
- * Naming it would send the user to a command that changes nothing.
  */
 const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
+  /** Derived from the global bin directory. */
   bin: 'global-bin-dir',
+  /** Derived from the global directory. */
   globalPkgDir: 'global-dir',
+  /**
+   * Accepted under its own name, but never read back: the user-level `.npmrc`
+   * comes from `npmrcAuthFile` or `--userconfig`, so its own name would send
+   * the user to a command that changes nothing.
+   */
   userconfig: 'npmrc-auth-file',
 }
 
