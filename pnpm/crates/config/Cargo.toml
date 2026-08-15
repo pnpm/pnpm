@@ -15,6 +15,7 @@ pacquet-catalogs-types         = { workspace = true }
 pacquet-config-dir             = { workspace = true }
 pacquet-detect-libc            = { workspace = true }
 pacquet-env-replace            = { workspace = true }
+pacquet-fs                     = { workspace = true }
 pacquet-network                = { workspace = true }
 pacquet-package-is-installable = { workspace = true }
 pacquet-package-manifest       = { workspace = true }

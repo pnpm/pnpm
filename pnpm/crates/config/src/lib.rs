@@ -2925,7 +2925,10 @@ impl Config {
                 .map(|value| value.split(path_delimiter).map(str::to_string).collect())
                 .unwrap_or_default();
             for dir in [self.virtual_store_dir.join("node_modules"), self.modules_dir.clone()] {
-                let dir = dir.display().to_string();
+                // `virtual_store_dir` is built by joining a multi-segment
+                // literal, which keeps `/` separators on Windows; normalize
+                // so NODE_PATH carries native separators like the shims do.
+                let dir = pacquet_fs::lexical_normalize(&dir).display().to_string();
                 if !node_paths.contains(&dir) {
                     node_paths.push(dir);
                 }

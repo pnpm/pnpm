@@ -2130,7 +2130,7 @@ pub fn gvs_enabled_exposes_hoisted_dependencies_through_node_path_and_the_esm_lo
         config.extra_env.get("NODE_PATH"),
         Some(&format!(
             "{}{path_delimiter}{}",
-            tmp.path().join("node_modules/.pnpm/node_modules").display(),
+            tmp.path().join("node_modules").join(".pnpm").join("node_modules").display(),
             tmp.path().join("node_modules").display(),
         )),
     );
