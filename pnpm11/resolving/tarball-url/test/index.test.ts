@@ -69,7 +69,7 @@ describe('isCanonicalRegistryTarballUrl', () => {
   test('recognizes equivalent scoped Artifactory tarballs for the exact package and registry', () => {
     const artifactoryRegistry = 'https://artifactory.example/artifactory/api/npm/npm-virtual/'
     const packageName = '@acme/widget'
-    const encodedPackageName = packageName.replace('/', '%2f')
+    const encodedPackageName = packageName.split('/').join('%2f')
     const tarball = `${artifactoryRegistry}${packageName}/-/${packageName}-1.2.3.tgz`
 
     for (const [url, version] of [
