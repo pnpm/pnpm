@@ -473,9 +473,7 @@ fn packument_last_modified_formats_the_documents_modified_time() {
     // No / malformed time.modified omits the header instead of guessing.
     assert_eq!(super::packument_last_modified(&serde_json::json!({"name": "acme"})), None);
     assert_eq!(
-        super::packument_last_modified(
-            &serde_json::json!({"time": {"modified": "not-a-date"}}),
-        ),
+        super::packument_last_modified(&serde_json::json!({"time": {"modified": "not-a-date"}}),),
         None,
     );
 }

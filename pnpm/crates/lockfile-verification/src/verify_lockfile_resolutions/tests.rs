@@ -677,7 +677,7 @@ async fn verdict_fallback_dir_survives_a_wiped_cache_dir() {
     assert_eq!(CALLS.load(Ordering::SeqCst), 1, "first run ran the verifier");
     assert!(
         fallback_dir.join(crate::CACHE_FILE_NAME).is_file(),
-        "verdict mirrored next to the virtual store"
+        "verdict mirrored next to the virtual store",
     );
 
     std::fs::remove_dir_all(&cache_dir).expect("wipe cache dir");

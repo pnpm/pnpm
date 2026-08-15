@@ -63,8 +63,10 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     /// When true, use only the on-disk metadata mirror and never reach
     /// the registry.
     pub offline: bool,
-    /// Network-permit class the registry GET queues in. See
-    /// [`MetadataRequestOptions::priority`].
+    /// Network-permit class the registry GET queues in:
+    /// [`pacquet_network::UNPRIORITIZED`] for fetches that gate
+    /// resolution progress, [`pacquet_network::BACKGROUND`] for the
+    /// lockfile-verification fan-out.
     pub priority: u64,
     pub(crate) retry_opts: RetryOpts,
 }

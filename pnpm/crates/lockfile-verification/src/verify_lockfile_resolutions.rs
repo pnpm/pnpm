@@ -110,7 +110,7 @@ pub fn lockfile_verification_is_cached(
     })
 }
 
-/// A lazy, memoised [`hash_lockfile`]: the first call computes, later
+/// A lazy, memoised [`hash_lockfile()`]: the first call computes, later
 /// calls clone the cached string — shared between the primary and
 /// fallback verdict lookups and the post-run recorder.
 fn memoized_lockfile_hash(lockfile: &Lockfile) -> impl FnMut() -> String {
