@@ -322,10 +322,13 @@ fn set_policy(
             entries.insert(package.to_string(), policy);
         }
         None => match entries.get(package) {
-            // Clearing an entry that switches the shim *off* would switch
-            // it on — for a built-in default, that is the only entry that
-            // was holding it off. `pnpm shim rm` does not enable things.
-            Some(policy) if !policy.dispatches() => return Ok(()),
+            // Clearing an entry that switches a *built-in* shim off would
+            // switch it on: that entry is the only thing holding it back,
+            // and `pnpm shim rm` does not enable things. For anything
+            // else, an off entry is the user's to take back.
+            Some(policy) if !policy.dispatches() && dispatches_by_default(package) => {
+                return Ok(());
+            }
             // Clearing an entry the record does not hold changes nothing,
             // and writing anyway would spell the built-in defaults out
             // into the user's configuration as though they had chosen
@@ -406,6 +409,12 @@ fn would_dispatch(config: &Config, package: &str) -> miette::Result<bool> {
         .map_err(|error| miette::miette!("{error}"))
         .wrap_err("read the globalShims setting")?;
     Ok(shims.policy(package) != ShimPolicy::Off)
+}
+
+/// Whether `package` would dispatch with nothing recorded for it — the
+/// built-in defaults are the managed runtimes.
+fn dispatches_by_default(package: &str) -> bool {
+    GlobalShims::default().policy(package) != ShimPolicy::Off
 }
 
 /// Whether the global `config.yaml` turns every context-aware shim off.

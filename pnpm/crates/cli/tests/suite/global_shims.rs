@@ -825,6 +825,26 @@ fn removing_a_disabled_shim_does_not_enable_it() {
     );
 }
 
+/// A package that dispatches nothing by default is a different matter:
+/// its off entry enables nothing when cleared, so it is the user's to
+/// take back.
+#[test]
+fn removing_a_disabled_shim_clears_it_when_nothing_would_switch_on() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims:\n  typescript: false\n").unwrap();
+
+    let removed =
+        pnpm_command(&root, &project).with_args(["shim", "rm", "typescript"]).output().unwrap();
+
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
+    assert!(!config.contains("typescript"), "{config}");
+}
+
 /// Removing a shim while a higher-precedence disable is active rewrites
 /// only what the user's own record held: the built-in defaults are not
 /// spelled into it, so lifting that disable later enables nothing the
