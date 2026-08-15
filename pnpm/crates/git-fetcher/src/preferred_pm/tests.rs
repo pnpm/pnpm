@@ -223,6 +223,15 @@ fn the_line_is_read_from_the_lockfile_header() {
     assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some("1"));
 }
 
+/// The stamp is the `__metadata:` key, not a prefix: a lockfile holding
+/// a key that merely starts like it was not written by Berry.
+#[test]
+fn a_lookalike_key_is_not_the_berry_stamp() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("yarn.lock"), "__metadataEvil:\n  version: 8\n").unwrap();
+    assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some("1"));
+}
+
 /// A lockfile is a fetched artifact, not text pnpm validated: a byte no
 /// encoding claims must not decide which Yarn prepares the package.
 #[test]

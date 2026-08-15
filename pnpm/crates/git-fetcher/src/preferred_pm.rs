@@ -158,7 +158,7 @@ fn pinned_version(version: &str) -> Option<String> {
 /// The Yarn line that can read the `yarn.lock` in `dir`, or `None` when
 /// the package ships none and no line is therefore required.
 ///
-/// Yarn Berry stamps every lockfile it writes with a `__metadata` block,
+/// Yarn Berry stamps every lockfile it writes with a `__metadata:` key,
 /// in the header — so only the head is read. The file comes out of a
 /// fetched artifact, and how large that is, is not pnpm's to trust.
 fn yarn_line_of_lockfile(dir: &Path) -> Option<String> {
@@ -172,7 +172,7 @@ fn yarn_line_of_lockfile(dir: &Path) -> Option<String> {
     lockfile.take(HEADER_BYTES).read_to_end(&mut header).ok()?;
     let berry = header
         .split(|byte| *byte == b'\n')
-        .any(|line| line.trim_ascii_start().starts_with(b"__metadata"));
+        .any(|line| line.trim_ascii_start().starts_with(b"__metadata:"));
     Some(if berry { YARN_BERRY_SPEC } else { YARN_CLASSIC_SPEC }.to_string())
 }
 
