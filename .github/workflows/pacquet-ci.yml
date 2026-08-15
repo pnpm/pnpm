@@ -273,6 +273,63 @@ jobs:
           RUSTDOCFLAGS: '-D warnings'
         run: cargo doc --no-deps --workspace --document-private-items
 
+  npm-wrapper:
+    name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Both, because the wrapper places and spawns a native executable and
+          # those are where Windows differs. The tests that need to spawn one
+          # skip themselves there; the download half runs everywhere.
+          - os: blacksmith-4vcpu-ubuntu-2404
+            os_label: ubuntu
+          - os: blacksmith-8vcpu-windows-2025
+            os_label: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        with:
+          install: false
+
+      # Only the wrapper's own dependencies: get-pnpm, which the published
+      # package carries in its dist/ payload and the tests stand in for.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter pacquet
+
+      # bash on both platforms: the shell has to expand the glob, because
+      # `--test` only takes patterns itself on Node.js >=22.
+      - name: Test
+        shell: bash
+        working-directory: pnpm/npm/pnpm/test
+        run: node --test *.test.mjs
+
+      # The oldest Node.js line the package claims in `engines`, at its latest
+      # release rather than its first — the line is what a user can still be on,
+      # and an exact floor would pin a long-superseded patch nobody runs.
+      # Corepack ships with newer Node.js than this, but the entry point pulls in
+      # get-pnpm, whose own engines floor is higher, so what the wrapper promises
+      # has to be a version it is actually run on.
+      - name: Test on the oldest supported Node.js line
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Installed into a scratch project, so the repo's own manifests are
+          # not rewritten by asking for a runtime.
+          mkdir -p "$RUNNER_TEMP/oldest-node"
+          cd "$RUNNER_TEMP/oldest-node"
+          echo '{"name":"oldest-node","version":"0.0.0"}' > package.json
+          pnpm runtime set node 18
+          ./node_modules/.bin/node --version
+          ./node_modules/.bin/node --test "$GITHUB_WORKSPACE"/pnpm/npm/pnpm/test/*.test.mjs
+
   typos:
     name: Rust CI / Spell Check
     needs: changes
@@ -446,6 +503,7 @@ jobs:
     needs:
       - changes
       - test
+      - npm-wrapper
       - clippy
       - doc
       - typos

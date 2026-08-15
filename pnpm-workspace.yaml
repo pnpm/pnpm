@@ -237,6 +237,9 @@ catalog:
   fast-glob: ^3.3.3
   fs-extra: ^11.4.0
   fuse-native: ^2.2.6
+  # Bundled into the pnpm 12 wrapper's dist/ payload, where the Corepack entry
+  # point loads it from; see pnpm/npm/pnpm/bin/pnpm.mjs.
+  get-pnpm: ^0.0.3
   get-port: ^7.2.0
   ghooks: 2.0.4
   graceful-fs: ^4.2.11
@@ -431,7 +434,7 @@ minimumReleaseAgeExclude:
   - pnpm
   - preferred-pm
   - promise-share
-  - qs@6.14.2
+  - qs@6.14.2 || 6.15.2
   - read-ini-file
   - read-json5-file
   - read-yaml-file
@@ -450,9 +453,9 @@ minimumReleaseAgeExclude:
   - write-ini-file
   - write-json5-file
   - write-yaml-file
-  - qs@6.15.2
   - tmp@0.2.6
   - http-proxy-middleware@3.0.7
+  - get-pnpm@0.0.2 || 0.0.3
 
 nodeVersion: 22.13.0
 
