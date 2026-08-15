@@ -71,12 +71,14 @@ export async function downloadNativeBinary ({ packageName, version, binFile, des
 
 // Two runs that start cold both download, and the loser's rename can fail with
 // the destination already there — on Windows, where it is locked as soon as the
-// winner starts executing it. The binary it wanted is in place either way.
+// winner starts executing it. The binary it wanted is in place either way, as
+// long as what is in the way is a plain file: a directory or a symlink there is
+// not something another run of this function produced.
 function placeAtDest (tempPath, destPath) {
   try {
     fs.renameSync(tempPath, destPath)
   } catch (err) {
-    if (!fs.existsSync(destPath)) {
+    if (fs.lstatSync(destPath, { throwIfNoEntry: false })?.isFile() !== true) {
       throw err
     }
     fs.rmSync(tempPath, { force: true })

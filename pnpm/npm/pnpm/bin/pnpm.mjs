@@ -55,7 +55,9 @@ async function nativeBinary () {
   if (installed != null) {
     return installed
   }
-  if (fs.existsSync(DOWNLOADED_BINARY)) {
+  // A plain file, not merely something at that path: what a previous run left
+  // is a file, and a directory there would be spawned as if it were a binary.
+  if (fs.lstatSync(DOWNLOADED_BINARY, { throwIfNoEntry: false })?.isFile() === true) {
     return DOWNLOADED_BINARY
   }
 

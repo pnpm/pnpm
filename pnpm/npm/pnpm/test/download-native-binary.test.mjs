@@ -112,8 +112,8 @@ describe('native binary download', () => {
 
     await download(destIn())
 
-    assert.equal(registry.requests[0].headers.authorization, 'Bearer a-token')
-    assert.equal(registry.tarballRequests[0].headers.authorization, undefined)
+    assert.equal(headersOf(registry.requests, `/${packageName.replaceAll('/', '%2F')}/${VERSION}`).authorization, 'Bearer a-token')
+    assert.equal(headersOf(registry.tarballRequests, `/${packageName}/-/${VERSION}.tgz`).authorization, undefined)
   })
 
   // Whether a run's copy replaces the other one or is dropped is the platform's
@@ -138,6 +138,13 @@ describe('native binary download', () => {
     assert.deepEqual(leftovers(destPath), [path.basename(destPath)])
   })
 
+  it('refuses a destination that is not a file', async () => {
+    const destPath = await givenRegistry({})
+    fs.mkdirSync(destPath)
+
+    await assert.rejects(download(destPath), /Could not write the pnpm binary/)
+  })
+
   it('refuses to reach the network when the environment forbids it', async () => {
     const destPath = await givenRegistry({})
     setEnv('COREPACK_ENABLE_NETWORK', '0')
@@ -148,6 +155,13 @@ describe('native binary download', () => {
 
 function download (destPath, overrides) {
   return downloadNativeBinary({ packageName, version: VERSION, binFile, destPath, ...overrides })
+}
+
+/** The headers of the request for `wanted`, by path rather than by arrival. */
+function headersOf (requests, wanted) {
+  const request = requests.find(({ path: requested }) => requested === wanted)
+  assert.ok(request, `no request for ${wanted} among ${requests.map(({ path: p }) => p).join(', ')}`)
+  return request.headers
 }
 
 /** Every file in the destination directory, so temp files can't hide. */
