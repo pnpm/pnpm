@@ -15,8 +15,9 @@ import zlib from 'node:zlib'
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org'
 const TARBALL_ROOT = 'package/'
 // Strongest first: the published integrity may list several, and a weak one
-// must not be able to stand in for a strong one.
-const SUPPORTED_HASHES = ['sha512', 'sha384', 'sha256', 'sha1']
+// must not be able to stand in for a strong one. SHA-1 is deliberately absent —
+// it only survives as the pre-integrity `dist.shasum` fallback below.
+const SUPPORTED_HASHES = ['sha512', 'sha384', 'sha256']
 const TAR_BLOCK_SIZE = 512
 
 /**
@@ -59,12 +60,26 @@ export async function downloadNativeBinary ({ packageName, version, binFile, des
     } finally {
       fs.closeSync(file)
     }
-    fs.renameSync(tempPath, destPath)
+    placeAtDest(tempPath, destPath)
   } catch (err) {
     if (created) {
       fs.rmSync(tempPath, { force: true })
     }
     throw new Error(`Could not write the pnpm binary to ${destPath}: ${err.message}`)
+  }
+}
+
+// Two runs that start cold both download, and the loser's rename can fail with
+// the destination already there — on Windows, where it is locked as soon as the
+// winner starts executing it. The binary it wanted is in place either way.
+function placeAtDest (tempPath, destPath) {
+  try {
+    fs.renameSync(tempPath, destPath)
+  } catch (err) {
+    if (!fs.existsSync(destPath)) {
+      throw err
+    }
+    fs.rmSync(tempPath, { force: true })
   }
 }
 
@@ -158,6 +173,11 @@ function verifyIntegrity (tarball, dist, label) {
       }
       return
     }
+    // Published integrity that names no algorithm we accept is a refusal, not a
+    // reason to fall back to the weaker checksum next to it.
+    throw new Error(
+      `The registry published no usable checksum for ${label}: "${dist.integrity}" names none of ${SUPPORTED_HASHES.join(', ')}`
+    )
   }
   if (typeof dist.shasum === 'string') {
     const actual = createHash('sha1').update(tarball).digest('hex')

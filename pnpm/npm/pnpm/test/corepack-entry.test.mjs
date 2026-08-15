@@ -88,6 +88,14 @@ describe('corepack entry point', { skip: process.platform === 'win32' }, () => {
     assert.equal(fs.existsSync(path.join(fixture.dir, 'pnpm-native')), false)
   })
 
+  it('refuses a tarball published with only a SHA-1 checksum', async () => {
+    const fixture = await createFixture({ integrity: (tarball) => digest('sha1', tarball) })
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /published no usable checksum/)
+  })
+
   it('checks the strongest published checksum, not the first one', async () => {
     const fixture = await createFixture({
       integrity: (tarball) => `${digest('sha1', tarball)} ${digest('sha512', 'not the tarball')}`,
