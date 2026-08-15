@@ -79,6 +79,21 @@ fn tarball_entry_names(tarball: &Path) -> Vec<String> {
         .collect()
 }
 
+/// Read the raw ustar typeflag for one entry. The `tar` crate accepts both
+/// NUL and `0` as regular-file markers, so checking the decoded entry type
+/// would not catch an archive-format regression here.
+fn tarball_entry_typeflag(tarball: &Path, entry_name: &str) -> u8 {
+    let file = std::fs::File::open(tarball).unwrap();
+    let mut archive = tar::Archive::new(GzDecoder::new(file));
+    for entry in archive.entries().unwrap() {
+        let entry = entry.unwrap();
+        if entry.path().unwrap().to_str() == Some(entry_name) {
+            return entry.header().as_bytes()[156];
+        }
+    }
+    panic!("entry {entry_name:?} not found in {}", tarball.display());
+}
+
 /// Read one entry's UTF-8 contents out of a written `.tgz`.
 fn tarball_entry_content(tarball: &Path, entry_name: &str) -> Option<String> {
     let file = std::fs::File::open(tarball).unwrap();
@@ -151,6 +166,23 @@ fn packs_a_basic_package_to_a_tarball() {
     let mut names = tarball_entry_names(&tarball);
     names.sort();
     assert_eq!(names, vec!["package/index.js".to_string(), "package/package.json".into()]);
+}
+
+#[test]
+fn packs_regular_files_with_the_posix_regular_typeflag() {
+    let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.2.3" }));
+    touch(dir.path(), "index.js", "module.exports = 1\n");
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let tarball = dir.path().join("foo-1.2.3.tgz");
+    for entry_name in ["package/index.js", "package/package.json"] {
+        assert_eq!(
+            tarball_entry_typeflag(&tarball, entry_name),
+            b'0',
+            "{entry_name} should use the POSIX regular-file typeflag",
+        );
+    }
 }
 
 /// A symlink planted at the output `.tgz` path must not be followed:

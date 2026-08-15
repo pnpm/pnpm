@@ -77,6 +77,7 @@ fn append_entry<Writer: Write>(
     mode: u32,
 ) -> io::Result<()> {
     let mut header = tar::Header::new_gnu();
+    header.set_entry_type(tar::EntryType::Regular);
     header.set_size(data.len() as u64);
     header.set_mode(mode);
     header.set_mtime(REPRODUCIBLE_MTIME);
