@@ -296,4 +296,13 @@ fn only_managed_tools_are_provisioned_by_name() {
     assert_eq!(parse_runtime_spec("node@22"), Some(("node", "22")));
     assert_eq!(parse_runtime_spec("deno"), Some(("deno", "latest")));
     assert_eq!(parse_runtime_spec("nodemon@3"), None);
+    assert_eq!(parse_runtime_spec("node@runtime:22"), Some(("node", "22")));
+
+    // A specifier that locates a package names what to install, whether it
+    // spells out a protocol or uses the GitHub shorthand.
+    assert_eq!(parse_package_manager_spec("yarn@npm:@yarnpkg/cli-dist@4.9.2"), None);
+    assert_eq!(parse_package_manager_spec("yarn@yarnpkg/berry"), None);
+    assert_eq!(parse_package_manager_spec("yarn@yarnpkg/berry#main"), None);
+    assert_eq!(parse_runtime_spec("node@github:nodejs/node"), None);
+    assert_eq!(parse_runtime_spec("node@nodejs/node"), None);
 }

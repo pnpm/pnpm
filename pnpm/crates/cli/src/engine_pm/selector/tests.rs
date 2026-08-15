@@ -41,12 +41,15 @@ fn other_packages_are_left_alone() {
     assert_eq!(tool_install_selector("pnpm@11"), None);
 }
 
-/// A request that already carries a protocol says what it wants; the
-/// rewrite would nest one protocol inside another.
+/// A request that already locates a package says what it wants; the
+/// rewrite would nest one locator inside another.
 #[test]
-fn a_request_naming_a_protocol_is_left_alone() {
+fn a_request_that_locates_a_package_is_left_alone() {
     assert_eq!(tool_install_selector("node@runtime:22"), None);
     assert_eq!(tool_install_selector("bun@runtime:1.3.0"), None);
     assert_eq!(tool_install_selector("yarn@npm:@yarnpkg/cli-dist@4.9.2"), None);
     assert_eq!(tool_install_selector("node@github:nodejs/node"), None);
+    // The GitHub shorthand locates one without spelling out a protocol.
+    assert_eq!(tool_install_selector("yarn@yarnpkg/berry"), None);
+    assert_eq!(tool_install_selector("node@nodejs/node#main"), None);
 }

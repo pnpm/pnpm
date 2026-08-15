@@ -8,7 +8,10 @@
 //! published under another name, the `runtime:` protocol for the ones
 //! that ship as platform archives.
 
-use pacquet_package_manifest::is_runtime_alias;
+use pacquet_package_manifest::{
+    is_runtime_alias,
+    package_manager_spec::{is_version_request, split_spec},
+};
 
 use crate::engine_pm::channel::{BinaryChannel, Channel, PackageManager};
 
@@ -20,10 +23,11 @@ use crate::engine_pm::channel::{BinaryChannel, Channel, PackageManager};
 #[must_use]
 pub(crate) fn tool_install_selector(request: &str) -> Option<String> {
     let (name, version_spec) = split_request(request);
-    // A specifier carrying a protocol — `node@runtime:22`, an explicit
-    // `yarn@npm:@yarnpkg/cli-dist@4` — already says what to install, and
-    // rewriting it would nest one protocol inside another.
-    if version_spec.contains(':') {
+    // A specifier that locates a package — `node@runtime:22`, an explicit
+    // `yarn@npm:@yarnpkg/cli-dist@4`, `yarn@yarnpkg/berry` — already says
+    // what to install, and rewriting it would nest one locator inside
+    // another.
+    if !is_version_request(version_spec) {
         return None;
     }
     if let Some(pm) = PackageManager::parse(name).filter(|pm| *pm != PackageManager::Pnpm) {
@@ -53,12 +57,14 @@ fn runtime_selector(name: &str, version_spec: &str) -> String {
 }
 
 /// Split `<name>[@<spec>]`, defaulting to the tool's current line. A
-/// leading `@` belongs to a scoped package name, which is never a tool.
+/// scoped name is never a tool, so it keeps its own `@` and asks for
+/// nothing.
 fn split_request(request: &str) -> (&str, &str) {
-    if request.starts_with('@') {
+    let (name, version_spec) = split_spec(request);
+    if name.starts_with('@') {
         return (request, "");
     }
-    request.split_once('@').unwrap_or((request, "latest"))
+    (name, version_spec.unwrap_or("latest"))
 }
 
 #[cfg(test)]

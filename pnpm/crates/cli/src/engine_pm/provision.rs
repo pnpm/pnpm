@@ -1,17 +1,16 @@
 //! Resolve a package manager's version specifier and materialize it,
 //! returning what a caller needs to run it.
 
-use miette::{Context, IntoDiagnostic};
+use miette::Context;
 use pacquet_config::Config;
 use pacquet_reporter::Reporter;
 use std::path::{Path, PathBuf};
 
 use crate::{
-    config_deps,
     engine_pm::{
         channel::{BinaryChannel, Channel, EnginePackages, PackageManager},
-        error::EngineError,
         install::{engine_env_root, install_engine_to_store},
+        resolve::resolve_release,
     },
     shim_dispatch::materialize_runtime,
 };
@@ -29,6 +28,32 @@ pub(crate) struct ProvisionedEngine {
     /// Directories to prepend to `PATH` before spawning it, most
     /// significant first.
     pub(crate) bin_dirs: Vec<PathBuf>,
+}
+
+impl ProvisionedEngine {
+    /// The executable for the command `name`, falling back to the
+    /// engine's main program when it publishes no such command.
+    ///
+    /// A package manager publishes more than one — `npx` alongside `npm` —
+    /// so the one the user typed is what runs. Only the engine's own
+    /// directory answers: a managed Node.js behind it ships an `npm` and
+    /// an `npx` of its own, which are not the versions that were asked
+    /// for.
+    pub(crate) fn command(&self, name: &str) -> PathBuf {
+        self.bin_dirs
+            .first()
+            .and_then(|bin_dir| engine_bin(bin_dir, name))
+            .unwrap_or_else(|| self.program.clone())
+    }
+}
+
+/// Locate `name` strictly inside `bin_dir`, never on the wider `PATH`, so
+/// a missing command is an error rather than a silent fall-through to
+/// whatever package manager the host happens to have installed.
+/// `which_in` is used only to pick the platform-correct shim name (e.g.
+/// `pnpm.cmd` on Windows).
+pub(crate) fn engine_bin(bin_dir: &Path, name: &str) -> Option<PathBuf> {
+    which::which_in(name, Some(bin_dir), bin_dir).ok()
 }
 
 /// Install `pm` at `version_spec` and return how to run it.
@@ -72,9 +97,7 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     version_spec: &str,
 ) -> miette::Result<ProvisionedEngine> {
     let name = pm.name();
-    let resolved = config_deps::resolve_engine_version(config, package, version_spec)
-        .await?
-        .ok_or_else(|| EngineError::cannot_resolve(pm, version_spec))?;
+    let resolved = resolve_release(config, pm, package, version_spec).await?;
     let env_root = engine_env_root(config, pm)?;
     let bin_dir = Box::pin(install_engine_to_store::<Reporter>(
         config,
@@ -86,12 +109,8 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     ))
     .await?;
 
-    // Resolve the bin strictly within the engine's own directory, never the
-    // full PATH, so a missing shim is an error rather than a silent
-    // fall-through to whatever package manager happens to be installed.
-    let program = which::which_in(name, Some(&bin_dir), &bin_dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("locate {name} in the installed engine"))?;
+    let program = engine_bin(&bin_dir, name)
+        .ok_or_else(|| miette::miette!("cannot locate {name} in the installed engine"))?;
 
     let mut bin_dirs = vec![bin_dir];
     let packages = pm

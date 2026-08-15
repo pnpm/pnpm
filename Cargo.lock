@@ -4485,6 +4485,7 @@ dependencies = [
  "derive_more",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-cmd-shim",
  "pacquet-diagnostics",
  "pacquet-executor",
  "pacquet-fs",

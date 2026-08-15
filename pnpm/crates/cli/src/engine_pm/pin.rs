@@ -15,15 +15,13 @@
 
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
+use pacquet_package_manifest::package_manager_spec::is_version_request;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Map, Value};
 
-use crate::{
-    config_deps::resolve_engine_version,
-    engine_pm::{
-        channel::{BinaryChannel, Channel, PackageManager},
-        error::EngineError,
-    },
+use crate::engine_pm::{
+    channel::{BinaryChannel, Channel, PackageManager},
+    resolve::resolve_release,
 };
 
 /// The package manager `request` declares, and the version it asks for.
@@ -36,22 +34,12 @@ use crate::{
 /// asking for a released version of the package manager itself.
 pub(crate) fn declared_package_manager(request: &str) -> Option<(PackageManager, Option<String>)> {
     let parsed = parse_wanted_dependency(request);
-    if parsed.bare_specifier.as_deref().is_some_and(|spec| !declares_a_version(spec)) {
+    if parsed.bare_specifier.as_deref().is_some_and(|spec| !is_version_request(spec)) {
         return None;
     }
     let pm =
         PackageManager::parse(parsed.alias.as_deref()?).filter(|pm| *pm != PackageManager::Pnpm)?;
     Some((pm, parsed.bare_specifier))
-}
-
-/// Whether `spec` asks for a released version — a semver version, a range,
-/// or a dist-tag — rather than locating one somewhere.
-///
-/// The locator forms are told apart by the characters no version or tag
-/// can hold: a protocol's `:`, and the `/` and `#` of the GitHub shorthand
-/// `owner/repo#ref`.
-fn declares_a_version(spec: &str) -> bool {
-    !spec.contains([':', '/', '#'])
 }
 
 /// Declare in `manifest` that the project uses `pm` at `reference`,
@@ -121,10 +109,7 @@ pub(crate) async fn resolve_project_pin(
     let spec = version_spec.unwrap_or("latest");
     let reference = match pm.channel(spec) {
         Channel::Registry { package } => {
-            let resolved = resolve_engine_version(config, package, spec)
-                .await
-                .wrap_err_with(|| format!("resolve {}@{spec}", pm.name()))?
-                .ok_or_else(|| EngineError::cannot_resolve(pm, spec))?;
+            let resolved = resolve_release(config, pm, package, spec).await?;
             let integrity = corepack_integrity(package, resolved.manifest.as_deref());
             match integrity {
                 Some(integrity) => format!("{}+{integrity}", resolved.version),

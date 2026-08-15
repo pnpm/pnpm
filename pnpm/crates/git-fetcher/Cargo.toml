@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-cmd-shim         = { workspace = true }
 pacquet-diagnostics      = { workspace = true }
 pacquet-executor         = { workspace = true }
 pacquet-fs               = { workspace = true }

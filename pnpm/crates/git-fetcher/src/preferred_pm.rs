@@ -7,6 +7,9 @@
 //! snapshots almost always ship a lockfile at the repo root, and the
 //! fall-through is `Npm`.
 
+use pacquet_package_manifest::package_manager_spec::{
+    dev_engines_package_managers, engine_name_version, split_spec, version_without_build,
+};
 use serde_json::Value;
 use std::{fs, path::Path};
 
@@ -118,22 +121,14 @@ fn manifest_pin(manifest: &Value) -> Option<WantedPm> {
 }
 
 fn package_manager_pin(manifest: &Value) -> Option<(String, Option<String>)> {
-    let package_manager = manifest.get("packageManager")?.as_str()?;
-    // `<name>@<version>[+<integrity>]`.
-    let (name, reference) = package_manager.split_once('@')?;
-    let version = reference.split_once('+').map_or(reference, |(version, _)| version);
-    Some((name.to_string(), pinned_version(version)))
+    let (name, reference) = split_spec(manifest.get("packageManager")?.as_str()?);
+    let version = reference.map(version_without_build).and_then(pinned_version);
+    Some((name.to_string(), version))
 }
 
 fn dev_engines_pin(manifest: &Value) -> Option<(String, Option<String>)> {
-    let value = manifest.get("devEngines")?.get("packageManager")?;
-    let entry = match value {
-        Value::Array(entries) => entries.first()?,
-        other => other,
-    };
-    let name = entry.get("name")?.as_str()?.to_string();
-    let version = entry.get("version").and_then(Value::as_str).and_then(pinned_version);
-    Some((name, version))
+    let (name, version) = engine_name_version(dev_engines_package_managers(manifest).next()?)?;
+    Some((name.to_string(), version.and_then(pinned_version)))
 }
 
 /// The version a dependency's manifest pins, kept only when it is a plain

@@ -570,17 +570,7 @@ fn run_package_manager_from_pin(
     });
     match result {
         Ok(engine) => {
-            // A package manager publishes more than one command — `npx`
-            // alongside `npm` — so the one the user typed is what runs,
-            // not whichever the engine calls its main bin. Only the
-            // engine's own directory answers: a managed Node.js behind it
-            // ships an `npm` and an `npx` of its own, which are not the
-            // versions this pin asked for.
-            let program = engine
-                .bin_dirs
-                .first()
-                .and_then(|bin_dir| which::which_in(name, Some(bin_dir), bin_dir).ok())
-                .unwrap_or(engine.program);
+            let program = engine.command(name);
             exec_program_with_bin_dirs(&program, &engine.bin_dirs, args)
         }
         Err(error) => {

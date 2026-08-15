@@ -22,8 +22,11 @@ use std::{path::PathBuf, process::Command};
 
 use crate::{
     cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
-    engine_pm::{channel::PackageManager, provision::provision},
-    path_env::{BadPathDir, prepend_dirs_to_path},
+    engine_pm::{
+        channel::PackageManager,
+        provision::{engine_bin, provision},
+    },
+    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
 };
 
 /// Errors specific to `pacquet with`. The codes carry the shared
@@ -104,22 +107,12 @@ where
 {
     let bin_dir = bin_dirs.first().expect("an installed engine has a bin directory");
     let path = prepend_dirs_to_path(bin_dirs).map_err(WithError::from)?;
-    // Resolve `pnpm` strictly within `bin_dir`, never the full PATH, so a
-    // missing or broken shim is an error rather than silently falling
-    // through to a different `pnpm` elsewhere on PATH (which would run the
-    // wrong engine). `which_in` is used only to pick the platform-correct
-    // shim name (e.g. `pnpm.cmd` on Windows).
-    let program = which::which_in("pnpm", Some(bin_dir), bin_dir)
-        .into_diagnostic()
-        .wrap_err("locate the requested pnpm binary in the engine's bin directory")?;
+    let program = engine_bin(bin_dir, "pnpm")
+        .ok_or_else(|| miette::miette!("cannot locate pnpm in the engine's bin directory"))?;
 
     let mut cmd = Command::new(program);
     cmd.args(args);
-    // Drop any inherited PATH-like key before re-inserting our own, so a
-    // Windows `Path`/`PATH` pair can't collapse to an unspecified winner.
-    cmd.env_remove("PATH");
-    cmd.env_remove("Path");
-    cmd.env("PATH", &path);
+    set_command_path(&mut cmd, &path);
     disable_package_manager_switching(&mut cmd);
     if matches!(package_manager_check, PackageManagerCheck::Disabled) {
         // The child pnpm must skip the packageManager / devEngines check so the

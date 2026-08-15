@@ -1,6 +1,6 @@
 mod recursive;
 
-use crate::path_env::{BadPathDir, prepend_dirs_to_path};
+use crate::path_env::{BadPathDir, prepend_dirs_to_path, set_command_path};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -174,13 +174,7 @@ pub(super) fn spawn_in_dir(
     // TS `makeEnv`, which spreads `...extraEnv` into the base. Empty
     // unless an install-family command populated it.
     cmd.envs(&config.extra_env);
-    // Drop any inherited PATH-like key before re-inserting our own, so
-    // a Windows `Path`/`PATH` pair can't collapse to an unspecified
-    // winner at spawn time (matching the lifecycle spawn in
-    // `pacquet-executor`).
-    cmd.env_remove("PATH");
-    cmd.env_remove("Path");
-    cmd.env("PATH", &path);
+    set_command_path(&mut cmd, &path);
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
     cmd.env(pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");

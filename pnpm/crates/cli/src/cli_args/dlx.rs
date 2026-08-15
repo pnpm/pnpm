@@ -2,7 +2,7 @@ use crate::{
     State,
     cli_args::{add::add_package, supported_architectures::SupportedArchitecturesArgs},
     engine_pm::{channel::PackageManager, provision::provision},
-    path_env::{BadPathDir, prepend_dirs_to_path},
+    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
     shim_dispatch::materialize_runtime,
 };
 use clap::Args;
@@ -16,7 +16,9 @@ use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::force_symlink_dir;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{
-    DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias, parse_manifest,
+    DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias,
+    package_manager_spec::{is_version_request, split_spec},
+    parse_manifest,
 };
 use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
@@ -470,9 +472,7 @@ fn run_bin(
     // empty; wired for uniformity with the other spawn sites and so it
     // works if that changes.
     cmd.envs(extra_env);
-    cmd.env_remove("PATH");
-    cmd.env_remove("Path");
-    cmd.env("PATH", &path);
+    set_command_path(&mut cmd, &path);
     cmd.env("npm_config_user_agent", user_agent);
 
     let status = cmd
@@ -495,10 +495,11 @@ fn run_bin(
 /// whatever Yarn currently ships — matching how a `dlx` package spec
 /// without a version resolves.
 fn parse_package_manager_spec(command: &str) -> Option<(PackageManager, &str)> {
-    let (name, version_spec) = command.split_once('@').unwrap_or((command, "latest"));
-    // A specifier carrying a protocol names a package to install, not a
-    // line of the tool, so it stays on the ordinary dlx path.
-    if version_spec.contains(':') {
+    let (name, version_spec) = split_spec(command);
+    let version_spec = version_spec.unwrap_or("latest");
+    // A specifier that locates a package names what to install, not a line
+    // of the tool, so it stays on the ordinary dlx path.
+    if !is_version_request(version_spec) {
         return None;
     }
     Some((PackageManager::parse(name)?, version_spec))
@@ -507,13 +508,15 @@ fn parse_package_manager_spec(command: &str) -> Option<(PackageManager, &str)> {
 /// Split a dlx command word into the runtime it names and the version
 /// specifier it asks for, or `None` when it names something else.
 fn parse_runtime_spec(command: &str) -> Option<(&str, &str)> {
-    let (name, version_spec) = command.split_once('@').unwrap_or((command, "latest"));
+    let (name, version_spec) = split_spec(command);
+    let version_spec = version_spec.unwrap_or("latest");
     // `node@runtime:22` is the same request spelled with the protocol the
-    // resolver uses; anything else carrying one is an ordinary package.
-    let version_spec = match version_spec.split_once(':') {
-        Some(("runtime", version_spec)) => version_spec,
-        Some(_) => return None,
-        None => version_spec,
+    // resolver uses; anything else that locates a package is an ordinary
+    // one.
+    let version_spec = match version_spec.strip_prefix("runtime:") {
+        Some(version_spec) => version_spec,
+        None if is_version_request(version_spec) => version_spec,
+        None => return None,
     };
     is_runtime_alias(name).then_some((name, version_spec))
 }

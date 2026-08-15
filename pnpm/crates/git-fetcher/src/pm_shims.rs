@@ -51,17 +51,22 @@ pub(crate) fn write_pm_shims(
 
 #[cfg(unix)]
 fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, String)> {
+    use pacquet_cmd_shim::sh_single_quote;
+
     let contents = format!(
         "#!/bin/sh\nexec {pnpm} dlx {spec} \"$@\"\n",
-        pnpm = sh_quote(&pnpm_execpath.to_string_lossy()),
-        spec = sh_quote(spec),
+        pnpm = sh_single_quote(&pnpm_execpath.to_string_lossy()),
+        spec = sh_single_quote(spec),
     );
     vec![(name.to_string(), contents)]
 }
 
 #[cfg(windows)]
 fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, String)> {
-    let pnpm = pnpm_execpath.display();
+    use pacquet_cmd_shim::cmd_escape;
+
+    let pnpm = cmd_escape(&pnpm_execpath.to_string_lossy());
+    let spec = cmd_escape(spec);
     let contents = format!("@\"{pnpm}\" dlx \"{spec}\" %*\r\n");
     vec![(format!("{name}.cmd"), contents)]
 }
@@ -80,13 +85,6 @@ fn command_line_safe(version_spec: &str) -> Option<&str> {
         .chars()
         .all(|char| char.is_ascii_alphanumeric() || RANGE_PUNCTUATION.contains(char))
         .then_some(version_spec)
-}
-
-/// Single-quote a value for `sh`, so a path holding a space or a shell
-/// metacharacter cannot change what the shim runs.
-#[cfg(unix)]
-fn sh_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', r"'\''"))
 }
 
 /// Write `contents` to `path`, replacing whatever was there. The shims sit

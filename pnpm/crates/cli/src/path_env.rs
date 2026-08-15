@@ -1,7 +1,11 @@
 //! Build the `PATH` a spawned child sees.
 
 use derive_more::{Display, Error};
-use std::{ffi::OsString, path::PathBuf};
+use std::{
+    ffi::{OsStr, OsString},
+    path::PathBuf,
+    process::Command,
+};
 
 /// A directory that cannot be expressed as a single `PATH` entry, because
 /// it contains the separator entries are split on. Each command that
@@ -46,6 +50,19 @@ pub(crate) fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, BadPath
         path.push(current);
     }
     Ok(path)
+}
+
+/// Give `cmd` the `PATH` built by [`prepend_dirs_to_path`].
+///
+/// The inherited key is dropped before the new one is inserted: Windows
+/// environment names are case-insensitive, so a process that inherited
+/// `Path` and is then given `PATH` would carry both, and which one the
+/// child reads is unspecified. Every pnpm spawn site goes through here so
+/// none of them can forget that.
+pub(crate) fn set_command_path(cmd: &mut Command, path: &OsStr) {
+    cmd.env_remove("PATH");
+    cmd.env_remove("Path");
+    cmd.env("PATH", path);
 }
 
 #[cfg(test)]
