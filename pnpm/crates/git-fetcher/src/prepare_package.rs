@@ -9,7 +9,7 @@
 use crate::{
     error::PreparePackageError,
     pm_shims::{shim_names, write_pm_shims},
-    preferred_pm::{WantedPm, detect_wanted_pm},
+    preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
 };
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
@@ -22,6 +22,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
+    sync::{LazyLock, Mutex},
 };
 
 /// Scripts to re-run after `<pm>-install` finishes. `prepare` itself
@@ -135,11 +136,11 @@ pub fn prepare_package<Reporter: self::Reporter>(
     let _shims_dir;
     let provide = wanted_pm.pinned || !host_can_prepare(&wanted_pm);
     if provide && opts.pnpm_execpath.is_none() && wanted_pm.pinned {
-        // Without the running pnpm there is nothing to forward a shim to,
-        // which only happens where pnpm is embedded rather than run as a
-        // command. The host's package manager still prepares the package,
-        // as it did before pnpm could provide one — but the dependency
-        // asked for a version, and it is not getting it.
+        // Without the running pnpm there is nothing to forward a shim
+        // to, which is the case where pnpm is embedded rather than run as
+        // a command. The host's package manager prepares the package
+        // instead, so the dependency is built by a version it did not ask
+        // for and the user hears about it.
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
             message: format!(
@@ -268,6 +269,26 @@ fn describe_wanted_pm(wanted: &WantedPm) -> String {
 }
 
 fn host_can_prepare(wanted: &WantedPm) -> bool {
+    // Every unpinned git dependency asks this, and the answer cannot
+    // change under a running install: the host's package managers are not
+    // pnpm's to install.
+    /// A package manager and the version the dependency wants of it.
+    type HostQuestion = (PreferredPm, Option<String>);
+
+    static ANSWERS: LazyLock<Mutex<HashMap<HostQuestion, bool>>> = LazyLock::new(Mutex::default);
+
+    let key = (wanted.pm, wanted.version_spec.clone());
+    if let Some(answer) =
+        ANSWERS.lock().expect("the host capability cache is never poisoned").get(&key)
+    {
+        return *answer;
+    }
+    let answer = probe_host(wanted);
+    ANSWERS.lock().expect("the host capability cache is never poisoned").insert(key, answer);
+    answer
+}
+
+fn probe_host(wanted: &WantedPm) -> bool {
     // A dependency's scripts reach for any of the package manager's
     // names — `yarnpkg` as readily as `yarn` — so a host that provides
     // only some of them still leaves the build to pnpm.

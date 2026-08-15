@@ -608,17 +608,11 @@ fn trusted_package_manager_config() -> miette::Result<Config> {
 /// invocation finds the same version.
 fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsString]) -> i32 {
     match crate::path_env::prepend_dirs_to_path(bin_dirs) {
-        Ok(path) => {
-            // SAFETY: whatever runtime a candidate needed to resolve has
-            // been dropped and its threads joined by the time this runs,
-            // and the dispatcher starts none of its own, so the process is
-            // single-threaded here and no other thread can be reading the
-            // environment concurrently.
-            unsafe {
-                std::env::set_var("PATH", &path);
-            }
-            exec_program(program, args)
-        }
+        // The `PATH` travels on the command rather than through this
+        // process's own environment: an `exec` hands the child the
+        // command's environment just the same, and nothing here has to
+        // reason about which threads are running.
+        Ok(path) => exec_program_with_path(program, args, Some(&path)),
         Err(error) => {
             // Rendered as a report so the failure carries the same
             // `ERR_PNPM_BAD_PATH_DIR` code the commands report it under.
@@ -631,10 +625,19 @@ fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsSt
 /// Run `program` with `args`, replacing this process where the platform
 /// allows. Exit codes follow the shell convention: 127 when the program
 /// does not exist, 126 when it cannot be executed.
-#[cfg(unix)]
 fn exec_program(program: &Path, args: &[OsString]) -> i32 {
+    exec_program_with_path(program, args, None)
+}
+
+#[cfg(unix)]
+fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsString>) -> i32 {
     use std::os::unix::process::CommandExt as _;
-    let error = Command::new(program).args(args).exec();
+    let mut command = Command::new(program);
+    command.args(args);
+    if let Some(path) = path {
+        crate::path_env::set_command_path(&mut command, path);
+    }
+    let error = command.exec();
     eprintln!("pnpm: failed to exec {}: {error}", program.display());
     if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
 }
@@ -649,12 +652,17 @@ fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::i
 }
 
 #[cfg(windows)]
-fn exec_program(program: &Path, args: &[OsString]) -> i32 {
+fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsString>) -> i32 {
     // `.cmd`/`.bat` targets go to `Command::new` directly: the standard
     // library spawns them through `cmd.exe` itself with the
     // CVE-2024-24576 argument escaping, and rejects arguments it cannot
     // pass safely — a hand-rolled `cmd /c` would reintroduce that bug.
-    match Command::new(program).args(args).status() {
+    let mut command = Command::new(program);
+    command.args(args);
+    if let Some(path) = path {
+        crate::path_env::set_command_path(&mut command, path);
+    }
+    match command.status() {
         Ok(status) => status.code().unwrap_or(1),
         Err(error) => {
             eprintln!("pnpm: failed to run {}: {error}", program.display());
