@@ -79,9 +79,9 @@ fn tarball_entry_names(tarball: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Read the raw ustar typeflag for one entry. The `tar` crate accepts both
-/// NUL and `0` as regular-file markers, so checking the decoded entry type
-/// would not catch an archive-format regression here.
+// Read the raw ustar typeflag for one entry. The `tar` crate accepts both
+// NUL and `0` as regular-file markers, so checking the decoded entry type
+// would not catch an archive-format regression here.
 fn tarball_entry_typeflag(tarball: &Path, entry_name: &str) -> u8 {
     let file = std::fs::File::open(tarball).unwrap();
     let mut archive = tar::Archive::new(GzDecoder::new(file));
