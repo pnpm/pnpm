@@ -107,16 +107,24 @@ async function fetchJson (url) {
   const response = await request(url, {
     // Abbreviated metadata carries `dist`, and is much smaller than the full doc.
     accept: 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8',
+    timeoutMs: METADATA_TIMEOUT_MS,
   })
   return response.json()
 }
 
 async function fetchBuffer (url) {
-  const response = await request(url)
+  const response = await request(url, { timeoutMs: TARBALL_TIMEOUT_MS })
   return response.arrayBuffer()
 }
 
-async function request (url, { accept } = {}) {
+// Node's fetch applies no timeout of its own, so a registry that accepts the
+// connection and then stalls would hang the pnpm invocation with no output.
+// Metadata is small and quick; the tarball budget has to carry ~40 MB over a
+// slow connection.
+const METADATA_TIMEOUT_MS = 30_000
+const TARBALL_TIMEOUT_MS = 15 * 60_000
+
+async function request (url, { accept, timeoutMs } = {}) {
   if (process.env.COREPACK_ENABLE_NETWORK === '0') {
     throw new Error(`Network access is disabled by the environment; cannot reach ${url}`)
   }
@@ -129,9 +137,12 @@ async function request (url, { accept } = {}) {
 
   let response
   try {
-    response = await fetch(url, { headers })
+    response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) })
   } catch (err) {
-    throw new Error(`Request to ${url} failed: ${err.message}`, { cause: err })
+    const reason = err.name === 'TimeoutError'
+      ? `it timed out after ${Math.round(timeoutMs / 1000)}s`
+      : err.message
+    throw new Error(`Request to ${url} failed: ${reason}`, { cause: err })
   }
   if (!response.ok) {
     throw new Error(`Request to ${url} failed with HTTP ${response.status}`)
