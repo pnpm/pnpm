@@ -11,7 +11,11 @@ use pacquet_package_manifest::package_manager_spec::{
     dev_engines_package_managers, engine_name_version, split_spec, version_without_build,
 };
 use serde_json::Value;
-use std::{fs, path::Path};
+use std::{
+    fs, io,
+    io::{BufRead as _, Read as _},
+    path::Path,
+};
 
 /// Package manager a git-hosted dep wants to install with. The variant
 /// drives the synthesized `<pm>-install` script in
@@ -158,10 +162,17 @@ fn pinned_version(version: &str) -> Option<String> {
 /// The Yarn line that can read the `yarn.lock` in `dir`, or `None` when
 /// the package ships none and no line is therefore required.
 ///
-/// Yarn Berry stamps every lockfile it writes with a `__metadata` block.
+/// Yarn Berry stamps every lockfile it writes with a `__metadata` block,
+/// in the header — so only the head is read. The file comes out of a
+/// fetched artifact, and how large that is, is not pnpm's to trust.
 fn yarn_line_of_lockfile(dir: &Path) -> Option<String> {
-    let lockfile = fs::read_to_string(dir.join("yarn.lock")).ok()?;
-    let berry = lockfile.lines().any(|line| line.trim_start().starts_with("__metadata"));
+    const HEADER_BYTES: u64 = 64 * 1024;
+
+    let lockfile = fs::File::open(dir.join("yarn.lock")).ok()?;
+    let berry = io::BufReader::new(lockfile.take(HEADER_BYTES))
+        .lines()
+        .map_while(Result::ok)
+        .any(|line| line.trim_start().starts_with("__metadata"));
     Some(if berry { YARN_BERRY_SPEC } else { YARN_CLASSIC_SPEC }.to_string())
 }
 

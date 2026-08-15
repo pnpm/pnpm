@@ -205,6 +205,24 @@ fn a_yarn_declaration_without_a_version_takes_the_line_from_the_lockfile() {
     }
 }
 
+/// Only the header is read, so a lockfile too large to hold in memory
+/// still answers — and a `__metadata` block that is not in the header is
+/// not a Berry stamp.
+#[test]
+fn the_line_is_read_from_the_lockfile_header() {
+    let dir = tempdir().unwrap();
+    let mut lockfile = String::from("__metadata:\n  version: 8\n");
+    lockfile.push_str(&"# padding\n".repeat(200_000));
+    fs::write(dir.path().join("yarn.lock"), &lockfile).unwrap();
+    assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some(">=2"));
+
+    let dir = tempdir().unwrap();
+    let mut lockfile = "# padding\n".repeat(200_000);
+    lockfile.push_str("__metadata:\n  version: 8\n");
+    fs::write(dir.path().join("yarn.lock"), &lockfile).unwrap();
+    assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some("1"));
+}
+
 /// A version the dependency did ask for outranks the lockfile's line.
 #[test]
 fn a_pinned_yarn_version_wins_over_the_lockfile_line() {
