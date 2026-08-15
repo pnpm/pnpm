@@ -1117,7 +1117,7 @@ const SELF_UPDATE_SKIPPED_SETTINGS = [
   'trustPolicy',
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',
-] satisfies Array<keyof Config>
+] as const satisfies ReadonlyArray<keyof Config>
 
 /**
  * Where the machine keeps what it holds across runs, which no project chooses.
@@ -1134,7 +1134,7 @@ const MACHINE_LOCATION_KEYS = [
   'pnpmHomeDir',
   'stateDir',
   'userconfig',
-] satisfies Array<keyof (Config & ConfigContext)>
+] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
 
 /**
  * The directories the current command reads and writes in.
@@ -1147,7 +1147,7 @@ const CURRENT_RUN_LOCATION_KEYS = [
   'dir',
   'rootProjectManifestDir',
   'workspaceDir',
-] satisfies Array<keyof (Config & ConfigContext)>
+] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
 
 /**
  * Which credentials pnpm sends, and to whom.
@@ -1162,7 +1162,7 @@ const CREDENTIAL_KEYS = [
   'configByUri',
   'packageManagerNetworkConfig',
   'packageManagerRegistries',
-] satisfies Array<keyof (Config & ConfigContext)>
+] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
 
 /**
  * Keys a project's `pnpm-workspace.yaml` does not contribute.
