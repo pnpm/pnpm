@@ -10,7 +10,7 @@ import process from 'node:process'
 import { afterEach, describe, it } from 'node:test'
 
 import { downloadNativeBinary } from '../bin/download-native-binary.mjs'
-import { VERSION, binFile, digest, packageName, startRegistry } from './registry-fixture.mjs'
+import { VERSION, binFile, digest, packageName, shasumOf, startRegistry } from './registry-fixture.mjs'
 
 const PAYLOAD = 'the native binary, supposedly'
 
@@ -49,7 +49,7 @@ describe('native binary download', () => {
     await download(destPath)
 
     assert.equal(fs.readFileSync(destPath, 'utf8'), PAYLOAD)
-    assert.ok(registry.requestedPaths.includes(`/${packageName}/-/${VERSION}.tgz`))
+    assert.ok(registry.requests.some(({ path: requested }) => requested === `/${packageName}/-/${VERSION}.tgz`))
   })
 
   it('refuses a tarball that does not match the published checksum', async () => {
@@ -74,15 +74,51 @@ describe('native binary download', () => {
     await assert.rejects(download(destPath), /expected sha512-/)
   })
 
+  it('falls back to the legacy shasum of a registry that publishes no integrity', async () => {
+    const destPath = await givenRegistry({ integrity: () => undefined, shasum: shasumOf })
+
+    await download(destPath)
+
+    assert.equal(fs.readFileSync(destPath, 'utf8'), PAYLOAD)
+  })
+
+  it('refuses a tarball that does not match the legacy shasum', async () => {
+    const destPath = await givenRegistry({
+      integrity: () => undefined,
+      shasum: () => shasumOf('not the tarball'),
+    })
+
+    await assert.rejects(download(destPath), /Integrity check failed/)
+    assert.deepEqual(leftovers(destPath), [])
+  })
+
+  it('refuses a tarball published with no checksum at all', async () => {
+    const destPath = await givenRegistry({ integrity: () => undefined })
+
+    await assert.rejects(download(destPath), /published no checksum/)
+  })
+
   it('reports a tarball that does not carry the binary', async () => {
     const destPath = await givenRegistry({})
 
     await assert.rejects(download(destPath, { binFile: 'not-there' }), /contains no not-there/)
   })
 
-  // Whether this run's copy replaces the other one or is dropped is the
-  // platform's call — on Windows the rename fails once the winner is executing
-  // it. Either way the download reports success and cleans up after itself.
+  it('sends the configured credentials to the registry, and nowhere else', async () => {
+    // The tarball comes from a second origin, as it does for a registry that
+    // offloads downloads to a CDN.
+    const registry = await givenRegistryServer({ tarballElsewhere: true })
+    setEnv('COREPACK_NPM_TOKEN', 'a-token')
+
+    await download(destIn())
+
+    assert.equal(registry.requests[0].headers.authorization, 'Bearer a-token')
+    assert.equal(registry.tarballRequests[0].headers.authorization, undefined)
+  })
+
+  // Whether a run's copy replaces the other one or is dropped is the platform's
+  // call — on Windows the rename fails once the winner is executing it. Either
+  // way the download reports success and cleans up after itself.
   it('accepts a binary a concurrent run already placed', async () => {
     const destPath = await givenRegistry({})
     fs.writeFileSync(destPath, `${PAYLOAD}, placed by the winner`)
@@ -93,10 +129,18 @@ describe('native binary download', () => {
     assert.deepEqual(leftovers(destPath), [path.basename(destPath)])
   })
 
+  it('lets concurrent downloads of the same binary all succeed', async () => {
+    const destPath = await givenRegistry({})
+
+    await Promise.all(Array.from({ length: 4 }, () => download(destPath)))
+
+    assert.equal(fs.readFileSync(destPath, 'utf8'), PAYLOAD)
+    assert.deepEqual(leftovers(destPath), [path.basename(destPath)])
+  })
+
   it('refuses to reach the network when the environment forbids it', async () => {
     const destPath = await givenRegistry({})
-    process.env.COREPACK_ENABLE_NETWORK = '0'
-    cleanups.push(() => { delete process.env.COREPACK_ENABLE_NETWORK })
+    setEnv('COREPACK_ENABLE_NETWORK', '0')
 
     await assert.rejects(download(destPath), /Network access is disabled/)
   })
@@ -119,8 +163,7 @@ async function givenRegistry (options) {
 async function givenRegistryServer (options) {
   const registry = await startRegistry({ payload: PAYLOAD, ...options })
   cleanups.push(registry.close)
-  process.env.COREPACK_NPM_REGISTRY = registry.url
-  cleanups.push(() => { delete process.env.COREPACK_NPM_REGISTRY })
+  setEnv('COREPACK_NPM_REGISTRY', registry.url)
   return registry
 }
 
@@ -128,4 +171,17 @@ function destIn () {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-native-download-'))
   cleanups.push(() => fs.rmSync(dir, { force: true, recursive: true }))
   return path.join(dir, process.platform === 'win32' ? 'pnpm-native.exe' : 'pnpm-native')
+}
+
+/** Set an environment variable for one test, restoring what was there before. */
+function setEnv (name, value) {
+  const previous = process.env[name]
+  process.env[name] = value
+  cleanups.push(() => {
+    if (previous === undefined) {
+      delete process.env[name]
+    } else {
+      process.env[name] = previous
+    }
+  })
 }
