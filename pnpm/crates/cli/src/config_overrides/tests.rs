@@ -188,19 +188,21 @@ fn extract_applies_the_minimum_release_age_overrides() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",
         "--config.minimum-release-age=0",
-        "--config.minimum-release-age-strict=false",
         "--config.minimum-release-age-ignore-missing-time=false",
+        "--config.minimum-release-age-strict=false",
         "add",
         "pnpm",
     ]));
     assert_eq!(remaining, argv(["pacquet", "add", "pnpm"]));
     let mut config = Config::default();
-    assert_eq!(config.resolved_minimum_release_age(), Some(1440));
+    assert_eq!(config.minimum_release_age, Some(1440));
+    assert!(config.minimum_release_age_ignore_missing_time);
+    assert_eq!(config.minimum_release_age_strict, None);
     overrides.apply(&mut config);
     assert_eq!(config.minimum_release_age, Some(0));
-    assert_eq!(config.resolved_minimum_release_age(), None);
-    assert_eq!(config.minimum_release_age_strict, Some(false));
     assert!(!config.minimum_release_age_ignore_missing_time);
+    assert_eq!(config.minimum_release_age_strict, Some(false));
+    assert!(config.explicit_settings.contains_key("minimumReleaseAge"));
 }
 
 #[test]

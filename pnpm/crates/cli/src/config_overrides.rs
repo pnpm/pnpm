@@ -85,15 +85,15 @@ pub struct ConfigOverrides {
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
     inject_workspace_packages: Option<bool>,
+    minimum_release_age: Option<u64>,
+    minimum_release_age_exclude: Option<Vec<String>>,
+    minimum_release_age_ignore_missing_time: Option<bool>,
+    minimum_release_age_strict: Option<bool>,
     node_linker: Option<NodeLinker>,
     pm_on_fail: Option<PmOnFail>,
     runtime_on_fail: Option<RuntimeOnFail>,
     shared_workspace_lockfile: Option<bool>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
-    minimum_release_age: Option<u64>,
-    minimum_release_age_exclude: Option<Vec<String>>,
-    minimum_release_age_ignore_missing_time: Option<bool>,
-    minimum_release_age_strict: Option<bool>,
     https_proxy: Option<String>,
     http_proxy: Option<String>,
     no_proxy: Option<String>,
@@ -161,6 +161,24 @@ impl ConfigOverrides {
             self.inject_workspace_packages = parse_bool(value);
             return;
         }
+        if key == "minimum-release-age" {
+            self.minimum_release_age = value.parse().ok();
+            return;
+        }
+        if key == "minimum-release-age-exclude" {
+            // nopt collects a repeated key it has no type for into a list,
+            // and pnpm re-parses the `--config.` tokens without any types.
+            self.minimum_release_age_exclude.get_or_insert_default().push(value.to_string());
+            return;
+        }
+        if key == "minimum-release-age-ignore-missing-time" {
+            self.minimum_release_age_ignore_missing_time = parse_bool(value);
+            return;
+        }
+        if key == "minimum-release-age-strict" {
+            self.minimum_release_age_strict = parse_bool(value);
+            return;
+        }
         if key == "node-linker" {
             self.node_linker = parse_enum(value);
             return;
@@ -179,24 +197,6 @@ impl ConfigOverrides {
         }
         if key == "verify-deps-before-run" {
             self.verify_deps_before_run = value.parse().ok();
-            return;
-        }
-        if key == "minimum-release-age" {
-            self.minimum_release_age = value.parse().ok();
-            return;
-        }
-        if key == "minimum-release-age-exclude" {
-            // pnpm types this key as `[String, Array]`: repeating the
-            // token builds a list instead of replacing the previous value.
-            self.minimum_release_age_exclude.get_or_insert_default().push(value.to_string());
-            return;
-        }
-        if key == "minimum-release-age-ignore-missing-time" {
-            self.minimum_release_age_ignore_missing_time = parse_bool(value);
-            return;
-        }
-        if key == "minimum-release-age-strict" {
-            self.minimum_release_age_strict = parse_bool(value);
             return;
         }
         if let Some(scope) = scoped_registry_key(key) {
@@ -232,6 +232,29 @@ impl ConfigOverrides {
         if let Some(value) = self.inject_workspace_packages {
             config.inject_workspace_packages = value;
         }
+        // pnpm seeds `explicitlySetKeys` from the command line as well as
+        // from the config files, and the workspace state reads it back to
+        // decide whether `minimumReleaseAgeStrict` defaults to true.
+        if let Some(value) = self.minimum_release_age {
+            config.minimum_release_age = Some(value);
+            config.explicit_settings.insert("minimumReleaseAge".to_string(), value.into());
+        }
+        if let Some(value) = &self.minimum_release_age_exclude {
+            config.minimum_release_age_exclude = Some(value.clone());
+            config
+                .explicit_settings
+                .insert("minimumReleaseAgeExclude".to_string(), value.as_slice().into());
+        }
+        if let Some(value) = self.minimum_release_age_ignore_missing_time {
+            config.minimum_release_age_ignore_missing_time = value;
+            config
+                .explicit_settings
+                .insert("minimumReleaseAgeIgnoreMissingTime".to_string(), value.into());
+        }
+        if let Some(value) = self.minimum_release_age_strict {
+            config.minimum_release_age_strict = Some(value);
+            config.explicit_settings.insert("minimumReleaseAgeStrict".to_string(), value.into());
+        }
         if let Some(value) = self.node_linker {
             config.node_linker = value;
         }
@@ -243,18 +266,6 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.shared_workspace_lockfile {
             config.shared_workspace_lockfile = value;
-        }
-        if let Some(value) = self.minimum_release_age {
-            config.minimum_release_age = Some(value);
-        }
-        if let Some(value) = &self.minimum_release_age_exclude {
-            config.minimum_release_age_exclude = Some(value.clone());
-        }
-        if let Some(value) = self.minimum_release_age_ignore_missing_time {
-            config.minimum_release_age_ignore_missing_time = value;
-        }
-        if let Some(value) = self.minimum_release_age_strict {
-            config.minimum_release_age_strict = Some(value);
         }
         // The `pnpm_config_verify_deps_before_run` env var outranks even
         // the CLI for this one key (pnpm's config reader applies it after
