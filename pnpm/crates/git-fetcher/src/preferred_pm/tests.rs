@@ -180,6 +180,43 @@ fn a_declaration_without_a_version_is_not_a_pin() {
     );
 }
 
+/// Which Yarn line can read the lockfile is a constraint the manifest
+/// does not have to repeat, so a declaration naming only Yarn still gets
+/// the line from what the dependency ships.
+#[test]
+fn a_yarn_declaration_without_a_version_takes_the_line_from_the_lockfile() {
+    for (lockfile, line) in
+        [("__metadata:\n  version: 8\n", ">=2"), ("left-pad@^1.3.0:\n  version \"1.3.0\"\n", "1")]
+    {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("yarn.lock"), lockfile).unwrap();
+        let manifest = serde_json::json!({ "packageManager": "yarn" });
+        assert_eq!(
+            detect_wanted_pm(dir.path(), Some(&manifest)),
+            WantedPm {
+                pm: PreferredPm::Yarn,
+                version_spec: Some(line.to_string()),
+                // Inferred, not asked for: a host Yarn that can read the
+                // lockfile is still allowed to do the work.
+                pinned: false,
+            },
+            "{lockfile}",
+        );
+    }
+}
+
+/// A version the dependency did ask for outranks the lockfile's line.
+#[test]
+fn a_pinned_yarn_version_wins_over_the_lockfile_line() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("yarn.lock"), "__metadata:\n  version: 8\n").unwrap();
+    let manifest = serde_json::json!({ "packageManager": "yarn@4.9.2" });
+    assert_eq!(
+        detect_wanted_pm(dir.path(), Some(&manifest)),
+        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("4.9.2".to_string()), pinned: true },
+    );
+}
+
 /// A `devEngines` list declares alternatives, so an entry naming
 /// something pnpm cannot provision is passed over rather than ending the
 /// search.

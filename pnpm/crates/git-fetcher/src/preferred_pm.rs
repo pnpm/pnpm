@@ -68,19 +68,24 @@ impl PreferredPm {
 ///
 /// A `packageManager` / `devEngines.packageManager` pin in the
 /// dependency's own manifest wins — it is what its authors test against.
-/// Otherwise the lockfile names the package manager, and for Yarn it also
-/// names the line: Classic and Berry cannot read each other's lockfiles,
-/// so which one a `yarn.lock` came from is a constraint, not a preference.
+/// Otherwise the lockfile names the package manager.
+///
+/// Either way the `yarn.lock` names the Yarn line whenever the manifest
+/// does not: Classic and Berry cannot read each other's lockfiles, so
+/// which one wrote it is a constraint rather than a preference, and a
+/// dependency that declares only "this project uses Yarn" still has to be
+/// prepared with the Yarn that can read what it ships.
 #[must_use]
 pub fn detect_wanted_pm(dir: &Path, manifest: Option<&Value>) -> WantedPm {
-    if let Some(wanted) = manifest.and_then(manifest_pin) {
+    let wanted = manifest.and_then(manifest_pin).unwrap_or_else(|| WantedPm {
+        pm: detect_preferred_pm(dir),
+        version_spec: None,
+        pinned: false,
+    });
+    if wanted.version_spec.is_some() || wanted.pm != PreferredPm::Yarn {
         return wanted;
     }
-    let pm = detect_preferred_pm(dir);
-    let version_spec = (pm == PreferredPm::Yarn)
-        .then(|| if ships_berry_lockfile(dir) { YARN_BERRY_SPEC } else { YARN_CLASSIC_SPEC })
-        .map(ToString::to_string);
-    WantedPm { pm, version_spec, pinned: false }
+    WantedPm { version_spec: yarn_line_of_lockfile(dir), ..wanted }
 }
 
 /// Yarn Berry rewrote the lockfile format, so a `yarn.lock` without its
@@ -150,12 +155,14 @@ fn pinned_version(version: &str) -> Option<String> {
     node_semver::Range::parse(version).is_ok().then(|| version.to_string())
 }
 
-/// Whether the `yarn.lock` in `dir` was written by Yarn Berry, which
-/// stamps every lockfile with a `__metadata` block.
-fn ships_berry_lockfile(dir: &Path) -> bool {
-    fs::read_to_string(dir.join("yarn.lock")).is_ok_and(|lockfile| {
-        lockfile.lines().any(|line| line.trim_start().starts_with("__metadata"))
-    })
+/// The Yarn line that can read the `yarn.lock` in `dir`, or `None` when
+/// the package ships none and no line is therefore required.
+///
+/// Yarn Berry stamps every lockfile it writes with a `__metadata` block.
+fn yarn_line_of_lockfile(dir: &Path) -> Option<String> {
+    let lockfile = fs::read_to_string(dir.join("yarn.lock")).ok()?;
+    let berry = lockfile.lines().any(|line| line.trim_start().starts_with("__metadata"));
+    Some(if berry { YARN_BERRY_SPEC } else { YARN_CLASSIC_SPEC }.to_string())
 }
 
 #[cfg(test)]
