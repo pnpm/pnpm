@@ -223,6 +223,17 @@ fn the_line_is_read_from_the_lockfile_header() {
     assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some("1"));
 }
 
+/// A lockfile is a fetched artifact, not text pnpm validated: a byte no
+/// encoding claims must not decide which Yarn prepares the package.
+#[test]
+fn a_lockfile_that_is_not_utf_8_still_reports_its_line() {
+    let dir = tempdir().unwrap();
+    let mut lockfile = b"# \xff\xfe not text\n".to_vec();
+    lockfile.extend_from_slice(b"__metadata:\n  version: 8\n");
+    fs::write(dir.path().join("yarn.lock"), &lockfile).unwrap();
+    assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some(">=2"));
+}
+
 /// A version the dependency did ask for outranks the lockfile's line.
 #[test]
 fn a_pinned_yarn_version_wins_over_the_lockfile_line() {

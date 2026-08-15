@@ -11,11 +11,7 @@ use pacquet_package_manifest::package_manager_spec::{
     dev_engines_package_managers, engine_name_version, split_spec, version_without_build,
 };
 use serde_json::Value;
-use std::{
-    fs, io,
-    io::{BufRead as _, Read as _},
-    path::Path,
-};
+use std::{fs, io::Read as _, path::Path};
 
 /// Package manager a git-hosted dep wants to install with. The variant
 /// drives the synthesized `<pm>-install` script in
@@ -168,11 +164,15 @@ fn pinned_version(version: &str) -> Option<String> {
 fn yarn_line_of_lockfile(dir: &Path) -> Option<String> {
     const HEADER_BYTES: u64 = 64 * 1024;
 
+    // Read bytes rather than text: a lockfile is not pnpm's to validate,
+    // and a stray byte no encoding claims must not decide which Yarn
+    // prepares the package.
     let lockfile = fs::File::open(dir.join("yarn.lock")).ok()?;
-    let berry = io::BufReader::new(lockfile.take(HEADER_BYTES))
-        .lines()
-        .map_while(Result::ok)
-        .any(|line| line.trim_start().starts_with("__metadata"));
+    let mut header = Vec::new();
+    lockfile.take(HEADER_BYTES).read_to_end(&mut header).ok()?;
+    let berry = header
+        .split(|byte| *byte == b'\n')
+        .any(|line| line.trim_ascii_start().starts_with(b"__metadata"));
     Some(if berry { YARN_BERRY_SPEC } else { YARN_CLASSIC_SPEC }.to_string())
 }
 
