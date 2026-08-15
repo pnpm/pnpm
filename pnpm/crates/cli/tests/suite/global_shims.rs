@@ -797,6 +797,37 @@ fn removing_a_shim_that_was_never_recorded_leaves_the_config_alone() {
     assert!(!config.exists(), "{}", fs::read_to_string(&config).unwrap_or_default());
 }
 
+/// Removing a shim while a higher-precedence disable is active rewrites
+/// only what the user's own record held: the built-in defaults are not
+/// spelled into it, so lifting that disable later enables nothing the
+/// record did not already enable.
+#[test]
+fn removing_a_shim_under_a_higher_precedence_disable_records_no_defaults() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home).unwrap();
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+
+    // The record the user has, and a disable that outranks it.
+    fs::write(config_dir.join("config.yaml"), "globalShims:\n  yarn: auto\n  node: false\n")
+        .unwrap();
+    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
+
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
+    assert!(!config.contains("yarn"), "{config}");
+    // The rest of the record stands, and nothing else was added to it.
+    assert!(config.contains("node: false"), "{config}");
+    for defaulted in ["deno", "bun"] {
+        assert!(!config.contains(defaulted), "{defaulted} was written into {config}");
+    }
+}
+
 /// The pnpm home's `pnpm-workspace.yaml` and the environment both outrank
 /// the file `pnpm shim` writes into, so a disable in either is a disable:
 /// the shim would sit on `PATH` doing nothing.
