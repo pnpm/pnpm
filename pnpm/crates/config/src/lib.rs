@@ -185,6 +185,16 @@ pub enum NamedShimPolicy {
 }
 
 impl ShimPolicyValue {
+    /// Whether a package recorded with this value dispatches at all.
+    ///
+    /// A recorded value that does not is the user switching a shim off —
+    /// including one of the built-in defaults, which is the only way to
+    /// switch those off. Clearing such an entry turns the shim back on.
+    #[must_use]
+    pub fn dispatches(self) -> bool {
+        self.resolve() != ShimPolicy::Off
+    }
+
     fn resolve(self) -> ShimPolicy {
         match self {
             ShimPolicyValue::Toggle(false) => ShimPolicy::Off,

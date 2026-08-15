@@ -321,11 +321,20 @@ fn set_policy(
         Some(policy) => {
             entries.insert(package.to_string(), policy);
         }
-        // Clearing an entry the record does not hold changes nothing, and
-        // writing anyway would spell the built-in defaults out into the
-        // user's configuration as though they had chosen them.
-        None if entries.remove(package).is_none() => return Ok(()),
-        None => {}
+        None => match entries.get(package) {
+            // Clearing an entry that switches the shim *off* would switch
+            // it on — for a built-in default, that is the only entry that
+            // was holding it off. `pnpm shim rm` does not enable things.
+            Some(policy) if !policy.dispatches() => return Ok(()),
+            // Clearing an entry the record does not hold changes nothing,
+            // and writing anyway would spell the built-in defaults out
+            // into the user's configuration as though they had chosen
+            // them.
+            None => return Ok(()),
+            Some(_) => {
+                entries.remove(package);
+            }
+        },
     }
     let value = serde_json::to_value(GlobalShimsSetting::Entries(entries))
         .into_diagnostic()
