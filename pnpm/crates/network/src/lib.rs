@@ -19,7 +19,9 @@ pub use url_encoding::{encode_package_name, encode_uri_component};
 
 mod url_encoding;
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
-pub use retry::{RetryOpts, retry_async, send_with_retry, should_retry_status};
+pub use retry::{
+    RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
+};
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
@@ -68,6 +70,15 @@ pub const DEFAULT_USER_AGENT: &str = "pnpm";
 /// reserved share of the pool (see the `priority_semaphore` module
 /// docs for the two-class grant policy).
 pub const UNPRIORITIZED: u64 = u64::MAX;
+
+/// Priority sentinel for the background class: metadata fetches whose
+/// deadline is the end of the install rather than the next resolution
+/// step — the lockfile-verification fan-out. A background request is
+/// granted a slot only when no [`UNPRIORITIZED`] (latency-class)
+/// request is queued, so bulk verification never queue-jumps the
+/// resolver's critical-path packument fetches (see the
+/// `priority_semaphore` module docs for the full grant policy).
+pub const BACKGROUND: u64 = u64::MAX - 1;
 
 /// Default per-request timeout in milliseconds: the `fetchTimeout`
 /// default of `60000`. Source of truth for `pacquet-config`'s
@@ -509,12 +520,14 @@ impl ThrottledClient {
     }
 
     /// [`Self::acquire_for_url`], but queueing behind the saturated
-    /// pool at an explicit `priority` instead of [`UNPRIORITIZED`] —
-    /// the throughput class of the two-class grant policy. Tarball
-    /// downloads pass their estimated pipeline work (0 when unknown)
-    /// so that freed slots go to the most expensive pending archive
-    /// first — the longest download+extract jobs start earliest and
-    /// never end up running alone after the small ones drained.
+    /// pool at an explicit `priority` instead of [`UNPRIORITIZED`].
+    /// [`BACKGROUND`] selects the background class (bulk verification
+    /// metadata); any other value selects the throughput class.
+    /// Tarball downloads pass their estimated pipeline work (0 when
+    /// unknown) so that freed slots go to the most expensive pending
+    /// archive first — the longest download+extract jobs start
+    /// earliest and never end up running alone after the small ones
+    /// drained.
     pub async fn acquire_for_url_with_priority(
         &self,
         url: &str,

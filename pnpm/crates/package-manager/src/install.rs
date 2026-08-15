@@ -112,6 +112,7 @@ async fn verify_lockfile_eagerly<Reporter: pacquet_reporter::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     lockfile_path: Option<&Path>,
     cache_dir: &Path,
+    verdict_fallback_dir: &Path,
 ) -> Result<(), InstallError> {
     if verifiers.is_empty() {
         return Ok(());
@@ -123,10 +124,73 @@ async fn verify_lockfile_eagerly<Reporter: pacquet_reporter::Reporter>(
             concurrency: None,
             lockfile_path,
             cache_dir: Some(cache_dir),
+            verdict_fallback_dir: Some(verdict_fallback_dir),
         },
     )
     .await
     .map_err(InstallError::LockfileVerification)
+}
+
+/// The pre-resolve lockfile-verification fan-out, spawned so its
+/// registry round trips overlap the fresh path's resolve and
+/// materialization instead of serializing in front of them — the same
+/// concurrent-gate contract the frozen path's `select!` provides. The
+/// verdict still gates everything sensitive:
+/// [`InstallWithFreshLockfile`] awaits the gate before bin linking,
+/// dependency builds, and the lockfile save.
+///
+/// Aborts the fan-out on drop so an install that fails before reaching
+/// the gate doesn't leave verification requests running in the host
+/// process (the napi embedding outlives a failed install).
+pub struct LockfileVerificationGate(
+    tokio::task::JoinHandle<Result<(), pacquet_lockfile_verification::VerifyError>>,
+);
+
+impl LockfileVerificationGate {
+    /// Start the fan-out in the background, or `None` when no verifier
+    /// is active (`trustLockfile`).
+    fn spawn<Reporter: pacquet_reporter::Reporter + Send + 'static>(
+        lockfile: &Lockfile,
+        verifiers: &[Arc<dyn ResolutionVerifier>],
+        lockfile_path: Option<&Path>,
+        cache_dir: &Path,
+        verdict_fallback_dir: &Path,
+    ) -> Option<Self> {
+        if verifiers.is_empty() {
+            return None;
+        }
+        let lockfile = lockfile.clone();
+        let verifiers = verifiers.to_vec();
+        let lockfile_path = lockfile_path.map(Path::to_path_buf);
+        let cache_dir = cache_dir.to_path_buf();
+        let verdict_fallback_dir = verdict_fallback_dir.to_path_buf();
+        Some(Self(tokio::spawn(async move {
+            verify_lockfile_resolutions::<Reporter>(
+                &lockfile,
+                &verifiers,
+                &VerifyLockfileResolutionsOptions {
+                    concurrency: None,
+                    lockfile_path: lockfile_path.as_deref(),
+                    cache_dir: Some(&cache_dir),
+                    verdict_fallback_dir: Some(&verdict_fallback_dir),
+                },
+            )
+            .await
+        })))
+    }
+
+    /// Block on the verdict.
+    pub(crate) async fn wait(mut self) -> Result<(), pacquet_lockfile_verification::VerifyError> {
+        (&mut self.0)
+            .await
+            .expect("the lockfile verification task is only aborted by dropping the gate unawaited")
+    }
+}
+
+impl Drop for LockfileVerificationGate {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError {
@@ -135,6 +199,15 @@ fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError 
             InstallError::LockfileVerification(verify_error)
         }
         other => InstallError::FrozenLockfile(other),
+    }
+}
+
+fn map_fresh_lockfile_error(error: InstallWithFreshLockfileError) -> InstallError {
+    match error {
+        InstallWithFreshLockfileError::LockfileVerification(verify_error) => {
+            InstallError::LockfileVerification(verify_error)
+        }
+        other => InstallError::WithFreshLockfile(other),
     }
 }
 

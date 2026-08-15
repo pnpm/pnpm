@@ -747,6 +747,7 @@ impl NpmResolutionVerifier {
                     full_metadata: false,
                     filter_metadata: false,
                     offline: self.offline,
+                    priority: pacquet_network::BACKGROUND,
                     retry_opts: self.retry_opts,
                 };
                 // Carry a fetch failure (auth/network/5xx) as the `Err` value
@@ -929,6 +930,7 @@ impl NpmResolutionVerifier {
             full_metadata: true,
             filter_metadata: false,
             offline: self.offline,
+            priority: pacquet_network::BACKGROUND,
             retry_opts: self.retry_opts,
         };
         fetch_full_metadata_cached(&name.to_string(), &opts)

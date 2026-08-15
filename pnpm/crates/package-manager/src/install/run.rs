@@ -364,10 +364,22 @@ where
             }
         }
 
+        // Read the *current* lockfile (`<virtual_store_dir>/lock.yaml`)
+        // off the reactor while the wanted lockfile parses on this
+        // task: both are megabyte-scale YAML documents on a large
+        // workspace, and neither read depends on the other. The result
+        // is consumed further down, where the install dispatch needs
+        // it.
+        let current_lockfile_task = tokio::task::spawn_blocking({
+            let virtual_store_dir = config.virtual_store_dir.clone();
+            move || Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        });
+
         // Past the repeat-install fast path every install flavor needs
         // the wanted lockfile's contents; force the deferred load here.
         // A broken lockfile is regenerable state, so only a frozen
         // install treats it as fatal (upstream `readLockfiles`).
+        let phase_start = std::time::Instant::now();
         let lockfile = match lockfile.get() {
             Ok(lockfile) => lockfile,
             Err(error) if !frozen_lockfile => {
@@ -383,6 +395,12 @@ where
             }
             Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
         };
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "load_wanted_lockfile",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Register
@@ -534,8 +552,9 @@ where
         // version-incompatible file is disposable state: pnpm warns and
         // continues with an empty current lockfile because the wanted
         // lockfile and filesystem remain authoritative.
+        let phase_start = std::time::Instant::now();
         let current_lockfile =
-            match Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir) {
+            match current_lockfile_task.await.expect("join the current-lockfile load task") {
                 Ok(lockfile) => lockfile,
                 Err(error) => {
                     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
@@ -549,6 +568,12 @@ where
                     None
                 }
             };
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "load_current_lockfile",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Synthesize the wanted lockfile from `<virtual_store_dir>/lock.yaml`
         // when `pnpm-lock.yaml` is absent and the materialized snapshot still
@@ -857,6 +882,7 @@ where
                     &resolution_verifiers,
                     derived_lockfile_path.as_deref(),
                     &config.cache_dir,
+                    &config.virtual_store_dir,
                 )
                 .await?;
             }

@@ -19,7 +19,7 @@
 
 use pacquet_network::{
     AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
-    retry_async, send_with_retry,
+    retry_async, send_with_retry_at_priority,
 };
 use pacquet_registry::Package;
 use reqwest::{Response, StatusCode, header};
@@ -96,6 +96,11 @@ pub(crate) struct MetadataRequestOptions<'a> {
     pub accept: &'a str,
     pub http_client: &'a ThrottledClient,
     pub auth_headers: &'a AuthHeaders,
+    /// Network-permit class of the request:
+    /// [`pacquet_network::UNPRIORITIZED`] for fetches that gate
+    /// resolution progress, [`pacquet_network::BACKGROUND`] for the
+    /// lockfile-verification fan-out.
+    pub priority: u64,
     pub etag: Option<&'a str>,
     pub modified: Option<&'a str>,
     /// Ask for the packument as a cold cache would: [`Self::etag`] and
@@ -141,15 +146,18 @@ pub(crate) async fn send_metadata_request<'a>(
         request
     };
 
-    let (client, response) =
-        send_with_retry(opts.http_client, opts.url, opts.retry_opts, |client| {
-            build_request(client, opts.bypass_cache)
-        })
-        .await
-        .map_err(|error| FetchMetadataError::Network {
-            url: redact_url_credentials(opts.url),
-            error,
-        })?;
+    let (client, response) = send_with_retry_at_priority(
+        opts.http_client,
+        opts.url,
+        opts.priority,
+        opts.retry_opts,
+        |client| build_request(client, opts.bypass_cache),
+    )
+    .await
+    .map_err(|error| FetchMetadataError::Network {
+        url: redact_url_credentials(opts.url),
+        error,
+    })?;
     if response.status() != StatusCode::NOT_MODIFIED || has_validator {
         return Ok((client, response));
     }
@@ -161,15 +169,18 @@ pub(crate) async fn send_metadata_request<'a>(
     }
 
     drop(client);
-    let (client, response) =
-        send_with_retry(opts.http_client, opts.url, opts.retry_opts, |client| {
-            build_request(client, true)
-        })
-        .await
-        .map_err(|error| FetchMetadataError::Network {
-            url: redact_url_credentials(opts.url),
-            error,
-        })?;
+    let (client, response) = send_with_retry_at_priority(
+        opts.http_client,
+        opts.url,
+        opts.priority,
+        opts.retry_opts,
+        |client| build_request(client, true),
+    )
+    .await
+    .map_err(|error| FetchMetadataError::Network {
+        url: redact_url_credentials(opts.url),
+        error,
+    })?;
     if response.status() == StatusCode::NOT_MODIFIED {
         drop(client);
         return Err(FetchMetadataError::NotModifiedWithoutCache {
@@ -208,6 +219,7 @@ pub async fn fetch_full_metadata(
             accept,
             http_client: opts.http_client,
             auth_headers: opts.auth_headers,
+            priority: pacquet_network::UNPRIORITIZED,
             etag: opts.etag,
             modified: opts.modified,
             bypass_cache: false,

@@ -621,6 +621,77 @@ async fn second_run_with_cache_skips_fan_out() {
 }
 
 #[tokio::test]
+async fn verdict_fallback_dir_survives_a_wiped_cache_dir() {
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    CALLS.store(0, Ordering::SeqCst);
+
+    struct Counting {
+        policy: serde_json::Map<String, serde_json::Value>,
+    }
+    impl ResolutionVerifier for Counting {
+        fn verify<'a>(
+            &'a self,
+            _resolution: &'a LockfileResolution,
+            _ctx: VerifyCtx<'a>,
+        ) -> VerifyFuture<'a> {
+            CALLS.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { ResolutionVerification::Ok })
+        }
+        fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+            &self.policy
+        }
+        fn can_trust_past_check(
+            &self,
+            _cached: &serde_json::Map<String, serde_json::Value>,
+        ) -> bool {
+            true
+        }
+    }
+
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    std::fs::write(&lockfile_path, SINGLE_PKG_LOCKFILE).expect("write lockfile");
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let cache_dir = dir.path().join("cache");
+    // The mirror location stands in for `<virtual_store_dir>`; the
+    // recorder never creates it, so a real install's mirror only lands
+    // once the virtual store exists.
+    let fallback_dir = dir.path().join("virtual-store");
+    std::fs::create_dir_all(&fallback_dir).expect("create fallback dir");
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(Counting { policy: serde_json::Map::new() });
+    let opts = VerifyLockfileResolutionsOptions {
+        lockfile_path: Some(&lockfile_path),
+        cache_dir: Some(&cache_dir),
+        verdict_fallback_dir: Some(&fallback_dir),
+        ..Default::default()
+    };
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("first run");
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1, "first run ran the verifier");
+    assert!(
+        fallback_dir.join(crate::CACHE_FILE_NAME).is_file(),
+        "verdict mirrored next to the virtual store"
+    );
+
+    std::fs::remove_dir_all(&cache_dir).expect("wipe cache dir");
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("second run");
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1, "second run hit the fallback verdict");
+}
+
+#[tokio::test]
 async fn cache_hit_emits_cached_event() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
     EVENTS.lock().unwrap().clear();

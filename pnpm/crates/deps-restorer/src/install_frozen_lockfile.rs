@@ -589,6 +589,7 @@ where
                     concurrency: None,
                     lockfile_path,
                     cache_dir: Some(&config.cache_dir),
+                    verdict_fallback_dir: Some(&config.virtual_store_dir),
                 },
             )
             .await

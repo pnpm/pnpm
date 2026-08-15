@@ -34,6 +34,7 @@ mod tests;
 /// the next install).
 pub fn record_lockfile_verified(
     cache_dir: Option<&Path>,
+    verdict_fallback_dir: Option<&Path>,
     lockfile_path: &Path,
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -45,11 +46,26 @@ pub fn record_lockfile_verified(
     if lockfile.packages.is_none() {
         return;
     }
+    let cache_verifiers = with_offline_check_cache_identities(verifiers);
+    let mut hash: Option<String> = None;
+    let mut hash_once = || hash.get_or_insert_with(|| hash_lockfile(lockfile)).clone();
     record_verification(
         cache_dir,
         lockfile_path,
-        &with_offline_check_cache_identities(verifiers),
-        || hash_lockfile(lockfile),
+        &cache_verifiers,
+        &mut hash_once,
         crate::cache::CachePrecomputed::default(),
     );
+    // Mirror next to the current lockfile so the verdict survives a
+    // wiped cache dir — see
+    // [`crate::VerifyLockfileResolutionsOptions::verdict_fallback_dir`].
+    if let Some(fallback_dir) = verdict_fallback_dir {
+        record_verification(
+            fallback_dir,
+            lockfile_path,
+            &cache_verifiers,
+            &mut hash_once,
+            crate::cache::CachePrecomputed::default(),
+        );
+    }
 }

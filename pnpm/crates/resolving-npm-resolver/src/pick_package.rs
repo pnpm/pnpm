@@ -676,6 +676,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         full_metadata,
         filter_metadata: use_filtered_full_metadata,
         offline: ctx.offline,
+        priority: pacquet_network::UNPRIORITIZED,
         retry_opts: ctx.retry_opts,
     };
 

@@ -923,7 +923,13 @@ pub enum LogLevel {
 /// production sinks satisfy this: [`SilentReporter`] is a no-op, and
 /// [`NdjsonReporter`] serializes per-event then writes under
 /// `std::io::stderr().lock()`.
-pub trait Reporter {
+///
+/// The `Send + Sync + 'static` supertraits state the same contract in
+/// the type system, so emitting code can hand `R` to a spawned task
+/// (the concurrent lockfile-verification gate) without re-declaring the
+/// bounds at every generic hop. Implementations are unit structs, which
+/// satisfy them automatically.
+pub trait Reporter: Send + Sync + 'static {
     fn emit(event: &LogEvent);
 }
 

@@ -63,6 +63,9 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     /// When true, use only the on-disk metadata mirror and never reach
     /// the registry.
     pub offline: bool,
+    /// Network-permit class the registry GET queues in. See
+    /// [`MetadataRequestOptions::priority`].
+    pub priority: u64,
     pub(crate) retry_opts: RetryOpts,
 }
 
@@ -133,6 +136,7 @@ pub async fn fetch_full_metadata_cached(
             accept,
             http_client: opts.http_client,
             auth_headers: opts.auth_headers,
+            priority: opts.priority,
             etag: cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
             modified: cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
             bypass_cache: cache_bypass.load(Ordering::Relaxed),
@@ -287,6 +291,7 @@ async fn recover_from_not_modified<'a>(
         accept: request.accept,
         http_client: request.http_client,
         auth_headers: request.auth_headers,
+        priority: request.priority,
         etag: None,
         modified: None,
         bypass_cache: true,
