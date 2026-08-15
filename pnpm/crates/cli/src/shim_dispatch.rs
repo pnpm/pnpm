@@ -276,7 +276,7 @@ fn global_shims_setting() -> GlobalShims {
 }
 
 #[derive(Debug, Display)]
-enum LoadGlobalShimsSettingError {
+pub(crate) enum LoadGlobalShimsSettingError {
     #[display("{_0}")]
     Workspace(LoadWorkspaceYamlError),
     #[display("malformed {env_name} value {value:?}: {source}")]
@@ -292,6 +292,19 @@ fn load_global_shims_setting() -> Result<GlobalShims, LoadGlobalShimsSettingErro
             shims.apply(&layer);
         }
     }
+    apply_settings_above_global_config(&mut shims)?;
+    Ok(shims)
+}
+
+/// Apply the `globalShims` layers that outrank the global `config.yaml`:
+/// `$PNPM_HOME/pnpm-workspace.yaml`, then the environment.
+///
+/// `pnpm shim` uses this to answer whether the shim it is about to write
+/// would ever dispatch, so the command and the dispatcher cannot disagree
+/// about which settings are in force.
+pub(crate) fn apply_settings_above_global_config(
+    shims: &mut GlobalShims,
+) -> Result<(), LoadGlobalShimsSettingError> {
     if let Some(home) = default_pnpm_home_dir::<Host>() {
         let settings =
             WorkspaceSettings::load_at(&home).map_err(LoadGlobalShimsSettingError::Workspace)?;
@@ -310,7 +323,7 @@ fn load_global_shims_setting() -> Result<GlobalShims, LoadGlobalShimsSettingErro
             break;
         }
     }
-    Ok(shims)
+    Ok(())
 }
 
 /// The context switch only ever substitutes a different version of the

@@ -21,7 +21,7 @@ use pacquet_cmd_shim::{
 };
 use pacquet_config::{
     Config, GLOBAL_CONFIG_YAML_FILENAME, GlobalShims, GlobalShimsSetting, Host, NamedShimPolicy,
-    ShimPolicyValue, WorkspaceSettings, default_config_dir,
+    ShimPolicy, ShimPolicyValue, WorkspaceSettings, default_config_dir,
 };
 use pacquet_global::bin_slot_exists;
 use pacquet_workspace_manifest_writer::update_manifest_field;
@@ -134,6 +134,11 @@ async fn add(
     // record of its own, turning the shims it disables back on.
     if shims_disabled_globally(&global_config_dir(config)?)? {
         return Err(ShimError::ShimsDisabled.into());
+    }
+    for package in packages {
+        if !would_dispatch(config, package)? {
+            return Err(ShimError::ShimsDisabled.into());
+        }
     }
     // The global bin directory is `pnpm setup`'s to create, and a shim can
     // be the first thing that ever goes in it.
@@ -352,6 +357,25 @@ fn global_config_dir(config: &Config) -> miette::Result<PathBuf> {
         .clone()
         .or_else(default_config_dir::<Host>)
         .ok_or_else(|| ShimError::NoGlobalDir.into())
+}
+
+/// Whether a shim this command writes for `package` would ever dispatch.
+///
+/// The setting `pnpm shim` records is one layer of it: the pnpm home's
+/// `pnpm-workspace.yaml` and `PNPM_CONFIG_GLOBAL_SHIMS` both outrank the
+/// global `config.yaml` this writes into, and a disable in either would
+/// leave the shim on `PATH` doing nothing but shadowing. The answer comes
+/// from the dispatcher's own layering, applied over the record as it
+/// would read after this command.
+fn would_dispatch(config: &Config, package: &str) -> miette::Result<bool> {
+    let mut recorded = recorded_entries(&global_config_dir(config)?)?;
+    recorded.insert(package.to_string(), ShimPolicyValue::Named(NamedShimPolicy::Auto));
+    let mut shims = GlobalShims::default();
+    shims.apply(&GlobalShimsSetting::Entries(recorded));
+    crate::shim_dispatch::apply_settings_above_global_config(&mut shims)
+        .map_err(|error| miette::miette!("{error}"))
+        .wrap_err("read the globalShims setting")?;
+    Ok(shims.policy(package) != ShimPolicy::Off)
 }
 
 /// Whether the global `config.yaml` turns every context-aware shim off.

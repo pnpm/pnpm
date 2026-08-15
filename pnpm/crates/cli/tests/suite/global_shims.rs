@@ -780,6 +780,33 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
 }
 
+/// The pnpm home's `pnpm-workspace.yaml` and the environment both outrank
+/// the file `pnpm shim` writes into, so a disable in either is a disable:
+/// the shim would sit on `PATH` doing nothing.
+#[test]
+fn adding_a_shim_under_a_higher_precedence_disable_is_refused() {
+    for (label, disable) in [("workspace yaml", true), ("environment", false)] {
+        let root = tempfile::tempdir().unwrap();
+        let project = root.path().join("project");
+        fs::create_dir_all(&project).unwrap();
+        let pnpm_home = root.path().join("pnpm-home");
+        fs::create_dir_all(&pnpm_home).unwrap();
+
+        let mut command = pnpm_command(&root, &project);
+        if disable {
+            fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
+        } else {
+            command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false");
+        }
+        let refused = command.with_args(["shim", "add", "yarn"]).output().unwrap();
+
+        assert!(!refused.status.success(), "{label}");
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{label}: {stderr}");
+        assert!(!pnpm_home.join("bin").join("yarn").exists(), "{label}");
+    }
+}
+
 /// Re-adding a package's own shims is how they get repaired, but a bin
 /// something else already provides is not this command's to take: it
 /// would break that command, and `pnpm shim rm` would then delete it
