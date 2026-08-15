@@ -80,12 +80,22 @@ describe('corepack entry point', { skip: process.platform === 'win32' }, () => {
   })
 
   it('refuses a tarball that does not match the published checksum', async () => {
-    const fixture = await createFixture({ corruptIntegrity: true })
+    const fixture = await createFixture({ integrity: () => digest('sha512', 'not the tarball') })
 
     const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /Integrity check failed/)
     assert.equal(fs.existsSync(path.join(fixture.dir, 'pnpm-native')), false)
+  })
+
+  it('checks the strongest published checksum, not the first one', async () => {
+    const fixture = await createFixture({
+      integrity: (tarball) => `${digest('sha1', tarball)} ${digest('sha512', 'not the tarball')}`,
+    })
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'])
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Integrity check failed .*: expected sha512-/)
   })
 
   it('reports a disabled network instead of hanging', async () => {
@@ -125,7 +135,7 @@ function runEntry (fixture, entry, args, env) {
  * a manifest pinning the platform package — plus a registry serving that
  * package.
  */
-async function createFixture ({ corruptIntegrity = false } = {}) {
+async function createFixture ({ integrity = strongestIntegrity } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-corepack-entry-'))
   after(() => fs.rmSync(dir, { force: true, recursive: true }))
 
@@ -140,10 +150,7 @@ async function createFixture ({ corruptIntegrity = false } = {}) {
   }))
 
   const tarball = zlib.gzipSync(tarArchive(`package/${binFile}`, Buffer.from(FAKE_BINARY)))
-  const integrity = corruptIntegrity
-    ? `sha512-${createHash('sha512').update('not the tarball').digest('base64')}`
-    : `sha512-${createHash('sha512').update(tarball).digest('base64')}`
-  const registry = await startRegistry({ tarball, integrity })
+  const registry = await startRegistry({ tarball, integrity: integrity(tarball) })
   after(registry.close)
 
   return { dir, registryUrl: registry.url, closeRegistry: registry.close }
@@ -175,6 +182,14 @@ function startRegistry ({ tarball, integrity }) {
       })
     })
   })
+}
+
+function strongestIntegrity (tarball) {
+  return digest('sha512', tarball)
+}
+
+function digest (algorithm, content) {
+  return `${algorithm}-${createHash(algorithm).update(content).digest('base64')}`
 }
 
 /** A single-file ustar archive, terminated by the two empty blocks. */

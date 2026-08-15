@@ -7,14 +7,16 @@
 // same registry environment variables Corepack itself honours, so a run that
 // could reach the registry for the `pnpm` tarball can reach it for the binary.
 import { Buffer } from 'node:buffer'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import process from 'node:process'
 import zlib from 'node:zlib'
 
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org'
 const TARBALL_ROOT = 'package/'
-const SUPPORTED_HASHES = new Set(['sha512', 'sha384', 'sha256', 'sha1'])
+// Strongest first: the published integrity may list several, and a weak one
+// must not be able to stand in for a strong one.
+const SUPPORTED_HASHES = ['sha512', 'sha384', 'sha256', 'sha1']
 const TAR_BLOCK_SIZE = 512
 
 /**
@@ -44,12 +46,24 @@ export async function downloadNativeBinary ({ packageName, version, binFile, des
     throw new Error(`The ${packageName}@${version} tarball contains no ${binFile}`)
   }
 
-  const tempPath = `${destPath}.${process.pid}.tmp`
+  // Unpredictable name + exclusive create: the destination directory is shared
+  // (a Corepack cache, a `node_modules`), so the temp file must not be a path
+  // something else can plant a symlink at and have us write through it.
+  const tempPath = `${destPath}.${randomBytes(6).toString('hex')}.tmp`
+  let created = false
   try {
-    fs.writeFileSync(tempPath, binary, { mode: 0o755 })
+    const file = fs.openSync(tempPath, 'wx', 0o755)
+    created = true
+    try {
+      fs.writeFileSync(file, binary)
+    } finally {
+      fs.closeSync(file)
+    }
     fs.renameSync(tempPath, destPath)
   } catch (err) {
-    fs.rmSync(tempPath, { force: true })
+    if (created) {
+      fs.rmSync(tempPath, { force: true })
+    }
     throw new Error(`Could not write the pnpm binary to ${destPath}: ${err.message}`)
   }
 }
@@ -130,13 +144,17 @@ function authorizationFor (url) {
 function verifyIntegrity (tarball, dist, label) {
   if (typeof dist.integrity === 'string') {
     // Subresource Integrity: whitespace-separated `<algorithm>-<base64>` entries.
+    const digests = new Map()
     for (const entry of dist.integrity.split(/\s+/).filter(Boolean)) {
       const separator = entry.indexOf('-')
-      const algorithm = entry.slice(0, separator)
-      if (!SUPPORTED_HASHES.has(algorithm)) continue
+      digests.set(entry.slice(0, separator), entry.slice(separator + 1))
+    }
+    for (const algorithm of SUPPORTED_HASHES) {
+      const expected = digests.get(algorithm)
+      if (expected == null) continue
       const actual = createHash(algorithm).update(tarball).digest('base64')
-      if (actual !== entry.slice(separator + 1)) {
-        throw new Error(`Integrity check failed for ${label}: expected ${entry}, got ${algorithm}-${actual}`)
+      if (actual !== expected) {
+        throw new Error(`Integrity check failed for ${label}: expected ${algorithm}-${expected}, got ${algorithm}-${actual}`)
       }
       return
     }
