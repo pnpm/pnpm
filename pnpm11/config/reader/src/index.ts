@@ -334,8 +334,6 @@ export async function getConfig (opts: {
     }
     if (ignoredKeys.length > 0 || kebabKeys.length > 0) {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
-      // A project manifest refuses some of these too, so pointing every one of
-      // them at it would send the user from this warning straight to the other.
       const movable = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key))
       const nowhere = ignoredKeys.filter(isRefusedByAProjectManifest)
       if (movable.length > 0) {
@@ -494,8 +492,6 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
-        // Matched in camelCase so a kebab-case spelling is reported too. The
-        // settings loop drops that spelling either way, but silently.
         const ignoredKeys = Object.keys(workspaceManifest).filter(isRefusedByAProjectManifest)
         if (ignoredKeys.length > 0) {
           warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndExplain(ignoredKeys)}.`)
@@ -1211,8 +1207,10 @@ export function isProjectManifestSkippedKey (camelKey: string): boolean {
 }
 
 /**
- * Whether a project's `pnpm-workspace.yaml` drops this key, whether as a
- * value a project may not contribute or as the reader's own bookkeeping.
+ * Whether a project's `pnpm-workspace.yaml` drops {@link key}, given in either
+ * camelCase or kebab-case, whether as a value a project may not contribute or
+ * as the reader's own bookkeeping.
+ *
  * Shared by the warnings so that they cannot disagree on what was dropped.
  */
 function isRefusedByAProjectManifest (key: string): boolean {
