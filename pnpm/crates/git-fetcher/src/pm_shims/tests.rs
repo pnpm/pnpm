@@ -48,6 +48,22 @@ fn yarn_is_reachable_under_both_of_its_names() {
     }
 }
 
+/// Bun ships one executable and answers to `bunx` as `bun x`, so that
+/// shim carries the subcommand rather than a bin name Bun does not
+/// publish.
+#[test]
+fn bun_is_reachable_through_bunx_too() {
+    let dir = tempdir().unwrap();
+    let version_spec = Some("1.3.0".to_string());
+    let wanted = WantedPm { pm: PreferredPm::Bun, version_spec, pinned: true };
+    let written = write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write");
+
+    assert_eq!(written.len(), 2);
+    let body = shim_body(dir.path(), "bunx");
+    let runs = if cfg!(windows) { r#""bun@1.3.0" "bun" "x""# } else { "'bun@1.3.0' 'bun' 'x'" };
+    assert!(body.contains(runs), "{body}");
+}
+
 /// `npx` is a command npm publishes beside itself, not another name for
 /// it, so the shim has to run npm's `npx` rather than npm.
 #[test]

@@ -736,7 +736,14 @@ fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
 
     let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
     assert!(stdout_of(&removed).contains("Removed yarn, yarnpkg"));
-    assert!(!global_bin.join("yarn").exists());
+    let left: Vec<_> = fs::read_dir(&global_bin)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("yarn"))
+        .collect();
+    assert!(left.is_empty(), "{left:?}");
     let config =
         fs::read_to_string(root.path().join("config/pnpm/config.yaml")).expect("read config.yaml");
     assert!(!config.contains("yarn: auto"), "{config}");
@@ -905,13 +912,17 @@ fn a_shim_without_a_project_target_reports_it() {
     fs::create_dir_all(&project).unwrap();
     fs::write(project.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#).unwrap();
 
-    pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
     let output = Command::new(root.path().join("pnpm-home").join("bin").join("yarn"))
         .without_ambient_pnpm_config()
         .with_current_dir(&project)
         .with_env("PNPM_HOME", root.path().join("pnpm-home"))
         .with_env("XDG_STATE_HOME", root.path().join("state"))
         .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        // The dispatched shim must not reach into the developer's cache
+        // either, whatever it decides to run.
+        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
         .with_arg("--version")
         .output()
         .unwrap();

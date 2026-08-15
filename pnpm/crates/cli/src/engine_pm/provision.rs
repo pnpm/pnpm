@@ -87,8 +87,11 @@ async fn provision_binary(
         BinaryChannel::Yarn => "yarn",
     };
     let program = materialize_runtime(name.to_string(), version_spec.to_string()).await?;
-    let bin_dirs = program.parent().map(Path::to_path_buf).into_iter().collect();
-    Ok(ProvisionedEngine { program, bin_dirs })
+    let bin_dir = program.parent().ok_or_else(|| EngineError::MissingEngineBin {
+        name,
+        dir: program.display().to_string(),
+    })?;
+    Ok(ProvisionedEngine { bin_dirs: vec![bin_dir.to_path_buf()], program })
 }
 
 async fn provision_from_registry<Reporter: self::Reporter + 'static>(

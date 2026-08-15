@@ -10,7 +10,9 @@
 //! (`name@version` / `range` / `tag`, incl. the `foo@npm:bar` alias
 //! form), git URLs, `http(s)` tarball URLs, `file:` / `link:` /
 //! `workspace:` and bare filesystem paths, the node / deno / bun
-//! runtime specs, and `<alias>:` named-registry specs. A specifier no
+//! runtime specs — including the `yarn@runtime:` line that ships as
+//! release archives rather than as an npm package — and `<alias>:`
+//! named-registry specs. A specifier no
 //! resolver in the chain claims surfaces as
 //! `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 //!

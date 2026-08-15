@@ -15,7 +15,7 @@ use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
 };
 use pacquet_package_manifest::safe_read_package_json_from_dir;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -133,9 +133,23 @@ pub fn prepare_package<Reporter: self::Reporter>(
     // Kept alive until the prepare is over: dropping it takes the shims
     // with it.
     let _shims_dir;
-    if let Some(pnpm_execpath) =
-        opts.pnpm_execpath.filter(|_| wanted_pm.pinned || !host_can_prepare(&wanted_pm))
-    {
+    let provide = wanted_pm.pinned || !host_can_prepare(&wanted_pm);
+    if provide && opts.pnpm_execpath.is_none() && wanted_pm.pinned {
+        // Without the running pnpm there is nothing to forward a shim to,
+        // which only happens where pnpm is embedded rather than run as a
+        // command. The host's package manager still prepares the package,
+        // as it did before pnpm could provide one — but the dependency
+        // asked for a version, and it is not getting it.
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: format!(
+                "Cannot provide {} to prepare {dep_path}: preparing it with the host's instead.",
+                describe_wanted_pm(&wanted_pm),
+            ),
+            prefix: String::new(),
+        }));
+    }
+    if let Some(pnpm_execpath) = opts.pnpm_execpath.filter(|_| provide) {
         match provide_package_manager(&wanted_pm, pnpm_execpath) {
             Ok(dir) => {
                 extra_bin_paths.insert(0, dir.path().to_path_buf());
@@ -257,7 +271,7 @@ fn host_can_prepare(wanted: &WantedPm) -> bool {
     // A dependency's scripts reach for any of the package manager's
     // names — `yarnpkg` as readily as `yarn` — so a host that provides
     // only some of them still leaves the build to pnpm.
-    let mut programs = shim_names(wanted.pm).iter().map(which::which);
+    let mut programs = shim_names(wanted.pm).map(which::which);
     let Some(Ok(program)) = programs.next() else {
         return false;
     };
@@ -273,12 +287,15 @@ fn host_can_prepare(wanted: &WantedPm) -> bool {
     let Ok(output) = Command::new(program).arg("--version").output() else {
         return false;
     };
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .next()
-        .map(str::trim)
-        .and_then(|version| node_semver::Version::parse(version).ok())
-        .is_some_and(|version| version.satisfies(&wanted_range))
+    // A version printed by a command that then failed says nothing about
+    // what that command can do.
+    output.status.success()
+        && String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .next()
+            .map(str::trim)
+            .and_then(|version| node_semver::Version::parse(version).ok())
+            .is_some_and(|version| version.satisfies(&wanted_range))
 }
 
 /// Decide whether the package needs building.

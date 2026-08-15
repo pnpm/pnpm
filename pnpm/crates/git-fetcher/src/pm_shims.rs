@@ -18,17 +18,30 @@ use std::{
 use crate::preferred_pm::WantedPm;
 
 /// The commands a package manager answers to, all of which a dependency's
-/// scripts may reach for: the alias of the same executable (`yarnpkg`) and
-/// the separate command it publishes beside itself (`npx`) alike.
-pub(crate) fn shim_names(pm: crate::preferred_pm::PreferredPm) -> &'static [&'static str] {
+/// scripts may reach for, and how each one is run.
+///
+/// A command is usually a bin of the engine itself — the alias of the same
+/// executable (`yarnpkg`), or the separate command it publishes beside
+/// itself (`npx`). Bun ships one executable and answers to `bunx` as
+/// `bun x`, so that command carries the subcommand instead.
+pub(crate) fn shim_commands(
+    pm: crate::preferred_pm::PreferredPm,
+) -> &'static [(&'static str, &'static [&'static str])] {
+    use crate::preferred_pm::PreferredPm;
     match pm {
-        // `bunx` is a link Bun's own installer makes, and `bun x` does the
-        // same job.
-        crate::preferred_pm::PreferredPm::Bun => &["bun"],
-        crate::preferred_pm::PreferredPm::Npm => &["npm", "npx"],
-        crate::preferred_pm::PreferredPm::Pnpm => &["pnpm"],
-        crate::preferred_pm::PreferredPm::Yarn => &["yarn", "yarnpkg"],
+        PreferredPm::Bun => &[("bun", &[]), ("bunx", &["bun", "x"])],
+        PreferredPm::Npm => &[("npm", &[]), ("npx", &[])],
+        PreferredPm::Pnpm => &[("pnpm", &[])],
+        PreferredPm::Yarn => &[("yarn", &[]), ("yarnpkg", &[])],
     }
+}
+
+/// The names those commands are reachable by, which is what a host has to
+/// provide for pnpm to leave the job to it.
+pub(crate) fn shim_names(
+    pm: crate::preferred_pm::PreferredPm,
+) -> impl Iterator<Item = &'static str> {
+    shim_commands(pm).iter().map(|(name, _)| *name)
 }
 
 /// Write shims for `wanted` into `dir`, which the caller prepends to the
@@ -45,8 +58,11 @@ pub(crate) fn write_pm_shims(
         None => wanted.pm.name().to_string(),
     };
     let mut written = Vec::new();
-    for name in shim_names(wanted.pm) {
-        for (file_name, contents) in shim_files(name, &spec, pnpm_execpath) {
+    for (name, run_as) in shim_commands(wanted.pm) {
+        // `bunx` runs `bun x`; every other command runs the one it is
+        // named after.
+        let run_as: Vec<&str> = if run_as.is_empty() { vec![name] } else { run_as.to_vec() };
+        for (file_name, contents) in shim_files(name, &run_as, &spec, pnpm_execpath) {
             let path = dir.join(file_name);
             write_executable(&path, &contents)?;
             written.push(path);
@@ -56,26 +72,39 @@ pub(crate) fn write_pm_shims(
 }
 
 #[cfg(unix)]
-fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, String)> {
+fn shim_files(
+    name: &str,
+    run_as: &[&str],
+    spec: &str,
+    pnpm_execpath: &Path,
+) -> Vec<(String, String)> {
     use pacquet_cmd_shim::sh_single_quote;
 
+    let run_as: Vec<String> = run_as.iter().map(|word| sh_single_quote(word)).collect();
     let contents = format!(
-        "#!/bin/sh\nexec {pnpm} dlx --package {spec} {name} \"$@\"\n",
+        "#!/bin/sh\nexec {pnpm} dlx --package {spec} {run_as} \"$@\"\n",
         pnpm = sh_single_quote(&pnpm_execpath.to_string_lossy()),
         spec = sh_single_quote(spec),
-        name = sh_single_quote(name),
+        run_as = run_as.join(" "),
     );
     vec![(name.to_string(), contents)]
 }
 
 #[cfg(windows)]
-fn shim_files(name: &str, spec: &str, pnpm_execpath: &Path) -> Vec<(String, String)> {
+fn shim_files(
+    name: &str,
+    run_as: &[&str],
+    spec: &str,
+    pnpm_execpath: &Path,
+) -> Vec<(String, String)> {
     use pacquet_cmd_shim::cmd_escape;
 
     let pnpm = cmd_escape(&pnpm_execpath.to_string_lossy());
     let spec = cmd_escape(spec);
-    let escaped_name = cmd_escape(name);
-    let contents = format!("@\"{pnpm}\" dlx --package \"{spec}\" \"{escaped_name}\" %*\r\n");
+    let run_as: Vec<String> =
+        run_as.iter().map(|word| format!(r#""{}""#, cmd_escape(word))).collect();
+    let run_as = run_as.join(" ");
+    let contents = format!("@\"{pnpm}\" dlx --package \"{spec}\" {run_as} %*\r\n");
     vec![(format!("{name}.cmd"), contents)]
 }
 

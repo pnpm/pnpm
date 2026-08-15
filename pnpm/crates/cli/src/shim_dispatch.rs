@@ -609,9 +609,11 @@ fn trusted_package_manager_config() -> miette::Result<Config> {
 fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsString]) -> i32 {
     match crate::path_env::prepend_dirs_to_path(bin_dirs) {
         Ok(path) => {
-            // SAFETY: the dispatcher runs before the tokio runtime and
-            // rayon pool start, so the process is single-threaded and no
-            // other thread can be reading the environment concurrently.
+            // SAFETY: whatever runtime a candidate needed to resolve has
+            // been dropped and its threads joined by the time this runs,
+            // and the dispatcher starts none of its own, so the process is
+            // single-threaded here and no other thread can be reading the
+            // environment concurrently.
             unsafe {
                 std::env::set_var("PATH", &path);
             }

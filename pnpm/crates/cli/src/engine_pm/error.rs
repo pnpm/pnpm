@@ -19,6 +19,10 @@ pub(crate) enum EngineError {
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PACKAGE_MANAGER))]
     CannotResolvePackageManager { name: &'static str, spec: String },
 
+    #[display("{name}@{version} is not published to a registry")]
+    #[diagnostic(code(ERR_PNPM_ENGINE_NOT_REGISTRY_PUBLISHED))]
+    NotRegistryPublished { name: &'static str, version: String },
+
     #[display("Cannot find the {name} executable in {dir}")]
     #[diagnostic(
         code(ERR_PNPM_ENGINE_BIN_MISSING),

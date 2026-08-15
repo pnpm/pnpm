@@ -5,7 +5,7 @@ use std::sync::Arc;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_lockfile::{LockfileResolution, VariationsResolution};
-use pacquet_network::ThrottledClient;
+use pacquet_network::{ThrottledClient, redact_and_sanitize};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
@@ -91,8 +91,10 @@ impl YarnResolver {
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
         let release = pick_release(releases, version_spec).ok_or_else(|| {
-            Box::new(YarnResolverError::ResolutionFailure { spec: version_spec.to_string() })
-                as ResolveError
+            // The specifier comes from a manifest, so it can carry
+            // credentials — the message a user sees must not.
+            let spec = redact_and_sanitize(version_spec);
+            Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
         })?;
         let variants = asset_variants(release)
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
@@ -151,9 +153,9 @@ pub async fn resolve_yarn_version(
 ) -> Result<String, YarnResolverError> {
     let releases =
         fetch_yarn_releases(http_client).await.map_err(YarnResolverError::ReadReleases)?;
-    pick_release(&releases, version_spec)
-        .map(|release| release.version.clone())
-        .ok_or_else(|| YarnResolverError::ResolutionFailure { spec: version_spec.to_string() })
+    pick_release(&releases, version_spec).map(|release| release.version.clone()).ok_or_else(|| {
+        YarnResolverError::ResolutionFailure { spec: redact_and_sanitize(version_spec) }
+    })
 }
 
 /// The newest release satisfying `version_spec`.

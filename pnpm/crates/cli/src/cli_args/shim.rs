@@ -358,7 +358,12 @@ pub(crate) fn record_package_manager_shims<'a>(
     let recorded = recorded_entries(&config_dir)?;
     let mut added = BTreeSet::new();
     for package in packages {
-        if PackageManager::parse(package).is_none() || recorded.contains_key(package) {
+        // A disable that outranks this record leaves the shim doing
+        // nothing, and the entry would outlive the disable.
+        if PackageManager::parse(package).is_none()
+            || recorded.contains_key(package)
+            || !would_dispatch(config, package)?
+        {
             continue;
         }
         set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))?;

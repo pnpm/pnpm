@@ -1,4 +1,4 @@
-use super::pick_release;
+use super::{YarnResolverError, pick_release};
 use crate::read_yarn_releases::parse_releases;
 
 fn releases() -> Vec<crate::read_yarn_releases::YarnRelease> {
@@ -47,4 +47,18 @@ fn an_exact_prerelease_is_matched_directly() {
 fn a_range_no_release_satisfies_resolves_to_nothing() {
     assert_eq!(picked("^9.0.0"), None);
     assert_eq!(picked("not a range"), None);
+}
+
+/// A specifier comes from a manifest, so it can carry credentials — the
+/// message a user sees must not.
+#[test]
+fn a_credential_bearing_specifier_is_redacted_in_the_error() {
+    let error = YarnResolverError::ResolutionFailure {
+        spec: pacquet_network::redact_and_sanitize(
+            "runtime:https://user:hunter2@example.test/yarn",
+        ),
+    };
+
+    let rendered = error.to_string();
+    assert!(!rendered.contains("hunter2"), "{rendered}");
 }
