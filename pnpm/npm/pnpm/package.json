@@ -45,7 +45,9 @@
     "pn",
     "pnpx",
     "pnx",
+    "bin/",
     "install.js",
+    "native-binary.mjs",
     "dist/",
     "THIRD-PARTY-NOTICES.md"
   ],

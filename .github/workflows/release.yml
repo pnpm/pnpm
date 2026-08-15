@@ -883,6 +883,10 @@ jobs:
             -C "$smoke_dir/node_modules/pnpm" --strip-components=1
           node "$smoke_dir/node_modules/pnpm/install.js"
           "$smoke_dir/node_modules/pnpm/pnpm" --version
+          # Corepack's entry point into the same tarball; it never runs
+          # install.js, so its only job here is to prove it was published and
+          # can reach the binary.
+          node "$smoke_dir/node_modules/pnpm/bin/pnpm.mjs" --version
 
   publish-rust:
     name: Publish pnpm (Rust) and @pnpm/napi to npm

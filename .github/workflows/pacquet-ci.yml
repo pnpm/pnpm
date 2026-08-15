@@ -273,6 +273,22 @@ jobs:
           RUSTDOCFLAGS: '-D warnings'
         run: cargo doc --no-deps --workspace --document-private-items
 
+  npm-wrapper:
+    name: Rust CI / npm Wrapper
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The wrapper that carries the native binary to npm is plain Node.js with
+      # no dependencies (Corepack installs none), so it needs nothing but the
+      # runner's Node.js to test.
+      - name: Test
+        run: node --test 'pnpm/npm/pnpm/test/*.test.mjs'
+
   typos:
     name: Rust CI / Spell Check
     needs: changes
@@ -446,6 +462,7 @@ jobs:
     needs:
       - changes
       - test
+      - npm-wrapper
       - clippy
       - doc
       - typos
