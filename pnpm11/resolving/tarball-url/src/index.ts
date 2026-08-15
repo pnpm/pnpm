@@ -45,7 +45,7 @@ export function isCanonicalRegistryTarballUrl (
   }
 
   const scopeSeparator = pkg.name.indexOf('/')
-  if (pkg.name[0] !== '@' || scopeSeparator === -1) {
+  if (pkg.name[0] !== '@' || scopeSeparator === -1 || !registry.includes('/api/npm/')) {
     return false
   }
   const filenameStart = normalizedExpectedTarball.lastIndexOf('/-/') + 3

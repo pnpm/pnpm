@@ -761,24 +761,50 @@ fn to_lockfile_form_drops_reconstructible_registry_tarball() {
     );
 
     let registry = "https://artifactory.example/artifactory/api/npm/npm-virtual/";
-    let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: format!("{registry}@acme/widget/-/@acme/widget-1.2.3.tgz"),
-        integrity: Some(integrity(SHA512)),
-        git_hosted: None,
-        path: None,
-    });
-    for version in ["1.2.3", "1.2.3+build.4"] {
+    let tarball = format!("{registry}@acme/widget/-/@acme/widget-1.2.3.tgz");
+    let resolution_for = |tarball| {
+        LockfileResolution::Tarball(TarballResolution {
+            tarball,
+            integrity: Some(integrity(SHA512)),
+            git_hosted: None,
+            path: None,
+        })
+    };
+    for (url, version) in [
+        (tarball.clone(), "1.2.3"),
+        (tarball.clone(), "1.2.3+build.4"),
+        (tarball.replace("@acme/widget", "@acme%2Fwidget"), "1.2.3"),
+        (tarball.replace("1.2.3.tgz", "1.2.3-beta.1.tgz"), "1.2.3-beta.1"),
+    ] {
         assert_eq!(
-            resolution.to_lockfile_form("@acme/widget", version, registry, false),
+            resolution_for(url).to_lockfile_form("@acme/widget", version, registry, false),
             LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
         );
     }
-    for (name, version, configured_registry, include_tarball_url) in [
-        ("@acme/widget", "1.2.3", registry, true),
-        ("@other/widget", "1.2.3", registry, false),
-        ("@acme/widget", "1.2.4", registry, false),
-        ("@acme/widget", "1.2.3", "https://artifactory.example/other/", false),
+    let non_artifactory_registry = "https://registry.example/npm/";
+    for (url, name, version, configured_registry, include_tarball_url) in [
+        (tarball.clone(), "@acme/widget", "1.2.3", registry, true),
+        (tarball.clone(), "@other/widget", "1.2.3", registry, false),
+        (tarball.clone(), "@acme/widget", "1.2.4", registry, false),
+        (tarball.clone(), "@acme/widget", "1.2.3", "https://artifactory.example/other/", false),
+        (format!("{tarball}?download=true"), "@acme/widget", "1.2.3", registry, false),
+        (format!("{tarball}#archive"), "@acme/widget", "1.2.3", registry, false),
+        (
+            tarball.replace("https://", "https://anonymous@"),
+            "@acme/widget",
+            "1.2.3",
+            registry,
+            false,
+        ),
+        (
+            format!("{non_artifactory_registry}@acme/widget/-/@acme/widget-1.2.3.tgz"),
+            "@acme/widget",
+            "1.2.3",
+            non_artifactory_registry,
+            false,
+        ),
     ] {
+        let resolution = resolution_for(url);
         assert_eq!(
             resolution.to_lockfile_form(name, version, configured_registry, include_tarball_url),
             resolution,

@@ -82,6 +82,7 @@ describe('isCanonicalRegistryTarballUrl', () => {
     }
 
     for (const [url, name, version, configuredRegistry] of [
+      [`${registry}${packageName}/-/${packageName}-1.2.3.tgz`, packageName, '1.2.3', registry],
       [tarball.replace('artifactory.example', 'other.example'), packageName, '1.2.3', artifactoryRegistry],
       [tarball.replace('/npm-virtual/', '/other/'), packageName, '1.2.3', artifactoryRegistry],
       [tarball, '@other/widget', '1.2.3', artifactoryRegistry],

@@ -429,6 +429,9 @@ fn is_canonical_registry_tarball_url(
         return true;
     }
 
+    if !registry.contains("/api/npm/") {
+        return false;
+    }
     let Some((scope, _)) = name.strip_prefix('@').and_then(|scoped| scoped.split_once('/')) else {
         return false;
     };
