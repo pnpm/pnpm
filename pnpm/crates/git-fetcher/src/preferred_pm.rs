@@ -118,7 +118,13 @@ pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
 fn manifest_pin(manifest: &Value) -> Option<WantedPm> {
     dev_engines_pins(manifest).chain(package_manager_pin(manifest)).find_map(
         |(name, version_spec)| {
-            Some(WantedPm { pm: PreferredPm::parse(&name)?, version_spec, pinned: true })
+            let pm = PreferredPm::parse(&name)?;
+            // A declaration that names no version pnpm can honor claims
+            // nothing about which release the dependency was tested
+            // against, so it is not a reason to provide one the host
+            // already has.
+            let pinned = version_spec.is_some();
+            Some(WantedPm { pm, version_spec, pinned })
         },
     )
 }

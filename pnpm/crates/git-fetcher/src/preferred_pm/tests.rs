@@ -132,7 +132,9 @@ fn only_a_semver_range_is_carried_over_from_a_pin() {
         let manifest = serde_json::json!({ "packageManager": format!("yarn@{reference}") });
         assert_eq!(
             detect_wanted_pm(dir.path(), Some(&manifest)),
-            WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: true },
+            // Nothing was pinned that pnpm can honor, so a host that has
+            // Yarn keeps preparing the dependency with it.
+            WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: false },
             "reference was {reference}",
         );
     }
@@ -161,6 +163,21 @@ fn an_unknown_package_manager_pin_is_ignored() {
     fs::write(dir.path().join("pnpm-lock.yaml"), "").unwrap();
     let manifest = serde_json::json!({ "packageManager": "cnpm@1.0.0" });
     assert_eq!(detect_wanted_pm(dir.path(), Some(&manifest)).pm, PreferredPm::Pnpm);
+}
+
+/// A declaration that names the package manager but no version says
+/// nothing about which release the dependency was tested against, so a
+/// host that already has that package manager keeps doing the job.
+#[test]
+fn a_declaration_without_a_version_is_not_a_pin() {
+    let dir = tempdir().unwrap();
+    let manifest = serde_json::json!({
+        "devEngines": { "packageManager": { "name": "yarn" } },
+    });
+    assert_eq!(
+        detect_wanted_pm(dir.path(), Some(&manifest)),
+        WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: false },
+    );
 }
 
 /// A `devEngines` list declares alternatives, so an entry naming
