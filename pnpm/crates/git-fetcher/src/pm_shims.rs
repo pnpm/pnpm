@@ -7,6 +7,7 @@
 //! forwards to `pnpm dlx <pm>@<spec>`, which resolves, verifies and
 //! installs that package manager once and reuses it afterwards.
 
+use pacquet_fs::write_atomic;
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -87,18 +88,15 @@ fn command_line_safe(version_spec: &str) -> Option<&str> {
         .then_some(version_spec)
 }
 
-/// Write `contents` to `path`, replacing whatever was there. The shims sit
-/// in pnpm's own temporary area, but they are about to be prepended to a
-/// build's `PATH`: removing first means a pre-existing symlink at the path
-/// cannot redirect the write, and the file that ends up executed is always
-/// the one just generated.
+/// Write `contents` to `path`, replacing whatever was there.
+///
+/// The shims sit in pnpm's own temporary area, but they are about to be
+/// prepended to a build's `PATH`: the replacement is a rename, so an entry
+/// planted at the path can neither redirect the write nor be the thing
+/// that ends up executed, and no window exists in which the path holds
+/// something half-written.
 fn write_executable(path: &Path, contents: &str) -> io::Result<()> {
-    match fs::remove_file(path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
-    }
-    fs::write(path, contents)?;
+    write_atomic(path, contents.as_bytes())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
