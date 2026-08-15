@@ -163,6 +163,26 @@ fn an_unknown_package_manager_pin_is_ignored() {
     assert_eq!(detect_wanted_pm(dir.path(), Some(&manifest)).pm, PreferredPm::Pnpm);
 }
 
+/// A `devEngines` list declares alternatives, so an entry naming
+/// something pnpm cannot provision is passed over rather than ending the
+/// search.
+#[test]
+fn a_dev_engines_list_falls_through_to_an_entry_pnpm_can_provision() {
+    let dir = tempdir().unwrap();
+    let manifest = serde_json::json!({
+        "devEngines": {
+            "packageManager": [
+                { "name": "cnpm", "version": "1.0.0" },
+                { "name": "yarn", "version": "4.9.2" },
+            ],
+        },
+    });
+    assert_eq!(
+        detect_wanted_pm(dir.path(), Some(&manifest)),
+        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("4.9.2".to_string()), pinned: true },
+    );
+}
+
 /// `devEngines` outranks `packageManager`, but only for a package manager
 /// pnpm can provision — an unknown one there must not bury the pin below
 /// it.

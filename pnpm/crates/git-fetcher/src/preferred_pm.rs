@@ -109,11 +109,14 @@ pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
 }
 
 /// The package manager the dependency pins for itself, if it pins one
-/// pnpm can provision. A pin naming something else is not a pin pnpm can
-/// honor, so the next declaration — and then the lockfile — still gets a
-/// say.
+/// pnpm can provision.
+///
+/// A pin naming something else is not a pin pnpm can honor, so the next
+/// declaration still gets a say — the next entry of a `devEngines` list,
+/// which declares alternatives, then `packageManager`, and finally the
+/// lockfile the dependency ships.
 fn manifest_pin(manifest: &Value) -> Option<WantedPm> {
-    [dev_engines_pin(manifest), package_manager_pin(manifest)].into_iter().flatten().find_map(
+    dev_engines_pins(manifest).chain(package_manager_pin(manifest)).find_map(
         |(name, version_spec)| {
             Some(WantedPm { pm: PreferredPm::parse(&name)?, version_spec, pinned: true })
         },
@@ -126,9 +129,10 @@ fn package_manager_pin(manifest: &Value) -> Option<(String, Option<String>)> {
     Some((name.to_string(), version))
 }
 
-fn dev_engines_pin(manifest: &Value) -> Option<(String, Option<String>)> {
-    let (name, version) = engine_name_version(dev_engines_package_managers(manifest).next()?)?;
-    Some((name.to_string(), version.and_then(pinned_version)))
+fn dev_engines_pins(manifest: &Value) -> impl Iterator<Item = (String, Option<String>)> {
+    dev_engines_package_managers(manifest)
+        .filter_map(engine_name_version)
+        .map(|(name, version)| (name.to_string(), version.and_then(pinned_version)))
 }
 
 /// The version a dependency's manifest pins, kept only when it is a plain
