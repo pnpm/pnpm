@@ -780,6 +780,23 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
 }
 
+/// Removing a shim the record never held changes nothing, so it writes
+/// nothing — spelling the built-in defaults into the user's
+/// configuration is not what `pnpm shim rm` was asked to do.
+#[test]
+fn removing_a_shim_that_was_never_recorded_leaves_the_config_alone() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let config = root.path().join("config").join("pnpm").join("config.yaml");
+
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    assert!(stdout_of(&removed).contains("No shims for yarn"));
+    assert!(!config.exists(), "{}", fs::read_to_string(&config).unwrap_or_default());
+}
+
 /// The pnpm home's `pnpm-workspace.yaml` and the environment both outrank
 /// the file `pnpm shim` writes into, so a disable in either is a disable:
 /// the shim would sit on `PATH` doing nothing.

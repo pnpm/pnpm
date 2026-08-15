@@ -307,9 +307,11 @@ fn set_policy(
         Some(policy) => {
             entries.insert(package.to_string(), policy);
         }
-        None => {
-            entries.remove(package);
-        }
+        // Clearing an entry the record does not hold changes nothing, and
+        // writing anyway would spell the built-in defaults out into the
+        // user's configuration as though they had chosen them.
+        None if entries.remove(package).is_none() => return Ok(()),
+        None => {}
     }
     let value = serde_json::to_value(GlobalShimsSetting::Entries(entries))
         .into_diagnostic()
