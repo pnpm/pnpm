@@ -1277,9 +1277,6 @@ export function whereRefusedKeyBelongs (camelKey: string): string {
   if (isConfigFileKey(kebabKey)) {
     return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
   }
-  // The rest were never settings: each names a location pnpm works out for
-  // itself, or an object it assembles from the trusted sources. Saying how
-  // would publish internals and imply the key was only aimed at the wrong file.
   return 'This is not a pnpm setting'
 }
 
