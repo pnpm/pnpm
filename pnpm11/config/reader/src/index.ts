@@ -1168,8 +1168,7 @@ const CREDENTIAL_KEYS = [
  * Keys a project's `pnpm-workspace.yaml` does not contribute.
  *
  * `cacheDir` and `storeDir` are deliberately absent: those name caches a
- * project may legitimately place, and the Rust `WorkspaceSettings` accepts
- * both.
+ * project may legitimately place.
  */
 type ProjectManifestSkippedKey =
   | typeof MACHINE_LOCATION_KEYS[number]
@@ -1188,8 +1187,8 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = ne
 /**
  * The refused keys the global config file does not accept either.
  *
- * That file's own contents are already filtered by `isConfigFileKey`, but the
- * CLI options are merged in again alongside them, so without this a
+ * That file's own contents are already filtered by {@link isConfigFileKey},
+ * but the CLI options are merged in again alongside them, so without this a
  * `--config.config-dir` would land back on a key the reader resolves for
  * itself, and only for the users who happen to have a `config.yaml`.
  */
@@ -1222,9 +1221,8 @@ function isRefusedByAProjectManifest (key: string): boolean {
  * The reader's own bookkeeping, which shares one object with the settings but
  * is not settable by anyone.
  *
- * A manifest naming one of these overwrites what the reader worked out rather
- * than choosing a setting. `explicitlySetKeys` is the sharpest case: the merge
- * loop calls `.add` on it, so any other type there crashes every command.
+ * A manifest naming one of these would not choose a setting: it would
+ * overwrite what the reader worked out, with a value of the wrong type.
  */
 const CONFIG_CONTEXT_KEYS = [
   'hooks',
