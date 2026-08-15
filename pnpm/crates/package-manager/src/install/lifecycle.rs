@@ -162,26 +162,16 @@ pub(super) fn exec_scripts_prepend_node_path(config: &Config) -> ExecScriptsPrep
     }
 }
 
-/// The environment any install-time lifecycle script receives on top of
-/// the parent process's: the configured `extraEnv` and `nodeOptions`.
-pub(super) fn lifecycle_extra_env(config: &Config) -> HashMap<String, String> {
-    let mut extra_env = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
-        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-    }
-    extra_env
-}
-
-/// [`lifecycle_extra_env`] plus the `NODE_OPTIONS` entry pointing Node at
+/// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry pointing Node at
 /// `node_modules/.package-map.json` when the user opted into the
 /// experimental package map. pnpm adds it only once it links and builds,
 /// which is why `pnpm:devPreinstall` — running before the file exists —
-/// takes the plain [`lifecycle_extra_env`].
+/// takes the plain [`Config::extra_env_with_node_options`].
 pub(super) fn project_lifecycle_extra_env(
     config: &Config,
     node_linker: NodeLinker,
 ) -> HashMap<String, String> {
-    let mut extra_env = lifecycle_extra_env(config);
+    let mut extra_env = config.extra_env_with_node_options();
     if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
         let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
@@ -219,7 +209,7 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
     let root_modules_dir = workspace_root.join(modules_dir_basename(config));
-    let extra_env = lifecycle_extra_env(config);
+    let extra_env = config.extra_env_with_node_options();
     let dep_path = workspace_root.to_string_lossy();
     run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
         dep_path: &dep_path,

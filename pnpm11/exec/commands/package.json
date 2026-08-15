@@ -47,6 +47,7 @@
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/engine.runtime.commands": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.esm-node-path-loader": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/installing.client": "workspace:*",

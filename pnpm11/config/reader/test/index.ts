@@ -6,6 +6,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import type { Config } from '@pnpm/config.reader'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
+import { esmNodePathLoaderImportFlag } from '@pnpm/exec.esm-node-path-loader'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { isCI } from 'ci-info'
@@ -4566,6 +4567,69 @@ test('ci respects explicit enableGlobalVirtualStore from config', async () => {
   })
 
   expect(config.enableGlobalVirtualStore).toBe(true)
+})
+
+test('enableGlobalVirtualStore exposes hoisted dependencies through NODE_PATH and the ESM loader', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    enableGlobalVirtualStore: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.extraEnv['NODE_PATH']).toBe([
+    path.join(process.cwd(), 'node_modules/.pnpm/node_modules'),
+    path.join(process.cwd(), 'node_modules'),
+  ].join(path.delimiter))
+  expect(config.extraEnv['NODE_OPTIONS']).toContain(esmNodePathLoaderImportFlag)
+})
+
+test('without a global virtual store, extraEnv carries no NODE_PATH or NODE_OPTIONS', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.extraEnv['NODE_PATH']).toBeUndefined()
+  expect(config.extraEnv['NODE_OPTIONS']).toBeUndefined()
+})
+
+test('extendNodePath: false disables the global virtual store resolution env', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    enableGlobalVirtualStore: true,
+    extendNodePath: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.extraEnv['NODE_PATH']).toBeUndefined()
+  expect(config.extraEnv['NODE_OPTIONS']).toBeUndefined()
 })
 
 test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from pnpm-workspace.yaml in useGitBranchLockfile', async () => {

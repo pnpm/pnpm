@@ -181,7 +181,12 @@ pub(super) fn spawn_in_dir(
     if let Some(name) = read_package_name(dir) {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }
-    let mut node_options = config.node_options.clone();
+    let mut node_options = config.node_options.as_deref().map(|node_options| {
+        pacquet_config::esm_node_path_loader::keep_esm_node_path_loader_option(
+            node_options,
+            config.extra_env.get("NODE_OPTIONS").map(String::as_str),
+        )
+    });
     if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
         node_options =
             Some(make_node_package_map_option(&package_map_path, node_options.as_deref()));

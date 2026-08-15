@@ -760,10 +760,7 @@ where
             None => engine_name,
         };
 
-        let mut build_extra_env = config.extra_env.clone();
-        if let Some(node_options) = &config.node_options {
-            build_extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-        }
+        let mut build_extra_env = config.extra_env_with_node_options();
         if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
             let package_map_path =
                 config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);

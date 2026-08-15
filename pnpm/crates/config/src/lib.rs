@@ -2,6 +2,7 @@ mod api;
 pub mod config_types;
 mod defaults;
 mod env_overlay;
+pub mod esm_node_path_loader;
 mod global_bin_check;
 pub mod matcher;
 pub mod naming_cases;
@@ -2268,6 +2269,21 @@ impl Config {
             };
     }
 
+    /// [`Config::extra_env`] with the `nodeOptions` setting applied as
+    /// `NODE_OPTIONS`, preserving the ESM `NODE_PATH` loader flag the
+    /// `extra_env` carries under a global virtual store.
+    pub fn extra_env_with_node_options(&self) -> HashMap<String, String> {
+        let mut extra_env = self.extra_env.clone();
+        if let Some(node_options) = &self.node_options {
+            let node_options = esm_node_path_loader::keep_esm_node_path_loader_option(
+                node_options,
+                self.extra_env.get("NODE_OPTIONS").map(String::as_str),
+            );
+            extra_env.insert("NODE_OPTIONS".to_string(), node_options);
+        }
+        extra_env
+    }
+
     /// Clear both hoist patterns when [`virtual_store_only`] is set.
     ///
     /// A `virtualStoreOnly` install does no hoisting, so the patterns it
@@ -2890,6 +2906,39 @@ impl Config {
             .as_deref()
             .map(|dir| vec![dir.join("node_modules").join(".bin")])
             .unwrap_or_default();
+
+        // With a global virtual store, package directories live outside the
+        // project, so Node's upward node_modules walk from their real paths
+        // never reaches the project's hoisted node_modules or root
+        // node_modules. Expose both through NODE_PATH for every child
+        // process pnpm spawns, and register the ESM loader that restores
+        // NODE_PATH lookups for ESM imports. Mirrors the pnpm config
+        // reader (`pnpm11/config/reader/src/index.ts`).
+        if self.enable_global_virtual_store
+            && self.extend_node_path
+            && self.node_linker == NodeLinker::Isolated
+        {
+            let path_delimiter = if cfg!(windows) { ';' } else { ':' };
+            let mut node_paths: Vec<String> = self
+                .extra_env
+                .get("NODE_PATH")
+                .map(|value| value.split(path_delimiter).map(str::to_string).collect())
+                .unwrap_or_default();
+            for dir in [self.virtual_store_dir.join("node_modules"), self.modules_dir.clone()] {
+                let dir = dir.display().to_string();
+                if !node_paths.contains(&dir) {
+                    node_paths.push(dir);
+                }
+            }
+            let node_paths = node_paths.join(&path_delimiter.to_string());
+            self.extra_env.insert("NODE_PATH".to_string(), node_paths);
+            self.extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                esm_node_path_loader::add_esm_node_path_loader_option(
+                    Sys::var("NODE_OPTIONS").as_deref(),
+                ),
+            );
+        }
 
         Ok(self)
     }

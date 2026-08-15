@@ -15,6 +15,7 @@ import { type Config, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
+import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
 import { logger } from '@pnpm/logger'
@@ -157,6 +158,7 @@ export async function handler (
     })
     return resolved.id
   }))
+  const enableGlobalVirtualStore = opts.enableGlobalVirtualStore ?? true
   let { cacheLink, cacheExists, cachedDir } = findCache({
     packages: resolvedPkgs,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
@@ -177,7 +179,7 @@ export async function handler (
         // Without this, `pnpm dlx <pkg>` cannot launch packages whose bin
         // depends on a postinstall step (e.g. native modules).
         strictDepBuilds: false,
-        enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
+        enableGlobalVirtualStore,
         bin: path.join(cachedDir, 'node_modules/.bin'),
         dir: cachedDir,
         lockfileDir: cachedDir,
@@ -237,6 +239,11 @@ export async function handler (
   const env = makeEnv({
     userAgent: opts.userAgent,
     prependPaths: [binsDir, ...opts.extraBinPaths],
+    // The bin's command shim provides NODE_PATH; the loader makes those
+    // lookups work for ESM imports too.
+    extraEnv: enableGlobalVirtualStore
+      ? { NODE_OPTIONS: addEsmNodePathLoaderOption(process.env.NODE_OPTIONS) }
+      : {},
   })
   const binName = opts.package
     ? command
