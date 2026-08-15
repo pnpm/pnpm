@@ -1,5 +1,5 @@
 use miette::IntoDiagnostic;
-use pacquet_config::PmOnFail;
+use pacquet_config::{PNPM_VERSION, PmOnFail};
 use pacquet_package_manifest::{
     package_manager_spec::{
         dev_engines_package_managers, is_version_request, split_spec, version_without_build,
@@ -54,9 +54,20 @@ pub(crate) fn package_manager_to_sync(
     {
         return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
     }
-    exact_version(wanted_version)
+    if let Some(version) = exact_version(wanted_version)
         .filter(|version| version_satisfies(version, wanted_version))
-        .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version })
+    {
+        return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
+    }
+    // A range pin resolves to no exact version on its own, so when the
+    // running pnpm satisfies it, the running version is the one the project
+    // actually uses — record that. Without this, a range pin written by hand
+    // (or by a tool other than `pnpm add` / `self-update`) only reached the
+    // lockfile when a version switch resolved it on the way.
+    version_satisfies(PNPM_VERSION, wanted_version).then(|| PackageManagerToSync {
+        specifier: wanted_version.to_string(),
+        version: PNPM_VERSION.to_string(),
+    })
 }
 
 pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
