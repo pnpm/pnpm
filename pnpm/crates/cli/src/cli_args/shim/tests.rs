@@ -53,7 +53,7 @@ fn a_body_that_only_mentions_the_marker_is_not_a_shim() {
 /// dispatch, but only when the user has not already decided for it.
 #[test]
 fn installing_a_package_manager_globally_records_the_opt_in() {
-    use super::{record_package_manager_shims, recorded_entries};
+    use super::policy::{record_package_manager_shims, recorded_entries};
     use pacquet_config::{Config, NamedShimPolicy, ShimPolicyValue};
 
     let dir = tempdir().unwrap();
@@ -80,7 +80,7 @@ fn installing_a_package_manager_globally_records_the_opt_in() {
 /// globally must not quietly undo it.
 #[test]
 fn a_global_disable_is_not_undone_by_installing_a_package_manager() {
-    use super::record_package_manager_shims;
+    use super::policy::record_package_manager_shims;
     use pacquet_config::Config;
 
     let dir = tempdir().unwrap();

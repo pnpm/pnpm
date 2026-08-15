@@ -123,56 +123,12 @@ pub fn prepare_package<Reporter: self::Reporter>(
     let pm = wanted_pm.pm;
     let dep_path = format!("{name}@{version}");
 
-    // The dependency's scripts invoke the package manager by name, so it
-    // has to be on the build's PATH. pnpm provides it when the dependency
-    // pinned a version — that pin is what its authors test against — or
-    // when the host cannot satisfy what the dependency ships; otherwise
-    // the host's own install is left to do the job it has always done. A
-    // host that already has it also keeps working when the shims cannot
-    // be written.
     let mut extra_bin_paths = opts.extra_bin_paths.to_vec();
     // Kept alive until the prepare is over: dropping it takes the shims
     // with it.
-    let _shims_dir;
-    let provide = wanted_pm.pinned || !host_can_prepare(&wanted_pm);
-    if provide && opts.pnpm_execpath.is_none() && wanted_pm.pinned {
-        // Without the running pnpm there is nothing to forward a shim
-        // to, which is the case where pnpm is embedded rather than run as
-        // a command. The host's package manager prepares the package
-        // instead, so the dependency is built by a version it did not ask
-        // for and the user hears about it.
-        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Warn,
-            message: format!(
-                "Cannot provide {} to prepare {dep_path}: preparing it with the host's instead.",
-                describe_wanted_pm(&wanted_pm),
-            ),
-            prefix: String::new(),
-        }));
-    }
-    if let Some(pnpm_execpath) = opts.pnpm_execpath.filter(|_| provide) {
-        match provide_package_manager(&wanted_pm, pnpm_execpath) {
-            Ok(dir) => {
-                extra_bin_paths.insert(0, dir.path().to_path_buf());
-                _shims_dir = dir;
-            }
-            // A pin is what the dependency's own authors test against, so
-            // preparing it with whatever the host happens to have would
-            // silently produce a different tree.
-            Err(error) if wanted_pm.pinned => {
-                return Err(PreparePackageError::PackageManagerUnavailable {
-                    package_manager: describe_wanted_pm(&wanted_pm),
-                    source: error,
-                });
-            }
-            Err(error) => {
-                let name = pm.name();
-                tracing::warn!(
-                    target: "pacquet::git_fetcher",
-                    "could not provide {name} for the build: {error}",
-                );
-            }
-        }
+    let shims_dir = provide_wanted_pm::<Reporter>(&wanted_pm, &dep_path, opts.pnpm_execpath)?;
+    if let Some(dir) = shims_dir.as_ref() {
+        extra_bin_paths.insert(0, dir.path().to_path_buf());
     }
 
     let run_opts = RunPostinstallHooks {
@@ -250,6 +206,62 @@ pub fn prepare_package<Reporter: self::Reporter>(
 /// the wrong line is no more usable than no copy at all. A host version
 /// that cannot be read counts as unusable, so the dependency gets the one
 /// it asked for rather than a coin flip.
+/// Put the package manager the dependency asks for on the build's `PATH`,
+/// returning the scratch directory its shims live in — the caller keeps
+/// that alive for the prepare, because dropping it takes the shims with
+/// it.
+///
+/// pnpm provides the package manager when the dependency pinned a version
+/// — that pin is what its authors test against — or when the host cannot
+/// satisfy what the dependency ships. Otherwise the host's own install is
+/// left to do the job it has always done, which is also what happens when
+/// the shims cannot be written for an unpinned one.
+fn provide_wanted_pm<Reporter: self::Reporter>(
+    wanted_pm: &WantedPm,
+    dep_path: &str,
+    pnpm_execpath: Option<&Path>,
+) -> Result<Option<tempfile::TempDir>, PreparePackageError> {
+    if !wanted_pm.pinned && host_can_prepare(wanted_pm) {
+        return Ok(None);
+    }
+    let Some(pnpm_execpath) = pnpm_execpath else {
+        if wanted_pm.pinned {
+            // Without the running pnpm there is nothing to forward a shim
+            // to, which is the case where pnpm is embedded rather than run
+            // as a command. The host's package manager prepares the
+            // package instead, so the dependency is built by a version it
+            // did not ask for and the user hears about it.
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!(
+                    "Cannot provide {} to prepare {dep_path}: preparing it with the host's instead.",
+                    describe_wanted_pm(wanted_pm),
+                ),
+                prefix: String::new(),
+            }));
+        }
+        return Ok(None);
+    };
+    match provide_package_manager(wanted_pm, pnpm_execpath) {
+        Ok(dir) => Ok(Some(dir)),
+        // A pin is what the dependency's own authors test against, so
+        // preparing it with whatever the host happens to have would
+        // silently produce a different tree.
+        Err(error) if wanted_pm.pinned => Err(PreparePackageError::PackageManagerUnavailable {
+            package_manager: describe_wanted_pm(wanted_pm),
+            source: error,
+        }),
+        Err(error) => {
+            let name = wanted_pm.pm.name();
+            tracing::warn!(
+                target: "pacquet::git_fetcher",
+                "could not provide {name} for the build: {error}",
+            );
+            Ok(None)
+        }
+    }
+}
+
 /// Write the shims for `wanted` into a scratch directory, returning it so
 /// the caller can put it on the build's `PATH` and drop it afterwards.
 fn provide_package_manager(
