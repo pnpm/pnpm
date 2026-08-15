@@ -72,10 +72,11 @@ fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
 ///
 /// Unknown keys are accepted silently: pnpm exposes a long tail of config
 /// keys, and erroring on an unrecognized one would break the moment pnpm
-/// adds a new key that pacquet hasn't ported yet. The token has already
-/// been honored by pnpm itself before delegation, so dropping it on
-/// pacquet's side just means the pacquet leg falls back to the yaml/npmrc
-/// value — never an incorrect override.
+/// adds a new key that pacquet hasn't ported yet. Dropping one is only
+/// harmless when pnpm parsed the token first and delegated, leaving the
+/// pacquet leg to fall back to the yaml value. When the binary runs
+/// standalone there is no other leg, so a setting that changes what gets
+/// installed has to be ported here.
 #[derive(Debug, Default)]
 pub struct ConfigOverrides {
     registry: Option<String>,
@@ -89,6 +90,10 @@ pub struct ConfigOverrides {
     runtime_on_fail: Option<RuntimeOnFail>,
     shared_workspace_lockfile: Option<bool>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
+    minimum_release_age: Option<u64>,
+    minimum_release_age_exclude: Option<Vec<String>>,
+    minimum_release_age_ignore_missing_time: Option<bool>,
+    minimum_release_age_strict: Option<bool>,
     https_proxy: Option<String>,
     http_proxy: Option<String>,
     no_proxy: Option<String>,
@@ -176,6 +181,24 @@ impl ConfigOverrides {
             self.verify_deps_before_run = value.parse().ok();
             return;
         }
+        if key == "minimum-release-age" {
+            self.minimum_release_age = value.parse().ok();
+            return;
+        }
+        if key == "minimum-release-age-exclude" {
+            // pnpm types this key as `[String, Array]`: repeating the
+            // token builds a list instead of replacing the previous value.
+            self.minimum_release_age_exclude.get_or_insert_default().push(value.to_string());
+            return;
+        }
+        if key == "minimum-release-age-ignore-missing-time" {
+            self.minimum_release_age_ignore_missing_time = parse_bool(value);
+            return;
+        }
+        if key == "minimum-release-age-strict" {
+            self.minimum_release_age_strict = parse_bool(value);
+            return;
+        }
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
         }
@@ -220,6 +243,18 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.shared_workspace_lockfile {
             config.shared_workspace_lockfile = value;
+        }
+        if let Some(value) = self.minimum_release_age {
+            config.minimum_release_age = Some(value);
+        }
+        if let Some(value) = &self.minimum_release_age_exclude {
+            config.minimum_release_age_exclude = Some(value.clone());
+        }
+        if let Some(value) = self.minimum_release_age_ignore_missing_time {
+            config.minimum_release_age_ignore_missing_time = value;
+        }
+        if let Some(value) = self.minimum_release_age_strict {
+            config.minimum_release_age_strict = Some(value);
         }
         // The `pnpm_config_verify_deps_before_run` env var outranks even
         // the CLI for this one key (pnpm's config reader applies it after

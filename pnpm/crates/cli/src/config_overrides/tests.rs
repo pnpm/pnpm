@@ -184,6 +184,43 @@ fn extract_applies_inject_workspace_packages_and_node_linker_overrides() {
 }
 
 #[test]
+fn extract_applies_the_minimum_release_age_overrides() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.minimum-release-age=0",
+        "--config.minimum-release-age-strict=false",
+        "--config.minimum-release-age-ignore-missing-time=false",
+        "add",
+        "pnpm",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "add", "pnpm"]));
+    let mut config = Config::default();
+    assert_eq!(config.resolved_minimum_release_age(), Some(1440));
+    overrides.apply(&mut config);
+    assert_eq!(config.minimum_release_age, Some(0));
+    assert_eq!(config.resolved_minimum_release_age(), None);
+    assert_eq!(config.minimum_release_age_strict, Some(false));
+    assert!(!config.minimum_release_age_ignore_missing_time);
+}
+
+#[test]
+fn repeated_minimum_release_age_exclude_overrides_collect_into_a_list() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "--config.minimum-release-age-exclude=pnpm",
+        "--config.minimum-release-age-exclude=@pnpm/exe",
+    ]));
+    let mut config = Config {
+        minimum_release_age_exclude: Some(vec!["from-yaml".to_string()]),
+        ..Config::default()
+    };
+    overrides.apply(&mut config);
+    assert_eq!(
+        config.minimum_release_age_exclude,
+        Some(vec!["pnpm".to_string(), "@pnpm/exe".to_string()]),
+    );
+}
+
+#[test]
 fn config_tokens_after_external_command_stay_in_argv() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",
