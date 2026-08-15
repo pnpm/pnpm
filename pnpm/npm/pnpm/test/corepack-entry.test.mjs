@@ -109,6 +109,18 @@ describe('corepack entry point', { skip: SKIP_ON_WINDOWS }, () => {
     assert.match(skipped.stdout, /ran: --version/)
   })
 
+  it('reports a key set it cannot read instead of silently trusting npm', async () => {
+    const fixture = await createFixture()
+
+    const unreadable = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], { COREPACK_INTEGRITY_KEYS: '{' })
+    assert.notEqual(unreadable.status, 0)
+    assert.match(unreadable.stderr, /not readable as JSON/)
+
+    const empty = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], { COREPACK_INTEGRITY_KEYS: '{"other":[]}' })
+    assert.notEqual(empty.status, 0)
+    assert.match(empty.stderr, /no "npm" key set/)
+  })
+
   it('reports a disabled network instead of reaching for one', async () => {
     const fixture = await createFixture()
 

@@ -311,6 +311,23 @@ jobs:
         working-directory: pnpm/npm/pnpm/test
         run: node --test *.test.mjs
 
+      # The floor the package claims in `engines`. Corepack ships with newer
+      # Node.js than that, but the entry point pulls in get-pnpm, whose own
+      # engines floor is higher, so what the wrapper promises has to be the
+      # version it is actually run on.
+      - name: Test on the oldest supported Node.js
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Installed into a scratch project, so the repo's own manifests are
+          # not rewritten by asking for a runtime.
+          mkdir -p "$RUNNER_TEMP/oldest-node"
+          cd "$RUNNER_TEMP/oldest-node"
+          echo '{"name":"oldest-node","version":"0.0.0"}' > package.json
+          pnpm runtime set node 18
+          ./node_modules/.bin/node --version
+          ./node_modules/.bin/node --test "$GITHUB_WORKSPACE"/pnpm/npm/pnpm/test/*.test.mjs
+
   typos:
     name: Rust CI / Spell Check
     needs: changes

@@ -119,11 +119,20 @@ function signaturePolicy () {
   if (configured === '' || configured === '0') {
     return { verifySignature: false }
   }
+  let keys
   try {
-    return { keys: JSON.parse(configured).npm }
+    keys = JSON.parse(configured).npm
   } catch (err) {
-    fail(`COREPACK_INTEGRITY_KEYS is not readable as a key set: ${err.message}`)
+    fail(`COREPACK_INTEGRITY_KEYS is not readable as JSON: ${err.message}`)
   }
+  // An absent or malformed `npm` entry would otherwise be passed on as no keys
+  // at all, which falls back to npm's own — the opposite of what setting the
+  // variable asked for. An empty set is left alone: it names no key to trust,
+  // and Corepack reads it the same way, so every download is refused.
+  if (!Array.isArray(keys)) {
+    fail('COREPACK_INTEGRITY_KEYS holds no "npm" key set to verify the pnpm binary against.')
+  }
+  return { keys }
 }
 
 function fail (message) {
