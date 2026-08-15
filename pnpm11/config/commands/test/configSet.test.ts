@@ -1107,9 +1107,6 @@ test.each([
   expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toEqual({ [written]: '/tmp/somewhere' })
 })
 
-// Which hint each key gets is `whereRefusedKeyBelongs`, covered by the reader's
-// own unit test. What the command has to get right is reaching it with the key
-// the user typed, in whichever spelling.
 test('config set hints where a kebab-case key belongs', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
@@ -1180,10 +1177,6 @@ test('config delete clears a hand-written kebab-case key', async () => {
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
 })
 
-// A setting absent from `types` has no kebab-case spelling to match on, so it
-// reaches `validateWorkspaceKey`'s rejection rather than the delete. The reader
-// names whichever spelling the file used, so it has to be clearable under that
-// name anyway.
 test.each([
   'pnpm-home-dir',
   'global-pkg-dir',

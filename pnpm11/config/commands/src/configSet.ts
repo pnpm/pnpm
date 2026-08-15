@@ -224,9 +224,6 @@ export class ConfigSetNotAProjectSettingError extends PnpmError {
  */
 function validateWorkspaceKey (key: string): string {
   if (Object.hasOwn(types, key) || isConfigFileKey(key)) return camelCase(key)
-  // A refused setting is usually absent from `types`, so its kebab spelling
-  // would reach the rejection below, leaving no way to clear what the reader's
-  // warning named. Writing one is still refused, by the caller.
   if (isProjectManifestSkippedKey(camelCase(key))) return camelCase(key)
   if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
   return key
