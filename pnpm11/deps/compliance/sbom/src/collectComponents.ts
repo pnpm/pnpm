@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { checkPackageInstallability } from '@pnpm/config.package-is-installable'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
@@ -12,7 +12,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
+import type { DependenciesField, ProjectId, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
@@ -39,8 +39,8 @@ export interface CollectSbomComponentsOptions {
   rootBugsUrl?: string
   sbomType?: SbomComponentType
   include?: { [dependenciesField in DependenciesField]: boolean }
-  registries: Registries
-  namedRegistries?: Record<string, string>
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   lockfileDir: string
   includedImporterIds?: ProjectId[]
   supportedArchitectures?: SupportedArchitectures
@@ -235,11 +235,11 @@ async function walkStep (
       // artifact from a compliance document.
       const registryUrl = registryName == null
         ? undefined
-        : normalizeNamedRegistries(opts.namedRegistries)[registryName]
+        : normalizeRegistriesByPrefix(opts.registriesByPrefix)[registryName]
       if (registryName != null && registryUrl == null) {
         throw new PnpmError('MISSING_NAMED_REGISTRY',
-          `Cannot describe package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,
-          { hint: `Add '${registryName}' to the namedRegistries setting in pnpm-workspace.yaml.` })
+          `Cannot describe package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the registriesByPrefix setting.`,
+          { hint: `Add '${registryName}' to the registriesByPrefix setting in pnpm-workspace.yaml.` })
       }
 
       const purl = buildPurl({
@@ -254,12 +254,12 @@ async function walkStep (
       if (componentsMap.has(purl)) return
 
       const integrity = verifiedIntegrity(pkgSnapshot.resolution)
-      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
+      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registriesByScope: opts.registriesByScope, registriesByPrefix: opts.registriesByPrefix })
       const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
 
       let metadata: { license?: string, description?: string, author?: string, homepage?: string, repository?: string, bugsUrl?: string } = {}
       if (metadataOpts) {
-        metadata = await getPkgMetadata(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries }, metadataOpts)
+        metadata = await getPkgMetadata(depPath, pkgSnapshot, { registriesByScope: opts.registriesByScope, registriesByPrefix: opts.registriesByPrefix }, metadataOpts)
       }
 
       const component: SbomComponent = {

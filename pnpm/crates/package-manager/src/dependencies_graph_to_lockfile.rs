@@ -112,8 +112,8 @@ pub struct GraphToLockfileOptions<'a> {
     /// user's setting). Registry-qualified package keys route their
     /// tarball-reconstructibility check through this map instead of the
     /// default registry.
-    pub named_registries: &'a HashMap<String, String>,
-    pub registry_options: &'a BTreeMap<String, RegistryOptions>,
+    pub registries_by_prefix: &'a HashMap<String, String>,
+    pub registry_options_by_url: &'a BTreeMap<String, RegistryOptions>,
     /// When `true`, registry tarball URLs are kept in the lockfile even when
     /// reconstructible (the `lockfileIncludeTarballUrl` setting).
     pub lockfile_include_tarball_url: bool,
@@ -217,8 +217,8 @@ pub fn dependencies_graph_to_lockfile(
         pnpmfile_checksum,
         catalogs,
         registry,
-        named_registries,
-        registry_options,
+        registries_by_prefix,
+        registry_options_by_url,
         lockfile_include_tarball_url,
         previous_importers,
         previous_packages,
@@ -233,8 +233,8 @@ pub fn dependencies_graph_to_lockfile(
         &optional_overrides,
         &PackageMetadataSources {
             registry,
-            named_registries,
-            registry_options,
+            registries_by_prefix,
+            registry_options_by_url,
             lockfile_include_tarball_url,
             previous_packages,
         },
@@ -674,8 +674,8 @@ type PackagesAndSnapshots =
 /// from, beyond the graph itself.
 struct PackageMetadataSources<'a> {
     registry: &'a str,
-    named_registries: &'a HashMap<String, String>,
-    registry_options: &'a BTreeMap<String, RegistryOptions>,
+    registries_by_prefix: &'a HashMap<String, String>,
+    registry_options_by_url: &'a BTreeMap<String, RegistryOptions>,
     lockfile_include_tarball_url: bool,
     previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
 }
@@ -719,7 +719,7 @@ fn build_packages_and_snapshots(
             // entry that no install can fetch. Keeping the URL is always
             // recoverable, so an unknown alias forces it to be written.
             let (registry, include_tarball_url) = match key.suffix.registry_qualified() {
-                Some((registry_name, _)) => match sources.named_registries.get(registry_name) {
+                Some((registry_name, _)) => match sources.registries_by_prefix.get(registry_name) {
                     Some(named_registry) => {
                         (named_registry.as_str(), sources.lockfile_include_tarball_url)
                     }
@@ -732,7 +732,7 @@ fn build_packages_and_snapshots(
                 key,
                 LockfileFormOptions {
                     registry,
-                    server_type: registry_server_type(sources.registry_options, registry),
+                    server_type: registry_server_type(sources.registry_options_by_url, registry),
                     include_tarball_url,
                 },
             );

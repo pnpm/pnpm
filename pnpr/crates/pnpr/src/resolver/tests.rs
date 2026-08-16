@@ -654,7 +654,7 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     // A named registry off the allowlist is rejected too.
     let named = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),
-        named_registries: BTreeMap::from([(
+        registries_by_prefix: BTreeMap::from([(
             "@acme".to_string(),
             "http://169.254.169.254/".to_string(),
         )]),

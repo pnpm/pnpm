@@ -206,7 +206,7 @@ fn options(
         dev_dependencies: BTreeMap::new(),
         optional_dependencies: BTreeMap::new(),
         registry: registry.to_string(),
-        named_registries: BTreeMap::new(),
+        registries_by_prefix: BTreeMap::new(),
         authorization: Some(authorization.to_string()),
         overrides: None,
         catalogs: None,

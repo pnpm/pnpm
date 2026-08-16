@@ -921,7 +921,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             } else {
                 let verify_opts = VerifyLockfileOptions {
                     registry: resolve_registry.clone(),
-                    named_registries: state.config.named_registries.clone(),
+                    registries_by_prefix: state.config.registries_by_prefix.clone(),
                     authorization: state.config.auth_headers.for_url(pnpr_server),
                     overrides: overrides.clone(),
                     lockfile: lockfile.clone(),
@@ -1040,7 +1040,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let opts = ResolveProjectsOptions {
         projects,
         registry: resolve_registry,
-        named_registries: state.config.named_registries.clone(),
+        registries_by_prefix: state.config.registries_by_prefix.clone(),
         // Only the caller's identity to pnpr is sent. Upstream registry
         // credentials are never forwarded: pnpr selects them from its own
         // route policy, so they stay out of the request body.

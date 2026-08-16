@@ -347,7 +347,7 @@ impl EnvInstallerContext {
         };
         let resolver = NpmResolver {
             registries: registries.clone(),
-            named_registries: HashMap::new(),
+            registries_by_prefix: HashMap::new(),
             http_client: Arc::clone(&http_client),
             auth_headers: Arc::clone(&auth_headers),
             meta_cache: Arc::new(InMemoryPackageMetaCache::default()),

@@ -596,7 +596,7 @@ async fn run_package_manager<Reporter: self::Reporter + 'static>(
 /// cache key.
 fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
     let mut map = config.resolved_registries();
-    for (name, url) in &config.named_registries {
+    for (name, url) in &config.registries_by_prefix {
         map.insert(name.clone(), url.clone());
     }
     map

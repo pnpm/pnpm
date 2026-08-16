@@ -205,7 +205,7 @@ test('keeps a git resolution without an integrity untouched', () => {
 
 describe('on a registry declared as Artifactory', () => {
   const registry = 'https://artifactory.example/artifactory/api/npm/npm-virtual/'
-  const registryOptions = { [registry]: { serverType: 'artifactory' as const } }
+  const registryOptionsByUrl = { [registry]: { serverType: 'artifactory' as const } }
   const pkg = { name: '@acme/widget', version: '1.2.3' }
   const tarball = `${registry}@acme/widget/-/@acme/widget-1.2.3.tgz`
 
@@ -229,8 +229,8 @@ describe('on a registry declared as Artifactory', () => {
       { registry, serverType: 'artifactory' }
     )
     expect(pkgSnapshotToResolution('@acme/widget@1.2.3', { resolution: lockfileResolution }, {
-      registries: { default: registry },
-      registryOptions,
+      registriesByScope: { default: registry },
+      registryOptionsByUrl,
     })).toEqual({ integrity: 'sha512-AAAA', tarball })
   })
 

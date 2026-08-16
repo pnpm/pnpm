@@ -37,11 +37,11 @@ export interface ResolveViaPnprServerOptions {
   projects?: PnprProject[]
   /**
    * The client's default registry. The server resolves against this
-   * (and `namedRegistries`) rather than its own configuration.
+   * (and the prefix-addressed registries) rather than its own configuration.
    */
   registry?: string
-  /** The client's named-registry aliases (`namedRegistries`). */
-  namedRegistries?: Record<string, string>
+  /** The registries the client addresses by a bare-specifier prefix. */
+  registriesByPrefix?: Record<string, string>
   /**
    * `Authorization` for the pnpr server's own URL (`undefined` if none):
    * identifies the caller to pnpr's gate. The client never forwards its
@@ -141,7 +141,7 @@ export async function resolveViaPnprServer (
   const requestBody = JSON.stringify({
     projects,
     registry: opts.registry,
-    namedRegistries: opts.namedRegistries,
+    registriesByPrefix: opts.registriesByPrefix,
     overrides: opts.overrides,
     catalogs: opts.catalogs,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),

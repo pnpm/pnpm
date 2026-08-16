@@ -96,7 +96,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registriesByScope' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -163,7 +163,7 @@ export async function handler (
     packages: resolvedPkgs,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     allowBuild: opts.allowBuild,
     supportedArchitectures: opts.supportedArchitectures,
   })
@@ -374,7 +374,7 @@ function findCache (opts: {
   packages: string[]
   cacheDir: string
   dlxCacheMaxAge: number
-  registries: Record<string, string>
+  registriesByScope: Record<string, string>
   allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
 }): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
@@ -391,7 +391,7 @@ function findCache (opts: {
 function createDlxCommandCacheDir (
   opts: {
     packages: string[]
-    registries: Record<string, string>
+    registriesByScope: Record<string, string>
     cacheDir: string
     allowBuild?: string[]
     supportedArchitectures?: SupportedArchitectures
@@ -406,12 +406,12 @@ function createDlxCommandCacheDir (
 
 export function createCacheKey (opts: {
   packages: string[]
-  registries: Record<string, string>
+  registriesByScope: Record<string, string>
   allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
 }): string {
   const sortedPkgs = [...opts.packages].sort(lexCompare)
-  const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => lexCompare(k1, k2))
+  const sortedRegistries = Object.entries(opts.registriesByScope).sort(([k1], [k2]) => lexCompare(k1, k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
   if (opts.allowBuild?.length) {
     args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })

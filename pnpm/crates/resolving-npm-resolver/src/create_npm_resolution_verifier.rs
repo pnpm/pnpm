@@ -117,8 +117,8 @@ pub struct CreateNpmResolutionVerifierOptions {
     pub registries: HashMap<String, String>,
     /// User-defined named-registry aliases (e.g. `gh:` →
     /// `https://npm.pkg.github.com/`). Merged with
-    /// [`crate::BUILTIN_NAMED_REGISTRIES`].
-    pub named_registries: HashMap<String, String>,
+    /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`].
+    pub registries_by_prefix: HashMap<String, String>,
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     /// Root of pnpm's on-disk metadata mirror. When set, the verifier
@@ -184,7 +184,7 @@ pub struct NpmResolutionVerifier {
     /// Alias → URL map (built-ins merged with the user's setting) for
     /// routing registry-qualified lockfile keys, which carry no tarball
     /// URL for the prefix list to match.
-    named_registries_by_name: HashMap<String, String>,
+    registries_by_prefix: HashMap<String, String>,
     http_client: Arc<ThrottledClient>,
     auth_headers: Arc<AuthHeaders>,
     cache_dir: Option<PathBuf>,
@@ -241,12 +241,12 @@ pub fn create_npm_resolution_verifier(
         None
     };
 
-    let named_registry_prefixes = named_registry_tarball_prefixes(&opts.named_registries);
-    let named_registries_by_name = opts.named_registries.clone();
+    let named_registry_prefixes = named_registry_tarball_prefixes(&opts.registries_by_prefix);
+    let registries_by_prefix = opts.registries_by_prefix.clone();
 
     let sorted_min_age_excludes = sorted_unique(&opts.minimum_release_age_exclude_patterns);
     let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
-    let named_registries_routing = named_registries_routing_digest(&named_registries_by_name);
+    let named_registries_routing = named_registries_routing_digest(&registries_by_prefix);
 
     let policy_snapshot = build_policy_snapshot(
         opts.minimum_release_age.unwrap_or(0),
@@ -269,7 +269,7 @@ pub fn create_npm_resolution_verifier(
         sorted_trust_excludes,
         registries: opts.registries,
         named_registry_prefixes,
-        named_registries_by_name,
+        registries_by_prefix,
         http_client: opts.http_client,
         auth_headers: opts.auth_headers,
         cache_dir: opts.cache_dir,
@@ -414,7 +414,7 @@ impl NpmResolutionVerifier {
         // closed on an unknown alias: none of the metadata-backed checks
         // below could vouch for the entry without its registry URL.
         let named_registry = match ctx.registry_name {
-            Some(registry_name) => match self.named_registries_by_name.get(registry_name) {
+            Some(registry_name) => match self.registries_by_prefix.get(registry_name) {
                 Some(url) => Some(url.clone()),
                 None => {
                     return ResolutionVerification::Err {
@@ -1107,8 +1107,8 @@ fn sorted_unique(values: &[String]) -> Vec<String> {
     deduped
 }
 
-fn named_registries_routing_digest(named_registries: &HashMap<String, String>) -> String {
-    let sorted: BTreeMap<&str, &str> = named_registries
+fn named_registries_routing_digest(registries_by_prefix: &HashMap<String, String>) -> String {
+    let sorted: BTreeMap<&str, &str> = registries_by_prefix
         .iter()
         .map(|(alias, registry)| (alias.as_str(), registry.as_str()))
         .collect();

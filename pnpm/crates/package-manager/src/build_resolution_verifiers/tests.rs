@@ -17,7 +17,7 @@ const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 #[test]
 fn reserved_named_registry_is_an_error_not_a_panic() {
     let mut config = Config::default();
-    config.named_registries.insert("workspace".to_string(), "https://npm.example/".to_string());
+    config.registries_by_prefix.insert("workspace".to_string(), "https://npm.example/".to_string());
 
     let result = build_resolution_verifiers(
         &config,

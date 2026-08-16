@@ -1145,9 +1145,9 @@ pub struct Config {
     pub scope: Option<String>,
 
     /// Scoped registry routes keyed by `@scope`, populated from
-    /// `.npmrc` `@scope:registry=...` and
-    /// `pnpm-workspace.yaml#registries`.
-    pub registries: BTreeMap<String, String>,
+    /// `.npmrc` `@scope:registry=...` and the scopes a
+    /// `pnpm-workspace.yaml#registries` entry declares.
+    pub registries_by_scope: BTreeMap<String, String>,
 
     /// User-defined named-registry aliases from
     /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
@@ -1157,8 +1157,9 @@ pub struct Config {
     /// GitHub Packages) and rejects malformed URLs at construction
     /// time with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
     ///
-    /// The `namedRegistries` setting.
-    pub named_registries: BTreeMap<String, String>,
+    /// The `prefix` a `registries` entry declares, or the deprecated
+    /// `namedRegistries` setting.
+    pub registries_by_prefix: BTreeMap<String, String>,
 
     /// Non-secret per-registry settings from
     /// `pnpm-workspace.yaml#registries`, keyed by registry URL with a
@@ -1167,7 +1168,7 @@ pub struct Config {
     /// registry's tarball layout must not be handed its secrets.
     ///
     /// The `registries` setting.
-    pub registry_options: BTreeMap<String, RegistryOptions>,
+    pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
 
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),
@@ -2184,7 +2185,7 @@ impl Config {
     /// configured scoped routes keyed by `@scope`.
     #[must_use]
     pub fn resolved_registries(&self) -> BTreeMap<String, String> {
-        let mut registries = self.registries.clone();
+        let mut registries = self.registries_by_scope.clone();
         registries.insert("default".to_string(), self.registry.clone());
         registries
     }
@@ -2845,7 +2846,7 @@ impl Config {
         if let Some(registry) = env_registry_override {
             let normalized =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };
-            self.registries.insert("default".to_string(), normalized.clone());
+            self.registries_by_scope.insert("default".to_string(), normalized.clone());
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
         }
@@ -3003,7 +3004,7 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     trusted_auth.build_auth_headers(&mut config)?;
     Ok(PackageManagerBootstrap {
         registry: config.registry,
-        registries: config.registries,
+        registries: config.registries_by_scope,
         proxy: config.proxy,
         proxy_keys: config.proxy_keys,
         tls: config.tls,

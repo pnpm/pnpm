@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 import { pick, pickBy } from 'ramda'
@@ -163,7 +163,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   interactive?: boolean
   json?: boolean
   lockfileDir?: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
   ignore?: string[]
   ignoreUnfixable?: boolean
 } & Pick<Config, 'auditConfig'
@@ -230,7 +230,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
       },
       envLockfile,
       include,
-      registry: opts.registries.default,
+      registry: opts.registriesByScope.default,
       retry: networkOptions.retry,
       timeout: networkOptions.fetchTimeout,
     })

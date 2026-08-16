@@ -36,7 +36,7 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   try {
     await resolvePackageManagerIntegrities(packageManager.version, {
       envLockfile: envLockfile ?? undefined,
-      registries: packageManagerConfig.registries,
+      registriesByScope: packageManagerConfig.registriesByScope,
       rootDir: context.rootProjectManifestDir,
       storeController: store.ctrl,
       storeDir: store.dir,

@@ -14,7 +14,7 @@ const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 function createOpts () {
   const { storeController, storeDir } = createTempStore()
   return {
-    registries: { default: registry },
+    registriesByScope: { default: registry },
     rootDir: process.cwd(),
     cacheDir: path.resolve('cache'),
     userConfig: {},

@@ -37,7 +37,7 @@ pub(crate) fn current_pkg_from_lockfile(
             // `currentPkg` so the dep re-resolves normally.
             let (registry, tarball_version) = match registry_qualified {
                 Some((registry_name, version)) => (
-                    registry_context.named_registries.get(registry_name)?.clone(),
+                    registry_context.registries_by_prefix.get(registry_name)?.clone(),
                     version.to_string(),
                 ),
                 None => (
@@ -55,7 +55,7 @@ pub(crate) fn current_pkg_from_lockfile(
                     TarballUrlOptions {
                         registry: &registry,
                         server_type: registry_server_type(
-                            &registry_context.registry_options,
+                            &registry_context.registry_options_by_url,
                             &registry,
                         ),
                     },

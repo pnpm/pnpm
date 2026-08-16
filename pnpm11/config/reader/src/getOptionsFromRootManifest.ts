@@ -30,13 +30,10 @@ export type OptionsFromRootManifest = {
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
-  /**
-   * Two of the three lookups the `registries` setting is split into. The
-   * third, the scope-routed URLs, keeps the `registries` key it is read from
-   * and so is typed by {@link PnpmSettings}.
-   */
-  namedRegistries?: Record<string, string>
-  registryOptions?: Record<string, RegistryOptions>
+  /** The three lookups the `registries` setting is split into. */
+  registriesByScope?: Record<string, string>
+  registriesByPrefix?: Record<string, string>
+  registryOptionsByUrl?: Record<string, RegistryOptions>
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
@@ -106,9 +103,33 @@ const SECRET_REGISTRY_KEYS = new Set([
 const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'scopes', 'prefix'])
 
 /**
- * Splits the `registries` setting into the three lookups the rest of pnpm
- * reads — the scope-routed URLs, the `<prefix>:` aliases, and the per-registry
- * options — and drops the declaration map itself, which does not travel.
+ * Turns the settings that name registries into the three lookups the rest of
+ * pnpm reads: the scope-routed URLs, the `<prefix>:`-addressed URLs, and the
+ * per-registry options. The declaration map itself does not travel.
+ */
+function translateRegistrySettings (settings: OptionsFromRootManifest): void {
+  // Both settings are read under the names a user writes and removed, because
+  // the keys the rest of pnpm reads are the lookups they feed.
+  const written = settings as Pick<PnpmSettings, 'namedRegistries' | 'registries'>
+  const deprecatedPrefixes = written.namedRegistries
+  delete written.namedRegistries
+  const declarations = written.registries
+  delete written.registries
+
+  const lookups = readRegistryDeclarations(declarations)
+  if (deprecatedPrefixes != null && Object.keys(lookups.registriesByPrefix).length > 0) {
+    globalWarn('Both the "registries" and "namedRegistries" settings declare registry prefixes. The deprecated "namedRegistries" setting is only read for prefixes "registries" does not declare.')
+  }
+  // A prefix a `registries` entry declares wins: the two spell the same thing.
+  const registriesByPrefix = { ...deprecatedPrefixes, ...lookups.registriesByPrefix }
+  if (Object.keys(registriesByPrefix).length > 0) settings.registriesByPrefix = registriesByPrefix
+  if (Object.keys(lookups.registriesByScope).length > 0) settings.registriesByScope = lookups.registriesByScope
+  if (Object.keys(lookups.registryOptionsByUrl).length > 0) settings.registryOptionsByUrl = lookups.registryOptionsByUrl
+}
+
+/**
+ * Reads the `registries` setting and inverts the routes each entry declares,
+ * or returns `undefined` when there is nothing to invert.
  *
  * A registry is declared once, keyed by its URL, because every fact in an
  * entry is a fact about that server: how it lays out tarball URLs, and which
@@ -116,38 +137,24 @@ const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'scopes', 'prefix'])
  * resolves to exactly one registry while a registry serves many.
  *
  * The older shape — a map whose values are all strings — is the scope lookup
- * already, and is left as it stands.
+ * already, and is left in place as it stands.
  */
-function translateRegistrySettings (settings: OptionsFromRootManifest): void {
-  // The one key that both reads and writes here: it arrives as whichever shape
-  // the user wrote and leaves as the scope lookup.
-  const registrySetting = settings as { registries?: PnpmSettings['registries'] | Record<string, string> }
-  const declarations = registrySetting.registries
-  if (declarations == null) return
+function readRegistryDeclarations (declarations: PnpmSettings['registries']): RegistryLookups {
+  const empty: RegistryLookups = { registriesByScope: {}, registriesByPrefix: {}, registryOptionsByUrl: {} }
+  if (declarations == null) return empty
   assertObjectSetting(declarations, 'registries')
   const entries = Object.entries(declarations)
   const scopeRoutes = entries.filter(([, declaration]) => typeof declaration === 'string')
   if (scopeRoutes.length === entries.length) {
     assertNoUrlKeyedScopeRoutes(scopeRoutes.map(([scope]) => scope))
-    return
+    return { ...empty, registriesByScope: Object.fromEntries(scopeRoutes as Array<[string, string]>) }
   }
   if (scopeRoutes.length > 0) {
     throw new PnpmError('INVALID_SETTING',
       `The "registries" setting mixes registry declarations with "<scope>: <url>" entries (${quoteAndJoin(scopeRoutes.map(([scope]) => scope))}).`,
       { hint: 'Key every entry by registry URL and list the scopes routed to it under "scopes".' })
   }
-
-  const lookups = splitRegistryDeclarations(entries as Array<[string, RegistryDeclaration]>)
-  if (settings.namedRegistries != null && Object.keys(lookups.namedRegistries).length > 0) {
-    globalWarn('Both the "registries" and "namedRegistries" settings declare registry prefixes. The deprecated "namedRegistries" setting is only read for prefixes "registries" does not declare.')
-  }
-  delete registrySetting.registries
-  if (Object.keys(lookups.registries).length > 0) registrySetting.registries = lookups.registries
-  // A prefix a `registries` entry declares wins: `namedRegistries` is the
-  // deprecated spelling of the same thing.
-  const namedRegistries = { ...settings.namedRegistries, ...lookups.namedRegistries }
-  if (Object.keys(namedRegistries).length > 0) settings.namedRegistries = namedRegistries
-  if (Object.keys(lookups.registryOptions).length > 0) settings.registryOptions = lookups.registryOptions
+  return splitRegistryDeclarations(entries as Array<[string, RegistryDeclaration]>)
 }
 
 /**
@@ -165,19 +172,19 @@ function assertNoUrlKeyedScopeRoutes (scopes: string[]): void {
 
 interface RegistryLookups {
   /** Scope-routed URLs, normalized, with `@` under its `default` key. */
-  registries: Record<string, string>
+  registriesByScope: Record<string, string>
   /**
    * Prefix-addressed URLs, deliberately kept as written: a named registry's
    * URL is what a lockfile's recorded tarball URLs are matched against, so
    * normalizing it would change what an existing lockfile verifies against.
    */
-  namedRegistries: Record<string, string>
-  registryOptions: Record<string, RegistryOptions>
+  registriesByPrefix: Record<string, string>
+  registryOptionsByUrl: Record<string, RegistryOptions>
 }
 
 /** Validates the declarations and inverts their routes into the lookups. */
 function splitRegistryDeclarations (entries: Array<[string, RegistryDeclaration]>): RegistryLookups {
-  const lookups: RegistryLookups = { registries: {}, namedRegistries: {}, registryOptions: {} }
+  const lookups: RegistryLookups = { registriesByScope: {}, registriesByPrefix: {}, registryOptionsByUrl: {} }
   for (const [registry, declaration] of entries) {
     // The URL is user config that may carry `user:pass@` credentials, and it
     // is about to be interpolated into an error a terminal or CI log will show.
@@ -204,7 +211,7 @@ function splitRegistryDeclarations (entries: Array<[string, RegistryDeclaration]
         throw new PnpmError('INVALID_SETTING',
           `The "${settingPath}.serverType" setting should be one of ${quoteAndJoin([...REGISTRY_SERVER_TYPES])}, but got ${JSON.stringify(serverType)}`)
       }
-      lookups.registryOptions[normalizedRegistry] = { serverType }
+      lookups.registryOptionsByUrl[normalizedRegistry] = { serverType }
     }
     if (scopes != null) {
       assertStringArray(scopes, `${settingPath}.scopes`)
@@ -215,22 +222,22 @@ function splitRegistryDeclarations (entries: Array<[string, RegistryDeclaration]
             { hint: `A bare "${DEFAULT_REGISTRY_SCOPE}" is the scope-less default registry.` })
         }
         const scopeKey = scope === DEFAULT_REGISTRY_SCOPE ? 'default' : scope
-        const routed = lookups.registries[scopeKey]
+        const routed = lookups.registriesByScope[scopeKey]
         if (routed != null && routed !== normalizedRegistry) {
           throw new PnpmError('INVALID_SETTING',
             `The scope ${JSON.stringify(scope)} is routed to two registries: ${quoteAndJoin([routed, normalizedRegistry].map(redactAndSanitize))}.`)
         }
-        lookups.registries[scopeKey] = normalizedRegistry
+        lookups.registriesByScope[scopeKey] = normalizedRegistry
       }
     }
     if (prefix != null) {
       assertString(prefix, `${settingPath}.prefix`)
-      const declaredBy = lookups.namedRegistries[prefix]
+      const declaredBy = lookups.registriesByPrefix[prefix]
       if (declaredBy != null) {
         throw new PnpmError('INVALID_SETTING',
           `The prefix ${JSON.stringify(prefix)} is declared by two registries: ${quoteAndJoin([declaredBy, registry].map(redactAndSanitize))}.`)
       }
-      lookups.namedRegistries[prefix] = registry
+      lookups.registriesByPrefix[prefix] = registry
     }
   }
   return lookups

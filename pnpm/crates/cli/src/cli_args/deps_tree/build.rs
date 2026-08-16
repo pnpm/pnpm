@@ -85,7 +85,7 @@ impl LoadedState {
         &'a self,
         lockfile_dir: &Path,
         virtual_store_dir_max_length: usize,
-        registry_options: BTreeMap<String, RegistryOptions>,
+        registry_options_by_url: BTreeMap<String, RegistryOptions>,
     ) -> Option<PkgInfoEnv<'a>> {
         let lockfile = self.lockfile_to_use()?;
         let mut registries = HashMap::new();
@@ -116,7 +116,7 @@ impl LoadedState {
                 },
             ),
             registries,
-            registry_options,
+            registry_options_by_url,
             skipped: self
                 .modules
                 .as_ref()

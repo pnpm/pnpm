@@ -2,11 +2,11 @@ import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { RequestPackageFunction } from '@pnpm/store.controller-types'
-import type { DepPath, ProjectId, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 
 import { tryFastUpdateOverrides } from '../../src/install/tryFastUpdateOverrides.js'
 
-const registries: Registries = { default: 'https://registry.npmjs.org/' }
+const registriesByScope: RegistriesByScope = { default: 'https://registry.npmjs.org/' }
 
 /**
  * Two importers hold `foo` at 1.0.0 and 1.2.0. The registry also has 1.3.0,
@@ -38,7 +38,7 @@ function opts (newValue: string, requestPackage: RequestPackageFunction) {
     lockfileDir: '/test',
     overrides: { foo: newValue },
     parsedOverrides: [{ selector: 'foo', newBareSpecifier: newValue, targetPkg: { name: 'foo' } }],
-    registries,
+    registriesByScope,
     requestPackage,
     isLockfileUpToDate: async () => true,
   } as never
@@ -128,7 +128,7 @@ function parentScopedOpts (requestPackage: RequestPackageFunction) {
       targetPkg: { name: 'target' },
       parentPkg: { name: 'parent' },
     }],
-    registries,
+    registriesByScope,
     requestPackage,
     isLockfileUpToDate: async () => true,
   } as never

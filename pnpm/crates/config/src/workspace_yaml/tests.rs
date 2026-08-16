@@ -278,10 +278,9 @@ userAgent: my-agent/2.0
     assert_eq!(config.user_agent, "my-agent/2.0");
 }
 
-/// `namedRegistries` is the per-alias registry-URL map from
-/// `pnpm-workspace.yaml`. The deserializer reads the camelCase key
-/// and `apply_to` writes the map onto [`Config::named_registries`]
-/// verbatim.
+/// `namedRegistries` is the deprecated spelling of a registry's `prefix`. The
+/// deserializer reads the camelCase key it still carries, and `apply_to`
+/// writes the map onto [`Config::registries_by_prefix`] verbatim.
 #[test]
 fn parses_named_registries_from_yaml_and_applies() {
     let yaml = r"
@@ -290,18 +289,18 @@ namedRegistries:
   work: https://npm.work.example.com/
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    let named = settings.named_registries.as_ref().expect("named_registries present");
+    let named = settings.named_registries.as_ref().expect("namedRegistries present");
     assert_eq!(named.get("gh").map(String::as_str), Some("https://npm.pkg.ghes.example.com/"));
     assert_eq!(named.get("work").map(String::as_str), Some("https://npm.work.example.com/"));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
-        config.named_registries.get("gh").map(String::as_str),
+        config.registries_by_prefix.get("gh").map(String::as_str),
         Some("https://npm.pkg.ghes.example.com/"),
     );
     assert_eq!(
-        config.named_registries.get("work").map(String::as_str),
+        config.registries_by_prefix.get("work").map(String::as_str),
         Some("https://npm.work.example.com/"),
     );
 }
@@ -328,7 +327,7 @@ registries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.registry, "https://default.example.com/npm/");
     assert_eq!(
-        config.registries.get("@private").map(String::as_str),
+        config.registries_by_scope.get("@private").map(String::as_str),
         Some("https://private.example.com/npm/"),
     );
 }
@@ -369,19 +368,19 @@ namedRegistries:
     assert_eq!(config.registry, "https://registry.npmjs.org/");
     assert_eq!(config.proxy, pnpm_network::ProxyConfig::default());
     assert_eq!(
-        config.registries.get("@safe").map(String::as_str),
+        config.registries_by_scope.get("@safe").map(String::as_str),
         Some("https://safe.example.com/npm/"),
     );
-    assert_eq!(config.registries.get("@work"), None);
+    assert_eq!(config.registries_by_scope.get("@work"), None);
     assert_eq!(
-        config.named_registries.get("stable").map(String::as_str),
+        config.registries_by_prefix.get("stable").map(String::as_str),
         Some("https://registry.example.com/npm/"),
     );
     assert_eq!(
-        config.named_registries.get("literal").map(String::as_str),
+        config.registries_by_prefix.get("literal").map(String::as_str),
         Some("https://registry.example.com/${/npm/"),
     );
-    assert_eq!(config.named_registries.get("work"), None);
+    assert_eq!(config.registries_by_prefix.get("work"), None);
 }
 
 #[test]
@@ -453,11 +452,11 @@ namedRegistries:
         Some(pnpm_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
     );
     assert_eq!(
-        config.named_registries.get("stable").map(String::as_str),
+        config.registries_by_prefix.get("stable").map(String::as_str),
         Some("https://registry.example.com/npm/"),
     );
     assert_eq!(
-        config.named_registries.get("work").map(String::as_str),
+        config.registries_by_prefix.get("work").map(String::as_str),
         Some("https://internal.example.com/work/"),
     );
 }
@@ -1888,13 +1887,16 @@ registries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
         config
-            .registry_options
+            .registry_options_by_url
             .get("https://artifactory.example/artifactory/api/npm/npm-virtual/")
             .map(|options| options.server_type),
         Some(Some(RegistryServerType::Artifactory)),
     );
     assert_eq!(
-        config.registry_options.get("https://npm.example.com/").map(|options| options.server_type),
+        config
+            .registry_options_by_url
+            .get("https://npm.example.com/")
+            .map(|options| options.server_type),
         Some(Some(RegistryServerType::Npm)),
     );
 }
@@ -2084,11 +2086,11 @@ registries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.registry, "https://npm.corp.example/");
     assert_eq!(
-        config.registries.get("@foo").map(String::as_str),
+        config.registries_by_scope.get("@foo").map(String::as_str),
         Some("https://npm.corp.example/"),
     );
     assert_eq!(
-        config.registries.get("@bar").map(String::as_str),
+        config.registries_by_scope.get("@bar").map(String::as_str),
         Some("https://npm.corp.example/"),
     );
 }
@@ -2136,11 +2138,14 @@ registries:
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
-        config.named_registries.get("work").map(String::as_str),
+        config.registries_by_prefix.get("work").map(String::as_str),
         Some("https://npm.corp.example"),
     );
     assert_eq!(
-        config.registry_options.get("https://npm.corp.example/").map(|options| options.server_type),
+        config
+            .registry_options_by_url
+            .get("https://npm.corp.example/")
+            .map(|options| options.server_type),
         Some(Some(RegistryServerType::Artifactory)),
     );
 }
@@ -2174,11 +2179,11 @@ registries:
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
-        config.named_registries.get("work").map(String::as_str),
+        config.registries_by_prefix.get("work").map(String::as_str),
         Some("https://npm.corp.example/"),
     );
     assert_eq!(
-        config.named_registries.get("other").map(String::as_str),
+        config.registries_by_prefix.get("other").map(String::as_str),
         Some("https://other.example/"),
     );
 }

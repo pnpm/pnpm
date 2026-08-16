@@ -71,7 +71,7 @@ test('shared package children are resolved from the deterministic shallowest con
     hooks: {},
     lockfileDir: '/project',
     pnpmVersion: '0.0.0',
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
     },
     storeController,
@@ -178,7 +178,7 @@ test('a targeted update keeps down-chain preferred-version propagation, so it de
     hooks: {},
     lockfileDir: '/project',
     pnpmVersion: '0.0.0',
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
     },
     storeController,
@@ -305,7 +305,7 @@ test('updateRequested matches an npm-alias dependency without a lockfile referen
     hooks: {},
     lockfileDir: '/project',
     pnpmVersion: '0.0.0',
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
     },
     storeController,

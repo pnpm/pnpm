@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { getLockfileImporterId } from '@pnpm/lockfile.fs'
 import type {
@@ -12,7 +12,7 @@ import type {
   ProjectId,
   ProjectRootDir,
   ProjectRootDirRealPath,
-  Registries,
+  RegistriesByScope,
 } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 import { realpathMissing } from 'realpath-missing'
@@ -41,7 +41,7 @@ export async function readProjectsContext<T> (
   include: Record<DependenciesField, boolean>
   modules: Modules | null
   pendingBuilds: string[]
-  registries: Registries | null | undefined
+  registriesByScope: RegistriesByScope | null | undefined
   rootModulesDir: string
   skipped: Set<DepPath>
   virtualStoreDirMaxLength?: number
@@ -74,7 +74,7 @@ export async function readProjectsContext<T> (
           rootDirRealPath: project.rootDirRealPath ?? await realpath(project.rootDir),
         }
       })),
-    registries: ((modules?.registries) != null) ? normalizeRegistries(modules.registries) : undefined,
+    registriesByScope: ((modules?.registries) != null) ? normalizeRegistriesByScope(modules.registries) : undefined,
     rootModulesDir,
     skipped: new Set((modules?.skipped ?? []) as DepPath[]),
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength,

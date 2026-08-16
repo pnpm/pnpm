@@ -42,8 +42,8 @@ export type SbomCommandOptions = {
   | 'dev'
   | 'dir'
   | 'lockfileDir'
-  | 'registries'
-  | 'namedRegistries'
+  | 'registriesByScope'
+  | 'registriesByPrefix'
   | 'optional'
   | 'production'
   | 'storeDir'
@@ -491,8 +491,8 @@ async function generateSbomForProject (
     rootBugsUrl,
     sbomType: serialOpts.sbomType,
     include,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     lockfileDir,
     includedImporterIds,
     supportedArchitectures: opts.supportedArchitectures,

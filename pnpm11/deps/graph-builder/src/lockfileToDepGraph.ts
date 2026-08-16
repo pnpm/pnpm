@@ -23,7 +23,7 @@ import type {
   PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type { AllowBuild, DepPath, PkgIdWithPatchHash, ProjectId, Registries, RegistryContext, SupportedArchitectures } from '@pnpm/types'
+import type { AllowBuild, DepPath, PkgIdWithPatchHash, ProjectId, RegistriesByScope, RegistryContext, SupportedArchitectures } from '@pnpm/types'
 import { pathExists } from 'path-exists'
 import { equals, isEmpty } from 'ramda'
 
@@ -135,7 +135,7 @@ export async function lockfileToDepGraph (
     force: opts.force,
     graph,
     lockfileDir: opts.lockfileDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
     skipped: opts.skipped,
     storeController: opts.storeController,
@@ -332,7 +332,7 @@ async function buildGraphFromPackages (
 interface GetChildrenPathsContext {
   graph: DependenciesGraph
   force: boolean
-  registries: Registries
+  registriesByScope: RegistriesByScope
   virtualStoreDir: string
   storeDir: string
   skipped: Set<DepPath>

@@ -496,7 +496,7 @@ namedRegistries:
     assert_eq!(config.registry, "https://trusted.example.com/npm/");
     assert_eq!(config.pnpr_server.as_deref(), Some("https://trusted.example.com/pnpr/"));
     assert_eq!(
-        config.named_registries.get("work").map(String::as_str),
+        config.registries_by_prefix.get("work").map(String::as_str),
         Some("https://trusted.example.com/work/"),
     );
 }
@@ -700,7 +700,7 @@ pub fn json_env_default_scope_routes_default_registry() {
 
     assert_eq!(config.registry, "https://my-npm-proxy.example/");
     assert_eq!(
-        config.registries.get("default").map(String::as_str),
+        config.registries_by_scope.get("default").map(String::as_str),
         Some("https://my-npm-proxy.example/"),
     );
     assert_eq!(
@@ -723,7 +723,7 @@ pub fn json_env_scoped_entry_routes_that_scope() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config.registries.get("@org").map(String::as_str),
+        config.registries_by_scope.get("@org").map(String::as_str),
         Some("https://npm.pkg.github.com/"),
     );
 }
@@ -749,7 +749,7 @@ pub fn json_env_env_default_wins_over_workspace_yaml_default() {
 
     assert_eq!(config.registry, "https://my-npm-proxy.example/");
     assert_eq!(
-        config.registries.get("default").map(String::as_str),
+        config.registries_by_scope.get("default").map(String::as_str),
         Some("https://my-npm-proxy.example/"),
     );
 }
@@ -783,7 +783,7 @@ pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config.registries.get("@victim-scope").map(String::as_str),
+        config.registries_by_scope.get("@victim-scope").map(String::as_str),
         Some("https://npm.pkg.github.com/"),
     );
     assert_eq!(
@@ -833,7 +833,7 @@ pub fn global_config_yaml_auth_configures_registry_auth() {
     );
     assert_eq!(config.registry, "https://global-auth.example.com/");
     assert_eq!(
-        config.registries.get("@org").map(String::as_str),
+        config.registries_by_scope.get("@org").map(String::as_str),
         Some("https://global-auth.example.com/"),
     );
 }
@@ -905,7 +905,7 @@ pub fn json_env_env_registry_flag_wins_over_json_env_default() {
 
     assert_eq!(config.registry, "https://cli-registry.example/");
     assert_eq!(
-        config.registries.get("default").map(String::as_str),
+        config.registries_by_scope.get("default").map(String::as_str),
         Some("https://cli-registry.example/"),
     );
     assert_eq!(
@@ -958,7 +958,7 @@ pub fn json_env_inferred_registries_flow_to_bootstrap() {
 /// End-to-end: a scoped env JSON entry overrides a repo-controlled
 /// `pnpm-workspace.yaml` scoped registry in the main cascade, and the
 /// token is pinned to the env-declared host. Asserts
-/// `config.registries["@scope"]` — not just auth headers — so a regression
+/// `config.registries_by_scope["@scope"]` — not just auth headers — so a regression
 /// that breaks routing while leaving auth-header pinning intact is caught.
 #[test]
 pub fn json_env_env_scoped_wins_over_workspace_yaml_scoped() {
@@ -976,7 +976,7 @@ pub fn json_env_env_scoped_wins_over_workspace_yaml_scoped() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config.registries.get("@victim-scope").map(String::as_str),
+        config.registries_by_scope.get("@victim-scope").map(String::as_str),
         Some("https://registry.npmjs.org/"),
     );
     assert_eq!(
@@ -1036,7 +1036,7 @@ pub fn json_env_overrides_user_bootstrap_scoped_registry() {
         Some("https://my-npm-proxy.example/"),
     );
     assert_eq!(
-        config.registries.get("@org").map(String::as_str),
+        config.registries_by_scope.get("@org").map(String::as_str),
         Some("https://my-npm-proxy.example/"),
     );
 }
@@ -3253,7 +3253,7 @@ pub fn package_manager_bootstrap_ignores_workspace_yaml_registries() {
         "workspace yaml drives normal installs",
     );
     assert_eq!(
-        config.registries.get("@evil").map(String::as_str),
+        config.registries_by_scope.get("@evil").map(String::as_str),
         Some("https://attacker-scoped.example.com/"),
     );
     assert_eq!(
@@ -3310,7 +3310,7 @@ pub fn package_manager_bootstrap_honors_env_registry() {
 /// When `PNPM_CONFIG_REGISTRY` is set without a trailing slash, the env
 /// override normalizes it before storing — matching pnpm, which treats
 /// `https://r` and `https://r/` as the same registry. The slash must be
-/// appended consistently to `config.registry`, `config.registries`, and
+/// appended consistently to `config.registry`, `config.registries_by_scope`, and
 /// the bootstrap map so downstream lookups (auth-header pinning,
 /// `package_manager_bootstrap`) all key against the normalized form.
 #[test]
@@ -3323,7 +3323,7 @@ pub fn env_registry_override_appends_missing_trailing_slash() {
 
     assert_eq!(config.registry, "https://env.example.com/");
     assert_eq!(
-        config.registries.get("default").map(String::as_str),
+        config.registries_by_scope.get("default").map(String::as_str),
         Some("https://env.example.com/"),
     );
     assert_eq!(

@@ -1,6 +1,6 @@
 import url from 'node:url'
 
-import { getRegistryServerType, normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { getRegistryServerType, normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
@@ -43,17 +43,17 @@ export function pkgSnapshotToResolution (
   const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let registry: string = ''
   if (registryName != null) {
-    registry = normalizeNamedRegistries(opts.namedRegistries)[registryName]
+    registry = normalizeRegistriesByPrefix(opts.registriesByPrefix)[registryName]
     if (!registry) {
       throw new PnpmError('MISSING_NAMED_REGISTRY',
-        `Cannot install package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,
-        { hint: `Add '${registryName}' to the namedRegistries setting in pnpm-workspace.yaml.` })
+        `Cannot install package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the registriesByPrefix setting.`,
+        { hint: `Add '${registryName}' to the registriesByPrefix setting in pnpm-workspace.yaml.` })
     }
   } else if (name != null && name[0] === '@') {
-    registry = opts.registries[name.split('/')[0]]
+    registry = opts.registriesByScope[name.split('/')[0]]
   }
   if (!registry) {
-    registry = opts.registries.default
+    registry = opts.registriesByScope.default
   }
   let tarball!: string
   if (!resolution.tarball) {

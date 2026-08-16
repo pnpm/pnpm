@@ -315,7 +315,7 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
                     resolve_options,
                     manifest_hook: rewrite_manifest_hook.as_ref(),
                     registries,
-                    registry_options: &config.registry_options,
+                    registry_options_by_url: &config.registry_options_by_url,
                     lockfile_include_tarball_url: config.lockfile_include_tarball_url,
                 },
                 catalogs,
@@ -339,7 +339,7 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
             resolve_options,
             manifest_hook: rewrite_manifest_hook.as_ref(),
             registries,
-            registry_options: &config.registry_options,
+            registry_options_by_url: &config.registry_options_by_url,
             lockfile_include_tarball_url: config.lockfile_include_tarball_url,
         },
         parsed_overrides: parsed_overrides?,
@@ -420,7 +420,7 @@ pub(super) struct ResolvePassInputs<'a> {
         BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
     pub update_depth: pnpm_resolving_deps_resolver::UpdateDepth,
     pub registries: HashMap<String, String>,
-    pub named_registries: HashMap<String, String>,
+    pub registries_by_prefix: HashMap<String, String>,
 }
 
 /// Walk every importer's dependencies through the resolver chain.
@@ -458,7 +458,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         update_reuse_scopes_by_importer,
         update_depth,
         registries,
-        named_registries,
+        registries_by_prefix,
     } = inputs;
 
     let workspace_importers: Vec<pnpm_resolving_deps_resolver::WorkspaceImporter<'_>> =
@@ -479,8 +479,8 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     let workspace_opts = pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
         registry_context: pnpm_lockfile::RegistryContext {
             registries,
-            named_registries,
-            registry_options: config.registry_options.clone(),
+            registries_by_prefix,
+            registry_options_by_url: config.registry_options_by_url.clone(),
         },
         dedupe_peers: config.dedupe_peers,
         dedupe_injected_deps: config.dedupe_injected_deps,

@@ -28,7 +28,7 @@ test('getOptionsFromPnpmSettings() ignores env variables inside registries value
       '@scope': 'https://registry.example.com/${PNPM_TEST_TOKEN}/',
     },
   }) as any // eslint-disable-line
-  expect(options.registries).toStrictEqual({
+  expect(options.registriesByScope).toStrictEqual({
     default: 'https://registry.npmjs.org/',
   })
 })
@@ -40,7 +40,7 @@ test('getOptionsFromPnpmSettings() ignores env variables inside namedRegistries 
       work: 'https://${PNPM_TEST_HOST}/npm/',
     },
   } as any) as any // eslint-disable-line
-  expect(options.namedRegistries).toStrictEqual({})
+  expect(options.registriesByPrefix).toBeUndefined()
 })
 
 test('getOptionsFromPnpmSettings() ignores env variables inside registry setting', () => {
@@ -73,10 +73,10 @@ test('getOptionsFromPnpmSettings() may expand env variables inside trusted reque
   } as any, { expandRequestDestinationEnv: true }) as any // eslint-disable-line
   expect(options.pnprServer).toBe('https://registry.example.com/pnpr/')
   expect(options.registry).toBe('https://registry.example.com/npm/')
-  expect(options.registries).toStrictEqual({
+  expect(options.registriesByScope).toStrictEqual({
     '@scope': 'https://registry.example.com/scope/',
   })
-  expect(options.namedRegistries).toStrictEqual({
+  expect(options.registriesByPrefix).toStrictEqual({
     work: 'https://registry.example.com/work/',
   })
 })
@@ -306,7 +306,7 @@ test('getOptionsFromPnpmSettings() keys the registry options by normalized regis
       'https://artifactory.example/artifactory/api/npm/npm-virtual': { serverType: 'artifactory' },
     },
   })
-  expect(options.registryOptions).toStrictEqual({
+  expect(options.registryOptionsByUrl).toStrictEqual({
     'https://artifactory.example/artifactory/api/npm/npm-virtual/': { serverType: 'artifactory' },
   })
 })
@@ -355,7 +355,7 @@ test('getOptionsFromPnpmSettings() drops a registries entry whose URL has an une
       'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
     },
   })
-  expect(options.registryOptions).toBeUndefined()
+  expect(options.registryOptionsByUrl).toBeUndefined()
 })
 
 test('getOptionsFromPnpmSettings() expands the registries key when request destinations may be expanded', () => {
@@ -365,7 +365,7 @@ test('getOptionsFromPnpmSettings() expands the registries key when request desti
       'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
     },
   }, { expandRequestDestinationEnv: true })
-  expect(options.registryOptions).toStrictEqual({
+  expect(options.registryOptionsByUrl).toStrictEqual({
     'https://artifactory.example/': { serverType: 'artifactory' },
   })
 })
@@ -385,7 +385,7 @@ test('getOptionsFromPnpmSettings() does not mistake an @ later in the path for c
       'https://npm.example.com/scope@1/': { serverType: 'artifactory' },
     },
   })
-  expect(options.registryOptions).toStrictEqual({
+  expect(options.registryOptionsByUrl).toStrictEqual({
     'https://npm.example.com/scope@1/': { serverType: 'artifactory' },
   })
 })
@@ -421,7 +421,7 @@ test('getOptionsFromPnpmSettings() accepts a scheme-less registries key without 
       '//npm.example.com/': { serverType: 'artifactory' },
     },
   })
-  expect(options.registryOptions).toStrictEqual({
+  expect(options.registryOptionsByUrl).toStrictEqual({
     '//npm.example.com/': { serverType: 'artifactory' },
   })
 })
@@ -451,7 +451,7 @@ test('getOptionsFromPnpmSettings() routes the declared scopes to the registry', 
       'https://npm.corp.example': { scopes: ['@', '@foo', '@bar'], serverType: 'npm' },
     },
   }) as any // eslint-disable-line
-  expect(options.registries).toStrictEqual({
+  expect(options.registriesByScope).toStrictEqual({
     default: 'https://npm.corp.example/',
     '@foo': 'https://npm.corp.example/',
     '@bar': 'https://npm.corp.example/',
@@ -484,8 +484,8 @@ test('getOptionsFromPnpmSettings() reads a declared prefix as a named registry',
       'https://npm.corp.example': { prefix: 'work', serverType: 'artifactory' },
     },
   })
-  expect(options.namedRegistries).toStrictEqual({ work: 'https://npm.corp.example' })
-  expect(options.registryOptions).toStrictEqual({
+  expect(options.registriesByPrefix).toStrictEqual({ work: 'https://npm.corp.example' })
+  expect(options.registryOptionsByUrl).toStrictEqual({
     'https://npm.corp.example/': { serverType: 'artifactory' },
   })
 })
@@ -509,7 +509,7 @@ test('getOptionsFromPnpmSettings() lets a declared prefix win over the deprecate
       'https://npm.corp.example/': { prefix: 'work' },
     },
   })
-  expect(options.namedRegistries).toStrictEqual({
+  expect(options.registriesByPrefix).toStrictEqual({
     work: 'https://npm.corp.example/',
     other: 'https://other.example/',
   })
@@ -521,7 +521,7 @@ test('getOptionsFromPnpmSettings() records no options for a registry that only d
       'https://npm.corp.example/': { scopes: ['@foo'] },
     },
   })
-  expect(options.registryOptions).toBeUndefined()
+  expect(options.registryOptionsByUrl).toBeUndefined()
 })
 
 test('getOptionsFromPnpmSettings() rejects an unknown field in a registry declaration', () => {

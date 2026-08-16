@@ -2,11 +2,11 @@ import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { RequestPackageFunction } from '@pnpm/store.controller-types'
-import type { DepPath, ProjectId, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 
 import { tryFastUpdateOverrides } from '../../src/install/tryFastUpdateOverrides.js'
 
-const registries: Registries = { default: 'https://registry.npmjs.org/' }
+const registriesByScope: RegistriesByScope = { default: 'https://registry.npmjs.org/' }
 
 /** An override bumping `foo` from 1.0.0 to 2.0.0, in the shape the fast path accepts. */
 const overrides = { foo: '2.0.0' }
@@ -40,7 +40,7 @@ function opts (requestPackage: RequestPackageFunction) {
     lockfileDir: '/test',
     overrides,
     parsedOverrides,
-    registries,
+    registriesByScope,
     requestPackage,
     isLockfileUpToDate: async () => true,
   } as never

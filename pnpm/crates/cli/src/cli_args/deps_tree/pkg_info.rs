@@ -35,7 +35,7 @@ pub(crate) struct PkgInfoEnv<'a> {
     pub registries: HashMap<String, String>,
     /// Per-registry tarball layouts from the `registries` setting, used
     /// when a lockfile entry's omitted tarball URL is rebuilt for display.
-    pub registry_options: BTreeMap<String, RegistryOptions>,
+    pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
     /// depPaths of packages skipped by the installer (unsupported
     /// platform optional deps).
     pub skipped: HashSet<String>,
@@ -202,7 +202,7 @@ fn resolved_tarball_url(
                 version,
                 TarballUrlOptions {
                     registry: &registry,
-                    server_type: registry_server_type(&env.registry_options, &registry),
+                    server_type: registry_server_type(&env.registry_options_by_url, &registry),
                 },
             ))
         }

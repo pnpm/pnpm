@@ -9,7 +9,7 @@ use super::{import_method_name, project_config};
 fn config_with_auth(by_scope: AuthHeadersByScope) -> Config {
     Config {
         registry: "https://reg.example/npm/".to_string(),
-        registries: BTreeMap::from([(
+        registries_by_scope: BTreeMap::from([(
             "@scope".to_string(),
             "https://reg.example/scoped/".to_string(),
         )]),

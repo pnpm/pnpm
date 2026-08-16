@@ -55,7 +55,7 @@ test('rebuilds dependencies', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: false,
-    registries: modulesManifest!.registries!,
+    registriesByScope: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, [gitDepPath]: true },
   }, [])
@@ -144,7 +144,7 @@ test('rebuilds dependencies in the global virtual store', async () => {
     dir: process.cwd(),
     enableGlobalVirtualStore: true,
     pending: false,
-    registries: modulesManifest!.registries!,
+    registriesByScope: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
@@ -265,7 +265,7 @@ test('skipIfHasSideEffectsCache', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: true,
-    registries: modulesManifest!.registries!,
+    registriesByScope: modulesManifest!.registries!,
     skipIfHasSideEffectsCache: true,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
@@ -304,7 +304,7 @@ test('rebuild does not fail when a linked package is present', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: false,
-    registries: modulesManifest!.registries!,
+    registriesByScope: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { 'local-pkg': true, 'is-positive': true },
   }, [])
@@ -336,7 +336,7 @@ test('rebuilds specific dependencies', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: false,
-    registries: modulesManifest!.registries!,
+    registriesByScope: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { [gitDepPath]: true },
   }, ['install-scripts-example-for-pnpm'])
@@ -397,7 +397,7 @@ test('rebuild with pending option', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: true,
-    registries: modules!.registries!,
+    registriesByScope: modules!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, [gitDepPath]: true },
   }, [])
@@ -451,7 +451,7 @@ test('rebuild dependencies in correct order', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: false,
-    registries: modules!.registries!,
+    registriesByScope: modules!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/with-postinstall-a': true, '@pnpm.e2e/with-postinstall-b': true },
   }, [])
@@ -493,7 +493,7 @@ test('rebuild links bins', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: true,
-    registries: modules!.registries!,
+    registriesByScope: modules!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/has-generated-bins-as-dep': true, '@pnpm.e2e/generated-bins': true },
   }, [])
@@ -534,7 +534,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
     cacheDir,
     dir: process.cwd(),
     pending: true,
-    registries: modules!.registries!,
+    registriesByScope: modules!.registries!,
     reporter,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, '@pnpm.e2e/not-compatible-with-any-os': true },
@@ -578,7 +578,7 @@ test('rebuilds in the global virtual store when the approval was granted after t
     dir: process.cwd(),
     enableGlobalVirtualStore: true,
     pending: false,
-    registries: modulesManifest!.registries!,
+    registriesByScope: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
@@ -630,7 +630,7 @@ test('rebuild refuses a lockfile depPath name that escapes the virtual store', a
     cacheDir,
     dir: process.cwd(),
     pending: false,
-    registries: modulesManifest!.registries!,
+    registriesByScope: modulesManifest!.registries!,
     storeDir,
     // Approve the build, so that what stops the script is the contained
     // join and not the build policy. The key has to carry the version:

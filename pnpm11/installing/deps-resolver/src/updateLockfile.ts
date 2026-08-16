@@ -1,4 +1,4 @@
-import { getRegistryServerType, normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { getRegistryServerType, normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import {
   type LockfileObject,
@@ -7,7 +7,7 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import type { DepPath, Registries, RegistryContext, RegistryServerType } from '@pnpm/types'
+import type { DepPath, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
 
@@ -16,7 +16,7 @@ import type { DependenciesGraph } from './index.js'
 import type { ResolvedPackage } from './resolveDependencies.js'
 
 export function updateLockfile (
-  { dependenciesGraph, lockfile, prefix, registries, namedRegistries, registryOptions, lockfileIncludeTarballUrl }: RegistryContext & {
+  { dependenciesGraph, lockfile, prefix, registriesByScope, registriesByPrefix, registryOptionsByUrl, lockfileIncludeTarballUrl }: RegistryContext & {
     dependenciesGraph: DependenciesGraph
     lockfile: LockfileObject
     prefix: string
@@ -24,7 +24,7 @@ export function updateLockfile (
   }
 ): LockfileObject {
   lockfile.packages = lockfile.packages ?? {}
-  const mergedNamedRegistries = normalizeNamedRegistries(namedRegistries)
+  const mergedRegistriesByPrefix = normalizeRegistriesByPrefix(registriesByPrefix)
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias) || depNode.peerDependencies[child.alias]?.optional === true,
@@ -35,15 +35,15 @@ export function updateLockfile (
     // checked against its named registry, everything else against the
     // scope-routed one.
     const registryName = dp.parse(depPath).registryName
-    const registry = (registryName != null ? mergedNamedRegistries[registryName] : undefined) ??
-      dp.getRegistryByPackageName(registries, depNode.name)
+    const registry = (registryName != null ? mergedRegistriesByPrefix[registryName] : undefined) ??
+      dp.getRegistryByPackageName(registriesByScope, depNode.name)
     lockfile.packages[depPath as DepPath] = toLockfileDependency(depNode, {
       depGraph: dependenciesGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath as DepPath],
-      registries,
+      registriesByScope,
       registry,
-      serverType: getRegistryServerType({ registryOptions }, registry),
+      serverType: getRegistryServerType({ registryOptionsByUrl }, registry),
       registryName,
       updatedDeps,
       updatedOptionalDeps,
@@ -63,7 +63,7 @@ function toLockfileDependency (
     registry: string
     serverType?: RegistryServerType
     registryName?: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph

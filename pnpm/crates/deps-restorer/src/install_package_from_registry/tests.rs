@@ -75,10 +75,10 @@ fn create_config(
         lockfile_include_tarball_url: false,
         registry: "https://registry.npmjs.com/".to_string(),
         scope: None,
-        registries: Default::default(),
+        registries_by_scope: Default::default(),
         pnpr_server: None,
-        named_registries: Default::default(),
-        registry_options: Default::default(),
+        registries_by_prefix: Default::default(),
+        registry_options_by_url: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,
         exclude_links_from_lockfile: false,
@@ -194,7 +194,7 @@ async fn resolve_via_mock(
     registries.insert("default".to_string(), registry.to_string());
     let resolver = NpmResolver {
         registries,
-        named_registries: HashMap::new(),
+        registries_by_prefix: HashMap::new(),
         http_client,
         auth_headers: Default::default(),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),

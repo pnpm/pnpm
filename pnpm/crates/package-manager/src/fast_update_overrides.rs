@@ -49,7 +49,7 @@ pub(crate) struct RewriteContext<'a> {
     pub resolve_options: &'a ResolveOptions,
     pub manifest_hook: Option<&'a ManifestHook>,
     pub registries: &'a HashMap<String, String>,
-    pub registry_options: &'a BTreeMap<String, RegistryOptions>,
+    pub registry_options_by_url: &'a BTreeMap<String, RegistryOptions>,
     pub lockfile_include_tarball_url: bool,
 }
 
@@ -419,7 +419,7 @@ fn rewrite_lockfile(
                 &new_key.suffix.version().to_string(),
                 LockfileFormOptions {
                     registry: &registry,
-                    server_type: registry_server_type(context.registry_options, &registry),
+                    server_type: registry_server_type(context.registry_options_by_url, &registry),
                     include_tarball_url: context.lockfile_include_tarball_url,
                 },
             ),

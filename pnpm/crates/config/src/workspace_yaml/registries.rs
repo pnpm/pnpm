@@ -115,8 +115,8 @@ pub struct RegistryLookups {
     /// registry's URL is what a lockfile's recorded tarball URLs are matched
     /// against, so normalizing it would change what an existing lockfile
     /// verifies against.
-    pub named_registries: BTreeMap<String, String>,
-    pub registry_options: BTreeMap<String, RegistryOptions>,
+    pub registries_by_prefix: BTreeMap<String, String>,
+    pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
 }
 
 /// Reject a `registries` map pnpm would otherwise read as something other
@@ -221,7 +221,7 @@ pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups
         let normalized = normalize_registry_url(&registry);
         if let Some(server_type) = declaration.server_type {
             lookups
-                .registry_options
+                .registry_options_by_url
                 .insert(normalized.clone(), RegistryOptions { server_type: Some(server_type) });
         }
         for scope in declaration.scopes.into_iter().flatten() {
@@ -232,7 +232,7 @@ pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups
             }
         }
         if let Some(prefix) = declaration.prefix {
-            lookups.named_registries.insert(prefix, registry);
+            lookups.registries_by_prefix.insert(prefix, registry);
         }
     }
     lookups

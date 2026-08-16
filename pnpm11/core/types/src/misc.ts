@@ -14,18 +14,18 @@ export const DEPENDENCIES_OR_PEER_FIELDS: DependenciesOrPeersField[] = [
   'peerDependencies',
 ]
 
-export interface Registries {
+export interface RegistriesByScope {
   default: string
   [scope: string]: string
 }
 
 /**
- * The required keys are the enforcement: a raw `namedRegistries` from user
+ * The required keys are the enforcement: a raw `registriesByPrefix` from user
  * config does not satisfy this type, so it cannot reach a consumer without
- * passing through `normalizeNamedRegistries`. Widening it is how adding a
+ * passing through `normalizeRegistriesByPrefix`. Widening it is how adding a
  * built-in gets acknowledged.
  */
-export interface NamedRegistries {
+export interface RegistriesByPrefix {
   gh: string
   npmjs: string
   [name: string]: string
@@ -65,7 +65,7 @@ export interface RegistryOptions {
  * a registry, keyed by its URL so each fact is stated once.
  *
  * `scopes` and `prefix` are the routes *to* the registry, and are inverted
- * into {@link Registries} and {@link NamedRegistries} when the config is read
+ * into {@link RegistriesByScope} and {@link RegistriesByPrefix} when the config is read
  * — a scope resolves to one registry, but a registry serves many, so the
  * declaration reads the way it is written and each lookup keeps the shape it
  * is queried in.
@@ -98,10 +98,10 @@ export interface RegistryDeclaration extends RegistryOptions {
  * in the wrong layout — so neither end should be written out by hand.
  */
 export interface RegistryContext {
-  registries: Registries
+  registriesByScope: RegistriesByScope
   /** As the user wrote it; built-in aliases are merged in at lookup. */
-  namedRegistries?: Record<string, string>
-  registryOptions?: Record<string, RegistryOptions>
+  registriesByPrefix?: Record<string, string>
+  registryOptionsByUrl?: Record<string, RegistryOptions>
 }
 
 /** Parsed value of `_auth` of each registry in the rc file. */

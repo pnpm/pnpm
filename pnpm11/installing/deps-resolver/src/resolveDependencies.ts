@@ -1027,7 +1027,7 @@ async function resolveDependenciesOfDependency (
     wantedDepIsLocallyAvailable(
       ctx.workspacePackages,
       extendedWantedDep.wantedDependency,
-      { defaultTag: ctx.defaultTag, registry: ctx.registries.default }
+      { defaultTag: ctx.defaultTag, registry: ctx.registriesByScope.default }
     )
   ) || ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name!)
 
@@ -1167,7 +1167,7 @@ function wantedDependencyMatchesUpdateTarget (
 ): boolean {
   const { alias, bareSpecifier } = wantedDependency
   const spec = alias && bareSpecifier
-    ? parseBareSpecifier(bareSpecifier, alias, ctx.defaultTag ?? 'latest', ctx.registries.default)
+    ? parseBareSpecifier(bareSpecifier, alias, ctx.defaultTag ?? 'latest', ctx.registriesByScope.default)
     : null
   const name = spec?.name ?? alias
   return name != null && updateMatching(name, undefined)

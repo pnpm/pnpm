@@ -555,7 +555,7 @@ impl NpmrcAuth {
             config.registry =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };
         }
-        config.registries.append(&mut self.scoped_registries);
+        config.registries_by_scope.append(&mut self.scoped_registries);
         for message in std::mem::take(&mut self.warnings) {
             tracing::warn!(target: "pacquet::npmrc", "{message}");
         }
@@ -570,7 +570,7 @@ impl NpmrcAuth {
             if scope == "default" {
                 config.registry.clone_from(&url);
             }
-            config.registries.insert(scope, url);
+            config.registries_by_scope.insert(scope, url);
         }
     }
 

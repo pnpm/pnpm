@@ -68,7 +68,7 @@ test('dist-tag ls: should use package-scoped auth', async () => {
           '@scope': { authToken: 'scoped-token' },
         },
       },
-      registries: { default: 'https://registry.example.com/' },
+      registriesByScope: { default: 'https://registry.example.com/' },
     }, ['ls', '@scope/pkg'])
 
     expect(result).toBe('latest: 1.0.0')

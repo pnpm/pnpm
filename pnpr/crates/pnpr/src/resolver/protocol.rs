@@ -53,10 +53,9 @@ pub struct ResolveRequest {
     /// The client's default registry. Falls back to npmjs when absent.
     #[serde(default)]
     pub registry: Option<String>,
-    /// The client's named-registry aliases (`pnpm-workspace.yaml`
-    /// `namedRegistries`).
+    /// The registries the client addresses by a bare-specifier prefix.
     #[serde(default)]
-    pub named_registries: BTreeMap<String, String>,
+    pub registries_by_prefix: BTreeMap<String, String>,
     /// The caller's forwarded upstream credentials so the server resolves
     /// and fetches private content as the caller. Keyed as
     /// `auth_headers[registry_uri][scope]`; the `@` scope stores

@@ -2,7 +2,7 @@ import type { Fetchers, FetchOptions, FetchResult, ResolutionFetchContract } fro
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { Resolution, WantedDependency } from '@pnpm/resolving.resolver-base'
 import type { Cafs } from '@pnpm/store.cafs-types'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 
 // Custom resolution types must use scoped naming to avoid conflicts with pnpm's built-in types
 export type CustomResolutionType = `@${string}/${string}`
@@ -15,7 +15,7 @@ export interface PreResolutionHookContext {
   existsNonEmptyWantedLockfile: boolean
   lockfileDir: string
   storeDir: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
 }
 
 export interface PreResolutionHookLogger {

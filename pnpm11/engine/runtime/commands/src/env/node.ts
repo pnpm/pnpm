@@ -25,7 +25,7 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'cacheDir'
 | 'configDir'
 // Fields needed to forward opts to add.handler for env use
-| 'registries'
+| 'registriesByScope'
 | 'lockfileDir'
 | 'nodeLinker'
 | 'modulesDir'

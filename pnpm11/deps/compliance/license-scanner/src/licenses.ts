@@ -6,7 +6,7 @@ import type {
   IncludedDependencies,
   ProjectId,
   ProjectManifest,
-  Registries,
+  RegistriesByScope,
   SupportedArchitectures,
 } from '@pnpm/types'
 import semver from 'semver'
@@ -81,8 +81,8 @@ export async function findDependencyLicenses (opts: {
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
-  registries: Registries
-  namedRegistries?: Record<string, string>
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   wantedLockfile: LockfileObject | null
   includedImporterIds?: ProjectId[]
   supportedArchitectures?: SupportedArchitectures
@@ -102,8 +102,8 @@ export async function findDependencyLicenses (opts: {
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     include: opts.include,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     includedImporterIds: opts.includedImporterIds,
     supportedArchitectures: opts.supportedArchitectures,
     depTypes,

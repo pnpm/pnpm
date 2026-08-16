@@ -14,7 +14,7 @@ import type {
   PackageManifest,
   PackageVersionPolicy,
   ReadPackageHook,
-  Registries,
+  RegistriesByScope,
   RegistryOptions,
   RegistryServerType,
   TrustPolicy,
@@ -54,8 +54,8 @@ export type FastRewriteOptions = ResolverPolicyOptions & {
   lockfileIncludeTarballUrl?: boolean
   isLockfileUpToDate: (lockfile: LockfileObject) => Promise<boolean>
   readPackageHook?: ReadPackageHook
-  registries: Registries
-  registryOptions?: Record<string, RegistryOptions>
+  registriesByScope: RegistriesByScope
+  registryOptionsByUrl?: Record<string, RegistryOptions>
   requestPackage: RequestPackageFunction
   verifyLockfile?: (lockfile: LockfileObject) => Promise<void>
 }
@@ -124,8 +124,8 @@ export async function applyFastRewrite (
   const packages = rewritePackages(lockfile.packages ?? {}, {
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
     manifests,
-    registries: opts.registries,
-    registryOptions: opts.registryOptions,
+    registriesByScope: opts.registriesByScope,
+    registryOptionsByUrl: opts.registryOptionsByUrl,
     rewriteContext,
   })
   if (packages == null) return false
@@ -426,8 +426,8 @@ function rewritePackages (
       manifest: PackageManifest
       resolution: Awaited<ReturnType<RequestPackageFunction>>['body']['resolution']
     }>
-    registries: Registries
-    registryOptions?: Record<string, RegistryOptions>
+    registriesByScope: RegistriesByScope
+    registryOptionsByUrl?: Record<string, RegistryOptions>
     rewriteContext: RewriteContext
   }
 ): Record<DepPath, PackageSnapshot> | null {
@@ -464,7 +464,7 @@ function rewritePackages (
     })
     if (dependencies === null || optionalDependencies === null) return null
 
-    const registry = dp.getRegistryByPackageName(opts.registries, name)
+    const registry = dp.getRegistryByPackageName(opts.registriesByScope, name)
     const newSnapshot = createPackageSnapshot(oldSnapshot, {
       dependencies,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,

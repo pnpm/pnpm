@@ -118,12 +118,12 @@ fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
 
     // The default registry lives in `config.registry`; the `registries`
     // map carries it only when something set a `default` key explicitly.
-    let default_entry = (!config.registries.contains_key("default"))
+    let default_entry = (!config.registries_by_scope.contains_key("default"))
         .then(|| ("default".to_string(), config.registry.clone()));
     let registries = default_entry
         .iter()
         .map(|(name, url)| (name, url))
-        .chain(config.registries.iter())
+        .chain(config.registries_by_scope.iter())
         .map(|(name, url)| {
             let uri = nerf_dart(url);
             let scoped = by_scope.get(&uri);

@@ -7,7 +7,7 @@ import type {
   ProjectManifest,
   ProjectRootDir,
   ProjectsGraph,
-  Registries,
+  RegistriesByScope,
   RegistryConfig,
   RegistryOptions,
   TrustPolicy,
@@ -251,23 +251,23 @@ export interface Config extends OptionsFromRootManifest {
 
   pnprServer?: string
 
-  registries: Registries
-  packageManagerRegistries?: Registries
+  registriesByScope: RegistriesByScope
+  packageManagerRegistries?: RegistriesByScope
   packageManagerNetworkConfig?: PackageManagerNetworkConfig
   /**
    * As the user wrote it. Built-ins are filled in by
-   * `normalizeNamedRegistries` where a lookup happens, not here — this value
+   * `normalizeRegistriesByPrefix` where a lookup happens, not here — this value
    * is also forwarded to a pnpr server, which must only be asked about
    * registries the project actually declares.
    */
-  namedRegistries?: Record<string, string>
+  registriesByPrefix?: Record<string, string>
   /**
    * Non-secret per-registry settings from `pnpm-workspace.yaml`, keyed by
    * normalized registry URL. Deliberately not folded into `configByUri`: that
    * one carries credentials, and the install and lockfile layers that need a
    * registry's tarball layout must not be handed its secrets.
    */
-  registryOptions?: Record<string, RegistryOptions>
+  registryOptionsByUrl?: Record<string, RegistryOptions>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean

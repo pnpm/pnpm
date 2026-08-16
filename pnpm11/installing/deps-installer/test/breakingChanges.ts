@@ -72,7 +72,7 @@ test('forced modules repair never follows a modules directory symlink', async ()
       forceNewModules: true,
       lockfileDir: projectRoot,
       modulesDir,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       storeDir: opts.storeDir,
       virtualStoreDir: path.join(modulesDir, '.pnpm'),
       virtualStoreDirMaxLength: 2,

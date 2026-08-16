@@ -450,12 +450,12 @@ const DEFAULT_REGISTRY_SERVER_TYPES: &[(&str, RegistryServerType)] =
 /// predicate that acts on them, so that a code path which never threads
 /// `registryOptions` still gets them.
 ///
-/// `registry_options` is keyed by registry URL with a trailing slash, the way
+/// `registry_options_by_url` is keyed by registry URL with a trailing slash, the way
 /// the config reader normalizes it, so the lookup normalizes its query to
 /// match.
 #[must_use]
 pub fn registry_server_type(
-    registry_options: &BTreeMap<String, RegistryOptions>,
+    registry_options_by_url: &BTreeMap<String, RegistryOptions>,
     registry: &str,
 ) -> Option<RegistryServerType> {
     let key = if registry.ends_with('/') {
@@ -463,7 +463,7 @@ pub fn registry_server_type(
     } else {
         Cow::Owned(format!("{registry}/"))
     };
-    registry_options.get(key.as_ref()).copied().unwrap_or_default().server_type
+    registry_options_by_url.get(key.as_ref()).copied().unwrap_or_default().server_type
 }
 
 /// A declared server type wins; otherwise the built-in layout of a known
@@ -496,8 +496,8 @@ fn effective_server_type(opts: TarballUrlOptions<'_>) -> Option<RegistryServerTy
 pub struct RegistryContext {
     pub registries: HashMap<String, String>,
     /// As the user wrote it; built-in aliases are merged in at lookup.
-    pub named_registries: HashMap<String, String>,
-    pub registry_options: BTreeMap<String, RegistryOptions>,
+    pub registries_by_prefix: HashMap<String, String>,
+    pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
 }
 
 /// Where a package's tarball lives: the registry it resolved from, and the URL

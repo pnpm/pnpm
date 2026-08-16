@@ -790,7 +790,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             init_store_dir_best_effort(store_dir).await;
         }
 
-        let resolver_setup::Registries { by_scope: registries, named: merged_named_registries } =
+        let resolver_setup::Registries { by_scope: registries, named: merged_registries_by_prefix } =
             resolver_setup::resolve_registries(config)?;
 
         // `resolutionMode` / `minimumReleaseAge` derivations. `time_based`
@@ -847,7 +847,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             requester,
             supported_architectures,
             registries: &registries,
-            named_registries: &merged_named_registries,
+            registries_by_prefix: &merged_registries_by_prefix,
             full_metadata,
             wanted_lockfile,
             store_index: store_index_ref,
@@ -1065,7 +1065,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_reuse_scopes_by_importer,
             update_depth: update_seed_policy.max_depth(),
             registries,
-            named_registries: merged_named_registries.clone(),
+            registries_by_prefix: merged_registries_by_prefix.clone(),
         })
         .await?;
         crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
@@ -2145,16 +2145,18 @@ fn build_fresh_lockfile(
     }
     // Same merge the resolver chain performs; the config was already
     // validated at resolver construction, so skip re-validation here.
-    let named_registries: HashMap<String, String> =
-        pnpm_resolving_npm_resolver::BUILTIN_NAMED_REGISTRIES
+    let registries_by_prefix: HashMap<String, String> =
+        pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
             .iter()
             .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
-            .chain(config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())))
+            .chain(
+                config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())),
+            )
             .collect();
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
         graph,
-        registry_options: &config.registry_options,
+        registry_options_by_url: &config.registry_options_by_url,
         auto_install_peers: config.auto_install_peers,
         dedupe_peers: config.dedupe_peers,
         exclude_links_from_lockfile: config.exclude_links_from_lockfile,
@@ -2169,7 +2171,7 @@ fn build_fresh_lockfile(
         pnpmfile_checksum: pnpmfile_checksum.map(str::to_string),
         catalogs,
         registry: &config.registry,
-        named_registries: &named_registries,
+        registries_by_prefix: &registries_by_prefix,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
         previous_importers,
         previous_packages: wanted_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),

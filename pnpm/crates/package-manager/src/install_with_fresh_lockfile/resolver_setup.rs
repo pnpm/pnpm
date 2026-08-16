@@ -75,11 +75,11 @@ pub(super) struct Registries {
 pub(super) fn resolve_registries(
     config: &Config,
 ) -> Result<Registries, InstallWithFreshLockfileError> {
-    let user_named_registries: HashMap<String, String> =
-        config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
+    let user_registries_by_prefix: HashMap<String, String> =
+        config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
     Ok(Registries {
         by_scope: config.resolved_registries().into_iter().collect(),
-        named: merge_named_registries(&user_named_registries)
+        named: merge_named_registries(&user_registries_by_prefix)
             .map_err(InstallWithFreshLockfileError::InvalidNamedRegistry)?,
     })
 }
@@ -141,7 +141,7 @@ pub(super) struct ResolverChainInputs<'a> {
     pub requester: &'a str,
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub registries: &'a HashMap<String, String>,
-    pub named_registries: &'a HashMap<String, String>,
+    pub registries_by_prefix: &'a HashMap<String, String>,
     /// See `NpmResolver::full_metadata` — forced on when `time-based`
     /// resolution or the `no-downgrade` trust policy needs the
     /// per-version `time` field.
@@ -203,7 +203,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         requester,
         supported_architectures,
         registries,
-        named_registries,
+        registries_by_prefix,
         full_metadata,
         wanted_lockfile,
         store_index,
@@ -229,7 +229,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
 
     let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
         registries: registries.clone(),
-        named_registries: named_registries.clone(),
+        registries_by_prefix: registries_by_prefix.clone(),
         http_client: Arc::clone(http_client_arc),
         auth_headers: Arc::clone(auth_headers),
         meta_cache: Arc::clone(meta_cache),
@@ -304,8 +304,8 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
     let bun_resolver = BunResolver::new(Arc::clone(http_client_arc), Arc::clone(&npm_resolver));
     let yarn_resolver = YarnResolver::new(Arc::clone(http_client_arc));
     let named_registry_resolver = NamedRegistryResolver {
-        named_registries: named_registries.clone(),
-        registry_names: named_registries.keys().cloned().collect(),
+        registries_by_prefix: registries_by_prefix.clone(),
+        registry_names: registries_by_prefix.keys().cloned().collect(),
         http_client: Arc::clone(http_client_arc),
         auth_headers: Arc::clone(auth_headers),
         meta_cache: Arc::clone(meta_cache),

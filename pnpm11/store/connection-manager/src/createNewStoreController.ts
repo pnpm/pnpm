@@ -45,8 +45,8 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'packageImportMethod'
 | 'preferOffline'
 | 'preserveAbsolutePaths'
-| 'registries'
-| 'namedRegistries'
+| 'registriesByScope'
+| 'registriesByPrefix'
 | 'registrySupportsTimeField'
 | 'resolutionMode'
 | 'saveWorkspaceProtocol'
@@ -96,8 +96,8 @@ export async function createNewStoreController (
     offline: opts.offline,
     preferOffline: opts.preferOffline,
     configByUri: opts.configByUri,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

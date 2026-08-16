@@ -178,7 +178,7 @@ export function createResolver (
 }
 
 export type ResolutionVerifierFactoryOptions =
-  & Pick<ResolverFactoryOptions, 'cacheDir' | 'registries' | 'namedRegistries' | 'offline' | 'retry' | 'timeout' | 'fetchWarnTimeoutMs'>
+  & Pick<ResolverFactoryOptions, 'cacheDir' | 'registriesByScope' | 'registriesByPrefix' | 'offline' | 'retry' | 'timeout' | 'fetchWarnTimeoutMs'>
   & Pick<CreateNpmResolutionVerifierOptions,
   | 'minimumReleaseAge'
   | 'minimumReleaseAgeStrict'
@@ -225,8 +225,8 @@ export function createResolutionVerifiers (
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     fetchOpts,
     getAuthHeaderValueByURI,
     cacheDir: opts.cacheDir,

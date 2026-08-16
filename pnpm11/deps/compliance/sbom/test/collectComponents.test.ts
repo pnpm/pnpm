@@ -3,14 +3,14 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals'
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { collectSbomComponents } from '@pnpm/deps.compliance.sbom'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import type { DepPath, ProjectId, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 
-const registries: Registries = { default: 'https://registry.npmjs.org/' }
+const registriesByScope: RegistriesByScope = { default: 'https://registry.npmjs.org/' }
 
 /**
  * A project depending on `foo@1.0.0` from the default registry and on the
@@ -38,13 +38,13 @@ function lockfileWithBothRegistries (alias: string): LockfileObject {
   } as unknown as LockfileObject
 }
 
-function collect (alias: string, namedRegistries?: Record<string, string>) {
+function collect (alias: string, registriesByPrefix?: Record<string, string>) {
   return collectSbomComponents({
     lockfile: lockfileWithBothRegistries(alias),
     rootName: 'root',
     rootVersion: '1.0.0',
-    registries,
-    namedRegistries: normalizeNamedRegistries(namedRegistries),
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix(registriesByPrefix),
     lockfileDir: '/test',
     lockfileOnly: true,
   })
@@ -104,8 +104,8 @@ describe('collectSbomComponents integrity', () => {
       lockfile,
       rootName: 'root',
       rootVersion: '1.0.0',
-      registries,
-      namedRegistries: normalizeNamedRegistries(undefined),
+      registriesByScope,
+      registriesByPrefix: normalizeRegistriesByPrefix(undefined),
       lockfileDir: '/test',
       lockfileOnly: true,
     })
@@ -146,8 +146,8 @@ describe('collectSbomComponents integrity', () => {
       lockfile,
       rootName: 'root',
       rootVersion: '1.0.0',
-      registries,
-      namedRegistries: normalizeNamedRegistries(undefined),
+      registriesByScope,
+      registriesByPrefix: normalizeRegistriesByPrefix(undefined),
       lockfileDir: '/test',
       lockfileOnly: true,
     })
@@ -185,8 +185,8 @@ describe('verifiedIntegrity robustness', () => {
       lockfile,
       rootName: 'root',
       rootVersion: '1.0.0',
-      registries,
-      namedRegistries: normalizeNamedRegistries(undefined),
+      registriesByScope,
+      registriesByPrefix: normalizeRegistriesByPrefix(undefined),
       lockfileDir: '/test',
       lockfileOnly: true,
     })
@@ -273,7 +273,7 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
       lockfile: lockfileWithIncompatiblePackages(),
       rootName: 'root',
       rootVersion: '1.0.0',
-      registries,
+      registriesByScope,
       lockfileDir: '/tmp/project',
       storeDir,
       supportedArchitectures,
@@ -304,7 +304,7 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
       lockfile: lockfileWithIncompatiblePackages(),
       rootName: 'root',
       rootVersion: '1.0.0',
-      registries,
+      registriesByScope,
       lockfileDir: '/tmp/project',
       storeDir,
       supportedArchitectures,

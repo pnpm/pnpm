@@ -65,13 +65,13 @@ const ACME_PRIVATE_BODY: &str = r#"{
     reason = "nested test helper called many times; owned arg keeps the call sites and assert ergonomics simple"
 )]
 fn build_resolver(
-    user_named_registries: HashMap<String, String>,
+    user_registries_by_prefix: HashMap<String, String>,
 ) -> (NamedRegistryResolver<InMemoryPackageMetaCache>, TempDir) {
-    let merged = merge_named_registries(&user_named_registries).expect("URLs are valid");
+    let merged = merge_named_registries(&user_registries_by_prefix).expect("URLs are valid");
     let registry_names: HashSet<String> = merged.keys().cloned().collect();
     let cache_dir = TempDir::new().expect("tempdir");
     let resolver = NamedRegistryResolver {
-        named_registries: merged,
+        registries_by_prefix: merged,
         registry_names,
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),

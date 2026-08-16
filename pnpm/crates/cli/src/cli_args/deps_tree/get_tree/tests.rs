@@ -67,7 +67,7 @@ fn mock_env<'a>(dir: &Path, lockfile: &'a Lockfile) -> PkgInfoEnv<'a> {
         modules_dir: dir.join("node_modules"),
         virtual_store_dir: dir.join("node_modules/.pnpm"),
         virtual_store_dir_max_length: 120,
-        registry_options: std::collections::BTreeMap::new(),
+        registry_options_by_url: std::collections::BTreeMap::new(),
         registries: HashMap::from([(
             "default".to_string(),
             "https://mock-registry-for-testing.example/".to_string(),

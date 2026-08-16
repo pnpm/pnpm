@@ -21,8 +21,8 @@ export type LicensesCommandOptions = {
 | 'dev'
 | 'dir'
 | 'lockfileDir'
-| 'registries'
-| 'namedRegistries'
+| 'registriesByScope'
+| 'registriesByPrefix'
 | 'optional'
 | 'production'
 | 'storeDir'
@@ -75,8 +75,8 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     virtualStoreDir: opts.virtualStoreDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm'),
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     wantedLockfile: lockfile,
     manifest,
     includedImporterIds,

@@ -24,7 +24,7 @@ import {
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { registerProject, type StoreController } from '@pnpm/store.controller'
-import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import spawn from 'cross-spawn'
 import { familySync } from 'detect-libc'
 import semver from 'semver'
@@ -120,7 +120,7 @@ export async function installPnpmToStore (
     envLockfile: EnvLockfile
     storeController: StoreController
     storeDir: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     virtualStoreDirMaxLength: number
     packageManager?: { name: string, version: string }
   } & VerifyPnpmEngineIdentityOptions
@@ -157,7 +157,7 @@ export async function installPnpmToStore (
       allowBuilds: PNPM_ALLOW_BUILDS,
       storeController: opts.storeController,
       storeDir: opts.storeDir,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       packageManager: opts.packageManager,
     })
@@ -239,7 +239,7 @@ async function installPnpmToGlobalDir (
         allowBuilds: PNPM_ALLOW_BUILDS,
         storeController: opts.storeController,
         storeDir: opts.storeDir,
-        registries: opts.registries as Registries,
+        registriesByScope: opts.registriesByScope as RegistriesByScope,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         packageManager: opts.packageManager,
       })
@@ -262,7 +262,7 @@ async function installPnpmToGlobalDir (
     // Create hash symlink for the global packages system
     const pkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf8'))
     const aliases = Object.keys(pkgJson.dependencies ?? {})
-    const cacheHash = createGlobalCacheKey({ aliases, registries: opts.registries })
+    const cacheHash = createGlobalCacheKey({ aliases, registriesByScope: opts.registriesByScope })
     const hashLink = getHashLink(globalDir, cacheHash)
     await symlinkDir(installDir, hashLink, { overwrite: true })
 
@@ -340,7 +340,7 @@ async function installFromLockfile (
     allowBuilds?: Record<string, boolean | string>
     storeController: StoreController
     storeDir: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     virtualStoreDirMaxLength: number
     packageManager?: { name: string, version: string }
   }
@@ -354,7 +354,7 @@ async function installFromLockfile (
     lockfileDir: installDir,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     enableGlobalVirtualStore: true,
     globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
     allowBuilds: opts.allowBuilds,

@@ -24,7 +24,7 @@ import { readInstalledPackages } from './readInstalledPackages.js'
 export type GlobalAddOptions = CreateStoreControllerOptions & {
   bin?: string
   globalPkgDir?: string
-  registries: Record<string, string>
+  registriesByScope: Record<string, string>
   allowBuild?: string[]
   allowBuilds?: Record<string, string | boolean>
   saveExact?: boolean
@@ -158,7 +158,7 @@ async function installGroup (
 
   const cacheHash = createGlobalCacheKey({
     aliases,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
   })
   const hashLink = getHashLink(globalDir, cacheHash)
   const activatedBins = await activateGlobalInstall({

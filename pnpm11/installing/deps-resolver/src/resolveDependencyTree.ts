@@ -5,7 +5,7 @@ import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/c
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
-import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.npm-resolver'
+import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/resolving.npm-resolver'
 import type { PreferredVersions, Resolution, ResolutionPolicyViolation, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, AllowedDeprecatedVersions, PkgResolutionId, ProjectId, ProjectManifest, ProjectRootDir, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
@@ -201,8 +201,8 @@ export async function resolveDependencyTree<T> (
     ...pickRegistryContext(opts),
     namedRegistryPrefixes: Array.from(
       new Set([
-        ...Object.keys(BUILTIN_NAMED_REGISTRIES),
-        ...Object.keys(opts.namedRegistries ?? {}),
+        ...Object.keys(BUILTIN_REGISTRIES_BY_PREFIX),
+        ...Object.keys(opts.registriesByPrefix ?? {}),
       ])
     ).map((alias) => `${alias}:`),
     resolvedPkgsById: {} as ResolvedPkgsById,

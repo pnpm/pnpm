@@ -45,10 +45,10 @@ pub struct ResolveOptions {
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
     /// The client's default registry. The server resolves against this
-    /// (and `named_registries`) rather than its own configuration.
+    /// (and `registries_by_prefix`) rather than its own configuration.
     pub registry: String,
     /// The client's named-registry aliases.
-    pub named_registries: DepMap,
+    pub registries_by_prefix: DepMap,
     /// `Authorization` for the pnpr server's own URL (`None` if it needs
     /// none): identifies the caller to pnpr. The client never forwards its
     /// own registry credentials — pnpr selects upstream credentials from
@@ -110,7 +110,7 @@ pub struct ResolveProject {
 pub struct ResolveProjectsOptions {
     pub projects: Vec<ResolveProject>,
     pub registry: String,
-    pub named_registries: DepMap,
+    pub registries_by_prefix: DepMap,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub catalogs: Option<Catalogs>,
@@ -139,7 +139,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
                 optional_dependencies: opts.optional_dependencies,
             }],
             registry: opts.registry,
-            named_registries: opts.named_registries,
+            registries_by_prefix: opts.registries_by_prefix,
             authorization: opts.authorization,
             overrides: opts.overrides,
             catalogs: opts.catalogs,
@@ -163,7 +163,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
 #[derive(Clone)]
 pub struct VerifyLockfileOptions {
     pub registry: String,
-    pub named_registries: DepMap,
+    pub registries_by_prefix: DepMap,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub lockfile: Lockfile,
@@ -190,7 +190,7 @@ impl VerifyLockfileOptions {
     fn from_owned_resolve_projects_options(opts: ResolveProjectsOptions) -> Option<Self> {
         Some(Self {
             registry: opts.registry,
-            named_registries: opts.named_registries,
+            registries_by_prefix: opts.registries_by_prefix,
             authorization: opts.authorization,
             overrides: opts.overrides,
             lockfile: opts.lockfile?,
@@ -342,7 +342,7 @@ impl PnprClient {
     ) -> Result<(), PnprClientError> {
         let request = serde_json::json!({
             "registry": opts.registry,
-            "namedRegistries": opts.named_registries,
+            "namedRegistries": opts.registries_by_prefix,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "trustLockfile": opts.trust_lockfile,
@@ -435,7 +435,7 @@ impl PnprClient {
         let request = serde_json::json!({
             "projects": opts.projects,
             "registry": opts.registry,
-            "namedRegistries": opts.named_registries,
+            "namedRegistries": opts.registries_by_prefix,
             "overrides": opts.overrides,
             "catalogs": opts.catalogs,
             "lockfile": opts.lockfile,

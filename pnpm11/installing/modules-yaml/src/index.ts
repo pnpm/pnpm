@@ -6,7 +6,7 @@ import type {
   DepPath,
   HoistedDependencies,
   IgnoredBuilds,
-  Registries,
+  RegistriesByScope,
 } from '@pnpm/types'
 import isWindows from 'is-windows'
 import { map as mapValues } from 'ramda'
@@ -31,7 +31,7 @@ interface ModulesRaw {
   pendingBuilds: string[]
   ignoredBuilds?: DepPath[]
   prunedAt: string
-  registries?: Registries // nullable for backward compatibility
+  registries?: RegistriesByScope // nullable for backward compatibility
   shamefullyHoist?: boolean // for backward compatibility
   publicHoistPattern?: string[]
   skipped: string[]
@@ -109,7 +109,7 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
 }
 
 export interface StrictModules extends Modules {
-  registries: Registries
+  registries: RegistriesByScope
 }
 
 export async function writeModulesManifest (

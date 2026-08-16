@@ -278,7 +278,7 @@ impl ListArgs {
         let env = state.env(
             lockfile_dir,
             config.virtual_store_dir_max_length as usize,
-            config.registry_options.clone(),
+            config.registry_options_by_url.clone(),
         );
 
         let mut hierarchies: Vec<(PathBuf, DependenciesHierarchy)> = Vec::new();

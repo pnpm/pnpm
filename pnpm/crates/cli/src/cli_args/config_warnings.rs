@@ -9,7 +9,7 @@
 use pnpm_config::Config;
 use pnpm_default_reporter::colors::Colors;
 use pnpm_network::redact_and_sanitize;
-use pnpm_resolving_npm_resolver::BUILTIN_NAMED_REGISTRIES;
+use pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX;
 use std::{
     collections::BTreeSet,
     io::{IsTerminal, Write},
@@ -45,18 +45,18 @@ pub(crate) fn warn_unmatched_registry_options(config: &Config) {
 /// every entry matches. Split out so the wording is testable without
 /// capturing stderr.
 fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
-    if config.registry_options.is_empty() {
+    if config.registry_options_by_url.is_empty() {
         return None;
     }
     let configured: BTreeSet<&str> = config
-        .registries
+        .registries_by_scope
         .values()
-        .chain(config.named_registries.values())
+        .chain(config.registries_by_prefix.values())
         .map(String::as_str)
-        .chain(BUILTIN_NAMED_REGISTRIES.iter().map(|(_, url)| *url))
+        .chain(BUILTIN_REGISTRIES_BY_PREFIX.iter().map(|(_, url)| *url))
         .collect();
     let unmatched = config
-        .registry_options
+        .registry_options_by_url
         .keys()
         .filter(|registry| !configured.contains(registry.as_str()))
         .map(|registry| format!(r#""{}""#, redact_and_sanitize(registry)))

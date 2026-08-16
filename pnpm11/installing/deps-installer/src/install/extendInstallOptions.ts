@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -336,7 +336,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     pruneLockfileImporters: false,
     pruneStore: false,
     configByUri: {},
-    registries: DEFAULT_REGISTRIES,
+    registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
     resolutionMode: 'highest',
     saveWorkspaceProtocol: 'rolling',
     scriptsPrependNodePath: false,
@@ -462,7 +462,7 @@ export function extendOptions (
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
-  extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
+  extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
   if (extendedOpts.enableGlobalVirtualStore) {
     if (extendedOpts.virtualStoreDir == null) {
       extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')

@@ -80,7 +80,7 @@ export type RebuildCommandOpts = Pick<Config,
 | 'engineStrict'
 | 'lockfileDir'
 | 'nodeLinker'
-| 'registries'
+| 'registriesByScope'
 | 'scriptShell'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'

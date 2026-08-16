@@ -54,7 +54,7 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
     rootDir: lockfileDir as ProjectRootDir,
   }]
 
-  const registryUrl = options.registries.default.replace(/\/$/, '')
+  const registryUrl = options.registriesByScope.default.replace(/\/$/, '')
 
   function makeMeta (name: string, deps: Record<string, string>, peerDeps: Record<string, string>): PackageMeta {
     return {
@@ -69,7 +69,7 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
             // Resolver only reads metadata when lockfileOnly is true, so the
             // shasum value is never checked against a tarball.
             shasum: '0000000000000000000000000000000000000000',
-            tarball: `${options.registries.default}/${encodeURIComponent(name)}-1.0.0.tgz`,
+            tarball: `${options.registriesByScope.default}/${encodeURIComponent(name)}-1.0.0.tgz`,
           },
         },
       },
@@ -163,7 +163,7 @@ test('aliased install with a transitive mutual-peer cycle should not hang', asyn
     rootDir: lockfileDir as ProjectRootDir,
   }]
 
-  const registryUrl = options.registries.default.replace(/\/$/, '')
+  const registryUrl = options.registriesByScope.default.replace(/\/$/, '')
 
   function makeMeta (name: string, deps: Record<string, string>, peerDeps: Record<string, string>): PackageMeta {
     return {
@@ -176,7 +176,7 @@ test('aliased install with a transitive mutual-peer cycle should not hang', asyn
           peerDependencies: peerDeps,
           dist: {
             shasum: '0000000000000000000000000000000000000000',
-            tarball: `${options.registries.default}/${encodeURIComponent(name)}-1.0.0.tgz`,
+            tarball: `${options.registriesByScope.default}/${encodeURIComponent(name)}-1.0.0.tgz`,
           },
         },
       },
@@ -256,7 +256,7 @@ test('transitivePeerDependencies propagate through regular dep cycles', async ()
     rootDir: lockfileDir as ProjectRootDir,
   }]
 
-  const registryUrl = options.registries.default.replace(/\/$/, '')
+  const registryUrl = options.registriesByScope.default.replace(/\/$/, '')
 
   function makeMeta (name: string, deps: Record<string, string>, peerDeps?: Record<string, string>, peerMeta?: Record<string, { optional?: boolean }>): PackageMeta {
     return {
@@ -270,7 +270,7 @@ test('transitivePeerDependencies propagate through regular dep cycles', async ()
           ...(peerMeta ? { peerDependenciesMeta: peerMeta } : {}),
           dist: {
             shasum: '0000000000000000000000000000000000000000',
-            tarball: `${options.registries.default}/${encodeURIComponent(name)}-1.0.0.tgz`,
+            tarball: `${options.registriesByScope.default}/${encodeURIComponent(name)}-1.0.0.tgz`,
           },
         },
       },

@@ -79,7 +79,7 @@ export async function verifySignatures (
     missing: [],
     verified: 0,
   }
-  // Registries without signing keys are not counted as audited: there is no
+  // RegistriesByScope without signing keys are not counted as audited: there is no
   // registry trust root to verify against.
   const packumentCache = new Map<string, Promise<Packument | undefined>>()
   const limit = pLimit(opts.networkConcurrency ?? 16)

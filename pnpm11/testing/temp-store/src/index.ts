@@ -37,7 +37,7 @@ export function createTempStore (opts?: {
     cacheDir,
     storeDir,
     storeIndex,
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     ...opts?.clientOptions,

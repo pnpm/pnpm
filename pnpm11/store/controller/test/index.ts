@@ -20,7 +20,7 @@ describe('store.importPackage()', () => {
       cacheDir: path.join(tmp, 'cache'),
       storeDir: path.join(tmp, 'store'),
       storeIndex,
-      registries: {
+      registriesByScope: {
         default: registry,
       },
     })
@@ -64,7 +64,7 @@ describe('store.importPackage()', () => {
       cacheDir: path.join(tmp, 'cache'),
       storeDir: path.join(tmp, 'store'),
       storeIndex,
-      registries: {
+      registriesByScope: {
         default: registry,
       },
     })

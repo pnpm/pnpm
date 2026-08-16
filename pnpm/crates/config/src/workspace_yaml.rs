@@ -1280,13 +1280,13 @@ impl WorkspaceSettings {
         let mut declared_prefixes = false;
         if let Some(entries) = self.registries {
             let lookups = registries::into_lookups(entries);
-            declared_prefixes = !lookups.named_registries.is_empty();
+            declared_prefixes = !lookups.registries_by_prefix.is_empty();
             if let Some(registry) = lookups.default_registry {
                 config.registry = registry;
             }
-            config.registries.extend(lookups.registries);
-            config.named_registries.extend(lookups.named_registries);
-            config.registry_options.extend(lookups.registry_options);
+            config.registries_by_scope.extend(lookups.registries);
+            config.registries_by_prefix.extend(lookups.registries_by_prefix);
+            config.registry_options_by_url.extend(lookups.registry_options_by_url);
         }
         if let Some(v) = self.registry {
             config.registry = normalize_registry_url(&v);
@@ -1307,7 +1307,7 @@ impl WorkspaceSettings {
             // A prefix a `registries` entry declares wins: this is the
             // deprecated spelling of the same thing.
             for (name, registry) in v {
-                config.named_registries.entry(name).or_insert(registry);
+                config.registries_by_prefix.entry(name).or_insert(registry);
             }
         }
 

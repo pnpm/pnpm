@@ -94,7 +94,7 @@ fn parses_scoped_registry_and_applies() {
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
     assert_eq!(
-        config.registries.get("@private").map(String::as_str),
+        config.registries_by_scope.get("@private").map(String::as_str),
         Some("https://private.example/npm/"),
     );
 }

@@ -1,4 +1,4 @@
-import type { Registries, RegistryDeclaration } from './misc.js'
+import type { RegistriesByScope, RegistryDeclaration } from './misc.js'
 import type { VersioningSettings } from './versioning.js'
 
 export type Dependencies = Record<string, string>
@@ -239,7 +239,7 @@ export interface PnpmSettings {
    * A map whose values are plain strings is the older `scope: url` shape and
    * is read as one.
    */
-  registries?: Record<string, RegistryDeclaration> | Registries
+  registries?: Record<string, RegistryDeclaration> | RegistriesByScope
   /**
    * @deprecated Give the registry a `prefix` in
    * {@link PnpmSettings.registries} instead. Kept working until the next major

@@ -111,7 +111,7 @@ impl WhyArgs {
         let Some(env) = loaded.env(
             &lockfile_dir,
             state.config.virtual_store_dir_max_length as usize,
-            state.config.registry_options.clone(),
+            state.config.registry_options_by_url.clone(),
         ) else {
             return Ok(());
         };

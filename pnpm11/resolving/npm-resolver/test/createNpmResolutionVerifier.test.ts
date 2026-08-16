@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolutionVerifier } from '@pnpm/resolving.npm-resolver'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const registries: Registries = {
+const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
@@ -19,7 +19,7 @@ const getAuthHeaderValueByURI = (): undefined => undefined
 
 function makeVerifierOpts (overrides: Partial<Parameters<typeof createNpmResolutionVerifier>[0]> = {}): Parameters<typeof createNpmResolutionVerifier>[0] {
   return {
-    registries,
+    registriesByScope,
     fetchOpts: {
       fetch: fetchFromRegistry,
       retry: { retries: 0 },
@@ -96,7 +96,7 @@ test('createNpmResolutionVerifier() verifies tarball URLs from cached metadata i
     modified: '2020-01-01T00:00:00.000Z',
   }
   await saveMeta(
-    getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, registries.default, 'offline-pkg'),
+    getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, registriesByScope.default, 'offline-pkg'),
     prepareJsonForDisk(meta, '"cached"')
   )
 
@@ -142,7 +142,7 @@ test('createNpmResolutionVerifier() passes package name to auth header lookup', 
     { name: '@scope/pkg', version: '1.0.0' }
   )
   expect(result).toStrictEqual({ ok: true })
-  expect(calls).toContainEqual({ uri: registries.default, pkgName: '@scope/pkg' })
+  expect(calls).toContainEqual({ uri: registriesByScope.default, pkgName: '@scope/pkg' })
 })
 
 test('createNpmResolutionVerifier() flags a trustedPublisher → provenance downgrade', async () => {
@@ -603,10 +603,10 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
 
 test('createNpmResolutionVerifier() canTrustPastCheck rejects a changed named-registry mapping', () => {
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
-    namedRegistries: normalizeNamedRegistries({ work: 'https://registry.example.test' }),
+    registriesByPrefix: normalizeRegistriesByPrefix({ work: 'https://registry.example.test' }),
   }))
   const changedVerifier = createNpmResolutionVerifier(makeVerifierOpts({
-    namedRegistries: normalizeNamedRegistries({ work: 'https://other.example.test' }),
+    registriesByPrefix: normalizeRegistriesByPrefix({ work: 'https://other.example.test' }),
   }))
 
   expect(verifier.canTrustPastCheck(verifier.policy)).toBe(true)

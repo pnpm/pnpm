@@ -62,7 +62,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         trust_policy_exclude_patterns: Vec::new(),
         trust_policy_ignore_after: None,
         registries: registries_with_default(registry_url),
-        named_registries: HashMap::new(),
+        registries_by_prefix: HashMap::new(),
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         cache_dir: None,
@@ -971,7 +971,7 @@ async fn verify_routes_via_named_registry_prefix() {
     // breaks, the request would target the bogus URL and the test
     // would fail with a connection error instead of finding the mock.
     let mut opts = default_opts("http://nonexistent.example.invalid/");
-    opts.named_registries = named;
+    opts.registries_by_prefix = named;
     opts.minimum_release_age = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
@@ -1052,11 +1052,14 @@ fn can_trust_past_check_accepts_looser_min_age() {
 #[test]
 fn can_trust_past_check_rejects_changed_named_registry_mapping() {
     let mut opts = default_opts("https://registry.example/");
-    opts.named_registries.insert("work".to_string(), "https://registry.work.example/".to_string());
+    opts.registries_by_prefix
+        .insert("work".to_string(), "https://registry.work.example/".to_string());
     let verifier = create_npm_resolution_verifier(opts);
     let cached = verifier.policy().clone();
     let mut changed_opts = default_opts("https://registry.example/");
-    changed_opts.named_registries.insert("work".to_string(), "https://other.example/".to_string());
+    changed_opts
+        .registries_by_prefix
+        .insert("work".to_string(), "https://other.example/".to_string());
     let changed = create_npm_resolution_verifier(changed_opts);
 
     // Pins that the rejection below comes from the URL change and not from
