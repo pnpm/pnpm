@@ -54,18 +54,6 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// (under the same or stricter policy). Omitting either field
     /// disables the cache (every call rehashes + reruns the gate).
     pub cache_dir: Option<&'a Path>,
-    /// A second location the verdict is mirrored to and read from —
-    /// the project's virtual store dir, next to the current lockfile.
-    /// The mirror survives a wiped cache dir, so a project whose
-    /// `node_modules` was built from this exact lockfile content
-    /// doesn't re-run the fan-out just because the machine cache is
-    /// gone (the common CI shape that restores `node_modules` but not
-    /// the pnpm cache). Same trust domain as `cache_dir`: both are
-    /// plain user-writable caches whose records only apply when the
-    /// lockfile content hash and the policy snapshot match. Writes are
-    /// best-effort and never create the directory — a lockfile-only
-    /// run with no virtual store simply skips the mirror.
-    pub verdict_fallback_dir: Option<&'a Path>,
 }
 
 /// Whether a recorded verification already covers `lockfile` as it sits
@@ -81,7 +69,6 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
 /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
 pub fn lockfile_verification_is_cached(
     cache_dir: &Path,
-    verdict_fallback_dir: Option<&Path>,
     lockfile_path: &Path,
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -92,37 +79,13 @@ pub fn lockfile_verification_is_cached(
     if lockfile.packages.is_none() {
         return true;
     }
-    let cache_verifiers = with_offline_check_cache_identities(verifiers);
-    let mut hash_once = memoized_lockfile_hash(lockfile);
-    if try_lockfile_verification_cache(cache_dir, lockfile_path, &cache_verifiers, &mut hash_once)
-        .hit
-    {
-        return true;
-    }
-    verdict_fallback_dir.is_some_and(|fallback_dir| {
-        try_lockfile_verification_cache(
-            fallback_dir,
-            lockfile_path,
-            &cache_verifiers,
-            &mut hash_once,
-        )
-        .hit
-    })
-}
-
-/// A lazy, memoised [`hash_lockfile()`]: the first call computes, later
-/// calls clone the cached string — shared between the primary and
-/// fallback verdict lookups and the post-run recorder.
-fn memoized_lockfile_hash(lockfile: &Lockfile) -> impl FnMut() -> String {
-    let mut cached_hash: Option<String> = None;
-    move || {
-        if let Some(hash) = cached_hash.as_ref() {
-            return hash.clone();
-        }
-        let hash = hash_lockfile(lockfile);
-        cached_hash = Some(hash.clone());
-        hash
-    }
+    try_lockfile_verification_cache(
+        cache_dir,
+        lockfile_path,
+        &with_offline_check_cache_identities(verifiers),
+        || hash_lockfile(lockfile),
+    )
+    .hit
 }
 
 /// Run every active [`ResolutionVerifier`] against every entry in
@@ -157,32 +120,28 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
 
     // Memoised content hash. Used by both the lookup (when the
     // stat-shortcut doesn't apply) and the recorder (after the
-    // gate passes).
-    let mut hash_once = memoized_lockfile_hash(lockfile);
+    // gate passes). The closure is `FnMut` so multiple lazy calls
+    // share the computed string.
+    let mut cached_hash: Option<String> = None;
+    let mut hash_once = || {
+        if let Some(hash) = cached_hash.as_ref() {
+            return hash.clone();
+        }
+        let hash = hash_lockfile(lockfile);
+        cached_hash = Some(hash.clone());
+        hash
+    };
 
     let lockfile_path_str = opts.lockfile_path.map(|path| path.to_string_lossy().into_owned());
 
     let mut cache_precomputed: CachePrecomputed = CachePrecomputed::default();
     if let Some((cache_dir, lockfile_path)) = cache_inputs {
-        let mut result = try_lockfile_verification_cache(
+        let result = try_lockfile_verification_cache(
             cache_dir,
             lockfile_path,
             &cache_verifiers,
             &mut hash_once,
         );
-        if !result.hit
-            && let Some(fallback_dir) = opts.verdict_fallback_dir
-        {
-            let fallback = try_lockfile_verification_cache(
-                fallback_dir,
-                lockfile_path,
-                &cache_verifiers,
-                &mut hash_once,
-            );
-            if fallback.hit {
-                result = fallback;
-            }
-        }
         if result.hit {
             // A silent short-circuit looks like the policy gate never
             // ran, so surface the reused verdict — but only when policy
@@ -213,9 +172,8 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         // Persist the success so the next install can stat-only the
         // lockfile. An empty fan-out is still a successful run.
         if let Some((cache_dir, lockfile_path)) = cache_inputs {
-            record_verification_with_fallback(
+            record_verification(
                 cache_dir,
-                opts.verdict_fallback_dir,
                 lockfile_path,
                 &cache_verifiers,
                 &mut hash_once,
@@ -253,9 +211,8 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             lockfile_path: lockfile_path_str,
         });
         if let Some((cache_dir, lockfile_path)) = cache_inputs {
-            record_verification_with_fallback(
+            record_verification(
                 cache_dir,
-                opts.verdict_fallback_dir,
                 lockfile_path,
                 &cache_verifiers,
                 &mut hash_once,
@@ -265,43 +222,6 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Ok(());
     }
     Err(build_verification_error(violations))
-}
-
-/// Record a passed verification into the machine cache and, best
-/// effort, mirror it into the virtual-store verdict location (see
-/// [`VerifyLockfileResolutionsOptions::verdict_fallback_dir`]). The
-/// mirror write reuses the precomputed stat + hash and never creates
-/// the directory.
-fn record_verification_with_fallback(
-    cache_dir: &Path,
-    verdict_fallback_dir: Option<&Path>,
-    lockfile_path: &Path,
-    cache_verifiers: &[Arc<dyn ResolutionVerifier>],
-    mut hash_once: impl FnMut() -> String,
-    cache_precomputed: CachePrecomputed,
-) {
-    record_verification(
-        cache_dir,
-        lockfile_path,
-        cache_verifiers,
-        &mut hash_once,
-        cache_precomputed.clone(),
-    );
-    // Mirror only into a virtual store that already exists: the record
-    // write creates its directory, and a verification-only run (e.g.
-    // `dedupe --check`) must not conjure `node_modules/.pnpm` out of a
-    // cache write.
-    if let Some(fallback_dir) = verdict_fallback_dir
-        && fallback_dir.is_dir()
-    {
-        record_verification(
-            fallback_dir,
-            lockfile_path,
-            cache_verifiers,
-            &mut hash_once,
-            cache_precomputed,
-        );
-    }
 }
 
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that

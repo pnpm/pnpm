@@ -112,7 +112,6 @@ async fn verify_lockfile_eagerly<Reporter: pacquet_reporter::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     lockfile_path: Option<&Path>,
     cache_dir: &Path,
-    verdict_fallback_dir: &Path,
 ) -> Result<(), InstallError> {
     if verifiers.is_empty() {
         return Ok(());
@@ -124,7 +123,6 @@ async fn verify_lockfile_eagerly<Reporter: pacquet_reporter::Reporter>(
             concurrency: None,
             lockfile_path,
             cache_dir: Some(cache_dir),
-            verdict_fallback_dir: Some(verdict_fallback_dir),
         },
     )
     .await
@@ -154,7 +152,6 @@ impl LockfileVerificationGate {
         verifiers: &[Arc<dyn ResolutionVerifier>],
         lockfile_path: Option<&Path>,
         cache_dir: &Path,
-        verdict_fallback_dir: &Path,
     ) -> Option<Self> {
         if verifiers.is_empty() {
             return None;
@@ -163,7 +160,6 @@ impl LockfileVerificationGate {
         let verifiers = verifiers.to_vec();
         let lockfile_path = lockfile_path.map(Path::to_path_buf);
         let cache_dir = cache_dir.to_path_buf();
-        let verdict_fallback_dir = verdict_fallback_dir.to_path_buf();
         Some(Self(tokio::spawn(async move {
             verify_lockfile_resolutions::<Reporter>(
                 &lockfile,
@@ -172,7 +168,6 @@ impl LockfileVerificationGate {
                     concurrency: None,
                     lockfile_path: lockfile_path.as_deref(),
                     cache_dir: Some(&cache_dir),
-                    verdict_fallback_dir: Some(&verdict_fallback_dir),
                 },
             )
             .await

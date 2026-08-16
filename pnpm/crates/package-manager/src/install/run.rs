@@ -889,7 +889,6 @@ where
                     &resolution_verifiers,
                     derived_lockfile_path.as_deref(),
                     &config.cache_dir,
-                    &config.virtual_store_dir,
                 )
                 .await?;
             }

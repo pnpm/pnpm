@@ -915,7 +915,6 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             .map_err(miette::Report::new)?;
             if lockfile_verification_is_cached(
                 &state.config.cache_dir,
-                Some(&state.config.virtual_store_dir),
                 &lockfile_path,
                 lockfile,
                 &verifiers,
@@ -940,14 +939,12 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
                 };
                 let verify_client = PnprClient::new(pnpr_server);
                 let cache_dir = state.config.cache_dir.clone();
-                let verdict_fallback_dir = state.config.virtual_store_dir.clone();
                 let record_lockfile_path = lockfile_path.clone();
                 Some(Box::pin(async move {
                     match verify_client.verify_lockfile(verify_opts).await {
                         Ok(()) => {
                             record_lockfile_verified(
                                 Some(&cache_dir),
-                                Some(&verdict_fallback_dir),
                                 &record_lockfile_path,
                                 lockfile,
                                 &verifiers,
@@ -1169,7 +1166,6 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         {
             record_lockfile_verified(
                 Some(&state.config.cache_dir),
-                Some(&state.config.virtual_store_dir),
                 &lockfile_path,
                 &outcome.lockfile,
                 &verifiers,

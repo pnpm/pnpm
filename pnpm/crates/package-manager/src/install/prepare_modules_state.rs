@@ -348,7 +348,6 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                 resolution_verifiers,
                 derived_lockfile_path,
                 &config.cache_dir,
-                &config.virtual_store_dir,
             )
             .await?;
         }

@@ -215,7 +215,6 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
                     &resolution_verifiers,
                     derived_lockfile_path.as_deref(),
                     &config.cache_dir,
-                    &config.virtual_store_dir,
                 )
                 .await?;
             }
@@ -308,7 +307,6 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
                         &resolution_verifiers,
                         derived_lockfile_path.as_deref(),
                         &config.cache_dir,
-                        &config.virtual_store_dir,
                     )
                 })
             };
@@ -393,7 +391,6 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
                 .unwrap_or_else(|| workspace_root.join(Lockfile::FILE_NAME));
             record_lockfile_verified(
                 Some(&config.cache_dir),
-                Some(&config.virtual_store_dir),
                 &lockfile_path,
                 lockfile,
                 &resolution_verifiers,
