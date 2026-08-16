@@ -5,7 +5,10 @@ import type { RegistryServerType } from '@pnpm/types'
 
 export interface ToLockfileResolutionOptions {
   registry: string
-  /** Defaults to `'npm'`. See {@link RegistryServerType}. */
+  /**
+   * Undeclared by default, which is the strict reading: only the exact
+   * canonical URL is dropped. See {@link RegistryServerType}.
+   */
   serverType?: RegistryServerType
   lockfileIncludeTarballUrl?: boolean
 }

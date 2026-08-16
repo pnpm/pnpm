@@ -871,6 +871,7 @@ impl WorkspaceSettings {
         self.shared_workspace_lockfile = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
+        self.registry_options = None;
         self.auto_install_peers = None;
         self.auto_install_peers_from_highest_match = None;
         self.exclude_links_from_lockfile = None;

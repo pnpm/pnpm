@@ -1942,3 +1942,19 @@ registryOptions:
     assert_eq!(options.len(), 1);
     assert!(options.contains_key("https://npm.example.com/"));
 }
+
+/// `registryOptions` is workspace-only: it decides which tarball URLs are
+/// omitted from the lockfile, so a user's global `config.yaml` must not shape
+/// a lockfile their collaborators read back with a different layout. The
+/// TypeScript reader refuses the key outright; this is the same refusal.
+#[test]
+fn registry_options_cleared_as_workspace_only_field() {
+    let yaml = r"
+registryOptions:
+  https://artifactory.example/artifactory/api/npm/npm-virtual/: {serverType: artifactory}
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert!(settings.registry_options.is_some());
+    settings.clear_workspace_only_fields();
+    assert!(settings.registry_options.is_none());
+}

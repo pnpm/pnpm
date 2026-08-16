@@ -557,8 +557,6 @@ export async function getConfig (opts: {
     }
   }
 
-  warnAboutUnmatchedRegistryOptions(pnpmConfig, warnings)
-
   // Sync registries.default to the top-level registry property so that
   // commands like login/logout that use opts.registry pick up the default
   // registry configured in pnpm-workspace.yaml. Only sync when the workspace
@@ -594,6 +592,11 @@ export async function getConfig (opts: {
       pnpmConfig.packageManagerRegistries.default = normalizeRegistryUrl(value)
     }
   }
+
+  // After the env loop: PNPM_CONFIG_REGISTRY can still change
+  // `registries.default` above, and an entry matching it must not be reported
+  // as unused.
+  warnAboutUnmatchedRegistryOptions(pnpmConfig, warnings)
 
   // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
   // default. Without this, a user-set value would silently fall back to

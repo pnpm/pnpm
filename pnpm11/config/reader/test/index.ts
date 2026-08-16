@@ -4934,3 +4934,27 @@ test('getConfig() warns about registryOptions entries that match no configured r
   expect(registryOptionsWarnings[0]).not.toContain('were ignored: "https://npm.example.com/"')
   expect(registryOptionsWarnings[0]).toContain('The configured registries are: ')
 })
+
+test('getConfig() does not warn about a registryOptions entry matched by PNPM_CONFIG_REGISTRY', async () => {
+  // The env loop sets `registries.default` after the yaml is merged, so the
+  // check has to run downstream of it or it reports a registry that is used.
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registryOptions: {
+      'https://from-env.example.com/': { serverType: 'artifactory' },
+    },
+  })
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+    env: { ...process.env, PNPM_CONFIG_REGISTRY: 'https://from-env.example.com/' },
+  })
+
+  expect(warnings.filter((warning) => warning.includes('registryOptions'))).toStrictEqual([])
+})
