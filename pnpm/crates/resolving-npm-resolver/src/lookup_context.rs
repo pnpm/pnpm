@@ -47,6 +47,12 @@ pub(crate) struct AbbreviatedMetaProjection {
     ///
     /// [`ObservedDistStats`]: crate::ObservedDistStats
     pub version_dist_stats: Option<HashMap<String, crate::DistStats>>,
+    /// version → publish timestamp from the document's `time` map, for
+    /// registries that serve it in abbreviated metadata
+    /// (`registrySupportsTimeField`). Populated only when the verifier
+    /// asked for it, so registries without the field pay no memory for
+    /// an always-empty map.
+    pub version_time: Option<HashMap<String, String>>,
 }
 
 /// Slot map of singleflight cells. Outer mutex guards lookup/insert;
