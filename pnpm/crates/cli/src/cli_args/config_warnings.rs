@@ -35,8 +35,17 @@ pub(crate) fn emit_config_warning(message: &str) {
 /// rather than an error: a shared config dependency can legitimately describe
 /// registries a given project does not use.
 pub(crate) fn warn_unmatched_registry_options(config: &Config) {
+    if let Some(message) = unmatched_registry_options_warning(config) {
+        emit_config_warning(&message);
+    }
+}
+
+/// The message [`warn_unmatched_registry_options`] emits, or [`None`] when
+/// every entry matches. Split out so the wording is testable without
+/// capturing stderr.
+fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
     if config.registry_options.is_empty() {
-        return;
+        return None;
     }
     let configured: BTreeSet<&str> = config
         .registries
@@ -52,12 +61,15 @@ pub(crate) fn warn_unmatched_registry_options(config: &Config) {
         .map(|registry| format!(r#""{registry}""#))
         .collect::<Vec<_>>();
     if unmatched.is_empty() {
-        return;
+        return None;
     }
     let configured =
         configured.iter().map(|registry| format!(r#""{registry}""#)).collect::<Vec<_>>().join(", ");
-    emit_config_warning(&format!(
+    Some(format!(
         r#"The following "registryOptions" entries do not match any configured registry and were ignored: {}. The configured registries are: {configured}."#,
         unmatched.join(", "),
-    ));
+    ))
 }
+
+#[cfg(test)]
+mod tests;

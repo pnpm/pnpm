@@ -1,0 +1,61 @@
+use super::unmatched_registry_options_warning;
+use pacquet_config::Config;
+use pacquet_lockfile::{RegistryOptions, RegistryServerType};
+use pretty_assertions::assert_eq;
+
+fn config_with(registries: &[(&str, &str)], registry_options: &[&str]) -> Config {
+    let mut config = Config::new();
+    config.registries =
+        registries.iter().map(|(scope, url)| ((*scope).to_string(), (*url).to_string())).collect();
+    config.registry_options = registry_options
+        .iter()
+        .map(|registry| {
+            (
+                (*registry).to_string(),
+                RegistryOptions { server_type: Some(RegistryServerType::Artifactory) },
+            )
+        })
+        .collect();
+    config
+}
+
+#[test]
+fn no_warning_when_every_entry_matches_a_configured_registry() {
+    let config = config_with(
+        &[("default", "https://npm.example.com/"), ("@acme", "https://acme.example.com/")],
+        &["https://npm.example.com/", "https://acme.example.com/"],
+    );
+    assert_eq!(unmatched_registry_options_warning(&config), None);
+}
+
+#[test]
+fn no_warning_without_any_registry_options() {
+    let config = config_with(&[("default", "https://npm.example.com/")], &[]);
+    assert_eq!(unmatched_registry_options_warning(&config), None);
+}
+
+/// A built-in named registry is a legitimate target even though the user never
+/// declared it, so an entry for it must not be reported as unmatched.
+#[test]
+fn no_warning_for_a_builtin_named_registry() {
+    let config =
+        config_with(&[("default", "https://npm.example.com/")], &["https://npm.pkg.github.com/"]);
+    assert_eq!(unmatched_registry_options_warning(&config), None);
+}
+
+#[test]
+fn warns_about_an_entry_matching_no_configured_registry() {
+    let config = config_with(
+        &[("default", "https://npm.example.com/")],
+        &["https://npm.example.com/", "https://typo.example.com/"],
+    );
+    let received = unmatched_registry_options_warning(&config).expect("a warning");
+    assert!(
+        received.contains(r#"were ignored: "https://typo.example.com/"."#),
+        "the unmatched entry must be named: {received}",
+    );
+    assert!(
+        received.contains(r#""https://npm.example.com/""#),
+        "the configured registries must be listed: {received}",
+    );
+}
