@@ -12,6 +12,7 @@ use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_env_replace::env_replace_lossy;
 use pnpm_lockfile::RegistryOptions;
+use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::ConfigDependency;
@@ -36,6 +37,15 @@ where
     De: Deserializer<'de>,
 {
     Option::<Value>::deserialize(deserializer).map(Some)
+}
+
+/// Whether the authority of `url` carries a `user:pass@` prefix. The authority
+/// ends at the first `/`, `?`, or `#`, so a later `@` in the path is not one.
+fn registry_url_has_userinfo(url: &str) -> bool {
+    let Some(scheme_end) = url.find("://") else { return false };
+    let authority = &url[scheme_end + 3..];
+    let authority_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
+    authority[..authority_end].contains('@')
 }
 
 /// The value of an `allowBuilds` entry.
@@ -752,6 +762,13 @@ pub enum LoadWorkspaceYamlError {
         #[error(source)]
         source: Box<serde_saphyr::Error>,
     },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display("The \"registryOptions\" key {registry} embeds credentials")]
+    #[diagnostic(
+        code(ERR_PNPM_CREDENTIALS_IN_REGISTRY_OPTIONS_KEY),
+        help("Put them in an .npmrc file instead, so they are not committed.")
+    )]
+    CredentialsInRegistryOptionsKey { registry: String },
     #[display("Invalid `_auth` setting: {source}")]
     InvalidJsonAuth {
         #[error(source)]
@@ -817,8 +834,33 @@ impl WorkspaceSettings {
         let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+        settings.reject_credentials_in_registry_options()?;
         settings.clear_workspace_only_fields();
         Ok(Some(settings))
+    }
+
+    /// Refuse a `registryOptions` key carrying inline `user:pass@` credentials.
+    ///
+    /// `registryOptions` lives in the committed `pnpm-workspace.yaml`, and the
+    /// map already refuses credential *fields*; a credential in the key is the
+    /// same secret in the same file. A registry whose URL really carries them
+    /// should move them to `.npmrc`, which also makes the URL here match the
+    /// one pnpm resolves from.
+    ///
+    /// Checked after parsing rather than in a `Deserialize` impl on purpose:
+    /// `serde_saphyr` renders the offending source line verbatim under its
+    /// errors, so rejecting at parse time would print the very credential
+    /// being rejected into the terminal and any CI log.
+    fn reject_credentials_in_registry_options(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(registry_options) = self.registry_options.as_ref() else { return Ok(()) };
+        for registry in registry_options.keys() {
+            if registry_url_has_userinfo(registry) {
+                return Err(LoadWorkspaceYamlError::CredentialsInRegistryOptionsKey {
+                    registry: redact_and_sanitize(registry),
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Zero out the release-age and trust policies for `self-update`.
@@ -917,10 +959,11 @@ impl WorkspaceSettings {
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
         };
-        let settings = text
+        let settings: WorkspaceSettings = text
             .pipe_as_ref(serde_saphyr::from_str)
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+        settings.reject_credentials_in_registry_options()?;
         Ok(Some(settings))
     }
 

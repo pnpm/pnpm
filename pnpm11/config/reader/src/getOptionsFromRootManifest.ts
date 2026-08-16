@@ -115,6 +115,16 @@ function normalizeRegistryOptionsSetting (
           { hint: `Set "//${redactAndSanitize(registry).replace(/^https?:\/\//, '')}:${key}" in an .npmrc file instead, so it is not committed.` })
       }
     }
+    // `registryOptions` lives in the committed pnpm-workspace.yaml, and this
+    // map already refuses credential fields for that reason; a credential in
+    // the key is the same secret in the same file. A registry whose URL really
+    // carries credentials should move them to .npmrc, which also makes the URL
+    // here match the one pnpm resolves from.
+    if (registryUrlHasUserinfo(registry)) {
+      throw new PnpmError('INVALID_SETTING',
+        `The "${settingPath}" key embeds credentials.`,
+        { hint: 'Put them in an .npmrc file instead, so they are not committed.' })
+    }
     const { serverType } = options
     if (serverType != null && !REGISTRY_SERVER_TYPES.has(serverType)) {
       throw new PnpmError('INVALID_SETTING',
@@ -355,6 +365,18 @@ function copyEntriesWithoutEnvPlaceholderKeys (value: unknown): unknown {
     out[k] = v
   }
   return out
+}
+
+/**
+ * Whether the authority of `url` carries a `user:pass@` prefix. The authority
+ * ends at the first `/`, `?`, or `#`, so a later `@` in the path is not one.
+ */
+function registryUrlHasUserinfo (url: string): boolean {
+  const schemeEnd = url.indexOf('://')
+  if (schemeEnd === -1) return false
+  const authority = url.slice(schemeEnd + '://'.length)
+  const authorityEnd = authority.search(/[/?#]/)
+  return (authorityEnd === -1 ? authority : authority.slice(0, authorityEnd)).includes('@')
 }
 
 function hasEnvPlaceholder (value: string): boolean {

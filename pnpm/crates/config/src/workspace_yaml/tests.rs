@@ -1965,3 +1965,37 @@ registryOptions:
     settings.clear_workspace_only_fields();
     assert!(settings.registry_options.is_none());
 }
+
+/// A credential in the key is the same secret in the same committed file as a
+/// credential in a field, so both are refused. The check runs after parsing so
+/// the error carries a redacted URL instead of serde's verbatim source line.
+#[test]
+fn rejects_a_registry_options_key_that_embeds_credentials() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registryOptions:\n  https://ci-user-6e42:hunter2@npm.example.com/: {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a key with credentials must not load")
+        .to_string();
+    assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
+    assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
+    assert!(error.contains("npm.example.com"), "the host is still named: {error}");
+}
+
+/// A later `@` in the path is not userinfo.
+#[test]
+fn accepts_a_registry_options_key_with_an_at_sign_in_the_path() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registryOptions:\n  https://npm.example.com/scope@1/: {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path()).unwrap().expect("settings");
+    assert!(settings.registry_options.is_some());
+}

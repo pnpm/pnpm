@@ -65,10 +65,11 @@ fn warns_about_an_entry_matching_no_configured_registry() {
 #[test]
 fn redacts_credentials_in_the_warning() {
     let config = config_with(
-        &[("default", "https://user:hunter2@npm.example.com/")],
+        &[("default", "https://ci-user-6e42:hunter2@npm.example.com/")],
         &["https://typo.example.com/"],
     );
     let received = unmatched_registry_options_warning(&config).expect("a warning");
     assert!(!received.contains("hunter2"), "the password must not be echoed: {received}");
+    assert!(!received.contains("ci-user-6e42"), "the username must not be echoed: {received}");
     assert!(received.contains("npm.example.com"), "the host is still named: {received}");
 }

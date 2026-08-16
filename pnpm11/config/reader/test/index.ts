@@ -4963,7 +4963,7 @@ test('getConfig() redacts credentials in the unmatched registryOptions warning',
   prepareEmpty()
 
   writeYamlFileSync('pnpm-workspace.yaml', {
-    registry: 'https://user:hunter2@npm.example.com/',
+    registry: 'https://ci-user-6e42:hunter2@npm.example.com/',
     registryOptions: {
       'https://typo.example.com/': { serverType: 'artifactory' },
     },
@@ -4981,6 +4981,8 @@ test('getConfig() redacts credentials in the unmatched registryOptions warning',
   const registryOptionsWarnings = warnings.filter((warning) => warning.includes('registryOptions'))
   expect(registryOptionsWarnings).toHaveLength(1)
   expect(registryOptionsWarnings[0]).not.toContain('hunter2')
+  // A URL username is credential-bearing too.
+  expect(registryOptionsWarnings[0]).not.toContain('ci-user-6e42')
   expect(registryOptionsWarnings[0]).toContain('npm.example.com')
 })
 

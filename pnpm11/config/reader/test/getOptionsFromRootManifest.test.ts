@@ -356,3 +356,23 @@ test('getOptionsFromPnpmSettings() expands the registryOptions URL when request 
     'https://artifactory.example/': { serverType: 'artifactory' },
   })
 })
+
+test('getOptionsFromPnpmSettings() rejects credentials embedded in a registryOptions key', () => {
+  // pnpm-workspace.yaml is committed; credentials belong in .npmrc.
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      'https://ci-user-6e42:hunter2@npm.example.com/': { serverType: 'artifactory' },
+    },
+  })).toThrow(/key embeds credentials/)
+})
+
+test('getOptionsFromPnpmSettings() does not mistake an @ later in the path for credentials', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      'https://npm.example.com/scope@1/': { serverType: 'artifactory' },
+    },
+  })
+  expect(options.registryOptions).toStrictEqual({
+    'https://npm.example.com/scope@1/': { serverType: 'artifactory' },
+  })
+})
