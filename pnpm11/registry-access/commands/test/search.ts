@@ -7,7 +7,7 @@ const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const SEARCH_OPTS = {
   ...DEFAULT_OPTS,
-  registries: { default: `${REGISTRY_URL}/` },
+  registriesByScope: { default: `${REGISTRY_URL}/` },
 }
 
 test('search: missing query throws error', async () => {

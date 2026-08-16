@@ -65,7 +65,7 @@ export async function testDefaults (
       await Promise.all(projects.map(async (project) => [project.rootDir, { ...project, manifest: await safeReadPackageJsonFromDir(project.rootDir) }]))
     ),
     authConfig: {},
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     sideEffectsCache: true,
