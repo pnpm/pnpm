@@ -108,7 +108,7 @@ impl<'de> Visitor<'de> for RegistryEntryVisitor {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct RegistryLookups {
     /// Scope-routed URLs, `@`-prefixed and normalized.
-    pub registries: BTreeMap<String, String>,
+    pub registries_by_scope: BTreeMap<String, String>,
     /// The registry a bare `@` routed to, if any.
     pub default_registry: Option<String>,
     /// Prefix-addressed URLs, deliberately kept as written: a named
@@ -212,7 +212,7 @@ pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups
                 if registry == "default" {
                     lookups.default_registry = Some(url);
                 } else {
-                    lookups.registries.insert(registry, url);
+                    lookups.registries_by_scope.insert(registry, url);
                 }
                 continue;
             }
@@ -228,7 +228,7 @@ pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups
             if scope == DEFAULT_REGISTRY_SCOPE {
                 lookups.default_registry = Some(normalized.clone());
             } else {
-                lookups.registries.insert(scope, normalized.clone());
+                lookups.registries_by_scope.insert(scope, normalized.clone());
             }
         }
         if let Some(prefix) = declaration.prefix {
@@ -236,6 +236,39 @@ pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups
         }
     }
     lookups
+}
+
+/// Rebuild the declarations from the lookups they were split into, for a
+/// client that has to describe its registries to a pnpr server.
+///
+/// The inverse of [`into_lookups`], minus the default registry: that one
+/// travels as the request's own `registry` field, so a bare
+/// [`DEFAULT_REGISTRY_SCOPE`] is not re-emitted here.
+///
+/// Entries are keyed by the URL each lookup holds rather than by a normalized
+/// one, so a registry a prefix addresses without a trailing slash stays the
+/// URL the client resolves against.
+#[must_use]
+pub fn to_declarations(lookups: &RegistryLookups) -> BTreeMap<String, RegistryDeclaration> {
+    let mut declarations: BTreeMap<String, RegistryDeclaration> = BTreeMap::new();
+    for (scope, registry) in &lookups.registries_by_scope {
+        if scope == "default" {
+            continue;
+        }
+        declarations
+            .entry(registry.clone())
+            .or_default()
+            .scopes
+            .get_or_insert_with(Vec::new)
+            .push(scope.clone());
+    }
+    for (prefix, registry) in &lookups.registries_by_prefix {
+        declarations.entry(registry.clone()).or_default().prefix = Some(prefix.clone());
+    }
+    for (registry, options) in &lookups.registry_options_by_url {
+        declarations.entry(registry.clone()).or_default().server_type = options.server_type;
+    }
+    declarations
 }
 
 /// Drop the entries whose request destination carries an unexpanded `${VAR}`.

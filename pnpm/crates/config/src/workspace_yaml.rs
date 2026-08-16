@@ -1284,7 +1284,7 @@ impl WorkspaceSettings {
             if let Some(registry) = lookups.default_registry {
                 config.registry = registry;
             }
-            config.registries_by_scope.extend(lookups.registries);
+            config.registries_by_scope.extend(lookups.registries_by_scope);
             config.registries_by_prefix.extend(lookups.registries_by_prefix);
             config.registry_options_by_url.extend(lookups.registry_options_by_url);
         }

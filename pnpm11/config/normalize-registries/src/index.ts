@@ -1,5 +1,5 @@
 import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
-import type { RegistriesByPrefix, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
+import type { RegistriesByPrefix, RegistriesByScope, RegistryContext, RegistryDeclaration, RegistryServerType } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { map as mapValues } from 'ramda'
 
@@ -51,6 +51,36 @@ export function pickRegistryContext (source: RegistryContext): RegistryContext {
     registriesByPrefix: source.registriesByPrefix,
     registryOptionsByUrl: source.registryOptionsByUrl,
   }
+}
+
+/**
+ * Rebuilds the declarations from the lookups they were split into, for a
+ * client that has to describe its registries to a pnpr server.
+ *
+ * The inverse of what the config reader does to the `registries` setting,
+ * minus the default registry: that one travels as the request's own
+ * `registry` field.
+ *
+ * Entries are keyed by the URL each lookup holds rather than by a normalized
+ * one, so a registry a prefix addresses without a trailing slash stays the URL
+ * the client resolves against.
+ */
+export function toRegistryDeclarations (context: Partial<RegistryContext>): Record<string, RegistryDeclaration> {
+  const declarations: Record<string, RegistryDeclaration> = {}
+  const declarationFor = (registry: string): RegistryDeclaration => (declarations[registry] ??= {})
+  for (const [scope, registry] of Object.entries(context.registriesByScope ?? {})) {
+    if (scope === 'default') continue
+    const declaration = declarationFor(registry)
+    declaration.scopes = [...declaration.scopes ?? [], scope]
+  }
+  for (const [prefix, registry] of Object.entries(context.registriesByPrefix ?? {})) {
+    declarationFor(registry).prefix = prefix
+  }
+  for (const [registry, options] of Object.entries(context.registryOptionsByUrl ?? {})) {
+    if (options.serverType == null) continue
+    declarationFor(registry).serverType = options.serverType
+  }
+  return declarations
 }
 
 /**

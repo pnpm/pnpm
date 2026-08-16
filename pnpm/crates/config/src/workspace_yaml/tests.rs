@@ -1,6 +1,6 @@
 use super::{
     AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
-    registries::RegistryEntry,
+    registries::{RegistryDeclaration, RegistryEntry},
 };
 use crate::{
     AuditLevel, CatalogMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
@@ -8,11 +8,11 @@ use crate::{
     ShimPolicy, TrustPolicy, api::EnvVar,
 };
 use pipe_trait::Pipe;
-use pnpm_lockfile::RegistryServerType;
+use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{collections::BTreeMap, fs, path::Path};
 
 #[test]
 fn parses_common_settings_from_yaml() {
@@ -2219,4 +2219,72 @@ fn rejects_a_url_keyed_registries_entry_written_as_a_string() {
         .expect_err("a URL-keyed string entry must not load")
         .to_string();
     assert!(error.contains("is a string"), "{error}");
+}
+
+/// The inverse of the split a `registries` setting goes through, for the
+/// request a pnpr server reads. Every route to one registry lands in its entry.
+#[test]
+fn rebuilds_the_declarations_from_the_lookups() {
+    let mut config = Config::new();
+    config.registries_by_scope = BTreeMap::from([
+        ("default".to_owned(), "https://registry.npmjs.org/".to_owned()),
+        ("@acme".to_owned(), "https://npm.corp.example/".to_owned()),
+        ("@acme-internal".to_owned(), "https://npm.corp.example/".to_owned()),
+        ("@other".to_owned(), "https://npm.other.example/".to_owned()),
+    ]);
+    config.registries_by_prefix =
+        BTreeMap::from([("work".to_owned(), "https://npm.corp.example/".to_owned())]);
+    config.registry_options_by_url = BTreeMap::from([(
+        "https://npm.corp.example/".to_owned(),
+        RegistryOptions { server_type: Some(RegistryServerType::Artifactory) },
+    )]);
+
+    let declarations = config.registry_declarations();
+    assert_eq!(
+        declarations.get("https://npm.corp.example/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@acme".to_owned(), "@acme-internal".to_owned()]),
+            prefix: Some("work".to_owned()),
+            server_type: Some(RegistryServerType::Artifactory),
+            unknown: BTreeMap::new(),
+        }),
+    );
+    assert_eq!(
+        declarations.get("https://npm.other.example/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@other".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    // The default registry travels as the request's own `registry` field.
+    assert!(!declarations.contains_key("https://registry.npmjs.org/"), "{declarations:?}");
+}
+
+/// A declaration map survives the round trip through the lookups it is split
+/// into, which is what makes it safe to rebuild one for a pnpr request.
+#[test]
+fn declarations_round_trip_through_the_lookups() {
+    let yaml = r"
+registries:
+  https://npm.corp.example/:
+    serverType: artifactory
+    scopes: ['@acme']
+    prefix: work
+  https://npm.other.example/:
+    scopes: ['@other']
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let entries = settings.registries.clone().expect("registries present");
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    let rebuilt = config.registry_declarations();
+    let original: std::collections::BTreeMap<String, RegistryDeclaration> = entries
+        .into_iter()
+        .map(|(registry, entry)| match entry {
+            RegistryEntry::Declaration(declaration) => (registry, declaration),
+            RegistryEntry::ScopeRoute(_) => panic!("declarations only"),
+        })
+        .collect();
+    assert_eq!(rebuilt, original);
 }

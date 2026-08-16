@@ -8,6 +8,7 @@ import { mergeCatalogs } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { toRegistryDeclarations } from '@pnpm/config.normalize-registries'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
@@ -3069,7 +3070,7 @@ async function installViaPnprServer (
       optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
       projects: projectsList,
       registry: opts.registriesByScope?.default,
-      registriesByPrefix: opts.registriesByPrefix,
+      registries: toRegistryDeclarations(opts),
       authorization: pnprAuthorization,
       overrides: opts.overrides,
       // The reconstructed workspace the server builds from this request has no

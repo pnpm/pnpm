@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 
 use pnpm_catalogs_types::Catalogs;
+use pnpm_config::RegistryEntry;
 use pnpm_network::AuthHeadersByScope;
 use serde::Deserialize;
 
@@ -53,9 +54,13 @@ pub struct ResolveRequest {
     /// The client's default registry. Falls back to npmjs when absent.
     #[serde(default)]
     pub registry: Option<String>,
-    /// The registries the client addresses by a bare-specifier prefix.
+    /// The registries the client declares, keyed by URL, in the shape of
+    /// its `registries` setting: the scopes routed to each, the
+    /// bare-specifier prefix each answers to, and each one's tarball
+    /// layout. The default registry is not among them — it arrives as
+    /// [`Self::registry`].
     #[serde(default)]
-    pub registries_by_prefix: BTreeMap<String, String>,
+    pub registries: BTreeMap<String, RegistryEntry>,
     /// The caller's forwarded upstream credentials so the server resolves
     /// and fetches private content as the caller. Keyed as
     /// `auth_headers[registry_uri][scope]`; the `@` scope stores

@@ -56,7 +56,7 @@ pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
     PackageExtension, PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds,
-    registries::{RegistryDeclaration, RegistryEntry},
+    registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
 
@@ -2092,6 +2092,21 @@ impl Config {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The registries this config declares, in the shape the `registries`
+    /// setting is written in — what a pnpr server is told about them.
+    ///
+    /// The default registry is not among them: it travels as the request's
+    /// own `registry` field.
+    #[must_use]
+    pub fn registry_declarations(&self) -> BTreeMap<String, RegistryDeclaration> {
+        registries::to_declarations(&RegistryLookups {
+            registries_by_scope: self.registries_by_scope.clone(),
+            default_registry: None,
+            registries_by_prefix: self.registries_by_prefix.clone(),
+            registry_options_by_url: self.registry_options_by_url.clone(),
+        })
     }
 
     /// Overlay the CLI's proxy flags onto the merged keys and re-resolve.

@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use pnpm_config::Config as PacquetConfig;
+use pnpm_config::{Config as PacquetConfig, RegistryDeclaration, RegistryEntry};
 use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
@@ -651,16 +651,19 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&ssrf, &context).is_some());
 
-    // A named registry off the allowlist is rejected too.
-    let named = ResolveRequest {
+    // A declared registry off the allowlist is rejected too.
+    let declared = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),
-        registries_by_prefix: BTreeMap::from([(
-            "@acme".to_string(),
+        registries: BTreeMap::from([(
             "http://169.254.169.254/".to_string(),
+            RegistryEntry::Declaration(RegistryDeclaration {
+                scopes: Some(vec!["@acme".to_string()]),
+                ..RegistryDeclaration::default()
+            }),
         )]),
         ..ResolveRequest::default()
     };
-    assert!(reject_off_allowlist_fetches(&named, &context).is_some());
+    assert!(reject_off_allowlist_fetches(&declared, &context).is_some());
 
     // A semver-range dependency never hits the network, so it is ignored.
     let ranges = ResolveRequest {

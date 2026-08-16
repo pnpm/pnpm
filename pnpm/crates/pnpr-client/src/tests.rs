@@ -51,7 +51,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             optional_dependencies: BTreeMap::new(),
         }],
         registry: "https://registry.test/".to_string(),
-        registries_by_prefix: BTreeMap::new(),
+        registries: BTreeMap::new(),
         authorization: None,
         overrides: None,
         catalogs: Some(BTreeMap::from([(

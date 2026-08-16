@@ -22,10 +22,13 @@ use std::collections::{BTreeMap, HashSet};
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::TrustPolicy;
+use pnpm_config::{RegistryDeclaration, TrustPolicy};
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
+
+/// The `registries` a request declares, keyed by registry URL.
+pub type RegistryDeclarations = BTreeMap<String, RegistryDeclaration>;
 use serde::{Deserialize, Serialize};
 
 /// Dependency map (`name` -> `version range`).
@@ -45,10 +48,14 @@ pub struct ResolveOptions {
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
     /// The client's default registry. The server resolves against this
-    /// (and `registries_by_prefix`) rather than its own configuration.
+    /// (and the registries declared alongside it) rather than its own
+    /// configuration.
     pub registry: String,
     /// The client's named-registry aliases.
-    pub registries_by_prefix: DepMap,
+    /// The registries the client declares, keyed by URL, in the shape
+    /// of the `registries` setting. The default registry is not among
+    /// them: it travels as `registry`.
+    pub registries: RegistryDeclarations,
     /// `Authorization` for the pnpr server's own URL (`None` if it needs
     /// none): identifies the caller to pnpr. The client never forwards its
     /// own registry credentials — pnpr selects upstream credentials from
@@ -110,7 +117,10 @@ pub struct ResolveProject {
 pub struct ResolveProjectsOptions {
     pub projects: Vec<ResolveProject>,
     pub registry: String,
-    pub registries_by_prefix: DepMap,
+    /// The registries the client declares, keyed by URL, in the shape
+    /// of the `registries` setting. The default registry is not among
+    /// them: it travels as `registry`.
+    pub registries: RegistryDeclarations,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub catalogs: Option<Catalogs>,
@@ -139,7 +149,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
                 optional_dependencies: opts.optional_dependencies,
             }],
             registry: opts.registry,
-            registries_by_prefix: opts.registries_by_prefix,
+            registries: opts.registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
             catalogs: opts.catalogs,
@@ -163,7 +173,10 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
 #[derive(Clone)]
 pub struct VerifyLockfileOptions {
     pub registry: String,
-    pub registries_by_prefix: DepMap,
+    /// The registries the client declares, keyed by URL, in the shape
+    /// of the `registries` setting. The default registry is not among
+    /// them: it travels as `registry`.
+    pub registries: RegistryDeclarations,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub lockfile: Lockfile,
@@ -190,7 +203,7 @@ impl VerifyLockfileOptions {
     fn from_owned_resolve_projects_options(opts: ResolveProjectsOptions) -> Option<Self> {
         Some(Self {
             registry: opts.registry,
-            registries_by_prefix: opts.registries_by_prefix,
+            registries: opts.registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
             lockfile: opts.lockfile?,
@@ -342,7 +355,7 @@ impl PnprClient {
     ) -> Result<(), PnprClientError> {
         let request = serde_json::json!({
             "registry": opts.registry,
-            "namedRegistries": opts.registries_by_prefix,
+            "registries": opts.registries,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "trustLockfile": opts.trust_lockfile,
@@ -435,7 +448,7 @@ impl PnprClient {
         let request = serde_json::json!({
             "projects": opts.projects,
             "registry": opts.registry,
-            "namedRegistries": opts.registries_by_prefix,
+            "registries": opts.registries,
             "overrides": opts.overrides,
             "catalogs": opts.catalogs,
             "lockfile": opts.lockfile,

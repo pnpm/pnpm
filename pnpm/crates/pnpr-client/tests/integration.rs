@@ -19,6 +19,7 @@ use std::{
     time::Duration,
 };
 
+use pnpm_config::RegistryDeclaration;
 use pnpm_pnpr_client::{
     PnprClient, PnprClientError, ResolveOptions, ResolveProject, ResolveProjectsOptions,
     VerifyLockfileOptions,
@@ -206,7 +207,7 @@ fn options(
         dev_dependencies: BTreeMap::new(),
         optional_dependencies: BTreeMap::new(),
         registry: registry.to_string(),
-        registries_by_prefix: BTreeMap::new(),
+        registries: BTreeMap::new(),
         authorization: Some(authorization.to_string()),
         overrides: None,
         catalogs: None,
@@ -721,4 +722,38 @@ async fn handshake_rejects_a_non_pnpr_server() {
     let err = client.handshake().await.expect_err("a non-pnpr server should be rejected");
     assert!(err.to_string().contains("not a pnpr server"), "got: {err}");
     mock.assert_async().await;
+}
+
+/// The client describes its registries to the server the way its own
+/// `registries` setting does, so a scope the client routes elsewhere resolves
+/// from that registry and not from the request's default one.
+///
+/// This is also the contract test for the two ends of the protocol: the
+/// server reads the declarations under the key the client writes them.
+#[tokio::test]
+async fn resolves_a_scope_from_the_registry_declared_for_it() {
+    let registry = TestRegistry::start();
+    // A default registry that is allowlisted but serves nothing: reaching it
+    // for the scoped package is the failure this test is looking for.
+    let dead_default = "http://127.0.0.1:9/";
+    let (pnpr_url, pnpr_auth, _storage) =
+        start_pnpr_inner(None, Vec::new(), vec![registry.url(), dead_default.to_string()]).await;
+
+    let mut opts = options(dead_default, &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    opts.registries = BTreeMap::from([(
+        registry.url(),
+        RegistryDeclaration {
+            scopes: Some(vec!["@foo".to_string()]),
+            ..RegistryDeclaration::default()
+        },
+    )]);
+
+    let outcome = PnprClient::new(pnpr_url).resolve(opts).await.expect("install should succeed");
+
+    let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
+    assert!(
+        packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+        "the declared registry should have served the scope, got: {:?}",
+        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+    );
 }
