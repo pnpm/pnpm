@@ -280,7 +280,21 @@ export interface PnpmSettings {
   noProxy?: string | boolean
   pnprServer?: string
   versioning?: VersioningSettings
+  /**
+   * Where the virtual store lives, and therefore who shares it: one store
+   * per machine (`global`) or one per project (`project`).
+   *
+   * The canonical spelling of {@link PnpmSettings.enableGlobalVirtualStore},
+   * which is kept working. When both are set, this one wins.
+   */
+  virtualStoreType?: VirtualStoreType
+  /**
+   * The boolean spelling of {@link PnpmSettings.virtualStoreType}.
+   */
+  enableGlobalVirtualStore?: boolean
 }
+
+export type VirtualStoreType = 'global' | 'project'
 
 export interface ProjectManifest extends BaseManifest {
   packageManager?: string

@@ -553,3 +553,32 @@ test('getOptionsFromPnpmSettings() rejects a non-boolean supportsTimeField', () 
     },
   })).toThrow(/supportsTimeField" setting should be a boolean, but got string/)
 })
+
+test('getOptionsFromPnpmSettings() translates virtualStoreType to enableGlobalVirtualStore', () => {
+  for (const [virtualStoreType, expected] of [['global', true], ['project', false]] as const) {
+    const options = getOptionsFromPnpmSettings(process.cwd(), { virtualStoreType }) as any // eslint-disable-line
+    expect(options.enableGlobalVirtualStore).toBe(expected)
+    expect(options.virtualStoreType).toBeUndefined()
+  }
+})
+
+test('getOptionsFromPnpmSettings() lets virtualStoreType win over enableGlobalVirtualStore', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    virtualStoreType: 'project',
+    enableGlobalVirtualStore: true,
+  }) as any // eslint-disable-line
+  expect(options.enableGlobalVirtualStore).toBe(false)
+})
+
+test('getOptionsFromPnpmSettings() keeps enableGlobalVirtualStore working on its own', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    enableGlobalVirtualStore: true,
+  }) as any // eslint-disable-line
+  expect(options.enableGlobalVirtualStore).toBe(true)
+})
+
+test('getOptionsFromPnpmSettings() rejects an unknown virtualStoreType', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    virtualStoreType: 'shared' as never,
+  })).toThrow(/The "virtualStoreType" setting should be one of global, project, but got "shared"/)
+})

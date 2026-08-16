@@ -2101,6 +2101,28 @@ pub fn default_config_disables_gvs_and_points_it_at_the_store() {
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
 }
 
+/// `virtualStoreType` is the canonical spelling; `enableGlobalVirtualStore`
+/// is the boolean one pnpm 11 shipped. Both reach the same field, and the
+/// canonical key wins when a file carries both — including when the two
+/// contradict each other.
+#[test]
+pub fn virtual_store_type_supersedes_the_boolean_spelling() {
+    for (yaml, expected) in [
+        ("virtualStoreType: project\n", false),
+        ("virtualStoreType: global\n", true),
+        ("enableGlobalVirtualStore: false\n", false),
+        ("enableGlobalVirtualStore: true\n", true),
+        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
+        ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+    ] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(config.enable_global_virtual_store, expected, "yaml: {yaml}");
+    }
+}
+
 #[test]
 pub fn gvs_disabled_keeps_project_local_virtual_store() {
     let tmp = tempdir().unwrap();

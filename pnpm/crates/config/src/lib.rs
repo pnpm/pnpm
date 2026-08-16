@@ -72,6 +72,40 @@ fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
         || detect_ci()
 }
 
+/// `virtualStoreType`: where the virtual store lives, and therefore who
+/// shares it.
+///
+/// Orthogonal to [`NodeLinker`], which picks how a project consumes the
+/// store: `pnp` and `isolated` both work with either type, and `hoisted`
+/// writes no virtual store at all, so the setting is inert there.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VirtualStoreType {
+    /// One store per machine, under `<store-dir>/links`. Slots are keyed
+    /// by a dependency-graph hash, so every project resolving a package
+    /// the same way links to one directory.
+    #[default]
+    Global,
+
+    /// One store per project, at `<project>/node_modules/.pnpm`. Slots
+    /// are keyed by the flat `<name>@<version>` form.
+    Project,
+}
+
+impl VirtualStoreType {
+    /// The `enableGlobalVirtualStore` spelling of this setting.
+    #[must_use]
+    pub fn is_global(self) -> bool {
+        matches!(self, VirtualStoreType::Global)
+    }
+
+    /// The type a given `enableGlobalVirtualStore` value selects.
+    #[must_use]
+    pub fn from_enable_global(enable_global: bool) -> Self {
+        if enable_global { VirtualStoreType::Global } else { VirtualStoreType::Project }
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {

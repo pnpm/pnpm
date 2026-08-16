@@ -14,7 +14,7 @@
 use crate::{
     AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
     PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    TrustPolicy, VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
+    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -147,6 +147,7 @@ impl WorkspaceSettings {
         enum_field!(node_package_map_type, "NODE_PACKAGE_MAP_TYPE", NodePackageMapType);
         json_field!(symlink, "SYMLINK");
         string_field!(virtual_store_dir, "VIRTUAL_STORE_DIR");
+        enum_field!(virtual_store_type, "VIRTUAL_STORE_TYPE", VirtualStoreType);
         json_field!(enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");
         json_field!(global_shims, "GLOBAL_SHIMS");
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");

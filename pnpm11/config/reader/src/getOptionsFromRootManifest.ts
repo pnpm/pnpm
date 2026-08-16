@@ -13,6 +13,7 @@ import {
   type RegistryDeclaration,
   type RegistryOptions,
   type SupportedArchitectures,
+  type VirtualStoreType,
 } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { map as mapValues } from 'ramda'
@@ -82,6 +83,7 @@ export function getOptionsFromPnpmSettings (
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
+  translateVirtualStoreType(pnpmSettings, settings)
 
   return settings
 }
@@ -347,6 +349,26 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
   }
 }
 
+/**
+ * Translates the user-facing `virtualStoreType` setting into the internal
+ * `enableGlobalVirtualStore` boolean the rest of pnpm reads, and removes the
+ * raw key from the returned options.
+ *
+ * `enableGlobalVirtualStore` is the boolean spelling, kept working for
+ * projects written against it. When both are set, `virtualStoreType` wins —
+ * silently, like `catalogPrune` superseding `cleanupUnusedCatalogs`, because
+ * naming one setting two ways is not itself a mistake worth warning about.
+ */
+function translateVirtualStoreType (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
+  delete (settings as { virtualStoreType?: unknown }).virtualStoreType
+  const virtualStoreType = pnpmSettings.virtualStoreType
+  if (virtualStoreType == null) return
+  if (!VIRTUAL_STORE_TYPES.has(virtualStoreType)) {
+    throw new PnpmError('INVALID_SETTING', `The "virtualStoreType" setting should be one of ${Array.from(VIRTUAL_STORE_TYPES).join(', ')}, but got ${JSON.stringify(virtualStoreType)}`)
+  }
+  ;(settings as { enableGlobalVirtualStore?: boolean }).enableGlobalVirtualStore = virtualStoreType === 'global'
+}
+
 function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
@@ -406,6 +428,8 @@ function renderReceivedType (value: unknown): string {
 }
 
 const AUDIT_LEVELS = new Set(['info', 'low', 'moderate', 'high', 'critical'])
+
+const VIRTUAL_STORE_TYPES = new Set<VirtualStoreType>(['global', 'project'])
 
 // The `update`, `audit` and `packageExtensions` sections come from repo-controlled
 // pnpm-workspace.yaml, which is parsed untyped — so their fields are validated

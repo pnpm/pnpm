@@ -1,7 +1,7 @@
 use super::{WorkspaceSettings, parse_json_or_string, parse_tri_array};
 use crate::{
     NodeLinker, NodePackageMapType, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
-    api::EnvVar,
+    VirtualStoreType, api::EnvVar,
 };
 use pretty_assertions::assert_eq;
 
@@ -181,4 +181,34 @@ fn tri_array_env_var_parses_arrays_and_rejects_null() {
     assert_eq!(parse_tri_array(r#"["a","b"]"#), Some(Some(vec!["a".to_owned(), "b".to_owned()])));
     assert_eq!(parse_tri_array("null"), None);
     assert_eq!(parse_tri_array("not-json"), None);
+}
+
+/// `PNPM_CONFIG_VIRTUAL_STORE_TYPE` carries the canonical spelling
+/// through the env layer, and rejects anything outside the two values.
+#[test]
+fn virtual_store_type_env_var_parses_its_two_values() {
+    macro_rules! env_with_virtual_store_type {
+        ($name:ident, $value:expr) => {
+            struct $name;
+            impl EnvVar for $name {
+                fn var(name: &str) -> Option<String> {
+                    (name == "PNPM_CONFIG_VIRTUAL_STORE_TYPE").then(|| $value.to_owned())
+                }
+            }
+        };
+    }
+
+    env_with_virtual_store_type!(EnvGlobal, "global");
+    env_with_virtual_store_type!(EnvProject, "project");
+    env_with_virtual_store_type!(EnvNonsense, "shared");
+
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvGlobal>().virtual_store_type,
+        Some(VirtualStoreType::Global),
+    );
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvProject>().virtual_store_type,
+        Some(VirtualStoreType::Project),
+    );
+    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>().virtual_store_type, None,);
 }
