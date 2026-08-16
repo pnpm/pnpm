@@ -482,6 +482,24 @@ fn effective_server_type(opts: TarballUrlOptions<'_>) -> Option<RegistryServerTy
     })
 }
 
+/// Everything needed to decide which registry a package came from and what
+/// that registry does: the scope-routed URLs, the `<name>:`-addressed aliases,
+/// and the declared per-registry settings.
+///
+/// Threaded as one value rather than as three parameters so a consumer cannot
+/// be handed the routing without the settings — dropping the settings is
+/// silent, the tarball URL is simply rebuilt in the wrong layout — and so a
+/// new per-registry setting reaches every consumer by being added here.
+///
+/// The counterpart of the TypeScript CLI's [`RegistryContext`].
+#[derive(Debug, Default, Clone)]
+pub struct RegistryContext {
+    pub registries: HashMap<String, String>,
+    /// As the user wrote it; built-in aliases are merged in at lookup.
+    pub named_registries: HashMap<String, String>,
+    pub registry_options: BTreeMap<String, RegistryOptions>,
+}
+
 /// Where a package's tarball lives: the registry it resolved from, and the URL
 /// layout that registry serves.
 #[derive(Debug, Clone, Copy)]

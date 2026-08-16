@@ -9,7 +9,7 @@ use std::{
 };
 
 use chrono::{DateTime, TimeZone, Utc};
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution, RegistryContext};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
     LatestQuery, NoMatchingVersionError, PkgResolutionId, PreferredVersions, RegistryResponseError,
@@ -196,8 +196,7 @@ fn importer_opts(
 
 fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolveOptions {
     WorkspaceResolveOptions {
-        named_registries: std::collections::HashMap::new(),
-        registry_options: std::collections::BTreeMap::new(),
+        registry_context: RegistryContext::default(),
         dedupe_peers: false,
         dedupe_injected_deps: false,
         dedupe_peer_dependents: false,
@@ -219,7 +218,6 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         update_reuse_scopes_by_importer: BTreeMap::new(),
         update_depth: crate::UpdateDepth::UNLIMITED,
         auto_install_peers: false,
-        registries: std::collections::HashMap::new(),
     }
 }
 

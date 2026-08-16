@@ -477,7 +477,11 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
 
     let workspace_opts = pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
-        registry_options: config.registry_options.clone(),
+        registry_context: pnpm_lockfile::RegistryContext {
+            registries,
+            named_registries,
+            registry_options: config.registry_options.clone(),
+        },
         dedupe_peers: config.dedupe_peers,
         dedupe_injected_deps: config.dedupe_injected_deps,
         dedupe_peer_dependents: config.dedupe_peer_dependents,
@@ -497,8 +501,6 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         update_reuse_scopes_by_importer,
         update_depth,
         auto_install_peers: config.auto_install_peers,
-        registries,
-        named_registries,
         allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
         deprecation_log: Some(super::deprecation_log_fn::<Reporter>()),
     };

@@ -5,7 +5,7 @@
 
 use chrono::{DateTime, Utc};
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryOptions};
+use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
@@ -330,15 +330,10 @@ pub struct WorkspaceTreeCtx {
     /// tarball URL for the `currentPkg` payload. Empty when the entry
     /// point doesn't thread registries (then `currentPkg` is withheld
     /// for `Registry`-shaped entries rather than sent without a URL).
-    pub(super) registries: std::collections::HashMap<String, String>,
     /// Alias → URL map of named registries (built-ins merged with the
     /// user's setting), for materializing a prior registry-qualified
     /// `Registry` lockfile resolution back into its tarball URL.
-    pub(super) named_registries: std::collections::HashMap<String, String>,
-
-    /// Per-registry tarball layouts from the `registryOptions` setting, used
-    /// when a reused lockfile entry's tarball URL is rebuilt.
-    pub(super) registry_options: std::collections::BTreeMap<String, RegistryOptions>,
+    pub(super) registry_context: RegistryContext,
     /// `pkg id → importer id` of the importer whose occurrence owns
     /// that package's shared children context. Ownership is chosen by
     /// update-active status followed by `(depth, importer order, parent path)`:
@@ -514,9 +509,7 @@ impl Default for WorkspaceTreeCtx {
             allowed_deprecated_versions: BTreeMap::new(),
             deprecation_log: None,
             auto_install_peers: false,
-            registries: std::collections::HashMap::new(),
-            named_registries: std::collections::HashMap::new(),
-            registry_options: std::collections::BTreeMap::new(),
+            registry_context: RegistryContext::default(),
             first_importer_by_pkg: Mutex::new(SnapshotCell::default()),
             first_walk_missing_by_pkg: Mutex::new(SnapshotCell::default()),
             changed_direct_deps: Mutex::new(HashMap::default()),
@@ -1167,33 +1160,10 @@ impl WorkspaceTreeCtx {
         self
     }
 
-    /// Attach the resolved registry map. See the `registries` field.
+    /// Attach the registry facts. See the `registry_context` field.
     #[must_use]
-    pub fn with_registries(
-        mut self,
-        registries: std::collections::HashMap<String, String>,
-    ) -> Self {
-        self.registries = registries;
-        self
-    }
-
-    /// Attach the per-registry options. See the `registry_options` field.
-    #[must_use]
-    pub fn with_registry_options(
-        mut self,
-        registry_options: std::collections::BTreeMap<String, RegistryOptions>,
-    ) -> Self {
-        self.registry_options = registry_options;
-        self
-    }
-
-    /// Attach the named-registry alias map. See the `named_registries` field.
-    #[must_use]
-    pub fn with_named_registries(
-        mut self,
-        named_registries: std::collections::HashMap<String, String>,
-    ) -> Self {
-        self.named_registries = named_registries;
+    pub fn with_registry_context(mut self, registry_context: RegistryContext) -> Self {
+        self.registry_context = registry_context;
         self
     }
 

@@ -6,7 +6,7 @@
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
     Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
-    RegistryOptions, ResolvedDependencySpec, SnapshotEntry, TarballResolution, TarballUrlOptions,
+    RegistryContext, ResolvedDependencySpec, SnapshotEntry, TarballResolution, TarballUrlOptions,
     npm_tarball_url, pick_registry_for_package, registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
@@ -18,9 +18,7 @@ use serde_json::{Map, Value};
 pub(crate) fn current_pkg_from_lockfile(
     lockfile: &Lockfile,
     key: &PkgNameVerPeer,
-    registries: &std::collections::HashMap<String, String>,
-    named_registries: &std::collections::HashMap<String, String>,
-    registry_options: &std::collections::BTreeMap<String, RegistryOptions>,
+    registry_context: &RegistryContext,
 ) -> Option<CurrentPkg> {
     let metadata_key = key.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
@@ -38,11 +36,12 @@ pub(crate) fn current_pkg_from_lockfile(
             // unknown alias (or an unthreaded registry map) withholds
             // `currentPkg` so the dep re-resolves normally.
             let (registry, tarball_version) = match registry_qualified {
-                Some((registry_name, version)) => {
-                    (named_registries.get(registry_name)?.clone(), version.to_string())
-                }
+                Some((registry_name, version)) => (
+                    registry_context.named_registries.get(registry_name)?.clone(),
+                    version.to_string(),
+                ),
                 None => (
-                    pick_registry_for_package(registries, &name, None),
+                    pick_registry_for_package(&registry_context.registries, &name, None),
                     metadata_key.suffix.version().to_string(),
                 ),
             };
@@ -55,7 +54,10 @@ pub(crate) fn current_pkg_from_lockfile(
                     &tarball_version,
                     TarballUrlOptions {
                         registry: &registry,
-                        server_type: registry_server_type(registry_options, &registry),
+                        server_type: registry_server_type(
+                            &registry_context.registry_options,
+                            &registry,
+                        ),
                     },
                 ),
                 integrity: Some(registry_resolution.integrity.clone()),

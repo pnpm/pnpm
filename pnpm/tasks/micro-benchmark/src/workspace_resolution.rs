@@ -29,7 +29,7 @@ use std::{
     time::Instant,
 };
 
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, RegistryContext, TarballResolution};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
     ResolveImporterOptions, UpdateDepth, UpdateReuseScope, WorkspaceImporter,
@@ -274,8 +274,7 @@ fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions 
 
 fn workspace_options() -> WorkspaceResolveOptions {
     WorkspaceResolveOptions {
-        named_registries: HashMap::new(),
-        registry_options: std::collections::BTreeMap::new(),
+        registry_context: RegistryContext::default(),
         dedupe_peers: true,
         dedupe_injected_deps: true,
         dedupe_peer_dependents: true,
@@ -297,7 +296,6 @@ fn workspace_options() -> WorkspaceResolveOptions {
         allowed_deprecated_versions: BTreeMap::new(),
         deprecation_log: None,
         auto_install_peers: true,
-        registries: HashMap::new(),
     }
 }
 
