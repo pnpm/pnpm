@@ -18,23 +18,18 @@
 use std::{fmt::Write, sync::LazyLock};
 
 const RESOLVE_HELPERS: &str = r"const nodePaths = (process.env.NODE_PATH ?? '').split(delimiter).filter(Boolean)
-const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !specifier.includes(':')
-const findInNodePaths = (specifier) => {
-  for (const nodePath of nodePaths) {
-    try {
-      return pathToFileURL(createRequire(pathToFileURL(nodePath + '/x').href).resolve(specifier)).href
-    } catch {}
-  }
-  return undefined
-}";
+const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !specifier.includes(':')";
 
 /// Fallback for Node.js versions that have `module.register()` but not
 /// `module.registerHooks()` (>=18.19 <22.15): an off-thread hooks module
 /// for `module.register()`. Runtimes with neither API (`--import` parses
 /// from 18.18/19.0) get no hook at all — CJS `NODE_PATH` resolution still
-/// works natively there.
-const ASYNC_LOADER_TEMPLATE: &str = r"import { createRequire } from 'node:module'
-import { delimiter } from 'node:path'
+/// works natively there. The retry goes through the default resolver with
+/// a synthetic parent inside each `NODE_PATH` entry, so the caller's
+/// export conditions (import vs require) are preserved; every entry pnpm
+/// puts on `NODE_PATH` ends in `node_modules`, which is why the parent
+/// walk finds the entry's packages.
+const ASYNC_LOADER_TEMPLATE: &str = r"import { delimiter } from 'node:path'
 import { pathToFileURL } from 'node:url'
 @HELPERS@
 
@@ -42,16 +37,19 @@ export async function resolve (specifier, context, nextResolve) {
   try {
     return await nextResolve(specifier, context)
   } catch (originalError) {
-    if (!isBareSpecifier(specifier)) throw originalError
-    const url = findInNodePaths(specifier)
-    if (url) return { url, shortCircuit: true }
+    if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
+    for (const nodePath of nodePaths) {
+      try {
+        return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
+      } catch {}
+    }
     throw originalError
   }
 }
 ";
 
 const REGISTRATION_TEMPLATE: &str = r#"if (process.env.NODE_PATH) {
-  const { createRequire, register, registerHooks } = await import('node:module')
+  const { register, registerHooks } = await import('node:module')
   const { delimiter } = await import('node:path')
   const { pathToFileURL } = await import('node:url')
   if (registerHooks) {
@@ -61,9 +59,12 @@ const REGISTRATION_TEMPLATE: &str = r#"if (process.env.NODE_PATH) {
         try {
           return nextResolve(specifier, context)
         } catch (originalError) {
-          if (!isBareSpecifier(specifier)) throw originalError
-          const url = findInNodePaths(specifier)
-          if (url) return { url, shortCircuit: true }
+          if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
+          for (const nodePath of nodePaths) {
+            try {
+              return nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
+            } catch {}
+          }
           throw originalError
         }
       },

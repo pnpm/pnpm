@@ -80,6 +80,36 @@ describe('the registered loader', () => {
     expect(withLoader.stdout.toString().trim()).toBe('phantom-resolved')
   })
 
+  test('the fallback preserves import conditions for dual-condition packages', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    const dualDir = path.join(tmp, 'store', 'node_modules', 'dual-dep')
+    fs.mkdirSync(dualDir, { recursive: true })
+    fs.writeFileSync(path.join(dualDir, 'package.json'), JSON.stringify({
+      name: 'dual-dep',
+      version: '1.0.0',
+      exports: {
+        '.': {
+          import: './esm.mjs',
+          require: './cjs.js',
+        },
+      },
+    }))
+    fs.writeFileSync(path.join(dualDir, 'esm.mjs'), 'export default "esm-target"')
+    fs.writeFileSync(path.join(dualDir, 'cjs.js'), 'module.exports = "cjs-target"')
+    const script = path.join(tmp, 'main.mjs')
+    fs.writeFileSync(script, 'import dep from "dual-dep"\nconsole.log(dep)')
+
+    const result = spawnSync(process.execPath, [script], {
+      env: {
+        ...process.env,
+        NODE_PATH: path.join(tmp, 'store', 'node_modules'),
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.stderr.toString()).toBe('')
+    expect(result.stdout.toString().trim()).toBe('esm-target')
+  })
+
   test('still fails cleanly when the specifier is nowhere on NODE_PATH', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
     const script = path.join(tmp, 'main.mjs')

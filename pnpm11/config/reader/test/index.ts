@@ -4578,7 +4578,10 @@ test('enableGlobalVirtualStore exposes hoisted dependencies through NODE_PATH an
 
   const { config } = await getConfig({
     cliOptions: {},
-    env,
+    env: {
+      ...env,
+      NODE_OPTIONS: '--max-old-space-size=1234',
+    },
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
@@ -4590,7 +4593,7 @@ test('enableGlobalVirtualStore exposes hoisted dependencies through NODE_PATH an
     path.join(process.cwd(), 'node_modules/.pnpm/node_modules'),
     path.join(process.cwd(), 'node_modules'),
   ].join(path.delimiter))
-  expect(config.extraEnv['NODE_OPTIONS']).toContain(esmNodePathLoaderImportFlag)
+  expect(config.extraEnv['NODE_OPTIONS']).toBe(`--max-old-space-size=1234 ${esmNodePathLoaderImportFlag}`)
 })
 
 test('without a global virtual store, extraEnv carries no NODE_PATH or NODE_OPTIONS', async () => {

@@ -4,7 +4,7 @@
 
 ## Installation
 
-```
+```sh
 pnpm i @pnpm/exec.esm-node-path-loader
 
 ```

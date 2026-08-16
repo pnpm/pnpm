@@ -779,7 +779,7 @@ export async function getConfig (opts: {
       modulesDir,
     ]
     pnpmConfig.extraEnv['NODE_PATH'] = Array.from(new Set(nodePaths)).join(path.delimiter)
-    pnpmConfig.extraEnv['NODE_OPTIONS'] = addEsmNodePathLoaderOption(process.env.NODE_OPTIONS)
+    pnpmConfig.extraEnv['NODE_OPTIONS'] = addEsmNodePathLoaderOption(env['NODE_OPTIONS'])
   }
 
   // The yes option is only meant to be a CLI option. Remove it from the

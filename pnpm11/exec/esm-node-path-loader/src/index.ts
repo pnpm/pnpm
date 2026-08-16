@@ -7,20 +7,19 @@
  * built here restores `NODE_PATH` lookups for bare specifiers that the
  * default ESM resolution fails to find.
  *
- * The Rust CLI embeds an identical copy of these sources — the two must stay
- * in sync so both CLIs inject the same `NODE_OPTIONS` value.
+ * The retry goes through the default resolver with a synthetic parent
+ * inside each `NODE_PATH` entry, so the caller's export conditions (import
+ * vs require) are preserved. Every entry pnpm puts on `NODE_PATH` ends in
+ * `node_modules`, which is why the parent walk finds the entry's packages:
+ * the resolver checks `<parent dir>/node_modules`, and the entry's parent
+ * dir maps straight back to the entry itself.
+ *
+ * The Rust CLI embeds an identical copy of these sources — the two must
+ * stay in sync so both CLIs inject the same `NODE_OPTIONS` value.
  */
 const RESOLVE_HELPERS = `\
 const nodePaths = (process.env.NODE_PATH ?? '').split(delimiter).filter(Boolean)
 const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !specifier.includes(':')
-const findInNodePaths = (specifier) => {
-  for (const nodePath of nodePaths) {
-    try {
-      return pathToFileURL(createRequire(pathToFileURL(nodePath + '/x').href).resolve(specifier)).href
-    } catch {}
-  }
-  return undefined
-}
 `
 
 /*
@@ -31,7 +30,6 @@ const findInNodePaths = (specifier) => {
  * natively there.
  */
 const ASYNC_LOADER_SOURCE = `\
-import { createRequire } from 'node:module'
 import { delimiter } from 'node:path'
 import { pathToFileURL } from 'node:url'
 ${RESOLVE_HELPERS}
@@ -39,9 +37,12 @@ export async function resolve (specifier, context, nextResolve) {
   try {
     return await nextResolve(specifier, context)
   } catch (originalError) {
-    if (!isBareSpecifier(specifier)) throw originalError
-    const url = findInNodePaths(specifier)
-    if (url) return { url, shortCircuit: true }
+    if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
+    for (const nodePath of nodePaths) {
+      try {
+        return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
+      } catch {}
+    }
     throw originalError
   }
 }
@@ -49,7 +50,7 @@ export async function resolve (specifier, context, nextResolve) {
 
 const REGISTRATION_SOURCE = `\
 if (process.env.NODE_PATH) {
-  const { createRequire, register, registerHooks } = await import('node:module')
+  const { register, registerHooks } = await import('node:module')
   const { delimiter } = await import('node:path')
   const { pathToFileURL } = await import('node:url')
   if (registerHooks) {
@@ -59,9 +60,12 @@ if (process.env.NODE_PATH) {
         try {
           return nextResolve(specifier, context)
         } catch (originalError) {
-          if (!isBareSpecifier(specifier)) throw originalError
-          const url = findInNodePaths(specifier)
-          if (url) return { url, shortCircuit: true }
+          if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
+          for (const nodePath of nodePaths) {
+            try {
+              return nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
+            } catch {}
+          }
           throw originalError
         }
       },
@@ -91,12 +95,6 @@ function strictUriEncode (text: string): string {
  */
 export const esmNodePathLoaderImportFlag = `--import=data:text/javascript,${strictUriEncode(REGISTRATION_SOURCE)}`
 
-export function addEsmNodePathLoaderOption (nodeOptions: string | undefined): string {
-  if (!nodeOptions) return esmNodePathLoaderImportFlag
-  if (nodeOptions.includes(esmNodePathLoaderImportFlag)) return nodeOptions
-  return `${nodeOptions} ${esmNodePathLoaderImportFlag}`
-}
-
 /**
  * Reapplies the loader flag after `nodeOptions` from config replaces a
  * previously built `NODE_OPTIONS` value that carried it.
@@ -106,4 +104,10 @@ export function keepEsmNodePathLoaderOption (nodeOptions: string, previousNodeOp
     return addEsmNodePathLoaderOption(nodeOptions)
   }
   return nodeOptions
+}
+
+export function addEsmNodePathLoaderOption (nodeOptions: string | undefined): string {
+  if (!nodeOptions) return esmNodePathLoaderImportFlag
+  if (nodeOptions.includes(esmNodePathLoaderImportFlag)) return nodeOptions
+  return `${nodeOptions} ${esmNodePathLoaderImportFlag}`
 }
