@@ -414,8 +414,7 @@ pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
 
 /// Whether `tarball` is the canonical npm registry URL derived from `name`,
 /// `version`, and `registry` — i.e. it can be dropped from the lockfile and
-/// rebuilt on demand. Percent-encoding is case-insensitive, so the unescape
-/// matches both `%2f` and `%2F` in the URLs npm produces for scoped packages.
+/// rebuilt on demand.
 fn is_canonical_registry_tarball_url(
     tarball: &str,
     name: &str,
@@ -423,8 +422,21 @@ fn is_canonical_registry_tarball_url(
     registry: &str,
 ) -> bool {
     let expected = npm_tarball_url(name, version, registry);
-    let actual = tarball;
-    remove_protocol(&expected) == remove_protocol(actual)
+    let expected = remove_protocol(&expected);
+    let actual = remove_protocol(tarball);
+    // registry.npmjs.org serves a scoped package from both the encoded and the
+    // unencoded path; elsewhere only the encoded one may work.
+    // See <https://github.com/pnpm/pnpm/issues/13534>.
+    expected == actual
+        || (is_public_npm_registry(registry)
+            && expected == actual.replace("%2f", "/").replace("%2F", "/"))
+}
+
+const PUBLIC_NPM_REGISTRY_HOST: &str = "registry.npmjs.org";
+
+fn is_public_npm_registry(registry: &str) -> bool {
+    let registry = remove_protocol(registry);
+    registry.strip_suffix('/').unwrap_or(registry) == PUBLIC_NPM_REGISTRY_HOST
 }
 
 /// Default-vs-scope routing for an npm package.

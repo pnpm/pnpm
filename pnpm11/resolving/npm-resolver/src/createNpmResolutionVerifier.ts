@@ -437,10 +437,9 @@ function sameTarballUrl (a: string, b: string): boolean {
   return canonicalTarballUrl(a) === canonicalTarballUrl(b)
 }
 
-// Mirror the tolerance toLockfileResolution applies when it decides whether
-// a tarball URL is "the expected one": ignore the protocol and `%2f` scope
-// encoding so a benign http/https or encoding difference isn't read as
-// tampering. The `%2f` match is case-insensitive because `normalizeRegistryUrl`
+// Both URLs come from the registry, so ignore the protocol and `%2f` scope
+// encoding: a benign http/https or encoding difference isn't tampering. The
+// `%2f` match is case-insensitive because `normalizeRegistryUrl`
 // (`new URL().toString()`) can upper-case percent-escapes to `%2F`.
 function canonicalTarballUrl (url: string): string {
   const normalized = normalizeRegistryUrl(url).replace(/%2f/gi, '/')

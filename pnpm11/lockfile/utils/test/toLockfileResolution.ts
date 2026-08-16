@@ -53,6 +53,35 @@ test('keeps the tarball for non-standard registry URLs when lockfileIncludeTarba
   })
 })
 
+test.each([
+  'https://npm.example.com/@babel%2Fcore/-/core-7.0.0.tgz',
+  'https://npm.example.com/@babel%2fcore/-/core-7.0.0.tgz',
+])('keeps a scoped tarball URL that percent-encodes the scope separator: %s', (tarball) => {
+  expect(toLockfileResolution(
+    { name: '@babel/core', version: '7.0.0' },
+    { integrity: 'sha512-AAAA', tarball },
+    'https://npm.example.com/',
+    false
+  )).toEqual({
+    integrity: 'sha512-AAAA',
+    tarball,
+  })
+})
+
+test.each([
+  'https://registry.npmjs.org/@babel%2Fcore/-/core-7.0.0.tgz',
+  'https://registry.npmjs.org/@babel%2fcore/-/core-7.0.0.tgz',
+])('drops a percent-encoded scoped tarball URL on the public registry: %s', (tarball) => {
+  expect(toLockfileResolution(
+    { name: '@babel/core', version: '7.0.0' },
+    { integrity: 'sha512-AAAA', tarball },
+    REGISTRY,
+    false
+  )).toEqual({
+    integrity: 'sha512-AAAA',
+  })
+})
+
 test('keeps GitHub Packages /download/ tarball URLs when lockfileIncludeTarballUrl is false', () => {
   // GitHub Packages serves tarballs at /download/<scope>/<name>/<version>/<hash>,
   // which cannot be derived from name+version+registry. See

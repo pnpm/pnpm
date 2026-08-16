@@ -1,3 +1,5 @@
+const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/'
+
 /**
  * Build the canonical tarball URL of an npm package — i.e. the URL pnpm derives
  * from a package's name, version, and registry. Vendored from the
@@ -28,22 +30,27 @@ export function getNpmTarballUrl (
  * path (e.g. an ephemeral `localhost:<port>`) can rewrite the resolved tarball
  * to `getNpmTarballUrl(name, version, { registry })` so nothing host-specific
  * is persisted to `pnpm-lock.yaml`.
- *
- * Percent-encoding is case-insensitive, so the `%2f` unescape matches both
- * `%2f` and `%2F` in the URLs npm produces for scoped packages.
  */
 export function isCanonicalRegistryTarballUrl (
   tarball: string,
   pkg: { name: string, version: string },
   registry: string
 ): boolean {
-  const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
-  const actualTarball = tarball
-  return removeProtocol(expectedTarball) === removeProtocol(actualTarball)
+  const expectedTarball = removeProtocol(getNpmTarballUrl(pkg.name, pkg.version, { registry }))
+  const actualTarball = removeProtocol(tarball)
+  if (expectedTarball === actualTarball) return true
+  // registry.npmjs.org serves a scoped package from both the encoded and the
+  // unencoded path; elsewhere only the encoded one may work.
+  // See https://github.com/pnpm/pnpm/issues/13534.
+  return isPublicNpmRegistry(registry) && expectedTarball === actualTarball.replace(/%2f/gi, '/')
+}
+
+function isPublicNpmRegistry (registry: string): boolean {
+  return removeProtocol(normalizeRegistry(registry)) === removeProtocol(PUBLIC_NPM_REGISTRY)
 }
 
 function normalizeRegistry (registry?: string): string {
-  if (!registry) return 'https://registry.npmjs.org/'
+  if (!registry) return PUBLIC_NPM_REGISTRY
   return registry.endsWith('/') ? registry : `${registry}/`
 }
 
