@@ -57,10 +57,7 @@ export async function buildDependenciesTree (
   }
   const modulesDir = await realpathMissing(pathAbsolute(maybeOpts.modulesDir ?? 'node_modules', maybeOpts.lockfileDir))
   const modules = await readModulesManifest(modulesDir)
-  const registriesByScope = normalizeRegistriesByScope({
-    ...maybeOpts?.registriesByScope,
-    ...modules?.registries,
-  })
+  const registriesByScope = normalizeRegistriesByScope(maybeOpts?.registriesByScope)
   const internalPnpmDir = path.join(modulesDir, '.pnpm')
   const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })

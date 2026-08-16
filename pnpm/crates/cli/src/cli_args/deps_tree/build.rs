@@ -27,8 +27,6 @@ use super::{
     search::Searcher,
 };
 
-pub(crate) const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
-
 /// The lockfiles and modules-manifest state one tree build runs
 /// against. Owns the loaded lockfiles; [`LoadedState::env`] borrows them.
 pub(crate) struct LoadedState {
@@ -85,18 +83,14 @@ impl LoadedState {
         &'a self,
         lockfile_dir: &Path,
         virtual_store_dir_max_length: usize,
+        registries_by_scope: &BTreeMap<String, String>,
         registry_options_by_url: BTreeMap<String, RegistryOptions>,
     ) -> Option<PkgInfoEnv<'a>> {
         let lockfile = self.lockfile_to_use()?;
-        let mut registries = HashMap::new();
-        registries.insert("default".to_string(), DEFAULT_REGISTRY.to_string());
-        if let Some(modules_registries) =
-            self.modules.as_ref().and_then(|modules| modules.registries.as_ref())
-        {
-            for (key, url) in modules_registries {
-                registries.insert(key.clone(), url.clone());
-            }
-        }
+        let registries: HashMap<String, String> = registries_by_scope
+            .iter()
+            .map(|(scope, registry)| (scope.clone(), registry.clone()))
+            .collect();
         let virtual_store_dir = match &self.modules {
             Some(modules) if !modules.virtual_store_dir.is_empty() => {
                 let dir = PathBuf::from(&modules.virtual_store_dir);

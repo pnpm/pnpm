@@ -275,7 +275,6 @@ export async function getContextForSingleImporter (
     include,
     modules,
     pendingBuilds,
-    registriesByScope,
     skipped,
     rootModulesDir,
   } = await readProjectsContext(
@@ -334,10 +333,7 @@ export async function getContextForSingleImporter (
     pendingBuilds,
     prefix: opts.dir,
     publicHoistPattern: opts.publicHoistPattern,
-    registriesByScope: {
-      ...opts.registriesByScope,
-      ...registriesByScope,
-    },
+    registriesByScope: opts.registriesByScope,
     rootModulesDir,
     skipped,
     storeDir,

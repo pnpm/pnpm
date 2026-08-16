@@ -45,7 +45,7 @@ import {
   type WantedDependency,
 } from '@pnpm/installing.deps-resolver'
 import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
-import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { type Modules, readModulesManifest, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
@@ -595,7 +595,7 @@ export async function mutateModules (
       // writeModulesManifest converts ignoredBuilds to an array before
       // serializing, so a Set is fine here.
       writtenManifest.ignoredBuilds = ignoredBuilds
-      await writeModulesManifest(ctx.rootModulesDir, writtenManifest as StrictModules)
+      await writeModulesManifest(ctx.rootModulesDir, writtenManifest as Modules)
     }
   }
   ignoredScriptsLogger.debug({
@@ -2333,7 +2333,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           prunedAt: opts.pruneVirtualStore || ctx.modulesFile == null
             ? new Date().toUTCString()
             : ctx.modulesFile.prunedAt,
-          registries: ctx.registriesByScope,
           skipped: Array.from(ctx.skipped),
           storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,

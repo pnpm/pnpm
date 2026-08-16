@@ -765,7 +765,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
         ? new Date().toUTCString()
         : opts.prunedAt,
-      registries: opts.registriesByScope,
       skipped: Array.from(skipped),
       storeDir: opts.storeDir,
       virtualStoreDir,

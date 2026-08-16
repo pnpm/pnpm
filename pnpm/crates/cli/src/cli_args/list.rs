@@ -278,6 +278,7 @@ impl ListArgs {
         let env = state.env(
             lockfile_dir,
             config.virtual_store_dir_max_length as usize,
+            &config.resolved_registries(),
             config.registry_options_by_url.clone(),
         );
 

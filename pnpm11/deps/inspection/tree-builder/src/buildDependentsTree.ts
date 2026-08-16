@@ -89,10 +89,7 @@ export async function buildDependentsTree (
 ): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
   const modules = await readModulesManifest(modulesDir)
-  const registriesByScope = normalizeRegistriesByScope({
-    ...opts.registriesByScope,
-    ...modules?.registries,
-  })
+  const registriesByScope = normalizeRegistriesByScope(opts.registriesByScope)
   const storeDir = modules?.storeDir
   const storeIndex = storeDir ? new StoreIndex(storeDir) : undefined
   const virtualStoreDir = modules?.virtualStoreDir ?? path.join(modulesDir, '.pnpm')

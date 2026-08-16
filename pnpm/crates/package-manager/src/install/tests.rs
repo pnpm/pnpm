@@ -1707,7 +1707,6 @@ async fn install_writes_modules_yaml() {
         store_dir: emitted_store_dir,
         virtual_store_dir: emitted_virtual_store_dir,
         virtual_store_dir_max_length,
-        registries,
         package_manager,
         ..
     } = modules_dir
@@ -1726,14 +1725,6 @@ async fn install_writes_modules_yaml() {
     // to the absolute install-time path.
     assert_eq!(emitted_virtual_store_dir, virtual_store_dir.to_string_lossy());
     assert_eq!(virtual_store_dir_max_length, pnpm_config::default_virtual_store_dir_max_length());
-    assert_eq!(
-        registries.as_ref().and_then(|r| r.get("default")).map(String::as_str),
-        Some(config.registry.as_str()),
-    );
-    assert_eq!(
-        registries.as_ref().and_then(|r| r.get("@private")).map(String::as_str),
-        Some("https://private.example.com/npm/"),
-    );
     assert_eq!(package_manager, format!("pnpm@{}", pnpm_config::PNPM_VERSION));
 
     drop(dir);
