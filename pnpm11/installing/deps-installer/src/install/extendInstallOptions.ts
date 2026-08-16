@@ -13,12 +13,12 @@ import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { PreferredVersions, ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyRules, ReadPackageHook, Registries, RegistryConfig, RegistryOptions, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyRules, ReadPackageHook, RegistryConfig, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
 
-export interface StrictInstallOptions {
+export interface StrictInstallOptions extends RegistryContext {
   autoConfirmAllPrompts: boolean
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
@@ -113,9 +113,6 @@ export interface StrictInstallOptions {
   childConcurrency: number
   userAgent: string
   unsafePerm: boolean
-  registries: Registries
-  namedRegistries?: Record<string, string>
-  registryOptions?: Record<string, RegistryOptions>
   tag: string
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'

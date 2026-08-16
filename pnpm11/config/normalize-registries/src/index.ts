@@ -1,10 +1,5 @@
 import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
-import type {
-  NamedRegistries,
-  Registries,
-  RegistryOptions,
-  RegistryServerType,
-} from '@pnpm/types'
+import type { NamedRegistries, Registries, RegistryContext, RegistryServerType } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { map as mapValues } from 'ramda'
 
@@ -45,6 +40,20 @@ export function normalizeNamedRegistries (namedRegistries?: Record<string, strin
 const DEFAULT_NAMED_REGISTRIES = normalizeNamedRegistries({})
 
 /**
+ * Narrow a config-shaped object down to the registry facts alone, so the
+ * install and lockfile layers are not handed the whole config, and so a
+ * forwarding call site cannot drop one. The single place a new
+ * {@link RegistryContext} field has to be listed.
+ */
+export function pickRegistryContext (source: RegistryContext): RegistryContext {
+  return {
+    registries: source.registries,
+    namedRegistries: source.namedRegistries,
+    registryOptions: source.registryOptions,
+  }
+}
+
+/**
  * The layout the user declared for `registry`, or `undefined` for none.
  *
  * Built-in layouts are deliberately not applied here — they belong with
@@ -52,8 +61,8 @@ const DEFAULT_NAMED_REGISTRIES = normalizeNamedRegistries({})
  * that never threads `registryOptions` still gets them.
  */
 export function getRegistryServerType (
-  registryOptions: Record<string, RegistryOptions> | undefined,
+  registryContext: Pick<RegistryContext, 'registryOptions'>,
   registry: string
 ): RegistryServerType | undefined {
-  return registryOptions?.[normalizeRegistryUrl(registry)]?.serverType
+  return registryContext.registryOptions?.[normalizeRegistryUrl(registry)]?.serverType
 }

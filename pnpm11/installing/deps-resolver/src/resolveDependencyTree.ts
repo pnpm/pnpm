@@ -1,5 +1,6 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
@@ -7,7 +8,7 @@ import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.npm-resolver'
 import type { PreferredVersions, Resolution, ResolutionPolicyViolation, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { AllowBuild, AllowedDeprecatedVersions, PkgResolutionId, ProjectId, ProjectManifest, ProjectRootDir, RangeSpecStyle, ReadPackageHook, Registries, RegistryOptions, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { AllowBuild, AllowedDeprecatedVersions, PkgResolutionId, ProjectId, ProjectManifest, ProjectRootDir, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 import { partition } from 'ramda'
 
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
@@ -96,7 +97,7 @@ export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<
   rangeSpecStyle?: RangeSpecStyle
 }
 
-export interface ResolveDependenciesOptions {
+export interface ResolveDependenciesOptions extends RegistryContext {
   allowBuild?: AllowBuild
   autoInstallPeers?: boolean
   autoInstallPeersFromHighestMatch?: boolean
@@ -116,9 +117,6 @@ export interface ResolveDependenciesOptions {
   }
   overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   nodeVersion?: string
-  registries: Registries
-  namedRegistries?: Record<string, string>
-  registryOptions?: Record<string, RegistryOptions>
   patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions
@@ -200,9 +198,7 @@ export async function resolveDependencyTree<T> (
     preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
     overrideBareSpecifier: opts.overrideBareSpecifier,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
-    registryOptions: opts.registryOptions,
+    ...pickRegistryContext(opts),
     namedRegistryPrefixes: Array.from(
       new Set([
         ...Object.keys(BUILTIN_NAMED_REGISTRIES),

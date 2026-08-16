@@ -67,7 +67,7 @@ import type {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type { RegistryOptions } from '@pnpm/types'
+import type { RegistryContext } from '@pnpm/types'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,
@@ -108,7 +108,7 @@ export interface Project {
   rootDir: ProjectRootDir
 }
 
-export interface HeadlessOptions {
+export interface HeadlessOptions extends RegistryContext {
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
   childConcurrency?: number
@@ -171,9 +171,6 @@ export interface HeadlessOptions {
   configByUri: Record<string, RegistryConfig>
   unsafePerm: boolean
   userAgent: string
-  registries: Registries
-  namedRegistries?: Record<string, string>
-  registryOptions?: Record<string, RegistryOptions>
   reporter?: ReporterFunction
   packageManager: {
     name: string

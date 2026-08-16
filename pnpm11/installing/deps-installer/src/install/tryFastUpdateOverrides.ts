@@ -471,7 +471,7 @@ function rewritePackages (
       manifest: resolved.manifest,
       optionalDependencies,
       registry,
-      serverType: getRegistryServerType(opts.registryOptions, registry),
+      serverType: getRegistryServerType(opts, registry),
       resolution: resolved.resolution,
     })
     const existingSnapshot = packages[newDepPath]

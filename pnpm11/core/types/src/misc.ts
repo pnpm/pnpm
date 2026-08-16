@@ -60,6 +60,24 @@ export interface RegistryOptions {
   serverType?: RegistryServerType
 }
 
+/**
+ * Everything needed to decide which registry a package came from and what that
+ * registry does: the scope-routed URLs, the `<name>:`-addressed aliases, and
+ * the declared per-registry settings.
+ *
+ * Mixed into an options type (`RegistryContext & { … }`) rather than spelled
+ * out field by field, so that a new per-registry setting reaches every
+ * consumer by being added here. Forward it with `pickRegistryContext` for the
+ * same reason: dropping a field is silent — the tarball URL is simply rebuilt
+ * in the wrong layout — so neither end should be written out by hand.
+ */
+export interface RegistryContext {
+  registries: Registries
+  /** As the user wrote it; built-in aliases are merged in at lookup. */
+  namedRegistries?: Record<string, string>
+  registryOptions?: Record<string, RegistryOptions>
+}
+
 /** Parsed value of `_auth` of each registry in the rc file. */
 export interface BasicAuth {
   username: string

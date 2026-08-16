@@ -6,23 +6,12 @@ import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
-import type { Registries, RegistryOptions } from '@pnpm/types'
+import type { RegistryContext } from '@pnpm/types'
 
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
-export interface PkgSnapshotToResolutionOptions {
-  registries: Registries
-  /**
-   * User-configured named registries (`namedRegistries` setting). Built-in
-   * aliases are merged in here, so callers pass the setting verbatim.
-   */
-  namedRegistries?: Record<string, string>
-  /**
-   * Normalized `registryOptions` setting. The tarball URL is rebuilt with the
-   * layout the registry it resolved from was declared to serve.
-   */
-  registryOptions?: Record<string, RegistryOptions>
-}
+/** The registry facts alone; the tarball URL is rebuilt from them. */
+export type PkgSnapshotToResolutionOptions = RegistryContext
 
 export function pkgSnapshotToResolution (
   depPath: string,
@@ -85,7 +74,7 @@ export function pkgSnapshotToResolution (
     }
     return getNpmTarballUrl(name, version, {
       registry,
-      serverType: getRegistryServerType(opts.registryOptions, registry),
+      serverType: getRegistryServerType(opts, registry),
     })
   }
 }

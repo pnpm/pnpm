@@ -3198,6 +3198,9 @@ importers:
 
   pnpm11/deps/graph-builder:
     dependencies:
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -6116,6 +6119,9 @@ importers:
       '@pnpm/building.policy':
         specifier: workspace:*
         version: link:../../building/policy
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable

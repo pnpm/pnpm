@@ -7,7 +7,7 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import type { DepPath, Registries, RegistryOptions, RegistryServerType } from '@pnpm/types'
+import type { DepPath, Registries, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
 
@@ -16,13 +16,10 @@ import type { DependenciesGraph } from './index.js'
 import type { ResolvedPackage } from './resolveDependencies.js'
 
 export function updateLockfile (
-  { dependenciesGraph, lockfile, prefix, registries, namedRegistries, registryOptions, lockfileIncludeTarballUrl }: {
+  { dependenciesGraph, lockfile, prefix, registries, namedRegistries, registryOptions, lockfileIncludeTarballUrl }: RegistryContext & {
     dependenciesGraph: DependenciesGraph
     lockfile: LockfileObject
     prefix: string
-    registries: Registries
-    namedRegistries?: Record<string, string>
-    registryOptions?: Record<string, RegistryOptions>
     lockfileIncludeTarballUrl?: boolean
   }
 ): LockfileObject {
@@ -46,7 +43,7 @@ export function updateLockfile (
       prevSnapshot: lockfile.packages[depPath as DepPath],
       registries,
       registry,
-      serverType: getRegistryServerType(registryOptions, registry),
+      serverType: getRegistryServerType({ registryOptions }, registry),
       registryName,
       updatedDeps,
       updatedOptionalDeps,

@@ -2,6 +2,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import {
   deprecationLogger,
   progressLogger,
@@ -43,7 +44,7 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PackageManifest, PackageVersionPolicy, PkgIdWithPatchHash, RangeSpecStyle, ReadPackageHook, Registries, RegistryOptions, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PackageManifest, PackageVersionPolicy, PkgIdWithPatchHash, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import pDefer from 'p-defer'
 import { pathExists } from 'path-exists'
@@ -149,7 +150,7 @@ export interface ChildrenByParentId {
   }>
 }
 
-export interface ResolutionContext {
+export interface ResolutionContext extends RegistryContext {
   allowBuild?: AllowBuild
   allPeerDepNames: Set<string>
   autoInstallPeers: boolean
@@ -191,9 +192,6 @@ export interface ResolutionContext {
   engineStrict: boolean
   nodeVersion?: string
   pnpmVersion: string
-  registries: Registries
-  namedRegistries?: Record<string, string>
-  registryOptions?: Record<string, RegistryOptions>
   namedRegistryPrefixes: readonly string[]
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
@@ -635,9 +633,7 @@ async function resolveDependenciesOfImporters (
         preferredDependencies: importer.options.preferredDependencies,
         prefix: importer.options.prefix,
         proceed: importer.options.proceed || ctx.forceFullResolution,
-        registries: ctx.registries,
-        namedRegistries: ctx.namedRegistries,
-        registryOptions: ctx.registryOptions,
+        ...pickRegistryContext(ctx),
         resolvedDependencies: importer.options.resolvedDependencies,
       })
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
@@ -842,9 +838,7 @@ export async function resolveDependencies (
     preferredVersions,
     prefix: options.prefix,
     proceed: options.proceed || ctx.forceFullResolution,
-    registries: ctx.registries,
-    namedRegistries: ctx.namedRegistries,
-    registryOptions: ctx.registryOptions,
+    ...pickRegistryContext(ctx),
     resolvedDependencies: options.resolvedDependencies,
   })
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
@@ -1564,14 +1558,11 @@ async function resolveChildren (
 function getDepsToResolve (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   wantedLockfile: LockfileObject,
-  options: {
+  options: RegistryContext & {
     preferredDependencies?: ResolvedDependencies
     preferredVersions?: PreferredVersions
     prefix: string
     proceed: boolean
-    registries: Registries
-    namedRegistries?: Record<string, string>
-    registryOptions?: Record<string, RegistryOptions>
     resolvedDependencies?: ResolvedDependencies
   }
 ): ExtendedWantedDependency[] {
@@ -1631,7 +1622,7 @@ function getDepsToResolve (
         reference = preferredDependencies[wantedDependency.alias]
       }
     }
-    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, { registries: options.registries, namedRegistries: options.namedRegistries, registryOptions: options.registryOptions }, reference, wantedDependency.alias)
+    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, pickRegistryContext(options), reference, wantedDependency.alias)
     if (
       !proceedAll &&
       (
