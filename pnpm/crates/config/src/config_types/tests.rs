@@ -51,10 +51,13 @@ fn config_file_keys() {
     // structured YAML settings without scalar CLI types
     assert!(is_config_file_key("registries"));
     assert!(is_config_file_key("named-registries"));
+    // global config-file hoisting keys
+    assert!(is_config_file_key("node-linker"));
+    assert!(is_config_file_key("hoist"));
+    assert!(is_config_file_key("shamefully-hoist"));
+    assert!(is_config_file_key("public-hoist-pattern"));
     // excluded workspace-only / CLI keys
     assert!(!is_config_file_key("catalog-mode"));
-    assert!(!is_config_file_key("node-linker"));
-    assert!(!is_config_file_key("hoist"));
     assert!(!is_config_file_key("lockfile"));
     // catalog / package-extensions are not even type keys → not config-file keys
     assert!(!is_config_file_key("catalog"));

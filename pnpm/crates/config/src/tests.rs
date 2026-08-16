@@ -2539,10 +2539,10 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(
         config_dir.join("config.yaml"),
-        // `nodeLinker`, `hoist`, `symlink`, and `lockfile` are all
+        // `catalogMode`, `symlink`, and `lockfile` are
         // workspace-only keys pnpm excludes from the global config.
         // None should apply when set in the global config.
-        "nodeLinker: hoisted\nhoist: false\nsymlink: false\nlockfile: false\n",
+        "catalogMode: manual\nsymlink: false\nlockfile: false\n",
     )
     .expect("write to global config.yaml");
 
@@ -2574,10 +2574,54 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
     let tmp = tempdir().unwrap();
     let defaults = Config::new();
     let config = Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
-    assert_eq!(config.node_linker, defaults.node_linker);
-    assert_eq!(config.hoist, defaults.hoist);
+    assert_eq!(config.catalog_mode, defaults.catalog_mode);
     assert_eq!(config.symlink, defaults.symlink);
     assert_eq!(config.lockfile, defaults.lockfile);
+}
+
+#[test]
+pub fn global_config_yaml_hoisting_keys_are_honored() {
+    let xdg = tempdir().unwrap();
+    let config_dir = xdg.path().join("pnpm");
+    std::fs::create_dir_all(&config_dir).unwrap();
+    std::fs::write(
+        config_dir.join("config.yaml"),
+        "nodeLinker: hoisted\npublicHoistPattern:\n  - '*types*'\n",
+    )
+    .expect("write to global config.yaml");
+
+    static XDG_CONFIG_HOME_HOIST_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    XDG_CONFIG_HOME_HOIST_PATH.set(xdg.path().to_path_buf()).expect("set once");
+
+    struct HostWithXdgConfigHomeHoist;
+    impl EnvVar for HostWithXdgConfigHomeHoist {
+        fn var(name: &str) -> Option<String> {
+            if name == "XDG_CONFIG_HOME" {
+                return XDG_CONFIG_HOME_HOIST_PATH
+                    .get()
+                    .map(|path| path.to_string_lossy().into_owned());
+            }
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for HostWithXdgConfigHomeHoist {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithXdgConfigHomeHoist {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithXdgConfigHomeHoist);
+    host_current_dir!(HostWithXdgConfigHomeHoist);
+
+    let tmp = tempdir().unwrap();
+    let config =
+        Config::new().current::<HostWithXdgConfigHomeHoist>(tmp.path()).expect("config loads");
+    assert_eq!(config.node_linker, crate::NodeLinker::Hoisted);
+    assert_eq!(config.public_hoist_pattern, Some(vec!["*types*".to_string()]));
 }
 
 #[test]

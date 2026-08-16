@@ -4259,8 +4259,8 @@ describe('global config.yaml', () => {
     fs.mkdirSync('.config/pnpm', { recursive: true })
     writeYamlFileSync('.config/pnpm/config.yaml', {
       dangerouslyAllowAllBuilds: true,
-      nodeLinker: 'hoisted',
-      hoistPattern: ['*eslint*'],
+      catalogMode: 'auto',
+      lockfile: false,
     })
 
     process.env.XDG_CONFIG_HOME = path.resolve('.config')
@@ -4277,13 +4277,12 @@ describe('global config.yaml', () => {
     // Allowed setting is still applied.
     expect(config.dangerouslyAllowAllBuilds).toBe(true)
     // Ignored settings do not leak into the config.
-    expect(config.nodeLinker).not.toBe('hoisted')
-    expect(config.hoistPattern).toEqual(['*'])
+    expect(config.catalogMode).not.toBe('auto')
 
     const warning = warnings.find((w) => w.includes('global config file'))
     expect(warning).toBeDefined()
-    expect(warning).toContain('"nodeLinker"')
-    expect(warning).toContain('"hoistPattern"')
+    expect(warning).toContain('"catalogMode"')
+    expect(warning).toContain('"lockfile"')
     expect(warning).not.toContain('"dangerouslyAllowAllBuilds"')
     expect(warning).toContain(path.join(process.env.XDG_CONFIG_HOME!, 'pnpm', 'config.yaml'))
     expect(warning).toContain('pnpm-workspace.yaml')
@@ -4905,4 +4904,27 @@ test('catalogPrune overrides its former name', async () => {
   })
 
   expect(config.catalogPrune).toBe(false)
+})
+
+test('hoisting settings are read from global config.yaml', async () => {
+  prepareEmpty()
+  const configDir = path.resolve('.config/pnpm')
+  fs.mkdirSync(configDir, { recursive: true })
+  writeYamlFileSync(path.join(configDir, 'config.yaml'), {
+    shamefullyHoist: true,
+    publicHoistPattern: ['*types*'],
+  })
+  process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.shamefullyHoist).toBe(true)
+  expect(config.publicHoistPattern).toEqual(['*types*'])
+  expect(warnings.some(w => w.includes('cannot be set in the global config file'))).toBe(false)
 })

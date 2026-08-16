@@ -3,7 +3,7 @@ use crate::{
     ImporterUpdateSeedPolicy, Install, InstallError, ProjectMutation, ResolvedPackages,
     UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
     decide_catalog, emit_initial_package_manifest,
@@ -414,12 +414,8 @@ impl Update<'_> {
         }
 
         if save {
-            prune_minimum_release_age_excludes(
-                config,
-                workspace_dir_for_catalogs.as_deref(),
-                manifest,
-            )
-            .map_err(UpdateError::WriteWorkspaceManifest)?;
+            post_install_prune(config, workspace_dir_for_catalogs.as_deref(), manifest)
+                .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
         Ok(())
@@ -588,7 +584,7 @@ impl Update<'_> {
         if save {
             let workspace_dir =
                 prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
-            prune_minimum_release_age_excludes(config, Some(workspace_dir), manifest)
+            post_install_prune(config, Some(workspace_dir), manifest)
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
         Ok(())
