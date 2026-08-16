@@ -204,6 +204,12 @@ where
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
+    /// Fetch-evidence cell `CreateVirtualStore` fills after its
+    /// warm/cold partition so the concurrent verification fan-out's
+    /// age gate can lean on this install's canonical tarball fetches.
+    /// See [`pacquet_resolving_resolver_base::PlannedCanonicalFetches`].
+    pub planned_canonical_fetches:
+        Option<&'a pacquet_resolving_resolver_base::PlannedCanonicalFetches>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -368,6 +374,7 @@ where
             rebuild,
             prior_hoisted_dependencies,
             prune_orphans,
+            planned_canonical_fetches,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -620,6 +627,7 @@ where
                 progress_reported: &progress_reported,
                 tarball_mem_cache,
                 custom_fetcher_picker: custom_fetcher_picker.as_ref(),
+                planned_canonical_fetches,
                 #[cfg(test)]
                 link_concurrency_probe: None,
             }

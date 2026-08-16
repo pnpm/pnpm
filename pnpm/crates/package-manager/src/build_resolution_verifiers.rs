@@ -26,7 +26,7 @@ use pacquet_resolving_npm_resolver::{
     CreateNpmResolutionVerifierOptions, MergeNamedRegistriesError, ObservedDistStats,
     PackageMetaCache, create_npm_resolution_verifier, merge_named_registries,
 };
-use pacquet_resolving_resolver_base::ResolutionVerifier;
+use pacquet_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
 
 use crate::retry_config::retry_opts_from_config;
 
@@ -85,6 +85,7 @@ pub fn build_resolution_verifiers(
     meta_cache: Option<Arc<dyn PackageMetaCache>>,
     auth_override: Option<Arc<AuthHeaders>>,
     observed_dist_stats: Option<ObservedDistStats>,
+    planned_canonical_fetches: Option<PlannedCanonicalFetches>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
     let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
 
@@ -133,6 +134,7 @@ pub fn build_resolution_verifiers(
         retry_opts: retry_opts_from_config(config),
         now: None,
         observed_dist_stats,
+        planned_canonical_fetches,
     };
 
     verifiers.push(Arc::new(create_npm_resolution_verifier(opts)));

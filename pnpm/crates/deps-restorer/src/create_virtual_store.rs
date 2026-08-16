@@ -5,7 +5,7 @@ use crate::{
     store_init::init_store_dir_best_effort,
 };
 use derive_more::{Display, Error};
-use futures_util::future;
+use futures_util::{StreamExt, stream::FuturesUnordered};
 use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker, PackageImportMethod};
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
@@ -23,7 +23,6 @@ use pacquet_reporter::{
 };
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys, prefetch_cas_paths};
-use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -187,6 +186,13 @@ pub struct CreateVirtualStore<'a> {
     /// Custom fetchers from the pnpmfile. Consulted per snapshot
     /// before the built-in resolution-type dispatch.
     pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
+    /// Fetch-evidence cell filled right after the warm/cold partition
+    /// with the cold registry-resolved snapshots this run downloads —
+    /// see [`pacquet_resolving_resolver_base::PlannedCanonicalFetches`].
+    /// `None` for callers with no concurrent verification fan-out to
+    /// feed (the fresh-resolve path, `--filter` passes, tests).
+    pub planned_canonical_fetches:
+        Option<&'a pacquet_resolving_resolver_base::PlannedCanonicalFetches>,
     #[cfg(test)]
     pub link_concurrency_probe:
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
@@ -255,6 +261,7 @@ impl CreateVirtualStore<'_> {
             progress_reported,
             tarball_mem_cache,
             custom_fetcher_picker,
+            planned_canonical_fetches,
             #[cfg(test)]
             link_concurrency_probe,
         } = self;
@@ -446,6 +453,37 @@ impl CreateVirtualStore<'_> {
             node_linker,
         );
 
+        // Publish the cold-batch fetch plan for the concurrent
+        // verification fan-out: every cold registry-resolved snapshot
+        // with a pinned hash is downloaded from its canonical registry
+        // URL by this run (or fails the install / is dropped as an
+        // uninstallable optional), which is the existence evidence the
+        // npm verifier's age gate may substitute for a metadata body.
+        // First fill wins; entries outside the plan keep the
+        // metadata-backed path.
+        if let Some(cell) = planned_canonical_fetches {
+            let mut planned = HashSet::with_capacity(cold.len());
+            for (snapshot_key, _snapshot) in &cold {
+                let metadata_key = snapshot_key.without_peer();
+                let Some(metadata) = packages.get(&metadata_key) else { continue };
+                if !matches!(metadata.resolution, LockfileResolution::Registry(_))
+                    || metadata.resolution.checkable_integrity().is_none()
+                {
+                    continue;
+                }
+                // Mirror the verification runner's candidate keying: a
+                // registry-qualified key contributes its bare semver
+                // plus its registry alias, so entries routed to
+                // different registries never share a key.
+                let (registry_alias, version) = match metadata_key.suffix.registry_qualified() {
+                    Some((alias, version)) => (Some(alias.to_string()), version.to_string()),
+                    None => (None, metadata_key.suffix.version().to_string()),
+                };
+                planned.insert((metadata_key.name.to_string(), version, registry_alias));
+            }
+            let _ = cell.set(planned);
+        }
+
         // Hoisted-mode CAS index assembly. Collected here, *before*
         // the warm-batch closure consumes `warm` under the
         // isolated branch below, so the borrow checker doesn't
@@ -572,7 +610,7 @@ impl CreateVirtualStore<'_> {
             let verified_files_cache_ref = &verified_files_cache;
             let runtime_platform_selector_ref = &runtime_platform_selector;
             type ColdOutcome<'a> = (Option<PackageKey>, Option<ColdCapture<'a>>);
-            let outcomes: Vec<ColdOutcome<'_>> = cold
+            let mut downloads: FuturesUnordered<_> = cold
                 .iter()
                 .map(|(snapshot_key, snapshot)| async move {
                     let metadata_key = snapshot_key.without_peer();
@@ -658,66 +696,77 @@ impl CreateVirtualStore<'_> {
                         Err(err) => Err(CreateVirtualStoreError::InstallPackageBySnapshot(err)),
                     }
                 })
-                .pipe(future::try_join_all)
-                .await?;
-            for (failure, captured) in outcomes {
+                .collect();
+
+            // The downloads deferred their slot links (`defer_link:
+            // true`) because a blocking link inside this single
+            // cooperative task would serialize them; linking chunks
+            // between completions keeps that work off the tail without
+            // starving the pipe — a chunk's `block_in_place` pause is
+            // milliseconds, absorbed by kernel socket buffers. GVS
+            // peer variants sharing one slot dir may split across
+            // chunks: chunks run sequentially, and a later pass over a
+            // complete slot short-circuits on its completion marker.
+            let marker_path = needs_build_marker_source.as_ref().map(tempfile::NamedTempFile::path);
+            let mut ready: Vec<ColdCapture<'_>> = Vec::new();
+            while let Some(outcome) = downloads.next().await {
+                let (failure, captured): ColdOutcome<'_> = outcome?;
                 if let Some(key) = failure {
                     fetch_failed.insert(key);
                 }
-                if let Some(captured) = captured {
-                    requires_build_by_snapshot
-                        .insert((*captured.snapshot_key).clone(), captured.requires_build);
+                let Some(captured) = captured else { continue };
+                requires_build_by_snapshot
+                    .insert((*captured.snapshot_key).clone(), captured.requires_build);
+                if is_hoisted {
                     cold_cas_paths.push(captured);
+                    continue;
+                }
+                ready.push(captured);
+                if ready.len() >= COLD_LINK_CHUNK {
+                    let chunk = std::mem::take(&mut ready);
+                    link_cold_chunk::<Reporter>(
+                        &chunk,
+                        marker_path,
+                        &removed_aliases_by_key,
+                        &LinkSlotsParallel {
+                            batch: "cold",
+                            slots: &[],
+                            layout,
+                            symlink: config.symlink,
+                            import_method,
+                            logged_methods,
+                            requester,
+                            skipped,
+                            include_optional_dependencies,
+                            progress_reported,
+                            #[cfg(test)]
+                            link_concurrency_probe,
+                        },
+                    )?;
                 }
             }
-        }
-
-        // Cold link pass (isolated only): now that every cold snapshot's
-        // tarball is in the store, link each into its virtual-store slot
-        // in one parallel rayon pass — the same shape as the warm batch
-        // above. The per-snapshot download futures deferred this work
-        // (`defer_link: true`) so the blocking `rayon::join` link inside
-        // each wouldn't serialize one-at-a-time within the cooperative
-        // `try_join_all` task; doing it here lets every slot link
-        // concurrently. Hoisted writes no slots, so it skips this and
-        // consumes `cold_cas_paths` for the per-pkg CAS index below.
-        if !is_hoisted && !cold_cas_paths.is_empty() {
-            let cold_slots: Vec<SlotLink<'_>> = cold_cas_paths
-                .iter()
-                .map(|capture| SlotLink {
-                    snapshot_key: capture.snapshot_key,
-                    snapshot: capture.snapshot,
-                    cas_paths: &capture.cas_paths,
-                    warm_cache_key: None,
-                    source_is_mutable: capture.source_is_mutable,
-                    needs_build_marker_source: snapshot_needs_build_marker(
-                        capture.snapshot_key,
-                        capture.requires_build,
-                    )
-                    .then_some(
-                        needs_build_marker_source.as_ref().map(tempfile::NamedTempFile::path),
-                    )
-                    .flatten(),
-                    removed_aliases: removed_aliases_for(
-                        &removed_aliases_by_key,
-                        capture.snapshot_key,
-                    ),
-                })
-                .collect();
-            link_slots_parallel::<Reporter>(LinkSlotsParallel {
-                batch: "cold",
-                slots: &cold_slots,
-                layout,
-                symlink: config.symlink,
-                import_method,
-                logged_methods,
-                requester,
-                skipped,
-                include_optional_dependencies,
-                progress_reported,
-                #[cfg(test)]
-                link_concurrency_probe,
-            })?;
+            drop(downloads);
+            if !ready.is_empty() {
+                link_cold_chunk::<Reporter>(
+                    &ready,
+                    marker_path,
+                    &removed_aliases_by_key,
+                    &LinkSlotsParallel {
+                        batch: "cold",
+                        slots: &[],
+                        layout,
+                        symlink: config.symlink,
+                        import_method,
+                        logged_methods,
+                        requester,
+                        skipped,
+                        include_optional_dependencies,
+                        progress_reported,
+                        #[cfg(test)]
+                        link_concurrency_probe,
+                    },
+                )?;
+            }
         }
 
         // Build the per-pkg CAS index when the install is targeting
@@ -941,6 +990,41 @@ fn group_slots_by_dir<'a>(
         }
     }
     groups
+}
+
+/// How many completed cold snapshots accumulate before a link chunk
+/// runs. Small enough that each chunk's `block_in_place` pause stays in
+/// the low milliseconds; large enough that the rayon pass has real
+/// parallelism to spend it on.
+const COLD_LINK_CHUNK: usize = 32;
+
+/// Build [`SlotLink`]s for one chunk of cold captures and run the
+/// parallel link pass over them. `template` carries the pass-invariant
+/// fields; its `slots` are ignored.
+fn link_cold_chunk<Reporter: self::Reporter>(
+    chunk: &[ColdCapture<'_>],
+    marker_path: Option<&Path>,
+    removed_aliases_by_key: &HashMap<PackageKey, Vec<PkgName>>,
+    template: &LinkSlotsParallel<'_>,
+) -> Result<(), CreateVirtualStoreError> {
+    let cold_slots: Vec<SlotLink<'_>> = chunk
+        .iter()
+        .map(|capture| SlotLink {
+            snapshot_key: capture.snapshot_key,
+            snapshot: capture.snapshot,
+            cas_paths: &capture.cas_paths,
+            warm_cache_key: None,
+            source_is_mutable: capture.source_is_mutable,
+            needs_build_marker_source: snapshot_needs_build_marker(
+                capture.snapshot_key,
+                capture.requires_build,
+            )
+            .then_some(marker_path)
+            .flatten(),
+            removed_aliases: removed_aliases_for(removed_aliases_by_key, capture.snapshot_key),
+        })
+        .collect();
+    link_slots_parallel::<Reporter>(LinkSlotsParallel { slots: &cold_slots, ..*template })
 }
 
 #[derive(Clone, Copy)]

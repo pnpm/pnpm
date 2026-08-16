@@ -39,7 +39,13 @@ pub async fn fetch_attestation_published_at(
 ) -> Result<Option<String>, FetchMetadataError> {
     let registry = opts.registry.trim_end_matches('/');
     let url = format!("{registry}/-/npm/v1/attestations/{pkg_name}@{version}");
-    let mut request = opts.http_client.acquire_for_url(&url).await.get(&url);
+    // Verification-only lookup: queue in the background class so it
+    // never outranks resolution-gating fetches.
+    let mut request = opts
+        .http_client
+        .acquire_for_url_with_priority(&url, pacquet_network::BACKGROUND)
+        .await
+        .get(&url);
     if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
         request = request.header("authorization", value);
     }

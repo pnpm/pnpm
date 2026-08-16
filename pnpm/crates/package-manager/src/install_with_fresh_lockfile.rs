@@ -230,6 +230,11 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// versions it resolves, and the sink it reports them back through.
     /// `None` for every other install.
     pub manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
+    /// The pre-resolve verification of the existing lockfile, running in
+    /// the background while this install resolves and materializes. The
+    /// verdict is awaited before bin linking, dependency builds, and the
+    /// lockfile save. See [`crate::LockfileVerificationGate`].
+    pub lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -388,6 +393,13 @@ fn full_resolution_required<'a>(
 /// Error type of [`InstallWithFreshLockfile`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallWithFreshLockfileError {
+    /// The concurrent pre-resolve verification of the existing lockfile
+    /// rejected it. The orchestrator maps this back to
+    /// `InstallError::LockfileVerification` so the failure keeps the
+    /// shape of the eager gates.
+    #[diagnostic(transparent)]
+    LockfileVerification(#[error(source)] pacquet_lockfile_verification::VerifyError),
+
     #[diagnostic(transparent)]
     InstallPackageFromRegistry(#[error(source)] InstallPackageFromRegistryError),
 
@@ -733,6 +745,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             prune_orphans,
             save_lockfile,
             manifest_spec_bumps,
+            mut lockfile_verification_gate,
         } = self;
 
         // Shared once so the per-edge `ResolveOptions` clones below stay
@@ -1172,6 +1185,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `.modules.yaml`, or current lockfile — a lockfile-only resolve
         // pass.
         if lockfile_only {
+            if let Some(gate) = lockfile_verification_gate.take() {
+                gate.wait().await.map_err(InstallWithFreshLockfileError::LockfileVerification)?;
+            }
             let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
                 config,
                 importer_manifests: &importer_manifests,
@@ -1460,6 +1476,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // reusing the in-flight download instead.
             tarball_mem_cache: Some(&tarball_mem_cache),
             custom_fetcher_picker: custom_fetcher_picker.as_ref(),
+            // The fresh path's concurrent gate verifies the *previous*
+            // lockfile while this run fetches the new graph; the two
+            // entry sets differ, so no fetch plan is published and the
+            // verifier keeps its metadata-backed path.
+            planned_canonical_fetches: None,
         }
         .run::<Reporter>()
         .await
@@ -1470,6 +1491,14 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
+
+        // The concurrent pre-resolve verification of the existing
+        // lockfile must have its verdict before anything sensitive: the
+        // symlink / bin-link phases, the dependency builds, and the
+        // lockfile save below all run on a trusted lockfile only.
+        if let Some(gate) = lockfile_verification_gate.take() {
+            gate.wait().await.map_err(InstallWithFreshLockfileError::LockfileVerification)?;
+        }
 
         // Fold fetch-failure swallows into the skip set before the
         // symlink / bin-link / build phases, mirroring the frozen path.

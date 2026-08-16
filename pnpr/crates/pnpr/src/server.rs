@@ -1334,7 +1334,7 @@ async fn serve_registry_version_manifest(
         return not_found();
     };
     match serde_json::to_vec(&manifest) {
-        Ok(body) => packument_bytes_response(body, "application/json"),
+        Ok(body) => packument_bytes_response(body, "application/json", None),
         Err(err) => error_response(&RegistryError::Json(err)),
     }
 }
@@ -4191,13 +4191,14 @@ fn packument_response(
     let mut doc: Value = serde_json::from_slice(bytes)?;
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
     rewrite_tarball_urls(&mut doc, name, tarball_base);
+    let last_modified = packument_last_modified(&doc);
     let (body, content_type) = if abbreviated {
         let trimmed = abbreviate_packument(&doc, Utc::now());
         (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
     } else {
         (serde_json::to_vec(&doc)?, "application/json")
     };
-    Ok(packument_bytes_response(body, content_type))
+    Ok(packument_bytes_response(body, content_type, last_modified))
 }
 
 fn filter_osv_vulnerable_versions(
@@ -4309,12 +4310,37 @@ fn ensure_osv_allowed(
     })
 }
 
-fn packument_bytes_response(bytes: Vec<u8>, content_type: &'static str) -> Response {
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, content_type)
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
+fn packument_bytes_response(
+    bytes: Vec<u8>,
+    content_type: &'static str,
+    last_modified: Option<String>,
+) -> Response {
+    let mut builder =
+        Response::builder().status(StatusCode::OK).header(header::CONTENT_TYPE, content_type);
+    if let Some(last_modified) = last_modified {
+        builder = builder.header(header::LAST_MODIFIED, last_modified);
+    }
+    builder.body(Body::from(bytes)).expect("static-shape response always builds")
+}
+
+/// `Last-Modified` value for a served packument: the document's
+/// `time.modified` in HTTP-date form. Lets a client's release-age check
+/// (pnpm's `minimumReleaseAge`) learn the package-level last-publish
+/// upper bound from response headers alone — a `HEAD` costs ~no bytes
+/// where the abbreviated body runs to hundreds of KB. Fractional
+/// seconds round *up* to the next whole second: the header must stay
+/// an upper bound on the publish time, and truncating would understate
+/// it by up to 999ms — exactly the window a release-age check guards.
+/// `None` when the document carries no parsable `time.modified`; the
+/// header is simply omitted then.
+fn packument_last_modified(doc: &Value) -> Option<String> {
+    let modified = doc.get("time")?.get("modified")?.as_str()?;
+    let parsed = chrono::DateTime::parse_from_rfc3339(modified).ok()?;
+    let mut whole_seconds = parsed.with_timezone(&Utc);
+    if whole_seconds.timestamp_subsec_nanos() > 0 {
+        whole_seconds += chrono::Duration::seconds(1);
+    }
+    Some(whole_seconds.format("%a, %d %b %Y %H:%M:%S GMT").to_string())
 }
 
 fn tarball_response(body: Body, content_length: Option<u64>) -> Response {

@@ -74,6 +74,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         now: None,
         observed_dist_stats: None,
+        planned_canonical_fetches: None,
     }
 }
 
@@ -666,6 +667,65 @@ async fn verify_skips_age_check_for_an_exact_version_in_a_union() {
 
     let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
 
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn planned_fetch_head_shortcut_skips_the_metadata_body() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _head_mock = server
+        .mock("HEAD", "/acme")
+        .with_status(200)
+        .with_header("last-modified", "Mon, 01 Jan 2024 00:00:00 GMT")
+        .expect(1)
+        .create_async()
+        .await;
+    // The whole point: no metadata body is fetched for a planned entry
+    // whose package-level Last-Modified is older than the cutoff.
+    let _meta_mock = server.mock("GET", "/acme").expect(0).create_async().await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let planned = pacquet_resolving_resolver_base::PlannedCanonicalFetches::default();
+    planned
+        .set(std::collections::HashSet::from([("acme".to_string(), "1.0.0".to_string(), None)]))
+        .expect("first fill");
+    opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
+        .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn unplanned_entry_sends_no_head_probe() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _head_mock = server.mock("HEAD", "/acme").expect(0).create_async().await;
+    // The metadata-backed chain answers instead: the abbreviated
+    // `modified` shortcut passes on an old package whose pinned
+    // version the versions map still lists.
+    let _meta_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(min_age_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let planned = pacquet_resolving_resolver_base::PlannedCanonicalFetches::default();
+    planned
+        .set(std::collections::HashSet::from([("other".to_string(), "2.0.0".to_string(), None)]))
+        .expect("first fill");
+    opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
+        .await;
     assert_eq!(result, ResolutionVerification::Ok);
 }
 

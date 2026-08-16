@@ -4,8 +4,9 @@ use super::{
     IncludedDependencies, InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile,
     LogEvent, LogLevel, MemCache, NodeLinker, PackageManifest, Path, PathBuf, PeerIssuesSink,
     PnpmLog, ProjectMutation, RebuildOptions, Reporter, ResolutionVerifier, ResolvedPackages,
-    ThrottledClient, UpdateSeedPolicy, build_workspace_packages_map, map_frozen_lockfile_error,
-    node_version_from_engines_runtime, record_lockfile_verified, verify_lockfile_eagerly,
+    ThrottledClient, UpdateSeedPolicy, build_workspace_packages_map, map_fresh_lockfile_error,
+    map_frozen_lockfile_error, node_version_from_engines_runtime, record_lockfile_verified,
+    verify_lockfile_eagerly,
 };
 
 pub(super) struct MaterializationInputs<'a, 'install> {
@@ -38,6 +39,9 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) skip_runtimes: bool,
     pub(super) modules_manifest: Option<&'a pacquet_modules_yaml::ModulesLayout>,
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
+    /// Filled by the frozen path's `CreateVirtualStore` after its
+    /// warm/cold partition; consumed by the npm verifier's age gate.
+    pub(super) planned_canonical_fetches: pacquet_resolving_resolver_base::PlannedCanonicalFetches,
     pub(super) prune_orphans: bool,
     pub(super) logged_methods: &'a AtomicU8,
     pub(super) update_checksums: bool,
@@ -101,6 +105,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         skip_runtimes,
         modules_manifest,
         prior_hoisted_dependencies,
+        planned_canonical_fetches,
         prune_orphans,
         logged_methods,
         update_checksums,
@@ -261,6 +266,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             rebuild,
             prior_hoisted_dependencies,
             prune_orphans,
+            planned_canonical_fetches: Some(&planned_canonical_fetches),
         }
         .run::<Reporter>()
         .await
@@ -280,23 +286,30 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             None,
         )
     } else {
-        // Re-verify the existing lockfile before the fresh resolve,
+        // Re-verify the existing lockfile alongside the fresh resolve,
         // matching the pre-resolution gate: a committed lockfile that
-        // bypassed the policy locally is caught here even though the
-        // resolver re-resolves from it. No-op when there's no lockfile
-        // (state 4) or verification is disabled. The fresh path's own
-        // resolution is the slow part, so this stays a blocking gate.
-        if let Some(lockfile_verification_override) = lockfile_verification_override {
-            lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
-        } else if let Some(loaded_lockfile) = lockfile {
-            verify_lockfile_eagerly::<Reporter>(
-                loaded_lockfile,
-                &resolution_verifiers,
-                derived_lockfile_path.as_deref(),
-                &config.cache_dir,
-            )
-            .await?;
-        }
+        // bypassed the policy locally is caught even though the resolver
+        // re-resolves from it. The fan-out's registry round trips overlap
+        // the resolve and the materialization; the verdict still gates
+        // bin linking, dependency builds, and the lockfile save inside
+        // [`InstallWithFreshLockfile`]. No-op when there's no lockfile
+        // (state 4) or verification is disabled. The pnpr override stays
+        // a blocking gate — it is a single round trip with nothing
+        // substantial to overlap.
+        let lockfile_verification_gate =
+            if let Some(lockfile_verification_override) = lockfile_verification_override {
+                lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
+                None
+            } else {
+                lockfile.and_then(|loaded_lockfile| {
+                    super::LockfileVerificationGate::spawn::<Reporter>(
+                        loaded_lockfile,
+                        &resolution_verifiers,
+                        derived_lockfile_path.as_deref(),
+                        &config.cache_dir,
+                    )
+                })
+            };
 
         let workspace_packages = build_workspace_packages_map(workspace_projects);
         // Build the per-importer manifest list. The root importer
@@ -362,10 +375,11 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             prior_hoisted_dependencies,
             prune_orphans,
             manifest_spec_bumps,
+            lockfile_verification_gate,
         }
         .run::<Reporter>()
         .await
-        .map_err(InstallError::WithFreshLockfile)?;
+        .map_err(map_fresh_lockfile_error)?;
 
         if fresh_result.can_record_lockfile_verification
             && let Some(lockfile) = fresh_result.wanted_lockfile.as_ref()
