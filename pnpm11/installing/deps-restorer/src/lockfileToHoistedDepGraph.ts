@@ -1,6 +1,6 @@
-import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import path from 'node:path'
 
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import type {
   DependenciesGraph,
