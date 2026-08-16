@@ -359,7 +359,7 @@ fn intern_config(
     // The client's declarations go through the same inversion the config
     // reader runs on the `registries` setting, so the server routes scopes
     // and prefixes exactly as the client would.
-    let lookups = pnpm_config::registries::into_lookups(request.registries.clone());
+    let lookups = pnpm_config::registries::declarations_into_lookups(request.registries.clone());
     if request.registry.is_none()
         && let Some(default_registry) = lookups.default_registry
     {
@@ -1575,7 +1575,7 @@ fn forbidden_off_allowlist(target: &str) -> Response {
 /// declaration pnpm would have refused on disk. The message is the reader's,
 /// with its registry URLs already redacted.
 fn reject_invalid_registries(request: &ResolveRequest) -> Option<Response> {
-    pnpm_config::registries::validate(&request.registries)
+    pnpm_config::registries::validate_declarations(request.registries.iter())
         .err()
         .map(|error| json_error(StatusCode::BAD_REQUEST, &error.to_string()))
 }

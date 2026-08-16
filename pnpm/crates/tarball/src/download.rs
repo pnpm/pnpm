@@ -260,6 +260,8 @@ pub(crate) fn is_transient_error(err: &TarballError) -> bool {
     match err {
         TarballError::HttpStatus(http) => !matches!(http.status, 401 | 403 | 404),
         TarballError::ReadLocalTarball { .. } => false,
+        // A route policy does not change between attempts.
+        TarballError::OffAllowlist { .. } => false,
         _ => true,
     }
 }

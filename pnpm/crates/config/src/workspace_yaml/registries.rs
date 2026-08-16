@@ -146,10 +146,23 @@ pub fn validate(entries: &BTreeMap<String, RegistryEntry>) -> Result<(), LoadWor
         });
     }
 
+    validate_declarations(entries.iter().filter_map(|(registry, entry)| match entry {
+        RegistryEntry::Declaration(declaration) => Some((registry, declaration)),
+        RegistryEntry::ScopeRoute(_) => None,
+    }))
+}
+
+/// The per-declaration half of [`validate`], over declarations alone.
+///
+/// A pnpr request carries this shape and no other: its `registries` map is
+/// always keyed by URL, which is what lets the server's boundary checks read
+/// a key as a fetch target.
+pub fn validate_declarations<'a>(
+    entries: impl IntoIterator<Item = (&'a String, &'a RegistryDeclaration)>,
+) -> Result<(), LoadWorkspaceYamlError> {
     let mut routed_scopes: BTreeMap<&str, String> = BTreeMap::new();
     let mut declared_prefixes: BTreeSet<&str> = BTreeSet::new();
-    for (registry, entry) in entries {
-        let RegistryEntry::Declaration(declaration) = entry else { continue };
+    for (registry, declaration) in entries {
         let redacted = redact_registry_url(registry);
         if let Some(field) = declaration
             .unknown
@@ -205,8 +218,9 @@ pub fn validate(entries: &BTreeMap<String, RegistryEntry>) -> Result<(), LoadWor
 #[must_use]
 pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups {
     let mut lookups = RegistryLookups::default();
+    let mut declarations = BTreeMap::new();
     for (registry, entry) in entries {
-        let declaration = match entry {
+        match entry {
             RegistryEntry::ScopeRoute(url) => {
                 let url = normalize_registry_url(&url);
                 if registry == "default" {
@@ -214,10 +228,32 @@ pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups
                 } else {
                     lookups.registries_by_scope.insert(registry, url);
                 }
-                continue;
             }
-            RegistryEntry::Declaration(declaration) => declaration,
-        };
+            RegistryEntry::Declaration(declaration) => {
+                declarations.insert(registry, declaration);
+            }
+        }
+    }
+    extend_lookups_with_declarations(&mut lookups, declarations);
+    lookups
+}
+
+/// The declarations-only half of [`into_lookups`], for a pnpr request, whose
+/// `registries` map is always keyed by URL.
+#[must_use]
+pub fn declarations_into_lookups(
+    entries: BTreeMap<String, RegistryDeclaration>,
+) -> RegistryLookups {
+    let mut lookups = RegistryLookups::default();
+    extend_lookups_with_declarations(&mut lookups, entries);
+    lookups
+}
+
+fn extend_lookups_with_declarations(
+    lookups: &mut RegistryLookups,
+    entries: BTreeMap<String, RegistryDeclaration>,
+) {
+    for (registry, declaration) in entries {
         let normalized = normalize_registry_url(&registry);
         if let Some(server_type) = declaration.server_type {
             lookups
@@ -235,7 +271,6 @@ pub fn into_lookups(entries: BTreeMap<String, RegistryEntry>) -> RegistryLookups
             lookups.registries_by_prefix.insert(prefix, registry);
         }
     }
-    lookups
 }
 
 /// Rebuild the declarations from the lookups they were split into, for a

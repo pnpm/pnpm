@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use pnpm_config::{Config as PacquetConfig, RegistryDeclaration, RegistryEntry};
+use pnpm_config::{Config as PacquetConfig, RegistryDeclaration};
 use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
@@ -184,6 +184,24 @@ fn resolution_cache_key_normalizes_single_project_requests() {
         resolution_cache_key(&config(), &top_level),
         resolution_cache_key(&config(), &projects),
     );
+}
+
+/// The `registries` map is keyed by URL and carries declarations only. The
+/// setting's older `<scope>: <url>` shape puts the URL in the *value*, where
+/// the boundary checks — which read a key as a fetch target — would not see
+/// it, so a request in that shape must not parse at all.
+#[test]
+fn a_scope_routed_registries_map_does_not_parse() {
+    let declarations = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "registries": { "https://npm.corp.example/": { "scopes": ["@acme"] } }
+    }))
+    .expect("a declaration map parses");
+    assert_eq!(declarations.registries.len(), 1);
+
+    let scope_routed = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "registries": { "@acme": "http://169.254.169.254/" }
+    }));
+    assert!(scope_routed.is_err(), "a scope-routed map must not parse");
 }
 
 #[test]
@@ -658,10 +676,10 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
         registry: Some("https://registry.npmjs.org/".to_string()),
         registries: BTreeMap::from([(
             "http://169.254.169.254/".to_string(),
-            RegistryEntry::Declaration(RegistryDeclaration {
+            RegistryDeclaration {
                 scopes: Some(vec!["@acme".to_string()]),
                 ..RegistryDeclaration::default()
-            }),
+            },
         )]),
         ..ResolveRequest::default()
     };

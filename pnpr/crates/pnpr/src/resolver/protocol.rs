@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::RegistryEntry;
+use pnpm_config::RegistryDeclaration;
 use pnpm_network::AuthHeadersByScope;
 use serde::Deserialize;
 
@@ -59,8 +59,12 @@ pub struct ResolveRequest {
     /// bare-specifier prefix each answers to, and each one's tarball
     /// layout. The default registry is not among them — it arrives as
     /// [`Self::registry`].
+    ///
+    /// Declarations only, never the setting's older `<scope>: <url>` shape:
+    /// a key is always a URL, which is what lets the boundary checks read one
+    /// as a fetch target. A request in the older shape fails to parse.
     #[serde(default)]
-    pub registries: BTreeMap<String, RegistryEntry>,
+    pub registries: BTreeMap<String, RegistryDeclaration>,
     /// The caller's forwarded upstream credentials so the server resolves
     /// and fetches private content as the caller. Keyed as
     /// `auth_headers[registry_uri][scope]`; the `@` scope stores
