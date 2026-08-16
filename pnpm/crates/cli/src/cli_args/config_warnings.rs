@@ -49,16 +49,15 @@ pub(crate) fn warn_unmatched_registry_options(config: &Config) {
         .registry_options
         .keys()
         .filter(|registry| !configured.contains(registry.as_str()))
-        .map(|registry| format!("\"{registry}\""))
+        .map(|registry| format!(r#""{registry}""#))
         .collect::<Vec<_>>();
     if unmatched.is_empty() {
         return;
     }
     let configured =
-        configured.iter().map(|registry| format!("\"{registry}\"")).collect::<Vec<_>>().join(", ");
+        configured.iter().map(|registry| format!(r#""{registry}""#)).collect::<Vec<_>>().join(", ");
     emit_config_warning(&format!(
-        "The following \"registryOptions\" entries do not match any configured registry \
-         and were ignored: {}. The configured registries are: {configured}.",
+        r#"The following "registryOptions" entries do not match any configured registry and were ignored: {}. The configured registries are: {configured}."#,
         unmatched.join(", "),
     ));
 }
