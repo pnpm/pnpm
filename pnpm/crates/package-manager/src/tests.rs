@@ -3,16 +3,17 @@ use pacquet_config::Config;
 
 /// A [`Config`] pinned to the project-local virtual store.
 ///
-/// The shared global virtual store is the shipped default, and a
+/// The pin is what keeps a test's installs inside its own tempdir. A
 /// [`Config`] built here has never been through
-/// [`Config::current`](pacquet_config::Config::current) — so its
-/// `global_virtual_store_dir` still points at the *machine's* store
-/// rather than at the tempdir store a test assigns to `store_dir`.
-/// Installing through such a config would write test packages into the
-/// developer's real store and share those slots between concurrently
-/// running tests. Every test config in this crate starts here; the ones
-/// that exercise the shared store turn it back on and point
-/// `global_virtual_store_dir` inside their own tempdir.
+/// [`Config::current`](pacquet_config::Config::current), so assigning
+/// `store_dir` does not re-derive `global_virtual_store_dir` with it:
+/// that field still names the *machine's* store. On the shipped default
+/// — the shared store — an install through such a config would leave
+/// test packages in the developer's real store and share those slots
+/// with every concurrently running test. Every test config in this
+/// crate starts here; the ones that exercise the shared store turn it
+/// back on and point `global_virtual_store_dir` inside their own
+/// tempdir.
 pub(crate) fn project_local_config() -> Config {
     Config { enable_global_virtual_store: false, ..Config::new() }
 }

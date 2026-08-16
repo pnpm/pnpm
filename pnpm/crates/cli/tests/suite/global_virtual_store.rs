@@ -1487,7 +1487,8 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
 }
 
 /// A project that says nothing about `enableGlobalVirtualStore` gets the
-/// shared store, and a CI environment gets the project-local one instead.
+/// shared store, a CI environment gets the project-local one instead, and
+/// a CI environment that asks for the shared store still gets it.
 #[test]
 fn the_global_virtual_store_is_the_default_outside_ci() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -1520,6 +1521,25 @@ fn the_global_virtual_store_is_the_default_outside_ci() {
             .join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep/package.json")
             .exists(),
         "CI falls back to the project-local virtual store",
+    );
+
+    eprintln!("Reinstalling as CI, with the shared store asked for by env var...");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet(&workspace)
+        .with_env("PNPM_CONFIG_CI", "true")
+        .with_env("PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE", "true")
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0").exists(),
+        "an explicit opt-in outranks the CI fallback, wherever it comes from",
+    );
+    assert_eq!(
+        hash_dirs(&version_dir),
+        vec![hash_dir.file_name().expect("hash dir name").to_string_lossy()],
+        "the opted-in CI install reattaches to the slot the first install materialized",
     );
 
     drop((root, mock_instance));

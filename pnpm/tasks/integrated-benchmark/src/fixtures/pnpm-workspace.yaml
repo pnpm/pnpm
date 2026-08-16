@@ -6,7 +6,7 @@ storeDir: ./store-dir
 #
 # Pacquet defaults to `enableGlobalVirtualStore: true`, so this pin
 # deliberately opposes the default: with GVS on, slot directories move
-# to `<storeDir>/links/<scope>/<name>/<version>/<hash>`, a different
+# to `<storeDir>/v11/links/<scope>/<name>/<version>/<hash>`, a different
 # layout from the project-local baseline every historical number was
 # measured against. Flip this to `true` in a `--fixture-dir` override
 # to benchmark the GVS path on its own terms.
