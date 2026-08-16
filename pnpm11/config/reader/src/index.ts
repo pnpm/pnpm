@@ -7,6 +7,7 @@ import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { isCamelCase } from '@pnpm/text.naming-cases'
@@ -759,6 +760,26 @@ export async function getConfig (opts: {
     // However, if the user explicitly enabled GVS (e.g., for Nix builds
     // or CI systems with persistent caches), respect that setting.
     pnpmConfig.enableGlobalVirtualStore = false
+  }
+
+  // With a global virtual store, package directories live outside the
+  // project, so Node's upward node_modules walk from their real paths never
+  // reaches the project's hoisted node_modules or root node_modules. Expose
+  // both through NODE_PATH for every child process pnpm spawns, and register
+  // the ESM loader that restores NODE_PATH lookups for ESM imports.
+  if (
+    pnpmConfig.enableGlobalVirtualStore &&
+    pnpmConfig.extendNodePath !== false &&
+    (pnpmConfig.nodeLinker == null || pnpmConfig.nodeLinker === 'isolated')
+  ) {
+    const modulesDir = pathAbsolute(pnpmConfig.modulesDir ?? 'node_modules', pnpmConfig.rootProjectManifestDir)
+    const nodePaths = [
+      ...(pnpmConfig.extraEnv['NODE_PATH']?.split(path.delimiter) ?? []),
+      path.join(modulesDir, '.pnpm', 'node_modules'),
+      modulesDir,
+    ]
+    pnpmConfig.extraEnv['NODE_PATH'] = Array.from(new Set(nodePaths)).join(path.delimiter)
+    pnpmConfig.extraEnv['NODE_OPTIONS'] = addEsmNodePathLoaderOption(env['NODE_OPTIONS'])
   }
 
   // The yes option is only meant to be a CLI option. Remove it from the

@@ -166,7 +166,14 @@ impl DlxArgs {
         // install path below consumes `config` to anchor it at the cache
         // directory.
         let extra_bin_paths = config.extra_bin_paths.clone();
-        let extra_env = config.extra_env.clone();
+        let mut extra_env = config.extra_env.clone();
+        // The GVS resolution env injected by `Config::current` points at
+        // the *invoking* project's node_modules; the dlx tool runs from
+        // its own self-contained cache (GVS forced off for the cache
+        // install), so inheriting it would let the tool resolve phantom
+        // deps from the caller's tree.
+        extra_env.remove("NODE_PATH");
+        extra_env.remove("NODE_OPTIONS");
         let user_agent = config.user_agent.clone();
 
         // The dlx command runs in the process working directory

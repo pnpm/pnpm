@@ -2119,6 +2119,40 @@ pub fn gvs_user_pinned_virtual_store_routes_into_global_virtual_store_dir() {
     assert_eq!(config.global_virtual_store_dir, user_path);
 }
 
+#[test]
+pub fn gvs_enabled_exposes_hoisted_dependencies_through_node_path_and_the_esm_loader() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    let path_delimiter = if cfg!(windows) { ";" } else { ":" };
+    assert_eq!(
+        config.extra_env.get("NODE_PATH"),
+        Some(&format!(
+            "{}{path_delimiter}{}",
+            tmp.path().join("node_modules").join(".pnpm").join("node_modules").display(),
+            tmp.path().join("node_modules").display(),
+        )),
+    );
+    let node_options = config.extra_env.get("NODE_OPTIONS").expect("NODE_OPTIONS is injected");
+    assert!(node_options.contains(crate::esm_node_path_loader::esm_node_path_loader_import_flag()));
+}
+
+#[test]
+pub fn gvs_disabled_or_extend_node_path_off_injects_no_resolution_env() {
+    for yaml in [
+        "enableGlobalVirtualStore: false\n",
+        "enableGlobalVirtualStore: true\nextendNodePath: false\n",
+    ] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(config.extra_env.get("NODE_PATH"), None, "yaml: {yaml}");
+        assert_eq!(config.extra_env.get("NODE_OPTIONS"), None, "yaml: {yaml}");
+    }
+}
+
 /// The fixture also enables GVS explicitly. Pacquet's default
 /// is `enableGlobalVirtualStore: false` (matches pnpm v11 for
 /// non-`--global` installs), so without the explicit opt-in the

@@ -40,6 +40,7 @@
     "@pnpm/config.registry-auth-key": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.esm-node-path-loader": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",

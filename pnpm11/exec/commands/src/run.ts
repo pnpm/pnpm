@@ -10,6 +10,7 @@ import {
 import { type Config, type ConfigContext, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
+import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
@@ -220,7 +221,7 @@ export async function handler (
   if (opts.nodeOptions) {
     opts.extraEnv = {
       ...opts.extraEnv,
-      NODE_OPTIONS: opts.nodeOptions,
+      NODE_OPTIONS: keepEsmNodePathLoaderOption(opts.nodeOptions, opts.extraEnv?.NODE_OPTIONS),
     }
   }
 

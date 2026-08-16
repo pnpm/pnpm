@@ -2493,6 +2493,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/exec.esm-node-path-loader':
+        specifier: workspace:*
+        version: link:../../exec/esm-node-path-loader
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -4221,6 +4224,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/exec.esm-node-path-loader':
+        specifier: workspace:*
+        version: link:../esm-node-path-loader
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
@@ -4333,6 +4339,15 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
+
+  pnpm11/exec/esm-node-path-loader:
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/exec.esm-node-path-loader':
+        specifier: workspace:*
+        version: 'link:'
 
   pnpm11/exec/lifecycle:
     dependencies:

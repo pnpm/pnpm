@@ -497,6 +497,13 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     cfg.catalog_mode = CatalogMode::default();
     cfg.package_extensions = None;
     cfg.patched_dependencies = None;
+    // The GVS resolution env injected by `Config::current` points at the
+    // *caller's* node_modules; the group's own virtual store is
+    // project-local (GVS forced off above), so inheriting it would let
+    // the group's lifecycle scripts resolve phantom deps from the
+    // caller's tree.
+    cfg.extra_env.remove("NODE_PATH");
+    cfg.extra_env.remove("NODE_OPTIONS");
 
     // Build-script policy for global installs comes from the global packages
     // directory, never the caller's repo — otherwise a repo-controlled

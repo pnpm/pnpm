@@ -1411,3 +1411,61 @@ fn no_optional_excludes_an_optional_link_dep_from_a_slot() {
 
     drop((root, mock_instance));
 }
+
+/// With a global virtual store, package directories live outside the
+/// project, so Node's upward `node_modules` walk from their real paths
+/// cannot reach the private hoist. Scripts must receive `NODE_PATH` plus
+/// the ESM `NODE_PATH` loader flag in `NODE_OPTIONS`, so both CJS and ESM
+/// phantom imports keep resolving. Mirrors the TS coverage in
+/// `pnpm11/config/reader/test/index.ts` and
+/// `pnpm11/exec/esm-node-path-loader/test/index.ts`.
+#[test]
+fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "privateHoistPattern:\n  - '*'\n");
+    let manifest = serde_json::json!({
+        "name": "project-with-phantom-esm-import",
+        "version": "1.0.0",
+        "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        "scripts": { "check": "node check.mjs" },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+    fs::write(
+        workspace.join("check.mjs"),
+        "import fs from 'node:fs'\n\
+         fs.writeFileSync('node-path.txt', process.env.NODE_PATH ?? '<unset>')\n\
+         fs.writeFileSync('node-options.txt', process.env.NODE_OPTIONS ?? '<unset>')\n\
+         await import('@pnpm.e2e/dep-of-pkg-with-1-dep')\n\
+         fs.writeFileSync('phantom.txt', 'resolved')\n",
+    )
+    .expect("write check.mjs");
+
+    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace).with_args(["run", "check"]).assert().success();
+
+    let node_path =
+        fs::read_to_string(workspace.join("node-path.txt")).expect("read node-path.txt");
+    let path_delimiter = if cfg!(windows) { ';' } else { ':' };
+    assert!(
+        node_path
+            .split(path_delimiter)
+            .any(|entry| Path::new(entry).ends_with("node_modules/.pnpm/node_modules")),
+        "NODE_PATH must carry the private hoist dir: {node_path}",
+    );
+    let node_options =
+        fs::read_to_string(workspace.join("node-options.txt")).expect("read node-options.txt");
+    assert!(
+        node_options
+            .contains(pacquet_config::esm_node_path_loader::esm_node_path_loader_import_flag()),
+        "NODE_OPTIONS must carry the ESM NODE_PATH loader flag: {node_options}",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("phantom.txt")).expect("read phantom.txt"),
+        "resolved",
+    );
+
+    drop((root, mock_instance));
+}

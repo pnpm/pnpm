@@ -195,10 +195,7 @@ impl RunArgs {
             .into());
         }
 
-        let mut extra_env = config.extra_env.clone();
-        if let Some(node_options) = &config.node_options {
-            extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-        }
+        let mut extra_env = config.extra_env_with_node_options();
         if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
             let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
             extra_env.insert(

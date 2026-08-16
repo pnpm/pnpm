@@ -4117,6 +4117,7 @@ dependencies = [
  "pacquet-config-dir",
  "pacquet-detect-libc",
  "pacquet-env-replace",
+ "pacquet-fs",
  "pacquet-network",
  "pacquet-package-is-installable",
  "pacquet-package-manifest",
