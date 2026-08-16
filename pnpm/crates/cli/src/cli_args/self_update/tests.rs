@@ -9,9 +9,12 @@ use std::{fs, path::Path};
 fn version_constraint_preserves_pinning_style() {
     // No prior constraint → the exact version.
     assert_eq!(update_version_constraint(None, "1.2.3"), "1.2.3");
-    // A range that still satisfies the new version is left untouched; the
-    // lockfile pins the exact version.
-    assert_eq!(update_version_constraint(Some("^1.0.0"), "1.5.0"), "^1.0.0");
+    // Simple ranges that still satisfy are bumped in place, keeping the operator.
+    assert_eq!(update_version_constraint(Some("^1.0.0"), "1.5.0"), "^1.5.0");
+    assert_eq!(update_version_constraint(Some("~1.2.0"), "1.2.5"), "~1.2.5");
+    // Complex ranges that still satisfy are left untouched; the lockfile pins
+    // the exact version.
+    assert_eq!(update_version_constraint(Some(">=1.0.0"), "1.5.0"), ">=1.0.0");
     // A range that no longer satisfies is rewritten in its own style.
     assert_eq!(update_version_constraint(Some("^1.0.0"), "2.0.0"), "^2.0.0");
     assert_eq!(update_version_constraint(Some("~1.0.0"), "2.0.0"), "~2.0.0");
@@ -47,9 +50,9 @@ fn pin_specifier_records_the_resolved_pin_not_the_cli_dist_tag() {
         package_manager_pin_specifier(false, Some("12.0.0-alpha.9"), "12.0.0-alpha.10"),
         "12.0.0-alpha.10",
     );
-    // A range pin is preserved (the lockfile pins the exact version), so the
+    // A range pin is rewritten to the new version, keeping the operator, so the
     // specifier is the range a later install reads back from the manifest.
-    assert_eq!(package_manager_pin_specifier(false, Some("^12.0.0"), "12.1.0"), "^12.0.0");
+    assert_eq!(package_manager_pin_specifier(false, Some("^12.0.0"), "12.1.0"), "^12.1.0");
     // A legacy `packageManager` pin is always exact.
     assert_eq!(package_manager_pin_specifier(true, Some("^12.0.0"), "12.1.0"), "12.1.0");
     // No prior constraint → the resolved version.

@@ -366,24 +366,21 @@ function readShimTarget (shimPath: string): string | undefined {
 
 /**
  * Returns the updated version constraint for devEngines.packageManager.
- * - Exact versions and simple ranges (^, ~) are updated to the new version,
- *   preserving the range operator.
- * - Ranges that still satisfy the new version are returned unchanged
- *   (the exact version will be pinned in the lockfile instead).
- * - Complex ranges (>=x <y, etc.) that no longer satisfy the new version
- *   fall back to a caret range with the new version (`^${newVersion}`).
+ * - Exact versions and simple ranges (^, ~) are rewritten to the new version,
+ *   preserving the range operator — matching `pnpm update` and `pnpm runtime set`.
+ * - Complex ranges (>=x <y, etc.) that still satisfy the new version are left
+ *   unchanged (the exact version is pinned in the lockfile instead).
+ * - Complex ranges that no longer satisfy the new version fall back to a caret
+ *   range with the new version (`^${newVersion}`).
  */
 function updateVersionConstraint (current: string | undefined, newVersion: string): string | undefined {
   if (current == null) return newVersion
-  // Range that still satisfies the new version — leave it as-is (lockfile handles pinning)
-  if (semver.satisfies(newVersion, current, { includePrerelease: true })) return current
-  // Determine the pinning style of the current specifier
   const rangeSpecStyle = inferRangeSpecStyle(current)
-  if (rangeSpecStyle == null) {
-    // Complex range that can't be updated while preserving its structure — fall back to ^version
-    return `^${newVersion}`
+  if (rangeSpecStyle != null) {
+    return versionWithRangeSpecStyle(newVersion, rangeSpecStyle)
   }
-  return versionWithRangeSpecStyle(newVersion, rangeSpecStyle)
+  if (semver.satisfies(newVersion, current, { includePrerelease: true })) return current
+  return `^${newVersion}`
 }
 
 async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spec: string | undefined): Promise<string | undefined> {
