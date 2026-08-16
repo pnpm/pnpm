@@ -221,8 +221,12 @@ pub fn default_virtual_store_dir() -> PathBuf {
 /// parity check that flags it is looking at a major-version boundary
 /// rather than at a gap.
 ///
-/// [`crate::Config::current`] turns it back off in a CI environment
-/// unless the setting is pinned explicitly.
+/// The default does not vary by environment. A CI machine gets the same
+/// layout a developer's machine does — under a shared store, package
+/// directories sit outside the project and scripts run with `NODE_PATH`
+/// and the ESM loader set, so a CI-only fallback to the project-local
+/// layout would run every build in a resolution environment nobody
+/// develops against.
 pub fn default_enable_global_virtual_store() -> bool {
     true
 }

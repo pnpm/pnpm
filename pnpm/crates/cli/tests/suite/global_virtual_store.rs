@@ -1487,10 +1487,11 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
 }
 
 /// A project that says nothing about `enableGlobalVirtualStore` gets the
-/// shared store, a CI environment gets the project-local one instead, and
-/// a CI environment that asks for the shared store still gets it.
+/// shared store — in CI too, so a build never runs against a layout
+/// nobody develops against. Opting out is what changes the layout, from
+/// wherever the setting is set.
 #[test]
-fn the_global_virtual_store_is_the_default_outside_ci() {
+fn the_global_virtual_store_is_the_default_in_every_environment() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
@@ -1498,17 +1499,19 @@ fn the_global_virtual_store_is_the_default_outside_ci() {
     unset_gvs_workspace_yaml(&workspace);
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
+    let project_local_slot = workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0");
+
     eprintln!("Installing with no `enableGlobalVirtualStore` setting...");
     pacquet(&workspace).with_arg("install").assert().success();
 
-    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hash_dir = sole_hash_dir(&version_dir);
     assert!(
         pkg_in_slot(&hash_dir, "@pnpm.e2e/pkg-with-1-dep").join("package.json").exists(),
         "the package must be materialized in its GVS slot",
     );
     assert!(
-        !workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0").exists(),
+        !project_local_slot.exists(),
         "no project-local slot is written under the shared store",
     );
 
@@ -1516,30 +1519,24 @@ fn the_global_virtual_store_is_the_default_outside_ci() {
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     pacquet(&workspace).with_env("PNPM_CONFIG_CI", "true").with_arg("install").assert().success();
 
-    assert!(
-        workspace
-            .join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep/package.json")
-            .exists(),
-        "CI falls back to the project-local virtual store",
+    assert!(!project_local_slot.exists(), "CI gets the same layout as any other environment");
+    assert_eq!(
+        hash_dirs(&version_dir),
+        vec![hash_dir.file_name().expect("hash dir name").to_string_lossy()],
+        "the CI install reattaches to the slot the first install materialized",
     );
 
-    eprintln!("Reinstalling as CI, with the shared store asked for by env var...");
+    eprintln!("Reinstalling with the shared store turned off by env var...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     pacquet(&workspace)
-        .with_env("PNPM_CONFIG_CI", "true")
-        .with_env("PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE", "true")
+        .with_env("PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE", "false")
         .with_arg("install")
         .assert()
         .success();
 
     assert!(
-        !workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0").exists(),
-        "an explicit opt-in outranks the CI fallback, wherever it comes from",
-    );
-    assert_eq!(
-        hash_dirs(&version_dir),
-        vec![hash_dir.file_name().expect("hash dir name").to_string_lossy()],
-        "the opted-in CI install reattaches to the slot the first install materialized",
+        project_local_slot.join("node_modules/@pnpm.e2e/pkg-with-1-dep/package.json").exists(),
+        "opting out moves the package back into the project",
     );
 
     drop((root, mock_instance));

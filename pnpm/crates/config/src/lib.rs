@@ -882,8 +882,7 @@ pub struct Config {
     /// project keeps its own virtual store at
     /// `<project>/node_modules/.pnpm`.
     ///
-    /// Defaults to `true`; [`Config::current`] turns it back off in CI
-    /// unless the setting is pinned explicitly. The TypeScript CLI
+    /// Defaults to `true`, in every environment. The TypeScript CLI
     /// defaults it off — see `default_enable_global_virtual_store` in
     /// `crates/config/src/defaults.rs` for why the two majors differ.
     #[default(_code = "default_enable_global_virtual_store()")]
@@ -2859,15 +2858,6 @@ impl Config {
         // workspace is case-sensitive and the home is not.
         if !store_dir_explicit {
             self.resolve_default_store_dir::<Sys>(start_dir);
-        }
-
-        // A shared virtual store buys little in CI, where the store it
-        // is shared through is usually cold anyway. A user who set the
-        // key still gets what they asked for — Nix builds and runners
-        // with a persistent store do keep it warm. Mirrors the pnpm
-        // config reader (`pnpm11/config/reader/src/index.ts`).
-        if self.ci && !self.explicit_settings.contains_key("enableGlobalVirtualStore") {
-            self.enable_global_virtual_store = false;
         }
 
         // Derive `global_virtual_store_dir` last so it sees the final
