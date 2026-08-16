@@ -1559,6 +1559,15 @@ async fn without_registry_supports_time_field_abbreviated_time_is_not_consulted(
         .expect(2)
         .create_async()
         .await;
+    // Without the flag the per-version fallbacks run in order, so the
+    // attestation endpoint is consulted (and 404s) before the full
+    // packument. Asserting it makes the escalation the flag avoids explicit.
+    let attestation_mock = server
+        .mock("GET", "/-/npm/v1/attestations/aged-pkg@1.0.0")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
     let mut opts = default_opts(&registry);
     opts.minimum_release_age = Some(60 * 24);
     let verifier = create_npm_resolution_verifier(opts);
@@ -1572,4 +1581,5 @@ async fn without_registry_supports_time_field_abbreviated_time_is_not_consulted(
     let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
     assert_eq!(result, ResolutionVerification::Ok);
     meta_mock.assert_async().await;
+    attestation_mock.assert_async().await;
 }
