@@ -882,10 +882,10 @@ pub struct Config {
     /// project keeps its own virtual store at
     /// `<project>/node_modules/.pnpm`.
     ///
-    /// Defaults to `true` — pnpm 12 shares the virtual store by
-    /// default, where pnpm 11 only did so for `pnpm install --global`.
-    /// [`Config::current`] turns it back off in CI unless the setting
-    /// is pinned explicitly.
+    /// Defaults to `true`; [`Config::current`] turns it back off in CI
+    /// unless the setting is pinned explicitly. The TypeScript CLI
+    /// defaults it off — see `default_enable_global_virtual_store` in
+    /// `crates/config/src/defaults.rs` for why the two majors differ.
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
 

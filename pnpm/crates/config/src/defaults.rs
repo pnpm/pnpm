@@ -212,12 +212,14 @@ pub fn default_virtual_store_dir() -> PathBuf {
     env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
 }
 
-/// Default for `enableGlobalVirtualStore`: `true`.
+/// Default for `enableGlobalVirtualStore`: `true` — one virtual store,
+/// shared by every project on the machine.
 ///
-/// pnpm 12 shares one virtual store across every project on the machine.
-/// pnpm 11 keeps the project-local `node_modules/.pnpm` instead, enabling
-/// the shared store only for `pnpm install --global`, so this is one of
-/// the defaults the two majors deliberately disagree on.
+/// This is a pnpm 12 default, and one the TypeScript CLI does not share:
+/// pnpm 11 defaults the setting off and reaches for the shared store only
+/// under `pnpm install --global`. The divergence is deliberate, so a
+/// parity check that flags it is looking at a major-version boundary
+/// rather than at a gap.
 ///
 /// [`crate::Config::current`] turns it back off in a CI environment
 /// unless the setting is pinned explicitly.
