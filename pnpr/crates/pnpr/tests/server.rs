@@ -500,6 +500,23 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
         .with_body(bare.to_string())
         .create_async()
         .await;
+    let garbled = json!({
+        "name": "garbled",
+        "time": { "modified": "not-a-date" },
+        "versions": {
+            "1.0.0": {
+                "name": "garbled",
+                "version": "1.0.0",
+                "dist": { "tarball": format!("{}/garbled/-/garbled-1.0.0.tgz", upstream.url()) },
+            }
+        }
+    });
+    let _garbled_mock = upstream
+        .mock("GET", "/garbled")
+        .with_status(200)
+        .with_body(garbled.to_string())
+        .create_async()
+        .await;
 
     let tmp = TempDir::new().unwrap();
     let config = config_for(&upstream.url(), tmp.path().to_path_buf());
@@ -529,11 +546,15 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     );
 
     // A document without a parsable `time.modified` omits the header
-    // instead of guessing.
+    // instead of guessing — absent and garbled values alike.
     let no_time =
         app.clone().oneshot(Request::get("/bare").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(no_time.status(), StatusCode::OK);
     assert!(no_time.headers().get("last-modified").is_none());
+    let unparsable =
+        app.clone().oneshot(Request::get("/garbled").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(unparsable.status(), StatusCode::OK);
+    assert!(unparsable.headers().get("last-modified").is_none());
 }
 
 #[tokio::test]
