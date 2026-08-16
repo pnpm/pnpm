@@ -47,3 +47,23 @@ test('toRegistryDeclarations() keys a prefix by the URL as written', () => {
     'https://npm.corp.example': { prefix: 'work' },
   })
 })
+
+test('toRegistryDeclarations() does not declare a built-in route the user did not point elsewhere', () => {
+  // Declaring `@jsr` would put npm.jsr.io in front of a pnpr server's
+  // allowlist on every request, including those that resolve no JSR package.
+  expect(toRegistryDeclarations({
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+      '@jsr': 'https://npm.jsr.io/',
+    },
+  })).toStrictEqual({})
+
+  expect(toRegistryDeclarations({
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+      '@jsr': 'https://jsr.corp.example/',
+    },
+  })).toStrictEqual({
+    'https://jsr.corp.example/': { scopes: ['@jsr'] },
+  })
+})

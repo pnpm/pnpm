@@ -132,7 +132,7 @@ test('switchCliVersion uses trusted package-manager registries instead of projec
     noProxy: 'project.internal',
     packageManagerRegistries,
     packageManagerNetworkConfig,
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
     strictSsl: false,
     virtualStoreDirMaxLength: 120,
   } as unknown as Config
@@ -153,15 +153,15 @@ test('switchCliVersion uses trusted package-manager registries instead of projec
     httpProxy: packageManagerNetworkConfig.httpProxy,
     httpsProxy: packageManagerNetworkConfig.httpsProxy,
     noProxy: packageManagerNetworkConfig.noProxy,
-    registries: packageManagerRegistries,
+    registriesByScope: packageManagerRegistries,
     strictSsl: packageManagerNetworkConfig.strictSsl,
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(installPnpmToStore).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
-    registries: packageManagerRegistries,
+    registriesByScope: packageManagerRegistries,
   }))
   expect(installPnpmToStore).not.toHaveBeenCalledWith('9.3.0', expect.objectContaining({
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
   }))
 
   exit.mockRestore()
@@ -183,7 +183,7 @@ test('switchCliVersion defaults package-manager registries to npmjs instead of p
     httpProxy: 'http://project-http-proxy.example.com:8080',
     httpsProxy: 'http://project-https-proxy.example.com:8080',
     noProxy: 'project.internal',
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
     strictSsl: false,
     virtualStoreDirMaxLength: 120,
   } as unknown as Config
@@ -204,15 +204,15 @@ test('switchCliVersion defaults package-manager registries to npmjs instead of p
     httpProxy: undefined,
     httpsProxy: undefined,
     noProxy: undefined,
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     strictSsl: undefined,
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(installPnpmToStore).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   }))
   expect(installPnpmToStore).not.toHaveBeenCalledWith('9.3.0', expect.objectContaining({
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
   }))
 
   exit.mockRestore()
@@ -224,7 +224,7 @@ test('switchCliVersion installs from a registry-only package-manager lockfile wi
   }) as typeof process.exit)
 
   await expect(switchCliVersion({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     virtualStoreDirMaxLength: 120,
   } as unknown as Config, {
     rootProjectManifestDir: '/repo',
@@ -283,7 +283,7 @@ test('switchCliVersion accepts registry-only package-manager lockfiles with peer
   readEnvLockfile.mockResolvedValueOnce(peerLockfile)
 
   await expect(switchCliVersion({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     virtualStoreDirMaxLength: 120,
   } as unknown as Config, {
     rootProjectManifestDir: '/repo',
@@ -321,7 +321,7 @@ test('switchCliVersion discards package-manager lockfile resolutions with non-in
   }) as typeof process.exit)
   try {
     await expect(switchCliVersion({
-      registries: { default: 'https://registry.npmjs.org/' },
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
       virtualStoreDirMaxLength: 120,
     } as unknown as Config, {
       rootProjectManifestDir: '/repo',
@@ -372,7 +372,7 @@ test('switchCliVersion discards package-manager lockfile dependencies with non-r
   }) as typeof process.exit)
   try {
     await expect(switchCliVersion({
-      registries: { default: 'https://registry.npmjs.org/' },
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
       virtualStoreDirMaxLength: 120,
     } as unknown as Config, {
       rootProjectManifestDir: '/repo',
@@ -408,7 +408,7 @@ test('switchCliVersion rejects a package-manager lockfile that is still invalid 
   resolvePackageManagerIntegrities.mockResolvedValueOnce(poisonLinuxX64(envLockfileFor('9.3.0')))
 
   await expect(switchCliVersion({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     virtualStoreDirMaxLength: 120,
   } as unknown as Config, {
     rootProjectManifestDir: '/repo',

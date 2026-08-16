@@ -64,12 +64,17 @@ export function pickRegistryContext (source: RegistryContext): RegistryContext {
  * Entries are keyed by the URL each lookup holds rather than by a normalized
  * one, so a registry a prefix addresses without a trailing slash stays the URL
  * the client resolves against.
+ *
+ * A built-in route the user has not pointed elsewhere is not declared: it is
+ * not part of the client's configuration, and declaring `@jsr` would put
+ * npm.jsr.io in front of a pnpr server's allowlist on every request, including
+ * the requests that never resolve a JSR package.
  */
 export function toRegistryDeclarations (context: Partial<RegistryContext>): Record<string, RegistryDeclaration> {
   const declarations: Record<string, RegistryDeclaration> = {}
   const declarationFor = (registry: string): RegistryDeclaration => (declarations[registry] ??= {})
   for (const [scope, registry] of Object.entries(context.registriesByScope ?? {})) {
-    if (scope === 'default') continue
+    if (scope === 'default' || DEFAULT_REGISTRIES_BY_SCOPE[scope] === registry) continue
     const declaration = declarationFor(registry)
     declaration.scopes = [...declaration.scopes ?? [], scope]
   }
