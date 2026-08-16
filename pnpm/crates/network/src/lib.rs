@@ -80,6 +80,13 @@ pub const UNPRIORITIZED: u64 = u64::MAX;
 /// `priority_semaphore` module docs for the full grant policy).
 pub const BACKGROUND: u64 = u64::MAX - 1;
 
+/// Highest priority a throughput-class (download) request may carry.
+/// Callers that derive a priority from untrusted size hints must clamp
+/// to this, so a saturated estimate can never collide with the
+/// [`BACKGROUND`] or [`UNPRIORITIZED`] sentinels and change the
+/// request's class.
+pub const MAX_THROUGHPUT_PRIORITY: u64 = BACKGROUND - 1;
+
 /// Default per-request timeout in milliseconds: the `fetchTimeout`
 /// default of `60000`. Source of truth for `pacquet-config`'s
 /// `default_fetch_timeout`.

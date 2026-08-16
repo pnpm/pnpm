@@ -9,7 +9,7 @@ use super::{
     allocate_tarball_buffer, decompress_gzip, extract_tarball_entries, local_file_tarball_path,
     open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
 };
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, UNPRIORITIZED};
+use pacquet_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient};
 use pacquet_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryError, RequestRetryLog,
@@ -590,10 +590,10 @@ pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>
     let size = unpacked_size.map_or(0, |size| size as u64);
     let per_file =
         file_count.map_or(0, |count| (count as u64).saturating_mul(PRIORITY_BYTES_PER_FILE));
-    // `UNPRIORITIZED` (`u64::MAX`) is the latency-class sentinel; a
-    // hostile registry publishing absurd `dist` stats must not be able
-    // to saturate a download's priority into that class.
-    size.saturating_add(per_file).min(UNPRIORITIZED - 1)
+    // `UNPRIORITIZED` and `BACKGROUND` are class sentinels; a hostile
+    // registry publishing absurd `dist` stats must not be able to
+    // saturate a download's priority into either class.
+    size.saturating_add(per_file).min(MAX_THROUGHPUT_PRIORITY)
 }
 
 /// Run [`fetch_and_extract_once`] under pnpm's retry policy. Permanent

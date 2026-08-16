@@ -4327,13 +4327,20 @@ fn packument_bytes_response(
 /// `time.modified` in HTTP-date form. Lets a client's release-age check
 /// (pnpm's `minimumReleaseAge`) learn the package-level last-publish
 /// upper bound from response headers alone — a `HEAD` costs ~no bytes
-/// where the abbreviated body runs to hundreds of KB. `None` when the
-/// document carries no parsable `time.modified`; the header is simply
-/// omitted then.
+/// where the abbreviated body runs to hundreds of KB. Fractional
+/// seconds round *up* to the next whole second: the header must stay
+/// an upper bound on the publish time, and truncating would understate
+/// it by up to 999ms — exactly the window a release-age check guards.
+/// `None` when the document carries no parsable `time.modified`; the
+/// header is simply omitted then.
 fn packument_last_modified(doc: &Value) -> Option<String> {
     let modified = doc.get("time")?.get("modified")?.as_str()?;
     let parsed = chrono::DateTime::parse_from_rfc3339(modified).ok()?;
-    Some(parsed.with_timezone(&Utc).format("%a, %d %b %Y %H:%M:%S GMT").to_string())
+    let mut whole_seconds = parsed.with_timezone(&Utc);
+    if whole_seconds.timestamp_subsec_nanos() > 0 {
+        whole_seconds += chrono::Duration::seconds(1);
+    }
+    Some(whole_seconds.format("%a, %d %b %Y %H:%M:%S GMT").to_string())
 }
 
 fn tarball_response(body: Body, content_length: Option<u64>) -> Response {

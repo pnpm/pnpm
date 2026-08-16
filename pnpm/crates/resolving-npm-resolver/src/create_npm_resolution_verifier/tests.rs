@@ -689,7 +689,7 @@ async fn planned_fetch_head_shortcut_skips_the_metadata_body() {
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let planned = pacquet_resolving_resolver_base::PlannedCanonicalFetches::default();
     planned
-        .set(std::collections::HashSet::from([("acme".to_string(), "1.0.0".to_string())]))
+        .set(std::collections::HashSet::from([("acme".to_string(), "1.0.0".to_string(), None)]))
         .expect("first fill");
     opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
     let verifier = create_npm_resolution_verifier(opts);
@@ -719,7 +719,7 @@ async fn unplanned_entry_sends_no_head_probe() {
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let planned = pacquet_resolving_resolver_base::PlannedCanonicalFetches::default();
     planned
-        .set(std::collections::HashSet::from([("other".to_string(), "2.0.0".to_string())]))
+        .set(std::collections::HashSet::from([("other".to_string(), "2.0.0".to_string(), None)]))
         .expect("first fill");
     opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
     let verifier = create_npm_resolution_verifier(opts);

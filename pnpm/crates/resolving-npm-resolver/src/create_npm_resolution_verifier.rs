@@ -457,7 +457,8 @@ impl NpmResolutionVerifier {
         }
 
         if age_applies
-            && let Some(violation) = self.run_age_check(&registry, ctx.name, ctx.version).await
+            && let Some(violation) =
+                self.run_age_check(&registry, ctx.name, ctx.version, ctx.registry_name).await
         {
             return violation;
         }
@@ -560,6 +561,7 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
         version: &str,
+        registry_name: Option<&str>,
     ) -> Option<ResolutionVerification> {
         let cutoff = self.cutoff.expect("cutoff is Some when age check is active");
         // Cheapest layer: for an entry whose canonical tarball this
@@ -569,11 +571,13 @@ impl NpmResolutionVerifier {
         // evidence cell is consulted before the probe so installs that
         // never fill it (no materialization, or a resolver alongside)
         // send no extra request.
+        let planned_key =
+            (name.to_string(), version.to_string(), registry_name.map(str::to_string));
         if self
             .planned_canonical_fetches
             .as_ref()
             .and_then(|cell| cell.get())
-            .is_some_and(|planned| planned.contains(&(name.to_string(), version.to_string())))
+            .is_some_and(|planned| planned.contains(&planned_key))
             && self.head_modified_is_before(registry, name, cutoff).await
         {
             return None;
@@ -647,14 +651,18 @@ impl NpmResolutionVerifier {
     }
 
     /// Whether the package-level `Last-Modified` a packument `HEAD`
-    /// reports is strictly older than `cutoff`. `false` when the probe
-    /// fails, the header is missing or unparsable, or the registry is
-    /// unreachable — the caller falls through to the metadata-backed
-    /// layers, so the probe can only ever *save* a body, never widen
-    /// what passes. Trust-wise the header is the same statement as the
-    /// packument body's `time.modified`, served by the same registry.
-    /// One probe per `(registry, name)`, queued in the background
-    /// network class.
+    /// reports is older than `cutoff` by more than the header's own
+    /// one-second resolution. HTTP dates carry whole seconds, and a
+    /// registry that truncates a fractional `time.modified` understates
+    /// it by up to 999ms — the guard band keeps the comparison an upper
+    /// bound regardless of how the server rounds. `false` when the
+    /// probe fails, the header is missing or unparsable, or the
+    /// registry is unreachable — the caller falls through to the
+    /// metadata-backed layers, so the probe can only ever *save* a
+    /// body, never widen what passes. Trust-wise the header is the same
+    /// statement as the packument body's `time.modified`, served by the
+    /// same registry. One probe per `(registry, name)`, queued in the
+    /// background network class.
     async fn head_modified_is_before(
         &self,
         registry: &str,
@@ -697,7 +705,7 @@ impl NpmResolutionVerifier {
             .as_deref()
             .and_then(|value| httpdate::parse_http_date(value).ok())
             .map(DateTime::<Utc>::from)
-            .is_some_and(|parsed| parsed < cutoff)
+            .is_some_and(|parsed| parsed + chrono::Duration::seconds(1) <= cutoff)
     }
 
     /// Per-`(registry, name, version)` lookup with a layered fallback.

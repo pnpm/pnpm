@@ -81,12 +81,16 @@ pub struct VerifyCtx<'a> {
 /// for keeping that flexibility while staying off `async-trait`.
 pub type VerifyFuture<'a> = Pin<Box<dyn Future<Output = ResolutionVerification> + Send + 'a>>;
 
-/// The set of `(name, version)` lockfile entries whose tarball this
-/// install fetches from the entry's own registry at the canonical
-/// `/-/<name>-<version>.tgz` path and integrity-checks against the
-/// pinned hash. Filled at most once, by the materialization path right
-/// after its warm/cold partition; empty until then, and never filled
-/// by installs that materialize nothing.
+/// The set of `(name, version, registry alias)` lockfile entries whose
+/// tarball this install fetches from the entry's own registry at the
+/// canonical `/-/<name>-<version>.tgz` path and integrity-checks
+/// against the pinned hash. The third element is the entry's
+/// named-registry qualifier (`None` for the default / scope-routed
+/// registry), so `foo@1.0.0` and `foo@gh:1.0.0` never vouch for each
+/// other — their fetches hit different registries. Filled at most
+/// once, by the materialization path right after its warm/cold
+/// partition; empty until then, and never filled by installs that
+/// materialize nothing.
 ///
 /// A listed entry's registry-manifest existence check may be replaced
 /// by this fetch evidence: the entry either downloads (the registry
@@ -94,8 +98,9 @@ pub type VerifyFuture<'a> = Pin<Box<dyn Future<Output = ResolutionVerification> 
 /// the install fails / drops it as an uninstallable optional — so no
 /// listed entry can land on disk without the registry having served
 /// it this run.
-pub type PlannedCanonicalFetches =
-    std::sync::Arc<std::sync::OnceLock<std::collections::HashSet<(String, String)>>>;
+pub type PlannedCanonicalFetches = std::sync::Arc<
+    std::sync::OnceLock<std::collections::HashSet<(String, String, Option<String>)>>,
+>;
 
 /// Optional companion to a resolver factory.
 ///

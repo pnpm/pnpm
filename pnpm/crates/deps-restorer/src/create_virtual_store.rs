@@ -472,12 +472,14 @@ impl CreateVirtualStore<'_> {
                     continue;
                 }
                 // Mirror the verification runner's candidate keying: a
-                // registry-qualified key contributes its bare semver.
-                let version = match metadata_key.suffix.registry_qualified() {
-                    Some((_, version)) => version.to_string(),
-                    None => metadata_key.suffix.version().to_string(),
+                // registry-qualified key contributes its bare semver
+                // plus its registry alias, so entries routed to
+                // different registries never share a key.
+                let (registry_alias, version) = match metadata_key.suffix.registry_qualified() {
+                    Some((alias, version)) => (Some(alias.to_string()), version.to_string()),
+                    None => (None, metadata_key.suffix.version().to_string()),
                 };
-                planned.insert((metadata_key.name.to_string(), version));
+                planned.insert((metadata_key.name.to_string(), version, registry_alias));
             }
             let _ = cell.set(planned);
         }
@@ -696,24 +698,15 @@ impl CreateVirtualStore<'_> {
                 })
                 .collect();
 
-            // Link cold slots (isolated only) in small chunks between
-            // download completions instead of in one pass after the last
-            // one, so the link work overlaps the remaining downloads
-            // instead of forming a serial tail. The per-snapshot download
-            // futures deferred this work (`defer_link: true`) because a
-            // blocking `rayon::join` link inside each would serialize
-            // one-at-a-time within this single cooperative task. Each
-            // chunk still blocks the task for the few milliseconds its
-            // rayon pass takes (`block_in_place` inside
-            // [`link_slots_parallel`]), but the in-flight downloads keep
-            // receiving into kernel socket buffers meanwhile, so the
-            // link never starves the pipe. Hash-equal peer variants of
-            // one slot dir that land in different chunks are safe: the
-            // chunks run sequentially, and a later pass over a complete
-            // slot short-circuits on its completion marker.
-            //
-            // Hoisted writes no slots, so it accumulates every capture
-            // for the per-pkg CAS index below instead.
+            // The downloads deferred their slot links (`defer_link:
+            // true`) because a blocking link inside this single
+            // cooperative task would serialize them; linking chunks
+            // between completions keeps that work off the tail without
+            // starving the pipe — a chunk's `block_in_place` pause is
+            // milliseconds, absorbed by kernel socket buffers. GVS
+            // peer variants sharing one slot dir may split across
+            // chunks: chunks run sequentially, and a later pass over a
+            // complete slot short-circuits on its completion marker.
             let marker_path = needs_build_marker_source.as_ref().map(tempfile::NamedTempFile::path);
             let mut ready: Vec<ColdCapture<'_>> = Vec::new();
             while let Some(outcome) = downloads.next().await {

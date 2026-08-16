@@ -17,7 +17,7 @@ use super::{
     prefetch::{PrefetchedCasPaths, prefetch_cas_paths},
     zip_archive::extract_zip_entries,
 };
-use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
+use pacquet_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::{
     CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
@@ -3580,14 +3580,15 @@ mod normalize_bundled_manifest_tests {
     }
 }
 
-/// Saturated `dist` stats must not collide with the latency-class
-/// sentinel (`UNPRIORITIZED`) — a hostile registry publishing absurd
+/// Saturated `dist` stats must not collide with the latency- or
+/// background-class sentinels — a hostile registry publishing absurd
 /// sizes would otherwise reclassify its downloads as metadata.
 #[test]
-fn download_priority_never_reaches_the_latency_sentinel() {
+fn download_priority_never_reaches_the_class_sentinels() {
     let priority = download_priority(Some(usize::MAX), Some(usize::MAX));
+    assert!(priority < pacquet_network::BACKGROUND);
     assert!(priority < UNPRIORITIZED);
-    assert_eq!(priority, UNPRIORITIZED - 1);
+    assert_eq!(priority, MAX_THROUGHPUT_PRIORITY);
 }
 
 /// A runtime archive (Node.js / Bun / Deno) ships no `package.json`, so
