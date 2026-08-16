@@ -5254,6 +5254,7 @@ dependencies = [
  "dashmap",
  "derive_more",
  "dunce",
+ "junction",
  "miette 7.6.0",
  "pacquet-crypto-hash",
  "pacquet-fs",
