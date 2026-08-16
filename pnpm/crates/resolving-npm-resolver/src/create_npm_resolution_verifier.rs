@@ -774,7 +774,10 @@ impl NpmResolutionVerifier {
         let value = cell
             .get_or_init(|| async {
                 if let Some(shared) = self.read_shared_meta(registry, name) {
-                    return Ok(project_abbreviated_meta(&shared, self.registry_supports_time_field));
+                    return Ok(project_abbreviated_meta(
+                        &shared,
+                        self.registry_supports_time_field,
+                    ));
                 }
                 let opts = FetchFullMetadataCachedOptions {
                     registry,
@@ -792,7 +795,9 @@ impl NpmResolutionVerifier {
                 // from a version genuinely absent from the metadata, otherwise
                 // it reports a 403 as a tampering-style mismatch.
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
-                    Ok(meta) => Ok(project_abbreviated_meta(&meta, self.registry_supports_time_field)),
+                    Ok(meta) => {
+                        Ok(project_abbreviated_meta(&meta, self.registry_supports_time_field))
+                    }
                     Err(error) => Err(render_fetch_metadata_error(&error)),
                 }
             })

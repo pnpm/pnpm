@@ -1459,7 +1459,6 @@ async fn version_absent_from_fetched_metadata_stays_tarball_url_mismatch() {
     assert_eq!(code, "TARBALL_URL_MISMATCH");
 }
 
-
 /// With `registrySupportsTimeField`, a version's publish timestamp is
 /// taken from the `time` map of the abbreviated document the verifier
 /// already fetched. The `modified` shortcut cannot answer here (the
