@@ -1,21 +1,34 @@
+import type { RegistryServerType } from '@pnpm/types'
+
 const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/'
+
+export interface TarballUrlOptions {
+  registry?: string
+  /** Defaults to `'npm'`. See {@link RegistryServerType}. */
+  serverType?: RegistryServerType
+}
 
 /**
  * Build the canonical tarball URL of an npm package — i.e. the URL pnpm derives
  * from a package's name, version, and registry. Vendored from the
  * `get-npm-tarball-url` package so the logic and its inverse
  * ({@link isCanonicalRegistryTarballUrl}) live together in the monorepo.
+ *
+ * This is the single source of the URL shape: the lockfile writer drops a
+ * tarball URL only when this function rebuilds it, and the lockfile reader
+ * rebuilds it with this function. Both sides therefore agree by construction,
+ * including under a non-`npm` {@link RegistryServerType}.
  */
 export function getNpmTarballUrl (
   pkgName: string,
   pkgVersion: string,
-  opts?: {
-    registry?: string
-  }
+  opts?: TarballUrlOptions
 ): string {
   const registry = normalizeRegistry(opts?.registry)
-  const scopelessName = getScopelessName(pkgName)
-  return `${registry}${pkgName}/-/${scopelessName}-${removeBuildMetadataFromVersion(pkgVersion)}.tgz`
+  // Artifactory keeps the scope in the filename of a scoped package's tarball
+  // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
+  const filenameName = opts?.serverType === 'artifactory' ? pkgName : getScopelessName(pkgName)
+  return `${registry}${pkgName}/-/${filenameName}-${removeBuildMetadataFromVersion(pkgVersion)}.tgz`
 }
 
 /**
@@ -34,18 +47,18 @@ export function getNpmTarballUrl (
 export function isCanonicalRegistryTarballUrl (
   tarball: string,
   pkg: { name: string, version: string },
-  registry: string
+  opts: TarballUrlOptions
 ): boolean {
-  const expectedTarball = removeProtocol(getNpmTarballUrl(pkg.name, pkg.version, { registry }))
+  const expectedTarball = removeProtocol(getNpmTarballUrl(pkg.name, pkg.version, opts))
   const actualTarball = removeProtocol(tarball)
   if (expectedTarball === actualTarball) return true
   // registry.npmjs.org serves a scoped package from both the encoded and the
   // unencoded path; elsewhere only the encoded one may work.
   // See https://github.com/pnpm/pnpm/issues/13534.
-  return isPublicNpmRegistry(registry) && expectedTarball === actualTarball.replace(/%2f/gi, '/')
+  return isPublicNpmRegistry(opts.registry) && expectedTarball === actualTarball.replace(/%2f/gi, '/')
 }
 
-function isPublicNpmRegistry (registry: string): boolean {
+function isPublicNpmRegistry (registry?: string): boolean {
   return removeProtocol(normalizeRegistry(registry)) === removeProtocol(PUBLIC_NPM_REGISTRY)
 }
 

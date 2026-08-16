@@ -4,14 +4,14 @@
 //! `buildDependenciesTree`.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     io,
     path::{Path, PathBuf},
 };
 
 use miette::{Context, IntoDiagnostic};
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot};
+use pnpm_lockfile::{Lockfile, ProjectSnapshot, RegistryOptions};
 use pnpm_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, Modules,
     read_modules_manifest,
@@ -85,6 +85,7 @@ impl LoadedState {
         &'a self,
         lockfile_dir: &Path,
         virtual_store_dir_max_length: usize,
+        registry_options: BTreeMap<String, RegistryOptions>,
     ) -> Option<PkgInfoEnv<'a>> {
         let lockfile = self.lockfile_to_use()?;
         let mut registries = HashMap::new();
@@ -115,6 +116,7 @@ impl LoadedState {
                 },
             ),
             registries,
+            registry_options,
             skipped: self
                 .modules
                 .as_ref()

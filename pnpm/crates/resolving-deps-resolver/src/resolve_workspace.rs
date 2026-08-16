@@ -27,6 +27,7 @@ use crate::{
     resolved_tree::ResolvedTree,
 };
 use chrono::{DateTime, Duration, Utc};
+use pnpm_lockfile::RegistryOptions;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -147,6 +148,9 @@ pub struct WorkspaceResolveOptions {
     /// Alias → URL map of named registries (built-ins merged with the
     /// user's setting). See [`WorkspaceResolveOptions::registries`].
     pub named_registries: std::collections::HashMap<String, String>,
+
+    /// The `registryOptions` setting, keyed by normalized registry URL.
+    pub registry_options: std::collections::BTreeMap<String, RegistryOptions>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -204,6 +208,7 @@ where
         auto_install_peers,
         registries,
         named_registries,
+        registry_options,
     } = opts;
     // Taken before the lockfile moves into the workspace ctx below, and
     // only for the pre-pass that reads it — a lockfile is untrusted
@@ -227,7 +232,8 @@ where
             .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
             .with_registries(registries)
-            .with_named_registries(named_registries),
+            .with_named_registries(named_registries)
+            .with_registry_options(registry_options),
     );
 
     // Build every importer's options up front so the `time-based`

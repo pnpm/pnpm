@@ -5,6 +5,7 @@ use crate::{
     ShimPolicy, TrustPolicy, api::EnvVar,
 };
 use pipe_trait::Pipe;
+use pnpm_lockfile::RegistryServerType;
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pretty_assertions::assert_eq;
@@ -1868,4 +1869,76 @@ fn parses_save_settings_from_yaml_and_applies() {
     assert_eq!(global.save_prefix.as_deref(), Some("~"));
     assert_eq!(global.save_peer, None);
     assert_eq!(global.save_catalog_name, None);
+}
+
+/// `registryOptions` is the per-registry settings map from
+/// `pnpm-workspace.yaml`. `apply_to` keys it by registry URL with a trailing
+/// slash so a lookup by the registry a package resolved from matches.
+#[test]
+fn parses_registry_options_from_yaml_and_normalizes_the_keys() {
+    let yaml = r"
+registryOptions:
+  https://artifactory.example/artifactory/api/npm/npm-virtual: {serverType: artifactory}
+  https://npm.example.com/: {serverType: npm}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config
+            .registry_options
+            .get("https://artifactory.example/artifactory/api/npm/npm-virtual/")
+            .map(|options| options.server_type),
+        Some(RegistryServerType::Artifactory),
+    );
+    assert_eq!(
+        config.registry_options.get("https://npm.example.com/").map(|options| options.server_type),
+        Some(RegistryServerType::Npm),
+    );
+}
+
+/// Credentials belong in `.npmrc`, which is not committed. `RegistryOptions`
+/// denies unknown fields so one written here fails loudly instead of looking
+/// configured.
+#[test]
+fn rejects_credentials_in_registry_options() {
+    let yaml = r"
+registryOptions:
+  https://npm.example.com/: {_authToken: secret}
+";
+    let received = serde_saphyr::from_str::<WorkspaceSettings>(yaml);
+    assert!(received.is_err(), "credentials in registryOptions must not parse");
+}
+
+#[test]
+fn rejects_an_unknown_registry_server_type() {
+    let yaml = r"
+registryOptions:
+  https://npm.example.com/: {serverType: nexus}
+";
+    let received = serde_saphyr::from_str::<WorkspaceSettings>(yaml);
+    assert!(received.is_err(), "an unknown serverType must not parse");
+}
+
+/// The registry URL is the key here, so the untrusted-environment gate has to
+/// drop the entry rather than expanding a placeholder into a request URL.
+#[test]
+fn drops_a_registry_options_entry_whose_url_has_an_env_placeholder() {
+    struct NoEnv;
+    impl EnvVar for NoEnv {
+        fn var(_name: &str) -> Option<String> {
+            None
+        }
+    }
+
+    let yaml = r"
+registryOptions:
+  https://${PNPM_TEST_HOST}/: {serverType: artifactory}
+  https://npm.example.com/: {serverType: artifactory}
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_untrusted::<NoEnv>();
+    let options = settings.registry_options.as_ref().expect("registry_options present");
+    assert_eq!(options.len(), 1);
+    assert!(options.contains_key("https://npm.example.com/"));
 }

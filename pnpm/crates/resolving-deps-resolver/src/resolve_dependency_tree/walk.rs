@@ -255,6 +255,7 @@ where
             key,
             &ctx.workspace.registries,
             &ctx.workspace.named_registries,
+            &ctx.workspace.registry_options,
         )
     });
     let opts_with_current_pkg;

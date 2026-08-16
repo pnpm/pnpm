@@ -297,3 +297,62 @@ test('getOptionsFromPnpmSettings() accepts valid packageExtensions', () => {
     },
   })
 })
+
+test('getOptionsFromPnpmSettings() keys registryOptions by normalized registry URL', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      'https://artifactory.example/artifactory/api/npm/npm-virtual': { serverType: 'artifactory' },
+    },
+  })
+  expect(options.registryOptions).toStrictEqual({
+    'https://artifactory.example/artifactory/api/npm/npm-virtual/': { serverType: 'artifactory' },
+  })
+})
+
+test('getOptionsFromPnpmSettings() rejects an unknown registry server type', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      'https://npm.example.com/': { serverType: 'nexus' as never },
+    },
+  })).toThrow(/should be one of "npm", "artifactory", but got "nexus"/)
+})
+
+test('getOptionsFromPnpmSettings() rejects credentials in registryOptions', () => {
+  // pnpm-workspace.yaml is committed; credentials belong in .npmrc.
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      'https://npm.example.com/': { _authToken: 'secret' } as never,
+    },
+  })).toThrow(/is not allowed in pnpm-workspace\.yaml/)
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-object registryOptions entry', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      'https://npm.example.com/': 'artifactory' as never,
+    },
+  })).toThrow(/should be an object, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() drops a registryOptions entry whose URL has an unexpanded env placeholder', () => {
+  // The key is a request destination, so it gets the same gate the `registries`
+  // values get: no silent expansion outside a trusted context.
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
+    },
+  })
+  expect(options.registryOptions).toStrictEqual({})
+})
+
+test('getOptionsFromPnpmSettings() expands the registryOptions URL when request destinations may be expanded', () => {
+  process.env.PNPM_TEST_HOST = 'artifactory.example'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
+    },
+  }, { expandRequestDestinationEnv: true })
+  expect(options.registryOptions).toStrictEqual({
+    'https://artifactory.example/': { serverType: 'artifactory' },
+  })
+})

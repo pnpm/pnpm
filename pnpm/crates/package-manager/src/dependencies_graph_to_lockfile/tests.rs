@@ -20,6 +20,11 @@ use pnpm_resolving_deps_resolver::{
 use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
+static EMPTY_REGISTRY_OPTIONS: std::collections::BTreeMap<
+    String,
+    pacquet_lockfile::RegistryOptions,
+> = std::collections::BTreeMap::new();
+
 static EMPTY_NAMED_REGISTRIES: std::sync::LazyLock<std::collections::HashMap<String, String>> =
     std::sync::LazyLock::new(std::collections::HashMap::new);
 use serde_json::json;
@@ -67,6 +72,7 @@ fn single_importer_opts<'a>(
     );
     GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph,
         auto_install_peers,
@@ -463,6 +469,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
     );
     let on = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -496,6 +503,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
     );
     let off = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -583,6 +591,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
         );
         dependencies_graph_to_lockfile(GraphToLockfileOptions {
             named_registries: &EMPTY_NAMED_REGISTRIES,
+            registry_options: &EMPTY_REGISTRY_OPTIONS,
             importers,
             graph: &graph,
             auto_install_peers: false,
@@ -743,6 +752,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
     );
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -1803,6 +1813,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -1896,6 +1907,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -2007,6 +2019,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -2144,6 +2157,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -2453,6 +2467,7 @@ fn injected_workspace_dep_keeps_prior_link_on_untargeted_install() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2478,6 +2493,7 @@ fn injected_workspace_dep_renders_file_without_prior_link() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: None,
         previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
@@ -2507,6 +2523,7 @@ fn injected_workspace_dep_flips_to_file_when_update_targets_it() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::Except(HashSet::from_iter(["n".to_string()])),
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2536,6 +2553,7 @@ fn injected_workspace_dep_flips_to_file_when_specifier_changed() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2571,6 +2589,7 @@ fn injected_workspace_dep_flips_to_file_when_recursive_update_targets_it_per_imp
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: scopes_by_importer,
@@ -2608,6 +2627,7 @@ fn injected_workspace_dep_keeps_link_when_recursive_update_targets_other_pkg() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: scopes_by_importer,
@@ -2636,6 +2656,7 @@ fn injected_workspace_dep_flips_to_file_on_scope_wide_update() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         named_registries: &EMPTY_NAMED_REGISTRIES,
+        registry_options: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::None,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)

@@ -1,5 +1,10 @@
 import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
-import type { NamedRegistries, Registries } from '@pnpm/types'
+import type {
+  NamedRegistries,
+  Registries,
+  RegistryOptions,
+  RegistryServerType,
+} from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { map as mapValues } from 'ramda'
 
@@ -38,3 +43,11 @@ export function normalizeNamedRegistries (namedRegistries?: Record<string, strin
 
 /** Shared, like `DEFAULT_REGISTRIES`, so per-package callers can cache on its identity. */
 const DEFAULT_NAMED_REGISTRIES = normalizeNamedRegistries({})
+
+/** The layout `registry` serves tarballs with, defaulting to the npm layout. */
+export function getRegistryServerType (
+  registryOptions: Record<string, RegistryOptions> | undefined,
+  registry: string
+): RegistryServerType {
+  return registryOptions?.[normalizeRegistryUrl(registry)]?.serverType ?? 'npm'
+}

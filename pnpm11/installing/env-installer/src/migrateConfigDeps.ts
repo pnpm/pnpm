@@ -50,7 +50,7 @@ export async function migrateConfigDepsToLockfile (
         resolution: toLockfileResolution(
           { name: pkgName, version },
           { integrity, tarball },
-          registry
+          { registry }
         ),
       }
       envLockfile.snapshots[pkgKey] = {}

@@ -23,6 +23,7 @@ pub use crate::{
 use crate::npmrc_auth::NpmrcAuth;
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
+use pnpm_lockfile::RegistryOptions;
 use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
     resolve_and_group,
@@ -1156,6 +1157,15 @@ pub struct Config {
     ///
     /// The `namedRegistries` setting.
     pub named_registries: BTreeMap<String, String>,
+
+    /// Non-secret per-registry settings from
+    /// `pnpm-workspace.yaml#registryOptions`, keyed by registry URL with a
+    /// trailing slash. Deliberately separate from the auth config: that one
+    /// carries credentials, and the install and lockfile layers that need a
+    /// registry's tarball layout must not be handed its secrets.
+    ///
+    /// The `registryOptions` setting.
+    pub registry_options: BTreeMap<String, RegistryOptions>,
 
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),

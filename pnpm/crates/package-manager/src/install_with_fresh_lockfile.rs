@@ -2154,6 +2154,7 @@ fn build_fresh_lockfile(
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
         graph,
+        registry_options: &config.registry_options,
         auto_install_peers: config.auto_install_peers,
         dedupe_peers: config.dedupe_peers,
         exclude_links_from_lockfile: config.exclude_links_from_lockfile,

@@ -22,14 +22,7 @@ import type {
   PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type {
-  AllowBuild,
-  DepPath,
-  PkgIdWithPatchHash,
-  ProjectId,
-  Registries,
-  SupportedArchitectures,
-} from '@pnpm/types'
+import type { AllowBuild, DepPath, PkgIdWithPatchHash, ProjectId, Registries, RegistryOptions, SupportedArchitectures } from '@pnpm/types'
 import { pathExists } from 'path-exists'
 import { equals, isEmpty } from 'ramda'
 
@@ -85,6 +78,7 @@ export interface LockfileToDepGraphOptions {
   patchedDependencies?: PatchGroupRecord
   registries: Registries
   namedRegistries?: Record<string, string>
+  registryOptions?: Record<string, RegistryOptions>
   /**
    * The dep paths a non-optional edge reaches, as classified by
    * `filterLockfileByImportersAndEngine`. Installability is evaluated as
@@ -295,7 +289,7 @@ async function buildGraphFromPackages (
       }
 
       if (!fetchResponse) {
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
+        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries, registryOptions: opts.registryOptions })
         progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
 
         try {

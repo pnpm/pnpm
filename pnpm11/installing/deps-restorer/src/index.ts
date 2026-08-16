@@ -67,6 +67,7 @@ import type {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store.controller-types'
+import type { RegistryOptions } from '@pnpm/types'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,
@@ -172,6 +173,7 @@ export interface HeadlessOptions {
   userAgent: string
   registries: Registries
   namedRegistries?: Record<string, string>
+  registryOptions?: Record<string, RegistryOptions>
   reporter?: ReporterFunction
   packageManager: {
     name: string

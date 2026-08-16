@@ -31,6 +31,26 @@ export interface NamedRegistries {
   [name: string]: string
 }
 
+/**
+ * The software serving a registry, when it lays out tarball URLs differently
+ * from the npm registry. `npm` is the layout every registry is assumed to use
+ * unless the `registryOptions` setting says otherwise.
+ *
+ * Only layouts pnpm can rebuild a URL for belong here. A registry that serves
+ * tarballs from an opaque path (GitHub Packages `/download/<hash>`) has no
+ * entry: its URLs are kept in the lockfile instead.
+ */
+export type RegistryServerType = 'npm' | 'artifactory'
+
+/**
+ * Non-secret, per-registry settings from the `registryOptions` setting. Held
+ * apart from {@link RegistryConfig} so the install and lockfile layers can be
+ * handed a registry's layout without also being handed its credentials.
+ */
+export interface RegistryOptions {
+  serverType?: RegistryServerType
+}
+
 /** Parsed value of `_auth` of each registry in the rc file. */
 export interface BasicAuth {
   username: string

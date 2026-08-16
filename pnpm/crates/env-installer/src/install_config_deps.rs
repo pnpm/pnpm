@@ -14,7 +14,9 @@ use pnpm_graph_hasher::{
     calc_global_virtual_store_path_with_subdeps, calc_leaf_global_virtual_store_path,
     join_global_virtual_store_path,
 };
-use pnpm_lockfile::{EnvLockfile, LockfileResolution, npm_tarball_url};
+use pnpm_lockfile::{
+    EnvLockfile, LockfileResolution, RegistryServerType, TarballUrlOptions, npm_tarball_url,
+};
 use pnpm_package_is_installable::{
     InstallabilityOptions, PackageInstallabilityManifest, check_package,
 };
@@ -463,9 +465,14 @@ fn integrity_and_tarball(
     registry: &str,
 ) -> Option<(Integrity, String)> {
     match resolution {
-        LockfileResolution::Registry(registry_resolution) => {
-            Some((registry_resolution.integrity.clone(), npm_tarball_url(name, version, registry)))
-        }
+        LockfileResolution::Registry(registry_resolution) => Some((
+            registry_resolution.integrity.clone(),
+            npm_tarball_url(
+                name,
+                version,
+                TarballUrlOptions { registry, server_type: RegistryServerType::Npm },
+            ),
+        )),
         LockfileResolution::Tarball(tarball) => {
             let integrity = tarball.integrity.clone()?;
             Some((integrity, tarball.tarball.clone()))

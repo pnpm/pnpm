@@ -1,12 +1,12 @@
 import url from 'node:url'
 
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { getRegistryServerType, normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
-import type { Registries } from '@pnpm/types'
+import type { Registries, RegistryOptions } from '@pnpm/types'
 
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
@@ -17,6 +17,11 @@ export interface PkgSnapshotToResolutionOptions {
    * aliases are merged in here, so callers pass the setting verbatim.
    */
   namedRegistries?: Record<string, string>
+  /**
+   * Normalized `registryOptions` setting. The tarball URL is rebuilt with the
+   * layout the registry it resolved from was declared to serve.
+   */
+  registryOptions?: Record<string, RegistryOptions>
 }
 
 export function pkgSnapshotToResolution (
@@ -78,6 +83,9 @@ export function pkgSnapshotToResolution (
     if (!name || !version) {
       throw new Error(`Couldn't get tarball URL from dependency path ${depPath}`)
     }
-    return getNpmTarballUrl(name, version, { registry })
+    return getNpmTarballUrl(name, version, {
+      registry,
+      serverType: getRegistryServerType(opts.registryOptions, registry),
+    })
   }
 }

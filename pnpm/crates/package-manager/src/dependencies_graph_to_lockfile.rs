@@ -14,10 +14,11 @@ use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
     BundledDependencies, CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile,
-    LockfileResolution, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata,
-    ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError,
-    PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry,
-    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
+    LockfileFormOptions, LockfileResolution, LockfileSettings, LockfileVersion, PackageKey,
+    PackageMetadata, ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError,
+    PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryOptions,
+    ResolvedCatalogEntry, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
+    SnapshotEntry, VersionPart, registry_server_type,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
@@ -112,6 +113,7 @@ pub struct GraphToLockfileOptions<'a> {
     /// tarball-reconstructibility check through this map instead of the
     /// default registry.
     pub named_registries: &'a HashMap<String, String>,
+    pub registry_options: &'a BTreeMap<String, RegistryOptions>,
     /// When `true`, registry tarball URLs are kept in the lockfile even when
     /// reconstructible (the `lockfileIncludeTarballUrl` setting).
     pub lockfile_include_tarball_url: bool,
@@ -216,6 +218,7 @@ pub fn dependencies_graph_to_lockfile(
         catalogs,
         registry,
         named_registries,
+        registry_options,
         lockfile_include_tarball_url,
         previous_importers,
         previous_packages,
@@ -231,6 +234,7 @@ pub fn dependencies_graph_to_lockfile(
         &PackageMetadataSources {
             registry,
             named_registries,
+            registry_options,
             lockfile_include_tarball_url,
             previous_packages,
         },
@@ -671,6 +675,7 @@ type PackagesAndSnapshots =
 struct PackageMetadataSources<'a> {
     registry: &'a str,
     named_registries: &'a HashMap<String, String>,
+    registry_options: &'a BTreeMap<String, RegistryOptions>,
     lockfile_include_tarball_url: bool,
     previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
 }
@@ -722,7 +727,15 @@ fn build_packages_and_snapshots(
                 },
                 None => (sources.registry, sources.lockfile_include_tarball_url),
             };
-            let mut metadata = build_package_metadata(node, key, registry, include_tarball_url);
+            let mut metadata = build_package_metadata(
+                node,
+                key,
+                LockfileFormOptions {
+                    registry,
+                    server_type: registry_server_type(sources.registry_options, registry),
+                    include_tarball_url,
+                },
+            );
             // `deprecated` is the only registry-mutable field of a
             // published version; an unchanged resolution must not lose
             // a recorded deprecation to a registry serving it
@@ -751,8 +764,7 @@ fn build_packages_and_snapshots(
 fn build_package_metadata(
     node: &DependenciesGraphNode,
     metadata_key: &PackageKey,
-    registry: &str,
-    lockfile_include_tarball_url: bool,
+    lockfile_form: LockfileFormOptions<'_>,
 ) -> PackageMetadata {
     let manifest = node.resolve_result.manifest.as_deref();
 
@@ -807,8 +819,7 @@ fn build_package_metadata(
     let resolution = node.resolve_result.resolution.to_lockfile_form(
         &metadata_key.name.to_string(),
         &resolution_version,
-        registry,
-        lockfile_include_tarball_url,
+        lockfile_form,
     );
 
     // Record `version` only for non-registry packages (depPath carries

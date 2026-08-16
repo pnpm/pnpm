@@ -1961,6 +1961,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
       namedRegistries: opts.namedRegistries,
+      registryOptions: opts.registryOptions,
       resolutionMode: opts.resolutionMode,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,

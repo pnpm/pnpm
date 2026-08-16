@@ -3,13 +3,15 @@ use indexmap::IndexMap;
 use node_semver::{Range, Version};
 use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
 use pnpm_lockfile::{
-    BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey,
-    PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, Prefix, ResolvedDependencyMap,
-    SnapshotDepRef, SnapshotEntry, StringOrList, pick_registry_for_package,
+    BundledDependencies, ImporterDepVersion, Lockfile, LockfileFormOptions, LockfileResolution,
+    PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, Prefix, RegistryOptions,
+    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, StringOrList, pick_registry_for_package,
+    registry_server_type,
 };
 use pnpm_resolving_deps_resolver::ManifestHook;
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -48,6 +50,7 @@ pub(crate) struct RewriteContext<'a> {
     pub resolve_options: &'a ResolveOptions,
     pub manifest_hook: Option<&'a ManifestHook>,
     pub registries: &'a HashMap<String, String>,
+    pub registry_options: &'a BTreeMap<String, RegistryOptions>,
     pub lockfile_include_tarball_url: bool,
 }
 
@@ -408,13 +411,18 @@ fn rewrite_lockfile(
         }
         snapshots.insert(new_key.clone(), snapshot);
         let metadata_key = new_key.without_peer();
+        let registry =
+            pick_registry_for_package(context.registries, &old_key.name.to_string(), None);
         let metadata = package_metadata(
             &replacement.manifest,
             replacement.resolution.to_lockfile_form(
                 &old_key.name.to_string(),
                 &new_key.suffix.version().to_string(),
-                &pick_registry_for_package(context.registries, &old_key.name.to_string(), None),
-                context.lockfile_include_tarball_url,
+                LockfileFormOptions {
+                    registry: &registry,
+                    server_type: registry_server_type(context.registry_options, &registry),
+                    include_tarball_url: context.lockfile_include_tarball_url,
+                },
             ),
         );
         if let Some(existing) = packages.get(&metadata_key)

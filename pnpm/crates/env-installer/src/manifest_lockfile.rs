@@ -1,4 +1,7 @@
-use pnpm_lockfile::{BundledDependencies, PackageMetadata, PeerDependencyMeta, StringOrList};
+use pnpm_lockfile::{
+    BundledDependencies, LockfileFormOptions, PackageMetadata, PeerDependencyMeta,
+    RegistryServerType, StringOrList,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -15,8 +18,11 @@ pub(crate) fn package_metadata(
         resolution: result.resolution.to_lockfile_form(
             name,
             version,
-            registry,
-            lockfile_include_tarball_url,
+            LockfileFormOptions {
+                registry,
+                server_type: RegistryServerType::Npm,
+                include_tarball_url: lockfile_include_tarball_url,
+            },
         ),
         version: None,
         engines: read_engines(manifest),

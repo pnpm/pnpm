@@ -4,13 +4,14 @@
 //! `resolvePackagePath`.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
 use pnpm_fs::{is_subdir, lexical_normalize};
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PkgNameVerPeer, npm_tarball_url, pick_registry_for_package,
+    Lockfile, LockfileResolution, PkgNameVerPeer, RegistryOptions, TarballUrlOptions,
+    npm_tarball_url, pick_registry_for_package, registry_server_type,
 };
 
 use super::{
@@ -32,6 +33,9 @@ pub(crate) struct PkgInfoEnv<'a> {
     pub virtual_store_dir_max_length: usize,
     /// Registry URLs keyed by `default` / `@scope`.
     pub registries: HashMap<String, String>,
+    /// Per-registry tarball layouts from the `registryOptions` setting, used
+    /// when a lockfile entry's omitted tarball URL is rebuilt for display.
+    pub registry_options: BTreeMap<String, RegistryOptions>,
     /// depPaths of packages skipped by the installer (unsupported
     /// platform optional deps).
     pub skipped: HashSet<String>,
@@ -193,7 +197,14 @@ fn resolved_tarball_url(
         LockfileResolution::Tarball(tarball) => Some(tarball.tarball.clone()),
         LockfileResolution::Registry(_) => {
             let registry = pick_registry_for_package(&env.registries, name, None);
-            Some(npm_tarball_url(name, version, &registry))
+            Some(npm_tarball_url(
+                name,
+                version,
+                TarballUrlOptions {
+                    registry: &registry,
+                    server_type: registry_server_type(&env.registry_options, &registry),
+                },
+            ))
         }
         _ => None,
     }

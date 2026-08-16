@@ -43,19 +43,7 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type {
-  AllowBuild,
-  AllowedDeprecatedVersions,
-  DepPath,
-  PackageManifest,
-  PackageVersionPolicy,
-  PkgIdWithPatchHash,
-  RangeSpecStyle,
-  ReadPackageHook,
-  Registries,
-  SupportedArchitectures,
-  TrustPolicy,
-} from '@pnpm/types'
+import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PackageManifest, PackageVersionPolicy, PkgIdWithPatchHash, RangeSpecStyle, ReadPackageHook, Registries, RegistryOptions, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import pDefer from 'p-defer'
 import { pathExists } from 'path-exists'
@@ -205,6 +193,7 @@ export interface ResolutionContext {
   pnpmVersion: string
   registries: Registries
   namedRegistries?: Record<string, string>
+  registryOptions?: Record<string, RegistryOptions>
   namedRegistryPrefixes: readonly string[]
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
@@ -648,6 +637,7 @@ async function resolveDependenciesOfImporters (
         proceed: importer.options.proceed || ctx.forceFullResolution,
         registries: ctx.registries,
         namedRegistries: ctx.namedRegistries,
+        registryOptions: ctx.registryOptions,
         resolvedDependencies: importer.options.resolvedDependencies,
       })
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
@@ -854,6 +844,7 @@ export async function resolveDependencies (
     proceed: options.proceed || ctx.forceFullResolution,
     registries: ctx.registries,
     namedRegistries: ctx.namedRegistries,
+    registryOptions: ctx.registryOptions,
     resolvedDependencies: options.resolvedDependencies,
   })
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
@@ -1580,6 +1571,7 @@ function getDepsToResolve (
     proceed: boolean
     registries: Registries
     namedRegistries?: Record<string, string>
+    registryOptions?: Record<string, RegistryOptions>
     resolvedDependencies?: ResolvedDependencies
   }
 ): ExtendedWantedDependency[] {
@@ -1639,7 +1631,7 @@ function getDepsToResolve (
         reference = preferredDependencies[wantedDependency.alias]
       }
     }
-    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, { registries: options.registries, namedRegistries: options.namedRegistries }, reference, wantedDependency.alias)
+    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, { registries: options.registries, namedRegistries: options.namedRegistries, registryOptions: options.registryOptions }, reference, wantedDependency.alias)
     if (
       !proceedAll &&
       (

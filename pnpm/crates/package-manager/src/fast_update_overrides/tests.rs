@@ -136,6 +136,7 @@ async fn try_update(
             resolve_options: &resolve_options,
             manifest_hook: None,
             registries: &registries,
+            registry_options: &std::collections::BTreeMap::new(),
             lockfile_include_tarball_url: false,
         },
         parsed_overrides,

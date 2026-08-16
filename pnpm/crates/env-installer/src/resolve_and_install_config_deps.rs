@@ -15,14 +15,26 @@ use crate::{
     verify_env_lockfile::write_verified_env_lockfile,
 };
 use pnpm_lockfile::{
-    EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
-    SpecifierAndResolution, TarballResolution, npm_tarball_url,
+    EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
+    RegistryServerType, SnapshotEntry, SpecifierAndResolution, TarballResolution,
+    TarballUrlOptions, npm_tarball_url,
 };
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pnpm_workspace_state::ConfigDependency;
 use ssri::Integrity;
 use std::collections::BTreeMap;
+
+/// Config deps keep the npm tarball layout: `registryOptions` is a workspace
+/// setting, and config deps are resolved before workspace settings apply. The
+/// writer and the reader here agree because both use this same default.
+fn npm_lockfile_form(registry: &str) -> LockfileFormOptions<'_> {
+    LockfileFormOptions {
+        registry,
+        server_type: RegistryServerType::Npm,
+        include_tarball_url: false,
+    }
+}
 
 /// Resolve + install the config dependencies declared in
 /// `pnpm-workspace.yaml` (`config_deps`).
@@ -55,10 +67,13 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
                 if !has_config_dep(&env_lockfile, name) {
                     let (version, integrity) = parse_integrity(name, &detail.integrity)?;
                     let registry = opts.pick_registry(name);
-                    let tarball = detail
-                        .tarball
-                        .clone()
-                        .unwrap_or_else(|| npm_tarball_url(name, &version, registry));
+                    let tarball = detail.tarball.clone().unwrap_or_else(|| {
+                        npm_tarball_url(
+                            name,
+                            &version,
+                            TarballUrlOptions { registry, server_type: RegistryServerType::Npm },
+                        )
+                    });
                     migrate_into_lockfile(
                         &mut env_lockfile,
                         name,
@@ -74,7 +89,11 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
                 if !has_config_dep(&env_lockfile, name) {
                     let (version, integrity) = parse_integrity(name, value)?;
                     let registry = opts.pick_registry(name);
-                    let tarball = npm_tarball_url(name, &version, registry);
+                    let tarball = npm_tarball_url(
+                        name,
+                        &version,
+                        TarballUrlOptions { registry, server_type: RegistryServerType::Npm },
+                    );
                     migrate_into_lockfile(
                         &mut env_lockfile,
                         name,
@@ -166,9 +185,11 @@ async fn resolve_one(
     );
     env_lockfile.packages.insert(
         key.clone(),
-        registry_package_metadata(
-            result.resolution.to_lockfile_form(name, &version, registry, false),
-        ),
+        registry_package_metadata(result.resolution.to_lockfile_form(
+            name,
+            &version,
+            npm_lockfile_form(registry),
+        )),
     );
 
     let optional_subdeps = match result.manifest.as_deref() {
@@ -205,7 +226,7 @@ fn migrate_into_lockfile(
         git_hosted: None,
         path: None,
     })
-    .to_lockfile_form(name, version, registry, false);
+    .to_lockfile_form(name, version, npm_lockfile_form(registry));
     env_lockfile.packages.insert(key.clone(), registry_package_metadata(resolution));
     env_lockfile.snapshots.insert(key, SnapshotEntry::default());
     Ok(())

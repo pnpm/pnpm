@@ -197,6 +197,7 @@ fn importer_opts(
 fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolveOptions {
     WorkspaceResolveOptions {
         named_registries: std::collections::HashMap::new(),
+        registry_options: std::collections::BTreeMap::new(),
         dedupe_peers: false,
         dedupe_injected_deps: false,
         dedupe_peer_dependents: false,

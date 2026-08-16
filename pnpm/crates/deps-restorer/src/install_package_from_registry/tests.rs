@@ -78,6 +78,7 @@ fn create_config(
         registries: Default::default(),
         pnpr_server: None,
         named_registries: Default::default(),
+        registry_options: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,
         exclude_links_from_lockfile: false,

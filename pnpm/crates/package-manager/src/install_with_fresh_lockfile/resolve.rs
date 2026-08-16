@@ -315,6 +315,7 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
                     resolve_options,
                     manifest_hook: rewrite_manifest_hook.as_ref(),
                     registries,
+                    registry_options: &config.registry_options,
                     lockfile_include_tarball_url: config.lockfile_include_tarball_url,
                 },
                 catalogs,
@@ -338,6 +339,7 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
             resolve_options,
             manifest_hook: rewrite_manifest_hook.as_ref(),
             registries,
+            registry_options: &config.registry_options,
             lockfile_include_tarball_url: config.lockfile_include_tarball_url,
         },
         parsed_overrides: parsed_overrides?,
@@ -475,6 +477,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
 
     let workspace_opts = pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
+        registry_options: config.registry_options.clone(),
         dedupe_peers: config.dedupe_peers,
         dedupe_injected_deps: config.dedupe_injected_deps,
         dedupe_peer_dependents: config.dedupe_peer_dependents,

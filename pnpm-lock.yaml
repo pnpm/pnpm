@@ -9047,6 +9047,10 @@ importers:
         version: 'link:'
 
   pnpm11/resolving/tarball-url:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

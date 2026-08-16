@@ -9,8 +9,10 @@ import type {
   PeerDependencyRules,
   PnpmSettings,
   ProjectManifest,
+  RegistryOptions,
   SupportedArchitectures,
 } from '@pnpm/types'
+import normalizeRegistryUrl from 'normalize-registry-url'
 import { map as mapValues } from 'ramda'
 
 export type OptionsFromRootManifest = {
@@ -24,7 +26,7 @@ export type OptionsFromRootManifest = {
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'registryOptions' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
   manifest?: ProjectManifest
@@ -69,10 +71,56 @@ export function getOptionsFromPnpmSettings (
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
+  if (settings.registryOptions != null) {
+    settings.registryOptions = normalizeRegistryOptionsSetting(settings.registryOptions)
+  }
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
 
   return settings
+}
+
+const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
+
+/**
+ * Credentials and TLS material stay in `.npmrc`, which is not committed.
+ * `registryOptions` lives in `pnpm-workspace.yaml`, which is, so accepting
+ * these here would invite secrets into version control. Rejecting is better
+ * than ignoring: a silently dropped `_authToken` reads as configured.
+ */
+const SECRET_REGISTRY_KEYS = new Set([
+  '_auth', '_authToken', '_password', 'username', 'tokenHelper',
+  'ca', 'cafile', 'cert', 'certfile', 'key', 'keyfile',
+])
+
+/**
+ * Validates the `registryOptions` setting and keys it by normalized registry
+ * URL, so a lookup by the registry a package resolved from matches the entry
+ * however either one spelled the trailing slash.
+ */
+function normalizeRegistryOptionsSetting (
+  registryOptions: Record<string, RegistryOptions>
+): Record<string, RegistryOptions> {
+  assertObjectSetting(registryOptions, 'registryOptions')
+  const normalized: Record<string, RegistryOptions> = {}
+  for (const [registry, options] of Object.entries(registryOptions)) {
+    const settingPath = `registryOptions['${registry}']`
+    assertObjectSetting(options, settingPath)
+    for (const key of Object.keys(options)) {
+      if (SECRET_REGISTRY_KEYS.has(key)) {
+        throw new PnpmError('INVALID_SETTING',
+          `The "${settingPath}.${key}" setting is not allowed in pnpm-workspace.yaml.`,
+          { hint: `Set "//${registry.replace(/^https?:\/\//, '')}:${key}" in an .npmrc file instead, so it is not committed.` })
+      }
+    }
+    const { serverType } = options
+    if (serverType != null && !REGISTRY_SERVER_TYPES.has(serverType)) {
+      throw new PnpmError('INVALID_SETTING',
+        `The "${settingPath}.serverType" setting should be one of ${Array.from(REGISTRY_SERVER_TYPES).map((type) => `"${type}"`).join(', ')}, but got ${JSON.stringify(serverType)}`)
+    }
+    normalized[normalizeRegistryUrl(registry)] = options
+  }
+  return normalized
 }
 
 /**
@@ -256,6 +304,12 @@ function replaceEnvInSettings (
       newSettings[newKey as keyof PnpmSettings] = (opts.expandRequestDestinationEnv
         ? replaceEnvInStringValues(value)
         : copyStringValuesWithoutEnvPlaceholders(value)) as never
+    } else if (newKey === 'registryOptions') {
+      // Keyed by registry URL rather than valued by one, so the request
+      // destination is the key and the gate has to apply there.
+      newSettings[newKey as keyof PnpmSettings] = (opts.expandRequestDestinationEnv
+        ? replaceEnvInKeys(value)
+        : copyEntriesWithoutEnvPlaceholderKeys(value)) as never
     } else {
       newSettings[newKey as keyof PnpmSettings] = value
     }
@@ -277,6 +331,25 @@ function copyStringValuesWithoutEnvPlaceholders (value: unknown): unknown {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     if (typeof v === 'string' && hasEnvPlaceholder(v)) continue
+    out[k] = v
+  }
+  return out
+}
+
+function replaceEnvInKeys (value: unknown): unknown {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[envReplace(k, process.env)] = v
+  }
+  return out
+}
+
+function copyEntriesWithoutEnvPlaceholderKeys (value: unknown): unknown {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (hasEnvPlaceholder(k)) continue
     out[k] = v
   }
   return out

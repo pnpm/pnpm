@@ -51,7 +51,7 @@ export async function resolveAndInstallConfigDeps (
         const pkgKey = `${name}@${version}`
         lockfileConfigDeps[name] = { specifier: version, version }
         envLockfile.packages[pkgKey] = {
-          resolution: toLockfileResolution({ name, version }, { integrity, tarball }, registry),
+          resolution: toLockfileResolution({ name, version }, { integrity, tarball }, { registry }),
         }
         envLockfile.snapshots[pkgKey] = {}
         lockfileChanged = true
@@ -68,7 +68,7 @@ export async function resolveAndInstallConfigDeps (
         const pkgKey = `${name}@${version}`
         lockfileConfigDeps[name] = { specifier: version, version }
         envLockfile.packages[pkgKey] = {
-          resolution: toLockfileResolution({ name, version }, { integrity, tarball }, registry),
+          resolution: toLockfileResolution({ name, version }, { integrity, tarball }, { registry }),
         }
         envLockfile.snapshots[pkgKey] = {}
         lockfileChanged = true
@@ -129,7 +129,7 @@ export async function resolveAndInstallConfigDeps (
       resolution: toLockfileResolution(
         { name, version },
         resolution.resolution,
-        registry
+        { registry }
       ),
     }
     const optionalSubdeps = await resolveOptionalSubdeps(name, resolution.manifest, {

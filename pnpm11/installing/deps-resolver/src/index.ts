@@ -450,6 +450,7 @@ export async function resolveDependencies (
     prefix: opts.virtualStoreDir,
     registries: opts.registries,
     namedRegistries: opts.namedRegistries,
+    registryOptions: opts.registryOptions,
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
   })
   if (time) {

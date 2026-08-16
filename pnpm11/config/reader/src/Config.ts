@@ -9,6 +9,7 @@ import type {
   ProjectsGraph,
   Registries,
   RegistryConfig,
+  RegistryOptions,
   TrustPolicy,
   VersioningSettings,
 } from '@pnpm/types'
@@ -260,6 +261,13 @@ export interface Config extends OptionsFromRootManifest {
    * registries the project actually declares.
    */
   namedRegistries?: Record<string, string>
+  /**
+   * Non-secret per-registry settings from `pnpm-workspace.yaml`, keyed by
+   * normalized registry URL. Deliberately not folded into `configByUri`: that
+   * one carries credentials, and the install and lockfile layers that need a
+   * registry's tarball layout must not be handed its secrets.
+   */
+  registryOptions?: Record<string, RegistryOptions>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean

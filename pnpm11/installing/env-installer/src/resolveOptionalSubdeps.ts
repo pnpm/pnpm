@@ -92,7 +92,7 @@ export async function resolveOptionalSubdeps (
       resolution: toLockfileResolution(
         { name: subdepName, version: subdepVersion },
         resolution.resolution,
-        registry
+        { registry }
       ),
       ...pickPlatformFields(resolution.manifest),
     }

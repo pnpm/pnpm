@@ -67,7 +67,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
       resolution: toLockfileResolution(
         { name: pkgName, version },
         resolution.resolution,
-        registry
+        { registry }
       ),
     }
     const optionalSubdeps = await resolveOptionalSubdeps(pkgName, resolution.manifest, {

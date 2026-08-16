@@ -6,8 +6,8 @@
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
     Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencySpec, SnapshotEntry, TarballResolution, npm_tarball_url,
-    pick_registry_for_package,
+    RegistryOptions, ResolvedDependencySpec, SnapshotEntry, TarballResolution, TarballUrlOptions,
+    npm_tarball_url, pick_registry_for_package, registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
@@ -20,6 +20,7 @@ pub(crate) fn current_pkg_from_lockfile(
     key: &PkgNameVerPeer,
     registries: &std::collections::HashMap<String, String>,
     named_registries: &std::collections::HashMap<String, String>,
+    registry_options: &std::collections::BTreeMap<String, RegistryOptions>,
 ) -> Option<CurrentPkg> {
     let metadata_key = key.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
@@ -49,7 +50,14 @@ pub(crate) fn current_pkg_from_lockfile(
                 return None;
             }
             LockfileResolution::Tarball(TarballResolution {
-                tarball: npm_tarball_url(&name, &tarball_version, &registry),
+                tarball: npm_tarball_url(
+                    &name,
+                    &tarball_version,
+                    TarballUrlOptions {
+                        registry: &registry,
+                        server_type: registry_server_type(registry_options, &registry),
+                    },
+                ),
                 integrity: Some(registry_resolution.integrity.clone()),
                 git_hosted: None,
                 path: None,

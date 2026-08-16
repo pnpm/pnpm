@@ -1,4 +1,4 @@
-import type { Registries } from './misc.js'
+import type { Registries, RegistryOptions } from './misc.js'
 import type { VersioningSettings } from './versioning.js'
 
 export type Dependencies = Record<string, string>
@@ -233,6 +233,8 @@ export interface PnpmSettings {
   npmrcAuthFile?: string
   registries?: Registries
   namedRegistries?: Record<string, string>
+  /** Per-registry settings, keyed by registry URL. */
+  registryOptions?: Record<string, RegistryOptions>
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>

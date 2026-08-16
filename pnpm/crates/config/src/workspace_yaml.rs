@@ -11,6 +11,7 @@ use indexmap::IndexMap;
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_env_replace::env_replace_lossy;
+use pnpm_lockfile::RegistryOptions;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::ConfigDependency;
@@ -164,6 +165,12 @@ pub struct WorkspaceSettings {
     /// alias resolves against. Merged on top of pnpm's built-in
     /// defaults at resolver construction.
     pub named_registries: Option<BTreeMap<String, String>>,
+
+    /// Non-secret per-registry settings, keyed by registry URL. Credentials
+    /// and TLS material are deliberately not accepted here: this file is
+    /// committed, and `RegistryOptions` denies unknown fields so an
+    /// `_authToken` written here fails loudly instead of looking configured.
+    pub registry_options: Option<BTreeMap<String, RegistryOptions>>,
 
     /// Structured registry auth (`_auth`). Honored **only** from the global
     /// pnpm `config.yaml` (read via `NpmrcAuth::from_json_sources`, not
@@ -945,6 +952,7 @@ impl WorkspaceSettings {
         substitute_json_string::<Sys>(&mut self.noproxy);
         substitute_optional_string_map::<Sys>(&mut self.registries);
         substitute_optional_string_map::<Sys>(&mut self.named_registries);
+        substitute_optional_map_keys::<Sys, _>(&mut self.registry_options);
     }
 
     /// Expand `${VAR}` in ordinary string settings, but drop
@@ -967,6 +975,9 @@ impl WorkspaceSettings {
         }
         if let Some(named_registries) = self.named_registries.as_mut() {
             named_registries.retain(|_, value| !has_env_placeholder(value));
+        }
+        if let Some(registry_options) = self.registry_options.as_mut() {
+            registry_options.retain(|registry, _| !has_env_placeholder(registry));
         }
         if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
             self.pnpr_server = None;
@@ -1155,6 +1166,12 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.named_registries {
             config.named_registries = v;
+        }
+        if let Some(v) = self.registry_options {
+            config.registry_options = v
+                .into_iter()
+                .map(|(registry, options)| (normalize_registry_url(&registry), options))
+                .collect();
         }
 
         // Anchor patch-file path resolution against the workspace dir
@@ -1372,6 +1389,19 @@ fn substitute_optional_string_map<Sys: EnvVar>(value: &mut Option<BTreeMap<Strin
             *map_value = substituted;
         }
     }
+}
+
+/// Expands `${VAR}` in a map's *keys*, for settings keyed by a URL.
+fn substitute_optional_map_keys<Sys: EnvVar, Value>(value: &mut Option<BTreeMap<String, Value>>) {
+    let Some(map) = value.take() else { return };
+    *value = Some(
+        map.into_iter()
+            .map(|(key, map_value)| {
+                let (substituted, _) = env_replace_lossy::<Sys>(&key);
+                (substituted, map_value)
+            })
+            .collect(),
+    );
 }
 
 fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<String>>) {

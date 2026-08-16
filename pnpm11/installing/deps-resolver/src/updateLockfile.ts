@@ -1,4 +1,4 @@
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { getRegistryServerType, normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import {
   type LockfileObject,
@@ -7,7 +7,7 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import type { DepPath, Registries } from '@pnpm/types'
+import type { DepPath, Registries, RegistryOptions, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
 
@@ -16,12 +16,13 @@ import type { DependenciesGraph } from './index.js'
 import type { ResolvedPackage } from './resolveDependencies.js'
 
 export function updateLockfile (
-  { dependenciesGraph, lockfile, prefix, registries, namedRegistries, lockfileIncludeTarballUrl }: {
+  { dependenciesGraph, lockfile, prefix, registries, namedRegistries, registryOptions, lockfileIncludeTarballUrl }: {
     dependenciesGraph: DependenciesGraph
     lockfile: LockfileObject
     prefix: string
     registries: Registries
     namedRegistries?: Record<string, string>
+    registryOptions?: Record<string, RegistryOptions>
     lockfileIncludeTarballUrl?: boolean
   }
 ): LockfileObject {
@@ -37,13 +38,15 @@ export function updateLockfile (
     // checked against its named registry, everything else against the
     // scope-routed one.
     const registryName = dp.parse(depPath).registryName
+    const registry = (registryName != null ? mergedNamedRegistries[registryName] : undefined) ??
+      dp.getRegistryByPackageName(registries, depNode.name)
     lockfile.packages[depPath as DepPath] = toLockfileDependency(depNode, {
       depGraph: dependenciesGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath as DepPath],
       registries,
-      registry: (registryName != null ? mergedNamedRegistries[registryName] : undefined) ??
-        dp.getRegistryByPackageName(registries, depNode.name),
+      registry,
+      serverType: getRegistryServerType(registryOptions, registry),
       registryName,
       updatedDeps,
       updatedOptionalDeps,
@@ -61,6 +64,7 @@ function toLockfileDependency (
   opts: {
     depPath: string
     registry: string
+    serverType: RegistryServerType
     registryName?: string
     registries: Registries
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
@@ -73,8 +77,11 @@ function toLockfileDependency (
   let lockfileResolution = toLockfileResolution(
     { name: pkg.name, version: pkg.version },
     pkg.resolution,
-    opts.registry,
-    opts.lockfileIncludeTarballUrl
+    {
+      registry: opts.registry,
+      serverType: opts.serverType,
+      lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+    }
   )
 
   if (
