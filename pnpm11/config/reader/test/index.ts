@@ -4906,3 +4906,31 @@ test('catalogPrune overrides its former name', async () => {
 
   expect(config.catalogPrune).toBe(false)
 })
+
+test('getConfig() warns about registryOptions entries that match no configured registry', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registry: 'https://npm.example.com/',
+    registryOptions: {
+      'https://npm.example.com/': { serverType: 'artifactory' },
+      'https://typo.example.com/': { serverType: 'artifactory' },
+    },
+  })
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  const registryOptionsWarnings = warnings.filter((warning) => warning.includes('registryOptions'))
+  expect(registryOptionsWarnings).toHaveLength(1)
+  expect(registryOptionsWarnings[0]).toContain('were ignored: "https://typo.example.com/".')
+  // The declared registry matched, so it must not be listed as ignored.
+  expect(registryOptionsWarnings[0]).not.toContain('were ignored: "https://npm.example.com/"')
+  expect(registryOptionsWarnings[0]).toContain('The configured registries are: ')
+})

@@ -5,7 +5,7 @@ import { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
-import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
+import { BUILTIN_NAMED_REGISTRIES, GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
@@ -556,6 +556,8 @@ export async function getConfig (opts: {
       pnpmConfig.registries[scope] = normalizeRegistryUrl(url)
     }
   }
+
+  warnAboutUnmatchedRegistryOptions(pnpmConfig, warnings)
 
   // Sync registries.default to the top-level registry property so that
   // commands like login/logout that use opts.registry pick up the default
@@ -1350,4 +1352,26 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
 /** Renders keys for a warning that lists the settings it ignored. */
 function quoteAndJoin (keys: string[]): string {
   return keys.map(key => `"${key}"`).join(', ')
+}
+
+/**
+ * A `registryOptions` entry only takes effect when its key is a registry pnpm
+ * actually resolves from, and a key that matches none is inert — the wrong URL,
+ * a stale entry, a scope that moved. Warn rather than throw: a shared config
+ * dependency can legitimately describe registries a given project doesn't use.
+ */
+function warnAboutUnmatchedRegistryOptions (config: Config, warnings: string[]): void {
+  const registryOptions = config.registryOptions
+  if (registryOptions == null) return
+  const configuredRegistries = new Set([
+    ...Object.values(config.registries),
+    ...Object.values(config.namedRegistries ?? {}),
+    ...Object.values(BUILTIN_NAMED_REGISTRIES),
+  ].map(normalizeRegistryUrl))
+  const unmatched = Object.keys(registryOptions).filter((registry) => !configuredRegistries.has(registry))
+  if (unmatched.length === 0) return
+  warnings.push(
+    `The following "registryOptions" entries do not match any configured registry and were ignored: ${quoteAndJoin(unmatched)}. ` +
+    `The configured registries are: ${quoteAndJoin([...configuredRegistries].sort())}.`
+  )
 }
