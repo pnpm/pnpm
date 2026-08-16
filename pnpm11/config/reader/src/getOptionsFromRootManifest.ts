@@ -393,12 +393,22 @@ function userinfoEnd (url: string): number | undefined {
   return at === -1 ? undefined : authorityStart + at + 1
 }
 
+/**
+ * Where the authority of `url` begins, or `undefined` if it has none.
+ *
+ * The scheme is anchored at the start rather than found by searching for the
+ * first `://`: a `://` inside the path (`//host/a://b`) would otherwise be
+ * taken for the separator, and the real authority — credentials and all —
+ * would go unexamined.
+ */
 function authorityStartOf (url: string): number | undefined {
   const schemeEnd = url.indexOf('://')
-  if (schemeEnd !== -1) return schemeEnd + '://'.length
+  if (schemeEnd !== -1 && SCHEME.test(url.slice(0, schemeEnd))) return schemeEnd + '://'.length
   if (url.startsWith('//')) return '//'.length
   return undefined
 }
+
+const SCHEME = /^[a-z][a-z0-9+.-]*$/i
 
 /**
  * `url` with any `user:pass@` removed, safe to put in a message.
@@ -409,9 +419,10 @@ function authorityStartOf (url: string): number | undefined {
  * registry URL, so the scheme-less `//host/` form can be handled too.
  */
 function redactRegistryUrl (url: string): string {
+  const authorityStart = authorityStartOf(url)
   const end = userinfoEnd(url)
-  if (end === undefined) return redactAndSanitize(url)
-  return redactAndSanitize(`${url.slice(0, authorityStartOf(url))}${url.slice(end)}`)
+  if (authorityStart === undefined || end === undefined) return redactAndSanitize(url)
+  return redactAndSanitize(`${url.slice(0, authorityStart)}${url.slice(end)}`)
 }
 
 function hasEnvPlaceholder (value: string): boolean {

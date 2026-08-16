@@ -414,3 +414,22 @@ test('getOptionsFromPnpmSettings() accepts a scheme-less registryOptions key wit
     '//npm.example.com/': { serverType: 'artifactory' },
   })
 })
+
+test('getOptionsFromPnpmSettings() is not fooled by a :// later in a scheme-less registryOptions key', () => {
+  // Searching for the first `://` would find the one in the path and parse the
+  // authority from there, leaving the real credentials unexamined.
+  const key = '//ci-user-6e42:hunter2@npm.example.com/a://b'
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: { [key]: { serverType: 'artifactory' } },
+  })).toThrow(/key embeds credentials/)
+
+  try {
+    getOptionsFromPnpmSettings(process.cwd(), {
+      registryOptions: { [key]: { serverType: 'artifactory' } },
+    })
+  } catch (err) {
+    const message = util.types.isNativeError(err) ? err.message : String(err)
+    expect(message).not.toContain('hunter2')
+    expect(message).not.toContain('ci-user-6e42')
+  }
+})

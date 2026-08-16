@@ -2018,3 +2018,21 @@ fn accepts_a_registry_options_key_with_an_at_sign_in_the_path() {
     let settings = WorkspaceSettings::load_at(dir.path()).unwrap().expect("settings");
     assert!(settings.registry_options.is_some());
 }
+
+/// Searching for the first `://` would find the one in the path and parse the
+/// authority from there, leaving the real credentials unexamined.
+#[test]
+fn rejects_a_scheme_less_key_whose_path_contains_a_scheme_separator() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registryOptions:\n  '//ci-user-6e42:hunter2@npm.example.com/a://b': {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("credentials must not slip past a path scheme separator")
+        .to_string();
+    assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
+    assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
+}
