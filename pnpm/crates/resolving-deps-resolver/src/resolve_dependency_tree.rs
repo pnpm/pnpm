@@ -1,16 +1,16 @@
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
-use pacquet_catalogs_resolver::CatalogResolutionError;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError};
-use pacquet_resolving_resolver_base::{
+use pipe_trait::Pipe;
+use pnpm_catalogs_resolver::CatalogResolutionError;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
+use pnpm_resolving_resolver_base::{
     GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
     ResolveOptions, Resolver, WantedDependency,
 };
-use pipe_trait::Pipe;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -128,7 +128,7 @@ pub struct ResolveDependencyTreeOptions {
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls. `None` leaves hook logging a no-op. See
     /// [`WorkspaceTreeCtx::with_read_package_log`].
-    pub read_package_log: Option<pacquet_hooks::LogFn>,
+    pub read_package_log: Option<pnpm_hooks::LogFn>,
     /// The install's `autoInstallPeers` setting. See
     /// [`WorkspaceTreeCtx::with_auto_install_peers`].
     pub auto_install_peers: bool,
@@ -270,7 +270,7 @@ pub enum ResolveDependencyTreeError {
     /// `patchedDependencies` configured more than one version range that
     /// satisfies the same `name@version` and the user did not break the
     /// tie with an exact-version entry. Propagated verbatim from
-    /// [`pacquet_patching::get_patch_info`].
+    /// [`pnpm_patching::get_patch_info`].
     #[display("{_0}")]
     #[diagnostic(transparent)]
     PatchKeyConflict(#[error(source)] PatchKeyConflictError),
@@ -309,7 +309,7 @@ pub enum ResolveDependencyTreeError {
     /// two yet.
     #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
-    PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
+    PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
@@ -371,14 +371,14 @@ where
         let injected = injected_names.contains(name);
         wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
-    record_changed_direct_deps(&ctx, pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
+    record_changed_direct_deps(&ctx, pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
     let parent_pkg_aliases =
         ParentPkgAliases::root(wanted.iter().map(|(alias, ..)| alias.clone()).collect());
     let direct = extend_tree(
         &ctx,
         resolver,
         wanted,
-        pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
         &parent_pkg_aliases,
     )
     .await?;

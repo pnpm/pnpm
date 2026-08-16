@@ -4,18 +4,18 @@
 )]
 
 use super::{InstallPackageFromRegistry, InstallPackageFromRegistryError};
-use pacquet_config::Config;
-use pacquet_lockfile::{LockfileResolution, TarballResolution};
-use pacquet_network::{RetryOpts, ThrottledClient};
-use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
-use pacquet_resolving_npm_resolver::{
+use pipe_trait::Pipe;
+use pnpm_config::Config;
+use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
-use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
-use pacquet_testing_utils::registry::TestRegistry;
-use pipe_trait::Pipe;
+use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
+use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use pnpm_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
@@ -56,8 +56,8 @@ fn create_config(
         global_bin: None,
         package_import_method: Default::default(),
         modules_cache_max_age: 0,
-        virtual_store_dir_max_length: pacquet_config::default_virtual_store_dir_max_length(),
-        peers_suffix_max_length: pacquet_config::default_peers_suffix_max_length(),
+        virtual_store_dir_max_length: pnpm_config::default_virtual_store_dir_max_length(),
+        peers_suffix_max_length: pnpm_config::default_peers_suffix_max_length(),
         lockfile: false,
         prefer_frozen_lockfile: false,
         frozen_lockfile: None,
@@ -105,7 +105,7 @@ fn create_config(
         fetch_retry_factor: 10,
         fetch_retry_mintimeout: 10_000,
         fetch_retry_maxtimeout: 60_000,
-        network_concurrency: pacquet_network::default_network_concurrency(),
+        network_concurrency: pnpm_network::default_network_concurrency(),
         max_sockets: None,
         fetch_timeout: 60_000,
         user_agent: "pnpm".to_string(),
@@ -137,7 +137,7 @@ fn create_config(
         test_pattern: Vec::new(),
         sync_injected_deps_after_scripts: Vec::new(),
         changed_files_ignore_pattern: Vec::new(),
-        git_shallow_hosts: pacquet_config::default_git_shallow_hosts(),
+        git_shallow_hosts: pnpm_config::default_git_shallow_hosts(),
         supported_architectures: None,
         ignored_optional_dependencies: None,
         overrides: None,
@@ -188,7 +188,7 @@ async fn resolve_via_mock(
     http_client: Arc<ThrottledClient>,
     alias: &str,
     range: &str,
-) -> pacquet_resolving_resolver_base::ResolveResult {
+) -> pnpm_resolving_resolver_base::ResolveResult {
     let mut registries = HashMap::new();
     registries.insert("default".to_string(), registry.to_string());
     let resolver = NpmResolver {

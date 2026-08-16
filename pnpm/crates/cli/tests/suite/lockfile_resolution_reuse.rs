@@ -9,7 +9,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, net::TcpListener, path::Path, process::Command};
 
 const IS_POSITIVE_PATCH: &str = include_str!(
@@ -72,7 +72,7 @@ fn compatible_package_range_update_skips_resolution() {
             .contains("Lockfile is up to date, resolution step is skipped"),
     );
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load wanted lockfile")
         .expect("wanted lockfile");
     let name = "@pnpm.e2e/has-optional-peer-with-peer".parse().expect("package name");
@@ -133,7 +133,7 @@ fn compatible_catalog_range_update_reuses_the_locked_peer_snapshot() {
 
     pacquet_at(&workspace).with_arg("install").assert().success();
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load wanted lockfile")
         .expect("wanted lockfile");
     let entry = &wanted.catalogs.expect("catalog snapshots")["default"]["@pnpm.e2e/has-optional-peer-with-peer"];
@@ -180,7 +180,7 @@ fn exact_override_update_reuses_the_locked_children() {
     .expect("write initial override");
     pacquet_at(&fixture.workspace).with_arg("install").assert().success();
 
-    let before = pacquet_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+    let before = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
         .expect("load wanted lockfile")
         .expect("wanted lockfile");
     let old_key = "@pnpm.e2e/pkg-with-1-dep@100.0.0".parse().expect("old key");
@@ -203,10 +203,10 @@ fn exact_override_update_reuses_the_locked_children() {
     .expect("update exact override");
     pacquet_at(&fixture.workspace).with_arg("install").assert().success();
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pacquet_lockfile::Lockfile::load_current_from_virtual_store_dir(
+    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(
         &fixture.workspace.join("node_modules/.pnpm"),
     )
     .expect("load current lockfile")
@@ -269,10 +269,10 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
 
     pacquet_at(&workspace).with_arg("install").assert().success();
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pacquet_lockfile::Lockfile::load_current_from_virtual_store_dir(
+    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(
         &workspace.join("node_modules/.pnpm"),
     )
     .expect("load current lockfile")
@@ -348,7 +348,7 @@ fn an_override_on_a_cataloged_package_drops_the_catalog_entry() {
     .expect("add the override");
     pacquet_at(&fixture.workspace).with_arg("install").assert().success();
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     assert!(wanted.catalogs.is_none());
@@ -415,7 +415,7 @@ fn a_catalog_edit_and_a_removal_override_are_absorbed_in_one_pass() {
 
     pacquet_at(&workspace).with_arg("install").assert().success();
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     let entry = &wanted.catalogs.as_ref().expect("catalog snapshots")["default"]["@pnpm.e2e/pkg-with-good-optional"];
@@ -476,10 +476,10 @@ fn adding_and_removing_an_ignored_optional_dependency_uses_the_safe_path() {
             .contains("Lockfile is up to date, resolution step is skipped"),
     );
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pacquet_lockfile::Lockfile::load_current_from_virtual_store_dir(
+    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(
         &workspace.join("node_modules/.pnpm"),
     )
     .expect("load current lockfile")
@@ -532,7 +532,7 @@ fn adding_and_removing_an_ignored_optional_dependency_uses_the_safe_path() {
             .contains("Lockfile is up to date, resolution step is skipped"),
     );
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     let parent_key = "@pnpm.e2e/pkg-with-good-optional@1.0.0".parse().expect("parent package key");
@@ -884,7 +884,7 @@ fn peer_setting_change_on_a_peerless_lockfile_skips_resolution() {
             .contains("Lockfile is up to date, resolution step is skipped"),
     );
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load wanted lockfile")
         .expect("wanted lockfile");
     assert_eq!(
@@ -1025,7 +1025,7 @@ fn an_unused_patch_is_recorded_without_resolution_and_a_used_one_is_not() {
             .contains("Lockfile is up to date, resolution step is skipped"),
         "patching a locked package only renames its snapshot, so no resolution is needed",
     );
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     assert!(
@@ -1075,7 +1075,7 @@ fn installed_is_positive(workspace: &Path) -> String {
 }
 
 fn patched_dependency_keys(workspace: &Path) -> Vec<String> {
-    pacquet_lockfile::Lockfile::load_wanted_from_dir(workspace)
+    pnpm_lockfile::Lockfile::load_wanted_from_dir(workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile")
         .patched_dependencies
@@ -1222,7 +1222,7 @@ fn dropping_a_dependency_from_the_manifest_skips_resolution() {
             .contains("Lockfile is up to date, resolution step is skipped"),
         "dropping an importer edge needs no resolution",
     );
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     assert!(
@@ -1291,7 +1291,7 @@ fn remove_command_drops_the_dependency_without_resolving() {
     )
     .expect("parse package.json");
     assert!(manifest["dependencies"].get("is-positive").is_none(), "the manifest entry is gone");
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     assert!(
@@ -1376,7 +1376,7 @@ fn moving_a_dependency_between_groups_skips_resolution() {
             .contains("Lockfile is up to date, resolution step is skipped"),
         "moving a dependency between groups needs no resolution",
     );
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     let importer = &wanted.importers["."];
@@ -1474,7 +1474,7 @@ fn combined_manifest_and_ignore_list_drift_skips_resolution() {
             .contains("Lockfile is up to date, resolution step is skipped"),
         "the removal and the widened ignore list are absorbed in one pass",
     );
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     let packages: Vec<String> =
@@ -1539,7 +1539,7 @@ fn a_remove_with_an_unchanged_pnpmfile_skips_resolution() {
             .contains("Lockfile is up to date, resolution step is skipped"),
         "an unchanged pnpmfile does not force resolution",
     );
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     let snapshots = wanted.snapshots.as_ref().expect("snapshots");
@@ -1585,13 +1585,13 @@ fn a_remove_keeps_the_specifiers_a_project_rewriting_pnpmfile_recorded() {
     )
     .expect("write package.json");
     pacquet_at(&workspace).with_arg("install").assert().success();
-    let recorded_specifier = |lockfile: &pacquet_lockfile::Lockfile| {
+    let recorded_specifier = |lockfile: &pnpm_lockfile::Lockfile| {
         lockfile.importers["."].dependencies.as_ref().expect("dependencies")
             [&"is-positive".parse().expect("alias")]
             .specifier
             .clone()
     };
-    let initial = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let initial = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load wanted lockfile")
         .expect("wanted lockfile");
     let initial_specifier = recorded_specifier(&initial);
@@ -1613,7 +1613,7 @@ fn a_remove_keeps_the_specifiers_a_project_rewriting_pnpmfile_recorded() {
             .contains("Lockfile is up to date, resolution step is skipped"),
         "the removal needs no resolution",
     );
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     assert_eq!(
@@ -1667,7 +1667,7 @@ fn removing_a_workspace_project_prunes_its_importer_without_resolving() {
             .contains("Lockfile is up to date, resolution step is skipped"),
         "dropping a workspace project needs no resolution",
     );
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     let mut importers: Vec<_> = wanted.importers.keys().map(String::as_str).collect();
@@ -1756,7 +1756,7 @@ fn add_command_reuses_a_locked_version_without_resolving() {
     )
     .expect("parse package.json");
     assert_eq!(manifest["dependencies"]["@pnpm.e2e/dep-of-pkg-with-1-dep"], "100.1.0");
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     let added = &wanted.importers["."].dependencies.as_ref().expect("dependencies")
@@ -1801,7 +1801,7 @@ fn add_command_resolves_a_version_the_lockfile_does_not_hold() {
         "a version nothing locks has to be fetched",
     );
 
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
     assert_eq!(

@@ -4,8 +4,8 @@ use std::{
     sync::Arc,
 };
 
-use pacquet_lockfile::LockfileResolution;
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::LockfileResolution;
+use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
 use serde_json::Value as JsonValue;

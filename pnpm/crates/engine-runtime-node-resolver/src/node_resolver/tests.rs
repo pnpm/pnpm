@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
 
 use super::{
@@ -82,7 +82,7 @@ fn parses_node_file_names() {
 
 #[test]
 fn bin_spec_is_a_named_map() {
-    use pacquet_lockfile::BinarySpec;
+    use pnpm_lockfile::BinarySpec;
     use std::collections::BTreeMap;
 
     assert_eq!(

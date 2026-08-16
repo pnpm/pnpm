@@ -4,8 +4,8 @@ use derive_more::{Display, Error};
 use dialoguer::MultiSelect;
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_fs::{is_subdir, lexical_normalize};
-use pacquet_workspace_manifest_writer::UpdateWorkspaceManifestError;
+use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError;
 use std::{
     collections::HashSet,
     fs, io,
@@ -119,7 +119,7 @@ impl PatchRemoveArgs {
         }
         remove_empty_patch_dirs(&targets)?;
 
-        pacquet_workspace_manifest_writer::set_patched_dependencies(
+        pnpm_workspace_manifest_writer::set_patched_dependencies(
             &lockfile_dir,
             &patched_dependencies,
         )

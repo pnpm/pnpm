@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
 
 #[test]
@@ -94,7 +94,7 @@ fn link_succeeds_with_valid_target() {
     pacquet.with_arg("link").with_arg("../target-project").assert().success();
 
     let manifest =
-        pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+        pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
             .expect("read manifest");
     let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
     assert!(deps.contains_key("target-project"), "dependency must exist");
@@ -126,7 +126,7 @@ fn link_succeeds_with_absolute_path() {
     pacquet.with_arg("link").with_arg(target_dir.to_string_lossy().as_ref()).assert().success();
 
     let manifest =
-        pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+        pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
             .expect("read manifest");
     let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
     assert!(deps.contains_key("abs-target"), "dependency must exist");
@@ -165,7 +165,7 @@ fn link_succeeds_with_multiple_targets() {
     pacquet.with_arg("link").with_arg("../multi-a").with_arg("../multi-b").assert().success();
 
     let manifest =
-        pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+        pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
             .expect("read manifest");
     let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
     assert!(deps.contains_key("multi-a"), "dependency multi-a must exist");
@@ -229,7 +229,7 @@ fn ln_alias_succeeds_with_valid_target() {
     pacquet.with_arg("ln").with_arg("../ln-target").assert().success();
 
     let manifest =
-        pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+        pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
             .expect("read manifest");
     let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
     assert!(deps.contains_key("ln-target"), "dependency must exist");
@@ -306,7 +306,7 @@ fn link_existing_dependency_writes_override_only() {
     pacquet.with_arg("link").with_arg("../target-project").assert().success();
 
     let manifest =
-        pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+        pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
             .expect("read manifest");
     assert!(
         manifest.value().get("dependencies").is_none(),

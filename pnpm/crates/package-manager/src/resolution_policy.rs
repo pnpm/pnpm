@@ -6,12 +6,12 @@
 
 use crate::retry_config::retry_opts_from_config;
 use chrono::{DateTime, Utc};
-use pacquet_config::{
+use pnpm_config::{
     Config, ResolutionMode,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_npm_resolver::{
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageContext,
 };
 

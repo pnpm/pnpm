@@ -12,7 +12,7 @@ use super::{
     trust::{append_trust_decision, read_trust_decision},
     try_dispatch,
 };
-use pacquet_config::ShimPolicy;
+use pnpm_config::ShimPolicy;
 use std::{ffi::OsString, fs, path::Path};
 
 fn strings(items: &[&str]) -> Vec<OsString> {

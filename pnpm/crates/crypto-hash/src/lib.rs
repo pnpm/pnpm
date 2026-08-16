@@ -88,7 +88,7 @@ pub fn create_short_hash(input: &str) -> String {
 /// start with `file+` are exempt from the case check.
 ///
 /// `max_length` is `Modules.virtual_store_dir_max_length` (default
-/// 120; see `pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
+/// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
 ///
 /// The caller is responsible for pre-escaping the source string (parens
 /// → underscores, scoped-name slashes → `+`, etc) — this helper only

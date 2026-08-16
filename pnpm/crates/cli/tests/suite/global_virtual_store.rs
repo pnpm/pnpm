@@ -16,8 +16,8 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_store_dir::{STORE_VERSION, StoreDir, StoreIndex};
-use pacquet_testing_utils::{
+use pnpm_store_dir::{STORE_VERSION, StoreDir, StoreIndex};
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
@@ -136,8 +136,8 @@ fn pacquet(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
-fn read_modules_manifest(workspace: &Path) -> pacquet_modules_yaml::Modules {
-    pacquet_modules_yaml::read_modules_manifest::<pacquet_modules_yaml::Host>(
+fn read_modules_manifest(workspace: &Path) -> pnpm_modules_yaml::Modules {
+    pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
         &workspace.join("node_modules"),
     )
     .expect("read .modules.yaml")
@@ -485,7 +485,7 @@ fn gvs_relinks_when_allow_builds_changes() {
 
     let expected = std::collections::BTreeMap::from([(
         "@pnpm.e2e/dep-of-pkg-with-1-dep".to_string(),
-        pacquet_modules_yaml::AllowBuildValue::Bool(true),
+        pnpm_modules_yaml::AllowBuildValue::Bool(true),
     )]);
     assert_eq!(
         read_modules_manifest(&workspace).allow_builds,
@@ -1475,7 +1475,7 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
         fs::read_to_string(workspace.join("node-options.txt")).expect("read node-options.txt");
     assert!(
         node_options
-            .contains(pacquet_config::esm_node_path_loader::esm_node_path_loader_import_flag()),
+            .contains(pnpm_config::esm_node_path_loader::esm_node_path_loader_import_flag()),
         "NODE_OPTIONS must carry the ESM NODE_PATH loader flag: {node_options}",
     );
     assert_eq!(

@@ -14,7 +14,7 @@ use crate::{
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 

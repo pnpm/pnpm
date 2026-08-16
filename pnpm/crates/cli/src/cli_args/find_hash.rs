@@ -3,8 +3,8 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Rgb, Stream};
-use pacquet_config::Config;
-use pacquet_store_dir::{
+use pnpm_config::Config;
+use pnpm_store_dir::{
     decode_package_files_index,
     store_index::{StoreIndex, StoreIndexError},
     transcode_to_plain_msgpack,

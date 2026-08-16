@@ -1,6 +1,6 @@
 use miette::IntoDiagnostic;
-use pacquet_config::PmOnFail;
-use pacquet_package_manifest::{
+use pnpm_config::PmOnFail;
+use pnpm_package_manifest::{
     package_manager_spec::{
         dev_engines_package_managers, is_version_request, split_spec, version_without_build,
     },

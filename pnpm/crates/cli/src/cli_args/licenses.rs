@@ -11,18 +11,18 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
-use pacquet_package_is_installable::{
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
+use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
 };
-use pacquet_package_manager::{
+use pnpm_package_manager::{
     AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
 };
-use pacquet_package_manifest::{
+use pnpm_package_manifest::{
     extract_license, node_version_from_engines_runtime, safe_read_package_json_from_dir,
 };
-use pacquet_resolving_git_resolver::HostedGit;
+use pnpm_resolving_git_resolver::HostedGit;
 use serde::Serialize;
 use std::{
     cmp::Ordering,
@@ -181,9 +181,9 @@ impl LicensesArgs {
             include,
             &InstallabilityOptions {
                 supported_architectures: config.supported_architectures.as_ref(),
-                current_os: pacquet_detect_libc::host_platform(),
-                current_cpu: pacquet_detect_libc::host_arch(),
-                current_libc: pacquet_graph_hasher::host_libc(),
+                current_os: pnpm_detect_libc::host_platform(),
+                current_cpu: pnpm_detect_libc::host_arch(),
+                current_libc: pnpm_graph_hasher::host_libc(),
                 ..Default::default()
             },
         );
@@ -406,7 +406,7 @@ fn collect_dependencies(
 
         if let Some(snapshot) = snapshot {
             let mut queue_children =
-                |deps: Option<&HashMap<PkgName, pacquet_lockfile::SnapshotDepRef>>| {
+                |deps: Option<&HashMap<PkgName, pnpm_lockfile::SnapshotDepRef>>| {
                     if let Some(deps) = deps {
                         for (name, dep_ref) in deps {
                             if let Some(child_key) = dep_ref.resolve(name) {

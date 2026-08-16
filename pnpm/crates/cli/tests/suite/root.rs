@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use std::{
     fs,
@@ -83,7 +83,7 @@ fn root_global_prints_the_global_packages_dir() {
 
     let expected = format!(
         "{}\n",
-        pnpm_home.join("global").join(pacquet_config::GLOBAL_LAYOUT_VERSION).display(),
+        pnpm_home.join("global").join(pnpm_config::GLOBAL_LAYOUT_VERSION).display(),
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
     assert!(global_bin.is_dir(), "pacquet root -g should create the global bin dir");
@@ -126,7 +126,7 @@ fn root_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
 
     let expected = format!(
         "{}\n",
-        pnpm_home.join("global").join(pacquet_config::GLOBAL_LAYOUT_VERSION).display(),
+        pnpm_home.join("global").join(pnpm_config::GLOBAL_LAYOUT_VERSION).display(),
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
     let stderr = String::from_utf8_lossy(&output.stderr);

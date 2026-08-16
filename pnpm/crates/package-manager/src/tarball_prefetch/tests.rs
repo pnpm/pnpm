@@ -1,5 +1,5 @@
 use super::{PendingPrefetch, without_store_hits};
-use pacquet_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndex, store_index_key};
+use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndex, store_index_key};
 use std::collections::HashMap;
 use tempfile::tempdir;
 

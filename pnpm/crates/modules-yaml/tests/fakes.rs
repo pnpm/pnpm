@@ -7,11 +7,11 @@
 //! <https://github.com/KSXGitHub/parallel-disk-usage/blob/2aa39917f9/src/app/hdd.rs#L25-L35>.
 
 use chrono::{TimeZone, Utc};
-use pacquet_modules_yaml::{
+use pipe_trait::Pipe;
+use pnpm_modules_yaml::{
     Clock, DepPath, FsCreateDirAll, FsReadToString, FsWrite, Modules, read_modules_manifest,
     write_modules_manifest,
 };
-use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use std::{path::Path, time::SystemTime};
 use text_block_macros::text_block;
@@ -39,7 +39,7 @@ fn read_propagates_non_not_found_io_error() {
         .pipe(read_modules_manifest::<FailingRead>)
         .expect_err("expected error");
     eprintln!("error: {err}");
-    assert!(matches!(err, pacquet_modules_yaml::ReadModulesError::ReadFile { .. }));
+    assert!(matches!(err, pnpm_modules_yaml::ReadModulesError::ReadFile { .. }));
 }
 
 /// `read_modules_manifest` should surface a YAML parse failure as
@@ -65,7 +65,7 @@ fn read_propagates_parse_error() {
         .pipe(read_modules_manifest::<BadYamlContent>)
         .expect_err("expected error");
     eprintln!("error: {err}");
-    assert!(matches!(err, pacquet_modules_yaml::ReadModulesError::ParseYaml { .. }));
+    assert!(matches!(err, pnpm_modules_yaml::ReadModulesError::ParseYaml { .. }));
 }
 
 /// A YAML document that parses to `null` should yield `Ok(None)`.
@@ -116,7 +116,7 @@ fn write_propagates_create_dir_error() {
     let err = write_modules_manifest::<FailingMkdir>(modules_dir, Modules::default())
         .expect_err("expected error");
     eprintln!("error: {err}");
-    assert!(matches!(err, pacquet_modules_yaml::WriteModulesError::CreateDir { .. }));
+    assert!(matches!(err, pnpm_modules_yaml::WriteModulesError::CreateDir { .. }));
 }
 
 /// `write_modules_manifest` should map a `write` failure to
@@ -141,7 +141,7 @@ fn write_propagates_write_error() {
     let err = write_modules_manifest::<FailingWrite>(modules_dir, Modules::default())
         .expect_err("expected error");
     eprintln!("error: {err}");
-    assert!(matches!(err, pacquet_modules_yaml::WriteModulesError::WriteFile { .. }));
+    assert!(matches!(err, pnpm_modules_yaml::WriteModulesError::WriteFile { .. }));
 }
 
 /// `LayoutVersion` is a unit type pinned to `5`. A manifest whose
@@ -170,7 +170,7 @@ fn read_rejects_incompatible_layout_version() {
         .pipe(read_modules_manifest::<LegacyVersion>)
         .expect_err("expected error");
     eprintln!("error: {err}");
-    assert!(matches!(err, pacquet_modules_yaml::ReadModulesError::ParseYaml { .. }));
+    assert!(matches!(err, pnpm_modules_yaml::ReadModulesError::ParseYaml { .. }));
 }
 
 /// `ignoredBuilds` deserializes into an [`IndexSet`]: the on-disk array

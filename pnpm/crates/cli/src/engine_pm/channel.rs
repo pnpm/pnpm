@@ -8,7 +8,7 @@
 //! the managed runtimes.
 
 use crate::cli_args::self_update::install_pnpm::pnpm_package_to_install;
-use pacquet_env_installer::pnpm_engine_packages;
+use pnpm_env_installer::pnpm_engine_packages;
 
 /// Yarn moved its CLI to `@yarnpkg/cli-dist` in 2.0, and Yarn 6
 /// (`yarnpkg/zpm`) is a native binary with no npm package at all.

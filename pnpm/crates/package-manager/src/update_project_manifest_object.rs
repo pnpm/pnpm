@@ -1,7 +1,7 @@
 use node_semver::Version;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_resolving_resolver_base::is_valid_peer_range;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_resolving_resolver_base::is_valid_peer_range;
 use serde_json::{Map, Value};
 
 /// The dependency fields, in their canonical order. A direct dependency

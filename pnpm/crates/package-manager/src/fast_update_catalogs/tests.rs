@@ -1,6 +1,6 @@
 use super::{FastCatalogUpdate, try_fast_update_catalogs};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_lockfile::Lockfile;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_lockfile::Lockfile;
 
 fn lockfile(source: &str) -> Lockfile {
     serde_saphyr::from_str(source).expect("parse lockfile")

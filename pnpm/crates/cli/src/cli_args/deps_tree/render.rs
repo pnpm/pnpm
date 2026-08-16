@@ -8,7 +8,7 @@ use std::{
 };
 
 use owo_colors::{OwoColorize, Stream};
-use pacquet_package_manifest::parse_manifest_bytes;
+use pnpm_package_manifest::parse_manifest_bytes;
 
 use crate::cli_args::sanitize::sanitize;
 

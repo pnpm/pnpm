@@ -274,13 +274,13 @@ fn update_shell_config(
     Ok((ConfigFileChangeType::Skipped, old_settings))
 }
 
-/// Overwrite the rc file crash-safely via [`pacquet_fs::ensure_file`], the
+/// Overwrite the rc file crash-safely via [`pnpm_fs::ensure_file`], the
 /// repo's hardened atomic writer: it writes through a unique sibling temp
 /// file opened with `O_CREAT|O_EXCL` (so it never follows a pre-seeded
 /// symlink or truncates an attacker-planted path) and renames it over the
 /// target.
 fn write_config(path: &Path, content: &str) -> Result<(), PathExtenderError> {
-    pacquet_fs::ensure_file(path, content.as_bytes(), None)?;
+    pnpm_fs::ensure_file(path, content.as_bytes(), None)?;
     Ok(())
 }
 

@@ -17,11 +17,11 @@
 //! abbreviated and upgrades to full only when the maturity check
 //! demands it.
 
-use pacquet_network::{
+use pnpm_network::{
     AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
     retry_async, send_with_retry_at_priority,
 };
-use pacquet_registry::Package;
+use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
 
 use crate::{FetchMetadataError, mirror::clear_meta, registry_url::to_registry_url};
@@ -97,8 +97,8 @@ pub(crate) struct MetadataRequestOptions<'a> {
     pub http_client: &'a ThrottledClient,
     pub auth_headers: &'a AuthHeaders,
     /// Network-permit class of the request:
-    /// [`pacquet_network::UNPRIORITIZED`] for fetches that gate
-    /// resolution progress, [`pacquet_network::BACKGROUND`] for the
+    /// [`pnpm_network::UNPRIORITIZED`] for fetches that gate
+    /// resolution progress, [`pnpm_network::BACKGROUND`] for the
     /// lockfile-verification fan-out.
     pub priority: u64,
     pub etag: Option<&'a str>,
@@ -219,7 +219,7 @@ pub async fn fetch_full_metadata(
             accept,
             http_client: opts.http_client,
             auth_headers: opts.auth_headers,
-            priority: pacquet_network::UNPRIORITIZED,
+            priority: pnpm_network::UNPRIORITIZED,
             etag: opts.etag,
             modified: opts.modified,
             bypass_cache: false,
@@ -278,7 +278,7 @@ pub(crate) fn normalize_abbreviated_meta(meta: Package) -> Package {
         Ok(normalized) => normalized,
         Err(error) => {
             tracing::warn!(
-                target: "pacquet_resolving_npm_resolver",
+                target: "pnpm_resolving_npm_resolver",
                 %error,
                 "could not normalize a non-abbreviated metadata response; keeping the full document",
             );

@@ -7,7 +7,7 @@
 //! is written without a range operator.
 
 use node_semver::Range;
-use pacquet_registry::{PackageVersion, RangeSpecStyle};
+use pnpm_registry::{PackageVersion, RangeSpecStyle};
 
 use crate::infer_range_spec_style::infer_range_spec_style;
 

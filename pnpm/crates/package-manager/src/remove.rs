@@ -9,13 +9,13 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_tarball::MemCache;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_tarball::MemCache;
 use std::{collections::HashSet, fmt::Write as _, sync::Arc};
 
 #[must_use]
@@ -36,7 +36,7 @@ pub struct Remove<'a> {
     pub save_type: Option<DependencyGroup>,
     /// CLI-merged `supportedArchitectures` forwarded to the follow-up
     /// `Install` run. See [`Install::supported_architectures`].
-    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     /// `--lockfile-only`: rewrite `pnpm-lock.yaml` (and the manifest) but
     /// skip materializing `node_modules`. Forwarded to the follow-up
     /// `Install` run. See [`Install::lockfile_only`].
@@ -169,7 +169,7 @@ impl Remove<'_> {
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
-        projects: &mut [pacquet_workspace::Project],
+        projects: &mut [pnpm_workspace::Project],
         ordered_groups: &[Vec<std::path::PathBuf>],
         ordered_dirs: &[std::path::PathBuf],
         selected_dirs: &HashSet<std::path::PathBuf>,
@@ -269,7 +269,7 @@ fn validate_selected_remove(package_names: &[String]) -> Result<(), RemoveValida
 }
 
 fn prepare_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
     package_names: &[String],
     save_type: Option<DependencyGroup>,
@@ -289,7 +289,7 @@ fn prepare_manifest<Reporter: self::Reporter>(
 }
 
 fn persist_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
 ) -> Result<(), RemoveError> {
     for &index in selected_indices {

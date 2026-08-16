@@ -4,8 +4,8 @@ use super::{
 };
 #[cfg(unix)]
 use super::{LINK_STATE_COPY, import_into_fresh_target};
-use pacquet_config::PackageImportMethod;
-use pacquet_reporter::SilentReporter;
+use pnpm_config::PackageImportMethod;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::{
     fs, io,
@@ -534,7 +534,7 @@ fn clone_or_copy_respects_cached_copy_state() {
 /// other tests.
 #[test]
 fn log_method_once_emits_first_call_per_method_only() {
-    use pacquet_reporter::{LogEvent, PackageImportMethod as WireImportMethod, Reporter};
+    use pnpm_reporter::{LogEvent, PackageImportMethod as WireImportMethod, Reporter};
     use std::sync::Mutex;
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

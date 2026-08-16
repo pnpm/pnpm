@@ -1,4 +1,4 @@
-use pacquet_reporter::{LogEvent, Reporter};
+use pnpm_reporter::{LogEvent, Reporter};
 use pretty_assertions::assert_eq;
 
 use super::{AuthUrlMessage, format_auth_url_message};

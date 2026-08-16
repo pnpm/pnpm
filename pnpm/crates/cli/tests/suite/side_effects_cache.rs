@@ -2,7 +2,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path, process::Command};
 
 /// Regression for <https://github.com/pnpm/pnpm/issues/12042#issuecomment-4682732058>:

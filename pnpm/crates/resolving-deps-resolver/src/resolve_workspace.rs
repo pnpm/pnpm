@@ -27,8 +27,8 @@ use crate::{
     resolved_tree::ResolvedTree,
 };
 use chrono::{DateTime, Duration, Utc};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
@@ -90,7 +90,7 @@ pub struct WorkspaceResolveOptions {
     /// reuse already-resolved dependencies instead of re-resolving them
     /// (see `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`). `None` on a
     /// first install or when reuse is disabled.
-    pub wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+    pub wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
 
     /// Which dependencies `pacquet update` excludes from lockfile-
     /// resolution reuse. [`UpdateReuseScope::All`] for `install` / `add`.
@@ -107,12 +107,12 @@ pub struct WorkspaceResolveOptions {
     /// `pnpmfileHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per
     /// install); wraps `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls, pre-bound to the install's reporter. `None` leaves hook
     /// logging a no-op.
-    pub read_package_log: Option<pacquet_hooks::LogFn>,
+    pub read_package_log: Option<pnpm_hooks::LogFn>,
 
     /// Sink for skipped-optional-dependency notifications, pre-bound to
     /// the install's reporter (the install layer forwards each one as a
@@ -319,7 +319,7 @@ where
     let root_deps = Arc::new(
         states
             .iter()
-            .find(|state| state.importer_id() == pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY)
+            .find(|state| state.importer_id() == pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY)
             .map(ImporterHoistState::hoistable_root_deps)
             .transpose()?
             .unwrap_or_default(),

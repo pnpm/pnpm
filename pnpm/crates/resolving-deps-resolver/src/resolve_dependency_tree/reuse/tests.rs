@@ -170,7 +170,7 @@ mod real_package_name_of {
 mod is_update_target {
     use rustc_hash::FxHashSet as HashSet;
 
-    use pacquet_resolving_resolver_base::WantedDependency;
+    use pnpm_resolving_resolver_base::WantedDependency;
 
     use super::super::{UpdateDepth, UpdateReuseScope, UpdateScope, is_update_target};
 

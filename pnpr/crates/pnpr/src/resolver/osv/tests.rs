@@ -1,6 +1,6 @@
 use std::{fs, sync::Arc};
 
-use pacquet_resolving_resolver_base::{PackageVersionGuard, PackageVersionGuardDecision};
+use pnpm_resolving_resolver_base::{PackageVersionGuard, PackageVersionGuardDecision};
 
 use super::OsvIndex;
 

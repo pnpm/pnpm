@@ -18,20 +18,20 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
-use pacquet_modules_yaml::{Host, read_modules_manifest};
-use pacquet_package_manager::{
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_modules_yaml::{Host, read_modules_manifest};
+use pnpm_package_manager::{
     ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, ProjectMutation,
     ResolutionObserver, ResolvedPackageHint, SnapshotDiff, diff_lockfiles,
     package_metadata_is_installable,
 };
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::{
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::{
     DedupeCheckLog, GlobalLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage,
     Reporter,
 };
-use pacquet_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
+use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 use serde_json::{Map, Value, json};
 use tempfile::NamedTempFile;
 
@@ -96,7 +96,7 @@ impl DedupeArgs {
             config,
             manifest,
             emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(lockfile_path),
             dependency_groups: [
                 DependencyGroup::Prod,
@@ -121,7 +121,7 @@ impl DedupeArgs {
             // guard restores `pnpm-lock.yaml`, and this gate keeps loose
             // minimumReleaseAge picks out of `pnpm-workspace.yaml`.
             persist_policy_excludes: !self.check,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
+            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
             preferred_versions_override: None,
             auth_override: None,
             resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter> {
@@ -226,7 +226,7 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
 
 fn reusable_skipped_package_id(
     package_key: &PkgNameVerPeer,
-    metadata: &pacquet_lockfile::PackageMetadata,
+    metadata: &pnpm_lockfile::PackageMetadata,
     installability_host: &InstallabilityHost,
     ignored_optional_dependencies: Option<&[String]>,
 ) -> miette::Result<Option<String>> {

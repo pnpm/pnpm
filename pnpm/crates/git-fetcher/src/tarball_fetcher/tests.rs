@@ -3,9 +3,9 @@ use crate::{
     error::{GitFetcherError, PreparePackageError},
     prepare_package::AllowBuildRef,
 };
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_reporter::SilentReporter;
-use pacquet_store_dir::{StoreDir, StoreIndex, StoreIndexWriter};
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::{StoreDir, StoreIndex, StoreIndexWriter};
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 use tempfile::tempdir;
 

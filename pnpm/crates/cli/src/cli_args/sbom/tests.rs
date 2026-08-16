@@ -1,5 +1,5 @@
-use pacquet_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
-use pacquet_package_is_installable::InstallabilityOptions;
+use pnpm_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
+use pnpm_package_is_installable::InstallabilityOptions;
 
 use super::{
     LockfileResolution, base64_to_hex, build_purl, classify_license, confined_importer_dir,
@@ -289,21 +289,21 @@ fn integrity_string_publishes_only_verified_hashes() {
     let hash = || HASH.parse::<ssri::Integrity>().expect("parse integrity");
 
     let registry =
-        LockfileResolution::Registry(pacquet_lockfile::RegistryResolution { integrity: hash() });
+        LockfileResolution::Registry(pnpm_lockfile::RegistryResolution { integrity: hash() });
     assert_eq!(integrity_string(&registry).as_deref(), Some(HASH));
 
-    let binary = LockfileResolution::Binary(pacquet_lockfile::BinaryResolution {
+    let binary = LockfileResolution::Binary(pnpm_lockfile::BinaryResolution {
         url: "https://nodejs.org/dist/v22.0.0/node-v22.0.0-linux-x64.tar.gz".to_string(),
         integrity: hash(),
-        bin: pacquet_lockfile::BinarySpec::Single("bin/node".to_string()),
-        archive: pacquet_lockfile::BinaryArchive::Tarball,
+        bin: pnpm_lockfile::BinarySpec::Single("bin/node".to_string()),
+        archive: pnpm_lockfile::BinaryArchive::Tarball,
         prefix: None,
     });
     assert_eq!(integrity_string(&binary).as_deref(), Some(HASH));
 
     // Nothing verifies a git checkout against a hash, so one recorded on
     // the entry must not be republished as a checksum.
-    let git = LockfileResolution::Git(pacquet_lockfile::GitResolution {
+    let git = LockfileResolution::Git(pnpm_lockfile::GitResolution {
         repo: "https://github.com/foo/bar.git".to_string(),
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
         integrity: Some(HASH.to_string()),

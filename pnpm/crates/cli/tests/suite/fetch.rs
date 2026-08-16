@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_store_dir::STORE_VERSION;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_store_dir::STORE_VERSION;
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -91,7 +91,7 @@ fn fetch_populates_every_group_by_default() {
     assert!(virtual_dep(&workspace, OPTIONAL_DEP).exists(), "optional dep must be fetched");
     assert_no_importer_links(&workspace);
     assert_eq!(
-        pacquet_modules_yaml::read_modules_manifest::<pacquet_modules_yaml::Host>(
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
             &workspace.join("node_modules"),
         )
         .expect("read .modules.yaml")

@@ -2,8 +2,8 @@ use crate::fast_update_overrides::{
     FastOverride, RewriteContext, apply_rewrite_plan, build_replacement_plan,
 };
 use node_semver::{Range, Version};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_lockfile::{Lockfile, PkgName, ResolvedCatalogEntry};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_lockfile::{Lockfile, PkgName, ResolvedCatalogEntry};
 use std::collections::BTreeMap;
 
 /// Move a catalog entry to a version the lockfile does not have, without
@@ -97,7 +97,7 @@ fn catalog_entry_is_sole_reference(
         .flatten()
         .all(|dependencies| {
             dependencies.get(name).is_none_or(|dependency| {
-                pacquet_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
+                pnpm_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
                     == Some(catalog_name)
             })
         })

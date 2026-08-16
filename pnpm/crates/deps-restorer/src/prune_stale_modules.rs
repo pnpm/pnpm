@@ -19,14 +19,14 @@ use crate::{
     prune_direct_deps::{PruneDirectDepsError, confined_modules_dir, remove_direct_dep_link},
     symlink_direct_dependencies::{importer_root_dir, validate_importer_id},
 };
-use pacquet_config::Config;
-use pacquet_lockfile::{
+use pnpm_config::Config;
+use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
-use pacquet_modules_yaml::HoistKind;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::{
+use pnpm_modules_yaml::HoistKind;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::{
     DependencyType, LogEvent, LogLevel, RemovedRoot, Reporter, RootLog, RootMessage,
 };
 use std::{

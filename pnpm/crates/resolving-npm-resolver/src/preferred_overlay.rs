@@ -2,8 +2,8 @@ use crate::pick_package_from_meta::{
     PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
     apply_published_by_policy, pick_version_by_version_range,
 };
-use pacquet_registry::Package;
-use pacquet_resolving_resolver_base::{
+use pnpm_registry::Package;
+use pnpm_resolving_resolver_base::{
     ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
 };
 use std::sync::Mutex;
@@ -78,7 +78,7 @@ pub(crate) fn warn_once_on_held_back_update(
     }
     warned.insert(key);
     tracing::warn!(
-        target: "pacquet_resolving_npm_resolver::preferred_overlay",
+        target: "pnpm_resolving_npm_resolver::preferred_overlay",
         pkg_name = spec.name,
         picked_version,
         preferred,

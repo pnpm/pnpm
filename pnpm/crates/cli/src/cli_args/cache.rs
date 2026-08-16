@@ -1,12 +1,12 @@
 use clap::Subcommand;
 use indexmap::IndexMap;
 use miette::IntoDiagnostic;
-use pacquet_config::{Config, ResolutionMode};
-use pacquet_fs::lexical_normalize;
-use pacquet_resolving_npm_resolver::mirror::{
+use pnpm_config::{Config, ResolutionMode};
+use pnpm_fs::lexical_normalize;
+use pnpm_resolving_npm_resolver::mirror::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_registry_name, load_meta,
 };
-use pacquet_store_dir::StoreIndex;
+use pnpm_store_dir::StoreIndex;
 use serde_json::json;
 use std::{
     fs,
@@ -226,7 +226,7 @@ impl CacheCommand {
                             continue;
                         };
 
-                        let key = pacquet_store_dir::store_index_key(
+                        let key = pnpm_store_dir::store_index_key(
                             integrity,
                             &format!("{}@{}", meta_object.name, version),
                         );

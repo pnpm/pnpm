@@ -6,8 +6,8 @@
 use std::{fs, path::PathBuf};
 
 use indexmap::IndexMap;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_package_manifest::PackageManifest;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_package_manifest::PackageManifest;
 use tempfile::TempDir;
 
 use crate::{

@@ -24,7 +24,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) derived_lockfile_path: Option<PathBuf>,
     pub(super) dependency_groups: Vec<DependencyGroup>,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-    pub(super) workspace_projects: Option<&'a [pacquet_workspace::Project]>,
+    pub(super) workspace_projects: Option<&'a [pnpm_workspace::Project]>,
     pub(super) requested_importer_ids: Option<&'a HashSet<String>>,
     pub(super) real_importer_ids: &'a HashSet<String>,
     pub(super) workspace_root: &'a Path,
@@ -35,13 +35,13 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) mutation: ProjectMutation,
     pub(super) current_lockfile: Option<&'a Lockfile>,
     pub(super) supported_architectures:
-        Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) skip_runtimes: bool,
-    pub(super) modules_manifest: Option<&'a pacquet_modules_yaml::ModulesLayout>,
+    pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
     /// Filled by the frozen path's `CreateVirtualStore` after its
     /// warm/cold partition; consumed by the npm verifier's age gate.
-    pub(super) planned_canonical_fetches: pacquet_resolving_resolver_base::PlannedCanonicalFetches,
+    pub(super) planned_canonical_fetches: pnpm_resolving_resolver_base::PlannedCanonicalFetches,
     pub(super) prune_orphans: bool,
     pub(super) logged_methods: &'a AtomicU8,
     pub(super) update_checksums: bool,
@@ -51,13 +51,12 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) can_prompt: bool,
     pub(super) persist_policy_excludes: bool,
     pub(super) update_seed_policy: UpdateSeedPolicy,
-    pub(super) preferred_versions_override:
-        Option<pacquet_resolving_resolver_base::PreferredVersions>,
+    pub(super) preferred_versions_override: Option<pnpm_resolving_resolver_base::PreferredVersions>,
     pub(super) auth_override: Option<Arc<AuthHeaders>>,
     pub(super) resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
     pub(super) peer_issues_sink: Option<PeerIssuesSink>,
     pub(super) deps_requiring_build_sink: Option<DepsRequiringBuildSink>,
-    pub(super) pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub(super) pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub(super) save_lockfile: bool,
     pub(super) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
     pub(super) catalogs: &'a Catalogs,
@@ -194,7 +193,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             .iter()
             .filter(|(project_dir, _)| {
                 let importer_id =
-                    pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir);
+                    pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
                 project_anchor_ids.contains(&importer_id)
             })
             .cloned()
@@ -322,10 +321,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         let importer_manifests: BTreeMap<String, &PackageManifest> = project_manifests
             .iter()
             .map(|(project_dir, manifest)| {
-                (
-                    pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir),
-                    *manifest,
-                )
+                (pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir), *manifest)
             })
             .collect();
         let fresh_result = InstallWithFreshLockfile {

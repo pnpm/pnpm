@@ -1,8 +1,8 @@
 use super::try_compose_fast_updates;
 use indexmap::IndexMap;
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
-use pacquet_package_manifest::PackageManifest;
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
+use pnpm_package_manifest::PackageManifest;
 use serde_json::{Value, json};
 use std::{
     fs,

@@ -7,10 +7,10 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
-use pacquet_catalogs_types::Catalogs;
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_types::Catalogs;
 
-/// Subset of `pacquet-resolving-resolver-base`'s [`WantedDependency`]
+/// Subset of `pnpm-resolving-resolver-base`'s [`WantedDependency`]
 /// that catalog resolution needs. Modeled as its own type so this
 /// crate doesn't depend on the resolver-base crate; the conversion
 /// is a trivial field copy at the call site.

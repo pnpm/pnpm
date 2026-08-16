@@ -25,11 +25,11 @@ fn locked_resolution_is_unallocated_until_written() {
     assert!(node.locked_peer_names().is_none());
     assert!(node.has_no_locked_peers());
 
-    node.locked_mut().previous_dep_path = Some(pacquet_deps_path::DepPath::from("a@1.0.0"));
+    node.locked_mut().previous_dep_path = Some(pnpm_deps_path::DepPath::from("a@1.0.0"));
 
     assert_eq!(
         node.previous_dep_path(),
-        Some(&pacquet_deps_path::DepPath::from("a@1.0.0")),
+        Some(&pnpm_deps_path::DepPath::from("a@1.0.0")),
         "the accessor reads back what `locked_mut` wrote",
     );
     assert!(node.has_no_locked_peers(), "a previous depPath is not a locked peer");

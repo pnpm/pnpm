@@ -17,8 +17,8 @@ fn try_fast_update_patched_dependencies(lockfile: &Lockfile, config: &Config) ->
     }
 }
 use indexmap::IndexMap;
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
 use std::{collections::BTreeMap, fs, path::Path};
 use tempfile::TempDir;
 

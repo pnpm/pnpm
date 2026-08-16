@@ -2,7 +2,7 @@ use super::{
     install_pnpm, is_installed_globally, package_manager_pin_specifier,
     refresh_global_shim_dispatcher, update_version_constraint, version_lt,
 };
-use pacquet_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
+use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use std::{fs, path::Path};
 
 #[test]
@@ -35,8 +35,7 @@ fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
         format!(r#"{{"name":"{package_name}","version":"{version}"}}"#),
     )
     .unwrap();
-    pacquet_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}")))
-        .unwrap();
+    pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}"))).unwrap();
 }
 
 #[test]

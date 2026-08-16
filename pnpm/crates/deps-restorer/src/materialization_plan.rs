@@ -14,9 +14,9 @@ use crate::{
     extend_skipped_with_dependency_closure,
     install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
 };
-use pacquet_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
-use pacquet_modules_yaml::IncludedDependencies;
-use pacquet_package_is_installable::{InstallabilityError, SupportedArchitectures};
+use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_is_installable::{InstallabilityError, SupportedArchitectures};
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
@@ -69,9 +69,9 @@ pub async fn detect_installability_host(
         .unwrap_or_else(|_| InstallabilityHost {
             node_version: "99999.0.0".to_string(),
             node_detected: false,
-            os: pacquet_graph_hasher::host_platform(),
-            cpu: pacquet_graph_hasher::host_arch(),
-            libc: pacquet_graph_hasher::host_libc(),
+            os: pnpm_graph_hasher::host_platform(),
+            cpu: pnpm_graph_hasher::host_arch(),
+            libc: pnpm_graph_hasher::host_libc(),
             supported_architectures: None,
             engine_strict,
         }),
@@ -133,7 +133,7 @@ pub struct SkipSetInputs<'a> {
 /// (`CreateVirtualStore`, the hoist pass, the symlink and bin passes)
 /// reads the finished set, and a skip that is not closed over leaves
 /// dangling links to a package that was never placed.
-pub fn compute_skip_set<Reporter: pacquet_reporter::Reporter>(
+pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     inputs: SkipSetInputs<'_>,
 ) -> Result<SkippedSnapshots, Box<InstallabilityError>> {
     let SkipSetInputs {
@@ -208,17 +208,17 @@ pub async fn resolve_engine_name(
     host_node: Option<&HostNode>,
 ) -> (Option<String>, Option<tokio::task::JoinHandle<Option<String>>>) {
     fn probe() -> Option<String> {
-        pacquet_graph_hasher::detect_node_major()
-            .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
+        pnpm_graph_hasher::detect_node_major()
+            .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
     }
 
     if let Some(major) = find_runtime_node_major(snapshots) {
-        return (Some(pacquet_graph_hasher::engine_name(major, None, None)), None);
+        return (Some(pnpm_graph_hasher::engine_name(major, None, None)), None);
     }
     match host_node {
         Some(HostNode { version, detected: true }) => (
             parse_major_from_version(version)
-                .map(|major| pacquet_graph_hasher::engine_name(major, None, None)),
+                .map(|major| pnpm_graph_hasher::engine_name(major, None, None)),
             None,
         ),
         Some(HostNode { detected: false, .. }) => (None, None),

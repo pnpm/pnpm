@@ -6,9 +6,9 @@ use super::{
 };
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
-use pacquet_config::Config;
-use pacquet_lockfile::{EnvLockfile, SnapshotDepRef, SpecifierAndResolution};
-use pacquet_network::RetryOpts;
+use pnpm_config::Config;
+use pnpm_lockfile::{EnvLockfile, SnapshotDepRef, SpecifierAndResolution};
+use pnpm_network::RetryOpts;
 use std::{collections::BTreeMap, time::Duration};
 
 fn signing_key() -> SigningKey {

@@ -1,13 +1,13 @@
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_lockfile::MaybeLazyLockfile;
-use pacquet_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
-use pacquet_package_manager::{
+use pnpm_config::Config;
+use pnpm_lockfile::MaybeLazyLockfile;
+use pnpm_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
+use pnpm_package_manager::{
     Install, ProjectMutation, RebuildOptions, UpdateSeedPolicy, allow_build_key_from_ignored_build,
 };
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -230,7 +230,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         Some(selection) => {
             install
                 .run_selected_rebuild::<Reporter>(
-                    pacquet_package_manager::WorkspaceInstallSelection {
+                    pnpm_package_manager::WorkspaceInstallSelection {
                         all_projects: &selection.projects,
                         ordered_groups: &selection.ordered_groups,
                         ordered_dirs: &selection.ordered_dirs,

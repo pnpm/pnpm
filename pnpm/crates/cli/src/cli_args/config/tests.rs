@@ -5,7 +5,7 @@
 
 use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
 use indexmap::IndexMap;
-use pacquet_config::Config;
+use pnpm_config::Config;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;

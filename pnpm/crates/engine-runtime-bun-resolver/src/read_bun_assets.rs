@@ -11,12 +11,12 @@ use std::sync::Arc;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_crypto_shasums_file::{FetchShasumsFileError, fetch_shasums_file};
-use pacquet_lockfile::{
+use pnpm_crypto_shasums_file::{FetchShasumsFileError, fetch_shasums_file};
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget,
 };
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 use ssri::Integrity;
 
 #[derive(Debug, Display, Error, Diagnostic)]

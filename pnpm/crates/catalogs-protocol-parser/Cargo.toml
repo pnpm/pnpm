@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-catalogs-protocol-parser"
+name                  = "pnpm-catalogs-protocol-parser"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,7 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-types = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
 
 [lints]
 workspace = true

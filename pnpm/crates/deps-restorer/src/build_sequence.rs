@@ -2,8 +2,8 @@ use crate::{
     SkippedSnapshots,
     graph_sequencer::{GraphSequencerResult, graph_sequencer},
 };
-use pacquet_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
-use pacquet_patching::ExtendedPatchInfo;
+use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
+use pnpm_patching::ExtendedPatchInfo;
 use std::collections::{HashMap, HashSet};
 
 /// Compute topologically ordered chunks of packages that need building.
@@ -22,10 +22,10 @@ use std::collections::{HashMap, HashSet};
 ///
 /// `patches` is the per-snapshot lookup map produced by
 /// `InstallFrozenLockfile::run` from
-/// [`pacquet_patching::resolve_and_group`] + per-snapshot
-/// [`pacquet_patching::get_patch_info`]: keys are peer-stripped
+/// [`pnpm_patching::resolve_and_group`] + per-snapshot
+/// [`pnpm_patching::get_patch_info`]: keys are peer-stripped
 /// [`PackageKey`]s, values are the matched
-/// [`pacquet_patching::ExtendedPatchInfo`]. `None` when no
+/// [`pnpm_patching::ExtendedPatchInfo`]. `None` when no
 /// `patchedDependencies` is configured. Presence of a key here makes
 /// the snapshot a build candidate even when `requires_build` is false.
 pub fn build_sequence(

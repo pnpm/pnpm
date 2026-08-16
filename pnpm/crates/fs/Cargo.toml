@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-fs"
+name                 = "pnpm-fs"
 description          = "Filesystem utility functions used by pacquet"
 version              = "0.0.1"
 publish              = false

@@ -10,20 +10,20 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_lockfile::{
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_lockfile::{
     BundledDependencies, CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile,
     LockfileResolution, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata,
     ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError,
     PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry,
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
 };
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_deps_resolver::{
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_deps_resolver::{
     DepPath, DependenciesGraph, DependenciesGraphNode, UpdateReuseScope,
 };
-use pacquet_resolving_resolver_base::ResolveResult;
+use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 
 /// One importer's contribution to [`dependencies_graph_to_lockfile`].
@@ -40,7 +40,7 @@ pub struct ImporterLockfileInput<'a> {
     /// (`dependencies` vs `devDependencies` vs `optionalDependencies`).
     pub manifest: &'a PackageManifest,
     /// `alias → DepPath` for the direct dependencies of this importer,
-    /// as emitted by [`pacquet_resolving_deps_resolver::resolve_peers`].
+    /// as emitted by [`pnpm_resolving_deps_resolver::resolve_peers`].
     pub direct_dependencies_by_alias: BTreeMap<String, DepPath>,
 }
 
@@ -57,7 +57,7 @@ pub struct GraphToLockfileOptions<'a> {
     /// One entry per workspace project being installed. Keyed by the
     /// lockfile importer id (`"."` for the workspace root,
     /// `"packages/<name>"` for siblings — see
-    /// [`pacquet_workspace::importer_id_from_root_dir`]).
+    /// [`pnpm_workspace::importer_id_from_root_dir`]).
     pub importers: BTreeMap<String, ImporterLockfileInput<'a>>,
     /// Cross-importer dedup graph keyed by `DepPath`. The fresh-resolve
     /// dispatch merges every per-importer `peers_result.graph` into
@@ -586,7 +586,7 @@ fn self_aliased_file_ver<'a>(alias: &str, key: &'a PkgNameVerPeer) -> Option<&'a
 /// The previous importer's recorded entry for `name`, searched across
 /// its `dependencies` / `optionalDependencies` / `devDependencies` maps
 /// (mirrors the lookup order in
-/// [`pacquet_resolving_deps_resolver`]'s `lockfile_reuse`). Used by the
+/// [`pnpm_resolving_deps_resolver`]'s `lockfile_reuse`). Used by the
 /// pnpm/pnpm#10433 guard in [`build_importer`] to recover a workspace
 /// dependency's prior `link:` entry.
 fn previous_importer_dep<'a>(
@@ -856,17 +856,12 @@ fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> 
     }
 }
 
-fn read_string_or_list(
-    manifest: Option<&Value>,
-    key: &str,
-) -> Option<pacquet_lockfile::StringOrList> {
+fn read_string_or_list(manifest: Option<&Value>, key: &str) -> Option<pnpm_lockfile::StringOrList> {
     match manifest?.get(key)? {
         Value::String(value) if !value.is_empty() => {
-            Some(pacquet_lockfile::StringOrList::String(value.clone()))
+            Some(pnpm_lockfile::StringOrList::String(value.clone()))
         }
-        Value::Array(_) => {
-            read_string_list(manifest, key).map(pacquet_lockfile::StringOrList::List)
-        }
+        Value::Array(_) => read_string_list(manifest, key).map(pnpm_lockfile::StringOrList::List),
         _ => None,
     }
 }

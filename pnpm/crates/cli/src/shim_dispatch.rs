@@ -3,7 +3,7 @@
 //! Selected bins pnpm links into the global bin dir invoke the adjacent
 //! protocol-versioned executable with
 //! `--shim <name> <shim> <global-target> -- <args...>` (see
-//! `pacquet_cmd_shim::ShimStyle`). The `globalShims` record decides which
+//! `pnpm_cmd_shim::ShimStyle`). The `globalShims` record decides which
 //! providing packages are eligible; the managed runtimes are enabled by
 //! default. For a runtime pin, the dispatcher reads the project's
 //! `devEngines.runtime` / `engines.runtime`, materializes the release in
@@ -29,15 +29,15 @@ use crate::{
     },
 };
 use derive_more::Display;
-use pacquet_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
-use pacquet_config::{
+use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
+use pnpm_config::{
     Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy,
     WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
 };
-use pacquet_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
-use pacquet_engine_runtime_node_resolver::parse_node_specifier;
-use pacquet_package_manifest::is_runtime_alias;
-use pacquet_reporter::SilentReporter;
+use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
+use pnpm_engine_runtime_node_resolver::parse_node_specifier;
+use pnpm_package_manifest::is_runtime_alias;
+use pnpm_reporter::SilentReporter;
 use serde_json::Value;
 use std::{
     ffi::{OsStr, OsString},
@@ -500,7 +500,7 @@ fn is_automatic_runtime(name: &str, version_spec: &str) -> bool {
     name == "node"
         && parse_node_specifier(version_spec)
             .is_ok_and(|specifier| specifier.release_channel == "release")
-        && pacquet_detect_libc::detect() != Some(pacquet_detect_libc::Implementation::Musl)
+        && pnpm_detect_libc::detect() != Some(pnpm_detect_libc::Implementation::Musl)
 }
 
 /// The runnable `node_modules/.bin` entry for `name` under `dir`, if any.

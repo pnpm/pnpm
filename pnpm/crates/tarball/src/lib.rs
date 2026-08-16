@@ -24,11 +24,11 @@ use std::{
 };
 
 use dashmap::{DashMap, DashSet};
-pub use pacquet_network::RetryOpts;
-use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
-use pacquet_reporter::Reporter;
-use pacquet_store_dir::{StoreDir, StoreIndexWriter, store_index_key};
 use pipe_trait::Pipe;
+pub use pnpm_network::RetryOpts;
+use pnpm_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
+use pnpm_reporter::Reporter;
+use pnpm_store_dir::{StoreDir, StoreIndexWriter, store_index_key};
 use rayon::prelude::*;
 use ssri::Integrity;
 use tokio::sync::{Notify, RwLock, Semaphore};
@@ -101,7 +101,7 @@ fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
 /// Implements the `ignoreFilePattern` / `archiveFilters` behavior.
 /// Pacquet uses a callback rather than a regex so the caller can
 /// hand-code the filter without pulling a regex engine into
-/// `pacquet-tarball`; the canonical Node-runtime filter lives at
+/// `pnpm-tarball`; the canonical Node-runtime filter lives at
 /// the install-dispatch site (Slice D) where it's constructed once
 /// per fetch.
 ///

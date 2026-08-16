@@ -1,6 +1,6 @@
 use super::{AddDependencyOptions, apply_allow_build};
-use pacquet_config::Config;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_config::Config;
+use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
 #[test]

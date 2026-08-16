@@ -54,10 +54,10 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
-use pacquet_registry::{Package, PackageVersion};
-use pacquet_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
+use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
+use pnpm_registry::{Package, PackageVersion};
+use pnpm_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
 use tokio::sync::Semaphore;
 
 use crate::{
@@ -168,7 +168,7 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
 
 /// Per-`(registry, pkg_name, version)` cache for the resolver's
 /// serialized `manifest` JSON. The npm resolver builds
-/// [`pacquet_resolving_resolver_base::ResolveResult`]'s `manifest`
+/// [`pnpm_resolving_resolver_base::ResolveResult`]'s `manifest`
 /// field via `serde_json::to_value(picked)`; when many resolves
 /// pick the same version of the same package (the common case for
 /// shared deps like `react`, `lodash`, ...) every duplicate would
@@ -676,7 +676,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         full_metadata,
         filter_metadata: use_filtered_full_metadata,
         offline: ctx.offline,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: ctx.retry_opts,
     };
 
@@ -709,7 +709,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             };
             if let Some(disk) = disk_fallback {
                 tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver::pick_package",
+                    target: "pnpm_resolving_npm_resolver::pick_package",
                     ?error,
                     pkg_name = %spec.name,
                     "metadata fetch failed; falling back to on-disk mirror",
@@ -1093,7 +1093,7 @@ fn warn_missing_time_once(pkg_name: &str) {
     }
     warned.insert(pkg_name.to_string());
     tracing::warn!(
-        target: "pacquet_resolving_npm_resolver::pick_package",
+        target: "pnpm_resolving_npm_resolver::pick_package",
         pkg_name,
         r#"The metadata of {pkg_name} is missing the "time" field; skipping the minimumReleaseAge check for this package."#,
     );
@@ -1310,7 +1310,7 @@ fn persist_upgraded_to_mirror(
             Ok(meta_for_cache) => meta_for_cache,
             Err(error) => {
                 tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver::pick_package",
+                    target: "pnpm_resolving_npm_resolver::pick_package",
                     ?error,
                     path = %pkg_mirror.display(),
                     "could not filter upgraded mirror metadata",
@@ -1327,7 +1327,7 @@ fn persist_upgraded_to_mirror(
         Ok(()) => None,
         Err(error) => {
             tracing::debug!(
-                target: "pacquet_resolving_npm_resolver::pick_package",
+                target: "pnpm_resolving_npm_resolver::pick_package",
                 ?error,
                 path = %pkg_mirror.display(),
                 "could not write upgraded meta to mirror; skipping persist",

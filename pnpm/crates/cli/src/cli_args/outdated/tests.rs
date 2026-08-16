@@ -4,10 +4,10 @@ use super::{
     render_dependents, render_json, render_latest, render_recursive_json, sort_outdated,
 };
 use node_semver::Version;
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::DependencyGroup;
 use std::{collections::HashMap, path::PathBuf};
 use text_block_macros::text_block;
 

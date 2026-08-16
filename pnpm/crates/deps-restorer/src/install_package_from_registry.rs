@@ -6,13 +6,13 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_lockfile::LockfileResolution;
-use pacquet_network::ThrottledClient;
-use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
-use pacquet_resolving_resolver_base::ResolveResult;
-use pacquet_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
-use pacquet_tarball::{DownloadTarballToStore, MemCache, TarballError};
+use pnpm_config::Config;
+use pnpm_lockfile::LockfileResolution;
+use pnpm_network::ThrottledClient;
+use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
+use pnpm_resolving_resolver_base::ResolveResult;
+use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
+use pnpm_tarball::{DownloadTarballToStore, MemCache, TarballError};
 use serde_json::Value;
 use ssri::Integrity;
 use std::{
@@ -50,19 +50,19 @@ pub struct InstallPackageFromRegistry<'a> {
     /// for the rationale.
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
     /// Warm-cache prefetch result built once per install via
-    /// [`pacquet_tarball::prefetch_cas_paths`] — `cache_key →
+    /// [`pnpm_tarball::prefetch_cas_paths`] — `cache_key →
     /// Arc<cas_paths>`. When `Some`, the
     /// `DownloadTarballToStore::run_without_mem_cache` cache-lookup
     /// branch reads from here before falling back to the per-snapshot
     /// `SQLite` lookup, avoiding `Arc<Mutex<StoreIndex>>` contention on
     /// the resolve hot path.
-    pub prefetched_cas_paths: Option<&'a pacquet_tarball::PrefetchedCasPaths>,
+    pub prefetched_cas_paths: Option<&'a pnpm_tarball::PrefetchedCasPaths>,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
     /// Install root, threaded into reporter events (`pnpm:progress`'s
     /// `requester`). Same value as the `prefix` in
-    /// [`pacquet_reporter::StageLog`].
+    /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
     pub node_modules_dir: &'a Path,
     /// Per-package virtual-store directory — output of

@@ -2,7 +2,7 @@ use crate::_utils::set_minimum_release_age;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     ffi::OsStr,
     fs,

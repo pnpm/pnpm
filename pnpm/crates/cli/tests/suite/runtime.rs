@@ -1,4 +1,4 @@
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::fs;
 
 #[test]

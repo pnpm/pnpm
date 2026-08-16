@@ -8,7 +8,7 @@
 //! shape of `<flat-name>` versus `<scope>/<name>/<version>/<hash>` is
 //! also different — flat name uses [`PkgNameVerPeer::to_virtual_store_name`]
 //! while the GVS layout uses
-//! [`pacquet_graph_hasher::format_global_virtual_store_path`] over a
+//! [`pnpm_graph_hasher::format_global_virtual_store_path`] over a
 //! `calc_graph_node_hash`-computed digest.
 //!
 //! [`VirtualStoreLayout`] hides that difference behind one
@@ -17,8 +17,8 @@
 //! computes a per-snapshot path.
 //!
 //! [`slot_dir`]: VirtualStoreLayout::slot_dir
-//! [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
-//! [`pacquet_graph_hasher::format_global_virtual_store_path`]: pacquet_graph_hasher::format_global_virtual_store_path
+//! [`PkgNameVerPeer::to_virtual_store_name`]: pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name
+//! [`pnpm_graph_hasher::format_global_virtual_store_path`]: pnpm_graph_hasher::format_global_virtual_store_path
 
 use crate::{
     AllowBuildPolicy,
@@ -27,13 +27,13 @@ use crate::{
     },
 };
 use indexmap::IndexMap;
-use pacquet_config::Config;
-use pacquet_deps_path::get_pkg_id_with_patch_hash;
-use pacquet_graph_hasher::{
+use pnpm_config::Config;
+use pnpm_deps_path::get_pkg_id_with_patch_hash;
+use pnpm_graph_hasher::{
     DepsGraphNode, DepsStateCache, calc_graph_node_hash, detect_node_major, engine_name,
     format_global_virtual_store_path, join_global_virtual_store_path,
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgVerPeer, SnapshotEntry,
     VersionPart,
 };
@@ -75,7 +75,7 @@ pub struct VirtualStoreLayout {
     /// to [`PkgNameVerPeer::to_virtual_store_name`] computed on demand
     /// from the snapshot key.
     ///
-    /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
+    /// [`PkgNameVerPeer::to_virtual_store_name`]: pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name
     gvs_suffixes: Option<HashMap<PackageKey, String>>,
 
     /// Threshold passed into
@@ -88,7 +88,7 @@ pub struct VirtualStoreLayout {
     /// to leave headroom for the `<name>@<version>/` suffix appended
     /// below).
     ///
-    /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
+    /// [`PkgNameVerPeer::to_virtual_store_name`]: pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name
     virtual_store_dir_max_length: usize,
 
     /// Directory the lockfile's relative paths resolve against.
@@ -146,7 +146,7 @@ impl VirtualStoreLayout {
     /// `new`).
     ///
     /// `engine` is the install-wide fallback `ENGINE_NAME`-style
-    /// string that [`pacquet_graph_hasher::engine_name`] produces;
+    /// string that [`pnpm_graph_hasher::engine_name`] produces;
     /// threaded in instead of recomputed inside so the value matches
     /// whatever the rest of the install (notably the side-effects
     /// cache key) uses. Snapshots that themselves pin Node via
@@ -298,7 +298,7 @@ impl VirtualStoreLayout {
     /// Root of the layout — the directory that contains every per-
     /// snapshot subdirectory. Exposed so callers that need to pass a
     /// path to existing helpers (e.g. the
-    /// [`pacquet_modules_yaml::Modules`] writer, which still records
+    /// [`pnpm_modules_yaml::Modules`] writer, which still records
     /// the legacy [`Config::virtual_store_dir`] string) have one
     /// source of truth.
     #[must_use]
@@ -317,7 +317,7 @@ impl VirtualStoreLayout {
 
     /// Absolute directory that holds `node_modules/<name>` for one
     /// snapshot. Falls back to
-    /// [`PkgNameVerPeer::to_virtual_store_name`](pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name)
+    /// [`PkgNameVerPeer::to_virtual_store_name`](pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name)
     /// when GVS is off, or when GVS is on but the key isn't in the
     /// precomputed map (which would indicate a bug — every snapshot
     /// the install touches must have been visited in
@@ -558,7 +558,7 @@ fn lockfile_to_dep_graph(
             }
             let link_target = dep_ref.as_link_target()?;
             let lockfile_dir = lockfile_dir?;
-            let resolved = pacquet_fs::lexical_normalize(&lockfile_dir.join(link_target));
+            let resolved = pnpm_fs::lexical_normalize(&lockfile_dir.join(link_target));
             Some(format!("link:{}", resolved.to_string_lossy()))
         });
         link_target_nodes

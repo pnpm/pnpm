@@ -4,8 +4,8 @@ use std::{
     sync::Arc,
 };
 
-use pacquet_network::NoProxySetting;
-use pacquet_testing_utils::registry::TestRegistry;
+use pnpm_network::NoProxySetting;
+use pnpm_testing_utils::registry::TestRegistry;
 
 use super::{
     DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject,
@@ -140,7 +140,7 @@ fn resolved_config_applies_allow_unused_patches() {
 
 #[test]
 fn build_overlay_parses_link_workspace_packages() {
-    use pacquet_config::LinkWorkspacePackages;
+    use pnpm_config::LinkWorkspacePackages;
 
     let mut options = install_options();
     options.link_workspace_packages = Some(serde_json::json!("deep"));
@@ -681,7 +681,7 @@ fn safe_intersect_matches_merge_peers_semantics() {
 /// missing ranges, and disjoint ranges surfacing under `conflicts`.
 #[test]
 fn peer_issues_to_json_derives_conflicts_and_intersections() {
-    use pacquet_resolving_deps_resolver::{
+    use pnpm_resolving_deps_resolver::{
         MissingPeer, ParentChain, PeerDependencyIssue, PeerDependencyIssues,
     };
 

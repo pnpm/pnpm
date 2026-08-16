@@ -5,8 +5,8 @@
 //! store-index lookups entirely.
 
 use super::{Arc, HashMap, IntoParallelIterator, ParallelIterator, PathBuf};
-use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
-use pacquet_store_dir::{
+use pnpm_package_manifest::{files_include_install_scripts, manifest_requires_build};
+use pnpm_store_dir::{
     PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
 };
 
@@ -59,7 +59,7 @@ pub type PrefetchedSideEffectsMaps =
 pub type PrefetchedRequiresBuild = HashMap<String, bool>;
 
 pub(crate) type DecodedPrefetchRow =
-    (String, Option<Arc<serde_json::Value>>, Option<bool>, pacquet_store_dir::VerifyResult);
+    (String, Option<Arc<serde_json::Value>>, Option<bool>, pnpm_store_dir::VerifyResult);
 
 /// Output of [`prefetch_cas_paths`]: the warm-cache filesystem map
 /// plus any bundled manifests and side-effects overlays recovered
@@ -119,7 +119,7 @@ pub async fn prefetch_cas_paths(
             .into_par_iter()
             .filter_map(|(cache_key, bytes)| {
                 let mut entry: PackageFilesIndex =
-                    match pacquet_store_dir::decode_package_files_index(&bytes) {
+                    match pnpm_store_dir::decode_package_files_index(&bytes) {
                         Ok(entry) => entry,
                         Err(error) => {
                             tracing::debug!(
@@ -134,13 +134,13 @@ pub async fn prefetch_cas_paths(
                 let stored_requires_build = entry.requires_build;
                 let manifest = entry.manifest.take().map(Arc::new);
                 let verify_result = if verify_store_integrity {
-                    pacquet_store_dir::check_pkg_files_integrity(
+                    pnpm_store_dir::check_pkg_files_integrity(
                         store_dir,
                         entry,
                         &verified_files_cache,
                     )
                 } else {
-                    pacquet_store_dir::build_file_maps_from_index(store_dir, entry)
+                    pnpm_store_dir::build_file_maps_from_index(store_dir, entry)
                 };
                 Some((cache_key, manifest, stored_requires_build, verify_result))
             })
@@ -226,9 +226,9 @@ pub(crate) async fn load_cached_cas_paths(
         }?;
 
         let verify_result = if verify_store_integrity {
-            pacquet_store_dir::check_pkg_files_integrity(store_dir, entry, &verified_files_cache)
+            pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, &verified_files_cache)
         } else {
-            pacquet_store_dir::build_file_maps_from_index(store_dir, entry)
+            pnpm_store_dir::build_file_maps_from_index(store_dir, entry)
         };
         if !verify_result.passed {
             // Per-file reason (filename, CAS path, size mismatch, hash

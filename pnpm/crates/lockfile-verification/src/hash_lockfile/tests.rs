@@ -1,4 +1,4 @@
-use pacquet_lockfile::Lockfile;
+use pnpm_lockfile::Lockfile;
 
 use super::hash_lockfile;
 

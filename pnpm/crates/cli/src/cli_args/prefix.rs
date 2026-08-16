@@ -1,7 +1,7 @@
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{Config, check_global_bin_dir};
+use pnpm_config::{Config, check_global_bin_dir};
 use std::path::{Path, PathBuf};
 
 use super::global::GlobalError;

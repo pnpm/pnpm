@@ -33,12 +33,12 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};
-use pacquet_default_reporter::DefaultReporter;
-use pacquet_env_installer::is_package_manager_resolved;
-use pacquet_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
-use pacquet_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_config::{Config, Host, PNPM_VERSION, PmOnFail};
+use pnpm_default_reporter::DefaultReporter;
+use pnpm_env_installer::is_package_manager_resolved;
+use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
+use pnpm_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
 use serde_json::Value;
 use std::{
     collections::HashSet,
@@ -724,7 +724,7 @@ fn assert_registry_package_path(
     key: &PackageKey,
     package_info: &PackageMetadata,
 ) -> miette::Result<()> {
-    if key.suffix.prefix() != pacquet_lockfile::Prefix::None
+    if key.suffix.prefix() != pnpm_lockfile::Prefix::None
         || !matches!(key.suffix.version(), VersionPart::Semver(_))
     {
         return Err(invalid_package_manager_lockfile(key));

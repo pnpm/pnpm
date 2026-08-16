@@ -1,8 +1,8 @@
 use super::{GitProbe, GitResolver, ProbeFuture};
 use crate::resolve_ref::{GitCommandRunner, GitRunError};
 use miette::Diagnostic;
-use pacquet_lockfile::LockfileResolution;
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::LockfileResolution;
+use pnpm_resolving_resolver_base::{
     GitResolveError, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 use std::{

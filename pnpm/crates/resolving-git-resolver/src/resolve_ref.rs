@@ -12,7 +12,7 @@ use std::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_network::redact_and_sanitize;
+use pnpm_network::redact_and_sanitize;
 
 /// Capability seam for `git ls-remote`.
 ///

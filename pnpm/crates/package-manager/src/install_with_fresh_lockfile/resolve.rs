@@ -8,15 +8,15 @@
 use super::{ImporterUpdateSeedPolicy, InstallWithFreshLockfileError, UpdateSeedPolicy};
 use crate::VersionsOverrider;
 use indexmap::IndexMap;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::LogLevel;
-use pacquet_resolving_deps_resolver::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::LogLevel;
+use pnpm_resolving_deps_resolver::{
     DependencyOverrider, ManifestHook, ResolveImporterError, ResolveImporterOptions,
 };
-use pacquet_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
+use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -48,7 +48,7 @@ pub(super) fn preferred_versions_seeds(
     importer_manifests: &BTreeMap<String, &PackageManifest>,
     overrides: Option<&PreferredVersions>,
 ) -> (Arc<PreferredVersions>, BTreeMap<String, Arc<PreferredVersions>>) {
-    use pacquet_lockfile_preferred_versions::{
+    use pnpm_lockfile_preferred_versions::{
         get_preferred_versions_from_lockfile_and_manifests as from_lockfile,
         get_preferred_versions_from_lockfile_and_manifests_excluding as from_lockfile_excluding,
     };
@@ -125,13 +125,13 @@ fn merge_preferred_versions(seed: &mut PreferredVersions, overrides: Option<&Pre
 
 fn excluded_names(
     names: &std::collections::HashSet<String>,
-) -> std::collections::HashSet<pacquet_lockfile::PkgName> {
-    names.iter().filter_map(|name| pacquet_lockfile::PkgName::parse(name.as_str()).ok()).collect()
+) -> std::collections::HashSet<pnpm_lockfile::PkgName> {
+    names.iter().filter_map(|name| pnpm_lockfile::PkgName::parse(name.as_str()).ok()).collect()
 }
 
 /// Call the pnpmfile's `preResolution` hook before resolution starts.
-pub(super) async fn run_pre_resolution_hook<Reporter: pacquet_reporter::Reporter>(
-    hook: &Arc<dyn pacquet_hooks::PnpmfileHooks>,
+pub(super) async fn run_pre_resolution_hook<Reporter: pnpm_reporter::Reporter>(
+    hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
     config: &Config,
     lockfile_dir: &Path,
     wanted_lockfile: Option<&Lockfile>,
@@ -147,7 +147,7 @@ pub(super) async fn run_pre_resolution_hook<Reporter: pacquet_reporter::Reporter
         || serde_json::json!({}),
         |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
     );
-    let ctx = pacquet_hooks::PreResolutionHookContext {
+    let ctx = pnpm_hooks::PreResolutionHookContext {
         wanted_lockfile: wanted_lockfile_json,
         current_lockfile: current_lockfile_json,
         exists_current_lockfile,
@@ -160,7 +160,7 @@ pub(super) async fn run_pre_resolution_hook<Reporter: pacquet_reporter::Reporter
     };
     hook.pre_resolution(
         ctx,
-        pacquet_hooks::PreResolutionHookLogger {
+        pnpm_hooks::PreResolutionHookLogger {
             info: super::pre_resolution_log_fn::<Reporter>(lockfile_dir, LogLevel::Info),
             warn: super::pre_resolution_log_fn::<Reporter>(lockfile_dir, LogLevel::Warn),
         },
@@ -175,12 +175,11 @@ pub(super) struct SharedResolveOptions<'a> {
     pub config: &'a Config,
     pub lockfile_dir: &'a Path,
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
-    pub published_by_exclude: Option<pacquet_config::version_policy::PackageVersionPolicy>,
-    pub trust_policy: Option<pacquet_config::TrustPolicy>,
-    pub trust_policy_exclude: Option<pacquet_config::version_policy::PackageVersionPolicy>,
-    pub package_version_guard:
-        Option<Arc<dyn pacquet_resolving_resolver_base::PackageVersionGuard>>,
-    pub workspace_packages: Option<Arc<pacquet_resolving_resolver_base::WorkspacePackages>>,
+    pub published_by_exclude: Option<pnpm_config::version_policy::PackageVersionPolicy>,
+    pub trust_policy: Option<pnpm_config::TrustPolicy>,
+    pub trust_policy_exclude: Option<pnpm_config::version_policy::PackageVersionPolicy>,
+    pub package_version_guard: Option<Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
+    pub workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     /// See [`super::InstallWithFreshLockfile::update_checksums`].
     pub update_checksums: bool,
 }
@@ -205,7 +204,7 @@ impl SharedResolveOptions<'_> {
             workspace_packages: self.workspace_packages.clone(),
             block_exotic_subdeps: self.config.block_exotic_subdeps,
             always_try_workspace_packages: self.config.link_workspace_packages
-                != pacquet_config::LinkWorkspacePackages::Off,
+                != pnpm_config::LinkWorkspacePackages::Off,
             inject_workspace_packages: self.config.inject_workspace_packages,
             prefer_workspace_packages: self.config.prefer_workspace_packages,
             update_checksums: self.update_checksums,
@@ -220,7 +219,7 @@ pub(super) struct ReuseSeedInputs<'a> {
     /// The previous run's lockfile, the only reuse candidate.
     pub wanted_lockfile: Option<&'a Lockfile>,
     pub package_extensions_checksum: Option<&'a str>,
-    pub parsed_overrides: Option<&'a [pacquet_config_parse_overrides::VersionOverride]>,
+    pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
     pub resolved_overrides: Option<&'a IndexMap<String, String>>,
     /// The extensions and overrides halves of the read-package chain.
     /// This path has no pnpmfile hook (see [`Self::fast_override_eligible`]),
@@ -233,7 +232,7 @@ pub(super) struct ReuseSeedInputs<'a> {
     /// pnpr server also opts out, since its per-resolution observer must
     /// see every edge.
     pub fast_override_eligible: bool,
-    pub npm_resolver: &'a dyn pacquet_resolving_resolver_base::Resolver,
+    pub npm_resolver: &'a dyn pnpm_resolving_resolver_base::Resolver,
     pub resolve_options: &'a ResolveOptions,
     pub registries: &'a HashMap<String, String>,
 }
@@ -357,13 +356,13 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
 /// silent rather than warn from unseen ranges. Call before the resolver
 /// chain is dropped so the per-range picks reuse the still-warm packument
 /// cache.
-pub(super) async fn warn_stale_convergence_overrides<Reporter: pacquet_reporter::Reporter>(
-    npm_resolver: &dyn pacquet_resolving_resolver_base::Resolver,
-    parsed_overrides: &[pacquet_config_parse_overrides::VersionOverride],
+pub(super) async fn warn_stale_convergence_overrides<Reporter: pnpm_reporter::Reporter>(
+    npm_resolver: &dyn pnpm_resolving_resolver_base::Resolver,
+    parsed_overrides: &[pnpm_config_parse_overrides::VersionOverride],
     versions_overrider: &VersionsOverrider,
     lockfile_dir: &Path,
     published_by: Option<chrono::DateTime<chrono::Utc>>,
-    published_by_exclude: Option<&pacquet_config::version_policy::PackageVersionPolicy>,
+    published_by_exclude: Option<&pnpm_config::version_policy::PackageVersionPolicy>,
 ) {
     use crate::warn_on_stale_convergence_overrides as stale;
 
@@ -400,13 +399,13 @@ pub(super) struct ResolvePassInputs<'a> {
     pub preferred_versions_seed: &'a Arc<PreferredVersions>,
     pub preferred_versions_seeds_by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
     pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
-    pub patched_dependencies: Option<Arc<pacquet_patching::PatchGroupRecord>>,
+    pub patched_dependencies: Option<Arc<pnpm_patching::PatchGroupRecord>>,
     pub manifest_hook: Option<ManifestHook>,
     pub overrides_hook: Option<ManifestHook>,
     /// Consumed by the resolver; the caller keeps its own clone for the
     /// `afterAllResolved` hook.
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
-    pub read_package_log: Option<pacquet_hooks::LogFn>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    pub read_package_log: Option<pnpm_hooks::LogFn>,
     /// See [`crate::resolution_policy::PickPolicy`].
     pub pick_lowest_direct: bool,
     pub time_based: bool,
@@ -414,10 +413,10 @@ pub(super) struct ResolvePassInputs<'a> {
     /// The prior lockfile the walk may reuse subtrees from — see
     /// [`lockfile_reuse_seed`].
     pub lockfile_reuse_seed: Option<Arc<Lockfile>>,
-    pub update_reuse_scope: pacquet_resolving_deps_resolver::UpdateReuseScope,
+    pub update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
     pub update_reuse_scopes_by_importer:
-        BTreeMap<String, pacquet_resolving_deps_resolver::UpdateReuseScope>,
-    pub update_depth: pacquet_resolving_deps_resolver::UpdateDepth,
+        BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
+    pub update_depth: pnpm_resolving_deps_resolver::UpdateDepth,
     pub registries: HashMap<String, String>,
     pub named_registries: HashMap<String, String>,
 }
@@ -430,10 +429,9 @@ pub(super) struct ResolvePassInputs<'a> {
 /// picked-manifest caches keep the metadata and version-pick work
 /// amortized across importers. `resolve_workspace` then runs the
 /// cross-importer peer pass and applies `dedupeInjectedDeps`.
-pub(super) async fn run_resolve_pass<Reporter: pacquet_reporter::Reporter>(
+pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     inputs: ResolvePassInputs<'_>,
-) -> Result<pacquet_resolving_deps_resolver::ResolveWorkspaceResult, InstallWithFreshLockfileError>
-{
+) -> Result<pnpm_resolving_deps_resolver::ResolveWorkspaceResult, InstallWithFreshLockfileError> {
     let ResolvePassInputs {
         config,
         resolver,
@@ -461,10 +459,10 @@ pub(super) async fn run_resolve_pass<Reporter: pacquet_reporter::Reporter>(
         named_registries,
     } = inputs;
 
-    let workspace_importers: Vec<pacquet_resolving_deps_resolver::WorkspaceImporter<'_>> =
+    let workspace_importers: Vec<pnpm_resolving_deps_resolver::WorkspaceImporter<'_>> =
         importer_manifests
             .iter()
-            .map(|(id, manifest)| pacquet_resolving_deps_resolver::WorkspaceImporter {
+            .map(|(id, manifest)| pnpm_resolving_deps_resolver::WorkspaceImporter {
                 id: id.clone(),
                 manifest,
             })
@@ -476,7 +474,7 @@ pub(super) async fn run_resolve_pass<Reporter: pacquet_reporter::Reporter>(
         .file_name()
         .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
 
-    let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
+    let workspace_opts = pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
         dedupe_peers: config.dedupe_peers,
         dedupe_injected_deps: config.dedupe_injected_deps,
         dedupe_peer_dependents: config.dedupe_peer_dependents,
@@ -502,7 +500,7 @@ pub(super) async fn run_resolve_pass<Reporter: pacquet_reporter::Reporter>(
         deprecation_log: Some(super::deprecation_log_fn::<Reporter>()),
     };
 
-    pacquet_resolving_deps_resolver::resolve_workspace(
+    pnpm_resolving_deps_resolver::resolve_workspace(
         resolver,
         &workspace_importers,
         dependency_groups,

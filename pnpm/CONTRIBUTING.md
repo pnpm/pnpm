@@ -113,7 +113,7 @@ This runs `typos`, `cargo fmt`, `just check` (which is `cargo check --locked --w
 Set the `TRACE` environment variable to enable trace-level logging for a given module:
 
 ```sh
-TRACE=pacquet_tarball just cli add fastify
+TRACE=pnpm_tarball just cli add fastify
 ```
 
 ## Testing
@@ -127,7 +127,7 @@ When porting tests from the upstream `pnpm/pnpm` TypeScript repository, see
 [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It tracks the tests
 scheduled for porting (with upstream file paths and line numbers), the
 expected layout for not-yet-implemented behavior (`known_failures` modules
-guarded by `pacquet_testing_utils::allow_known_failure!`), and the
+guarded by `pnpm_testing_utils::allow_known_failure!`), and the
 verification step of temporarily breaking the implementation to confirm a
 ported test actually fails for the right reason before committing.
 

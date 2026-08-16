@@ -19,11 +19,11 @@ use std::{
     time::Duration,
 };
 
-use pacquet_pnpr_client::{
+use pnpm_pnpr_client::{
     PnprClient, PnprClientError, ResolveOptions, ResolveProject, ResolveProjectsOptions,
     VerifyLockfileOptions,
 };
-use pacquet_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
@@ -218,7 +218,7 @@ fn options(
         minimum_release_age: None,
         minimum_release_age_exclude: None,
         minimum_release_age_ignore_missing_time: true,
-        trust_policy: pacquet_config::TrustPolicy::Off,
+        trust_policy: pnpm_config::TrustPolicy::Off,
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,
     }

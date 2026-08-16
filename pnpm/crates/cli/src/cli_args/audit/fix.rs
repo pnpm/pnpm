@@ -61,14 +61,14 @@ pub(crate) async fn fix_override(
     advisories: &BTreeMap<String, AuditAdvisory>,
     settings_dir: &std::path::Path,
     config: &Config,
-    http_client: &pacquet_network::ThrottledClient,
+    http_client: &pnpm_network::ThrottledClient,
 ) -> miette::Result<String> {
     let overrides = create_overrides(advisories);
     if overrides.is_empty() {
         return Ok("No fixes were made".to_string());
     }
     let entries = overrides.iter().map(|(key, value)| (key.as_str(), value.as_str()));
-    pacquet_workspace_manifest_writer::set_overrides(settings_dir, entries).map_err(|err| {
+    pnpm_workspace_manifest_writer::set_overrides(settings_dir, entries).map_err(|err| {
         miette::Report::new(err).wrap_err("write overrides to pnpm-workspace.yaml")
     })?;
     let json = serde_json::to_string_pretty(&overrides).into_diagnostic()?;
@@ -106,7 +106,7 @@ async fn fetch_publish_times(
     name: &str,
     registry: &str,
     config: &Config,
-    http_client: &pacquet_network::ThrottledClient,
+    http_client: &pnpm_network::ThrottledClient,
 ) -> Option<HashMap<String, String>> {
     #[derive(Deserialize)]
     struct PackumentTimes {
@@ -144,7 +144,7 @@ async fn fetch_publish_times(
 async fn resolve_minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
     config: &Config,
-    http_client: &pacquet_network::ThrottledClient,
+    http_client: &pnpm_network::ThrottledClient,
     minimum_release_age: u64,
 ) -> miette::Result<Vec<String>> {
     // On overflow leave the cutoff uncomputable, as `PickPolicy::from_config`
@@ -204,7 +204,7 @@ pub(crate) fn minimum_release_age_excludes(
             }
         })
         .collect();
-    pacquet_config::version_policy::merge_package_version_specs(&specs).map_err(miette::Report::new)
+    pnpm_config::version_policy::merge_package_version_specs(&specs).map_err(miette::Report::new)
 }
 
 /// Merge `added` into the existing `minimumReleaseAgeExclude` and persist the
@@ -217,13 +217,14 @@ pub(crate) fn write_age_excludes(
 ) -> miette::Result<()> {
     let mut all = config.minimum_release_age_exclude.clone().unwrap_or_default();
     all.extend(added.iter().cloned());
-    let merged = pacquet_config::version_policy::merge_package_version_specs(&all)
+    let merged = pnpm_config::version_policy::merge_package_version_specs(&all)
         .map_err(miette::Report::new)?;
-    pacquet_workspace_manifest_writer::set_minimum_release_age_excludes(settings_dir, &merged)
-        .map_err(|err| {
+    pnpm_workspace_manifest_writer::set_minimum_release_age_excludes(settings_dir, &merged).map_err(
+        |err| {
             miette::Report::new(err)
                 .wrap_err("write minimumReleaseAgeExclude to pnpm-workspace.yaml")
-        })
+        },
+    )
 }
 
 /// Merge the requested ignores into `auditConfig.ignoreGhsas` and persist
@@ -273,7 +274,7 @@ pub(crate) fn ignore_vulnerabilities(
         }
     }
 
-    pacquet_workspace_manifest_writer::set_audit_ignore_ghsas(settings_dir, &ordered).map_err(
+    pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(settings_dir, &ordered).map_err(
         |err| {
             miette::Report::new(err)
                 .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")

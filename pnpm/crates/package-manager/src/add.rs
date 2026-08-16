@@ -14,32 +14,32 @@ use crate::{
 use derive_more::{Display, Error};
 use futures_util::{StreamExt, stream::FuturesOrdered};
 use miette::Diagnostic;
-use pacquet_catalogs_config::{
+use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, SaveWorkspaceProtocol};
-use pacquet_engine_runtime_node_resolver::{NodeResolver, NodeResolverError};
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
-use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
-use pacquet_network::{ThrottledClient, redact_and_sanitize};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_resolving_deps_resolver::{UpdateDepth, is_valid_dependency_alias};
-use pacquet_resolving_git_resolver::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{Config, SaveWorkspaceProtocol};
+use pnpm_engine_runtime_node_resolver::{NodeResolver, NodeResolverError};
+use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
+use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_resolving_deps_resolver::{UpdateDepth, is_valid_dependency_alias};
+use pnpm_resolving_git_resolver::{
     GitFetchContext, GitResolver, HostedGit, HostedOpts, RealGitProbe, RealGitRunner,
 };
-use pacquet_resolving_npm_resolver::{
+use pnpm_resolving_npm_resolver::{
     DeclaredSpecifiers, InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError,
     PickPackageOptions, calc_specifier_for_workspace_dep, infer_range_spec_style,
     parse_bare_specifier, pick_matching_local_version_or_null, pick_package,
     pick_registry_for_package, shared_packument_fetch_locker,
 };
-use pacquet_resolving_resolver_base::{GitResolveError, PreferredVersions, WorkspacePackages};
-use pacquet_tarball::MemCache;
-use pacquet_workspace_range_resolver::resolve_workspace_range;
-use pacquet_workspace_spec::WorkspaceSpec;
+use pnpm_resolving_resolver_base::{GitResolveError, PreferredVersions, WorkspacePackages};
+use pnpm_tarball::MemCache;
+use pnpm_workspace_range_resolver::resolve_workspace_range;
+use pnpm_workspace_spec::WorkspaceSpec;
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -76,12 +76,12 @@ where
     /// `default`), or the `saveCatalogName` config default. When `Some`,
     /// the added dependency is written as `catalog:` / `catalog:<name>`
     /// and recorded in `pnpm-workspace.yaml` even under
-    /// [`pacquet_config::CatalogMode::Manual`].
+    /// [`pnpm_config::CatalogMode::Manual`].
     pub save_catalog_name: Option<String>,
     /// CLI-merged `supportedArchitectures` forwarded to the
     /// `Install` run that follows the manifest mutation. See
     /// [`Install::supported_architectures`].
-    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     /// `--lockfile-only`: add the dependency to the manifest and write
     /// `pnpm-lock.yaml`, but skip materializing `node_modules`. Forwarded
     /// to the follow-up `Install` run. See [`Install::lockfile_only`].
@@ -99,11 +99,11 @@ pub enum AddError {
     /// Locating the workspace root (to read `pnpm-workspace.yaml`'s
     /// catalogs) failed while applying `catalogMode`.
     #[diagnostic(transparent)]
-    FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
+    FindWorkspaceDir(#[error(source)] pnpm_workspace::FindWorkspaceDirError),
 
     /// Reading `pnpm-workspace.yaml` failed while applying `catalogMode`.
     #[diagnostic(transparent)]
-    ReadWorkspaceManifest(#[error(source)] pacquet_workspace::ReadWorkspaceManifestError),
+    ReadWorkspaceManifest(#[error(source)] pnpm_workspace::ReadWorkspaceManifestError),
 
     /// `pnpm-workspace.yaml`'s catalog sections are misconfigured.
     #[diagnostic(transparent)]
@@ -142,7 +142,7 @@ pub enum AddError {
     ResolveGit {
         specifier: String,
         #[error(source)]
-        source: pacquet_resolving_resolver_base::ResolveError,
+        source: pnpm_resolving_resolver_base::ResolveError,
     },
 
     /// The git dependency's `git ls-remote` failed. Kept as the diagnostic the
@@ -167,7 +167,7 @@ pub enum AddError {
     /// `minimumReleaseAgeExclude` contained an invalid rule.
     #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
     #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
-    MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
+    MinimumReleaseAgeExclude(#[error(source)] pnpm_config::version_policy::VersionPolicyError),
 }
 
 impl<DependencyGroupList> Add<'_, DependencyGroupList>
@@ -248,7 +248,7 @@ where
             let manifest_dir =
                 manifest.path().parent().expect("manifest path always has a parent dir");
             BTreeMap::from([(
-                pacquet_workspace::importer_id_from_root_dir(
+                pnpm_workspace::importer_id_from_root_dir(
                     importer_id_root(config, manifest_dir),
                     manifest_dir,
                 ),
@@ -338,7 +338,7 @@ where
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
-        projects: &mut [pacquet_workspace::Project],
+        projects: &mut [pnpm_workspace::Project],
         ordered_groups: &[Vec<PathBuf>],
         ordered_dirs: &[PathBuf],
         selected_dirs: &HashSet<PathBuf>,
@@ -405,10 +405,8 @@ where
             if names.is_empty() {
                 continue;
             }
-            let importer_id = pacquet_workspace::importer_id_from_root_dir(
-                importer_root,
-                &projects[index].root_dir,
-            );
+            let importer_id =
+                pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir);
             seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
             for (name, selectors) in preferred {
                 preferred_versions_override.entry(name).or_default().extend(selectors);
@@ -518,11 +516,11 @@ fn catalog_version_requests(
 ) -> (HashSet<String>, PreferredVersions) {
     let mut names = HashSet::new();
     let mut preferred = PreferredVersions::new();
-    if config.catalog_mode == pacquet_config::CatalogMode::Manual && save_catalog_name.is_none() {
+    if config.catalog_mode == pnpm_config::CatalogMode::Manual && save_catalog_name.is_none() {
         return (names, preferred);
     }
     for selector in package_selectors {
-        let parsed = pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency(selector);
+        let parsed = pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(selector);
         let (Some(alias), Some(wanted)) = (parsed.alias, parsed.bare_specifier) else {
             continue;
         };
@@ -575,7 +573,7 @@ struct SelectedAddPreparation {
     reason = "selected add preparation reuses the command's resolution inputs"
 )]
 async fn prepare_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
     http_client: &ThrottledClient,
     http_client_arc: &std::sync::Arc<ThrottledClient>,
@@ -749,12 +747,12 @@ fn read_catalog_ctx(
     let manifest_dir =
         manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
     let workspace_dir_opt =
-        pacquet_workspace::find_workspace_dir(&manifest_dir).map_err(AddError::FindWorkspaceDir)?;
+        pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(AddError::FindWorkspaceDir)?;
     let catalogs = if let Some(catalogs) = config.catalogs.clone() {
         catalogs
     } else {
         let workspace_manifest = match workspace_dir_opt.as_deref() {
-            Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
+            Some(dir) => pnpm_workspace::read_workspace_manifest(dir)
                 .map_err(AddError::ReadWorkspaceManifest)?,
             None => None,
         };
@@ -776,7 +774,7 @@ fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
 }
 
 fn persist_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
 ) -> Result<(), AddError> {
     for &index in selected_indices {
@@ -824,11 +822,10 @@ async fn resolve_added_dependency<'a>(
     fetch_locker: &PackumentFetchLocker,
     workspace_packages: Option<&WorkspacePackages>,
 ) -> Result<ResolvedAddedDependency, AddError> {
-    let parsed =
-        pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector);
+    let parsed = pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector);
     let aliasless_git = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
         (None, Some(specifier))
-            if pacquet_resolving_git_resolver::parse_bare_specifier(specifier).is_some() =>
+            if pnpm_resolving_git_resolver::parse_bare_specifier(specifier).is_some() =>
         {
             Some(resolve_aliasless_git(specifier, config, http_client_arc).await?)
         }
@@ -988,14 +985,14 @@ async fn resolve_aliasless_git(
         retry_opts: crate::retry_config::retry_opts_from_config(config),
         git_shallow_hosts: config.git_shallow_hosts.clone(),
     });
-    let wanted = pacquet_resolving_resolver_base::WantedDependency {
+    let wanted = pnpm_resolving_resolver_base::WantedDependency {
         bare_specifier: Some(specifier.to_string()),
-        ..pacquet_resolving_resolver_base::WantedDependency::default()
+        ..pnpm_resolving_resolver_base::WantedDependency::default()
     };
-    let result = pacquet_resolving_resolver_base::Resolver::resolve(
+    let result = pnpm_resolving_resolver_base::Resolver::resolve(
         &resolver,
         &wanted,
-        &pacquet_resolving_resolver_base::ResolveOptions::default(),
+        &pnpm_resolving_resolver_base::ResolveOptions::default(),
     )
     .await
     .map_err(|source| match source.downcast::<GitResolveError>() {
@@ -1140,11 +1137,11 @@ fn is_registry_style_specifier(specifier: &str, package_name: &str, registry: &s
 /// only costs the pinned form its version.
 fn workspace_packages_for_add(config: &Config) -> Option<WorkspacePackages> {
     let workspace_dir = config.workspace_dir.as_ref()?;
-    let manifest = pacquet_workspace::read_workspace_manifest(workspace_dir).ok()??;
-    let projects = pacquet_workspace::find_workspace_projects(
+    let manifest = pnpm_workspace::read_workspace_manifest(workspace_dir).ok()??;
+    let projects = pnpm_workspace::find_workspace_projects(
         workspace_dir,
-        &pacquet_workspace::FindWorkspaceProjectsOpts {
-            patterns: Some(pacquet_workspace::workspace_package_patterns(&manifest)),
+        &pnpm_workspace::FindWorkspaceProjectsOpts {
+            patterns: Some(pnpm_workspace::workspace_package_patterns(&manifest)),
         },
     )
     .ok()?;

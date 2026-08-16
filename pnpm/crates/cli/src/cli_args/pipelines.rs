@@ -23,8 +23,8 @@ use crate::{
     config_deps,
 };
 use miette::Context;
-use pacquet_config::Config;
-use pacquet_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
+use pnpm_config::Config;
+use pnpm_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -33,7 +33,7 @@ use std::{
 
 pub(crate) struct InstallFamilySelection {
     pub(crate) workspace_root: PathBuf,
-    pub(crate) projects: Vec<pacquet_workspace::Project>,
+    pub(crate) projects: Vec<pnpm_workspace::Project>,
     pub(crate) ordered_groups: Vec<Vec<PathBuf>>,
     pub(crate) ordered_dirs: Vec<PathBuf>,
     pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
@@ -109,7 +109,7 @@ pub(crate) fn select_workspace_projects(
     let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root)?;
     if let Some(runtime_on_fail) = cfg.runtime_on_fail {
         for project in &mut projects {
-            pacquet_package_manifest::apply_runtime_on_fail_override(
+            pnpm_package_manifest::apply_runtime_on_fail_override(
                 project.manifest.value_mut(),
                 runtime_on_fail.as_str(),
             );
@@ -142,14 +142,14 @@ pub(crate) fn select_workspace_projects(
     };
 
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
-    let normalized_active_dir = pacquet_fs::lexical_normalize(active_dir);
+    let normalized_active_dir = pnpm_fs::lexical_normalize(active_dir);
     let active_manifest_is_standin = !active_dir.join("package.json").is_file()
-        && pacquet_workspace::try_read_project_manifest(active_dir)
+        && pnpm_workspace::try_read_project_manifest(active_dir)
             .map_err(miette::Report::new)?
             .is_none()
-        && !projects.iter().any(|project| {
-            pacquet_fs::lexical_normalize(&project.root_dir) == normalized_active_dir
-        });
+        && !projects
+            .iter()
+            .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_active_dir);
 
     Ok(Some(InstallFamilySelection {
         workspace_root,
@@ -622,12 +622,12 @@ async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'st
     require_lockfile: bool,
 ) -> miette::Result<()> {
     let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
-    let normalized_root = pacquet_fs::lexical_normalize(workspace_root);
+    let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
     let mut project_dirs: Vec<PathBuf> = Vec::with_capacity(projects.len() + 1);
     if workspace_root.join("package.json").is_file()
         && !projects
             .iter()
-            .any(|project| pacquet_fs::lexical_normalize(&project.root_dir) == normalized_root)
+            .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_root)
     {
         project_dirs.push(workspace_root.to_path_buf());
     }
@@ -708,7 +708,7 @@ impl DedupePipeline {
         let DedupePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
             self;
 
-        let lockfile_path = config_root.join(pacquet_lockfile::Lockfile::FILE_NAME);
+        let lockfile_path = config_root.join(pnpm_lockfile::Lockfile::FILE_NAME);
 
         // Snapshot before any config-dep writes so --check detects lockfile
         // changes made by config-dependency syncing as well.

@@ -1,5 +1,5 @@
-use pacquet_lockfile::{Lockfile, LockfileSettings};
-use pacquet_package_manifest::PackageManifest;
+use pnpm_lockfile::{Lockfile, LockfileSettings};
+use pnpm_package_manifest::PackageManifest;
 use serde_json::{Value, json};
 use std::path::PathBuf;
 

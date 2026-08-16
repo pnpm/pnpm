@@ -6,14 +6,14 @@ use _utils::{
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::{Lockfile, PkgName};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_testing_utils::{
+use pipe_trait::Pipe;
+use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_folders, get_filenames_in_folder},
     registry::TestRegistry,
 };
-use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::fs;

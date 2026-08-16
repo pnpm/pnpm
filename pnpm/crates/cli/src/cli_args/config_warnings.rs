@@ -6,7 +6,7 @@
 //! captures. Warnings emitted through the reporter stay on stdout; only
 //! config-load warnings belong here.
 
-use pacquet_default_reporter::colors::Colors;
+use pnpm_default_reporter::colors::Colors;
 use std::io::{IsTerminal, Write};
 
 /// Write a `[WARN]`-labelled config-load warning to stderr. Best-effort:

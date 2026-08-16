@@ -19,10 +19,10 @@ use crate::cli_args::recursive::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
-use pacquet_config::Config;
-use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_reporter::{LogEvent, LogLevel, ScopeLog};
-use pacquet_workspace_projects_graph::ProjectGraph;
+use pnpm_config::Config;
+use pnpm_package_manager::{make_node_package_map_option, package_map_path_for_execution};
+use pnpm_reporter::{LogEvent, LogLevel, ScopeLog};
+use pnpm_workspace_projects_graph::ProjectGraph;
 use std::{
     collections::HashMap,
     env,

@@ -10,11 +10,11 @@ mod path_extender;
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
 };
+use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::{fs, path::Path, process::Command};
 
 #[derive(Debug, Args)]

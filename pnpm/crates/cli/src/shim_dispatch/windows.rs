@@ -2,7 +2,7 @@
 //! executable recorded in a sibling target file.
 
 use super::{dispatch_target, global_shims_setting};
-use pacquet_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
+use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use std::{
     ffi::OsString,
     fs, io,

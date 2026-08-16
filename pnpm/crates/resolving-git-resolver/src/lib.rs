@@ -13,7 +13,7 @@
 //! - [`create_git_hosted_pkg_id()`] — pure ID builder for git resolutions.
 //! - [`parse_bare_specifier()`] — recognise + normalise the input
 //!   string, pick a `fetchSpec`. Pure — no network.
-//! - [`GitResolver`] — the [`Resolver`](pacquet_resolving_resolver_base::Resolver)
+//! - [`GitResolver`] — the [`Resolver`](pnpm_resolving_resolver_base::Resolver)
 //!   impl that runs `git ls-remote` to pin a commit and emits either a
 //!   `Tarball{gitHosted: true}` or `Git` resolution, decided by the
 //!   [`GitProbe`] archive check. Given a [`GitFetchContext`], it also
@@ -29,7 +29,7 @@
 //!   yet — the resolver always re-runs `ls-remote`. Restore the fast
 //!   path when `currentPkg` lands on `ResolveOptions`.
 //! - Proxy / TLS plumbing on the HTTP HEAD probe — the probe uses the
-//!   default [`pacquet_network::ThrottledClient`], same as the rest of
+//!   default [`pnpm_network::ThrottledClient`], same as the rest of
 //!   the install path.
 
 mod create_git_hosted_pkg_id;

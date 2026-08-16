@@ -19,7 +19,7 @@
 //! reconstructing them from the server's response) rebuild the same
 //! [`VerifyError`] via [`VerifyError::from_rendered`].
 //!
-//! [`ResolutionVerifier`]: pacquet_resolving_resolver_base::ResolutionVerifier
+//! [`ResolutionVerifier`]: pnpm_resolving_resolver_base::ResolutionVerifier
 
 mod cache;
 mod errors;

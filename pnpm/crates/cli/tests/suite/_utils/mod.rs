@@ -1,14 +1,14 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
-use pacquet_modules_yaml::{Host as ModulesHost, Modules, read_modules_manifest};
-use pacquet_store_dir::{CafsFileInfo, StoreDir, StoreIndex};
-use pacquet_testing_utils::{
+use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
+use pnpm_modules_yaml::{Host as ModulesHost, Modules, read_modules_manifest};
+use pnpm_store_dir::{CafsFileInfo, StoreDir, StoreIndex};
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
     fs::is_symlink_or_junction,
 };
-use pacquet_workspace_state::WorkspaceState;
+use pnpm_workspace_state::WorkspaceState;
 use serde_json::{Map, Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -43,7 +43,7 @@ pub fn flatten_report(report: &str) -> String {
 }
 
 /// Flip the `enableGlobalVirtualStore` key in the `pnpm-workspace.yaml`
-/// that [`pacquet_testing_utils::bin::CommandTempCwd::add_mocked_registry`]
+/// that [`pnpm_testing_utils::bin::CommandTempCwd::add_mocked_registry`]
 /// populated with `storeDir` / `cacheDir` / `enableGlobalVirtualStore: false`.
 /// The replacement is in-place rather than appended so the file stays
 /// valid YAML (pnpm rejects duplicate top-level mapping keys).
@@ -135,7 +135,7 @@ pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String
 /// Parse `<workspace>/node_modules/.pnpm/lock.yaml` — the current
 /// lockfile describing what the last install materialized.
 #[must_use]
-pub fn read_current_lockfile(workspace: &Path) -> pacquet_lockfile::Lockfile {
+pub fn read_current_lockfile(workspace: &Path) -> pnpm_lockfile::Lockfile {
     let text = fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml"))
         .expect("read the current lockfile");
     serde_saphyr::from_str(&text).expect("parse the current lockfile")
@@ -242,7 +242,7 @@ impl WorkspaceFixture {
     }
 
     pub fn write_modules(&self, modules: Modules) {
-        pacquet_modules_yaml::write_modules_manifest::<ModulesHost>(
+        pnpm_modules_yaml::write_modules_manifest::<ModulesHost>(
             &self.workspace.join("node_modules"),
             modules,
         )

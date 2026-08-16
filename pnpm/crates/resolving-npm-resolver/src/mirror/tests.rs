@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use pacquet_registry::Package;
+use pnpm_registry::Package;
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
-use pacquet_network::MetadataCacheScope;
+use pnpm_network::MetadataCacheScope;
 
 use super::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, encode_pkg_name,

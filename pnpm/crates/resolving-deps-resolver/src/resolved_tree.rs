@@ -1,6 +1,6 @@
 use crate::node_id::NodeId;
-use pacquet_deps_path::DepPath;
-use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
+use pnpm_deps_path::DepPath;
+use pnpm_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -33,7 +33,7 @@ pub struct ResolvedTree {
     /// Set of `patchedDependencies` keys (e.g. `lodash@4.17.21`,
     /// `react@^18`) whose patch was actually applied to at least one
     /// resolved package. Threaded out of the resolver so the
-    /// orchestrator can pass it to [`pacquet_patching::verify_patches`]
+    /// orchestrator can pass it to [`pnpm_patching::verify_patches`]
     /// for the `ERR_PNPM_UNUSED_PATCH` diagnostic.
     pub applied_patches: HashSet<String>,
     /// Per-`pkgIdWithPatchHash` child list: `(install_alias,

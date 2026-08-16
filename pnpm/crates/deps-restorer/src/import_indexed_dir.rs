@@ -4,8 +4,8 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::PackageImportMethod;
-use pacquet_reporter::Reporter;
+use pnpm_config::PackageImportMethod;
+use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -524,7 +524,7 @@ fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool {
 /// `esbuild`) runs to tens of megabytes. Streaming holds one 8 KB
 /// buffer per side instead, and stops at the first differing chunk
 /// rather than reading two files that already disagree in byte one.
-/// `pacquet_fs`'s `file_equals_bytes` streams for the same reason.
+/// `pnpm_fs`'s `file_equals_bytes` streams for the same reason.
 fn files_have_equal_contents(left: &Path, right: &Path) -> io::Result<bool> {
     use std::io::BufRead;
 
@@ -578,7 +578,7 @@ fn import_atomic<Reporter: self::Reporter>(
         let _ = fs::remove_file(&temp);
         return Err(ImportIndexedDirError::LinkFile(error));
     }
-    match pacquet_fs::rename_with_retry(&temp, target) {
+    match pnpm_fs::rename_with_retry(&temp, target) {
         Ok(()) => Ok(()),
         Err(_) if file_matches_store_entry(target, store_path) => {
             let _ = fs::remove_file(&temp);

@@ -8,7 +8,7 @@
 //! published under another name, the `runtime:` protocol for the ones
 //! that ship as platform archives.
 
-use pacquet_package_manifest::{
+use pnpm_package_manifest::{
     is_runtime_alias,
     package_manager_spec::{is_version_request, split_spec},
 };

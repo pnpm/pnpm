@@ -1,7 +1,7 @@
-use pacquet_config::PackageImportMethod;
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_store_dir::StoreDir;
+use pnpm_config::PackageImportMethod;
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_store_dir::StoreDir;
 use std::{collections::HashMap, path::Path};
 
 /// Default npm registry used when neither the config nor a scope entry
@@ -10,7 +10,7 @@ const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// Handles and settings the config-dependency resolve/install pass
 /// needs. Assembled by the caller (the config-finalization seam) from
-/// the resolved [`pacquet_config::Config`] plus a network client, then
+/// the resolved [`pnpm_config::Config`] plus a network client, then
 /// passed by reference into [`crate::resolve_and_install_config_deps()`].
 ///
 /// Every field borrows so the caller keeps ownership of the long-lived

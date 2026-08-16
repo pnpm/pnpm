@@ -16,8 +16,8 @@ use crate::_utils;
 use _utils::{importer, importer_version, read_lockfile};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::PkgName;
-use pacquet_testing_utils::{
+use pnpm_lockfile::PkgName;
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
@@ -456,7 +456,7 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
 
     pacquet_at(&workspace).with_arg("install").assert().success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    let mut lockfile: pacquet_lockfile::Lockfile =
+    let mut lockfile: pnpm_lockfile::Lockfile =
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
             .expect("parse pnpm-lock.yaml");
     lockfile.importers.remove("pkg-a").expect("pkg-a importer exists");
@@ -486,14 +486,14 @@ fn normal_install_accepts_missing_dependency_free_workspace_importer() {
 
     pacquet_at(&workspace).with_arg("install").assert().success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    let mut lockfile: pacquet_lockfile::Lockfile =
+    let mut lockfile: pnpm_lockfile::Lockfile =
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
             .expect("parse pnpm-lock.yaml");
     lockfile.importers.remove("pkg-b").expect("pkg-b importer exists");
     lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-b importer");
 
     pacquet_at(&workspace).with_arg("install").assert().success();
-    let retained: pacquet_lockfile::Lockfile = serde_saphyr::from_str(
+    let retained: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
         &fs::read_to_string(&lockfile_path).expect("read retained pnpm-lock.yaml"),
     )
     .expect("parse retained pnpm-lock.yaml");
@@ -524,14 +524,14 @@ fn normal_install_accepts_missing_importer_with_only_ignored_optional_dependenci
 
     pacquet_at(&workspace).with_arg("install").assert().success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    let mut lockfile: pacquet_lockfile::Lockfile =
+    let mut lockfile: pnpm_lockfile::Lockfile =
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
             .expect("parse pnpm-lock.yaml");
     lockfile.importers.remove("pkg-a").expect("pkg-a importer exists");
     lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-a importer");
 
     pacquet_at(&workspace).with_arg("install").assert().success();
-    let retained: pacquet_lockfile::Lockfile = serde_saphyr::from_str(
+    let retained: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
         &fs::read_to_string(&lockfile_path).expect("read retained pnpm-lock.yaml"),
     )
     .expect("parse retained pnpm-lock.yaml");
@@ -601,9 +601,9 @@ fn shared_workspace_dep_link_is_relative_to_each_importer() {
     // The lockfile records importer-relative `link:` targets.
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
-    let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
         .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
-    let lib_name: pacquet_lockfile::PkgName = "@scope/lib".parse().unwrap();
+    let lib_name: pnpm_lockfile::PkgName = "@scope/lib".parse().unwrap();
     let importer_link = |importer_id: &str| -> String {
         parsed
             .importers
@@ -691,9 +691,9 @@ fn workspace_specs_resolve_a_versionless_private_package() {
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
-    let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
         .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
-    let sa_name: pacquet_lockfile::PkgName = "sa".parse().expect("parse package name");
+    let sa_name: pnpm_lockfile::PkgName = "sa".parse().expect("parse package name");
     let resolved = |importer_id: &str| {
         parsed
             .importers

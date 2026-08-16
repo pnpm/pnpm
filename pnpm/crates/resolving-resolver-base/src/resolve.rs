@@ -10,9 +10,9 @@ use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::
 
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
-use pacquet_config::{SaveWorkspaceProtocol, TrustPolicy, version_policy::PackageVersionPolicy};
-use pacquet_lockfile::{LockfileResolution, PkgNameVer};
-use pacquet_registry::RangeSpecStyle;
+use pnpm_config::{SaveWorkspaceProtocol, TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_lockfile::{LockfileResolution, PkgNameVer};
+use pnpm_registry::RangeSpecStyle;
 use serde::{Deserialize, Serialize};
 
 use crate::verifier::ResolutionPolicyViolation;

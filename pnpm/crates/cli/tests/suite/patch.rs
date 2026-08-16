@@ -3,9 +3,9 @@ use crate::_utils;
 use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_patching::create_hex_hash_from_file;
-use pacquet_store_dir::{StoreDir, StoreIndex};
-use pacquet_testing_utils::{
+use pnpm_patching::create_hex_hash_from_file;
+use pnpm_store_dir::{StoreDir, StoreIndex};
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
@@ -200,12 +200,12 @@ fn patch_file_hash(workspace: &Path, patch_file_name: &str) -> String {
         .expect("hash the patch file")
 }
 
-fn read_wanted_lockfile(workspace: &Path) -> pacquet_lockfile::Lockfile {
+fn read_wanted_lockfile(workspace: &Path) -> pnpm_lockfile::Lockfile {
     let text = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
     serde_saphyr::from_str(&text).expect("parse pnpm-lock.yaml")
 }
 
-fn snapshot_keys(lockfile: &pacquet_lockfile::Lockfile) -> Vec<String> {
+fn snapshot_keys(lockfile: &pnpm_lockfile::Lockfile) -> Vec<String> {
     let mut keys: Vec<String> = lockfile
         .snapshots
         .as_ref()
@@ -220,7 +220,7 @@ fn snapshot_keys(lockfile: &pacquet_lockfile::Lockfile) -> Vec<String> {
 /// Assert the store kept the patched `index.js` as a side-effects overlay
 /// rather than overwriting the pristine one it shares with every other
 /// project. The overlay's cache key ends in `;patch=<hash>` — pacquet
-/// composes it in `pacquet_graph_hasher::calc_dep_state`, and the row it
+/// composes it in `pnpm_graph_hasher::calc_dep_state`, and the row it
 /// hangs off is keyed by the peer- and patch-free `is-positive@1.0.0`.
 fn assert_patched_side_effects_cached(store_dir: &Path, patch_hash: &str) {
     let store = StoreDir::new(store_dir);

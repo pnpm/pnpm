@@ -15,7 +15,7 @@
 //! * unscoped names can be private (a corporate default registry).
 //!
 //! [`RouteContext::classify`] maps one fetch to a [`RouteClass`]. The [`RouteHook`]
-//! installed on the resolve's [`AuthHeaders`](pacquet_network::AuthHeaders)
+//! installed on the resolve's [`AuthHeaders`](pnpm_network::AuthHeaders)
 //! runs that classification at the real auth-selection point, selects the
 //! pnpr-managed credential (never a client-forwarded one), and records the
 //! route into a [`Footprint`]. The footprint's [`Footprint::digest`] is
@@ -28,7 +28,7 @@ use std::{
 };
 
 use indexmap::IndexMap;
-use pacquet_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
+use pnpm_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
 use reqwest::header::{AUTHORIZATION, HeaderMap};
 use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
@@ -702,7 +702,7 @@ impl ResolvedAlias {
 }
 
 /// The [`UpstreamRouteHook`] pnpr installs on a resolve's
-/// [`AuthHeaders`](pacquet_network::AuthHeaders). Every metadata/tarball
+/// [`AuthHeaders`](pnpm_network::AuthHeaders). Every metadata/tarball
 /// fetch routes through [`UpstreamRouteHook::authorize`], which classifies
 /// the route, records it into the shared [`Footprint`], and returns the
 /// pnpr-managed credential (never a client-forwarded one).

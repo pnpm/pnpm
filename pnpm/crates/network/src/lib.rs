@@ -50,7 +50,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 /// value.
 ///
 /// Production installs override this with the value resolved by
-/// `pacquet-config` (`userAgent`, defaulting to the
+/// `pnpm-config` (`userAgent`, defaulting to the
 /// `pnpm/<version> npm/? node/? <platform> <arch>` format). The leading
 /// `pnpm` token is what UA-keyed allow / rate-limit rules expect, so any
 /// rule that lets pnpm through also lets this build through.
@@ -88,13 +88,13 @@ pub const BACKGROUND: u64 = u64::MAX - 1;
 pub const MAX_THROUGHPUT_PRIORITY: u64 = BACKGROUND - 1;
 
 /// Default per-request timeout in milliseconds: the `fetchTimeout`
-/// default of `60000`. Source of truth for `pacquet-config`'s
+/// default of `60000`. Source of truth for `pnpm-config`'s
 /// `default_fetch_timeout`.
 pub const DEFAULT_FETCH_TIMEOUT_MS: u64 = 60_000;
 
 /// Tunable network knobs threaded into the install client: the
 /// `networkConcurrency`, `fetchTimeout`, and `userAgent` settings.
-/// `pacquet-config` owns their defaults and override sources
+/// `pnpm-config` owns their defaults and override sources
 /// (`pnpm-workspace.yaml`, `PNPM_CONFIG_*`, CLI flags) and hands the
 /// resolved values here.
 #[derive(Debug, Clone)]

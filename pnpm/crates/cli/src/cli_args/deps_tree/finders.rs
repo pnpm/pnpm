@@ -6,10 +6,10 @@
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use pacquet_config::Config;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_package_manifest::parse_manifest_bytes;
-use pacquet_store_dir::{StoreDir, StoreIndex, store_index_key};
+use pnpm_config::Config;
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_package_manifest::parse_manifest_bytes;
+use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
 
 use super::{
     TreeNodeId,
@@ -122,7 +122,7 @@ pub(crate) fn finder_candidates(
                         edge.alias.clone(),
                         None,
                         ManifestSource {
-                            path: pacquet_fs::lexical_normalize(
+                            path: pnpm_fs::lexical_normalize(
                                 &linked_path_base_dir.join(link_target),
                             ),
                             integrity: None,

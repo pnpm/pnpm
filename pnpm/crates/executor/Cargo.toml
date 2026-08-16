@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-executor"
+name                  = "pnpm-executor"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,8 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-package-manifest = { workspace = true }
-pacquet-reporter         = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-reporter         = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

@@ -6,16 +6,16 @@ use dialoguer::MultiSelect;
 use miette::{Diagnostic, IntoDiagnostic};
 use node_semver::{Range, Version};
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::{AuditLevel as ConfigAuditLevel, Config};
-use pacquet_lockfile::{
+use pnpm_config::{AuditLevel as ConfigAuditLevel, Config};
+use pnpm_lockfile::{
     EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PkgName, ResolvedDependencyMap,
     SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, pick_registry_for_package,
 };
-use pacquet_network::{RetryOpts, encode_package_name, send_with_retry};
-use pacquet_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
-use pacquet_resolving_resolver_base::{
+use pnpm_network::{RetryOpts, encode_package_name, send_with_retry};
+use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
+use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
     parse_packument_timestamp,
 };
@@ -415,7 +415,7 @@ async fn audit(
     env_lockfile: Option<&EnvLockfile>,
     include: Include,
     config: &Config,
-    http_client: &pacquet_network::ThrottledClient,
+    http_client: &pnpm_network::ThrottledClient,
 ) -> Result<AuditReport, AuditError> {
     let audit_request = lockfile_to_audit_request(lockfile, env_lockfile, include);
     let registry = normalize_registry(&config.registry);

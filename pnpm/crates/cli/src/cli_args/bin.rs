@@ -1,5 +1,5 @@
 use clap::Args;
-use pacquet_config::{Config, check_global_bin_dir};
+use pnpm_config::{Config, check_global_bin_dir};
 use std::path::Path;
 
 use super::global::GlobalError;

@@ -1,7 +1,7 @@
 use super::{UpdateArgs, UpdateDependencyOptions};
 use clap::Parser;
-use pacquet_config::Config;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_config::Config;
+use pnpm_package_manifest::DependencyGroup;
 
 #[derive(Debug, Parser)]
 struct UpdateArgsHarness {

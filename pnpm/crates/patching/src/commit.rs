@@ -1,7 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_git_fetcher::PacklistError;
-use pacquet_package_manifest::PackageManifestError;
+use pnpm_git_fetcher::PacklistError;
+use pnpm_package_manifest::PackageManifestError;
 use serde_json::{Map, Value};
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
@@ -111,10 +111,10 @@ fn prepare_pkg_files_for_diff_with_fs(
     src: &Path,
     fs_ops: &impl PatchCommitFs,
 ) -> Result<PkgFilesForDiff, PatchCommitError> {
-    let manifest = pacquet_package_manifest::safe_read_package_json_from_dir(src)
+    let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(src)
         .map_err(|source| PatchCommitError::ReadManifest { dir: src.to_path_buf(), source })?
         .unwrap_or_else(|| Value::Object(Map::default()));
-    let files = pacquet_git_fetcher::packlist(src, &manifest)
+    let files = pnpm_git_fetcher::packlist(src, &manifest)
         .map_err(|source| PatchCommitError::Packlist { dir: src.to_path_buf(), source })?;
 
     let temp_dir = temporary_filtered_dir(src);

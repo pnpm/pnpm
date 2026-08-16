@@ -10,7 +10,7 @@ use crate::_utils;
 use _utils::{enable_gvs_in_workspace_yaml, pacquet_in};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
@@ -387,7 +387,7 @@ fn newly_injected_workspace_dep_with_dedupe_off_replaces_recorded_link() {
 /// `file:` importer-level depPaths and the materialise step
 /// (pnpm/pnpm#12038).
 ///
-/// [`ImporterDepVersion::File`]: pacquet_lockfile::ImporterDepVersion::File
+/// [`ImporterDepVersion::File`]: pnpm_lockfile::ImporterDepVersion::File
 #[test]
 fn injected_workspace_dep_with_dedupe_off_writes_file_arm() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

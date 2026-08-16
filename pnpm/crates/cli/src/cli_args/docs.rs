@@ -1,13 +1,13 @@
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_package_manifest::PackageManifest;
-use pacquet_resolving_npm_resolver::{
+use pnpm_config::Config;
+use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
     pick_registry_for_package,
 };
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 /// Open the documentation page of a package in a browser.
 #[derive(Debug, Args)]

@@ -3,8 +3,8 @@ use super::{
     NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, default_ci, fs,
 };
 use crate::defaults::default_store_dir;
-use pacquet_store_dir::StoreDir;
-use pacquet_testing_utils::env_guard::EnvGuard;
+use pnpm_store_dir::StoreDir;
+use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
 use std::{
     env,
@@ -301,7 +301,7 @@ pub fn fetch_retries_defaults_match_pnpm() {
 #[test]
 pub fn network_settings_defaults_match_pnpm() {
     let value = Config::new();
-    assert_eq!(value.network_concurrency, pacquet_network::default_network_concurrency());
+    assert_eq!(value.network_concurrency, pnpm_network::default_network_concurrency());
     assert_eq!(value.fetch_timeout, 60_000);
     assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
     assert_eq!(value.npmrc_auth_file, None);
@@ -1069,7 +1069,7 @@ pub fn user_username_password_pins_to_its_own_file_registry() {
 
     let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
 
-    let expected = format!("Basic {}", pacquet_network::base64_encode("alice:pass"));
+    let expected = format!("Basic {}", pnpm_network::base64_encode("alice:pass"));
     assert_eq!(
         config.auth_headers.for_url("https://trusted.example.com/pkg").as_deref(),
         Some(expected.as_str()),
@@ -1138,7 +1138,7 @@ pub fn global_config_yaml_supplies_proxy_settings() {
     assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://proxy.example.com:8443"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec![
+        Some(pnpm_network::NoProxySetting::List(vec![
             "localhost".to_string(),
             "127.0.0.1".to_string(),
         ])),
@@ -1278,7 +1278,7 @@ pub fn project_npmrc_proxy_settings_are_preserved() {
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8080"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
+        Some(pnpm_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
     );
 }
 
@@ -1480,7 +1480,7 @@ pub fn workspace_yaml_scheme_proxy_keys_set_to_false_mask_the_project_npmrc() {
     assert_eq!(config.proxy.http_proxy, None);
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["env.example".to_string()])),
+        Some(pnpm_network::NoProxySetting::List(vec!["env.example".to_string()])),
         "a masked key still falls through to the environment",
     );
 }
@@ -1500,7 +1500,7 @@ pub fn empty_workspace_yaml_no_proxy_falls_through_to_its_alias() {
 
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["alias.example".to_string()])),
+        Some(pnpm_network::NoProxySetting::List(vec!["alias.example".to_string()])),
     );
 }
 
@@ -1863,7 +1863,7 @@ pub fn should_use_pnpm_home_env_var() {
     let store_dir = default_store_dir::<EnvWithPnpmHome>();
     assert_eq!(
         display_store_dir(&store_dir),
-        format!("/hello/store/{}", pacquet_store_dir::STORE_VERSION),
+        format!("/hello/store/{}", pnpm_store_dir::STORE_VERSION),
     );
 }
 
@@ -1894,7 +1894,7 @@ pub fn should_use_xdg_data_home_env_var() {
     let store_dir = default_store_dir::<EnvWithXdgDataHome>();
     assert_eq!(
         display_store_dir(&store_dir),
-        format!("/hello/pnpm/store/{}", pacquet_store_dir::STORE_VERSION),
+        format!("/hello/pnpm/store/{}", pnpm_store_dir::STORE_VERSION),
     );
 }
 
@@ -2284,7 +2284,7 @@ pub fn single_project_anchors_modules_at_cwd() {
 
 /// `NPM_CONFIG_WORKSPACE_DIR` must steer `Config::current`'s
 /// path-anchoring just like it steers
-/// [`pacquet_workspace::find_workspace_dir`] — otherwise the
+/// [`pnpm_workspace::find_workspace_dir`] — otherwise the
 /// virtual store would land in the cwd while the per-importer
 /// `SymlinkDirectDependencies` writes land under the env-var
 /// path, producing two `node_modules` layouts for the same
@@ -2335,7 +2335,7 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
 
 /// An empty `NPM_CONFIG_WORKSPACE_DIR` falls through to the
 /// upward walk, matching pnpm, which treats only a non-empty
-/// workspace-dir value as set. Pairs with `pacquet_workspace`'s
+/// workspace-dir value as set. Pairs with `pnpm_workspace`'s
 /// `empty_env_var_is_treated_as_unset`.
 ///
 /// Drives the [`EnvVarOs`] DI seam with a fake that returns an
@@ -3175,8 +3175,7 @@ fn patched_dependency_hashes_resolves_and_hashes_each_patch() {
     let patch_path = workspace.path().join("patches").join("graceful-fs@4.2.11.patch");
     std::fs::create_dir_all(patch_path.parent().unwrap()).expect("create patches dir");
     std::fs::write(&patch_path, "--- a/index.js\n+++ b/index.js\n").expect("write patch");
-    let expected =
-        pacquet_patching::create_hex_hash_from_file(&patch_path).expect("hash patch file");
+    let expected = pnpm_patching::create_hex_hash_from_file(&patch_path).expect("hash patch file");
 
     let mut config = Config::new();
     assert!(config.patched_dependency_hashes().expect("no error").is_none(), "unset → None");

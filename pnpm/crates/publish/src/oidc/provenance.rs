@@ -2,9 +2,9 @@
 //! the CI context and the package's registry visibility.
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_network::redact_url_credentials;
 use pipe_trait::Pipe;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_network::redact_url_credentials;
 use serde_json::Value;
 use url::Url;
 

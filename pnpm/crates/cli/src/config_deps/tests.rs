@@ -1,7 +1,7 @@
 use std::{fs, path::Path};
 
-use pacquet_config::{Config, Host, TrustPolicy};
-use pacquet_reporter::SilentReporter;
+use pnpm_config::{Config, Host, TrustPolicy};
+use pnpm_reporter::SilentReporter;
 
 use super::{resolve_engine_version, run_update_config_hooks};
 

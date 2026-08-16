@@ -3,13 +3,13 @@
 //! produces for the same events. Colors are constructed off for readable
 //! plain-text assertions and on for the ANSI-specific ones.
 
-use pacquet_default_reporter::{
+use pnpm_default_reporter::{
     SummaryScope,
     colors::Colors,
     format::pretty_bytes,
     state::{Output, ReporterOptions, ReporterState},
 };
-use pacquet_reporter::{
+use pnpm_reporter::{
     AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog, FetchingProgressLog,
     FetchingProgressMessage, GlobalLog, HookLog, LifecycleLog, LifecycleMessage, LifecycleStdio,
     LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
@@ -1079,7 +1079,7 @@ fn recursive_direct_deprecation_is_zoomed_and_omits_the_message() {
     let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
     assert_eq!(
         frame,
-        pacquet_default_reporter::format::zoom_out(CWD, CWD, "[WARN] deprecated express@0.14.1",),
+        pnpm_default_reporter::format::zoom_out(CWD, CWD, "[WARN] deprecated express@0.14.1",),
     );
 }
 
@@ -1092,7 +1092,7 @@ fn zoomed_direct_deprecation_omits_the_message() {
         render(&mut reporter, vec![deprecation("express", "0.14.1", 0, "/repo/packages/app")]);
     assert_eq!(
         frame,
-        pacquet_default_reporter::format::zoom_out(
+        pnpm_default_reporter::format::zoom_out(
             CWD,
             "/repo/packages/app",
             "[WARN] deprecated express@0.14.1",

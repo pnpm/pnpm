@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-directory-fetcher"
+name                  = "pnpm-directory-fetcher"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,10 +11,10 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-diagnostics      = { workspace = true }
-pacquet-git-fetcher      = { workspace = true }
-pacquet-package-manifest = { workspace = true }
-pacquet-store-dir        = { workspace = true }
+pnpm-diagnostics      = { workspace = true }
+pnpm-git-fetcher      = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-store-dir        = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }
@@ -22,8 +22,8 @@ serde_json  = { workspace = true }
 tracing     = { workspace = true }
 
 [dev-dependencies]
-pacquet-fs            = { workspace = true }
-pacquet-testing-utils = { workspace = true }
+pnpm-fs            = { workspace = true }
+pnpm-testing-utils = { workspace = true }
 
 junction          = { workspace = true }
 pretty_assertions = { workspace = true }

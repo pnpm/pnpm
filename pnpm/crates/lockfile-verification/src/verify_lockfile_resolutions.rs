@@ -16,12 +16,12 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
-use pacquet_reporter::{
+use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use pnpm_reporter::{
     LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
 };
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_resolving_resolver_base::{
     ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
 use tokio::sync::Semaphore;
@@ -462,11 +462,11 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
         // that key shape, which is only sound while this invariant
         // holds. The check is offline, so it applies even when no
         // policy verifiers are active.
-        if key.suffix.prefix() == pacquet_lockfile::Prefix::None
+        if key.suffix.prefix() == pnpm_lockfile::Prefix::None
             && matches!(
                 key.suffix.version(),
-                pacquet_lockfile::VersionPart::Semver(_)
-                    | pacquet_lockfile::VersionPart::RegistryQualified { .. },
+                pnpm_lockfile::VersionPart::Semver(_)
+                    | pnpm_lockfile::VersionPart::RegistryQualified { .. },
             )
             && !is_registry_shaped_resolution(&metadata.resolution)
         {

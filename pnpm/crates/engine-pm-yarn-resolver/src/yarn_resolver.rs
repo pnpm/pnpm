@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_lockfile::{LockfileResolution, VariationsResolution};
-use pacquet_network::{ThrottledClient, redact_and_sanitize};
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{LockfileResolution, VariationsResolution};
+use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };

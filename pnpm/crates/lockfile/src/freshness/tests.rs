@@ -3,8 +3,8 @@ use super::{
     satisfies_package_manifest,
 };
 use crate::Lockfile;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_package_manifest::PackageManifest;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_package_manifest::PackageManifest;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
 use tempfile::tempdir;

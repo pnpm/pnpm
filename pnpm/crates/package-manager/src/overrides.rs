@@ -11,13 +11,13 @@
 //! manifest view.
 //!
 //! The hook never touches the on-disk `package.json` — mutation
-//! happens through [`pacquet_package_manifest::PackageManifest::value_mut`]
+//! happens through [`pnpm_package_manifest::PackageManifest::value_mut`]
 //! on the in-memory `Value` only.
 
 use node_semver::{Range, Version};
-use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::is_valid_peer_range;
+use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::is_valid_peer_range;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
@@ -52,7 +52,7 @@ pub struct VersionsOverrider {
 /// A convergence override's replacement value, with the exact version
 /// pre-parsed once at construction time. `version` is `None` when the
 /// value isn't a parseable semver version (only reachable for
-/// hand-built [`VersionOverride`] entries — [`pacquet_config_parse_overrides::parse_overrides`]
+/// hand-built [`VersionOverride`] entries — [`pnpm_config_parse_overrides::parse_overrides`]
 /// rejects such values); the override then never rewrites an edge,
 /// matching how an unsatisfiable version behaves.
 struct ConvergeOverride {
@@ -91,7 +91,7 @@ struct LocalTarget {
 
 impl VersionsOverrider {
     /// Build the hook from the parsed overrides set produced by
-    /// [`pacquet_config_parse_overrides::parse_overrides`].
+    /// [`pnpm_config_parse_overrides::parse_overrides`].
     #[must_use]
     pub fn new(overrides: &[VersionOverride], root_dir: &Path) -> Self {
         let mut parent_scoped = Vec::new();

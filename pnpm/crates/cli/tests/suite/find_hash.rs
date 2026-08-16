@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
-use pacquet_store_dir::store_index::StoreIndex;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_store_dir::store_index::StoreIndex;
+use pnpm_testing_utils::bin::CommandTempCwd;
 
 fn find_hash_fixture(store_index: &StoreIndex) -> (String, String, String) {
     let keys = store_index.keys().unwrap();
@@ -32,7 +32,7 @@ fn find_hash_works() {
     // 1. Install a package to populate the store index
     pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
 
-    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
     let store_index = StoreIndex::open_readonly_in(&store_dir).unwrap();
     let (valid_hash, expected_name, expected_version) = find_hash_fixture(&store_index);
 
@@ -93,7 +93,7 @@ fn find_hash_works_with_base64() {
 
     pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
 
-    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
     let store_index = StoreIndex::open_readonly_in(&store_dir).unwrap();
     let (hex_hash, expected_name, expected_version) = find_hash_fixture(&store_index);
 

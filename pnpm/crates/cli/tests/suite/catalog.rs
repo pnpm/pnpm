@@ -2,9 +2,9 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::{Lockfile, PkgName};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;

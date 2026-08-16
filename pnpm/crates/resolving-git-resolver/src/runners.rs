@@ -7,7 +7,7 @@
 
 use std::{future::Future, path::PathBuf, pin::Pin, process::Command, sync::Arc, time::Duration};
 
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 
 use crate::{
     git_resolver::{GitProbe, ProbeFuture},

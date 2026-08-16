@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pacquet_lockfile::Lockfile;
+use pnpm_lockfile::Lockfile;
 use pretty_assertions::assert_eq;
 
 use super::{EdgeContext, PkgInfoEnv, get_pkg_info};

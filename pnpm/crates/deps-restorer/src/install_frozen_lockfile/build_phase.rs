@@ -37,8 +37,8 @@ pub enum BuildPhaseError {
 
     /// Surfaces a failure from the post-`BuildModules` per-importer
     /// top-level bin link. This pass mixes direct + publicly-hoisted
-    /// candidates so `pacquet_cmd_shim::pick_winner` (private)'s
-    /// [`pacquet_cmd_shim::BinOrigin::Direct`] tier resolves
+    /// candidates so `pnpm_cmd_shim::pick_winner` (private)'s
+    /// [`pnpm_cmd_shim::BinOrigin::Direct`] tier resolves
     /// conflicts in a single call (pnpm/pacquet#342). The failure
     /// surface is the project-tree top-level
     /// `<importer>/node_modules/.bin`.
@@ -56,7 +56,7 @@ pub enum BuildPhaseError {
 /// lockfile is built/loaded rather than during resolution.
 pub fn resolve_snapshot_patches(
     config: &Config,
-    pre_resolved: Option<&pacquet_patching::PatchGroupRecord>,
+    pre_resolved: Option<&pnpm_patching::PatchGroupRecord>,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> Result<Option<HashMap<PackageKey, ExtendedPatchInfo>>, BuildPhaseError> {
     // Reuse the caller's grouped record when it already resolved it (the
@@ -117,7 +117,7 @@ pub struct BuildPhaseInputs<'a> {
     /// `patchedDependencies` already resolved + grouped by the caller, so
     /// the build phase doesn't re-hash the patch files. `None` on the
     /// frozen path, which resolves it inside [`resolve_snapshot_patches`].
-    pub patch_groups: Option<&'a pacquet_patching::PatchGroupRecord>,
+    pub patch_groups: Option<&'a pnpm_patching::PatchGroupRecord>,
     pub allow_build_policy: &'a AllowBuildPolicy,
     pub side_effects_maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
     pub requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
@@ -181,13 +181,13 @@ pub fn run_build_phase<Reporter: self::Reporter>(
 
     let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
 
-    // Convert `pacquet-config`'s mirror enum to the executor's
+    // Convert `pnpm-config`'s mirror enum to the executor's
     // canonical type. Config's enum carries the yaml-deserialize impl;
     // the executor's stays free of serde wiring.
     let scripts_prepend_node_path = match config.scripts_prepend_node_path {
-        pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
-        pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
-        pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
+        pnpm_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
+        pnpm_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
+        pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
     };
 
     // BuildModules walks per-snapshot package directories and runs

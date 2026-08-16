@@ -8,21 +8,21 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
-use pacquet_config::Config;
-use pacquet_config_parse_overrides::parse_overrides_iter;
-use pacquet_crypto_hash::create_short_hash;
-use pacquet_fs::force_symlink_dir;
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::{
+use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
+use pnpm_config::Config;
+use pnpm_config_parse_overrides::parse_overrides_iter;
+use pnpm_crypto_hash::create_short_hash;
+use pnpm_fs::force_symlink_dir;
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_package_manifest::{
     DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias,
     package_manager_spec::{is_version_request, split_spec},
     parse_manifest,
 };
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::Reporter;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -349,7 +349,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         && overrides.values().any(|spec| spec.starts_with("catalog:"))
     {
         let workspace_manifest =
-            pacquet_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
+            pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
         let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
             .into_diagnostic()
             .wrap_err("reading the caller's catalogs for the dlx install")?;
@@ -470,7 +470,7 @@ fn run_bin(
     let path = prepend_dirs_to_path(&prepend).map_err(DlxError::from)?;
 
     let mut cmd = if shell_mode {
-        let shell = pacquet_executor::select_shell(None, cfg!(windows))
+        let shell = pnpm_executor::select_shell(None, cfg!(windows))
             .expect("default shell selection never fails");
         let word = program
             .shell_word()
@@ -483,7 +483,7 @@ fn run_bin(
         // Windows `cmd /d /s /c` verbatim path uses `raw_arg`, matching
         // execa's `windowsVerbatimArguments` and preserving embedded
         // quoting (same as exec's shell mode).
-        pacquet_executor::push_script_arg(&mut cmd, &joined.join(" "), shell.windows_verbatim_args);
+        pnpm_executor::push_script_arg(&mut cmd, &joined.join(" "), shell.windows_verbatim_args);
         cmd
     } else {
         let executable = match program {

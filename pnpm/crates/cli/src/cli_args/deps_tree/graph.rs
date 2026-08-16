@@ -3,8 +3,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
+use pnpm_modules_yaml::IncludedDependencies;
 
 use super::TreeNodeId;
 
@@ -117,7 +117,7 @@ fn importer_edges(
     opts: &BuildGraphOptions<'_>,
 ) -> Vec<GraphEdge> {
     let mut edges = Vec::new();
-    let groups: [(bool, Option<&pacquet_lockfile::ResolvedDependencyMap>); 3] = [
+    let groups: [(bool, Option<&pnpm_lockfile::ResolvedDependencyMap>); 3] = [
         (opts.include.dependencies, importer.dependencies.as_ref()),
         (opts.include.dev_dependencies, importer.dev_dependencies.as_ref()),
         (opts.include.optional_dependencies, importer.optional_dependencies.as_ref()),
@@ -152,7 +152,7 @@ fn importer_edges(
 
 fn package_edges(snapshot: &SnapshotEntry, opts: &BuildGraphOptions<'_>) -> Vec<GraphEdge> {
     let mut edges = Vec::new();
-    let groups: [(bool, Option<&HashMap<PkgName, pacquet_lockfile::SnapshotDepRef>>); 2] = [
+    let groups: [(bool, Option<&HashMap<PkgName, pnpm_lockfile::SnapshotDepRef>>); 2] = [
         (true, snapshot.dependencies.as_ref()),
         (opts.include.optional_dependencies, snapshot.optional_dependencies.as_ref()),
     ];

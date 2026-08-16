@@ -1,13 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
-use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pacquet_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
-use pacquet_network::{
+use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
+use pnpm_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
+use pnpm_network::{
     AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
 };
-use pacquet_registry::Package;
-use pacquet_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier, VerifyCtx};
+use pnpm_registry::Package;
+use pnpm_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier, VerifyCtx};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use tempfile::TempDir;
@@ -375,7 +375,7 @@ async fn verify_short_circuits_non_registry_resolution() {
     let mut opts = default_opts("https://registry.example/");
     opts.minimum_release_age = Some(60 * 24 * 365);
     let verifier = create_npm_resolution_verifier(opts);
-    let directory = LockfileResolution::Directory(pacquet_lockfile::DirectoryResolution {
+    let directory = LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
         directory: "/some/path".into(),
     });
     let name: PkgName = "acme".parse().expect("parse");
@@ -687,7 +687,7 @@ async fn planned_fetch_head_shortcut_skips_the_metadata_body() {
     let mut opts = default_opts(&registry);
     opts.minimum_release_age = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
-    let planned = pacquet_resolving_resolver_base::PlannedCanonicalFetches::default();
+    let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
     planned
         .set(std::collections::HashSet::from([("acme".to_string(), "1.0.0".to_string(), None)]))
         .expect("first fill");
@@ -717,7 +717,7 @@ async fn unplanned_entry_sends_no_head_probe() {
     let mut opts = default_opts(&registry);
     opts.minimum_release_age = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
-    let planned = pacquet_resolving_resolver_base::PlannedCanonicalFetches::default();
+    let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
     planned
         .set(std::collections::HashSet::from([("other".to_string(), "2.0.0".to_string(), None)]))
         .expect("first fill");

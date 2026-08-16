@@ -2,17 +2,17 @@ use std::{marker::PhantomData, path::Path};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{
+use pnpm_config::{
     Config,
     version_policy::{VersionPolicyError, merge_package_version_specs},
 };
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, PromptAction, PromptLog, Reporter};
-use pacquet_resolving_resolver_base::ResolutionPolicyViolation;
-use pacquet_workspace_manifest_writer::{
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, PromptAction, PromptLog, Reporter};
+use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
+use pnpm_workspace_manifest_writer::{
     UpdateWorkspaceManifestError, set_minimum_release_age_excludes,
 };
 
-use pacquet_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
+use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum MinimumReleaseAgeError {

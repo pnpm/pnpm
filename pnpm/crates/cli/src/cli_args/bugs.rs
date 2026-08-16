@@ -2,10 +2,10 @@ use std::path::Path;
 
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
-use pacquet_config::Config;
-use pacquet_network_web_auth::OpenUrl;
-use pacquet_package_manifest::safe_read_package_json_from_dir;
-use pacquet_registry::{PackageTag, PackageVersion};
+use pnpm_config::Config;
+use pnpm_network_web_auth::OpenUrl;
+use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_registry::{PackageTag, PackageVersion};
 use serde_json::Value;
 use url::Url;
 
@@ -55,7 +55,7 @@ impl BugsArgs {
                 let target_registry = if let Some(ref override_registry) = self.registry {
                     normalize_registry_url(override_registry)
                 } else {
-                    let picked = pacquet_resolving_npm_resolver::pick_registry_for_package(
+                    let picked = pnpm_resolving_npm_resolver::pick_registry_for_package(
                         &registries,
                         package_name,
                         Some(spec),
@@ -99,8 +99,8 @@ fn get_bugs_url_from_current_project(dir: &Path) -> miette::Result<String> {
 async fn get_bugs_url_from_registry(
     spec: &str,
     registry_url: &str,
-    http_client: &pacquet_network::ThrottledClient,
-    auth_headers: &pacquet_network::AuthHeaders,
+    http_client: &pnpm_network::ThrottledClient,
+    auth_headers: &pnpm_network::AuthHeaders,
 ) -> miette::Result<String> {
     let (package_name, tag) = parse_package_spec(spec);
     let package_tag = match tag {
@@ -117,13 +117,13 @@ async fn get_bugs_url_from_registry(
     .await
     .map_err(|err| {
         let (url, reason) = match err {
-            pacquet_registry::RegistryError::Network(net_err) => (
-                pacquet_network::redact_url_credentials(&net_err.url),
-                pacquet_network::redact_url_credentials(&net_err.error.to_string()),
+            pnpm_registry::RegistryError::Network(net_err) => (
+                pnpm_network::redact_url_credentials(&net_err.url),
+                pnpm_network::redact_url_credentials(&net_err.error.to_string()),
             ),
             other => (
-                pacquet_network::redact_url_credentials(registry_url),
-                pacquet_network::redact_url_credentials(&other.to_string()),
+                pnpm_network::redact_url_credentials(registry_url),
+                pnpm_network::redact_url_credentials(&other.to_string()),
             ),
         };
         BugsError::RegistryError { url, reason }
@@ -302,7 +302,7 @@ fn normalize_registry_url(url: &str) -> String {
 
 fn open_url<Sys: OpenUrl>(url: &str) {
     let sanitized = crate::cli_args::sanitize::sanitize(url);
-    let redacted = pacquet_network::redact_url_credentials(&sanitized);
+    let redacted = pnpm_network::redact_url_credentials(&sanitized);
     println!("{redacted}");
 
     // Clear username/password before passing to the browser:
@@ -321,7 +321,7 @@ fn open_url<Sys: OpenUrl>(url: &str) {
     let clean_url_for_browser = crate::cli_args::sanitize::sanitize(&clean_url_for_browser);
 
     if let Err(err) = Sys::open_url(&clean_url_for_browser) {
-        tracing::debug!(target: "pacquet_cli", %err, "could not open browser");
+        tracing::debug!(target: "pnpm_cli", %err, "could not open browser");
     }
 }
 

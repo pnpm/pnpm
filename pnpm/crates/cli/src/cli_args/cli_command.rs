@@ -80,15 +80,15 @@ use super::{
 use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_default_reporter::SummaryScope;
 use pipe_trait::Pipe;
+use pnpm_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
 /// Experimental package manager for node.js written in rust.
 #[derive(Debug, Parser)]
 #[clap(name = "pnpm")]
 #[clap(bin_name = "pnpm")]
-#[clap(version = pacquet_config::PNPM_VERSION)]
+#[clap(version = pnpm_config::PNPM_VERSION)]
 #[clap(disable_version_flag = true)]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {
@@ -289,7 +289,7 @@ impl CliArgs {
     /// lexical fallback, so an unresolvable `--dir` is not fatal.
     ///
     /// The fallback resolves `..` itself rather than leaving the components
-    /// in place. [`pacquet_workspace::find_workspace_dir`] walks ancestors
+    /// in place. [`pnpm_workspace::find_workspace_dir`] walks ancestors
     /// lexically, so a `--dir` that climbs out of the workspace and lands
     /// on a directory that does not exist — `../../elsewhere` — would
     /// otherwise walk right back up through its own `..` components and
@@ -304,8 +304,8 @@ impl CliArgs {
         let dir = dunce::canonicalize(&self.dir)
             .or_else(|_| std::path::absolute(&self.dir))
             .unwrap_or_else(|_| self.dir.clone())
-            .pipe_deref(pacquet_fs::lexical_normalize);
-        let workspace_dir = pacquet_workspace::find_workspace_dir(&dir)
+            .pipe_deref(pnpm_fs::lexical_normalize);
+        let workspace_dir = pnpm_workspace::find_workspace_dir(&dir)
             .map_err(WorkspaceRootError::FindWorkspaceDir)?
             .ok_or(WorkspaceRootError::NotInWorkspace)?;
         self.dir = workspace_dir;
@@ -317,7 +317,7 @@ impl CliArgs {
     pub fn promote_recursive_by_default(&mut self) {
         if !self.recursive
             && self.command.recursive_by_default()
-            && pacquet_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
+            && pnpm_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
         {
             self.recursive = true;
         }
@@ -398,7 +398,7 @@ pub enum WorkspaceRootError {
     NotInWorkspace,
 
     #[diagnostic(transparent)]
-    FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
+    FindWorkspaceDir(#[error(source)] pnpm_workspace::FindWorkspaceDirError),
 }
 
 #[derive(Debug, Subcommand)]

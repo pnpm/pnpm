@@ -59,7 +59,7 @@ async fn main() {
         && matches!(registry_mode, RegistryMode::Verdaccio)
         && (registry_latency_ms > 0 || registry_rate_limit.is_some());
     let spawned_registry_port = if proxy_spawned_registry {
-        pacquet_registry_mock::pick_unused_port()
+        pnpm_registry_mock::pick_unused_port()
             .expect("pick an unused port for the registry upstream")
     } else {
         registry_port
@@ -76,7 +76,7 @@ async fn main() {
             matches!(registry_mode, RegistryMode::Verdaccio),
             "the peer-heavy benchmark requires --registry=verdaccio",
         );
-        work_env::seed_peer_heavy_registry(pacquet_registry_mock::runtime_storage());
+        work_env::seed_peer_heavy_registry(pnpm_registry_mock::runtime_storage());
     }
 
     let verdaccio = if build_only {
@@ -87,7 +87,7 @@ async fn main() {
                 verify::ensure_program("just")
                     .arg("install")
                     .pipe(verify::executor("just install"));
-                pacquet_registry_mock::MockInstanceOptions {
+                pnpm_registry_mock::MockInstanceOptions {
                     client: &reqwest::Client::default(),
                     port: spawned_registry_port,
                     public_url: proxy_spawned_registry.then_some(registry_public_url.as_str()),

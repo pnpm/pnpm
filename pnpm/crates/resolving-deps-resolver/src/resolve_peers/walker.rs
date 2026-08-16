@@ -27,11 +27,11 @@ use crate::{
         AncestorIds, ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
     },
 };
-use pacquet_deps_path::{
+use pnpm_deps_path::{
     DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
     link_path_to_peer_version,
 };
-use pacquet_resolving_resolver_base::get_peer_version_range;
+use pnpm_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 

@@ -1,11 +1,11 @@
 use super::script_thread_count;
-use pacquet_config::Config;
+use pnpm_config::Config;
 
 /// A [`Config`] pinned to the project-local virtual store.
 ///
 /// The pin is what keeps a test's installs inside its own tempdir. A
 /// [`Config`] built here has never been through
-/// [`Config::current`](pacquet_config::Config::current), so assigning
+/// [`Config::current`](pnpm_config::Config::current), so assigning
 /// `store_dir` does not re-derive `global_virtual_store_dir` with it:
 /// that field still names the *machine's* store. On the shipped default
 /// — the shared store — an install through such a config would leave

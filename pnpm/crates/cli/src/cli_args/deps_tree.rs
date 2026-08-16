@@ -18,7 +18,7 @@ pub(crate) mod pkg_info;
 pub(crate) mod render;
 pub(crate) mod search;
 
-use pacquet_lockfile::PkgNameVerPeer;
+use pnpm_lockfile::PkgNameVerPeer;
 
 /// Cap on every recursive walk over the dependency graph. The cycle
 /// guards bound the *output*, not the recursion depth, so a hostile
@@ -97,7 +97,7 @@ pub(crate) fn peers_suffix_hash(dep_path: &PkgNameVerPeer) -> Option<String> {
     if peer.is_empty() {
         return None;
     }
-    let mut hex = pacquet_crypto_hash::create_hex_hash(peer);
+    let mut hex = pnpm_crypto_hash::create_hex_hash(peer);
     hex.truncate(4);
     Some(hex)
 }

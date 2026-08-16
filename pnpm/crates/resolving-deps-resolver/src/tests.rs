@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Mutex, time::Duration};
 
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
     Resolver, WantedDependency,
 };
@@ -321,7 +321,7 @@ async fn same_depth_occurrences_are_settled_by_parent_path() {
 }
 
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
-    use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
     let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),
@@ -652,8 +652,8 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
 /// `link:<rel-path>` with no peer-graph suffix.
 #[tokio::test]
 async fn workspace_link_node_is_short_circuited_in_tree() {
-    use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-    use pacquet_resolving_resolver_base::PkgResolutionId;
+    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_resolving_resolver_base::PkgResolutionId;
 
     let link_id = "link:../shared";
     let mut table = HashMap::default();
@@ -802,8 +802,8 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
 mod block_exotic_subdeps {
     use std::{collections::HashMap, sync::Mutex};
 
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_resolving_resolver_base::ResolveOptions;
 
     use super::{StubResolver, fake_manifest, fake_result};
     use crate::resolve_dependency_tree::{
@@ -814,7 +814,7 @@ mod block_exotic_subdeps {
         name: &str,
         version: &str,
         manifest: serde_json::Value,
-    ) -> pacquet_resolving_resolver_base::ResolveResult {
+    ) -> pnpm_resolving_resolver_base::ResolveResult {
         let mut result = fake_result(name, version, manifest);
         result.resolved_via = "git-repository".to_string();
         result
@@ -1007,8 +1007,8 @@ mod block_exotic_subdeps {
 mod peers {
     use std::{collections::HashMap, sync::Mutex};
 
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_resolving_resolver_base::ResolveOptions;
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
@@ -1016,7 +1016,7 @@ mod peers {
         resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree},
         resolve_peers::{ResolvePeersOptions, resolve_peers},
     };
-    use pacquet_deps_path::DepPath;
+    use pnpm_deps_path::DepPath;
 
     #[tokio::test]
     async fn pure_package_has_dep_path_equal_to_pkg_id() {
@@ -2418,8 +2418,8 @@ mod peers {
     /// slice.
     #[tokio::test]
     async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
-        use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-        use pacquet_resolving_resolver_base::PkgResolutionId;
+        use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+        use pnpm_resolving_resolver_base::PkgResolutionId;
 
         let link_id = "link:/abs/external";
         let mut table = HashMap::default();
@@ -2441,7 +2441,7 @@ mod peers {
         // read from the manifest, not the id).
         table.insert(
             ("peer-a".to_string(), "link:/abs/external".to_string()),
-            pacquet_resolving_resolver_base::ResolveResult {
+            pnpm_resolving_resolver_base::ResolveResult {
                 id: PkgResolutionId::from(link_id.to_string()),
                 name_ver: None,
                 latest: None,
@@ -2518,9 +2518,9 @@ mod patched_dependencies {
         sync::{Arc, Mutex},
     };
 
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
-    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
+    use pnpm_resolving_resolver_base::ResolveOptions;
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
@@ -2530,7 +2530,7 @@ mod patched_dependencies {
         },
         resolve_peers::{ResolvePeersOptions, resolve_peers},
     };
-    use pacquet_deps_path::DepPath;
+    use pnpm_deps_path::DepPath;
 
     fn exact_group(version: &str, key: &str, hash: &str) -> PatchGroup {
         let info = ExtendedPatchInfo {
@@ -3049,7 +3049,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             true,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("foo".to_string(), "workspace:*".to_string(), false, false)]);
@@ -3064,7 +3064,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             true,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("peer-only".to_string(), "^2.0.0".to_string(), false, false)]);
@@ -3080,7 +3080,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             false,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("regular".to_string(), "^1.0.0".to_string(), false, false)]);
@@ -3096,7 +3096,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             false,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("foo".to_string(), "^2.0.0".to_string(), true, false)]);
@@ -3117,7 +3117,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             false,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("foo".to_string(), "1.0.0".to_string(), false, false)]);
@@ -3142,7 +3142,7 @@ mod peer_own_dep_shadowing {
         }
     }
 
-    fn parser_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult> {
+    fn parser_table() -> HashMap<(String, String), pnpm_resolving_resolver_base::ResolveResult> {
         let mut table = HashMap::default();
         table.insert(
             ("parser".to_string(), "^1.0.0".to_string()),
@@ -3170,8 +3170,7 @@ mod peer_own_dep_shadowing {
 
     /// [`parser_table`] plus the higher `types` an importer can hold as
     /// a direct dependency of its own.
-    fn shadowing_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult>
-    {
+    fn shadowing_table() -> HashMap<(String, String), pnpm_resolving_resolver_base::ResolveResult> {
         let mut table = parser_table();
         table.insert(
             ("types".to_string(), "^2.0.0".to_string()),
@@ -3327,8 +3326,8 @@ mod peer_own_dep_shadowing {
 mod level_preferred_versions {
     use super::{HashMap, Mutex, fake_manifest, fake_result};
     use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::{
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_resolving_resolver_base::{
         LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
         ResolveResult, Resolver, WantedDependency,
     };
@@ -3590,19 +3589,19 @@ mod cycle_edges {
 /// The `(name, dir)` pairs recorded by [`RecordingHooks`].
 type RecordedReadPackageCalls = std::sync::Arc<Mutex<Vec<(String, Option<String>)>>>;
 
-/// [`pacquet_hooks::PnpmfileHooks`] stub that records the `(name, dir)` pair
+/// [`pnpm_hooks::PnpmfileHooks`] stub that records the `(name, dir)` pair
 /// of every `read_package` call and returns the manifest unchanged.
 struct RecordingHooks {
     calls: RecordedReadPackageCalls,
 }
 
 #[async_trait::async_trait]
-impl pacquet_hooks::PnpmfileHooks for RecordingHooks {
+impl pnpm_hooks::PnpmfileHooks for RecordingHooks {
     async fn read_package(
         &self,
         pkg: serde_json::Value,
-        ctx: pacquet_hooks::HookContext,
-    ) -> Result<pacquet_hooks::ReadPackageResult, pacquet_hooks::HookError> {
+        ctx: pnpm_hooks::HookContext,
+    ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
         let name = pkg.get("name").and_then(|name| name.as_str()).unwrap_or_default().to_string();
         self.calls.lock().unwrap().push((name, ctx.dir));
         Ok(std::sync::Arc::new(pkg))
@@ -3611,19 +3610,19 @@ impl pacquet_hooks::PnpmfileHooks for RecordingHooks {
     async fn after_all_resolved(
         &self,
         lockfile: serde_json::Value,
-        _ctx: pacquet_hooks::HookContext,
-    ) -> Result<serde_json::Value, pacquet_hooks::HookError> {
+        _ctx: pnpm_hooks::HookContext,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
         Ok(lockfile)
     }
 
     async fn pre_resolution(
         &self,
-        _ctx: pacquet_hooks::PreResolutionHookContext,
-        _logger: pacquet_hooks::PreResolutionHookLogger,
+        _ctx: pnpm_hooks::PreResolutionHookContext,
+        _logger: pnpm_hooks::PreResolutionHookLogger,
     ) {
     }
 
-    async fn filter_log(&self, _log: serde_json::Value, _ctx: pacquet_hooks::HookContext) -> bool {
+    async fn filter_log(&self, _log: serde_json::Value, _ctx: pnpm_hooks::HookContext) -> bool {
         true
     }
 }
@@ -3632,7 +3631,7 @@ impl pacquet_hooks::PnpmfileHooks for RecordingHooks {
 /// instance apart from registry packages and substitute its raw manifest.
 #[tokio::test]
 async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
-    use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
 
     let mut injected = fake_result(
         "injected",
@@ -3688,7 +3687,7 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
     );
 }
 
-/// [`pacquet_hooks::PnpmfileHooks`] stub whose `readPackage` replaces every
+/// [`pnpm_hooks::PnpmfileHooks`] stub whose `readPackage` replaces every
 /// manifest wholesale, the way an embedder substitutes a workspace project's
 /// raw manifest.
 struct ReplacingHook {
@@ -3696,31 +3695,31 @@ struct ReplacingHook {
 }
 
 #[async_trait::async_trait]
-impl pacquet_hooks::PnpmfileHooks for ReplacingHook {
+impl pnpm_hooks::PnpmfileHooks for ReplacingHook {
     async fn read_package(
         &self,
         _pkg: serde_json::Value,
-        _ctx: pacquet_hooks::HookContext,
-    ) -> Result<pacquet_hooks::ReadPackageResult, pacquet_hooks::HookError> {
+        _ctx: pnpm_hooks::HookContext,
+    ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
         Ok(std::sync::Arc::new(self.replacement.clone()))
     }
 
     async fn after_all_resolved(
         &self,
         _lockfile: serde_json::Value,
-        _ctx: pacquet_hooks::HookContext,
-    ) -> Result<serde_json::Value, pacquet_hooks::HookError> {
+        _ctx: pnpm_hooks::HookContext,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
         Ok(serde_json::Value::Null)
     }
 
     async fn pre_resolution(
         &self,
-        _ctx: pacquet_hooks::PreResolutionHookContext,
-        _logger: pacquet_hooks::PreResolutionHookLogger,
+        _ctx: pnpm_hooks::PreResolutionHookContext,
+        _logger: pnpm_hooks::PreResolutionHookLogger,
     ) {
     }
 
-    async fn filter_log(&self, _log: serde_json::Value, _ctx: pacquet_hooks::HookContext) -> bool {
+    async fn filter_log(&self, _log: serde_json::Value, _ctx: pnpm_hooks::HookContext) -> bool {
         true
     }
 }

@@ -5,8 +5,8 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::Config;
-use pacquet_network::{RetryOpts, redact_and_sanitize, send_with_retry};
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, redact_and_sanitize, send_with_retry};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

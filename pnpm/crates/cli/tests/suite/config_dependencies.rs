@@ -2,13 +2,13 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_config::WorkspaceSettings;
-use pacquet_lockfile::EnvLockfile;
-use pacquet_modules_yaml::{Host, NodeLinker, read_modules_manifest};
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_config::WorkspaceSettings;
+use pnpm_lockfile::EnvLockfile;
+use pnpm_modules_yaml::{Host, NodeLinker, read_modules_manifest};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 #[cfg(unix)]
-use pacquet_testing_utils::fs::is_symlink_or_junction;
-use pacquet_workspace_state::ConfigDependency;
+use pnpm_testing_utils::fs::is_symlink_or_junction;
+use pnpm_workspace_state::ConfigDependency;
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -276,7 +276,7 @@ fn update_config_observes_and_can_replace_the_cli_store_dir() {
         .expect("read store observed by updateConfig");
     assert_eq!(observed, "cli-store");
 
-    let modules = pacquet_modules_yaml::read_modules_layout::<pacquet_modules_yaml::Host>(
+    let modules = pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(
         &workspace.join("node_modules"),
     )
     .expect("read .modules.yaml")

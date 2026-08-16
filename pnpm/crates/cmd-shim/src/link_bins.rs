@@ -12,7 +12,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_package_manifest::parse_manifest_bytes;
+use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{

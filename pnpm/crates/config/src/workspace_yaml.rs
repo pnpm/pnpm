@@ -9,11 +9,11 @@ use crate::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_env_replace::env_replace_lossy;
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_store_dir::StoreDir;
-use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
+use pnpm_env_replace::env_replace_lossy;
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_store_dir::StoreDir;
+use pnpm_workspace_state::ConfigDependency;
 use serde::{Deserialize, Deserializer};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -244,7 +244,7 @@ pub struct WorkspaceSettings {
     /// Map of `name[@version]` → patch-file path (relative to the
     /// workspace dir or absolute). Read verbatim; relative-path
     /// resolution, file hashing, and grouping are deferred to
-    /// [`pacquet_patching::resolve_and_group`] so the yaml layer
+    /// [`pnpm_patching::resolve_and_group`] so the yaml layer
     /// stays pure data.
     ///
     /// [`IndexMap`] (not [`BTreeMap`]) — pnpm's JS-object iteration
@@ -395,7 +395,7 @@ pub struct WorkspaceSettings {
     /// on a non-matching host. Per-axis CLI flags (`--cpu`, `--libc`,
     /// `--os`) override individual axes.
     /// Read from yaml verbatim (no `current` substitution here — that
-    /// happens at the [`pacquet_package_is_installable::check_platform`]
+    /// happens at the [`pnpm_package_is_installable::check_platform`]
     /// call site where the host triple is in scope).
     pub supported_architectures: Option<SupportedArchitectures>,
 
@@ -412,7 +412,7 @@ pub struct WorkspaceSettings {
     /// during install (both direct manifests and transitive
     /// packuments). Outer key encodes the override scope (bare name,
     /// `name@range`, or `parent>child` forms — see
-    /// `pacquet_config_parse_overrides`); value is the replacement
+    /// `pnpm_config_parse_overrides`); value is the replacement
     /// spec, or `-` to delete the dep entirely.
     ///
     /// Values are validated as strings at load time
@@ -427,7 +427,7 @@ pub struct WorkspaceSettings {
     ///
     /// Lockfile drift: the raw map is recorded in `pnpm-lock.yaml`'s
     /// `overrides:` field. On a subsequent install,
-    /// `pacquet_lockfile::check_lockfile_settings` compares this
+    /// `pnpm_lockfile::check_lockfile_settings` compares this
     /// against `lockfile.overrides` and raises `OverridesChanged`
     /// on mismatch.
     pub overrides: Option<IndexMap<String, String>>,
@@ -499,7 +499,7 @@ pub struct WorkspaceSettings {
     /// `versioning` from `pnpm-workspace.yaml`: native workspace release
     /// management (fixed groups, ignore list, maxBump cap, per-package
     /// prerelease lines, changelog settings).
-    pub versioning: Option<pacquet_versioning::VersioningSettings>,
+    pub versioning: Option<pnpm_versioning::VersioningSettings>,
 
     /// `trustPolicyExclude` from `pnpm-workspace.yaml`.
     pub trust_policy_exclude: Option<Vec<String>>,
@@ -694,7 +694,7 @@ pub struct PeerDependencyRules {
 ///
 /// Read directly from yaml — no validation here beyond serde's shape
 /// check. The hook
-/// (`pacquet_package_manager::PackageExtender`) merges these onto
+/// (`pnpm_package_manager::PackageExtender`) merges these onto
 /// manifests, with the manifest's own fields taking precedence on
 /// conflict so the extension never overwrites a value the package
 /// already declared.
@@ -778,7 +778,7 @@ pub enum LoadWorkspaceYamlError {
     #[display("Failed to read the root package.json: {source}")]
     ReadRootManifest {
         #[error(source)]
-        source: Box<pacquet_package_manifest::PackageManifestError>,
+        source: Box<pnpm_package_manifest::PackageManifestError>,
     },
     /// An `overrides` value used the `$dep-name` self-reference syntax,
     /// but the root manifest declares no such direct dependency.
@@ -1307,7 +1307,7 @@ impl WorkspaceSettings {
     /// see the [`crate::proxy_keys`] module docs.
     pub(crate) fn apply_proxy_to(
         &self,
-        proxy_config: &mut pacquet_network::ProxyConfig,
+        proxy_config: &mut pnpm_network::ProxyConfig,
         keys: &mut ProxyKeys,
     ) {
         for (key, raw) in [

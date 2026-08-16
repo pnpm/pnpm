@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use pacquet_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
+use pnpm_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
 
 use crate::{
     parse_bare_specifier::{

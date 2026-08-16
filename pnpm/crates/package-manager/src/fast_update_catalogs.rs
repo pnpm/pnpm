@@ -1,6 +1,6 @@
 use node_semver::{Range, Version};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_lockfile::{Lockfile, PkgName};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_lockfile::{Lockfile, PkgName};
 use std::collections::BTreeMap;
 
 pub(crate) enum FastCatalogUpdate {
@@ -53,7 +53,7 @@ pub(crate) fn try_fast_update_catalogs(
             changed = true;
             updated_entries.insert(
                 alias.clone(),
-                pacquet_lockfile::ResolvedCatalogEntry {
+                pnpm_lockfile::ResolvedCatalogEntry {
                     specifier: specifier.clone(),
                     version: entry.version.clone(),
                 },
@@ -120,7 +120,7 @@ pub(crate) fn catalog_entry_is_referenced(
         .flatten()
         .any(|dependencies| {
             dependencies.get(&alias).is_some_and(|dependency| {
-                pacquet_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
+                pnpm_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
                     == Some(catalog_name)
             })
         })

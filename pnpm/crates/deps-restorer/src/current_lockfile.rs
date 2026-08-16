@@ -21,8 +21,8 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_lockfile::{Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap};
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_lockfile::{Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::SkippedSnapshots;
 
@@ -34,7 +34,7 @@ pub struct MaterializationClosure {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum MergeFilteredWantedLockfileError {
     #[display("fresh lockfile is missing importer {importer_id}")]
-    #[diagnostic(code(pacquet_package_manager::missing_fresh_lockfile_importer))]
+    #[diagnostic(code(pnpm_package_manager::missing_fresh_lockfile_importer))]
     MissingImporter {
         #[error(not(source))]
         importer_id: String,
@@ -314,8 +314,8 @@ fn overlay_package_maps<Value: Clone>(
 fn lockfile_with_graph(
     source: &Lockfile,
     importers: HashMap<String, ProjectSnapshot>,
-    packages: Option<HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
-    snapshots: Option<HashMap<PackageKey, pacquet_lockfile::SnapshotEntry>>,
+    packages: Option<HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
+    snapshots: Option<HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>>,
 ) -> Lockfile {
     Lockfile {
         lockfile_version: source.lockfile_version,
@@ -425,9 +425,7 @@ where
     known_importer_ids.sort();
     let known_importers = known_importer_ids
         .into_iter()
-        .map(|id| {
-            (pacquet_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)), id)
-        })
+        .map(|id| (pnpm_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)), id))
         .collect::<HashMap<_, _>>();
     let mut importer_ids = HashSet::new();
     let mut snapshot_keys = HashSet::new();
@@ -520,9 +518,9 @@ fn linked_importer_id(
 ) -> Option<String> {
     let target = Path::new(target);
     let resolved = if target.is_absolute() {
-        pacquet_fs::lexical_normalize(target)
+        pnpm_fs::lexical_normalize(target)
     } else {
-        pacquet_fs::lexical_normalize(&base.join(target))
+        pnpm_fs::lexical_normalize(&base.join(target))
     };
     known_importers.get(&resolved).cloned()
 }

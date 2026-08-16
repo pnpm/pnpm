@@ -2,7 +2,7 @@ use super::{
     infer_local_package_alias, is_windows_drive_path, replacement_aliases, resolve_local_param,
     should_replace_existing_package, split_comma_separated,
 };
-use pacquet_global::GlobalPackageInfo;
+use pnpm_global::GlobalPackageInfo;
 use std::path::{Path, PathBuf};
 
 #[test]

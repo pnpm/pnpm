@@ -1,8 +1,8 @@
 use super::{DirectByImporter, dedupe_injected_deps};
 use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
-use pacquet_deps_path::DepPath;
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_deps_path::DepPath;
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::FxHashSet as HashSet;
 use std::{collections::BTreeMap, path::PathBuf};
 

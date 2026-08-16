@@ -2,7 +2,7 @@
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
-use pacquet_store_dir::{StoreIndexError, WriteCasFileError};
+use pnpm_store_dir::{StoreIndexError, WriteCasFileError};
 use std::path::PathBuf;
 use zune_inflate::errors::InflateDecodeErrors;
 

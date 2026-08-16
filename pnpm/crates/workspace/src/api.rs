@@ -2,7 +2,7 @@
 //!
 //! Each crate that needs to thread a side-effecting capability through
 //! a generic seam declares its own capability traits and its own
-//! `Host` provider; this is the one for `pacquet-workspace`.
+//! `Host` provider; this is the one for `pnpm-workspace`.
 //! Production callers turbofish [`Host`] explicitly; tests substitute
 //! a per-test unit struct that implements only the bounds the
 //! function under test declares.

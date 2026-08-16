@@ -10,30 +10,30 @@ use crate::{
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::NodeLinker;
-use pacquet_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
-use pacquet_lockfile_verification::{lockfile_verification_is_cached, record_lockfile_verified};
-use pacquet_modules_yaml::IncludedDependencies;
-use pacquet_package_manager::{
+use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::NodeLinker;
+use pnpm_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
+use pnpm_lockfile_verification::{lockfile_verification_is_cached, record_lockfile_verified};
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manager::{
     Install, InstallFrozenLockfileError, LockfileVerificationOverride, ProjectMutation,
     SkippedSnapshots, TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy,
     WantedLockfileSatisfactionCheck, WorkspaceInstallSelection, build_resolution_verifiers,
     install_already_up_to_date, materialization_closure, merge_filtered_wanted_lockfile,
     wanted_lockfile_satisfies_workspace,
 };
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_pnpr_client::{
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_pnpr_client::{
     PnprClient, PnprClientError, ResolveProject, ResolveProjectsOptions, VerifyLockfileOptions,
 };
-use pacquet_reporter::Reporter;
+use pnpm_reporter::Reporter;
 
 const BENCHMARK_PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 const BENCHMARK_PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";
 
 /// `--node-linker` value parser. CLI mirror of
-/// [`pacquet_config::NodeLinker`] so the config crate stays free
+/// [`pnpm_config::NodeLinker`] so the config crate stays free
 /// of `clap` as a dependency. Converted to the canonical enum at
 /// the CLI/Install boundary via [`Self::into_config`].
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -317,8 +317,8 @@ impl InstallArgs {
     pub fn finished_via_up_to_date_fast_path(
         &self,
         dir: &std::path::Path,
-        config: &pacquet_config::Config,
-        emit: fn(&pacquet_reporter::LogEvent),
+        config: &pnpm_config::Config,
+        emit: fn(&pnpm_reporter::LogEvent),
     ) -> bool {
         if self.effective_frozen_lockfile(config)
             || self.lockfile_only
@@ -338,15 +338,14 @@ impl InstallArgs {
             return false;
         }
         let config_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        if pacquet_hooks::finder::find_pnpmfile(&config_root).is_some() {
+        if pnpm_hooks::finder::find_pnpmfile(&config_root).is_some() {
             return false;
         }
         let manifest_path = dir.join("package.json");
         if !manifest_path.is_file() {
             return false;
         }
-        let Ok(manifest) = pacquet_package_manifest::PackageManifest::from_path(manifest_path)
-        else {
+        let Ok(manifest) = pnpm_package_manifest::PackageManifest::from_path(manifest_path) else {
             return false;
         };
         let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
@@ -370,8 +369,8 @@ impl InstallArgs {
         // The scope covers the same projects the full install path would
         // report; an up-to-date run says so too rather than going quiet
         // about what it just decided was current.
-        emit(&pacquet_reporter::LogEvent::Scope(pacquet_reporter::ScopeLog {
-            level: pacquet_reporter::LogLevel::Debug,
+        emit(&pnpm_reporter::LogEvent::Scope(pnpm_reporter::ScopeLog {
+            level: pnpm_reporter::LogLevel::Debug,
             selected: up_to_date.project_count.unwrap_or(1),
             total: up_to_date.project_count,
             workspace_prefix: config
@@ -380,13 +379,13 @@ impl InstallArgs {
                 .map(|dir| dir.to_string_lossy().into_owned()),
         }));
         let prefix = up_to_date.root.to_string_lossy().into_owned();
-        emit(&pacquet_reporter::LogEvent::Pnpm(pacquet_reporter::PnpmLog {
-            level: pacquet_reporter::LogLevel::Info,
+        emit(&pnpm_reporter::LogEvent::Pnpm(pnpm_reporter::PnpmLog {
+            level: pnpm_reporter::LogLevel::Info,
             message: "Already up to date".to_string(),
             prefix: prefix.clone(),
         }));
-        emit(&pacquet_reporter::LogEvent::Summary(pacquet_reporter::SummaryLog {
-            level: pacquet_reporter::LogLevel::Debug,
+        emit(&pnpm_reporter::LogEvent::Summary(pnpm_reporter::SummaryLog {
+            level: pnpm_reporter::LogLevel::Debug,
             prefix,
         }));
         true
@@ -394,11 +393,11 @@ impl InstallArgs {
 
     /// `--frozen-lockfile` / `--no-frozen-lockfile` layered over the
     /// `frozenLockfile` setting.
-    pub(crate) fn effective_frozen_lockfile(&self, config: &pacquet_config::Config) -> bool {
+    pub(crate) fn effective_frozen_lockfile(&self, config: &pnpm_config::Config) -> bool {
         self.configured_frozen_lockfile(config).unwrap_or(false)
     }
 
-    fn configured_frozen_lockfile(&self, config: &pacquet_config::Config) -> Option<bool> {
+    fn configured_frozen_lockfile(&self, config: &pnpm_config::Config) -> Option<bool> {
         if self.frozen_lockfile {
             Some(true)
         } else if self.no_frozen_lockfile {
@@ -620,8 +619,7 @@ fn workspace_install_selection(
 /// already resolved from the CLI flags + config by [`InstallArgs::run`].
 pub(crate) struct PnprLink<'a> {
     pub(crate) dependency_groups: Vec<DependencyGroup>,
-    pub(crate) supported_architectures:
-        Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub(crate) supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     pub(crate) node_linker: NodeLinker,
     pub(crate) skip_runtimes: bool,
     /// Governs the *server's* resolution behavior (frozen vs
@@ -689,7 +687,7 @@ struct DryRunIncompatibleWithPnpr;
 
 fn resolve_project(
     dir: String,
-    manifest: &pacquet_package_manifest::PackageManifest,
+    manifest: &pnpm_package_manifest::PackageManifest,
 ) -> ResolveProject {
     ResolveProject {
         dir,
@@ -773,7 +771,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             .projects
             .iter()
             .map(|project| {
-                pacquet_workspace::importer_id_from_root_dir(
+                pnpm_workspace::importer_id_from_root_dir(
                     &selection.workspace_root,
                     &project.root_dir,
                 )
@@ -783,7 +781,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             .selected_dirs
             .iter()
             .map(|project_dir| {
-                pacquet_workspace::importer_id_from_root_dir(&selection.workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(&selection.workspace_root, project_dir)
             })
             .collect();
         (real_importer_ids, selected_importer_ids)
@@ -1242,7 +1240,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
 }
 
 /// The catalogs the pnpr server resolves `catalog:` specifiers against,
-/// picked the same way [`pacquet_package_manager::Install`] picks them:
+/// picked the same way [`pnpm_package_manager::Install`] picks them:
 /// an `updateConfig` pnpmfile hook's complete set when it produced one,
 /// otherwise the raw workspace-manifest read. `None` when the workspace
 /// defines none, which keeps the field off the request entirely.
@@ -1254,7 +1252,7 @@ fn pnpr_catalogs(state: &State) -> miette::Result<Option<Catalogs>> {
         state.manifest.path().parent().expect("manifest path always has a parent dir")
     });
     let workspace_manifest =
-        pacquet_workspace::read_workspace_manifest(workspace_root).into_diagnostic()?;
+        pnpm_workspace::read_workspace_manifest(workspace_root).into_diagnostic()?;
     let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
         .into_diagnostic()
         .wrap_err("reading catalogs to forward to the pnpr server")?;
@@ -1281,13 +1279,13 @@ fn resolve_projects_for_pnpr(
 
 fn resolve_workspace_projects(
     workspace_root: &std::path::Path,
-    projects: &[pacquet_workspace::Project],
+    projects: &[pnpm_workspace::Project],
 ) -> Vec<ResolveProject> {
     projects
         .iter()
         .map(|project| {
             resolve_project(
-                pacquet_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir),
+                pnpm_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir),
                 &project.manifest,
             )
         })

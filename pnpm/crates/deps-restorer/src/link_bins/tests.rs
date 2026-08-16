@@ -2,8 +2,8 @@ use super::{
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, build_has_bin_set, link_direct_dep_bins,
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pacquet_cmd_shim::is_shim_pointing_at;
-use pacquet_lockfile::{
+use pnpm_cmd_shim::is_shim_pointing_at;
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PackageMetadata, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
     VariationsResolution,
@@ -50,7 +50,7 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
             virtual_dir,
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
         packages: None,
@@ -103,7 +103,7 @@ fn skips_slot_own_package_when_walking_children() {
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
             virtual_dir,
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
         packages: None,
@@ -132,7 +132,7 @@ fn link_virtual_store_bins_no_op_when_dir_missing() {
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
             nonexistent,
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
         packages: None,
@@ -174,7 +174,7 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
             virtual_dir,
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
         packages: None,
@@ -197,7 +197,7 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
 /// never get linked.
 ///
 /// Slot name shape verified against
-/// `pacquet_lockfile::pkg_name_ver_peer::tests::to_virtual_store_name`.
+/// `pnpm_lockfile::pkg_name_ver_peer::tests::to_virtual_store_name`.
 #[test]
 fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
     let tmp = tempdir().unwrap();
@@ -228,7 +228,7 @@ fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
             virtual_dir,
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
         packages: None,
@@ -282,7 +282,7 @@ fn link_virtual_store_bins_handles_unscoped_name_with_plus() {
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
             virtual_dir,
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
         packages: None,
@@ -311,7 +311,7 @@ fn link_virtual_store_bins_skips_slot_without_node_modules() {
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
             virtual_dir,
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
         packages: None,
@@ -342,7 +342,7 @@ fn link_virtual_store_bins_skips_slot_without_own_package_dir() {
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
             virtual_dir,
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
         packages: None,
@@ -377,7 +377,7 @@ fn link_direct_dep_bins_writes_shims_for_each_dep() {
 
 /// [`link_direct_dep_bins`] with no deps is a no-op. It must not even
 /// create the `.bin` directory. Mirrors the early-return of
-/// [`pacquet_cmd_shim::link_bins_of_packages`].
+/// [`pnpm_cmd_shim::link_bins_of_packages`].
 #[test]
 fn link_direct_dep_bins_no_op_for_empty_dep_list() {
     let tmp = tempdir().unwrap();
@@ -410,7 +410,7 @@ fn link_direct_dep_bins_follows_symlink_to_real_package() {
     // CI runners), so the test would fail there even though production
     // never hits that code path.
     let symlink = modules.join("foo");
-    pacquet_fs::symlink_dir(&real_pkg, &symlink).unwrap();
+    pnpm_fs::symlink_dir(&real_pkg, &symlink).unwrap();
 
     link_direct_dep_bins(&modules, &["foo".to_string()], &[]).unwrap();
 
@@ -436,7 +436,7 @@ fn link_direct_dep_bins_skips_dep_with_missing_manifest() {
 /// [`LinkVirtualStoreBinsError::ReadVirtualStore`] variant.
 #[test]
 fn link_virtual_store_bins_propagates_read_error_via_di() {
-    use pacquet_cmd_shim::{
+    use pnpm_cmd_shim::{
         FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
         FsSetExecutable, FsWalkFiles, FsWrite,
     };
@@ -497,7 +497,7 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
     let err = LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
             PathBuf::from("/anything"),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
         packages: None,

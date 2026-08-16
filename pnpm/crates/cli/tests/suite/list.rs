@@ -1,6 +1,6 @@
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, fs, path::Path, process::Command};
 
@@ -358,7 +358,7 @@ const PKG: &str = "@pnpm.e2e/pkg-with-1-dep";
 const LEGEND: &str = "Legend: production dependency, optional only, dev only";
 
 fn setup_registry()
--> (tempfile::TempDir, std::path::PathBuf, pacquet_testing_utils::bin::AddMockedRegistry) {
+-> (tempfile::TempDir, std::path::PathBuf, pnpm_testing_utils::bin::AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     (root, workspace, npmrc_info)

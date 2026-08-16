@@ -13,7 +13,7 @@
 //! host's archive URL (a `gitHosted: true` tarball resolution), while a
 //! `file:` repo has no archive endpoint and resolves to `type: git`.
 //! The host-archive shape is pinned at the resolver level in
-//! `pacquet-resolving-git-resolver`.
+//! `pnpm-resolving-git-resolver`.
 
 use crate::_utils;
 
@@ -21,8 +21,8 @@ use std::{fmt::Write as _, fs, path::Path, process::Command};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::{Lockfile, LockfileResolution};
-use pacquet_testing_utils::{bin::CommandTempCwd, git_repo::GitRepoFixture};
+use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_testing_utils::{bin::CommandTempCwd, git_repo::GitRepoFixture};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 
@@ -82,7 +82,7 @@ fn write_dependencies(project: &Path, deps: &[(&str, &str)]) {
 fn sole_package<'a>(
     lockfile: &'a Lockfile,
     name: &str,
-) -> (String, &'a pacquet_lockfile::PackageMetadata) {
+) -> (String, &'a pnpm_lockfile::PackageMetadata) {
     let prefix = format!("{name}@");
     let mut matches = lockfile
         .packages
@@ -97,7 +97,7 @@ fn sole_package<'a>(
 }
 
 /// The `type: git` resolution of the lone `packages:` entry for `name`.
-fn git_resolution<'a>(lockfile: &'a Lockfile, name: &str) -> &'a pacquet_lockfile::GitResolution {
+fn git_resolution<'a>(lockfile: &'a Lockfile, name: &str) -> &'a pnpm_lockfile::GitResolution {
     match &sole_package(lockfile, name).1.resolution {
         LockfileResolution::Git(git) => git,
         other => panic!("expected a git resolution for {name}, got {other:?}"),
@@ -664,7 +664,7 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
     pacquet.with_args(["add", "@pnpm.e2e/has-aliased-git-dependency"]).assert().success();
 
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
-    let parent: pacquet_lockfile::PkgNameVerPeer =
+    let parent: pnpm_lockfile::PkgNameVerPeer =
         "@pnpm.e2e/has-aliased-git-dependency@1.0.0".parse().expect("parse parent key");
     let snapshot = &lockfile.snapshots.as_ref().expect("lockfile has snapshots")[&parent];
     assert_eq!(
@@ -817,8 +817,8 @@ fn a_git_dependency_is_indexed_under_the_bare_resolution_id() {
 
     pacquet.with_args(["install"]).assert().success();
 
-    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
-    let keys = pacquet_store_dir::StoreIndex::open_readonly_in(&store_dir)
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let keys = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
         .expect("open the store index")
         .keys()
         .expect("read the store index keys");

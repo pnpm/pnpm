@@ -4,9 +4,9 @@ use crate::{
     LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
     ShimPolicy, TrustPolicy, api::EnvVar,
 };
-use pacquet_store_dir::StoreDir;
-use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pipe_trait::Pipe;
+use pnpm_store_dir::StoreDir;
+use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
 
@@ -363,7 +363,7 @@ namedRegistries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.pnpr_server, None);
     assert_eq!(config.registry, "https://registry.npmjs.org/");
-    assert_eq!(config.proxy, pacquet_network::ProxyConfig::default());
+    assert_eq!(config.proxy, pnpm_network::ProxyConfig::default());
     assert_eq!(
         config.registries.get("@safe").map(String::as_str),
         Some("https://safe.example.com/npm/"),
@@ -446,7 +446,7 @@ namedRegistries:
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://internal.example.com:8081/"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
+        Some(pnpm_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
     );
     assert_eq!(
         config.named_registries.get("stable").map(String::as_str),
@@ -544,7 +544,7 @@ fn side_effects_cache_gates_truth_table() {
 /// patch-file paths. pacquet captures it raw on `WorkspaceSettings`;
 /// path resolution + hashing + grouping happen at install time via
 /// `Config::resolved_patched_dependencies` (which delegates to
-/// `pacquet_patching::resolve_and_group`). This test guards the
+/// `pnpm_patching::resolve_and_group`). This test guards the
 /// deserialization shape only — the camelCase rename, optionality,
 /// and value-as-string-path.
 #[test]
@@ -1094,7 +1094,7 @@ gitShallowHosts:
 
 /// `supportedArchitectures` from `pnpm-workspace.yaml`. Optional
 /// `os` / `cpu` / `libc` lists; absent fields stay `None`. Threaded
-/// into [`pacquet_package_is_installable::check_platform`] via
+/// into [`pnpm_package_is_installable::check_platform`] via
 /// [`Config::supported_architectures`] at install time.
 #[test]
 fn parses_supported_architectures_from_yaml_and_applies() {
@@ -1393,7 +1393,7 @@ fn empty_package_extensions_map_collapses_to_none() {
 /// `hoistingLimits` deserializes as one of the `none` / `workspaces`
 /// / `dependencies` modes; the install pipeline translates the mode
 /// into the per-locator border map via
-/// `pacquet_package_manager::get_hoisting_limits`. Yaml-empty /
+/// `pnpm_package_manager::get_hoisting_limits`. Yaml-empty /
 /// missing keeps the `Config` field at its [`HoistingLimits::None`]
 /// default.
 #[test]

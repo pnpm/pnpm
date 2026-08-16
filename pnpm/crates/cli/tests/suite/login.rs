@@ -19,7 +19,7 @@
 //! always resolves (past `run`'s `NoConfigDir` guard).
 
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 
 /// Spawn `pacquet <subcommand>` without a TTY against a classic-only registry
 /// (web login probe answers 404) and assert the non-interactive login

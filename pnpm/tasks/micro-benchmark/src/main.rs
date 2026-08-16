@@ -7,11 +7,11 @@ use criterion::{Criterion, Throughput};
 use flate2::{Compression, write::GzEncoder};
 use futures_util::future;
 use mockito::ServerGuard;
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_registry::Package;
-use pacquet_store_dir::StoreDir;
-use pacquet_tarball::{DownloadTarballToStore, RetryOpts};
 use pipe_trait::Pipe;
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_registry::Package;
+use pnpm_store_dir::StoreDir;
+use pnpm_tarball::{DownloadTarballToStore, RetryOpts};
 use project_root::get_project_root;
 use ssri::Integrity;
 use tar::{Builder, Header};
@@ -58,7 +58,7 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
                 store_index: None,
                 store_index_writer: None,
                 verify_store_integrity: true,
-                verified_files_cache: pacquet_store_dir::SharedVerifiedFilesCache::default(),
+                verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
                 package_integrity: Some(&package_integrity),
                 package_unpacked_size: Some(16697),
                 package_file_count: None,
@@ -73,7 +73,7 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
                 progress_reported: None,
                 append_manifest: None,
             }
-            .run_without_mem_cache::<pacquet_reporter::SilentReporter>()
+            .run_without_mem_cache::<pnpm_reporter::SilentReporter>()
             .await
             .unwrap();
             cas_map.len()
@@ -120,7 +120,7 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
                     store_index: None,
                     store_index_writer: None,
                     verify_store_integrity: true,
-                    verified_files_cache: pacquet_store_dir::SharedVerifiedFilesCache::default(),
+                    verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
                     package_integrity: Some(&package.integrity),
                     package_unpacked_size: Some(package.unpacked_size),
                     package_file_count: Some(BATCH_FILES_PER_TARBALL),
@@ -135,7 +135,7 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
                     progress_reported: None,
                     append_manifest: None,
                 }
-                .run_without_mem_cache::<pacquet_reporter::SilentReporter>()
+                .run_without_mem_cache::<pnpm_reporter::SilentReporter>()
                 .await
             }))
             .await
@@ -200,21 +200,20 @@ fn bench_packument(criterion: &mut Criterion, bytes: &[u8]) {
 }
 
 /// Isolate the lockfile-parse sink
-/// ([`pacquet_lockfile::Lockfile::load_wanted_from_dir`], `serde-saphyr`). The
+/// ([`pnpm_lockfile::Lockfile::load_wanted_from_dir`], `serde-saphyr`). The
 /// per-iteration file read is page-cache-warm after the first pass, so the
 /// 12k-line YAML parse dominates the measurement.
 fn bench_lockfile(criterion: &mut Criterion, dir: &Path) {
     assert!(
-        pacquet_lockfile::Lockfile::load_wanted_from_dir(dir).unwrap().is_some(),
+        pnpm_lockfile::Lockfile::load_wanted_from_dir(dir).unwrap().is_some(),
         "fixture lockfile must parse to Some, else the bench measures nothing",
     );
-    let bytes = fs::metadata(dir.join(pacquet_lockfile::Lockfile::FILE_NAME)).unwrap().len();
+    let bytes = fs::metadata(dir.join(pnpm_lockfile::Lockfile::FILE_NAME)).unwrap().len();
     let mut group = criterion.benchmark_group("lockfile");
     group.throughput(Throughput::Bytes(bytes));
     group.bench_function("parse_pnpm_lock", |bencher| {
         bencher.iter(|| {
-            let lockfile =
-                pacquet_lockfile::Lockfile::load_wanted_from_dir(black_box(dir)).unwrap();
+            let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(black_box(dir)).unwrap();
             black_box(lockfile.is_some())
         });
     });

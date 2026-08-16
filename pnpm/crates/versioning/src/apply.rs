@@ -51,7 +51,7 @@ pub fn apply_release_plan(
     let mut applied = Vec::with_capacity(plan.releases.len());
     for release in &plan.releases {
         let manifest_path = release.root_dir.join("package.json");
-        let mut manifest = pacquet_package_manifest::PackageManifest::from_path(manifest_path)
+        let mut manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path)
             .map_err(VersioningError::Manifest)?;
         manifest.value_mut()["version"] = serde_json::Value::String(release.new_version.clone());
         manifest.save().map_err(VersioningError::Manifest)?;

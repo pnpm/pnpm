@@ -45,13 +45,13 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_lockfile::PkgName;
-use pacquet_package_manifest::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_lockfile::PkgName;
+use pnpm_package_manifest::{
     DependencyGroup, PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
 };
-use pacquet_patching::PatchGroupRecord;
-use pacquet_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
+use pnpm_patching::PatchGroupRecord;
+use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -174,7 +174,7 @@ pub struct ResolveImporterOptions {
 
     /// `pnpmfileHook` applied to every resolved manifest. Wraps
     /// `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 }
 
 impl std::fmt::Debug for ResolveImporterOptions {
@@ -267,7 +267,7 @@ where
     );
     resolve_importer_with_workspace(
         resolver,
-        pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
         0,
         manifest,
         dependency_groups,
@@ -914,7 +914,7 @@ struct ImporterLockedPeerContext {
 }
 
 fn importer_locked_peer_context(
-    wanted_lockfile: Option<&pacquet_lockfile::Lockfile>,
+    wanted_lockfile: Option<&pnpm_lockfile::Lockfile>,
     importer_id: &str,
 ) -> ImporterLockedPeerContext {
     let Some(lockfile) = wanted_lockfile else {
@@ -955,8 +955,8 @@ fn importer_locked_peer_context(
 }
 
 fn locked_peer_versions_for_key(
-    lockfile: &pacquet_lockfile::Lockfile,
-    key: &pacquet_lockfile::PkgNameVerPeer,
+    lockfile: &pnpm_lockfile::Lockfile,
+    key: &pnpm_lockfile::PkgNameVerPeer,
 ) -> Vec<(String, String)> {
     let explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
     if !explicit.is_empty() || !is_hashed_peer_suffix(key.suffix.peer()) {
@@ -1208,7 +1208,7 @@ fn read_manifest_of_local_target(
 /// those arrive named too. `None` when no manifest name is available: a
 /// repository with no `package.json`, or the resolve-only chain that
 /// wires no fetch context — and hoists no peers.
-fn resolved_pkg_name(result: &pacquet_resolving_resolver_base::ResolveResult) -> Option<String> {
+fn resolved_pkg_name(result: &pnpm_resolving_resolver_base::ResolveResult) -> Option<String> {
     if let Some(name_ver) = result.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }

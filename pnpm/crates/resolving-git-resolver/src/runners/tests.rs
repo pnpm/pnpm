@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 
 use super::{RealGitProbe, RealGitRunner, ls_remote_command};
 use crate::{git_resolver::GitProbe, resolve_ref::GitCommandRunner};

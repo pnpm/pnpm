@@ -19,10 +19,10 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{Config, NodeLinker};
-use pacquet_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
+use pnpm_config::{Config, NodeLinker};
+use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
@@ -51,9 +51,9 @@ pub enum LinkPhaseError {
     #[diagnostic(transparent)]
     HoistSymlink(#[error(source)] crate::SymlinkPackageError),
     #[diagnostic(transparent)]
-    HoistLinkBins(#[error(source)] pacquet_cmd_shim::LinkBinsError),
+    HoistLinkBins(#[error(source)] pnpm_cmd_shim::LinkBinsError),
     #[diagnostic(transparent)]
-    LinkBins(#[error(source)] pacquet_cmd_shim::LinkBinsError),
+    LinkBins(#[error(source)] pnpm_cmd_shim::LinkBinsError),
     #[diagnostic(transparent)]
     HoistedDepGraph(#[error(source)] crate::HoistedDepGraphError),
     #[diagnostic(transparent)]
@@ -124,7 +124,7 @@ pub struct LinkPhaseInputs<'a> {
     pub prune_orphans: bool,
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     pub host_node: Option<&'a crate::materialization_plan::HostNode>,
-    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub logged_methods: &'a AtomicU8,
 }
 
@@ -387,7 +387,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     // slot as the root importer's direct deps. Per
     // pnpm/pacquet#342 the direct dep's bin must win. The post-build pass below
     // takes both direct + hoisted candidate lists so
-    // `pacquet_cmd_shim::pick_winner` (private)'s [`BinOrigin`] tier
+    // `pnpm_cmd_shim::pick_winner` (private)'s [`BinOrigin`] tier
     // resolves the conflict in one call. Empty means there's
     // no public-hoist (no patterns set, hoisted linker, or
     // `Some(empty)`-vs-`None` short-circuit).
@@ -483,7 +483,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
                 crate::symlink_direct_dependencies::importer_root_dir(symlink_root, importer_id)
                     .join(&modules_basename);
             let bins_dir = modules_dir.join(".bin");
-            pacquet_cmd_shim::link_bins::<pacquet_cmd_shim::Host>(
+            pnpm_cmd_shim::link_bins::<pnpm_cmd_shim::Host>(
                 &modules_dir,
                 &bins_dir,
                 extra_node_paths,

@@ -1,5 +1,5 @@
 //! Pacquet's prod manifest type
-//! (`pacquet_config::workspace_yaml::WorkspaceSettings`) is shaped for
+//! (`pnpm_config::workspace_yaml::WorkspaceSettings`) is shaped for
 //! deserializing user input as an additive overlay over `Config` — it
 //! is `Deserialize`-only, has no `supportedArchitectures` /
 //! `allowBuilds` fields, and its semantics are "apply non-`None` fields

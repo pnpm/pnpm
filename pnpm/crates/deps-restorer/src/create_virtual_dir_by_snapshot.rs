@@ -6,10 +6,10 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::PackageImportMethod;
-use pacquet_fs::{is_subdir, remove_symlink_dir};
-use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
-use pacquet_reporter::{
+use pnpm_config::PackageImportMethod;
+use pnpm_fs::{is_subdir, remove_symlink_dir};
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
+use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, ProgressLog, ProgressMessage,
     Reporter,
 };
@@ -45,7 +45,7 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     pub logged_methods: &'a AtomicU8,
     /// Install root, threaded into `pnpm:progress` `imported`'s
     /// `requester`. Same value as the `prefix` in
-    /// [`pacquet_reporter::StageLog`].
+    /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
     /// Stable identifier for the package, e.g. `"{name}@{version}"`.
     /// Currently unused by `imported` (whose payload doesn't carry
@@ -55,7 +55,7 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     pub package_key: &'a PackageKey,
     pub snapshot: &'a SnapshotEntry,
     /// Whether this package's file map points at mutable local source
-    /// (a `file:` / [`pacquet_lockfile::LockfileResolution::Directory`]
+    /// (a `file:` / [`pnpm_lockfile::LockfileResolution::Directory`]
     /// resolution) rather than immutable CAS entries. pnpm's `file:` is
     /// a copy taken at install time — unlike `link:`, which symlinks —
     /// so the slot has to be rebuilt on every install: the source can

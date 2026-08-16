@@ -47,7 +47,7 @@ pub use specifier::{ParsedBareSpecifier, parse_bare_specifier};
 #[napi(js_name = "engineVersion")]
 #[must_use]
 pub fn engine_version() -> &'static str {
-    pacquet_config::PNPM_VERSION
+    pnpm_config::PNPM_VERSION
 }
 
 /// Honor the same `TRACE` env var the pacquet CLI honors: an addon
@@ -55,7 +55,7 @@ pub fn engine_version() -> &'static str {
 /// is installed when the module loads.
 #[napi_derive::module_init]
 fn init_tracing() {
-    pacquet_diagnostics::enable_tracing_by_env();
+    pnpm_diagnostics::enable_tracing_by_env();
 }
 
 /// No-op stubs for the napi runtime symbols the `#[napi]` trampolines

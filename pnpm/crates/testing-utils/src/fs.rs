@@ -45,7 +45,7 @@ pub fn get_all_files(root: &Path) -> Vec<String> {
 }
 
 pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
-    pacquet_fs::is_symlink_or_junction(path)
+    pnpm_fs::is_symlink_or_junction(path)
 }
 
 /// Check if a file is executable.

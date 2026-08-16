@@ -18,12 +18,12 @@ use clap::{Args, Subcommand, ValueEnum};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_config::{
+use pnpm_config::{
     Config, GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME, config_types, naming_cases,
     property_path::{self, Segment},
     protected_settings,
 };
-use pacquet_workspace_manifest_writer::update_manifest_field;
+use pnpm_workspace_manifest_writer::update_manifest_field;
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 

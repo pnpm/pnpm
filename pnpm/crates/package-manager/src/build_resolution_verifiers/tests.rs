@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use pacquet_config::Config;
-use pacquet_lockfile::{LockfileResolution, PkgName, TarballResolution};
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
+use pnpm_config::Config;
+use pnpm_lockfile::{LockfileResolution, PkgName, TarballResolution};
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
 use ssri::Integrity;
 use tempfile::TempDir;
 

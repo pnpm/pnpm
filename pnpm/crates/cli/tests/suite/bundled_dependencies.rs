@@ -3,8 +3,8 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::{BundledDependencies, Lockfile, PackageMetadata};
-use pacquet_testing_utils::{bin::CommandTempCwd, fs::is_symlink_or_junction};
+use pnpm_lockfile::{BundledDependencies, Lockfile, PackageMetadata};
+use pnpm_testing_utils::{bin::CommandTempCwd, fs::is_symlink_or_junction};
 use std::{fs, path::Path};
 
 use crate::_utils;
@@ -155,7 +155,7 @@ fn assert_bin_linked(shim: &Path) {
     assert!(shim.exists(), "the bundled dependency's bin must be linked at {shim:?}");
     #[cfg(unix)]
     assert!(
-        pacquet_testing_utils::fs::is_path_executable(shim),
+        pnpm_testing_utils::fs::is_path_executable(shim),
         "the bundled dependency's bin shim at {shim:?} must be executable",
     );
     #[cfg(windows)]

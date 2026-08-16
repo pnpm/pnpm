@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-auth-commands"
+name                  = "pnpm-auth-commands"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,10 +11,10 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-fs               = { workspace = true }
-pacquet-network          = { workspace = true }
-pacquet-network-web-auth = { workspace = true }
-pacquet-reporter         = { workspace = true }
+pnpm-fs               = { workspace = true }
+pnpm-network          = { workspace = true }
+pnpm-network-web-auth = { workspace = true }
+pnpm-reporter         = { workspace = true }
 
 derive_more = { workspace = true }
 dialoguer   = { workspace = true, features = ["password"] }
@@ -25,7 +25,7 @@ tokio       = { workspace = true, features = ["rt"] }
 url         = { workspace = true }
 
 [dev-dependencies]
-pacquet-network-web-auth-testing = { workspace = true }
+pnpm-network-web-auth-testing = { workspace = true }
 
 mockito            = { workspace = true }
 pipe-trait         = { workspace = true }

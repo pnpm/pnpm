@@ -22,7 +22,7 @@
 use crate::{GetRegisteredProjectsError, StoreDir, get_registered_projects};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::read_symlink_dir;
+use pnpm_fs::read_symlink_dir;
 use std::{
     collections::HashSet,
     fs,
@@ -209,7 +209,7 @@ fn walk_symlinks_to_store(
 
         if file_type.is_symlink() {
             // `read_symlink_dir` handles Windows junctions (which
-            // `pacquet_fs::symlink_dir` creates for every
+            // `pnpm_fs::symlink_dir` creates for every
             // `node_modules/<pkg>` entry); plain `fs::read_link`
             // would EINVAL on them and the mark walk would miss
             // every direct dep on Windows. See

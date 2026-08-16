@@ -190,8 +190,8 @@ fn summarize_tarball_requires_a_manifest_with_name_and_version() {
 fn render_tarball_summary_matches_the_pnpm_layout() {
     let mut summary = sample_summary("pkg", "1.0.0");
     summary.files = vec![
-        pacquet_publish::PublishSummaryFile { path: "index.js".to_owned() },
-        pacquet_publish::PublishSummaryFile { path: "package.json".to_owned() },
+        pnpm_publish::PublishSummaryFile { path: "index.js".to_owned() },
+        pnpm_publish::PublishSummaryFile { path: "package.json".to_owned() },
     ];
     summary.entry_count = 2;
     let rendered = render_tarball_summary(&summary);
@@ -203,8 +203,8 @@ fn render_tarball_summary_matches_the_pnpm_layout() {
     );
 }
 
-fn sample_summary(name: &str, version: &str) -> pacquet_publish::PublishSummary {
-    pacquet_publish::PublishSummary {
+fn sample_summary(name: &str, version: &str) -> pnpm_publish::PublishSummary {
+    pnpm_publish::PublishSummary {
         id: format!("{name}@{version}"),
         name: name.to_owned(),
         version: version.to_owned(),

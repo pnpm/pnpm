@@ -16,9 +16,9 @@ use std::collections::HashSet;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_resolving_resolver_base::{
     ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
 };
 use reqwest::Url;
@@ -112,7 +112,7 @@ pub struct JsrRegistryPackageSpec {
 /// [`JsrRegistryPackageSpec`].
 ///
 /// Defers the `jsr:` syntax to the
-/// [`pacquet_resolving_jsr_specifier_parser`] crate, then runs the
+/// [`pnpm_resolving_jsr_specifier_parser`] crate, then runs the
 /// version-selector classifier on the parsed selector (falling back
 /// to `default_tag` when the specifier omits one). Returns
 /// `Ok(None)` for any non-`jsr:` specifier so the caller can fall
@@ -363,7 +363,7 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
 /// Percent-decode a URL path segment. Matches JS's `decodeURIComponent`
 /// for the byte ranges that show up in npm tarball URLs (the only
 /// caller). Invalid escapes pass through unchanged, mirroring the
-/// [`percent_decode_str`] helper in `pacquet-network`'s proxy module.
+/// [`percent_decode_str`] helper in `pnpm-network`'s proxy module.
 fn percent_decode_str(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());

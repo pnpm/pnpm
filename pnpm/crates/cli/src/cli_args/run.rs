@@ -2,13 +2,13 @@ use super::exec::ExecArgs;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
-use pacquet_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
-use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_package_manifest::PackageManifest;
-use pacquet_reporter::LogEvent;
-use pacquet_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
+use pnpm_config::Config;
+use pnpm_executor::{RunScript, ScriptsPrependNodePath, run_script};
+use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use pnpm_package_manager::{make_node_package_map_option, package_map_path_for_execution};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_reporter::LogEvent;
+use pnpm_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
 use regex::Regex;
 use serde_json::Value;
 use std::{
@@ -462,12 +462,12 @@ pub(super) fn run_stage(
 }
 
 pub(crate) fn exec_scripts_prepend_node_path(
-    value: pacquet_config::ScriptsPrependNodePath,
+    value: pnpm_config::ScriptsPrependNodePath,
 ) -> ScriptsPrependNodePath {
     match value {
-        pacquet_config::ScriptsPrependNodePath::Always => ScriptsPrependNodePath::Always,
-        pacquet_config::ScriptsPrependNodePath::Never => ScriptsPrependNodePath::Never,
-        pacquet_config::ScriptsPrependNodePath::WarnOnly => ScriptsPrependNodePath::WarnOnly,
+        pnpm_config::ScriptsPrependNodePath::Always => ScriptsPrependNodePath::Always,
+        pnpm_config::ScriptsPrependNodePath::Never => ScriptsPrependNodePath::Never,
+        pnpm_config::ScriptsPrependNodePath::WarnOnly => ScriptsPrependNodePath::WarnOnly,
     }
 }
 

@@ -9,10 +9,10 @@ use super::{
     snapshot_cache_key, snapshot_deps_equal,
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry,
 };
-use pacquet_reporter::{BrokenModulesLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{BrokenModulesLog, LogEvent, LogLevel, Reporter};
 use std::{
     collections::{HashMap, HashSet},
     path::Path,

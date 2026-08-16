@@ -5,8 +5,8 @@ use crate::_utils;
 use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::{Lockfile, PackageKey, PkgName, SnapshotDepRef};
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_lockfile::{Lockfile, PackageKey, PkgName, SnapshotDepRef};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path, str::FromStr};
 
 /// The setting only keeps the machine-dependent path of an *external*

@@ -4,12 +4,12 @@ use super::{
     hash_linked_packages, needs_directory_symlink_removal,
 };
 use miette::IntoDiagnostic;
-use pacquet_cmd_shim::{
+use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
     FsWalkFiles, FsWrite, Host, PackageBinSource, link_bins_of_packages_with_excludes,
 };
-use pacquet_fs::{force_symlink_dir, read_symlink_dir, remove_symlink_dir};
-use pacquet_global::GlobalPackageInfo;
+use pnpm_fs::{force_symlink_dir, read_symlink_dir, remove_symlink_dir};
+use pnpm_global::GlobalPackageInfo;
 use serde_json::json;
 use std::{
     collections::HashSet,
@@ -557,7 +557,7 @@ fn cleanup_after_activation_preserves_current_state_and_external_install() {
     for bin_name in ["activated", "survivor", "obsolete"] {
         fs::write(global_bin_dir.join(bin_name), b"bin\n").expect("seed global bin");
     }
-    let active_hash_link = pacquet_global::get_hash_link(&global_pkg_dir, "active-hash");
+    let active_hash_link = pnpm_global::get_hash_link(&global_pkg_dir, "active-hash");
     force_symlink_dir(&active_install_dir, &active_hash_link).expect("seed active hash link");
 
     cleanup_replaced_global_installs(
@@ -594,7 +594,7 @@ fn replacing_a_group_with_a_different_package_set_keeps_its_relinked_bins() {
     for bin_name in ["shared", "dropped"] {
         fs::write(global_bin_dir.join(bin_name), b"bin\n").expect("seed global bin");
     }
-    let old_hash_link = pacquet_global::get_hash_link(&global_pkg_dir, "old-hash");
+    let old_hash_link = pnpm_global::get_hash_link(&global_pkg_dir, "old-hash");
     force_symlink_dir(&old_install_dir, &old_hash_link).expect("seed old hash link");
 
     cleanup_replaced_global_installs(

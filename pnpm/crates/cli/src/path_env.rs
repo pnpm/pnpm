@@ -1,7 +1,7 @@
 //! Build the `PATH` a spawned child sees.
 
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::Diagnostic;
+use pnpm_diagnostics::miette::Diagnostic;
 use std::{
     ffi::{OsStr, OsString},
     path::PathBuf,

@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-pnpr-client"
+name                 = "pnpm-pnpr-client"
 description          = "Client for pnpr's server-side resolver"
 version              = "0.0.1"
 edition.workspace    = true
@@ -11,27 +11,27 @@ repository.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
-pacquet-catalogs-types        = { workspace = true }
-pacquet-config                = { workspace = true }
-pacquet-lockfile              = { workspace = true }
-pacquet-lockfile-verification = { workspace = true }
-pacquet-network               = { workspace = true }
-derive_more                   = { workspace = true }
-futures-util                  = { workspace = true }
-reqwest                       = { workspace = true }
-serde                         = { workspace = true }
-serde_json                    = { workspace = true }
-tokio                         = { workspace = true }
-tracing                       = { workspace = true }
+pnpm-catalogs-types        = { workspace = true }
+pnpm-config                = { workspace = true }
+pnpm-lockfile              = { workspace = true }
+pnpm-lockfile-verification = { workspace = true }
+pnpm-network               = { workspace = true }
+derive_more                = { workspace = true }
+futures-util               = { workspace = true }
+reqwest                    = { workspace = true }
+serde                      = { workspace = true }
+serde_json                 = { workspace = true }
+tokio                      = { workspace = true }
+tracing                    = { workspace = true }
 
 [dev-dependencies]
-pacquet-testing-utils = { workspace = true }
-mockito               = { workspace = true }
-pnpr                  = { workspace = true }
-reqwest               = { workspace = true }
-serde_json            = { workspace = true }
-tempfile              = { workspace = true }
-tokio                 = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+mockito            = { workspace = true }
+pnpr               = { workspace = true }
+reqwest            = { workspace = true }
+serde_json         = { workspace = true }
+tempfile           = { workspace = true }
+tokio              = { workspace = true }
 
 [lints]
 workspace = true

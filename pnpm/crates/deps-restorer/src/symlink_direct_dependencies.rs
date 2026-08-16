@@ -1,14 +1,14 @@
 use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::LinkBinsError;
-use pacquet_config::Config;
-use pacquet_lockfile::{
+use pnpm_cmd_shim::LinkBinsError;
+use pnpm_config::Config;
+use pnpm_lockfile::{
     ImporterDepVersion, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
     ResolvedDependencySpec,
 };
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::{
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::{
     AddedRoot, DependencyType, LogEvent, LogLevel, Reporter, RootLog, RootMessage,
 };
 use rayon::prelude::*;
@@ -35,7 +35,7 @@ use std::{
 ///
 /// The virtual store dir (`config.virtual_store_dir`) stays singular
 /// across the install — only the per-project `node_modules/` and its
-/// symlinks fan out. By default `pacquet_config::default_virtual_store_dir`
+/// symlinks fan out. By default `pnpm_config::default_virtual_store_dir`
 /// anchors it at `<workspace_root>/node_modules/.pnpm` (matching pnpm),
 /// but the actual location is whatever the resolved `Config` field
 /// holds — `pnpm-workspace.yaml`'s `virtualStoreDir` can move it.
@@ -694,7 +694,7 @@ fn resolve_target_path(
             } else {
                 project_dir.join(candidate)
             };
-            pacquet_fs::lexical_normalize(&joined)
+            pnpm_fs::lexical_normalize(&joined)
         }
         ImporterDepVersion::File(_) => {
             // Injected workspace dep that didn't dedupe back to

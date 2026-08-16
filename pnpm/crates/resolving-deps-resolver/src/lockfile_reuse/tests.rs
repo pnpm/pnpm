@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion,
     PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution,
     ResolvedDependencySpec, TarballResolution,
@@ -319,7 +319,7 @@ fn current_pkg_is_withheld_for_a_registry_entry_without_a_registry_map() {
 
 #[test]
 fn prior_child_key_applies_the_satisfies_gate() {
-    let snapshot: pacquet_lockfile::SnapshotEntry =
+    let snapshot: pnpm_lockfile::SnapshotEntry =
         serde_json::from_value(serde_json::json!({ "dependencies": { "bar": "1.2.0" } }))
             .expect("parse snapshot entry");
 

@@ -16,8 +16,8 @@
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_reporter::Reporter;
+use pnpm_config::Config;
+use pnpm_reporter::Reporter;
 use std::{path::PathBuf, process::Command};
 
 use crate::{

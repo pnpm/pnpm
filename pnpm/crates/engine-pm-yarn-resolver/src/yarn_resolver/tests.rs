@@ -54,9 +54,7 @@ fn a_range_no_release_satisfies_resolves_to_nothing() {
 #[test]
 fn a_credential_bearing_specifier_is_redacted_in_the_error() {
     let error = YarnResolverError::ResolutionFailure {
-        spec: pacquet_network::redact_and_sanitize(
-            "runtime:https://user:hunter2@example.test/yarn",
-        ),
+        spec: pnpm_network::redact_and_sanitize("runtime:https://user:hunter2@example.test/yarn"),
     };
 
     let rendered = error.to_string();

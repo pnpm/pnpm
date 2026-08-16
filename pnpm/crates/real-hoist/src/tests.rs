@@ -2,7 +2,7 @@ use super::{
     HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist, is_preferred_ident,
 };
 use indexmap::IndexSet;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     ComVer, Lockfile, LockfileSettings, LockfileVersion, PkgName, PkgNameVerPeer, PkgVerPeer,
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
@@ -505,8 +505,8 @@ fn transitive_npm_alias_resolves_target_snapshot() {
 
 /// Helper for the peer-aware tests: build a `PackageMetadata`
 /// whose `packages:`-level `peer_dependencies` claims one peer.
-fn pkg_metadata_with_peer(peer_name: &str) -> pacquet_lockfile::PackageMetadata {
-    use pacquet_lockfile::{LockfileResolution, PackageMetadata, TarballResolution};
+fn pkg_metadata_with_peer(peer_name: &str) -> pnpm_lockfile::PackageMetadata {
+    use pnpm_lockfile::{LockfileResolution, PackageMetadata, TarballResolution};
     let mut peer_deps = HashMap::new();
     peer_deps.insert(peer_name.to_string(), "*".to_string());
     PackageMetadata {

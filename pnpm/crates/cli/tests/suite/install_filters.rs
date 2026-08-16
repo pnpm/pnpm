@@ -1,7 +1,7 @@
 use crate::_utils;
 pub use _utils::*;
 
-use pacquet_lockfile::{PkgName, SnapshotEntry};
+use pnpm_lockfile::{PkgName, SnapshotEntry};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::{
@@ -332,7 +332,7 @@ fn filtered_compatible_update_keeps_workspace_manifest_preferences() {
 fn transitive_update_scenario(
     selected_dir: &str,
     unselected_dir: &str,
-) -> (HashMap<pacquet_lockfile::PackageKey, SnapshotEntry>, String) {
+) -> (HashMap<pnpm_lockfile::PackageKey, SnapshotEntry>, String) {
     let fixture = WorkspaceFixture::new();
     let deps = || ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() };
     let selected = fixture.project(selected_dir, "selected", deps());

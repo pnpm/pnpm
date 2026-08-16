@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 use clap::Args;
 use miette::IntoDiagnostic;
-use pacquet_config::Config;
-use pacquet_global::{ListReportAs, find_global_install_dirs, list_global_packages};
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_config::Config;
+use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
+use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::cli_args::{
     deps_tree::{

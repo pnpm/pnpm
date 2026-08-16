@@ -18,12 +18,12 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use pacquet_network::{
+use pipe_trait::Pipe;
+use pnpm_network::{
     AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
     retry_async,
 };
-use pacquet_registry::Package;
-use pipe_trait::Pipe;
+use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
 
 use crate::{
@@ -64,8 +64,8 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     /// the registry.
     pub offline: bool,
     /// Network-permit class the registry GET queues in:
-    /// [`pacquet_network::UNPRIORITIZED`] for fetches that gate
-    /// resolution progress, [`pacquet_network::BACKGROUND`] for the
+    /// [`pnpm_network::UNPRIORITIZED`] for fetches that gate
+    /// resolution progress, [`pnpm_network::BACKGROUND`] for the
     /// lockfile-verification fan-out.
     pub priority: u64,
     pub(crate) retry_opts: RetryOpts,
@@ -98,7 +98,7 @@ pub async fn fetch_full_metadata_cached(
                 Ok(path) => Some(path),
                 Err(error) => {
                     tracing::debug!(
-                        target: "pacquet_resolving_npm_resolver::cache",
+                        target: "pnpm_resolving_npm_resolver::cache",
                         ?error,
                         registry = opts.registry,
                         pkg_name,
@@ -177,7 +177,7 @@ pub async fn fetch_full_metadata_cached(
         // network-concurrency permit before the CPU-bound parse so the
         // semaphore keeps bounding *sockets*, not parses. Same
         // buffer-then-release shape as the tarball pipeline in
-        // `pacquet-tarball`.
+        // `pnpm-tarball`.
         drop(client);
 
         // Deserialize and persist the mirror off the reactor. Packuments
@@ -210,7 +210,7 @@ pub async fn fetch_full_metadata_cached(
                 if should_filter_metadata {
                     if let Err(error) = save_meta_ndjson(path, &meta, etag.as_deref()) {
                         tracing::debug!(
-                            target: "pacquet_resolving_npm_resolver::cache",
+                            target: "pnpm_resolving_npm_resolver::cache",
                             ?error,
                             path = %path.display(),
                             "could not persist mirror; bypassing cache write",
@@ -230,7 +230,7 @@ pub async fn fetch_full_metadata_cached(
                         }
                         Err(error) => {
                             tracing::debug!(
-                                target: "pacquet_resolving_npm_resolver::cache",
+                                target: "pnpm_resolving_npm_resolver::cache",
                                 ?error,
                                 path = %path.display(),
                                 "could not persist mirror; bypassing cache write",
@@ -327,7 +327,7 @@ fn renew_mirror_freshness(path: &Path) {
         .and_then(|file| file.set_modified(std::time::SystemTime::now()));
     if let Err(error) = touched {
         tracing::debug!(
-            target: "pacquet_resolving_npm_resolver::cache",
+            target: "pnpm_resolving_npm_resolver::cache",
             ?error,
             path = %path.display(),
             "could not renew mirror freshness after 304",

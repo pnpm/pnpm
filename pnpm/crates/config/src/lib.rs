@@ -22,13 +22,13 @@ pub use crate::{
 
 use crate::npmrc_auth::NpmrcAuth;
 use indexmap::IndexMap;
-use pacquet_patching::{
+use pipe_trait::Pipe;
+use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
     resolve_and_group,
 };
-use pacquet_store_dir::StoreDir;
-use pacquet_workspace_state::ConfigDependency;
-use pipe_trait::Pipe;
+use pnpm_store_dir::StoreDir;
+use pnpm_workspace_state::ConfigDependency;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::{
@@ -107,7 +107,7 @@ pub enum NodePackageMapType {
 ///
 /// No effect under `nodeLinker: isolated`. The user-facing mode is
 /// translated into the per-locator border map the hoister consumes
-/// by `crate::get_hoisting_limits` in `pacquet-package-manager`.
+/// by `crate::get_hoisting_limits` in `pnpm-package-manager`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HoistingLimits {
@@ -120,7 +120,7 @@ pub enum HoistingLimits {
 /// Supply-chain trust policy applied to lockfile entries.
 ///
 /// The setting is `'no-downgrade' | 'off'` and drives the
-/// `pacquet-resolving-npm-resolver` verifier: under
+/// `pnpm-resolving-npm-resolver` verifier: under
 /// [`TrustPolicy::NoDowngrade`] the verifier rejects any version
 /// whose trust evidence (`_npmUser.trustedPublisher` or
 /// `dist.attestations.provenance`) is weaker than an earlier-published
@@ -461,7 +461,7 @@ pub struct AuditConfig {
     pub ignore_ghsas: Vec<String>,
 }
 
-/// Tri-state mirror of `pacquet_executor::ScriptsPrependNodePath`
+/// Tri-state mirror of `pnpm_executor::ScriptsPrependNodePath`
 /// with serde wiring. The executor crate keeps its own enum free of
 /// serde so config concerns don't leak into the spawn-path. Converted
 /// at the `BuildModules` call site (see `install_frozen_lockfile.rs`)
@@ -916,7 +916,7 @@ pub struct Config {
     /// patterns when this is set. Combining it with
     /// `enable_modules_dir: false` while the global virtual store is
     /// off is a config conflict, rejected by
-    /// `pacquet_package_manager::Install::run`.
+    /// `pnpm_package_manager::Install::run`.
     pub virtual_store_only: bool,
 
     /// `enableModulesDir`: pnpm's setting for suppressing the
@@ -925,7 +925,7 @@ pub struct Config {
     /// A `false` value (with the global virtual store off) makes the
     /// install "resolve and write the lockfile, materialize nothing" —
     /// it rides the `--lockfile-only` pipeline in
-    /// `pacquet_package_manager::Install::run`. With the global virtual
+    /// `pnpm_package_manager::Install::run`. With the global virtual
     /// store on, materialization proceeds into the store (pnpm's
     /// `enableModulesDir !== false || enableGlobalVirtualStore` gate).
     /// It also gates the [`virtual_store_only`] config conflict (a
@@ -997,7 +997,7 @@ pub struct Config {
 
     /// Cap on the rendered peer-suffix length before the suffix is
     /// replaced with a short hash. Threaded into
-    /// `pacquet_deps_path::create_peer_dep_graph_hash` — when the
+    /// `pnpm_deps_path::create_peer_dep_graph_hash` — when the
     /// flattened `(peer@ver)(peer@ver)…` string exceeds this many
     /// bytes, pacquet swaps it for a 32-char sha256 hash so
     /// virtual-store paths stay under the OS component-name limit.
@@ -1160,11 +1160,11 @@ pub struct Config {
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),
     /// all from `.npmrc` and the process environment. The type lives
-    /// in `pacquet-network` (where it is consumed by
-    /// `ThrottledClient::for_installs`) because `pacquet-config`
-    /// already depends on `pacquet-network` for auth-headers plumbing.
+    /// in `pnpm-network` (where it is consumed by
+    /// `ThrottledClient::for_installs`) because `pnpm-config`
+    /// already depends on `pnpm-network` for auth-headers plumbing.
     /// Default is empty (`None` for every field) — i.e. no proxy.
-    pub proxy: pacquet_network::ProxyConfig,
+    pub proxy: pnpm_network::ProxyConfig,
 
     /// Every proxy key as written, merged across config layers.
     /// [`Self::proxy`] is its resolution — see [`crate::proxy_keys`].
@@ -1172,11 +1172,11 @@ pub struct Config {
 
     /// Resolved TLS + `local-address` configuration — `ca`, `cafile`,
     /// `cert`, `key`, `strict-ssl`, `local-address` from `.npmrc`. The
-    /// type lives in `pacquet-network` for the same reason as
+    /// type lives in `pnpm-network` for the same reason as
     /// [`Self::proxy`]. `strict_ssl: None` here means "unset"; the
     /// `true` default is applied at client-build time by
     /// `ThrottledClient::for_installs` (`strictSsl ?? true`).
-    pub tls: pacquet_network::TlsConfig,
+    pub tls: pnpm_network::TlsConfig,
 
     /// Per-registry TLS overrides — `//host[:port]/path/:ca`,
     /// `:cafile`, `:cert`, `:certfile`, `:key`, `:keyfile` from
@@ -1185,7 +1185,7 @@ pub struct Config {
     /// recursive no-port retry). Per-registry fields override
     /// [`Self::tls`] field-by-field at request time (a
     /// `{ ...opts, ...sslConfig }` spread).
-    pub tls_by_uri: pacquet_network::PerRegistryTls,
+    pub tls_by_uri: pnpm_network::PerRegistryTls,
 
     /// When true, any missing non-optional peer dependencies are automatically installed.
     #[default = true]
@@ -1228,7 +1228,7 @@ pub struct Config {
     /// `dependencies` semantics. Default [`HoistingLimits::None`]
     /// (hoist as far as possible). Translated into the hoister's
     /// per-locator border map by `crate::get_hoisting_limits` in
-    /// `pacquet-package-manager`. No effect under
+    /// `pnpm-package-manager`. No effect under
     /// `nodeLinker: isolated`.
     pub hoisting_limits: HoistingLimits,
 
@@ -1407,7 +1407,7 @@ pub struct Config {
     /// The value is the count of *retries*, so total attempts =
     /// `fetch_retries + 1`.
     ///
-    /// Today this only gates the `pacquet-tarball` download path;
+    /// Today this only gates the `pnpm-tarball` download path;
     /// `crates/registry`'s metadata fetches still issue a single request.
     /// Threading the same retry policy through the registry client is a
     /// follow-up.
@@ -1438,11 +1438,11 @@ pub struct Config {
     pub fetch_retry_maxtimeout: u64,
 
     /// Maximum number of concurrent network requests pacquet keeps
-    /// in flight during install — the size of the [`pacquet_network`]
+    /// in flight during install — the size of the [`pnpm_network`]
     /// semaphore. The `networkConcurrency` setting; the default is the
     /// `Math.min(96, Math.max(calcMaxWorkers() * 3, 64))` formula,
-    /// implemented by [`pacquet_network::default_network_concurrency`].
-    #[default(_code = "pacquet_network::default_network_concurrency()")]
+    /// implemented by [`pnpm_network::default_network_concurrency`].
+    #[default(_code = "pnpm_network::default_network_concurrency()")]
     pub network_concurrency: usize,
 
     /// Maximum number of concurrent connections (sockets) to a single
@@ -1455,7 +1455,7 @@ pub struct Config {
 
     /// Per-request network timeout in milliseconds. The `fetchTimeout`
     /// setting (default `60000` — 60 s, see
-    /// [`pacquet_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
+    /// [`pnpm_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
     /// the response and connect deadline of the reqwest client.
     #[default(_code = "default_fetch_timeout()")]
     pub fetch_timeout: u64,
@@ -1533,7 +1533,7 @@ pub struct Config {
     /// (or `name@version` keys) that are allowed to run lifecycle
     /// scripts. pnpm 11 denies scripts by default; the allow-list is
     /// the opt-in mechanism. Consumed by `AllowBuildPolicy::from_config`
-    /// in `pacquet-package-manager`.
+    /// in `pnpm-package-manager`.
     ///
     /// Default empty.
     pub allow_builds: HashMap<String, bool>,
@@ -1611,7 +1611,7 @@ pub struct Config {
     /// scripts and spawned child processes of a command. Empty by
     /// default. Not a `pnpm-workspace.yaml` key — the only way to
     /// populate it is an `updateConfig` pnpmfile hook that returns an
-    /// `extraEnv` object, wired up in `pacquet_cli`'s
+    /// `extraEnv` object, wired up in `pnpm_cli`'s
     /// `run_update_config_hooks`. That hook runs only for the
     /// install-family commands (install, deploy, dedupe, prune), so this
     /// is non-empty only under those; other commands' spawn sites read it
@@ -1622,7 +1622,7 @@ pub struct Config {
     /// lifecycle scripts run under a TMPDIR isolated to
     /// `node_modules/.tmp` and uid/gid drops to a non-root user.
     /// Pacquet honors the TMPDIR side (see
-    /// `pacquet_executor::make_env`); the uid/gid drop is a no-op in
+    /// `pnpm_executor::make_env`); the uid/gid drop is a no-op in
     /// practice because the npm-lifecycle fork never populates
     /// `opts.user` / `opts.group`, so it just re-applies the current
     /// process's uid/gid.
@@ -1682,7 +1682,7 @@ pub struct Config {
 
     /// `--filter` selectors, one raw selector string per entry
     /// (`@scope/*`, `./pkg`, `foo...`, `!bar`, ...), parsed by
-    /// `pacquet-workspace-projects-filter`. A CLI-only array: not a
+    /// `pnpm-workspace-projects-filter`. A CLI-only array: not a
     /// `.npmrc` / `pnpm-workspace.yaml` key, so only the CLI layer
     /// populates it.
     pub filter: Vec<String>,
@@ -1728,14 +1728,14 @@ pub struct Config {
 
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Threaded
     /// into the installability check at install time (via
-    /// `pacquet-package-manager`'s `InstallabilityHost`, downstream of
+    /// `pnpm-package-manager`'s `InstallabilityHost`, downstream of
     /// this crate) so optional platform-tagged dependencies for the
     /// listed `os` / `cpu` / `libc` values are kept even when they
     /// don't match the host triple. Per-axis CLI flags (`--cpu`,
     /// `--libc`, `--os`) override individual axes.
     /// Default `None` so the host triple is the sole accept set
     /// when neither yaml nor CLI sets a value.
-    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
 
     /// `ignoredOptionalDependencies` from `pnpm-workspace.yaml`. A
     /// list of dep-name patterns the user wants entirely excluded
@@ -1889,7 +1889,7 @@ pub struct Config {
 
     /// `versioning` from `pnpm-workspace.yaml`: native workspace release
     /// management, consumed by `pnpm change` and the bare `pnpm version -r`.
-    pub versioning: pacquet_versioning::VersioningSettings,
+    pub versioning: pnpm_versioning::VersioningSettings,
 
     /// Glob-style `name[@version]` patterns that opt specific packages
     /// out of the [`trust_policy`] check. The `trustPolicyExclude`
@@ -1931,7 +1931,7 @@ pub struct Config {
     /// hook produced (existing + injected), so the install uses it as-is
     /// — the counterpart to pnpm's `config.catalogs` after the
     /// `updateConfig` pass.
-    pub catalogs: Option<pacquet_catalogs_types::Catalogs>,
+    pub catalogs: Option<pnpm_catalogs_types::Catalogs>,
 
     /// Name of the catalog `pnpm add` saves a new dependency into,
     /// set by `--save-catalog-name=<name>` (with `--save-catalog` a
@@ -2001,9 +2001,9 @@ pub struct Config {
     /// Per-registry `Authorization` header lookup, populated from
     /// `.npmrc` auth keys (`_auth`, `_authToken`, `username`/`_password`,
     /// scoped variants). Threaded through the network and tarball
-    /// fetchers via [`pacquet_network::AuthHeaders::for_url`]. Empty
+    /// fetchers via [`pnpm_network::AuthHeaders::for_url`]. Empty
     /// when no `.npmrc` was found or no auth keys were set.
-    pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
+    pub auth_headers: std::sync::Arc<pnpm_network::AuthHeaders>,
 
     /// Raw `_authToken` values keyed by the nerf-darted registry URI
     /// (`//host[:port]/path/`), for the default (registry-wide) scope.
@@ -2055,13 +2055,13 @@ pub struct PackageManagerBootstrap {
     pub registry: String,
     /// Scoped registry routes (keyed by `@scope`), excluding `default`.
     pub registries: BTreeMap<String, String>,
-    pub proxy: pacquet_network::ProxyConfig,
+    pub proxy: pnpm_network::ProxyConfig,
     /// The trusted layers' merged proxy keys, of which [`Self::proxy`]
     /// is the resolution — see [`crate::proxy_keys`].
     pub proxy_keys: crate::proxy_keys::ProxyKeys,
-    pub tls: pacquet_network::TlsConfig,
-    pub tls_by_uri: pacquet_network::PerRegistryTls,
-    pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
+    pub tls: pnpm_network::TlsConfig,
+    pub tls_by_uri: pnpm_network::PerRegistryTls,
+    pub auth_headers: std::sync::Arc<pnpm_network::AuthHeaders>,
 }
 
 impl PackageManagerBootstrap {
@@ -2229,7 +2229,7 @@ impl Config {
     ///   yaml-pinned path) and writes the GVS path into the separate
     ///   `global_virtual_store_dir` field. The install layer picks the
     ///   right field through [`crate::Config::enable_global_virtual_store`]
-    ///   (or, in practice, through `pacquet_package_manager::VirtualStoreLayout`).
+    ///   (or, in practice, through `pnpm_package_manager::VirtualStoreLayout`).
     ///
     /// The reason: pacquet still has a non-frozen
     /// `InstallWithFreshLockfile` path that pnpm doesn't have.
@@ -2926,7 +2926,7 @@ impl Config {
                 // `virtual_store_dir` is built by joining a multi-segment
                 // literal, which keeps `/` separators on Windows; normalize
                 // so NODE_PATH carries native separators like the shims do.
-                let dir = pacquet_fs::lexical_normalize(&dir).display().to_string();
+                let dir = pnpm_fs::lexical_normalize(&dir).display().to_string();
                 if !node_paths.contains(&dir) {
                     node_paths.push(dir);
                 }

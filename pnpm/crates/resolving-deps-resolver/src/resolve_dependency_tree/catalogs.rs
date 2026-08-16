@@ -1,9 +1,9 @@
 //! `catalog:` specifier resolution for importer-level dependencies.
 
-use pacquet_catalogs_resolver::{
+use pnpm_catalogs_resolver::{
     CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
 };
-use pacquet_catalogs_types::Catalogs;
+use pnpm_catalogs_types::Catalogs;
 
 use super::{ResolveDependencyTreeError, WantedSpec};
 

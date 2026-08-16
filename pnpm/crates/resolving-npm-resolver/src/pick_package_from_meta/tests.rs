@@ -2,9 +2,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pacquet_config::version_policy::create_package_version_policy;
-use pacquet_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
-use pacquet_resolving_resolver_base::{
+use pnpm_config::version_policy::create_package_version_policy;
+use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_resolving_resolver_base::{
     VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
 };
 use pretty_assertions::assert_eq;

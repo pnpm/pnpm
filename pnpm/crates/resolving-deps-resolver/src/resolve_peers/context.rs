@@ -8,8 +8,8 @@ use crate::{
     resolved_tree::{ResolvedPackage, TreeChildren},
 };
 use node_semver::{Range, Version};
-use pacquet_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
-use pacquet_resolving_resolver_base::ResolveResult;
+use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
+use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     path::{Path, PathBuf},
@@ -425,14 +425,14 @@ pub(super) fn importer_relative_link_dep_path(
     };
     let target = Path::new(target);
     let absolute_target = if target.is_absolute() {
-        pacquet_fs::lexical_normalize(target)
+        pnpm_fs::lexical_normalize(target)
     } else {
-        pacquet_fs::lexical_normalize(&lockfile_dir.join(target))
+        pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
     };
     // `diff_paths` walks both paths component-wise, so a base still
     // carrying `.` / `..` segments would consume them as real directories
     // and count the wrong number of `..` hops back out.
-    let project_dir = pacquet_fs::lexical_normalize(project_dir);
+    let project_dir = pnpm_fs::lexical_normalize(project_dir);
     let relative_target = pathdiff::diff_paths(&absolute_target, project_dir)
         .unwrap_or(absolute_target)
         .display()
@@ -467,7 +467,7 @@ pub(super) fn remap_link_node_id(
     let lockfile_dir = opts.lockfile_dir.as_ref()?;
     let modules_dir = opts.modules_dir.as_ref()?;
     let directory = match &result.resolution {
-        pacquet_lockfile::LockfileResolution::Directory(dir) => &dir.directory,
+        pnpm_lockfile::LockfileResolution::Directory(dir) => &dir.directory,
         _ => return None,
     };
     if !result.id.as_str().starts_with("link:") {
@@ -480,7 +480,7 @@ pub(super) fn remap_link_node_id(
         Some(project_dir) => project_dir.join(directory),
         None => PathBuf::from(directory),
     };
-    if pacquet_fs::is_subdir(lockfile_dir, &link_target) {
+    if pnpm_fs::is_subdir(lockfile_dir, &link_target) {
         return None;
     }
     let target = modules_dir.join(alias);
@@ -543,8 +543,7 @@ pub(super) fn peer_id_pair(result: &ResolveResult) -> PeerId {
 fn named_registry_of(result: &ResolveResult) -> Option<&str> {
     let id = result.id.as_str();
     let at = id.get(1..)?.find('@')? + 1;
-    let (registry_name, _) =
-        pacquet_deps_path::parse_registry_qualified_version(id.get(at + 1..)?)?;
+    let (registry_name, _) = pnpm_deps_path::parse_registry_qualified_version(id.get(at + 1..)?)?;
     Some(registry_name)
 }
 

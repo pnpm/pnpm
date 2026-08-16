@@ -1,7 +1,7 @@
 use super::{prune_minimum_release_age_excludes, resolved_package_versions};
 use crate::tests::project_local_config;
-use pacquet_lockfile::Lockfile;
-use pacquet_package_manifest::PackageManifest;
+use pnpm_lockfile::Lockfile;
+use pnpm_package_manifest::PackageManifest;
 use std::path::Path;
 use tempfile::tempdir;
 

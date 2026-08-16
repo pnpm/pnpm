@@ -1,6 +1,6 @@
 use command_extra::CommandExtra;
-use pacquet_lockfile::EnvLockfile;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_lockfile::EnvLockfile;
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
 use std::{
     collections::BTreeMap,
@@ -16,10 +16,7 @@ fn version_flag_prints_the_bare_version() {
     let output = pacquet.with_arg("--version").output().expect("run pacquet --version");
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        format!("{}\n", pacquet_config::PNPM_VERSION),
-    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
 
     drop(root);
 }
@@ -31,10 +28,7 @@ fn short_version_flag_prints_the_bare_version() {
     let output = pacquet.with_arg("-v").output().expect("run pacquet -v");
     dbg!(&output);
     assert!(output.status.success(), "pacquet -v should succeed");
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        format!("{}\n", pacquet_config::PNPM_VERSION),
-    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
 
     drop(root);
 }
@@ -66,9 +60,9 @@ fn version_flag_switches_to_project_package_manager_version() {
 #[test]
 fn version_flag_records_a_pinned_package_manager_it_does_not_need_to_switch_to() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pacquet_config::PNPM_VERSION);
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let pinned = pacquet_config::PNPM_VERSION;
+    let pinned = pnpm_config::PNPM_VERSION;
     fs::write(
         workspace.join("package.json"),
         format!(r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{pinned}"}}}}}}"#),

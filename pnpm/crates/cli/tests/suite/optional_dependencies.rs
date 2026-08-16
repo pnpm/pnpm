@@ -7,8 +7,8 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::{Lockfile, PkgName};
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path};
 
 fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
@@ -18,7 +18,7 @@ fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
 }
 
 fn read_skipped(workspace: &Path) -> Vec<String> {
-    pacquet_modules_yaml::read_modules_layout::<pacquet_modules_yaml::Host>(
+    pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(
         &workspace.join("node_modules"),
     )
     .expect("read .modules.yaml")

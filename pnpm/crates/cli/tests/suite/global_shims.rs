@@ -3,7 +3,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils::command_env::CommandTestExt;
 use std::{fs, path::Path, process::Command};
 use tempfile::TempDir;
 
@@ -475,7 +475,7 @@ fn malformed_shim_invocation_errors() {
 #[cfg(unix)]
 #[test]
 fn global_fallback_preserves_quoted_shebang_arguments() {
-    use pacquet_cmd_shim::{Host, ShimStyle, generate_sh_shim, search_script_runtime};
+    use pnpm_cmd_shim::{Host, ShimStyle, generate_sh_shim, search_script_runtime};
     use std::os::unix::fs::PermissionsExt;
 
     let root = tempfile::tempdir().unwrap();
@@ -525,7 +525,7 @@ fn global_fallback_preserves_quoted_shebang_arguments() {
 #[cfg(windows)]
 #[test]
 fn generated_cmd_and_powershell_shims_dispatch_and_fall_back() {
-    use pacquet_cmd_shim::{ShimStyle, generate_cmd_shim, generate_pwsh_shim};
+    use pnpm_cmd_shim::{ShimStyle, generate_cmd_shim, generate_pwsh_shim};
 
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
