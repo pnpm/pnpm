@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { afterEach, expect, test } from '@jest/globals'
 import type { PackageExtension } from '@pnpm/types'
 
@@ -374,5 +376,41 @@ test('getOptionsFromPnpmSettings() does not mistake an @ later in the path for c
   })
   expect(options.registryOptions).toStrictEqual({
     'https://npm.example.com/scope@1/': { serverType: 'artifactory' },
+  })
+})
+
+test('getOptionsFromPnpmSettings() rejects credentials in a scheme-less registryOptions key', () => {
+  // `.npmrc` scopes settings with a scheme-less `//host/`, and this setting's
+  // own error points users at that syntax, so it is the form they are most
+  // likely to write.
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      '//ci-user-6e42:hunter2@npm.example.com/': { serverType: 'artifactory' },
+    },
+  })).toThrow(/key embeds credentials/)
+
+  // The message names the key, so it must not carry the credentials with it.
+  try {
+    getOptionsFromPnpmSettings(process.cwd(), {
+      registryOptions: {
+        '//ci-user-6e42:hunter2@npm.example.com/': { serverType: 'artifactory' },
+      },
+    })
+  } catch (err) {
+    const message = util.types.isNativeError(err) ? err.message : String(err)
+    expect(message).not.toContain('hunter2')
+    expect(message).not.toContain('ci-user-6e42')
+    expect(message).toContain('npm.example.com')
+  }
+})
+
+test('getOptionsFromPnpmSettings() accepts a scheme-less registryOptions key without credentials', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registryOptions: {
+      '//npm.example.com/': { serverType: 'artifactory' },
+    },
+  })
+  expect(options.registryOptions).toStrictEqual({
+    '//npm.example.com/': { serverType: 'artifactory' },
   })
 })

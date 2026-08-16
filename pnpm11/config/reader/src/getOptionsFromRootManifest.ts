@@ -106,13 +106,13 @@ function normalizeRegistryOptionsSetting (
   for (const [registry, options] of Object.entries(registryOptions)) {
     // The URL is user config that may carry `user:pass@` credentials, and it
     // is about to be interpolated into an error a terminal or CI log will show.
-    const settingPath = `registryOptions['${redactAndSanitize(registry)}']`
+    const settingPath = `registryOptions['${redactRegistryUrl(registry)}']`
     assertObjectSetting(options, settingPath)
     for (const key of Object.keys(options)) {
       if (SECRET_REGISTRY_KEYS.has(key)) {
         throw new PnpmError('INVALID_SETTING',
           `The "${settingPath}.${key}" setting is not allowed in pnpm-workspace.yaml.`,
-          { hint: `Set "//${redactAndSanitize(registry).replace(/^https?:\/\//, '')}:${key}" in an .npmrc file instead, so it is not committed.` })
+          { hint: `Set "//${redactRegistryUrl(registry).replace(/^(?:https?:)?\/\//, '')}:${key}" in an .npmrc file instead, so it is not committed.` })
       }
     }
     // `registryOptions` lives in the committed pnpm-workspace.yaml, and this
@@ -370,13 +370,48 @@ function copyEntriesWithoutEnvPlaceholderKeys (value: unknown): unknown {
 /**
  * Whether the authority of `url` carries a `user:pass@` prefix. The authority
  * ends at the first `/`, `?`, or `#`, so a later `@` in the path is not one.
+ *
+ * Both the full form and the scheme-less `//host/` form count. The latter is
+ * the shape `.npmrc` scopes settings with, so it is the one a user is most
+ * likely to reach for here.
  */
 function registryUrlHasUserinfo (url: string): boolean {
-  const schemeEnd = url.indexOf('://')
-  if (schemeEnd === -1) return false
-  const authority = url.slice(schemeEnd + '://'.length)
+  return userinfoEnd(url) !== undefined
+}
+
+/**
+ * The offset just past the `user:pass@` of `url`, or `undefined` when its
+ * authority carries none. Splitting it out keeps the detection and the
+ * redaction below agreeing on what the authority is.
+ */
+function userinfoEnd (url: string): number | undefined {
+  const authorityStart = authorityStartOf(url)
+  if (authorityStart === undefined) return undefined
+  const authority = url.slice(authorityStart)
   const authorityEnd = authority.search(/[/?#]/)
-  return (authorityEnd === -1 ? authority : authority.slice(0, authorityEnd)).includes('@')
+  const at = (authorityEnd === -1 ? authority : authority.slice(0, authorityEnd)).lastIndexOf('@')
+  return at === -1 ? undefined : authorityStart + at + 1
+}
+
+function authorityStartOf (url: string): number | undefined {
+  const schemeEnd = url.indexOf('://')
+  if (schemeEnd !== -1) return schemeEnd + '://'.length
+  if (url.startsWith('//')) return '//'.length
+  return undefined
+}
+
+/**
+ * `url` with any `user:pass@` removed, safe to put in a message.
+ *
+ * {@link redactAndSanitize} only recognizes an authority after a `://`, and
+ * deliberately so: it runs over arbitrary prose, where a bare `//` is more
+ * often a comment or a path than a URL. Here the string is known to be a
+ * registry URL, so the scheme-less `//host/` form can be handled too.
+ */
+function redactRegistryUrl (url: string): string {
+  const end = userinfoEnd(url)
+  if (end === undefined) return redactAndSanitize(url)
+  return redactAndSanitize(`${url.slice(0, authorityStartOf(url))}${url.slice(end)}`)
 }
 
 function hasEnvPlaceholder (value: string): boolean {

@@ -41,11 +41,46 @@ where
 
 /// Whether the authority of `url` carries a `user:pass@` prefix. The authority
 /// ends at the first `/`, `?`, or `#`, so a later `@` in the path is not one.
+///
+/// Both the full form and the scheme-less `//host/` form count. The latter is
+/// the shape `.npmrc` scopes settings with, so it is the one a user is most
+/// likely to reach for here.
 fn registry_url_has_userinfo(url: &str) -> bool {
-    let Some(scheme_end) = url.find("://") else { return false };
-    let authority = &url[scheme_end + 3..];
+    userinfo_end(url).is_some()
+}
+
+/// The offset just past the `user:pass@` of `url`, or [`None`] when its
+/// authority carries none. Splitting it out keeps the detection and the
+/// redaction below agreeing on what the authority is.
+fn userinfo_end(url: &str) -> Option<usize> {
+    let authority_start = match url.find("://") {
+        Some(scheme_end) => scheme_end + "://".len(),
+        None if url.starts_with("//") => "//".len(),
+        None => return None,
+    };
+    let authority = &url[authority_start..];
     let authority_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
-    authority[..authority_end].contains('@')
+    authority[..authority_end].rfind('@').map(|at| authority_start + at + 1)
+}
+
+/// `url` with any `user:pass@` removed, safe to put in a message.
+///
+/// [`redact_and_sanitize`] only recognizes an authority after a `://`, and
+/// deliberately so: it runs over arbitrary prose, where a bare `//` is more
+/// often a comment or a path than a URL. Here the string is known to be a
+/// registry URL, so the scheme-less `//host/` form can be handled too.
+fn redact_registry_url(url: &str) -> String {
+    match userinfo_end(url) {
+        Some(userinfo_end) => {
+            let authority_start = if url.contains("://") {
+                url.find("://").expect("checked above") + "://".len()
+            } else {
+                "//".len()
+            };
+            redact_and_sanitize(&format!("{}{}", &url[..authority_start], &url[userinfo_end..]))
+        }
+        None => redact_and_sanitize(url),
+    }
 }
 
 /// The value of an `allowBuilds` entry.
@@ -856,7 +891,7 @@ impl WorkspaceSettings {
         for registry in registry_options.keys() {
             if registry_url_has_userinfo(registry) {
                 return Err(LoadWorkspaceYamlError::CredentialsInRegistryOptionsKey {
-                    registry: redact_and_sanitize(registry),
+                    registry: redact_registry_url(registry),
                 });
             }
         }

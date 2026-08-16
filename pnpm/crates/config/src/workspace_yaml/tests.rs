@@ -1986,6 +1986,25 @@ fn rejects_a_registry_options_key_that_embeds_credentials() {
     assert!(error.contains("npm.example.com"), "the host is still named: {error}");
 }
 
+/// `.npmrc` scopes settings with a scheme-less `//host/`, and this setting's
+/// own error points users at that syntax, so it is the form they are most
+/// likely to write — and it must not slip past the check.
+#[test]
+fn rejects_a_scheme_less_registry_options_key_that_embeds_credentials() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registryOptions:\n  //ci-user-6e42:hunter2@npm.example.com/: {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a scheme-less key with credentials must not load")
+        .to_string();
+    assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
+    assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
+}
+
 /// A later `@` in the path is not userinfo.
 #[test]
 fn accepts_a_registry_options_key_with_an_at_sign_in_the_path() {
