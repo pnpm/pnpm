@@ -15,7 +15,12 @@ export interface PreResolutionHookContext {
   existsNonEmptyWantedLockfile: boolean
   lockfileDir: string
   storeDir: string
-  registriesByScope: RegistriesByScope
+  /**
+   * Named for the `.pnpmfile.cjs` contract rather than for the config field
+   * it comes from (`registriesByScope`): a hook is user code, and the key it
+   * reads is API. pacquet passes the same name.
+   */
+  registries: RegistriesByScope
 }
 
 export interface PreResolutionHookLogger {

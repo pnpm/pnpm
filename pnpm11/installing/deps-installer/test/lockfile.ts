@@ -1142,7 +1142,7 @@ test('tarball domain differs from registry domain', async () => {
       lockfileOnly: true,
       save: true,
     }, {
-      registries: {
+      registriesByScope: {
         default: 'https://registry.example.com',
       },
     })
@@ -1200,7 +1200,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
     ], testDefaults({
       fastUnpack: false,
       lockfileOnly: true,
-      registries: {
+      registriesByScope: {
         default: 'https://registry.npmjs.org/',
       },
       save: true,

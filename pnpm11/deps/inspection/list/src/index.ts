@@ -26,7 +26,7 @@ const DEFAULTS = {
   alwaysPrintRootPackage: true,
   depth: 0,
   long: false,
-  registries: undefined,
+  registriesByScope: undefined,
   reportAs: 'tree' as const,
   showExtraneous: true,
 }
@@ -185,7 +185,7 @@ export async function list (
           lockfileDir: maybeOpts?.lockfileDir,
           checkWantedLockfileOnly: maybeOpts?.checkWantedLockfileOnly,
           onlyProjects: maybeOpts?.onlyProjects,
-          registriesByScope: opts.registries,
+          registriesByScope: opts.registriesByScope,
           registriesByPrefix: opts.registriesByPrefix,
           modulesDir: opts.modulesDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,

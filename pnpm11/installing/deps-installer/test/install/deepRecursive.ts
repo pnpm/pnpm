@@ -18,9 +18,9 @@ test('a package with a huge amount of circular dependencies and many peer depend
     testDefaults({
       fastUnpack: true,
       lockfileOnly: true,
-      registries,
+      registriesByScope: registries,
       strictPeerDependencies: false,
-    }, { registries })
+    }, { registriesByScope: registries })
   )
 
   expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()

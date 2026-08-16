@@ -503,7 +503,7 @@ export async function mutateModules (
         existsNonEmptyWantedLockfile: ctx.existsNonEmptyWantedLockfile,
         lockfileDir: ctx.lockfileDir,
         storeDir: ctx.storeDir,
-        registriesByScope: ctx.registriesByScope,
+        registries: ctx.registriesByScope,
       })
     }
   }

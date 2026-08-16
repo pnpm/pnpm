@@ -55,6 +55,6 @@ The three registry lookups are now named for what they are keyed by, so that non
 
 The same rename applies to the `RegistryContext` fields, the `Registries` and `NamedRegistries` types (now `RegistriesByScope` and `RegistriesByPrefix`), `normalizeRegistries` / `normalizeNamedRegistries` (now `normalizeRegistriesByScope` / `normalizeRegistriesByPrefix`), and the `BUILTIN_NAMED_REGISTRIES` constant (now `BUILTIN_REGISTRIES_BY_PREFIX`).
 
-This is an internal rename: no setting, error code, lockfile field, or `.modules.yaml` key changes. The `registries` and `namedRegistries` settings are read under the names users write them, and `node_modules/.modules.yaml` keeps its `registries` field.
+This is an internal rename: no setting, error code, lockfile field, `.modules.yaml` key, or `.pnpmfile.cjs` hook field changes. A `preResolution` hook still reads `ctx.registries`, which is the name pacquet passes as well. The `registries` and `namedRegistries` settings are read under the names users write them, and `node_modules/.modules.yaml` keeps its `registries` field.
 
 The pnpr resolve request sends `registriesByPrefix` where it sent `namedRegistries`. A pnpr server and its clients must be on matching versions, which is already the case for an experimental server.
