@@ -3,17 +3,21 @@ import path from 'node:path'
 import { envReplace } from '@pnpm/config.env-replace'
 import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import type {
-  AllowedDeprecatedVersions,
-  PackageExtension,
-  PeerDependencyRules,
-  PnpmSettings,
-  ProjectManifest,
-  RegistryOptions,
-  SupportedArchitectures,
+import {
+  type AllowedDeprecatedVersions,
+  DEFAULT_REGISTRY_SCOPE,
+  type PackageExtension,
+  type PeerDependencyRules,
+  type PnpmSettings,
+  type ProjectManifest,
+  type RegistryDeclaration,
+  type RegistryOptions,
+  type SupportedArchitectures,
 } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { map as mapValues } from 'ramda'
+
+import { quoteAndJoin } from './quoteAndJoin.js'
 
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
@@ -26,7 +30,14 @@ export type OptionsFromRootManifest = {
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'registryOptions' | 'updateConfig'>
+  /**
+   * Two of the three lookups the `registries` setting is split into. The
+   * third, the scope-routed URLs, keeps the `registries` key it is read from
+   * and so is typed by {@link PnpmSettings}.
+   */
+  namedRegistries?: Record<string, string>
+  registryOptions?: Record<string, RegistryOptions>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
   manifest?: ProjectManifest
@@ -71,9 +82,7 @@ export function getOptionsFromPnpmSettings (
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
-  if (settings.registryOptions != null) {
-    settings.registryOptions = normalizeRegistryOptionsSetting(settings.registryOptions)
-  }
+  translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
 
@@ -84,55 +93,171 @@ const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
 
 /**
  * Credentials and TLS material stay in `.npmrc`, which is not committed.
- * `registryOptions` lives in `pnpm-workspace.yaml`, which is, so accepting
- * these here would invite secrets into version control. Rejecting is better
- * than ignoring: a silently dropped `_authToken` reads as configured.
+ * `registries` lives in `pnpm-workspace.yaml`, which is, so accepting these
+ * here would invite secrets into version control. Rejecting is better than
+ * ignoring: a silently dropped `_authToken` reads as configured.
  */
 const SECRET_REGISTRY_KEYS = new Set([
   '_auth', '_authToken', '_password', 'username', 'tokenHelper',
   'ca', 'cafile', 'cert', 'certfile', 'key', 'keyfile',
 ])
 
+/** The fields a `registries` entry may carry. Anything else is a typo. */
+const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'scopes', 'prefix'])
+
 /**
- * Validates the `registryOptions` setting and keys it by normalized registry
- * URL, so a lookup by the registry a package resolved from matches the entry
- * however either one spelled the trailing slash.
+ * Splits the `registries` setting into the three lookups the rest of pnpm
+ * reads — the scope-routed URLs, the `<prefix>:` aliases, and the per-registry
+ * options — and drops the declaration map itself, which does not travel.
+ *
+ * A registry is declared once, keyed by its URL, because every fact in an
+ * entry is a fact about that server: how it lays out tarball URLs, and which
+ * routes reach it. The lookups are the inverse of the routes, because a scope
+ * resolves to exactly one registry while a registry serves many.
+ *
+ * The older shape — a map whose values are all strings — is the scope lookup
+ * already, and is left as it stands.
  */
-function normalizeRegistryOptionsSetting (
+function translateRegistrySettings (settings: OptionsFromRootManifest): void {
+  // The one key that both reads and writes here: it arrives as whichever shape
+  // the user wrote and leaves as the scope lookup.
+  const registrySetting = settings as { registries?: PnpmSettings['registries'] | Record<string, string> }
+  const declarations = registrySetting.registries
+  if (declarations == null) return
+  assertObjectSetting(declarations, 'registries')
+  const entries = Object.entries(declarations)
+  const scopeRoutes = entries.filter(([, declaration]) => typeof declaration === 'string')
+  if (scopeRoutes.length === entries.length) {
+    assertNoUrlKeyedScopeRoutes(scopeRoutes.map(([scope]) => scope))
+    return
+  }
+  if (scopeRoutes.length > 0) {
+    throw new PnpmError('INVALID_SETTING',
+      `The "registries" setting mixes registry declarations with "<scope>: <url>" entries (${quoteAndJoin(scopeRoutes.map(([scope]) => scope))}).`,
+      { hint: 'Key every entry by registry URL and list the scopes routed to it under "scopes".' })
+  }
+
+  const lookups = splitRegistryDeclarations(entries as Array<[string, RegistryDeclaration]>)
+  if (settings.namedRegistries != null && Object.keys(lookups.namedRegistries).length > 0) {
+    globalWarn('Both the "registries" and "namedRegistries" settings declare registry prefixes. The deprecated "namedRegistries" setting is only read for prefixes "registries" does not declare.')
+  }
+  delete registrySetting.registries
+  if (Object.keys(lookups.registries).length > 0) registrySetting.registries = lookups.registries
+  // A prefix a `registries` entry declares wins: `namedRegistries` is the
+  // deprecated spelling of the same thing.
+  const namedRegistries = { ...settings.namedRegistries, ...lookups.namedRegistries }
+  if (Object.keys(namedRegistries).length > 0) settings.namedRegistries = namedRegistries
+  if (Object.keys(lookups.registryOptions).length > 0) settings.registryOptions = lookups.registryOptions
+}
+
+/**
+ * A scope routes to a registry, so a URL in that position routes nothing and
+ * would sit there inert. It is the declaration shape, half-written.
+ */
+function assertNoUrlKeyedScopeRoutes (scopes: string[]): void {
+  for (const scope of scopes) {
+    if (!looksLikeRegistryUrl(scope)) continue
+    throw new PnpmError('INVALID_SETTING',
+      `The "registries['${redactRegistryUrl(scope)}']" entry is a string.`,
+      { hint: 'A registry URL keys a declaration, e.g. { serverType: "artifactory" }. A string value routes a scope, and a URL is not a scope.' })
+  }
+}
+
+interface RegistryLookups {
+  /** Scope-routed URLs, normalized, with `@` under its `default` key. */
+  registries: Record<string, string>
+  /**
+   * Prefix-addressed URLs, deliberately kept as written: a named registry's
+   * URL is what a lockfile's recorded tarball URLs are matched against, so
+   * normalizing it would change what an existing lockfile verifies against.
+   */
+  namedRegistries: Record<string, string>
   registryOptions: Record<string, RegistryOptions>
-): Record<string, RegistryOptions> {
-  assertObjectSetting(registryOptions, 'registryOptions')
-  const normalized: Record<string, RegistryOptions> = {}
-  for (const [registry, options] of Object.entries(registryOptions)) {
+}
+
+/** Validates the declarations and inverts their routes into the lookups. */
+function splitRegistryDeclarations (entries: Array<[string, RegistryDeclaration]>): RegistryLookups {
+  const lookups: RegistryLookups = { registries: {}, namedRegistries: {}, registryOptions: {} }
+  for (const [registry, declaration] of entries) {
     // The URL is user config that may carry `user:pass@` credentials, and it
     // is about to be interpolated into an error a terminal or CI log will show.
-    const settingPath = `registryOptions['${redactRegistryUrl(registry)}']`
-    assertObjectSetting(options, settingPath)
-    for (const key of Object.keys(options)) {
-      if (SECRET_REGISTRY_KEYS.has(key)) {
-        throw new PnpmError('INVALID_SETTING',
-          `The "${settingPath}.${key}" setting is not allowed in pnpm-workspace.yaml.`,
-          { hint: `Set "//${redactRegistryUrl(registry).replace(/^(?:https?:)?\/\//, '')}:${key}" in an .npmrc file instead, so it is not committed.` })
-      }
-    }
-    // `registryOptions` lives in the committed pnpm-workspace.yaml, and this
-    // map already refuses credential fields for that reason; a credential in
-    // the key is the same secret in the same file. A registry whose URL really
-    // carries credentials should move them to .npmrc, which also makes the URL
-    // here match the one pnpm resolves from.
+    const settingPath = `registries['${redactRegistryUrl(registry)}']`
+    assertObjectSetting(declaration, settingPath)
+    assertKnownRegistryFields(declaration, registry, settingPath)
+    // The map lives in the committed pnpm-workspace.yaml, and it already
+    // refuses credential fields for that reason; a credential in the key is
+    // the same secret in the same file. A registry whose URL really carries
+    // credentials should move them to .npmrc, which also makes the URL here
+    // match the one pnpm resolves from.
     if (registryUrlHasUserinfo(registry)) {
       throw new PnpmError('INVALID_SETTING',
         `The "${settingPath}" key embeds credentials.`,
         { hint: 'Put them in an .npmrc file instead, so they are not committed.' })
     }
-    const { serverType } = options
-    if (serverType != null && !REGISTRY_SERVER_TYPES.has(serverType)) {
-      throw new PnpmError('INVALID_SETTING',
-        `The "${settingPath}.serverType" setting should be one of ${Array.from(REGISTRY_SERVER_TYPES).map((type) => `"${type}"`).join(', ')}, but got ${JSON.stringify(serverType)}`)
+    // Normalized for the lookups keyed by URL, so that a registry a package
+    // resolved from matches its declaration however either one spelled the
+    // trailing slash.
+    const normalizedRegistry = normalizeRegistryUrl(registry)
+    const { serverType, scopes, prefix } = declaration
+    if (serverType != null) {
+      if (!REGISTRY_SERVER_TYPES.has(serverType)) {
+        throw new PnpmError('INVALID_SETTING',
+          `The "${settingPath}.serverType" setting should be one of ${quoteAndJoin([...REGISTRY_SERVER_TYPES])}, but got ${JSON.stringify(serverType)}`)
+      }
+      lookups.registryOptions[normalizedRegistry] = { serverType }
     }
-    normalized[normalizeRegistryUrl(registry)] = options
+    if (scopes != null) {
+      assertStringArray(scopes, `${settingPath}.scopes`)
+      for (const scope of scopes) {
+        if (!scope.startsWith(DEFAULT_REGISTRY_SCOPE)) {
+          throw new PnpmError('INVALID_SETTING',
+            `The "${settingPath}.scopes" setting should list "@"-prefixed scopes, but got ${JSON.stringify(scope)}`,
+            { hint: `A bare "${DEFAULT_REGISTRY_SCOPE}" is the scope-less default registry.` })
+        }
+        const scopeKey = scope === DEFAULT_REGISTRY_SCOPE ? 'default' : scope
+        const routed = lookups.registries[scopeKey]
+        if (routed != null && routed !== normalizedRegistry) {
+          throw new PnpmError('INVALID_SETTING',
+            `The scope ${JSON.stringify(scope)} is routed to two registries: ${quoteAndJoin([routed, normalizedRegistry].map(redactAndSanitize))}.`)
+        }
+        lookups.registries[scopeKey] = normalizedRegistry
+      }
+    }
+    if (prefix != null) {
+      assertString(prefix, `${settingPath}.prefix`)
+      const declaredBy = lookups.namedRegistries[prefix]
+      if (declaredBy != null) {
+        throw new PnpmError('INVALID_SETTING',
+          `The prefix ${JSON.stringify(prefix)} is declared by two registries: ${quoteAndJoin([declaredBy, registry].map(redactAndSanitize))}.`)
+      }
+      lookups.namedRegistries[prefix] = registry
+    }
   }
-  return normalized
+  return lookups
+}
+
+/**
+ * A misspelled field would otherwise sit there doing nothing, and a credential
+ * field would sit in a committed file. Both are refused here rather than by
+ * the yaml parser, which renders the offending source line verbatim under its
+ * errors — printing the very credential being refused.
+ */
+function assertKnownRegistryFields (declaration: RegistryDeclaration, registry: string, settingPath: string): void {
+  for (const field of Object.keys(declaration)) {
+    if (REGISTRY_DECLARATION_FIELDS.has(field)) continue
+    if (SECRET_REGISTRY_KEYS.has(field)) {
+      throw new PnpmError('INVALID_SETTING',
+        `The "${settingPath}.${field}" setting is not allowed in pnpm-workspace.yaml.`,
+        { hint: `Set "//${redactRegistryUrl(registry).replace(/^(?:https?:)?\/\//, '')}:${field}" in an .npmrc file instead, so it is not committed.` })
+    }
+    throw new PnpmError('INVALID_SETTING',
+      `The "${settingPath}.${field}" setting is not a known registry setting.`,
+      { hint: `A registry declares ${quoteAndJoin([...REGISTRY_DECLARATION_FIELDS])}.` })
+  }
+}
+
+function looksLikeRegistryUrl (key: string): boolean {
+  return key.includes('://') || key.startsWith('//')
 }
 
 /**
@@ -312,13 +437,13 @@ function replaceEnvInSettings (
       if (REQUEST_DESTINATION_SCALAR_KEYS.has(newKey) && !opts.expandRequestDestinationEnv && hasEnvPlaceholder(value)) continue
       // @ts-expect-error
       newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
-    } else if (newKey === 'registries' || newKey === 'namedRegistries') {
+    } else if (newKey === 'namedRegistries' || (newKey === 'registries' && isScopeRouteMap(value))) {
       newSettings[newKey as keyof PnpmSettings] = (opts.expandRequestDestinationEnv
         ? replaceEnvInStringValues(value)
         : copyStringValuesWithoutEnvPlaceholders(value)) as never
-    } else if (newKey === 'registryOptions') {
-      // Keyed by registry URL rather than valued by one, so the request
-      // destination is the key and the gate has to apply there.
+    } else if (newKey === 'registries') {
+      // A declaration map is keyed by registry URL rather than valued by one,
+      // so the request destination is the key and the gate has to apply there.
       newSettings[newKey as keyof PnpmSettings] = (opts.expandRequestDestinationEnv
         ? replaceEnvInKeys(value)
         : copyEntriesWithoutEnvPlaceholderKeys(value)) as never
@@ -327,6 +452,21 @@ function replaceEnvInSettings (
     }
   }
   return newSettings
+}
+
+/**
+ * Whether a `registries` value is the older `<scope>: <url>` shape rather than
+ * a map of declarations. The registry URL is the value in the one and the key
+ * in the other, so which one carries the request destination — and so which
+ * one the env-placeholder gate applies to — follows from this.
+ *
+ * A map that mixes the two is a declaration map here; {@link
+ * translateRegistrySettings} rejects it with a message about the mixing.
+ */
+function isScopeRouteMap (value: unknown): boolean {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return false
+  const values = Object.values(value as Record<string, unknown>)
+  return values.length > 0 && values.every((entry) => typeof entry === 'string')
 }
 
 function replaceEnvInStringValues (value: unknown): unknown {

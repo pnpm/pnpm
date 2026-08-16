@@ -29,7 +29,7 @@ pub(crate) fn emit_config_warning(message: &str) {
     let _ = writeln!(std::io::stderr(), "{} {message}", colors.warn_label());
 }
 
-/// Warn about `registryOptions` entries that name no configured registry.
+/// Warn about `registries` entries that name no configured registry.
 ///
 /// Such an entry is inert — the wrong URL, a stale entry, a scope that moved —
 /// and silently doing nothing is the failure mode users cannot debug. A warning
@@ -72,7 +72,7 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
         .collect::<Vec<_>>()
         .join(", ");
     Some(format!(
-        r#"The following "registryOptions" entries do not match any configured registry and were ignored: {}. The configured registries are: {configured}."#,
+        r#"The following "registries" entries do not match any configured registry and were ignored: {}. The configured registries are: {configured}."#,
         unmatched.join(", "),
     ))
 }

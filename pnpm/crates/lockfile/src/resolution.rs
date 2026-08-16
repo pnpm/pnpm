@@ -406,7 +406,7 @@ impl LockfileResolution {
     }
 }
 
-/// The software serving a registry, declared through the `registryOptions`
+/// The software serving a registry, declared through the `registries`
 /// setting. Modeled as an [`Option`] everywhere it is threaded, because
 /// "behaves like the npm registry" is a claim only the operator can make:
 ///
@@ -430,7 +430,7 @@ pub enum RegistryServerType {
     Artifactory,
 }
 
-/// Non-secret, per-registry settings from the `registryOptions` setting.
+/// Non-secret, per-registry settings from the `registries` setting.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RegistryOptions {

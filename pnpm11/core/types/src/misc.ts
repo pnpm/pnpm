@@ -32,9 +32,9 @@ export interface NamedRegistries {
 }
 
 /**
- * The software serving a registry, declared through the `registryOptions`
- * setting. Three states, because "behaves like the npm registry" is a claim
- * only the operator can make:
+ * The software serving a registry, declared through the `registries` setting.
+ * Three states, because "behaves like the npm registry" is a claim only the
+ * operator can make:
  *
  * - undeclared — strict. Only the exact canonical URL is reconstructible.
  *   This is how every registry but registry.npmjs.org is read by default.
@@ -52,12 +52,38 @@ export interface NamedRegistries {
 export type RegistryServerType = 'npm' | 'artifactory'
 
 /**
- * Non-secret, per-registry settings from the `registryOptions` setting. Held
- * apart from {@link RegistryConfig} so the install and lockfile layers can be
- * handed a registry's layout without also being handed its credentials.
+ * Non-secret, per-registry settings from the `registries` setting. Held apart
+ * from {@link RegistryConfig} so the install and lockfile layers can be handed
+ * a registry's layout without also being handed its credentials.
  */
 export interface RegistryOptions {
   serverType?: RegistryServerType
+}
+
+/**
+ * One entry of the `registries` setting: everything a project declares about
+ * a registry, keyed by its URL so each fact is stated once.
+ *
+ * `scopes` and `prefix` are the routes *to* the registry, and are inverted
+ * into {@link Registries} and {@link NamedRegistries} when the config is read
+ * — a scope resolves to one registry, but a registry serves many, so the
+ * declaration reads the way it is written and each lookup keeps the shape it
+ * is queried in.
+ */
+export interface RegistryDeclaration extends RegistryOptions {
+  /**
+   * The scopes routed here, `@`-prefixed. {@link DEFAULT_REGISTRY_SCOPE}
+   * (a bare `@`) is the registry packages resolve from when no scope matches,
+   * the same registry the `registry` setting names.
+   */
+  scopes?: string[]
+  /**
+   * The bare-specifier prefix this registry answers to, as in
+   * `"foo": "work:^1.0.0"`. Singular because the prefix is the registry's
+   * identity in a lockfile dep path (`foo@work:1.0.0`): a second spelling
+   * would key the same package from the same registry twice.
+   */
+  prefix?: string
 }
 
 /**

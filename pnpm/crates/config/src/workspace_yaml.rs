@@ -11,7 +11,6 @@ use indexmap::IndexMap;
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_env_replace::env_replace_lossy;
-use pnpm_lockfile::RegistryOptions;
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
@@ -70,8 +69,9 @@ fn authority_start_of(url: &str) -> Option<usize> {
         let scheme = &url[..scheme_end];
         let mut chars = scheme.chars();
         let starts_with_letter = chars.next().is_some_and(|first| first.is_ascii_alphabetic());
-        let rest_is_scheme =
-            chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'));
+        let rest_is_scheme = chars.all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '+' | '.' | '-')
+        });
         if starts_with_letter && rest_is_scheme {
             return Some(scheme_end + "://".len());
         }
@@ -208,7 +208,10 @@ pub struct WorkspaceSettings {
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
     pub scope: Option<String>,
-    pub registries: Option<BTreeMap<String, String>>,
+    /// The registries the project declares. Keyed by registry URL, with the
+    /// routes to each registry inside its entry; a map of plain strings is the
+    /// older `<scope>: <url>` shape and is read as one.
+    pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
@@ -220,13 +223,11 @@ pub struct WorkspaceSettings {
     /// name (`gh`, `work`, ...); inner string is the registry URL the
     /// alias resolves against. Merged on top of pnpm's built-in
     /// defaults at resolver construction.
+    ///
+    /// Deprecated in favor of the `prefix` field of a
+    /// [`crate::RegistryDeclaration`],
+    /// and only read for the prefixes `registries` does not declare.
     pub named_registries: Option<BTreeMap<String, String>>,
-
-    /// Non-secret per-registry settings, keyed by registry URL. Credentials
-    /// and TLS material are deliberately not accepted here: this file is
-    /// committed, and `RegistryOptions` denies unknown fields so an
-    /// `_authToken` written here fails loudly instead of looking configured.
-    pub registry_options: Option<BTreeMap<String, RegistryOptions>>,
 
     /// Structured registry auth (`_auth`). Honored **only** from the global
     /// pnpm `config.yaml` (read via `NpmrcAuth::from_json_sources`, not
@@ -809,12 +810,59 @@ pub enum LoadWorkspaceYamlError {
         source: Box<serde_saphyr::Error>,
     },
     /// The registry URL is redacted before it reaches this variant.
-    #[display("The \"registryOptions\" key {registry} embeds credentials")]
+    #[display("The \"registries\" key {registry} embeds credentials")]
     #[diagnostic(
-        code(ERR_PNPM_CREDENTIALS_IN_REGISTRY_OPTIONS_KEY),
+        code(ERR_PNPM_INVALID_SETTING),
         help("Put them in an .npmrc file instead, so they are not committed.")
     )]
-    CredentialsInRegistryOptionsKey { registry: String },
+    CredentialsInRegistryKey { registry: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(
+        r#"The "registries[{registry:?}].{field}" setting is not allowed in pnpm-workspace.yaml"#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help("Set it in an .npmrc file instead, so it is not committed.")
+    )]
+    SecretInRegistryDeclaration { registry: String, field: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(r#"The "registries[{registry:?}].{field}" setting is not a known registry setting"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"A registry declares "serverType", "scopes", and "prefix"."#)
+    )]
+    UnknownRegistryDeclarationField { registry: String, field: String },
+    #[display(r#"The "registries" setting mixes registry declarations with "<scope>: <url>" entries ({scopes})"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(
+            r#"Key every entry by registry URL and list the scopes routed to it under "scopes"."#
+        )
+    )]
+    MixedRegistriesShapes { scopes: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(r#"The "registries[{registry:?}]" entry is a string"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(
+            r#"A registry URL keys a declaration, e.g. {{ serverType: "artifactory" }}. A string value routes a scope, and a URL is not a scope."#
+        )
+    )]
+    StringValuedRegistryDeclaration { registry: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(r#"The "registries[{registry:?}].scopes" setting should list "@"-prefixed scopes, but got {scope:?}"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"A bare "@" is the scope-less default registry."#)
+    )]
+    RegistryScopeWithoutAtSign { registry: String, scope: String },
+    /// The registry URLs are redacted before they reach this variant.
+    #[display("The scope {scope:?} is routed to two registries: {registries}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    ScopeRoutedTwice { scope: String, registries: String },
+    #[display("The prefix {prefix:?} is declared by two registries")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    PrefixDeclaredTwice { prefix: String },
     #[display("Invalid `_auth` setting: {source}")]
     InvalidJsonAuth {
         #[error(source)]
@@ -880,33 +928,21 @@ impl WorkspaceSettings {
         let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
-        settings.reject_credentials_in_registry_options()?;
+        settings.validate_registries()?;
         settings.clear_workspace_only_fields();
         Ok(Some(settings))
     }
 
-    /// Refuse a `registryOptions` key carrying inline `user:pass@` credentials.
-    ///
-    /// `registryOptions` lives in the committed `pnpm-workspace.yaml`, and the
-    /// map already refuses credential *fields*; a credential in the key is the
-    /// same secret in the same file. A registry whose URL really carries them
-    /// should move them to `.npmrc`, which also makes the URL here match the
-    /// one pnpm resolves from.
+    /// Reject a `registries` map pnpm would read as something other than what
+    /// it says. See [`registries::validate`] for the rules.
     ///
     /// Checked after parsing rather than in a `Deserialize` impl on purpose:
     /// `serde_saphyr` renders the offending source line verbatim under its
     /// errors, so rejecting at parse time would print the very credential
     /// being rejected into the terminal and any CI log.
-    fn reject_credentials_in_registry_options(&self) -> Result<(), LoadWorkspaceYamlError> {
-        let Some(registry_options) = self.registry_options.as_ref() else { return Ok(()) };
-        for registry in registry_options.keys() {
-            if registry_url_has_userinfo(registry) {
-                return Err(LoadWorkspaceYamlError::CredentialsInRegistryOptionsKey {
-                    registry: redact_registry_url(registry),
-                });
-            }
-        }
-        Ok(())
+    fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(entries) = self.registries.as_ref() else { return Ok(()) };
+        registries::validate(entries)
     }
 
     /// Zero out the release-age and trust policies for `self-update`.
@@ -944,6 +980,16 @@ impl WorkspaceSettings {
     /// hoisted` in `~/.config/pnpm/config.yaml` and pacquet would
     /// honor it while pnpm wouldn't — anti-parity.
     pub fn clear_workspace_only_fields(&mut self) {
+        // Only the layout half of a registry declaration is workspace-only: it
+        // decides which tarball URLs are omitted from the lockfile, so a
+        // machine-local setting would make one developer write a lockfile
+        // their collaborators read back with a different layout. The routes to
+        // the registry are a legitimate global preference.
+        for entry in self.registries.iter_mut().flat_map(BTreeMap::values_mut) {
+            if let RegistryEntry::Declaration(declaration) = entry {
+                declaration.server_type = None;
+            }
+        }
         self.versioning = None;
         self.hoist = None;
         self.hoist_pattern = None;
@@ -959,7 +1005,6 @@ impl WorkspaceSettings {
         self.shared_workspace_lockfile = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
-        self.registry_options = None;
         self.auto_install_peers = None;
         self.auto_install_peers_from_highest_match = None;
         self.exclude_links_from_lockfile = None;
@@ -1009,7 +1054,7 @@ impl WorkspaceSettings {
             .pipe_as_ref(serde_saphyr::from_str)
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
-        settings.reject_credentials_in_registry_options()?;
+        settings.validate_registries()?;
         Ok(Some(settings))
     }
 
@@ -1040,9 +1085,8 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.proxy);
         substitute_json_string::<Sys>(&mut self.no_proxy);
         substitute_json_string::<Sys>(&mut self.noproxy);
-        substitute_optional_string_map::<Sys>(&mut self.registries);
+        substitute_registry_entries::<Sys>(&mut self.registries);
         substitute_optional_string_map::<Sys>(&mut self.named_registries);
-        substitute_optional_map_keys::<Sys, _>(&mut self.registry_options);
     }
 
     /// Expand `${VAR}` in ordinary string settings, but drop
@@ -1061,13 +1105,10 @@ impl WorkspaceSettings {
             self.registry = None;
         }
         if let Some(registries) = self.registries.as_mut() {
-            registries.retain(|_, value| !has_env_placeholder(value));
+            registries::retain_without_env_placeholders(registries, has_env_placeholder);
         }
         if let Some(named_registries) = self.named_registries.as_mut() {
             named_registries.retain(|_, value| !has_env_placeholder(value));
-        }
-        if let Some(registry_options) = self.registry_options.as_mut() {
-            registry_options.retain(|registry, _| !has_env_placeholder(registry));
         }
 
         if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
@@ -1236,15 +1277,16 @@ impl WorkspaceSettings {
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
-        if let Some(registries) = self.registries {
-            for (scope, registry) in registries {
-                let registry = normalize_registry_url(&registry);
-                if scope == "default" {
-                    config.registry = registry;
-                } else {
-                    config.registries.insert(scope, registry);
-                }
+        let mut declared_prefixes = false;
+        if let Some(entries) = self.registries {
+            let lookups = registries::into_lookups(entries);
+            declared_prefixes = !lookups.named_registries.is_empty();
+            if let Some(registry) = lookups.default_registry {
+                config.registry = registry;
             }
+            config.registries.extend(lookups.registries);
+            config.named_registries.extend(lookups.named_registries);
+            config.registry_options.extend(lookups.registry_options);
         }
         if let Some(v) = self.registry {
             config.registry = normalize_registry_url(&v);
@@ -1256,13 +1298,17 @@ impl WorkspaceSettings {
             config.pnpr_server = Some(v);
         }
         if let Some(v) = self.named_registries {
-            config.named_registries = v;
-        }
-        if let Some(v) = self.registry_options {
-            config.registry_options = v
-                .into_iter()
-                .map(|(registry, options)| (normalize_registry_url(&registry), options))
-                .collect();
+            if declared_prefixes {
+                tracing::warn!(
+                    target: "pacquet::config",
+                    r#"Both the "registries" and "namedRegistries" settings declare registry prefixes. The deprecated "namedRegistries" setting is only read for prefixes "registries" does not declare."#,
+                );
+            }
+            // A prefix a `registries` entry declares wins: this is the
+            // deprecated spelling of the same thing.
+            for (name, registry) in v {
+                config.named_registries.entry(name).or_insert(registry);
+            }
         }
 
         // Anchor patch-file path resolution against the workspace dir
@@ -1482,14 +1528,21 @@ fn substitute_optional_string_map<Sys: EnvVar>(value: &mut Option<BTreeMap<Strin
     }
 }
 
-/// Expands `${VAR}` in a map's *keys*, for settings keyed by a URL.
-fn substitute_optional_map_keys<Sys: EnvVar, Value>(value: &mut Option<BTreeMap<String, Value>>) {
+/// Expands `${VAR}` in the half of each `registries` entry that carries the
+/// request destination: the value of a scope route, the key of a declaration.
+fn substitute_registry_entries<Sys: EnvVar>(value: &mut Option<BTreeMap<String, RegistryEntry>>) {
     let Some(map) = value.take() else { return };
     *value = Some(
         map.into_iter()
-            .map(|(key, map_value)| {
-                let (substituted, _) = env_replace_lossy::<Sys>(&key);
-                (substituted, map_value)
+            .map(|(key, entry)| match entry {
+                RegistryEntry::ScopeRoute(url) => {
+                    let (substituted, _) = env_replace_lossy::<Sys>(&url);
+                    (key, RegistryEntry::ScopeRoute(substituted))
+                }
+                RegistryEntry::Declaration(declaration) => {
+                    let (substituted, _) = env_replace_lossy::<Sys>(&key);
+                    (substituted, RegistryEntry::Declaration(declaration))
+                }
             })
             .collect(),
     );
@@ -1533,6 +1586,8 @@ pub fn workspace_root_or(start: &Path) -> PathBuf {
         .and_then(|path| path.parent().map(Path::to_path_buf))
         .unwrap_or_else(|| start.to_path_buf())
 }
+
+pub mod registries;
 
 #[cfg(test)]
 mod tests;

@@ -50,6 +50,7 @@ import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
+import { quoteAndJoin } from './quoteAndJoin.js'
 import { transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
 export { types }
@@ -1202,7 +1203,10 @@ type ProjectManifestSkippedKey =
   | typeof CREDENTIAL_KEYS[number]
 
 /** Every key a caller of {@link addSettingsFromWorkspaceManifestToConfig} may skip. */
-type SkippableKey = ProjectManifestSkippedKey | typeof SELF_UPDATE_SKIPPED_SETTINGS[number]
+type SkippableKey =
+  | ProjectManifestSkippedKey
+  | typeof SELF_UPDATE_SKIPPED_SETTINGS[number]
+  | typeof GLOBAL_CONFIG_ONLY_SKIPPED_KEYS[number]
 
 const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set([
   ...MACHINE_LOCATION_KEYS,
@@ -1218,9 +1222,20 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = ne
  * `--config.config-dir` would land back on a key the reader resolves for
  * itself, and only for the users who happen to have a `config.yaml`.
  */
-const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set(
-  [...PROJECT_MANIFEST_SKIPPED_KEYS].filter((key) => !isConfigFileKey(kebabCase(key)))
-)
+/**
+ * Only the layout half of a `registries` entry is workspace-only: it decides
+ * which tarball URLs are omitted from the lockfile, so a machine-local setting
+ * would make one developer write a lockfile their collaborators read back with
+ * a different layout. The routes to the registry are a legitimate global
+ * preference, which is why the whole `registries` key is not refused here.
+ */
+const GLOBAL_CONFIG_ONLY_SKIPPED_KEYS = ['registryOptions'] as const satisfies ReadonlyArray<keyof Config>
+
+const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<SkippableKey> = new Set([
+  ...[...PROJECT_MANIFEST_SKIPPED_KEYS].filter((key) => !isConfigFileKey(kebabCase(key))),
+  ...GLOBAL_CONFIG_ONLY_SKIPPED_KEYS,
+])
+
 
 /**
  * Whether a project's `pnpm-workspace.yaml` would ignore this camelCase key.
@@ -1352,16 +1367,13 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
 
-/** Renders keys for a warning that lists the settings it ignored. */
-function quoteAndJoin (keys: string[]): string {
-  return keys.map(key => `"${key}"`).join(', ')
-}
-
 /**
- * A `registryOptions` entry only takes effect when its key is a registry pnpm
- * actually resolves from, and a key that matches none is inert — the wrong URL,
- * a stale entry, a scope that moved. Warn rather than throw: a shared config
- * dependency can legitimately describe registries a given project doesn't use.
+ * A `registries` entry that routes nothing to itself — no `scopes`, no
+ * `prefix` — describes a registry configured elsewhere, so it only takes
+ * effect when its key is one pnpm actually resolves from. A key that matches
+ * none is inert: the wrong URL, a stale entry, a scope that moved. Warn rather
+ * than throw, because a shared config dependency can legitimately describe
+ * registries a given project does not use.
  */
 function warnAboutUnmatchedRegistryOptions (config: Config, warnings: string[]): void {
   const registryOptions = config.registryOptions
@@ -1377,7 +1389,7 @@ function warnAboutUnmatchedRegistryOptions (config: Config, warnings: string[]):
   // keys have had `${VAR}` expanded by this point, so neither list may be
   // echoed raw into a terminal or a CI log.
   warnings.push(
-    `The following "registryOptions" entries do not match any configured registry and were ignored: ${quoteAndJoin(unmatched.map(redactAndSanitize))}. ` +
+    `The following "registries" entries do not match any configured registry and were ignored: ${quoteAndJoin(unmatched.map(redactAndSanitize))}. ` +
     `The configured registries are: ${quoteAndJoin([...configuredRegistries].sort().map(redactAndSanitize))}.`
   )
 }

@@ -1,4 +1,7 @@
-use super::{AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
+use super::{
+    AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    registries::RegistryEntry,
+};
 use crate::{
     AuditLevel, CatalogMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
     LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
@@ -313,12 +316,12 @@ registries:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let registries = settings.registries.as_ref().expect("registries present");
     assert_eq!(
-        registries.get("default").map(String::as_str),
-        Some("https://default.example.com/npm"),
+        registries.get("default"),
+        Some(&RegistryEntry::ScopeRoute("https://default.example.com/npm".to_owned())),
     );
     assert_eq!(
-        registries.get("@private").map(String::as_str),
-        Some("https://private.example.com/npm"),
+        registries.get("@private"),
+        Some(&RegistryEntry::ScopeRoute("https://private.example.com/npm".to_owned())),
     );
 
     let mut config = Config::new();
@@ -1871,13 +1874,12 @@ fn parses_save_settings_from_yaml_and_applies() {
     assert_eq!(global.save_catalog_name, None);
 }
 
-/// `registryOptions` is the per-registry settings map from
-/// `pnpm-workspace.yaml`. `apply_to` keys it by registry URL with a trailing
+/// `apply_to` keys the per-registry options by registry URL with a trailing
 /// slash so a lookup by the registry a package resolved from matches.
 #[test]
-fn parses_registry_options_from_yaml_and_normalizes_the_keys() {
+fn parses_registry_declarations_from_yaml_and_normalizes_the_keys() {
     let yaml = r"
-registryOptions:
+registries:
   https://artifactory.example/artifactory/api/npm/npm-virtual: {serverType: artifactory}
   https://npm.example.com/: {serverType: npm}
 ";
@@ -1897,23 +1899,45 @@ registryOptions:
     );
 }
 
-/// Credentials belong in `.npmrc`, which is not committed. `RegistryOptions`
-/// denies unknown fields so one written here fails loudly instead of looking
-/// configured.
+/// Credentials belong in `.npmrc`, which is not committed. Refused after
+/// parsing, not by `deny_unknown_fields`: a parse error renders the offending
+/// source line verbatim, which would print the very token being refused.
 #[test]
-fn rejects_credentials_in_registry_options() {
-    let yaml = r"
-registryOptions:
-  https://npm.example.com/: {_authToken: secret}
-";
-    let received = serde_saphyr::from_str::<WorkspaceSettings>(yaml);
-    assert!(received.is_err(), "credentials in registryOptions must not parse");
+fn rejects_credentials_in_a_registry_declaration() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.example.com/: {_authToken: hunter2}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("credentials in a declaration must not load")
+        .to_string();
+    assert!(error.contains("_authToken"), "the field is named: {error}");
+    assert!(!error.contains("hunter2"), "the token must not be echoed: {error}");
+}
+
+/// A misspelled field would otherwise sit there doing nothing.
+#[test]
+fn rejects_an_unknown_registry_declaration_field() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.example.com/: {scope: '@acme'}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("an unknown declaration field must not load")
+        .to_string();
+    assert!(error.contains("scope"), "the field is named: {error}");
 }
 
 #[test]
 fn rejects_an_unknown_registry_server_type() {
     let yaml = r"
-registryOptions:
+registries:
   https://npm.example.com/: {serverType: nexus}
 ";
     let received = serde_saphyr::from_str::<WorkspaceSettings>(yaml);
@@ -1926,7 +1950,7 @@ registryOptions:
 /// to an empty string — expanding it is how a token would reach an
 /// attacker-chosen host from a committed pnpm-workspace.yaml.
 #[test]
-fn drops_a_registry_options_entry_whose_url_has_an_env_placeholder() {
+fn drops_a_registry_declaration_whose_url_has_an_env_placeholder() {
     struct EnvWithToken;
     impl EnvVar for EnvWithToken {
         fn var(name: &str) -> Option<String> {
@@ -1935,46 +1959,53 @@ fn drops_a_registry_options_entry_whose_url_has_an_env_placeholder() {
     }
 
     let yaml = r"
-registryOptions:
+registries:
   https://evil.example.com/${PNPM_TEST_REGISTRY_TOKEN}/: {serverType: artifactory}
   https://npm.example.com/: {serverType: artifactory}
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.substitute_env_untrusted::<EnvWithToken>();
-    let options = settings.registry_options.as_ref().expect("registry_options present");
-    assert_eq!(options.len(), 1);
-    assert!(options.contains_key("https://npm.example.com/"));
+    let entries = settings.registries.as_ref().expect("registries present");
+    assert_eq!(entries.len(), 1);
+    assert!(entries.contains_key("https://npm.example.com/"));
     assert!(
-        !options.keys().any(|registry| registry.contains("super-secret-token")),
-        "the token must never be expanded into a registry URL: {options:?}",
+        !entries.keys().any(|registry| registry.contains("super-secret-token")),
+        "the token must never be expanded into a registry URL: {entries:?}",
     );
 }
 
-/// `registryOptions` is workspace-only: it decides which tarball URLs are
-/// omitted from the lockfile, so a user's global `config.yaml` must not shape
-/// a lockfile their collaborators read back with a different layout. The
-/// TypeScript reader refuses the key outright; this is the same refusal.
+/// A declared `serverType` is workspace-only: it decides which tarball URLs
+/// are omitted from the lockfile, so a user's global `config.yaml` must not
+/// shape a lockfile their collaborators read back with a different layout. The
+/// routes the same entry declares are a legitimate global preference and stay.
 #[test]
-fn registry_options_cleared_as_workspace_only_field() {
+fn registry_server_type_cleared_as_workspace_only_field() {
     let yaml = r"
-registryOptions:
-  https://artifactory.example/artifactory/api/npm/npm-virtual/: {serverType: artifactory}
+registries:
+  https://artifactory.example/artifactory/api/npm/npm-virtual/:
+    serverType: artifactory
+    scopes: ['@acme']
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert!(settings.registry_options.is_some());
     settings.clear_workspace_only_fields();
-    assert!(settings.registry_options.is_none());
+    let entries = settings.registries.as_ref().expect("registries present");
+    let RegistryEntry::Declaration(declaration) = entries.values().next().expect("one declaration")
+    else {
+        panic!("expected a declaration: {entries:?}")
+    };
+    assert_eq!(declaration.server_type, None);
+    assert_eq!(declaration.scopes.as_deref(), Some(["@acme".to_owned()].as_slice()));
 }
 
 /// A credential in the key is the same secret in the same committed file as a
 /// credential in a field, so both are refused. The check runs after parsing so
 /// the error carries a redacted URL instead of serde's verbatim source line.
 #[test]
-fn rejects_a_registry_options_key_that_embeds_credentials() {
+fn rejects_a_registry_key_that_embeds_credentials() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),
-        "registryOptions:\n  https://ci-user-6e42:hunter2@npm.example.com/: {serverType: artifactory}\n",
+        "registries:\n  https://ci-user-6e42:hunter2@npm.example.com/: {serverType: artifactory}\n",
     )
     .unwrap();
 
@@ -1990,11 +2021,11 @@ fn rejects_a_registry_options_key_that_embeds_credentials() {
 /// own error points users at that syntax, so it is the form they are most
 /// likely to write — and it must not slip past the check.
 #[test]
-fn rejects_a_scheme_less_registry_options_key_that_embeds_credentials() {
+fn rejects_a_scheme_less_registry_key_that_embeds_credentials() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),
-        "registryOptions:\n  //ci-user-6e42:hunter2@npm.example.com/: {serverType: artifactory}\n",
+        "registries:\n  //ci-user-6e42:hunter2@npm.example.com/: {serverType: artifactory}\n",
     )
     .unwrap();
 
@@ -2007,16 +2038,16 @@ fn rejects_a_scheme_less_registry_options_key_that_embeds_credentials() {
 
 /// A later `@` in the path is not userinfo.
 #[test]
-fn accepts_a_registry_options_key_with_an_at_sign_in_the_path() {
+fn accepts_a_registry_key_with_an_at_sign_in_the_path() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),
-        "registryOptions:\n  https://npm.example.com/scope@1/: {serverType: artifactory}\n",
+        "registries:\n  https://npm.example.com/scope@1/: {serverType: artifactory}\n",
     )
     .unwrap();
 
     let settings = WorkspaceSettings::load_at(dir.path()).unwrap().expect("settings");
-    assert!(settings.registry_options.is_some());
+    assert!(settings.registries.is_some());
 }
 
 /// Searching for the first `://` would find the one in the path and parse the
@@ -2026,7 +2057,7 @@ fn rejects_a_scheme_less_key_whose_path_contains_a_scheme_separator() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),
-        "registryOptions:\n  '//ci-user-6e42:hunter2@npm.example.com/a://b': {serverType: artifactory}\n",
+        "registries:\n  '//ci-user-6e42:hunter2@npm.example.com/a://b': {serverType: artifactory}\n",
     )
     .unwrap();
 
@@ -2035,4 +2066,152 @@ fn rejects_a_scheme_less_key_whose_path_contains_a_scheme_separator() {
         .to_string();
     assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
     assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
+}
+
+/// A scope resolves to one registry while a registry serves many, so the
+/// declaration reads the way it is written and the lookup is its inverse. A
+/// bare `@` is the scope-less default registry.
+#[test]
+fn routes_the_scopes_a_registry_declares() {
+    let yaml = r"
+registries:
+  https://npm.corp.example:
+    serverType: npm
+    scopes: ['@', '@foo', '@bar']
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.registry, "https://npm.corp.example/");
+    assert_eq!(
+        config.registries.get("@foo").map(String::as_str),
+        Some("https://npm.corp.example/"),
+    );
+    assert_eq!(
+        config.registries.get("@bar").map(String::as_str),
+        Some("https://npm.corp.example/"),
+    );
+}
+
+#[test]
+fn rejects_a_scope_declared_without_its_at_sign() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.corp.example/: {scopes: [foo]}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a scope without its @ must not load")
+        .to_string();
+    assert!(error.contains(r#""foo""#), "the scope is named: {error}");
+}
+
+#[test]
+fn rejects_one_scope_routed_to_two_registries() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.corp.example/: {scopes: ['@foo']}\n  https://artifactory.example/: {scopes: ['@foo']}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a scope routed twice must not load")
+        .to_string();
+    assert!(error.contains("routed to two registries"), "{error}");
+}
+
+/// Keyed by the URL as written: a named registry's URL is what a lockfile's
+/// recorded tarball URLs are matched against, so normalizing it here would
+/// change what an existing lockfile verifies against.
+#[test]
+fn reads_a_declared_prefix_as_a_named_registry() {
+    let yaml = r"
+registries:
+  https://npm.corp.example: {prefix: work, serverType: artifactory}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.named_registries.get("work").map(String::as_str),
+        Some("https://npm.corp.example"),
+    );
+    assert_eq!(
+        config.registry_options.get("https://npm.corp.example/").map(|options| options.server_type),
+        Some(Some(RegistryServerType::Artifactory)),
+    );
+}
+
+#[test]
+fn rejects_one_prefix_declared_by_two_registries() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.corp.example/: {prefix: work}\n  https://artifactory.example/: {prefix: work}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a prefix declared twice must not load")
+        .to_string();
+    assert!(error.contains("declared by two registries"), "{error}");
+}
+
+/// The deprecated spelling of the same thing, so a declared prefix wins.
+#[test]
+fn a_declared_prefix_wins_over_named_registries() {
+    let yaml = r"
+namedRegistries:
+  work: https://stale.example/
+  other: https://other.example/
+registries:
+  https://npm.corp.example/: {prefix: work}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.named_registries.get("work").map(String::as_str),
+        Some("https://npm.corp.example/"),
+    );
+    assert_eq!(
+        config.named_registries.get("other").map(String::as_str),
+        Some("https://other.example/"),
+    );
+}
+
+#[test]
+fn rejects_a_registries_map_that_mixes_both_shapes() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  '@acme': https://npm.example.com/\n  https://artifactory.example/: {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a mixed registries map must not load")
+        .to_string();
+    assert!(error.contains("mixes registry declarations"), "{error}");
+    assert!(error.contains(r#""@acme""#), "the scope-routed entry is named: {error}");
+}
+
+/// A scope routes to a registry, so a URL in that position routes nothing and
+/// would sit there inert. It is the declaration shape, half-written.
+#[test]
+fn rejects_a_url_keyed_registries_entry_written_as_a_string() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.example.com/: artifactory\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a URL-keyed string entry must not load")
+        .to_string();
+    assert!(error.contains("is a string"), "{error}");
 }

@@ -4907,12 +4907,76 @@ test('catalogPrune overrides its former name', async () => {
   expect(config.catalogPrune).toBe(false)
 })
 
-test('getConfig() warns about registryOptions entries that match no configured registry', async () => {
+test('getConfig() routes the scopes and the prefix a registry declares', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://npm.corp.example/': { scopes: ['@foo', '@bar'], serverType: 'artifactory' },
+      'https://npm.other.example/': { prefix: 'other' },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registries['@foo']).toBe('https://npm.corp.example/')
+  expect(config.registries['@bar']).toBe('https://npm.corp.example/')
+  // Declaring a scope leaves the default registry alone.
+  expect(config.registries.default).toBe('https://registry.npmjs.org/')
+  expect(config.namedRegistries).toStrictEqual({ other: 'https://npm.other.example/' })
+  expect(config.registryOptions).toStrictEqual({
+    'https://npm.corp.example/': { serverType: 'artifactory' },
+  })
+})
+
+test('getConfig() reads a bare @ in scopes as the default registry', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://npm.corp.example/': { scopes: ['@'] },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registries.default).toBe('https://npm.corp.example/')
+  expect(config.registry).toBe('https://npm.corp.example/')
+})
+
+test('getConfig() still reads the older scope-keyed registries map', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      '@foo': 'https://npm.corp.example/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registries['@foo']).toBe('https://npm.corp.example/')
+  expect(config.registries.default).toBe('https://registry.npmjs.org/')
+})
+
+test('getConfig() warns about registries entries that match no configured registry', async () => {
   prepareEmpty()
 
   writeYamlFileSync('pnpm-workspace.yaml', {
     registry: 'https://npm.example.com/',
-    registryOptions: {
+    registries: {
       'https://npm.example.com/': { serverType: 'artifactory' },
       'https://typo.example.com/': { serverType: 'artifactory' },
     },
@@ -4927,7 +4991,7 @@ test('getConfig() warns about registryOptions entries that match no configured r
     workspaceDir: process.cwd(),
   })
 
-  const registryOptionsWarnings = warnings.filter((warning) => warning.includes('registryOptions'))
+  const registryOptionsWarnings = warnings.filter((warning) => warning.includes('"registries" entries'))
   expect(registryOptionsWarnings).toHaveLength(1)
   expect(registryOptionsWarnings[0]).toContain('were ignored: "https://typo.example.com/".')
   // The declared registry matched, so it must not be listed as ignored.
@@ -4935,13 +4999,13 @@ test('getConfig() warns about registryOptions entries that match no configured r
   expect(registryOptionsWarnings[0]).toContain('The configured registries are: ')
 })
 
-test('getConfig() does not warn about a registryOptions entry matched by PNPM_CONFIG_REGISTRY', async () => {
+test('getConfig() does not warn about a registries entry matched by PNPM_CONFIG_REGISTRY', async () => {
   // The env loop sets `registries.default` after the yaml is merged, so the
   // check has to run downstream of it or it reports a registry that is used.
   prepareEmpty()
 
   writeYamlFileSync('pnpm-workspace.yaml', {
-    registryOptions: {
+    registries: {
       'https://from-env.example.com/': { serverType: 'artifactory' },
     },
   })
@@ -4956,15 +5020,15 @@ test('getConfig() does not warn about a registryOptions entry matched by PNPM_CO
     env: { ...process.env, PNPM_CONFIG_REGISTRY: 'https://from-env.example.com/' },
   })
 
-  expect(warnings.filter((warning) => warning.includes('registryOptions'))).toStrictEqual([])
+  expect(warnings.filter((warning) => warning.includes('"registries" entries'))).toStrictEqual([])
 })
 
-test('getConfig() redacts credentials in the unmatched registryOptions warning', async () => {
+test('getConfig() redacts credentials in the unmatched registries warning', async () => {
   prepareEmpty()
 
   writeYamlFileSync('pnpm-workspace.yaml', {
     registry: 'https://ci-user-6e42:hunter2@npm.example.com/',
-    registryOptions: {
+    registries: {
       'https://typo.example.com/': { serverType: 'artifactory' },
     },
   })
@@ -4978,7 +5042,7 @@ test('getConfig() redacts credentials in the unmatched registryOptions warning',
     workspaceDir: process.cwd(),
   })
 
-  const registryOptionsWarnings = warnings.filter((warning) => warning.includes('registryOptions'))
+  const registryOptionsWarnings = warnings.filter((warning) => warning.includes('"registries" entries'))
   expect(registryOptionsWarnings).toHaveLength(1)
   expect(registryOptionsWarnings[0]).not.toContain('hunter2')
   // A URL username is credential-bearing too.
@@ -4986,7 +5050,7 @@ test('getConfig() redacts credentials in the unmatched registryOptions warning',
   expect(registryOptionsWarnings[0]).toContain('npm.example.com')
 })
 
-test('getConfig() never expands an env placeholder in a registryOptions key from a workspace manifest', async () => {
+test('getConfig() never expands an env placeholder in a registries key from a workspace manifest', async () => {
   // pnpm-workspace.yaml is repo-controlled. Expanding `${VAR}` in a registry
   // URL there is how a token would reach an attacker-chosen host, so the entry
   // is dropped rather than expanded — and nothing echoes the secret either.
@@ -4994,7 +5058,7 @@ test('getConfig() never expands an env placeholder in a registryOptions key from
   process.env.PNPM_TEST_REGISTRY_TOKEN = 'super-secret-token'
 
   writeYamlFileSync('pnpm-workspace.yaml', {
-    registryOptions: {
+    registries: {
       'https://evil.example.com/${PNPM_TEST_REGISTRY_TOKEN}/': { serverType: 'artifactory' },
     },
   })
@@ -5009,7 +5073,7 @@ test('getConfig() never expands an env placeholder in a registryOptions key from
       workspaceDir: process.cwd(),
     })
 
-    expect(config.registryOptions).toStrictEqual({})
+    expect(config.registryOptions).toBeUndefined()
     expect(JSON.stringify(config)).not.toContain('super-secret-token')
     expect(warnings.join('\n')).not.toContain('super-secret-token')
   } finally {

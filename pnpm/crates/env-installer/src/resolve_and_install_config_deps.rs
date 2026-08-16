@@ -24,7 +24,7 @@ use pnpm_workspace_state::ConfigDependency;
 use ssri::Integrity;
 use std::collections::BTreeMap;
 
-/// Config deps keep the npm tarball layout: `registryOptions` is a workspace
+/// Config deps keep the npm tarball layout: `registries` is a workspace
 /// setting, and config deps are resolved before workspace settings apply. The
 /// writer and the reader here agree because both use this same default.
 fn npm_lockfile_form(registry: &str) -> LockfileFormOptions<'_> {

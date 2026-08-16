@@ -1,4 +1,4 @@
-import type { Registries, RegistryOptions } from './misc.js'
+import type { Registries, RegistryDeclaration } from './misc.js'
 import type { VersioningSettings } from './versioning.js'
 
 export type Dependencies = Record<string, string>
@@ -231,10 +231,21 @@ export interface UpdateSettings {
 
 export interface PnpmSettings {
   npmrcAuthFile?: string
-  registries?: Registries
+  /**
+   * The registries the project declares, keyed by registry URL, so that a
+   * registry's layout, the scopes routed to it, and the bare-specifier prefix
+   * it answers to are all stated once, in one place.
+   *
+   * A map whose values are plain strings is the older `scope: url` shape and
+   * is read as one.
+   */
+  registries?: Record<string, RegistryDeclaration> | Registries
+  /**
+   * @deprecated Give the registry a `prefix` in
+   * {@link PnpmSettings.registries} instead. Kept working until the next major
+   * version.
+   */
   namedRegistries?: Record<string, string>
-  /** Per-registry settings, keyed by registry URL. */
-  registryOptions?: Record<string, RegistryOptions>
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>

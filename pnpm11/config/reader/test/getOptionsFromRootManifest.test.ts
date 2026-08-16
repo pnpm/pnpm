@@ -300,9 +300,9 @@ test('getOptionsFromPnpmSettings() accepts valid packageExtensions', () => {
   })
 })
 
-test('getOptionsFromPnpmSettings() keys registryOptions by normalized registry URL', () => {
+test('getOptionsFromPnpmSettings() keys the registry options by normalized registry URL', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       'https://artifactory.example/artifactory/api/npm/npm-virtual': { serverType: 'artifactory' },
     },
   })
@@ -313,44 +313,55 @@ test('getOptionsFromPnpmSettings() keys registryOptions by normalized registry U
 
 test('getOptionsFromPnpmSettings() rejects an unknown registry server type', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       'https://npm.example.com/': { serverType: 'nexus' as never },
     },
   })).toThrow(/should be one of "npm", "artifactory", but got "nexus"/)
 })
 
-test('getOptionsFromPnpmSettings() rejects credentials in registryOptions', () => {
+test('getOptionsFromPnpmSettings() rejects credentials in a registry declaration', () => {
   // pnpm-workspace.yaml is committed; credentials belong in .npmrc.
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       'https://npm.example.com/': { _authToken: 'secret' } as never,
     },
   })).toThrow(/is not allowed in pnpm-workspace\.yaml/)
 })
 
-test('getOptionsFromPnpmSettings() rejects a non-object registryOptions entry', () => {
+test('getOptionsFromPnpmSettings() rejects a URL-keyed registries entry written as a string', () => {
+  // A map of strings is the `<scope>: <url>` shape, and a URL is not a scope,
+  // so this one would otherwise be read as a route that can never match.
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       'https://npm.example.com/': 'artifactory' as never,
     },
-  })).toThrow(/should be an object, but got string/)
+  })).toThrow(/is a string/)
 })
 
-test('getOptionsFromPnpmSettings() drops a registryOptions entry whose URL has an unexpanded env placeholder', () => {
+test('getOptionsFromPnpmSettings() rejects a registries map that mixes both shapes', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      '@acme': 'https://npm.example.com/',
+      'https://artifactory.example/': { serverType: 'artifactory' },
+    } as never,
+  })).toThrow(/mixes registry declarations with "<scope>: <url>" entries \("@acme"\)/)
+})
+
+test('getOptionsFromPnpmSettings() drops a registries entry whose URL has an unexpanded env placeholder', () => {
   // The key is a request destination, so it gets the same gate the `registries`
   // values get: no silent expansion outside a trusted context.
   const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
     },
   })
-  expect(options.registryOptions).toStrictEqual({})
+  expect(options.registryOptions).toBeUndefined()
 })
 
-test('getOptionsFromPnpmSettings() expands the registryOptions URL when request destinations may be expanded', () => {
+test('getOptionsFromPnpmSettings() expands the registries key when request destinations may be expanded', () => {
   process.env.PNPM_TEST_HOST = 'artifactory.example'
   const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
     },
   }, { expandRequestDestinationEnv: true })
@@ -359,10 +370,10 @@ test('getOptionsFromPnpmSettings() expands the registryOptions URL when request 
   })
 })
 
-test('getOptionsFromPnpmSettings() rejects credentials embedded in a registryOptions key', () => {
+test('getOptionsFromPnpmSettings() rejects credentials embedded in a registries key', () => {
   // pnpm-workspace.yaml is committed; credentials belong in .npmrc.
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       'https://ci-user-6e42:hunter2@npm.example.com/': { serverType: 'artifactory' },
     },
   })).toThrow(/key embeds credentials/)
@@ -370,7 +381,7 @@ test('getOptionsFromPnpmSettings() rejects credentials embedded in a registryOpt
 
 test('getOptionsFromPnpmSettings() does not mistake an @ later in the path for credentials', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       'https://npm.example.com/scope@1/': { serverType: 'artifactory' },
     },
   })
@@ -379,12 +390,12 @@ test('getOptionsFromPnpmSettings() does not mistake an @ later in the path for c
   })
 })
 
-test('getOptionsFromPnpmSettings() rejects credentials in a scheme-less registryOptions key', () => {
+test('getOptionsFromPnpmSettings() rejects credentials in a scheme-less registries key', () => {
   // `.npmrc` scopes settings with a scheme-less `//host/`, and this setting's
   // own error points users at that syntax, so it is the form they are most
   // likely to write.
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       '//ci-user-6e42:hunter2@npm.example.com/': { serverType: 'artifactory' },
     },
   })).toThrow(/key embeds credentials/)
@@ -392,7 +403,7 @@ test('getOptionsFromPnpmSettings() rejects credentials in a scheme-less registry
   // The message names the key, so it must not carry the credentials with it.
   try {
     getOptionsFromPnpmSettings(process.cwd(), {
-      registryOptions: {
+      registries: {
         '//ci-user-6e42:hunter2@npm.example.com/': { serverType: 'artifactory' },
       },
     })
@@ -404,9 +415,9 @@ test('getOptionsFromPnpmSettings() rejects credentials in a scheme-less registry
   }
 })
 
-test('getOptionsFromPnpmSettings() accepts a scheme-less registryOptions key without credentials', () => {
+test('getOptionsFromPnpmSettings() accepts a scheme-less registries key without credentials', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: {
+    registries: {
       '//npm.example.com/': { serverType: 'artifactory' },
     },
   })
@@ -415,21 +426,109 @@ test('getOptionsFromPnpmSettings() accepts a scheme-less registryOptions key wit
   })
 })
 
-test('getOptionsFromPnpmSettings() is not fooled by a :// later in a scheme-less registryOptions key', () => {
+test('getOptionsFromPnpmSettings() is not fooled by a :// later in a scheme-less registries key', () => {
   // Searching for the first `://` would find the one in the path and parse the
   // authority from there, leaving the real credentials unexamined.
   const key = '//ci-user-6e42:hunter2@npm.example.com/a://b'
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    registryOptions: { [key]: { serverType: 'artifactory' } },
+    registries: { [key]: { serverType: 'artifactory' } },
   })).toThrow(/key embeds credentials/)
 
   try {
     getOptionsFromPnpmSettings(process.cwd(), {
-      registryOptions: { [key]: { serverType: 'artifactory' } },
+      registries: { [key]: { serverType: 'artifactory' } },
     })
   } catch (err) {
     const message = util.types.isNativeError(err) ? err.message : String(err)
     expect(message).not.toContain('hunter2')
     expect(message).not.toContain('ci-user-6e42')
   }
+})
+
+test('getOptionsFromPnpmSettings() routes the declared scopes to the registry', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example': { scopes: ['@', '@foo', '@bar'], serverType: 'npm' },
+    },
+  }) as any // eslint-disable-line
+  expect(options.registries).toStrictEqual({
+    default: 'https://npm.corp.example/',
+    '@foo': 'https://npm.corp.example/',
+    '@bar': 'https://npm.corp.example/',
+  })
+})
+
+test('getOptionsFromPnpmSettings() rejects a scope declared without its @', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { scopes: ['foo'] },
+    },
+  })).toThrow(/should list "@"-prefixed scopes, but got "foo"/)
+})
+
+test('getOptionsFromPnpmSettings() rejects one scope routed to two registries', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { scopes: ['@foo'] },
+      'https://artifactory.example/': { scopes: ['@foo'] },
+    },
+  })).toThrow(/The scope "@foo" is routed to two registries/)
+})
+
+test('getOptionsFromPnpmSettings() reads a declared prefix as a named registry', () => {
+  // Keyed by the URL as written: a named registry's URL is what a lockfile's
+  // recorded tarball URLs are matched against, so normalizing it here would
+  // change what an existing lockfile verifies against.
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example': { prefix: 'work', serverType: 'artifactory' },
+    },
+  })
+  expect(options.namedRegistries).toStrictEqual({ work: 'https://npm.corp.example' })
+  expect(options.registryOptions).toStrictEqual({
+    'https://npm.corp.example/': { serverType: 'artifactory' },
+  })
+})
+
+test('getOptionsFromPnpmSettings() rejects one prefix declared by two registries', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: 'work' },
+      'https://artifactory.example/': { prefix: 'work' },
+    },
+  })).toThrow(/The prefix "work" is declared by two registries/)
+})
+
+test('getOptionsFromPnpmSettings() lets a declared prefix win over the deprecated namedRegistries', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    namedRegistries: {
+      work: 'https://stale.example/',
+      other: 'https://other.example/',
+    },
+    registries: {
+      'https://npm.corp.example/': { prefix: 'work' },
+    },
+  })
+  expect(options.namedRegistries).toStrictEqual({
+    work: 'https://npm.corp.example/',
+    other: 'https://other.example/',
+  })
+})
+
+test('getOptionsFromPnpmSettings() records no options for a registry that only declares routes', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { scopes: ['@foo'] },
+    },
+  })
+  expect(options.registryOptions).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() rejects an unknown field in a registry declaration', () => {
+  // A misspelled field would otherwise sit there doing nothing.
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { scope: '@acme' } as never,
+    },
+  })).toThrow(/is not a known registry setting/)
 })

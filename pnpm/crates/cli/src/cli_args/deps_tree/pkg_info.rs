@@ -33,7 +33,7 @@ pub(crate) struct PkgInfoEnv<'a> {
     pub virtual_store_dir_max_length: usize,
     /// Registry URLs keyed by `default` / `@scope`.
     pub registries: HashMap<String, String>,
-    /// Per-registry tarball layouts from the `registryOptions` setting, used
+    /// Per-registry tarball layouts from the `registries` setting, used
     /// when a lockfile entry's omitted tarball URL is rebuilt for display.
     pub registry_options: BTreeMap<String, RegistryOptions>,
     /// depPaths of packages skipped by the installer (unsupported

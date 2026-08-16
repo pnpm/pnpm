@@ -142,7 +142,7 @@ pub struct WorkspaceResolveOptions {
     pub auto_install_peers: bool,
     /// How a package's registry is decided and what it serves: the scope
     /// map, the named-registry aliases (built-ins merged with the user's
-    /// setting), and the `registryOptions` settings. Used to materialize a
+    /// setting), and the per-registry settings. Used to materialize a
     /// prior `Registry` lockfile resolution back into its tarball URL when
     /// building the `currentPkg` payload custom resolvers receive.
     pub registry_context: RegistryContext,

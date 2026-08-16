@@ -55,7 +55,9 @@ use crate::defaults::{
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
     PackageExtension, PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds, workspace_root_or,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds,
+    registries::{RegistryDeclaration, RegistryEntry},
+    workspace_root_or,
 };
 
 fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
@@ -1159,12 +1161,12 @@ pub struct Config {
     pub named_registries: BTreeMap<String, String>,
 
     /// Non-secret per-registry settings from
-    /// `pnpm-workspace.yaml#registryOptions`, keyed by registry URL with a
+    /// `pnpm-workspace.yaml#registries`, keyed by registry URL with a
     /// trailing slash. Deliberately separate from the auth config: that one
     /// carries credentials, and the install and lockfile layers that need a
     /// registry's tarball layout must not be handed its secrets.
     ///
-    /// The `registryOptions` setting.
+    /// The `registries` setting.
     pub registry_options: BTreeMap<String, RegistryOptions>,
 
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
