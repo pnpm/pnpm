@@ -1,4 +1,4 @@
-use super::{ReadYarnReleasesError, asset_variants, parse_releases};
+use super::{ReadYarnReleasesError, asset_variants, parse_releases, pick_token};
 use pacquet_lockfile::LockfileResolution;
 use pretty_assertions::assert_eq;
 
@@ -138,4 +138,29 @@ fn a_release_without_archives_is_an_error() {
     let releases = parse_releases(&releases_body("")).expect("parse the release list");
     let error = asset_variants(&releases[1]).expect_err("a release with no assets cannot resolve");
     assert!(matches!(error, ReadYarnReleasesError::NoUsableAssets { .. }), "{error:?}");
+}
+
+#[test]
+fn gh_token_outranks_github_token() {
+    let token = pick_token(Some("gh".to_string()), Some("github".to_string()));
+    assert_eq!(token.as_deref(), Some("gh"));
+}
+
+#[test]
+fn a_blank_token_reads_as_no_token() {
+    assert_eq!(pick_token(Some("  ".to_string()), None), None);
+    assert_eq!(pick_token(Some(String::new()), Some(String::new())), None);
+    assert_eq!(pick_token(None, None), None);
+}
+
+#[test]
+fn a_blank_override_falls_through_to_the_other_token() {
+    let token = pick_token(Some(String::new()), Some("github".to_string()));
+    assert_eq!(token.as_deref(), Some("github"));
+}
+
+#[test]
+fn a_token_is_trimmed() {
+    let token = pick_token(None, Some(" github \n".to_string()));
+    assert_eq!(token.as_deref(), Some("github"));
 }
