@@ -44,10 +44,15 @@ export function normalizeNamedRegistries (namedRegistries?: Record<string, strin
 /** Shared, like `DEFAULT_REGISTRIES`, so per-package callers can cache on its identity. */
 const DEFAULT_NAMED_REGISTRIES = normalizeNamedRegistries({})
 
-/** The layout `registry` serves tarballs with, defaulting to the npm layout. */
+/**
+ * The declared layout of `registry`, or `undefined` when the user has not
+ * declared one. The `undefined` case is deliberately not defaulted to `'npm'`
+ * here: only registry.npmjs.org behaves that way without being told, and that
+ * one default belongs with the URL builder that acts on it.
+ */
 export function getRegistryServerType (
   registryOptions: Record<string, RegistryOptions> | undefined,
   registry: string
-): RegistryServerType {
-  return registryOptions?.[normalizeRegistryUrl(registry)]?.serverType ?? 'npm'
+): RegistryServerType | undefined {
+  return registryOptions?.[normalizeRegistryUrl(registry)]?.serverType
 }

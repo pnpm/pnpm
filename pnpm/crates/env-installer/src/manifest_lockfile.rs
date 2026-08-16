@@ -1,6 +1,5 @@
 use pnpm_lockfile::{
-    BundledDependencies, LockfileFormOptions, PackageMetadata, PeerDependencyMeta,
-    RegistryServerType, StringOrList,
+    BundledDependencies, LockfileFormOptions, PackageMetadata, PeerDependencyMeta, StringOrList,
 };
 use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
@@ -20,7 +19,7 @@ pub(crate) fn package_metadata(
             version,
             LockfileFormOptions {
                 registry,
-                server_type: RegistryServerType::Npm,
+                server_type: None,
                 include_tarball_url: lockfile_include_tarball_url,
             },
         ),

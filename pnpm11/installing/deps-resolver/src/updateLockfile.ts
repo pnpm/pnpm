@@ -64,7 +64,7 @@ function toLockfileDependency (
   opts: {
     depPath: string
     registry: string
-    serverType: RegistryServerType
+    serverType?: RegistryServerType
     registryName?: string
     registries: Registries
     updatedDeps: Array<{ alias: string, depPath: DepPath }>

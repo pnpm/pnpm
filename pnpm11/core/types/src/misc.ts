@@ -32,13 +32,22 @@ export interface NamedRegistries {
 }
 
 /**
- * The software serving a registry, when it lays out tarball URLs differently
- * from the npm registry. `npm` is the layout every registry is assumed to use
- * unless the `registryOptions` setting says otherwise.
+ * The software serving a registry, declared through the `registryOptions`
+ * setting. Three states, because "behaves like the npm registry" is a claim
+ * only the operator can make:
+ *
+ * - undeclared — strict. Only the exact canonical URL is reconstructible.
+ *   This is how every registry but registry.npmjs.org is read by default.
+ * - `npm` — behaves like registry.npmjs.org, which serves a scoped package
+ *   from the percent-encoded path as well as the unencoded one. A faithful
+ *   mirror or caching proxy of the public registry is this.
+ * - `artifactory` — repeats the scope in a scoped package's tarball filename.
  *
  * Only layouts pnpm can rebuild a URL for belong here. A registry that serves
- * tarballs from an opaque path (GitHub Packages `/download/<hash>`) has no
- * entry: its URLs are kept in the lockfile instead.
+ * tarballs from a content-derived path (GitHub Packages
+ * `/download/<scope>/<name>/<version>/<sha256>`) has no value: the digest is a
+ * fact about the bytes rather than about the package's identity, so its URLs
+ * are kept in the lockfile instead.
  */
 export type RegistryServerType = 'npm' | 'artifactory'
 

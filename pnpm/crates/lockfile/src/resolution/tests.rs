@@ -13,10 +13,10 @@ use text_block_macros::text_block;
 
 const GIT_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
-/// The npm tarball layout, which every registry uses unless `registryOptions`
-/// declares otherwise.
-fn npm_form(registry: &str, include_tarball_url: bool) -> LockfileFormOptions<'_> {
-    LockfileFormOptions { registry, server_type: RegistryServerType::Npm, include_tarball_url }
+/// No declared server type — the strict default every registry but
+/// registry.npmjs.org is read with.
+fn undeclared_form(registry: &str, include_tarball_url: bool) -> LockfileFormOptions<'_> {
+    LockfileFormOptions { registry, server_type: None, include_tarball_url }
 }
 
 fn integrity(integrity_str: &str) -> Integrity {
@@ -761,8 +761,11 @@ fn to_lockfile_form_drops_reconstructible_registry_tarball() {
         git_hosted: None,
         path: None,
     });
-    let actual =
-        resolution.to_lockfile_form("foo", "1.0.0", npm_form("https://registry.npmjs.org/", false));
+    let actual = resolution.to_lockfile_form(
+        "foo",
+        "1.0.0",
+        undeclared_form("https://registry.npmjs.org/", false),
+    );
     assert_eq!(
         actual,
         LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
@@ -781,8 +784,11 @@ fn to_lockfile_form_keeps_git_hosted_subdirectory_path() {
         git_hosted: Some(true),
         path: Some("/packages/foo".to_string()),
     });
-    let actual =
-        resolution.to_lockfile_form("foo", "1.0.0", npm_form("https://registry.npmjs.org/", false));
+    let actual = resolution.to_lockfile_form(
+        "foo",
+        "1.0.0",
+        undeclared_form("https://registry.npmjs.org/", false),
+    );
     assert_eq!(actual, resolution);
 }
 
@@ -796,8 +802,11 @@ fn to_lockfile_form_keeps_git_hosted_subdirectory_path_when_including_tarball_ur
         git_hosted: Some(true),
         path: Some("/packages/foo".to_string()),
     });
-    let actual =
-        resolution.to_lockfile_form("foo", "1.0.0", npm_form("https://registry.npmjs.org/", true));
+    let actual = resolution.to_lockfile_form(
+        "foo",
+        "1.0.0",
+        undeclared_form("https://registry.npmjs.org/", true),
+    );
     assert_eq!(actual, resolution);
 }
 
@@ -816,7 +825,7 @@ fn to_lockfile_form_keeps_scoped_tarball_with_percent_encoded_scope_separator() 
         let actual = resolution.to_lockfile_form(
             "@babel/core",
             "7.0.0",
-            npm_form("https://npm.example.com/", false),
+            undeclared_form("https://npm.example.com/", false),
         );
         assert_eq!(actual, resolution, "{tarball_url} must survive verbatim");
     }
@@ -837,7 +846,7 @@ fn to_lockfile_form_drops_scoped_tarball_with_percent_encoding_on_the_public_reg
         let actual = resolution.to_lockfile_form(
             "@babel/core",
             "7.0.0",
-            npm_form("https://registry.npmjs.org/", false),
+            undeclared_form("https://registry.npmjs.org/", false),
         );
         assert_eq!(
             actual,
@@ -860,8 +869,11 @@ fn to_lockfile_form_keeps_tarball_with_trailing_scheme_separator() {
         git_hosted: None,
         path: None,
     });
-    let actual =
-        resolution.to_lockfile_form("foo", "1.0.0", npm_form("https://registry.npmjs.org/", false));
+    let actual = resolution.to_lockfile_form(
+        "foo",
+        "1.0.0",
+        undeclared_form("https://registry.npmjs.org/", false),
+    );
     assert_eq!(
         actual,
         LockfileResolution::Tarball(TarballResolution {
@@ -959,7 +971,7 @@ fn npm_tarball_url_keeps_the_scope_in_the_artifactory_filename() {
             version,
             TarballUrlOptions {
                 registry: ARTIFACTORY_REGISTRY,
-                server_type: RegistryServerType::Artifactory,
+                server_type: Some(RegistryServerType::Artifactory),
             },
         );
         assert_eq!(received, format!("{ARTIFACTORY_REGISTRY}{expected}"));
@@ -968,7 +980,8 @@ fn npm_tarball_url_keeps_the_scope_in_the_artifactory_filename() {
 
 #[test]
 fn npm_tarball_url_matches_the_npm_layout_for_an_unscoped_package() {
-    for server_type in [RegistryServerType::Npm, RegistryServerType::Artifactory] {
+    for server_type in [None, Some(RegistryServerType::Npm), Some(RegistryServerType::Artifactory)]
+    {
         let received = npm_tarball_url(
             "widget",
             "1.2.3",
@@ -981,7 +994,7 @@ fn npm_tarball_url_matches_the_npm_layout_for_an_unscoped_package() {
 fn artifactory_form(include_tarball_url: bool) -> LockfileFormOptions<'static> {
     LockfileFormOptions {
         registry: ARTIFACTORY_REGISTRY,
-        server_type: RegistryServerType::Artifactory,
+        server_type: Some(RegistryServerType::Artifactory),
         include_tarball_url,
     }
 }
@@ -1026,8 +1039,11 @@ fn to_lockfile_form_keeps_the_artifactory_url_on_a_registry_left_on_the_npm_layo
         git_hosted: None,
         path: None,
     });
-    let actual =
-        resolution.to_lockfile_form("@acme/widget", "1.2.3", npm_form(ARTIFACTORY_REGISTRY, false));
+    let actual = resolution.to_lockfile_form(
+        "@acme/widget",
+        "1.2.3",
+        undeclared_form(ARTIFACTORY_REGISTRY, false),
+    );
     assert_eq!(actual, resolution);
 }
 
@@ -1045,18 +1061,44 @@ fn to_lockfile_form_keeps_the_artifactory_url_when_include_tarball_url_is_set() 
 }
 
 #[test]
-fn registry_server_type_defaults_to_npm_and_tolerates_a_missing_trailing_slash() {
+fn registry_server_type_is_undeclared_by_default_and_tolerates_a_missing_trailing_slash() {
     let options = BTreeMap::from([(
         ARTIFACTORY_REGISTRY.to_string(),
-        RegistryOptions { server_type: RegistryServerType::Artifactory },
+        RegistryOptions { server_type: Some(RegistryServerType::Artifactory) },
     )]);
     assert_eq!(
         registry_server_type(&options, ARTIFACTORY_REGISTRY.trim_end_matches('/')),
-        RegistryServerType::Artifactory,
+        Some(RegistryServerType::Artifactory),
     );
-    assert_eq!(registry_server_type(&options, "https://npm.example.com/"), RegistryServerType::Npm);
+    assert_eq!(registry_server_type(&options, "https://npm.example.com/"), None);
+    assert_eq!(registry_server_type(&BTreeMap::new(), ARTIFACTORY_REGISTRY), None);
+}
+
+/// A registry declared to behave like registry.npmjs.org gets its leniency:
+/// the percent-encoded scoped path is reconstructible there too. Undeclared,
+/// the same URL must survive — the registry may serve only the encoded path.
+/// See <https://github.com/pnpm/pnpm/issues/13534>.
+#[test]
+fn to_lockfile_form_drops_the_encoded_scoped_path_only_when_the_registry_is_declared_npm() {
+    let registry = "https://npm.example.com/";
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{registry}@babel%2Fcore/-/core-7.0.0.tgz"),
+        integrity: Some(integrity(SHA512)),
+        git_hosted: None,
+        path: None,
+    });
+
+    let declared_npm = LockfileFormOptions {
+        registry,
+        server_type: Some(RegistryServerType::Npm),
+        include_tarball_url: false,
+    };
     assert_eq!(
-        registry_server_type(&BTreeMap::new(), ARTIFACTORY_REGISTRY),
-        RegistryServerType::Npm,
+        resolution.to_lockfile_form("@babel/core", "7.0.0", declared_npm),
+        LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
+    );
+    assert_eq!(
+        resolution.to_lockfile_form("@babel/core", "7.0.0", undeclared_form(registry, false)),
+        resolution,
     );
 }

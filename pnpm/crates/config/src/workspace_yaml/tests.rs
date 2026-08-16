@@ -1889,11 +1889,11 @@ registryOptions:
             .registry_options
             .get("https://artifactory.example/artifactory/api/npm/npm-virtual/")
             .map(|options| options.server_type),
-        Some(RegistryServerType::Artifactory),
+        Some(Some(RegistryServerType::Artifactory)),
     );
     assert_eq!(
         config.registry_options.get("https://npm.example.com/").map(|options| options.server_type),
-        Some(RegistryServerType::Npm),
+        Some(Some(RegistryServerType::Npm)),
     );
 }
 

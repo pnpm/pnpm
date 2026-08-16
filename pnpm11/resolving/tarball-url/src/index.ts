@@ -4,7 +4,10 @@ const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/'
 
 export interface TarballUrlOptions {
   registry?: string
-  /** Defaults to `'npm'`. See {@link RegistryServerType}. */
+  /**
+   * Undeclared by default, which is the strict reading: only the exact
+   * canonical URL is reconstructible. See {@link RegistryServerType}.
+   */
   serverType?: RegistryServerType
 }
 
@@ -17,7 +20,7 @@ export interface TarballUrlOptions {
  * This is the single source of the URL shape: the lockfile writer drops a
  * tarball URL only when this function rebuilds it, and the lockfile reader
  * rebuilds it with this function. Both sides therefore agree by construction,
- * including under a non-`npm` {@link RegistryServerType}.
+ * under every {@link RegistryServerType}.
  */
 export function getNpmTarballUrl (
   pkgName: string,
@@ -52,10 +55,22 @@ export function isCanonicalRegistryTarballUrl (
   const expectedTarball = removeProtocol(getNpmTarballUrl(pkg.name, pkg.version, opts))
   const actualTarball = removeProtocol(tarball)
   if (expectedTarball === actualTarball) return true
-  // registry.npmjs.org serves a scoped package from both the encoded and the
-  // unencoded path; elsewhere only the encoded one may work.
-  // See https://github.com/pnpm/pnpm/issues/13534.
-  return isPublicNpmRegistry(opts.registry) && expectedTarball === actualTarball.replace(/%2f/gi, '/')
+  // A registry behaving like registry.npmjs.org serves a scoped package from
+  // both the encoded and the unencoded path. A registry that has not been
+  // declared to behave like it may serve only the encoded one, so its URL is
+  // kept. See https://github.com/pnpm/pnpm/issues/13534.
+  return effectiveServerType(opts) === 'npm' && expectedTarball === actualTarball.replace(/%2f/gi, '/')
+}
+
+/**
+ * registry.npmjs.org is the one registry whose behavior pnpm knows without
+ * being told. Every other registry is read strictly until `registryOptions`
+ * declares what it is — guessing from the URL is what leaves a dropped tarball
+ * URL impossible to fetch on the next frozen install.
+ */
+function effectiveServerType (opts: TarballUrlOptions): RegistryServerType | undefined {
+  if (opts.serverType != null) return opts.serverType
+  return isPublicNpmRegistry(opts.registry) ? 'npm' : undefined
 }
 
 function isPublicNpmRegistry (registry?: string): boolean {

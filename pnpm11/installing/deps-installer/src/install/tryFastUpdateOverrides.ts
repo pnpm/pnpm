@@ -568,7 +568,7 @@ function createPackageSnapshot (
     manifest: PackageManifest
     optionalDependencies?: ResolvedDependencies
     registry: string
-    serverType: RegistryServerType
+    serverType?: RegistryServerType
     resolution: Awaited<ReturnType<RequestPackageFunction>>['body']['resolution']
   }
 ): PackageSnapshot {

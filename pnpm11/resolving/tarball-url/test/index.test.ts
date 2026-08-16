@@ -119,3 +119,28 @@ describe('an Artifactory registry, which keeps the scope in the tarball filename
     expect(isCanonicalRegistryTarballUrl(tarball, { name: '@acme/widget', version: '1.2.3' }, { registry, serverType })).toBe(false)
   })
 })
+
+describe('a registry declared to behave like the npm registry', () => {
+  const registry = 'https://npm.example.com/'
+  const tarball = 'https://npm.example.com/@babel%2Fcore/-/core-7.0.0.tgz'
+  const pkg = { name: '@babel/core', version: '7.0.0' }
+
+  test('is true for the encoded scoped path, which it serves like npmjs does', () => {
+    expect(isCanonicalRegistryTarballUrl(tarball, pkg, { registry, serverType: 'npm' })).toBe(true)
+  })
+
+  test('is false for the same URL while undeclared, which may serve only the encoded path', () => {
+    expect(isCanonicalRegistryTarballUrl(tarball, pkg, { registry })).toBe(false)
+  })
+
+  test('builds the same URL as an undeclared registry', () => {
+    expect(getNpmTarballUrl('@babel/core', '7.0.0', { registry, serverType: 'npm' }))
+      .toBe(getNpmTarballUrl('@babel/core', '7.0.0', { registry }))
+  })
+})
+
+test('the public npm registry keeps its encoded-path leniency without being declared', () => {
+  const registry = 'https://registry.npmjs.org/'
+  const tarball = 'https://registry.npmjs.org/@babel%2Fcore/-/core-7.0.0.tgz'
+  expect(isCanonicalRegistryTarballUrl(tarball, { name: '@babel/core', version: '7.0.0' }, { registry })).toBe(true)
+})

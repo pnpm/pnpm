@@ -16,8 +16,7 @@ use crate::{
 };
 use pnpm_lockfile::{
     EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
-    RegistryServerType, SnapshotEntry, SpecifierAndResolution, TarballResolution,
-    TarballUrlOptions, npm_tarball_url,
+    SnapshotEntry, SpecifierAndResolution, TarballResolution, TarballUrlOptions, npm_tarball_url,
 };
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
@@ -29,11 +28,7 @@ use std::collections::BTreeMap;
 /// setting, and config deps are resolved before workspace settings apply. The
 /// writer and the reader here agree because both use this same default.
 fn npm_lockfile_form(registry: &str) -> LockfileFormOptions<'_> {
-    LockfileFormOptions {
-        registry,
-        server_type: RegistryServerType::Npm,
-        include_tarball_url: false,
-    }
+    LockfileFormOptions { registry, server_type: None, include_tarball_url: false }
 }
 
 /// Resolve + install the config dependencies declared in
@@ -71,7 +66,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
                         npm_tarball_url(
                             name,
                             &version,
-                            TarballUrlOptions { registry, server_type: RegistryServerType::Npm },
+                            TarballUrlOptions { registry, server_type: None },
                         )
                     });
                     migrate_into_lockfile(
@@ -92,7 +87,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
                     let tarball = npm_tarball_url(
                         name,
                         &version,
-                        TarballUrlOptions { registry, server_type: RegistryServerType::Npm },
+                        TarballUrlOptions { registry, server_type: None },
                     );
                     migrate_into_lockfile(
                         &mut env_lockfile,
