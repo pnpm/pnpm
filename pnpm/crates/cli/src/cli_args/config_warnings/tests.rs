@@ -1,6 +1,6 @@
 use super::unmatched_registry_options_warning;
-use pacquet_config::Config;
-use pacquet_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_config::Config;
+use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use pretty_assertions::assert_eq;
 
 fn config_with(registries: &[(&str, &str)], registry_options_by_url: &[&str]) -> Config {

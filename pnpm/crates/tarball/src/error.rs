@@ -70,7 +70,7 @@ pub enum TarballError {
     FetchTarball(NetworkError),
 
     /// The deployment's route policy refuses this origin. Only a server
-    /// with an [`UpstreamRouteHook`](pacquet_network::UpstreamRouteHook)
+    /// with an [`UpstreamRouteHook`](pnpm_network::UpstreamRouteHook)
     /// raises it: the CLI fetches as the user and reaches whatever the user
     /// configured.
     #[from(ignore)]

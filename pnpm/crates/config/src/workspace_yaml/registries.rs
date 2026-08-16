@@ -10,7 +10,7 @@ use super::LoadWorkspaceYamlError;
 use crate::workspace_yaml::{
     normalize_registry_url, redact_registry_url, registry_url_has_userinfo,
 };
-use pacquet_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use serde::{
     Deserialize, Deserializer,
     de::{MapAccess, Visitor, value::MapAccessDeserializer},

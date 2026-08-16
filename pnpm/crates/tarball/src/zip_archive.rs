@@ -225,7 +225,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     // at the fetch rather than when the request that named it was read.
     if !auth_headers.allows_fetch(package_url) {
         return Err(TarballError::OffAllowlist {
-            url: pacquet_network::redact_url_credentials(package_url),
+            url: pnpm_network::redact_url_credentials(package_url),
         });
     }
     let client = http_client.acquire_for_url(package_url).await;

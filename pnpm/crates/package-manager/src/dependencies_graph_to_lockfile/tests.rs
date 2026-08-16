@@ -20,10 +20,8 @@ use pnpm_resolving_deps_resolver::{
 use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
-static EMPTY_REGISTRY_OPTIONS: std::collections::BTreeMap<
-    String,
-    pacquet_lockfile::RegistryOptions,
-> = std::collections::BTreeMap::new();
+static EMPTY_REGISTRY_OPTIONS: std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions> =
+    std::collections::BTreeMap::new();
 
 static EMPTY_NAMED_REGISTRIES: std::sync::LazyLock<std::collections::HashMap<String, String>> =
     std::sync::LazyLock::new(std::collections::HashMap::new);
