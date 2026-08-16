@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { envReplace } from '@pnpm/config.env-replace'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type {
   AllowedDeprecatedVersions,
@@ -104,13 +104,15 @@ function normalizeRegistryOptionsSetting (
   assertObjectSetting(registryOptions, 'registryOptions')
   const normalized: Record<string, RegistryOptions> = {}
   for (const [registry, options] of Object.entries(registryOptions)) {
-    const settingPath = `registryOptions['${registry}']`
+    // The URL is user config that may carry `user:pass@` credentials, and it
+    // is about to be interpolated into an error a terminal or CI log will show.
+    const settingPath = `registryOptions['${redactAndSanitize(registry)}']`
     assertObjectSetting(options, settingPath)
     for (const key of Object.keys(options)) {
       if (SECRET_REGISTRY_KEYS.has(key)) {
         throw new PnpmError('INVALID_SETTING',
           `The "${settingPath}.${key}" setting is not allowed in pnpm-workspace.yaml.`,
-          { hint: `Set "//${registry.replace(/^https?:\/\//, '')}:${key}" in an .npmrc file instead, so it is not committed.` })
+          { hint: `Set "//${redactAndSanitize(registry).replace(/^https?:\/\//, '')}:${key}" in an .npmrc file instead, so it is not committed.` })
       }
     }
     const { serverType } = options

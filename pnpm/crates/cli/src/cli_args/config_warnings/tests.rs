@@ -59,3 +59,16 @@ fn warns_about_an_entry_matching_no_configured_registry() {
         "the configured registries must be listed: {received}",
     );
 }
+
+/// A registry URL can carry `user:pass@` credentials, and this warning names
+/// every configured registry, so it must not echo one into a CI log.
+#[test]
+fn redacts_credentials_in_the_warning() {
+    let config = config_with(
+        &[("default", "https://user:hunter2@npm.example.com/")],
+        &["https://typo.example.com/"],
+    );
+    let received = unmatched_registry_options_warning(&config).expect("a warning");
+    assert!(!received.contains("hunter2"), "the password must not be echoed: {received}");
+    assert!(received.contains("npm.example.com"), "the host is still named: {received}");
+}

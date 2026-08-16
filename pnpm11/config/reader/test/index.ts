@@ -4958,3 +4958,28 @@ test('getConfig() does not warn about a registryOptions entry matched by PNPM_CO
 
   expect(warnings.filter((warning) => warning.includes('registryOptions'))).toStrictEqual([])
 })
+
+test('getConfig() redacts credentials in the unmatched registryOptions warning', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registry: 'https://user:hunter2@npm.example.com/',
+    registryOptions: {
+      'https://typo.example.com/': { serverType: 'artifactory' },
+    },
+  })
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  const registryOptionsWarnings = warnings.filter((warning) => warning.includes('registryOptions'))
+  expect(registryOptionsWarnings).toHaveLength(1)
+  expect(registryOptionsWarnings[0]).not.toContain('hunter2')
+  expect(registryOptionsWarnings[0]).toContain('npm.example.com')
+})

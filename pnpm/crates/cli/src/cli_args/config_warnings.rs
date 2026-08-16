@@ -8,6 +8,7 @@
 
 use pnpm_config::Config;
 use pnpm_default_reporter::colors::Colors;
+use pnpm_network::redact_and_sanitize;
 use pnpm_resolving_npm_resolver::BUILTIN_NAMED_REGISTRIES;
 use std::{
     collections::BTreeSet,
@@ -58,13 +59,18 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
         .registry_options
         .keys()
         .filter(|registry| !configured.contains(registry.as_str()))
-        .map(|registry| format!(r#""{registry}""#))
+        .map(|registry| format!(r#""{}""#, redact_and_sanitize(registry)))
         .collect::<Vec<_>>();
     if unmatched.is_empty() {
         return None;
     }
-    let configured =
-        configured.iter().map(|registry| format!(r#""{registry}""#)).collect::<Vec<_>>().join(", ");
+    // A registry URL can carry `user:pass@` credentials, so neither list may be
+    // echoed raw into a terminal or a CI log.
+    let configured = configured
+        .iter()
+        .map(|registry| format!(r#""{}""#, redact_and_sanitize(registry)))
+        .collect::<Vec<_>>()
+        .join(", ");
     Some(format!(
         r#"The following "registryOptions" entries do not match any configured registry and were ignored: {}. The configured registries are: {configured}."#,
         unmatched.join(", "),

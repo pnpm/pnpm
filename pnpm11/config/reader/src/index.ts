@@ -6,7 +6,7 @@ import { stripVTControlCharacters } from 'node:util'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
 import { BUILTIN_NAMED_REGISTRIES, GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
@@ -1373,8 +1373,11 @@ function warnAboutUnmatchedRegistryOptions (config: Config, warnings: string[]):
   ].map(normalizeRegistryUrl))
   const unmatched = Object.keys(registryOptions).filter((registry) => !configuredRegistries.has(registry))
   if (unmatched.length === 0) return
+  // A registry URL can carry `user:pass@` credentials, and the global config's
+  // keys have had `${VAR}` expanded by this point, so neither list may be
+  // echoed raw into a terminal or a CI log.
   warnings.push(
-    `The following "registryOptions" entries do not match any configured registry and were ignored: ${quoteAndJoin(unmatched)}. ` +
-    `The configured registries are: ${quoteAndJoin([...configuredRegistries].sort())}.`
+    `The following "registryOptions" entries do not match any configured registry and were ignored: ${quoteAndJoin(unmatched.map(redactAndSanitize))}. ` +
+    `The configured registries are: ${quoteAndJoin([...configuredRegistries].sort().map(redactAndSanitize))}.`
   )
 }
