@@ -107,7 +107,32 @@ describe('the registered loader', () => {
       },
     })
     expect(result.stderr.toString()).toBe('')
+    expect(result.status).toBe(0)
     expect(result.stdout.toString().trim()).toBe('esm-target')
+  })
+
+  test('a resolution error from a NODE_PATH entry surfaces instead of the not-found error', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    const depDir = path.join(tmp, 'store', 'node_modules', 'exported-dep')
+    fs.mkdirSync(depDir, { recursive: true })
+    fs.writeFileSync(path.join(depDir, 'package.json'), JSON.stringify({
+      name: 'exported-dep',
+      version: '1.0.0',
+      exports: { '.': './index.js' },
+    }))
+    fs.writeFileSync(path.join(depDir, 'index.js'), 'module.exports = "main"')
+    const script = path.join(tmp, 'main.mjs')
+    fs.writeFileSync(script, 'await import("exported-dep/unexported")')
+
+    const result = spawnSync(process.execPath, [script], {
+      env: {
+        ...process.env,
+        NODE_PATH: path.join(tmp, 'store', 'node_modules'),
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr.toString()).toContain('ERR_PACKAGE_PATH_NOT_EXPORTED')
   })
 
   test('still fails cleanly when the specifier is nowhere on NODE_PATH', () => {

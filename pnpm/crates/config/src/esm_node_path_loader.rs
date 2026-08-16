@@ -41,7 +41,9 @@ export async function resolve (specifier, context, nextResolve) {
     for (const nodePath of nodePaths) {
       try {
         return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
-      } catch {}
+      } catch (fallbackError) {
+        if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+      }
     }
     throw originalError
   }
@@ -63,7 +65,9 @@ const REGISTRATION_TEMPLATE: &str = r#"if (process.env.NODE_PATH) {
           for (const nodePath of nodePaths) {
             try {
               return nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
-            } catch {}
+            } catch (fallbackError) {
+              if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+            }
           }
           throw originalError
         }
