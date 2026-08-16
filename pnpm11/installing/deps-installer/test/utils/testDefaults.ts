@@ -19,6 +19,17 @@ export function testDefaults<T> (
     minimumReleaseAge?: number
     minimumReleaseAgeStrict?: boolean
     minimumReleaseAgeExclude?: string[]
+    /**
+     * Renamed to `registriesByScope`. Declared `never` so an options object
+     * that still carries the old key is a compile error: `T` is inferred from
+     * the argument, so an unknown key would otherwise be absorbed into it and
+     * the test would silently exercise the default registry instead.
+     */
+    registries?: 'renamed: use registriesByScope'
+    /** Renamed to `registriesByPrefix`. See `registries` above. */
+    namedRegistries?: 'renamed: use registriesByPrefix'
+    /** Renamed to `registryOptionsByUrl`. See `registries` above. */
+    registryOptions?: 'renamed: use registryOptionsByUrl'
   },
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
