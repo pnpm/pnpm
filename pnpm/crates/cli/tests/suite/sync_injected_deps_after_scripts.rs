@@ -27,11 +27,14 @@ fn injected_copies(workspace: &Path) -> Vec<std::path::PathBuf> {
     copies
 }
 
+/// Overwrites the harness's `pnpm-workspace.yaml`, so it has to restate
+/// its `enableGlobalVirtualStore: false` pin — [`injected_copies`] reads
+/// the project-local virtual store.
 fn write_workspace(workspace: &Path, sync_after: &str) {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
-            "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n{sync_after}",
+            "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\nenableGlobalVirtualStore: false\n{sync_after}",
         ),
     )
     .expect("write pnpm-workspace.yaml");

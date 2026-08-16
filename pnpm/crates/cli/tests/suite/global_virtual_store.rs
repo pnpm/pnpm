@@ -89,9 +89,27 @@ fn pkg_in_slot(hash_dir: &Path, name: &str) -> PathBuf {
 /// These tests re-set `allowBuilds` between installs, so they need a form
 /// that is idempotent.
 fn set_gvs_workspace_yaml(workspace: &Path, extra_yaml: &str) {
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let existing = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    let mut yaml: String = existing
+    let mut yaml = harness_store_and_cache_yaml(workspace);
+    yaml.push_str("enableGlobalVirtualStore: true\n");
+    yaml.push_str(extra_yaml);
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
+}
+
+/// Rewrite `pnpm-workspace.yaml` with the harness's `storeDir` /
+/// `cacheDir` alone, dropping its `enableGlobalVirtualStore` pin so the
+/// install runs on whatever the setting defaults to.
+fn unset_gvs_workspace_yaml(workspace: &Path) {
+    let yaml = harness_store_and_cache_yaml(workspace);
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
+}
+
+/// The `storeDir` / `cacheDir` lines
+/// [`CommandTempCwd::add_mocked_registry`] wrote, which every rewrite of
+/// the file has to carry over to keep the install inside the tempdir.
+fn harness_store_and_cache_yaml(workspace: &Path) -> String {
+    let existing = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    let yaml: String = existing
         .lines()
         .filter(|line| line.starts_with("storeDir:") || line.starts_with("cacheDir:"))
         .fold(String::new(), |mut acc, line| {
@@ -104,9 +122,7 @@ fn set_gvs_workspace_yaml(workspace: &Path, extra_yaml: &str) {
         "expected the `storeDir` / `cacheDir` keys written by \
          `CommandTempCwd::add_mocked_registry` — has the helper changed?",
     );
-    yaml.push_str("enableGlobalVirtualStore: true\n");
-    yaml.push_str(extra_yaml);
-    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    yaml
 }
 
 fn write_manifest(workspace: &Path, deps: &serde_json::Value) {
@@ -1465,6 +1481,62 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
     assert_eq!(
         fs::read_to_string(workspace.join("phantom.txt")).expect("read phantom.txt"),
         "resolved",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A project that says nothing about `enableGlobalVirtualStore` gets the
+/// shared store — in CI too, so a build never runs against a layout
+/// nobody develops against. Opting out is what changes the layout, from
+/// wherever the setting is set.
+#[test]
+fn the_global_virtual_store_is_the_default_in_every_environment() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    unset_gvs_workspace_yaml(&workspace);
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
+    let project_local_slot = workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0");
+
+    eprintln!("Installing with no `enableGlobalVirtualStore` setting...");
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let hash_dir = sole_hash_dir(&version_dir);
+    assert!(
+        pkg_in_slot(&hash_dir, "@pnpm.e2e/pkg-with-1-dep").join("package.json").exists(),
+        "the package must be materialized in its GVS slot",
+    );
+    assert!(
+        !project_local_slot.exists(),
+        "no project-local slot is written under the shared store",
+    );
+
+    eprintln!("Reinstalling the same project as CI...");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet(&workspace).with_env("PNPM_CONFIG_CI", "true").with_arg("install").assert().success();
+
+    assert!(!project_local_slot.exists(), "CI gets the same layout as any other environment");
+    assert_eq!(
+        hash_dirs(&version_dir),
+        vec![hash_dir.file_name().expect("hash dir name").to_string_lossy()],
+        "the CI install reattaches to the slot the first install materialized",
+    );
+
+    eprintln!("Reinstalling with the shared store turned off by env var...");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet(&workspace)
+        .with_env("PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE", "false")
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(
+        project_local_slot.join("node_modules/@pnpm.e2e/pkg-with-1-dep/package.json").exists(),
+        "opting out moves the package back into the project",
     );
 
     drop((root, mock_instance));

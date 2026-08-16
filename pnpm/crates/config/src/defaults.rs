@@ -212,14 +212,23 @@ pub fn default_virtual_store_dir() -> PathBuf {
     env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
 }
 
-/// Default for `enableGlobalVirtualStore`: `false` for regular installs.
+/// Default for `enableGlobalVirtualStore`: `true` — one virtual store,
+/// shared by every project on the machine.
 ///
-/// It is only enabled by default on the `pnpm install --global` path.
-/// Pacquet doesn't have a `--global` CLI flag at all (only
-/// `install --frozen-lockfile`), so the only applicable default is the
-/// `false` one.
+/// This is a pnpm 12 default, and one the TypeScript CLI does not share:
+/// pnpm 11 defaults the setting off and reaches for the shared store only
+/// under `pnpm install --global`. The divergence is deliberate, so a
+/// parity check that flags it is looking at a major-version boundary
+/// rather than at a gap.
+///
+/// The default does not vary by environment. A CI machine gets the same
+/// layout a developer's machine does — under a shared store, package
+/// directories sit outside the project and scripts run with `NODE_PATH`
+/// and the ESM loader set, so a CI-only fallback to the project-local
+/// layout would run every build in a resolution environment nobody
+/// develops against.
 pub fn default_enable_global_virtual_store() -> bool {
-    false
+    true
 }
 
 #[must_use]

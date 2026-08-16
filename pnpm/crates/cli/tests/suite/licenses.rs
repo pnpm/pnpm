@@ -9,6 +9,11 @@ use std::{fs, path::Path};
 #[test]
 fn licenses_normalizes_metadata_and_orders_groups_by_package() {
     let workspace = tempfile::tempdir().expect("create workspace");
+    // The fixtures below are hand-placed in the project-local virtual
+    // store, which the default shared store would move out of the
+    // project entirely.
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
+        .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.path().join("package.json"),
         json!({

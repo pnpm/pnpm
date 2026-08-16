@@ -121,12 +121,15 @@ impl CommandTempCwd<()> {
         let npmrc_text = format!("registry={mocked_registry}\n{npmrc_text}");
         fs::write(&npmrc_path, npmrc_text).expect("write to .npmrc");
 
-        // Explicitly pin `enableGlobalVirtualStore: false` so a test
-        // is hermetic regardless of any GVS opt-in the developer
-        // has set in their global pnpm config (`~/.config/pnpm/config.yaml`
+        // Pin `enableGlobalVirtualStore: false` so a test is hermetic:
+        // the shared store is the default, and it is also what the
+        // developer's global pnpm config (`~/.config/pnpm/config.yaml`
         // on Linux/macOS-with-XDG, `~/Library/Preferences/pnpm/config.yaml`
-        // on macOS by default). Tests that exercise GVS explicitly
-        // override this — see `enable_gvs_in_workspace_yaml` in
+        // on macOS by default) may pin either way. Pinning here keeps
+        // every suite on the project-local layout it asserts on, and
+        // off the machine-wide store its assertions would race in.
+        // Tests that exercise GVS override this — see
+        // `enable_gvs_in_workspace_yaml` in
         // `pnpm/crates/cli/tests/_utils.rs`.
         let workspace_yaml = self.workspace.join("pnpm-workspace.yaml");
         let workspace_yaml_text = text_block_fnl! {

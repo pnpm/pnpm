@@ -10,6 +10,7 @@ use super::{
 };
 use crate::{
     AllowBuildPolicy, InstallWithFreshLockfileError, MinimumReleaseAgeError, VirtualStoreLayout,
+    tests::project_local_config,
 };
 use pacquet_config::{Config, NodePackageMapType};
 use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
@@ -244,7 +245,7 @@ fn workspace_without_packages_field_enumerates_root_only() {
 
 #[test]
 fn package_map_writer_is_gated_to_supported_pacquet_mode() {
-    let mut config = Config::new();
+    let mut config = project_local_config();
     assert!(crate::should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
     assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
     assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
@@ -283,7 +284,7 @@ async fn should_install_dependencies() {
 
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -444,7 +445,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -516,7 +517,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -598,7 +599,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = true;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -736,7 +737,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
     let surplus = virtual_store_dir.join("surplus-pkg@9.9.9");
     std::fs::create_dir_all(&surplus).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -821,7 +822,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
     let surplus = virtual_store_dir.join("surplus-pkg@9.9.9");
     std::fs::create_dir_all(&surplus).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -907,7 +908,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
         .create_async()
         .await;
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -971,7 +972,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = true;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -1031,7 +1032,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = true;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -1104,7 +1105,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     // Explicitly disabled — this is the pacquet default today. The
     // CLI flag must still take over.
     config.lockfile = false;
@@ -1199,7 +1200,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -1298,7 +1299,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -1381,7 +1382,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -1473,7 +1474,7 @@ async fn install_emits_pnpm_event_sequence() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
@@ -1635,7 +1636,7 @@ async fn install_writes_modules_yaml() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
@@ -1759,7 +1760,7 @@ async fn install_writes_workspace_state() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
@@ -1883,7 +1884,7 @@ async fn install_writes_workspace_state() {
 /// every workspace project, not just the root.
 mod build_workspace_state_tests {
     use super::super::build_workspace_state;
-    use pacquet_config::Config;
+    use crate::tests::project_local_config;
     use pacquet_modules_yaml::IncludedDependencies;
     use pacquet_package_manifest::PackageManifest;
     use pacquet_workspace_state::ConfigDependency;
@@ -1902,7 +1903,7 @@ mod build_workspace_state_tests {
     #[test]
     fn empty_project_list_produces_empty_projects_map() {
         let dir = tempdir().unwrap();
-        let config = Config::new();
+        let config = project_local_config();
         let state = build_workspace_state(
             dir.path(),
             &config,
@@ -1937,7 +1938,7 @@ mod build_workspace_state_tests {
         let project_manifests: Vec<(PathBuf, &PackageManifest)> =
             manifests.iter().map(|(p, m)| (p.clone(), m)).collect();
 
-        let config = Config::new();
+        let config = project_local_config();
         let state = build_workspace_state(
             dir.path(),
             &config,
@@ -1969,7 +1970,7 @@ mod build_workspace_state_tests {
     /// stale, and reinstalls on every `pnpm run` / `pnpm node`.
     #[test]
     fn records_config_dependencies_from_config() {
-        let mut config = Config::new();
+        let mut config = project_local_config();
         config.config_dependencies = Some(BTreeMap::from([(
             "@pnpm/pacquet".to_string(),
             ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string()),
@@ -2020,7 +2021,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -2111,7 +2112,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -2222,7 +2223,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -2327,7 +2328,7 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
     manifest.add_dependency("@pnpm.e2e/closure-peer-x", "2.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -2455,7 +2456,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     // Opt out of the (now-default) global virtual store: the
     // `seed_placeholder_virtual_store_slot` helper writes the legacy
     // `<virtual_store_dir>/<flat-name>` shape, which only matches the
@@ -2561,7 +2562,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     // Opt out of the GVS layout — see the rationale on
     // [`warm_reinstall_skips_snapshot_when_current_lockfile_matches`].
     // The pre-seeded `<virtual_store_dir>/<flat-name>` slot is the
@@ -2684,7 +2685,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -2870,7 +2871,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     // Opt out of the GVS layout — the pre-seeded
     // `<virtual_store_dir>/<flat-name>` slot is the legacy shape the
     // skip probe matches under
@@ -2997,7 +2998,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
     // drift case the check has to catch.
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -3075,7 +3076,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
     // install must accept the drift and move on to materialization.
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -3145,7 +3146,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -3238,7 +3239,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
     .unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -3358,7 +3359,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
     .unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -3455,7 +3456,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -3514,10 +3515,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
 }
 
 /// GVS-on frozen-lockfile install. With
-/// `enable_global_virtual_store: true` (an explicit opt-in;
-/// pacquet's default is `false`, matching pnpm v11's effective
-/// default for non-`--global` installs — see
-/// [`pacquet_config::default_enable_global_virtual_store`]),
+/// `enable_global_virtual_store: true`,
 /// `Install::run` registers the project at
 /// `<store_dir>/projects/<short-hash>`
 /// and routes every per-snapshot slot through
@@ -3544,9 +3542,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     let manifest_path = project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
-    // Pin GVS on explicitly — pacquet's default is `false`, so this
-    // test would test the wrong path otherwise.
+    let mut config = project_local_config();
     config.enable_global_virtual_store = true;
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
@@ -3652,7 +3648,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     manifest.add_dependency("@pnpm.e2e/peer-c", "link:../peer-c", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.enable_global_virtual_store = true;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
@@ -3808,7 +3804,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
     let manifest_path = project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     // GVS on — the whole point of the test.
     config.enable_global_virtual_store = true;
     config.lockfile = false;
@@ -3948,7 +3944,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
     let manifest_path = project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.enable_global_virtual_store = false;
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
@@ -4036,7 +4032,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     std::fs::write(web_dir.join("package.json"), "{}").expect("write packages/web/package.json");
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.enable_global_virtual_store = true;
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
@@ -4143,7 +4139,7 @@ fn build_modules_manifest_serializes_skipped_set() {
     use std::collections::HashSet;
 
     let dir = tempdir().unwrap();
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
@@ -4193,7 +4189,7 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
     use pacquet_modules_yaml::IncludedDependencies;
 
     let dir = tempdir().unwrap();
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
@@ -4243,7 +4239,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
@@ -4388,7 +4384,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     manifest.add_dependency("broken-pkg", "1.0.0", DependencyGroup::Optional).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     // Opt out of the GVS layout so the assertion below can stat the
     // legacy `<virtual_store_dir>/<flat-name>` slot directly. With
@@ -4512,7 +4508,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
     manifest.add_dependency("broken-pkg", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     // Match the sister test's GVS-off setup so both swallow tests
     // route through the same layout — sidesteps any GVS-routing
@@ -4627,7 +4623,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     manifest.add_dependency("drop-me", "1.0.0", DependencyGroup::Optional).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     // Opt out of GVS so the slot-path assertion targets the legacy
     // `<virtual_store_dir>/<flat-name>` layout. Same pattern as the
@@ -4740,7 +4736,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
     manifest.add_dependency("drop-me", "1.0.0", DependencyGroup::Optional).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.enable_global_virtual_store = false;
     config.store_dir = store_dir.into();
@@ -4848,7 +4844,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
     manifest.add_dependency("shared", "1.0.0", DependencyGroup::Optional).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.enable_global_virtual_store = false;
     config.store_dir = store_dir.into();
@@ -4952,7 +4948,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
     let manifest_path = project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -5056,7 +5052,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
     let manifest_path = project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -5147,7 +5143,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     manifest.add_dependency("node", "runtime:22.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -5261,7 +5257,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
     manifest.add_dependency("node", "runtime:22.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -5386,7 +5382,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -5491,7 +5487,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -5615,7 +5611,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -5706,7 +5702,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
     manifest.add_dependency("@pnpm.e2e/final-peer-c", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -5793,7 +5789,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     manifest.add_dependency("@pnpm/xyz", "1.0.0", DependencyGroup::Dev).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -5877,7 +5873,7 @@ async fn fresh_install_records_user_written_specifier() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -5959,7 +5955,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -6039,7 +6035,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -6123,7 +6119,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -6220,7 +6216,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -6339,7 +6335,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -6418,7 +6414,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     manifest.add_dependency("@pnpm/xyz", "1.0.0", DependencyGroup::Optional).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -6523,7 +6519,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.enable_global_virtual_store = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -6639,7 +6635,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     let manifest_path = project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -6722,7 +6718,7 @@ async fn fresh_install_honors_skip_runtimes() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
@@ -6796,7 +6792,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     // Same legacy-layout opt-out as the sibling skip test — the seed
     // helper writes the flat-name slot shape.
     config.enable_global_virtual_store = false;
@@ -6880,7 +6876,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     // Force the resolver onto an unreachable registry so the
     // fresh-resolve path errors out clearly; the frozen path would
     // never consult the registry at all.
@@ -6973,7 +6969,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.registry = "http://invalid.local/".to_string();
     config.enable_global_virtual_store = false;
     config.store_dir = store_dir.into();
@@ -7043,7 +7039,7 @@ fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
         ignored_builds: Some([pacquet_modules_yaml::DepPath::from("pkg@1.0.0".to_string())].into()),
         ..Default::default()
     };
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.allow_builds.insert("foo@not-a-version".to_string(), true);
     let config = config.leak();
 
@@ -7220,7 +7216,7 @@ fn filtered_modules_metadata_keeps_empty_optional_maps_omitted() {
 fn is_modules_yaml_consistent_returns_false_when_modules_yaml_absent() {
     let dir = tempdir().unwrap();
     let modules_dir = dir.path().join("node_modules");
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.modules_dir = modules_dir.clone();
     let config = config.leak();
 
@@ -7243,7 +7239,7 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
     let dir = tempdir().unwrap();
     let modules_dir = dir.path().join("node_modules");
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
@@ -7284,7 +7280,7 @@ fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
     let dir = tempdir().unwrap();
     let modules_dir = dir.path().join("node_modules");
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
@@ -7319,7 +7315,7 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
     let dir = tempdir().unwrap();
     let modules_dir = dir.path().join("node_modules");
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
@@ -7370,7 +7366,7 @@ fn included_drift_alone_does_not_make_the_layout_inconsistent() {
     let dir = tempdir().unwrap();
     let modules_dir = dir.path().join("node_modules");
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
@@ -7424,7 +7420,7 @@ fn layout_drift_still_makes_the_layout_inconsistent() {
     let dir = tempdir().unwrap();
     let modules_dir = dir.path().join("node_modules");
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
@@ -7463,7 +7459,7 @@ async fn run_purge_regression_install(
     dependency_groups: Vec<DependencyGroup>,
     virtual_store_dir_max_length: u64,
 ) {
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.to_path_buf().into();
     config.modules_dir = modules_dir.to_path_buf();
     config.virtual_store_dir = virtual_store_dir.to_path_buf();
@@ -7642,7 +7638,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
@@ -7813,7 +7809,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     std::fs::write(project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
         .expect("seed pnpm-lock.yaml");
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
@@ -7970,7 +7966,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     std::fs::write(project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
         .expect("seed pnpm-lock.yaml");
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
@@ -8074,7 +8070,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
     let wanted_path = workspace_root.join(Lockfile::FILE_NAME);
     std::fs::write(&wanted_path, current).expect("write wanted lockfile");
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.workspace_dir = Some(workspace_root.clone());
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
@@ -8189,7 +8185,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -8345,7 +8341,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -8506,7 +8502,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
     // current `lock.yaml` in the virtual store — that's the scenario
     // under test.
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.lockfile = false;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
@@ -8650,7 +8646,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -8819,7 +8815,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.cache_dir = cache_dir.clone();
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
@@ -8893,7 +8889,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         }
     }
 
-    let mut second_config = Config::new();
+    let mut second_config = project_local_config();
     second_config.cache_dir = cache_dir;
     second_config.store_dir = store_dir.into();
     second_config.modules_dir = modules_dir;
@@ -8992,7 +8988,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.cache_dir = cache_dir.clone();
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
@@ -9045,7 +9041,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
     // regression can't hide behind a cache hit.
     std::fs::remove_dir_all(&cache_dir).expect("wipe the cache dir");
 
-    let mut offline_config = Config::new();
+    let mut offline_config = project_local_config();
     offline_config.cache_dir = cache_dir;
     offline_config.store_dir = store_dir.into();
     offline_config.modules_dir = modules_dir;
@@ -9331,7 +9327,7 @@ async fn fresh_lockfile_only_with_overrides(
     }
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -9452,7 +9448,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
     manifest.add_dependency("debug", "4.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -9533,7 +9529,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         .unwrap();
     manifest.save().unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -9644,7 +9640,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
@@ -9724,7 +9720,7 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
     std::fs::create_dir_all(&project_root).unwrap();
     let manifest = PackageManifest::create_if_needed(project_root.join("package.json")).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
@@ -9821,7 +9817,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
 
     std::fs::write(root.join(".pnpmfile.cjs"), pnpmfile_src).unwrap();
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = root.join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -9981,7 +9977,7 @@ async fn install_workspace_member_with_pnpmfile(
     std::fs::write(root.join(".pnpmfile.cjs"), pnpmfile_src).unwrap();
 
     let modules_dir = root.join("node_modules");
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.workspace_dir = Some(root.to_path_buf());
     config.store_dir = root.join("pacquet-store").into();
     config.virtual_store_dir = modules_dir.join(".pacquet");
@@ -10431,13 +10427,13 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     std::fs::create_dir_all(&project_root).unwrap();
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config_isolated = Config::new();
+    let mut config_isolated = project_local_config();
     config_isolated.lockfile = false;
     config_isolated.store_dir = store_dir.clone().into();
     config_isolated.modules_dir = modules_dir.clone();
     config_isolated.virtual_store_dir = virtual_store_dir.clone();
 
-    let mut config_hoisted = Config::new();
+    let mut config_hoisted = project_local_config();
     config_hoisted.lockfile = false;
     config_hoisted.store_dir = store_dir.clone().into();
     config_hoisted.modules_dir = modules_dir.clone();
@@ -10566,13 +10562,13 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
     std::fs::create_dir_all(&project_root).unwrap();
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
-    let mut config_isolated = Config::new();
+    let mut config_isolated = project_local_config();
     config_isolated.lockfile = false;
     config_isolated.store_dir = store_dir.clone().into();
     config_isolated.modules_dir = modules_dir.clone();
     config_isolated.virtual_store_dir = virtual_store_dir.clone();
 
-    let mut config_hoisted = Config::new();
+    let mut config_hoisted = project_local_config();
     config_hoisted.lockfile = false;
     config_hoisted.store_dir = store_dir.clone().into();
     config_hoisted.modules_dir = modules_dir.clone();
