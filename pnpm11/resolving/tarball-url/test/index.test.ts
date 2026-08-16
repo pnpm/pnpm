@@ -36,14 +36,23 @@ describe('isCanonicalRegistryTarballUrl', () => {
     expect(isCanonicalRegistryTarballUrl(tarball, { name: 'lodash', version: '4.17.21' }, registry)).toBe(true)
   })
 
-  test('is true for a scoped package, matching the npm %2f escaping', () => {
+  test('is true for a scoped package using unencoded slash', () => {
     const tarball = getNpmTarballUrl('@babel/core', '7.0.0', { registry })
     expect(isCanonicalRegistryTarballUrl(tarball, { name: '@babel/core', version: '7.0.0' }, registry)).toBe(true)
   })
 
-  test('is true for a scoped package using uppercase %2F escaping', () => {
-    const tarball = 'https://registry.npmjs.org/@babel%2Fcore/-/core-7.0.0.tgz'
+  test.each([
+    'https://registry.npmjs.org/@babel%2fcore/-/core-7.0.0.tgz',
+    'https://registry.npmjs.org/@babel%2Fcore/-/core-7.0.0.tgz',
+  ])('is true on the public registry, which also serves the encoded path: %s', (tarball) => {
     expect(isCanonicalRegistryTarballUrl(tarball, { name: '@babel/core', version: '7.0.0' }, registry)).toBe(true)
+  })
+
+  test.each([
+    'https://npm.example.com/@babel%2fcore/-/core-7.0.0.tgz',
+    'https://npm.example.com/@babel%2Fcore/-/core-7.0.0.tgz',
+  ])('is false on any other registry, which may serve only the encoded path: %s', (tarball) => {
+    expect(isCanonicalRegistryTarballUrl(tarball, { name: '@babel/core', version: '7.0.0' }, 'https://npm.example.com/')).toBe(false)
   })
 
   test('ignores the protocol', () => {
