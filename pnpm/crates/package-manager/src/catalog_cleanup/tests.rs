@@ -1,6 +1,5 @@
-use super::{post_install_prune, prune_minimum_release_age_excludes, resolved_package_versions};
+use super::{post_install_prune, resolved_package_versions};
 use crate::tests::project_local_config;
-use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manifest::PackageManifest;
 use std::path::Path;
