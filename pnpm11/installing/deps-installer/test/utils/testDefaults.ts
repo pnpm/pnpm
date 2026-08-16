@@ -20,10 +20,14 @@ export function testDefaults<T> (
     minimumReleaseAgeStrict?: boolean
     minimumReleaseAgeExclude?: string[]
     /**
-     * Renamed to `registriesByScope`. Declared `never` so an options object
-     * that still carries the old key is a compile error: `T` is inferred from
-     * the argument, so an unknown key would otherwise be absorbed into it and
-     * the test would silently exercise the default registry instead.
+     * Renamed to `registriesByScope`, and kept here so an options object that
+     * still carries the old key fails to compile: `T` is inferred from the
+     * argument, so an unknown key is otherwise absorbed into it and the test
+     * silently exercises the default registry instead.
+     *
+     * Typed as the replacement's name rather than `never` so the compiler
+     * prints the fix — `not assignable to type '… & "renamed: use
+     * registriesByScope"'`.
      */
     registries?: 'renamed: use registriesByScope'
     /** Renamed to `registriesByPrefix`. See `registries` above. */

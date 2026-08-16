@@ -95,9 +95,6 @@ export async function testDefaults (
     skipped: new Set<DepPath>(),
     storeController,
     storeDir,
-    // Required by `HeadlessOptions` and read by the install, but left unset
-    // while this helper took `any`: every one of them arrived as `undefined`.
-    // The values here are what the install effectively behaved as.
     configByUri: {},
     globalVirtualStoreDir: path.join(storeDir, 'links'),
     ignoreScripts: false,
