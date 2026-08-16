@@ -221,6 +221,13 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     let network_error =
         |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
 
+    // The route policy decides whether this origin may be reached at all,
+    // at the fetch rather than when the request that named it was read.
+    if !auth_headers.allows_fetch(package_url) {
+        return Err(TarballError::OffAllowlist {
+            url: pacquet_network::redact_url_credentials(package_url),
+        });
+    }
     let client = http_client.acquire_for_url(package_url).await;
 
     let mut request = client.get(package_url);

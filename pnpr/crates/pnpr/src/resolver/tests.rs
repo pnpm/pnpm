@@ -651,7 +651,9 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&ssrf, &context).is_some());
 
-    // A declared registry off the allowlist is rejected too.
+    // A registry the request merely declares is not a fetch target: the client
+    // describes its whole configuration, including scopes this resolve never
+    // reaches. `RouteHook::allows_fetch` refuses the ones it does reach.
     let declared = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),
         registries: BTreeMap::from([(
@@ -663,7 +665,7 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
         )]),
         ..ResolveRequest::default()
     };
-    assert!(reject_off_allowlist_fetches(&declared, &context).is_some());
+    assert!(reject_off_allowlist_fetches(&declared, &context).is_none());
 
     // A semver-range dependency never hits the network, so it is ignored.
     let ranges = ResolveRequest {

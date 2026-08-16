@@ -122,6 +122,12 @@ pub(crate) struct MetadataRequestOptions<'a> {
 pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
+    // The route policy decides whether this origin may be reached at all,
+    // here rather than when the request that named it was read: a registry a
+    // caller configures but never resolves from costs nothing.
+    if !opts.auth_headers.allows_fetch(opts.url) {
+        return Err(FetchMetadataError::OffAllowlist { url: redact_url_credentials(opts.url) });
+    }
     let etag = if opts.bypass_cache { None } else { opts.etag.filter(|value| !value.is_empty()) };
     let modified = if opts.bypass_cache {
         None

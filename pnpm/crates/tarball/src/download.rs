@@ -198,6 +198,9 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
         TarballError::FetchTarball(_) => {
             out.code = Some("ERR_PNPM_FETCH".to_string());
         }
+        TarballError::OffAllowlist { .. } => {
+            out.code = Some("ERR_PNPM_REGISTRY_OFF_ALLOWLIST".to_string());
+        }
         TarballError::Checksum(_) => {
             out.code = Some("ERR_PNPM_TARBALL_INTEGRITY".to_string());
         }
@@ -384,6 +387,13 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // URL. When the pool is saturated, the package with the most
     // estimated pipeline work claims the next freed slot, so the
     // longest download+extract jobs never start last.
+    // The route policy decides whether this origin may be reached at all,
+    // at the fetch rather than when the request that named it was read.
+    if !auth_headers.allows_fetch(package_url) {
+        return Err(TarballError::OffAllowlist {
+            url: pacquet_network::redact_url_credentials(package_url),
+        });
+    }
     let client = http_client.acquire_for_url_with_priority(package_url, download_priority).await;
     let mut request = client.get(package_url);
     // Resolve the per-URL auth header and attach it. Tarball hosts that

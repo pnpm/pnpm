@@ -767,6 +767,10 @@ impl UpstreamRouteHook for RouteHook {
         }
     }
 
+    fn allows_fetch(&self, url: &str) -> bool {
+        self.context.allows_registry(url)
+    }
+
     fn metadata_scope(&self, url: &str, package: Option<&str>) -> MetadataCacheScope {
         // Read-only classification — this must not record into the
         // footprint (`authorize` already does, at the real fetch point).

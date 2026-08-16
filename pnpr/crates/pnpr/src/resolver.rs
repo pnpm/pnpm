@@ -1446,12 +1446,15 @@ fn reject_off_allowlist_fetches(
     request: &ResolveRequest,
     context: &RouteContext,
 ) -> Option<Response> {
-    // Registries are fetch targets whatever their scheme.
+    // Registries are fetch targets whatever their scheme. The registries the
+    // request *declares* are deliberately not checked here: a client describes
+    // its whole configuration, including scopes this resolve never reaches, and
+    // one of those is refused at the fetch instead (`RouteHook::allows_fetch`)
+    // so configuring a registry pnpr does not serve is not itself an error.
     let mut registries: Vec<&str> = Vec::new();
     if let Some(registry) = request.registry.as_deref() {
         registries.push(registry);
     }
-    registries.extend(request.registries.keys().map(String::as_str));
     if let Some(off) = registries.into_iter().find(|registry| !context.allows_registry(registry)) {
         return Some(forbidden_off_allowlist(off));
     }
