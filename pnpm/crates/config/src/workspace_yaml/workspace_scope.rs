@@ -30,11 +30,9 @@ impl WorkspaceSettings {
     /// config, plus the programmatic-only and workspace-only knobs
     /// (`patchedDependencies`, `allowBuilds`,
     /// `supportedArchitectures`, `ignoredOptionalDependencies`,
-    /// `hoistingLimits`, `externalDependencies`) that pnpm only reads
+    /// `externalDependencies`) that pnpm only reads
     /// from `pnpm-workspace.yaml` or the legacy `package.json#pnpm`
-    /// field. Without this filter a user could put `nodeLinker:
-    /// hoisted` in `~/.config/pnpm/config.yaml` and pacquet would
-    /// honor it while pnpm wouldn't — anti-parity.
+    /// field.
     pub fn clear_workspace_only_fields(&mut self) {
         // Only the layout half of a registry declaration is workspace-only: it
         // decides which tarball URLs are omitted from the lockfile, so a
@@ -81,7 +79,6 @@ impl WorkspaceSettings {
     }
 
     pub(super) fn clear_workspace_layout_fields(&mut self) {
-        self.hoist = None;
         self.embed_readme = None;
         self.ignore_workspace_root_check = None;
         self.pending = None;
@@ -89,12 +86,8 @@ impl WorkspaceSettings {
         self.reverse = None;
         self.skip_manifest_obfuscation = None;
         self.sort = None;
-        self.hoist_pattern = None;
-        self.public_hoist_pattern = None;
-        self.shamefully_hoist = None;
         self.modules_dir = None;
         self.package_configs = None;
-        self.node_linker = None;
         self.symlink = None;
         self.lockfile = None;
         self.frozen_lockfile = None;
@@ -112,7 +105,6 @@ impl WorkspaceSettings {
         self.auto_install_peers = None;
         self.auto_install_peers_from_highest_match = None;
         self.exclude_links_from_lockfile = None;
-        self.hoist_workspace_packages = None;
         self.link_workspace_packages = None;
         self.save_workspace_protocol = None;
         self.inject_workspace_packages = None;
@@ -126,7 +118,6 @@ impl WorkspaceSettings {
         self.ignore_compatibility_db = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
-        self.hoisting_limits = None;
         self.external_dependencies = None;
     }
 

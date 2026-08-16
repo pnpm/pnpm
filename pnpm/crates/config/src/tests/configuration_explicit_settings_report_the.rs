@@ -586,20 +586,20 @@ pub fn global_config_yaml_kebab_case_key_is_reported() {
 pub fn global_config_yaml_keys_it_cannot_set_are_reported() {
     let config_dir = tempdir().expect("config tempdir");
     let config_file = config_dir.path().join("config.yaml");
-    fs::write(&config_file, "nodeLinker: hoisted\npackages:\n  - lib/*\n")
+    fs::write(&config_file, "autoInstallPeers: false\npackages:\n  - lib/*\n")
         .expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
         let settings = WorkspaceSettings::load_global(config_dir.path())
             .expect("load global config.yaml")
             .expect("global config.yaml is present");
-        assert_eq!(settings.node_linker, None);
+        assert_eq!(settings.auto_install_peers, None);
     });
 
     assert_eq!(
         warnings,
         [format!(
-            r#"The following settings cannot be set in the global config file ("{}") and were ignored: "nodeLinker", "packages". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+            r#"The following settings cannot be set in the global config file ("{}") and were ignored: "autoInstallPeers", "packages". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
             config_file.display(),
         )],
     );
@@ -699,7 +699,7 @@ pub fn global_config_yaml_null_key_is_silent_and_the_warnings_are_ordered() {
     let config_file = config_dir.path().join("config.yaml");
     fs::write(
         &config_file,
-        "scriptShell: null\nstore-dir: /kebab-store\nzzzNotASettingZzz: true\nconfigDir: /elsewhere\nnodeLinker: hoisted\n",
+        "scriptShell: null\nstore-dir: /kebab-store\nzzzNotASettingZzz: true\nconfigDir: /elsewhere\nautoInstallPeers: false\n",
     )
     .expect("write global config.yaml");
 
@@ -713,7 +713,7 @@ pub fn global_config_yaml_null_key_is_silent_and_the_warnings_are_ordered() {
         warnings,
         [
             format!(
-                r#"The following settings cannot be set in the global config file ("{}") and were ignored: "nodeLinker". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+                r#"The following settings cannot be set in the global config file ("{}") and were ignored: "autoInstallPeers". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
                 config_file.display(),
             ),
             format!(
