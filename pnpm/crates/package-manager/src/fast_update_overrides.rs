@@ -11,9 +11,8 @@ use pnpm_lockfile::{
 use pnpm_resolving_deps_resolver::ManifestHook;
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 

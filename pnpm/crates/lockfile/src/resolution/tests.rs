@@ -1054,7 +1054,7 @@ fn registry_server_type_defaults_to_npm_and_tolerates_a_missing_trailing_slash()
         registry_server_type(&options, ARTIFACTORY_REGISTRY.trim_end_matches('/')),
         RegistryServerType::Artifactory,
     );
-    assert_eq!(registry_server_type(&options, "https://npm.example.com/"), RegistryServerType::Npm,);
+    assert_eq!(registry_server_type(&options, "https://npm.example.com/"), RegistryServerType::Npm);
     assert_eq!(
         registry_server_type(&BTreeMap::new(), ARTIFACTORY_REGISTRY),
         RegistryServerType::Npm,

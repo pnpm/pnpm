@@ -2,8 +2,10 @@ use derive_more::{Display, From, TryInto};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
-use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+};
 
 /// For tarball hosted remotely or locally.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -412,7 +414,7 @@ impl LockfileResolution {
 /// Only layouts pnpm can rebuild a URL for belong here. A registry that serves
 /// tarballs from an opaque path (GitHub Packages `/download/<hash>`) has no
 /// variant: its URLs are kept in the lockfile instead.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RegistryServerType {
     #[default]
@@ -421,7 +423,7 @@ pub enum RegistryServerType {
 }
 
 /// Non-secret, per-registry settings from the `registryOptions` setting.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RegistryOptions {
     #[serde(default)]
