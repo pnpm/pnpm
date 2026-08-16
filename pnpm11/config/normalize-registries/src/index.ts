@@ -45,10 +45,11 @@ export function normalizeNamedRegistries (namedRegistries?: Record<string, strin
 const DEFAULT_NAMED_REGISTRIES = normalizeNamedRegistries({})
 
 /**
- * The declared layout of `registry`, or `undefined` when the user has not
- * declared one. The `undefined` case is deliberately not defaulted to `'npm'`
- * here: only registry.npmjs.org behaves that way without being told, and that
- * one default belongs with the URL builder that acts on it.
+ * The layout the user declared for `registry`, or `undefined` for none.
+ *
+ * Built-in layouts are deliberately not applied here — they belong with
+ * `isCanonicalRegistryTarballUrl`, which acts on them, so that a code path
+ * that never threads `registryOptions` still gets them.
  */
 export function getRegistryServerType (
   registryOptions: Record<string, RegistryOptions> | undefined,

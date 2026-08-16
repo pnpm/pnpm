@@ -2,6 +2,15 @@ import type { RegistryServerType } from '@pnpm/types'
 
 const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/'
 
+/**
+ * registry.npmjs.org is the one registry whose layout pnpm knows without being
+ * told, so it is a row of data rather than a hostname comparison. A declared
+ * `serverType` wins over it.
+ */
+const DEFAULT_REGISTRY_SERVER_TYPES: Record<string, RegistryServerType> = {
+  [PUBLIC_NPM_REGISTRY]: 'npm',
+}
+
 export interface TarballUrlOptions {
   registry?: string
   /**
@@ -46,6 +55,10 @@ export function getNpmTarballUrl (
  * path (e.g. an ephemeral `localhost:<port>`) can rewrite the resolved tarball
  * to `getNpmTarballUrl(name, version, { registry })` so nothing host-specific
  * is persisted to `pnpm-lock.yaml`.
+ *
+ * A `serverType` the user declared (via `getRegistryServerType` in
+ * `@pnpm/config.normalize-registries`) wins; otherwise the built-in layout of
+ * a known registry applies, and an unknown registry is read strictly.
  */
 export function isCanonicalRegistryTarballUrl (
   tarball: string,
@@ -62,19 +75,8 @@ export function isCanonicalRegistryTarballUrl (
   return effectiveServerType(opts) === 'npm' && expectedTarball === actualTarball.replace(/%2f/gi, '/')
 }
 
-/**
- * registry.npmjs.org is the one registry whose behavior pnpm knows without
- * being told. Every other registry is read strictly until `registryOptions`
- * declares what it is — guessing from the URL is what leaves a dropped tarball
- * URL impossible to fetch on the next frozen install.
- */
 function effectiveServerType (opts: TarballUrlOptions): RegistryServerType | undefined {
-  if (opts.serverType != null) return opts.serverType
-  return isPublicNpmRegistry(opts.registry) ? 'npm' : undefined
-}
-
-function isPublicNpmRegistry (registry?: string): boolean {
-  return removeProtocol(normalizeRegistry(registry)) === removeProtocol(PUBLIC_NPM_REGISTRY)
+  return opts.serverType ?? DEFAULT_REGISTRY_SERVER_TYPES[normalizeRegistry(opts.registry)]
 }
 
 function normalizeRegistry (registry?: string): string {

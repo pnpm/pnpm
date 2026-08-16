@@ -438,10 +438,17 @@ pub struct RegistryOptions {
     pub server_type: Option<RegistryServerType>,
 }
 
-/// The declared layout of `registry`, or [`None`] when the user has not
-/// declared one. Deliberately not defaulted to [`RegistryServerType::Npm`]:
-/// only registry.npmjs.org behaves that way without being told, and that one
-/// default is applied where the layout is acted on rather than here.
+/// registry.npmjs.org is the one registry whose layout pnpm knows without
+/// being told, so it is a row of data rather than a hostname comparison. A
+/// declared server type wins over it.
+const DEFAULT_REGISTRY_SERVER_TYPES: &[(&str, RegistryServerType)] =
+    &[("https://registry.npmjs.org/", RegistryServerType::Npm)];
+
+/// The layout the user declared for `registry`, or [`None`] for none.
+///
+/// Built-in layouts are deliberately not applied here — they belong with the
+/// predicate that acts on them, so that a code path which never threads
+/// `registryOptions` still gets them.
 ///
 /// `registry_options` is keyed by registry URL with a trailing slash, the way
 /// the config reader normalizes it, so the lookup normalizes its query to
@@ -459,13 +466,20 @@ pub fn registry_server_type(
     registry_options.get(key.as_ref()).copied().unwrap_or_default().server_type
 }
 
-/// registry.npmjs.org is the one registry whose behavior pnpm knows without
-/// being told. Every other registry is read strictly until `registryOptions`
-/// declares what it is — guessing from the URL is what leaves a dropped tarball
-/// URL impossible to fetch on the next frozen install.
+/// A declared server type wins; otherwise the built-in layout of a known
+/// registry applies, and an unknown registry is read strictly.
 fn effective_server_type(opts: TarballUrlOptions<'_>) -> Option<RegistryServerType> {
-    opts.server_type
-        .or_else(|| is_public_npm_registry(opts.registry).then_some(RegistryServerType::Npm))
+    opts.server_type.or_else(|| {
+        let registry = if opts.registry.ends_with('/') {
+            Cow::Borrowed(opts.registry)
+        } else {
+            Cow::Owned(format!("{}/", opts.registry))
+        };
+        DEFAULT_REGISTRY_SERVER_TYPES
+            .iter()
+            .find(|(default_registry, _)| *default_registry == registry.as_ref())
+            .map(|(_, server_type)| *server_type)
+    })
 }
 
 /// Where a package's tarball lives: the registry it resolved from, and the URL
@@ -529,13 +543,6 @@ fn is_canonical_registry_tarball_url(
     expected == actual
         || (effective_server_type(opts) == Some(RegistryServerType::Npm)
             && expected == actual.replace("%2f", "/").replace("%2F", "/"))
-}
-
-const PUBLIC_NPM_REGISTRY_HOST: &str = "registry.npmjs.org";
-
-fn is_public_npm_registry(registry: &str) -> bool {
-    let registry = remove_protocol(registry);
-    registry.strip_suffix('/').unwrap_or(registry) == PUBLIC_NPM_REGISTRY_HOST
 }
 
 /// Default-vs-scope routing for an npm package.
