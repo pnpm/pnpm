@@ -16,7 +16,7 @@ fn version_flag_prints_the_bare_version() {
     let output = pacquet.with_arg("--version").output().expect("run pacquet --version");
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
-    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION),);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
 
     drop(root);
 }
@@ -28,7 +28,7 @@ fn short_version_flag_prints_the_bare_version() {
     let output = pacquet.with_arg("-v").output().expect("run pacquet -v");
     dbg!(&output);
     assert!(output.status.success(), "pacquet -v should succeed");
-    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION),);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
 
     drop(root);
 }
