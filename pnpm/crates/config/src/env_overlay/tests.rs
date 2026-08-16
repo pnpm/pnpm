@@ -210,5 +210,5 @@ fn virtual_store_type_env_var_parses_its_two_values() {
         WorkspaceSettings::from_pnpm_config_env::<EnvProject>().virtual_store_type,
         Some(VirtualStoreType::Project),
     );
-    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>().virtual_store_type, None,);
+    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>().virtual_store_type, None);
 }
