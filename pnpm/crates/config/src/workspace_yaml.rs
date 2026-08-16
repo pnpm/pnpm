@@ -115,12 +115,8 @@ pub struct WorkspaceSettings {
     pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,
-    /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. Default
-    /// applied in [`Config`] is `false` — matches pnpm v11's
-    /// effective default for non-`--global` installs (the `true`
-    /// default applies only to `pnpm install --global`, and pacquet
-    /// has no `--global` flow). See
-    /// [`Config::enable_global_virtual_store`].
+    /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. See
+    /// [`Config::enable_global_virtual_store`] for the default.
     pub enable_global_virtual_store: Option<bool>,
     /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
     /// [`Config::virtual_store_only`].

@@ -3,6 +3,7 @@ use super::{
     compare_candidates, default_patch_target, executor_scripts_prepend_node_path,
     patch_candidates_from_lockfile, resolution_kind,
 };
+use crate::tests::project_local_config;
 use pacquet_config::ScriptsPrependNodePath;
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_lockfile::{
@@ -245,7 +246,7 @@ async fn patch_extract_records_download_in_store_index() {
     let store_dir = tmp.path().join("store");
     std::fs::create_dir_all(&store_dir).expect("create store dir");
 
-    let mut config = pacquet_config::Config::new();
+    let mut config = project_local_config();
     config.registry = registry.url();
     config.store_dir = StoreDir::new(&store_dir);
     let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
@@ -376,7 +377,7 @@ async fn patch_extract_url_inferred_git_hosted_tarball_runs_packlist() {
 #[tokio::test]
 async fn patch_extract_rejects_unsupported_resolution_shape() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let mut config = pacquet_config::Config::new();
+    let mut config = project_local_config();
     config.store_dir = tmp.path().join("store").into();
     let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
     let metadata: PackageMetadata = serde_json::from_value(json!({
@@ -411,7 +412,7 @@ async fn patch_extract_rejects_unsupported_resolution_shape() {
 #[tokio::test]
 async fn patch_extract_rejects_missing_package_metadata() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let mut config = pacquet_config::Config::new();
+    let mut config = project_local_config();
     config.store_dir = tmp.path().join("store").into();
     let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
     let mem_cache = pacquet_tarball::MemCache::default();
@@ -564,7 +565,7 @@ impl PatchExtractFixture {
         let ignored = store_dir.join("ignore");
         std::fs::write(&ignored, "do not publish\n").expect("write ignored file");
 
-        let mut config = pacquet_config::Config::new();
+        let mut config = project_local_config();
         config.registry = "https://registry.test/".to_string();
         config.store_dir = store_dir.into();
         config.offline = true;

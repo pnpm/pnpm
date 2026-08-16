@@ -3,6 +3,7 @@ use super::{
     judge_against_kept_range, parse_update_param, persist_selected_manifests,
     prepare_selected_manifests, selected_project_indices,
 };
+use crate::tests::project_local_config;
 use pacquet_config::{CatalogMode, Config};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -163,7 +164,7 @@ async fn selected_update_prepares_and_persists_only_selected_projects() {
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
-    let config = Config::new();
+    let config = project_local_config();
     let http_client = std::sync::Arc::new(ThrottledClient::default());
 
     let prepared = prepare_selected_manifests::<SilentReporter>(
@@ -207,7 +208,7 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
     let ordered_dirs = [projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.catalog_mode = CatalogMode::Prefer;
     let http_client = std::sync::Arc::new(ThrottledClient::default());
 
@@ -255,7 +256,7 @@ async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
     let ordered_dirs = [projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
-    let config = Config::new();
+    let config = project_local_config();
     let http_client = std::sync::Arc::new(ThrottledClient::default());
 
     let prepared = prepare_selected_manifests::<SilentReporter>(
@@ -291,7 +292,7 @@ async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency
     let dir = tempdir().expect("create tempdir");
     let mut projects = [project_without_foo(dir.path(), "a"), project_with_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
-    let config = Config::new();
+    let config = project_local_config();
     let http_client = std::sync::Arc::new(ThrottledClient::default());
 
     let prepared = prepare_selected_manifests::<SilentReporter>(
@@ -323,7 +324,7 @@ async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
     let dir = tempdir().expect("create tempdir");
     let mut projects = [project_without_foo(dir.path(), "a"), project_without_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
-    let config = Config::new();
+    let config = project_local_config();
     let http_client = std::sync::Arc::new(ThrottledClient::default());
 
     let prepared = prepare_selected_manifests::<SilentReporter>(
@@ -455,7 +456,11 @@ fn project_with_foo_specifier(root: &std::path::Path, name: &str, specifier: &st
 // loudly instead of hitting the network. Retries are off so that failure is
 // immediate rather than a minute of backoff.
 fn unroutable_registry_config() -> Config {
-    Config { registry: "http://127.0.0.1:1/".to_string(), fetch_retries: 0, ..Config::new() }
+    Config {
+        registry: "http://127.0.0.1:1/".to_string(),
+        fetch_retries: 0,
+        ..project_local_config()
+    }
 }
 
 fn project_without_foo(root: &std::path::Path, name: &str) -> Project {

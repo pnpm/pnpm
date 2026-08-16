@@ -212,14 +212,17 @@ pub fn default_virtual_store_dir() -> PathBuf {
     env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
 }
 
-/// Default for `enableGlobalVirtualStore`: `false` for regular installs.
+/// Default for `enableGlobalVirtualStore`: `true`.
 ///
-/// It is only enabled by default on the `pnpm install --global` path.
-/// Pacquet doesn't have a `--global` CLI flag at all (only
-/// `install --frozen-lockfile`), so the only applicable default is the
-/// `false` one.
+/// pnpm 12 shares one virtual store across every project on the machine.
+/// pnpm 11 keeps the project-local `node_modules/.pnpm` instead, enabling
+/// the shared store only for `pnpm install --global`, so this is one of
+/// the defaults the two majors deliberately disagree on.
+///
+/// [`crate::Config::current`] turns it back off in a CI environment
+/// unless the setting is pinned explicitly.
 pub fn default_enable_global_virtual_store() -> bool {
-    false
+    true
 }
 
 #[must_use]

@@ -3,6 +3,7 @@ use super::{
     full_resolution_required, include_transitive_optional_dependencies,
     is_partial_workspace_selection, update_reuse_scopes,
 };
+use crate::tests::project_local_config;
 use pacquet_config::{Config, PackageExtension};
 use pacquet_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
@@ -19,7 +20,7 @@ fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
             PackageExtension { dependencies: Some(dependencies), ..Default::default() },
         );
     }
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.package_extensions = Some(extensions);
     Box::new(config)
 }
@@ -76,7 +77,7 @@ fn compute_checksum_is_order_invariant_across_outer_keys() {
 /// fields and the drift gate would fire on no-op installs.
 #[test]
 fn compute_checksum_is_none_when_extensions_absent() {
-    let config = Config::new();
+    let config = project_local_config();
     assert_eq!(compute_package_extensions_checksum(&config), None);
 }
 
@@ -88,7 +89,7 @@ fn compute_checksum_is_none_when_extensions_absent() {
 /// field, causing spurious drift on cross-tool installs.
 #[test]
 fn compute_checksum_is_none_for_explicit_empty_map() {
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.package_extensions = Some(indexmap::IndexMap::new());
     assert_eq!(compute_package_extensions_checksum(&config), None);
 }

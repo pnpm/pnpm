@@ -2081,16 +2081,31 @@ pub fn test_current_folder_fallback_to_default() {
 }
 
 #[test]
-pub fn gvs_default_is_off_and_paths_derive_cleanly() {
+pub fn gvs_default_is_on_and_paths_derive_cleanly() {
     let tmp = tempdir().unwrap();
-    let config =
-        Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
-    assert!(
-        !config.enable_global_virtual_store,
-        "GVS defaults to false (matches pnpm v11 for non-global installs)",
-    );
+    let config = Config { ci: false, ..Config::new() }
+        .current::<HostNoHome>(tmp.path())
+        .expect("workspace yaml absent => no error");
+    assert!(config.enable_global_virtual_store, "GVS is on by default in pnpm 12");
     assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
+}
+
+#[test]
+pub fn ci_turns_gvs_off_unless_the_setting_is_pinned() {
+    let unpinned = tempdir().unwrap();
+    let config = Config { ci: true, ..Config::new() }
+        .current::<HostNoHome>(unpinned.path())
+        .expect("workspace yaml absent => no error");
+    assert!(!config.enable_global_virtual_store, "an unpinned GVS defaults to off in CI");
+
+    let pinned = tempdir().unwrap();
+    fs::write(pinned.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config { ci: true, ..Config::new() }
+        .current::<HostNoHome>(pinned.path())
+        .expect("yaml is valid");
+    assert!(config.enable_global_virtual_store, "an explicit opt-in survives CI");
 }
 
 #[test]
@@ -2098,7 +2113,9 @@ pub fn gvs_disabled_keeps_project_local_virtual_store() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
         .expect("write to pnpm-workspace.yaml");
-    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    let config = Config { ci: false, ..Config::new() }
+        .current::<HostNoHome>(tmp.path())
+        .expect("yaml is valid");
     assert!(!config.enable_global_virtual_store);
     assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
@@ -2153,11 +2170,9 @@ pub fn gvs_disabled_or_extend_node_path_off_injects_no_resolution_env() {
     }
 }
 
-/// The fixture also enables GVS explicitly. Pacquet's default
-/// is `enableGlobalVirtualStore: false` (matches pnpm v11 for
-/// non-`--global` installs), so without the explicit opt-in the
-/// GVS-on derivation path wouldn't run at all and the test
-/// would say nothing about that path's behaviour.
+/// The fixture also enables GVS explicitly, so the GVS-on derivation
+/// path is exercised even when the suite runs in CI (where an unpinned
+/// `enableGlobalVirtualStore` falls back to `false`).
 #[test]
 pub fn yaml_global_virtual_store_dir_wins_over_derivation() {
     let tmp = tempdir().unwrap();
@@ -2421,7 +2436,12 @@ pub fn global_config_yaml_enables_gvs() {
     host_current_dir!(HostWithXdgConfigHome);
 
     let tmp = tempdir().unwrap();
-    let config = Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
+    // `ci: true` would drop an unpinned `enableGlobalVirtualStore` back
+    // to `false`, so surviving it is the proof that the global
+    // config.yaml value reached the config rather than the default.
+    let config = Config { ci: true, ..Config::new() }
+        .current::<HostWithXdgConfigHome>(tmp.path())
+        .expect("config loads");
     assert!(
         config.enable_global_virtual_store,
         "enableGlobalVirtualStore from global config.yaml must apply",

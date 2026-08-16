@@ -882,13 +882,10 @@ pub struct Config {
     /// project keeps its own virtual store at
     /// `<project>/node_modules/.pnpm`.
     ///
-    /// Default `false` — the effective default for non-`--global`
-    /// installs. The `true` assignment applies only inside the
-    /// `if (cliOptions['global'])` block (see
-    /// `default_enable_global_virtual_store` in
-    /// `crates/config/src/defaults.rs` for the full reasoning).
-    /// Pacquet has no `--global` flow, so the only applicable
-    /// default is `false`.
+    /// Defaults to `true` — pnpm 12 shares the virtual store by
+    /// default, where pnpm 11 only did so for `pnpm install --global`.
+    /// [`Config::current`] turns it back off in CI unless the setting
+    /// is pinned explicitly.
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
 
@@ -902,11 +899,13 @@ pub struct Config {
     /// `SmartDefault` value is overwritten there with the path derived
     /// from the resolved `store_dir` / `virtual_store_dir`. The default
     /// here is only meaningful when `Config::new()` is used in isolation
-    /// (mostly tests).
+    /// (mostly tests), and matches the derivation's own fallback so
+    /// such a config never points the shared store at the working
+    /// directory.
     ///
     /// [`enable_global_virtual_store`]: Self::enable_global_virtual_store
     /// [`virtual_store_dir`]: Self::virtual_store_dir
-    #[default(_code = "default_virtual_store_dir()")]
+    #[default(_code = "default_store_dir::<Host>().links()")]
     pub global_virtual_store_dir: PathBuf,
 
     /// `virtualStoreOnly`: populate the virtual store but perform no
@@ -2860,6 +2859,15 @@ impl Config {
         // workspace is case-sensitive and the home is not.
         if !store_dir_explicit {
             self.resolve_default_store_dir::<Sys>(start_dir);
+        }
+
+        // A shared virtual store buys little in CI, where the store it
+        // is shared through is usually cold anyway. A user who set the
+        // key still gets what they asked for — Nix builds and runners
+        // with a persistent store do keep it warm. Mirrors the pnpm
+        // config reader (`pnpm11/config/reader/src/index.ts`).
+        if self.ci && !self.explicit_settings.contains_key("enableGlobalVirtualStore") {
+            self.enable_global_virtual_store = false;
         }
 
         // Derive `global_virtual_store_dir` last so it sees the final

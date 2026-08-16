@@ -1,6 +1,5 @@
 use super::PrefetchingResolver;
-use crate::PrefetchContext;
-use pacquet_config::Config;
+use crate::{PrefetchContext, tests::project_local_config};
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::SilentReporter;
@@ -118,7 +117,7 @@ fn resolver_with_prefetch(
     inner: Box<dyn Resolver>,
     prefetch_downloads: bool,
 ) -> PrefetchingResolver<SilentReporter> {
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.join("store").into();
     config.cache_dir = dir.join("cache");
     let config = Box::leak(Box::new(config));
