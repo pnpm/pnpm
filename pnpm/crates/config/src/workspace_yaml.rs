@@ -980,6 +980,7 @@ impl WorkspaceSettings {
         if let Some(registry_options) = self.registry_options.as_mut() {
             registry_options.retain(|registry, _| !has_env_placeholder(registry));
         }
+
         if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
             self.pnpr_server = None;
         }

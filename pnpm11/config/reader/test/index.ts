@@ -4983,3 +4983,34 @@ test('getConfig() redacts credentials in the unmatched registryOptions warning',
   expect(registryOptionsWarnings[0]).not.toContain('hunter2')
   expect(registryOptionsWarnings[0]).toContain('npm.example.com')
 })
+
+test('getConfig() never expands an env placeholder in a registryOptions key from a workspace manifest', async () => {
+  // pnpm-workspace.yaml is repo-controlled. Expanding `${VAR}` in a registry
+  // URL there is how a token would reach an attacker-chosen host, so the entry
+  // is dropped rather than expanded — and nothing echoes the secret either.
+  prepareEmpty()
+  process.env.PNPM_TEST_REGISTRY_TOKEN = 'super-secret-token'
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registryOptions: {
+      'https://evil.example.com/${PNPM_TEST_REGISTRY_TOKEN}/': { serverType: 'artifactory' },
+    },
+  })
+
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registryOptions).toStrictEqual({})
+    expect(JSON.stringify(config)).not.toContain('super-secret-token')
+    expect(warnings.join('\n')).not.toContain('super-secret-token')
+  } finally {
+    delete process.env.PNPM_TEST_REGISTRY_TOKEN
+  }
+})
