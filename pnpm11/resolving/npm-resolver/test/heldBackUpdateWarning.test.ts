@@ -3,15 +3,15 @@ import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { type LogBase, streamParser } from '@pnpm/logger'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const registries: Registries = {
+const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
-const registryOrigin = registries.default.slice(0, -1)
+const registryOrigin = registriesByScope.default.slice(0, -1)
 
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
@@ -73,7 +73,7 @@ test('does not warn about a held-back update when minimumReleaseAge is the reaso
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^2.1.3' }, {
     updateRequested: true,
@@ -99,7 +99,7 @@ test('still warns about a held-back update when a manifest pin is the reason the
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^2.1.3' }, {
     updateRequested: true,
@@ -123,7 +123,7 @@ test('still warns about a held-back update when the newer version is mature unde
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^2.1.3' }, {
     updateRequested: true,
@@ -148,7 +148,7 @@ test('keeps the unfiltered baseline for a package excluded from the age gate via
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^2.1.3' }, {
     updateRequested: true,
@@ -176,7 +176,7 @@ test('keeps a version the age gate trusts by exact version in the baseline', asy
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^2.1.3' }, {
     updateRequested: true,

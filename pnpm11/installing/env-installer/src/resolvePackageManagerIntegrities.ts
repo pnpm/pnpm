@@ -3,7 +3,7 @@ import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/store.controller'
-import type { DepPath, ProjectId, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
 import { convertToLockfileEnvObject } from './pruneEnvLockfile.js'
@@ -16,7 +16,7 @@ const PNPM_EXE_INTRODUCED = '6.17.1'
 
 export interface ResolvePackageManagerIntegritiesOpts {
   envLockfile?: EnvLockfile
-  registries: Registries
+  registriesByScope: RegistriesByScope
   rootDir: string
   storeController: StoreController
   storeDir: string
@@ -155,7 +155,7 @@ async function resolveWantedPnpmPackages (
 ): Promise<LockfileObject> {
   const resolveOpts = {
     dir: opts.rootDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
   }

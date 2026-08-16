@@ -36,7 +36,7 @@ const OUTDATED_OPTIONS = {
   networkConcurrency: 16,
   offline: false,
   configByUri: {},
-  registries: { default: REGISTRY_URL },
+  registriesByScope: { default: REGISTRY_URL },
   strictSsl: false,
   tag: 'latest',
   userAgent: '',
@@ -85,7 +85,7 @@ test('pnpm outdated: show details (using the public registry to verify that full
     dir: process.cwd(),
     long: true,
     configByUri: {},
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   expect(exitCode).toBe(1)

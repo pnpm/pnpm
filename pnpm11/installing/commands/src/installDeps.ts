@@ -94,7 +94,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'pnprServer'
 | 'production'
 | 'preferWorkspacePackages'
-| 'registries'
+| 'registriesByScope'
 | 'runtime'
 | 'runtimeOnFail'
 | 'save'

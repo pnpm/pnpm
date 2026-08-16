@@ -64,7 +64,7 @@ describe('verifyPnpmEngineIdentity', () => {
 
   test('throws (fails closed) when the canonical registry is the configured registry and is unreachable', async () => {
     // No intercept registered and net connect disabled, so the packument fetch fails.
-    const opts = { ...optsTrusting(createSigningKey()), registries: { default: CANONICAL_REGISTRY } }
+    const opts = { ...optsTrusting(createSigningKey()), registriesByScope: { default: CANONICAL_REGISTRY } }
     await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
   })
 
@@ -73,7 +73,7 @@ describe('verifyPnpmEngineIdentity', () => {
     // URL-equivalent to the canonical registry and must not unlock the
     // warn-and-proceed path.
     await Promise.all(['https://Registry.NPMJS.org:443/', 'https://user:pass@registry.npmjs.org/'].map(async (canonical) => {
-      const opts = { ...optsTrusting(createSigningKey()), registries: { default: canonical } }
+      const opts = { ...optsTrusting(createSigningKey()), registriesByScope: { default: canonical } }
       await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
     }))
   })
@@ -126,12 +126,12 @@ describe('verifyPnpmEngineIdentity', () => {
     const lockfile = envLockfile()
     ;(lockfile.packages as Record<string, { resolution: { integrity: string } }>)['pnpm@9.1.0'] = { resolution: { integrity: 'sha1-8bee00286a17c00a13c7e6e6dd9a9b389220ee7f' } }
 
-    const opts = { ...optsTrusting(createSigningKey()), registries: { default: CANONICAL_REGISTRY } }
+    const opts = { ...optsTrusting(createSigningKey()), registriesByScope: { default: CANONICAL_REGISTRY } }
     await expect(verifyPnpmEngineIdentity(lockfile, '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
   })
 
   test('skips (no throw) when no trusted keys are provided', async () => {
-    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', { registries: { default: REGISTRY }, trustedKeys: [] })).resolves.toBeUndefined()
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', { registriesByScope: { default: REGISTRY }, trustedKeys: [] })).resolves.toBeUndefined()
   })
 
   test('throws when an engine component in the lockfile has no integrity metadata', async () => {
@@ -218,7 +218,7 @@ function envLockfileV12 (): EnvLockfile {
 
 function optsTrusting (key: ReturnType<typeof createSigningKey>) {
   return {
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     trustedKeys: [{ expires: null, key: key.publicKey, keyid: key.keyid, keytype: 'ecdsa-sha2-nistp256', scheme: 'ecdsa-sha2-nistp256' }],
   }
 }

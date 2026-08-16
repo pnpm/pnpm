@@ -1,5 +1,11 @@
 use std::collections::HashMap;
 
+/// The registry facts with only the scope map populated — what these tests
+/// vary; the aliases and per-registry settings stay empty.
+fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::RegistryContext {
+    pnpm_lockfile::RegistryContext { registries, ..Default::default() }
+}
+
 use pnpm_lockfile::{
     ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion,
     PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution,
@@ -242,7 +248,7 @@ fn current_pkg_materializes_a_registry_resolution_into_its_tarball_url() {
         Some(HashMap::from([("react@18.2.0".parse().expect("parse key"), registry_metadata())]));
 
     let current_pkg =
-        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
             .expect("packages entry exists");
 
     assert_eq!(current_pkg.id.to_string(), "react@18.2.0");
@@ -264,7 +270,7 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
     registries.insert("@scope".to_string(), "https://scoped.example.test/".to_string());
 
     let current_pkg =
-        super::current_pkg_from_lockfile(&lockfile, &key, &registries, &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(registries))
             .expect("packages entry exists");
 
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
@@ -287,7 +293,7 @@ fn current_pkg_passes_a_recorded_tarball_resolution_through() {
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
 
     let current_pkg =
-        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
             .expect("packages entry exists");
 
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
@@ -301,7 +307,7 @@ fn current_pkg_is_none_without_a_packages_entry() {
     let key: PkgNameVerPeer = "react@18.2.0".parse().expect("parse key");
     let lockfile = empty_lockfile();
     assert!(
-        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
             .is_none(),
     );
 }
@@ -312,7 +318,7 @@ fn current_pkg_is_withheld_for_a_registry_entry_without_a_registry_map() {
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
     assert!(
-        super::current_pkg_from_lockfile(&lockfile, &key, &HashMap::new(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(HashMap::new()))
             .is_none(),
     );
 }

@@ -1503,12 +1503,12 @@ fn ensure_latest_resolver_chain<'chain>(
         let policy =
             PickPolicy::from_config_with_extra_excludes(ctx.config, extra_excludes.as_deref())
                 .map_err(UpdateError::MinimumReleaseAgeExclude)?;
-        let named_registries =
-            merge_named_registries(&ctx.config.named_registries.clone().into_iter().collect())
+        let registries_by_prefix =
+            merge_named_registries(&ctx.config.registries_by_prefix.clone().into_iter().collect())
                 .map_err(UpdateError::InvalidNamedRegistry)?;
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries: ctx.config.resolved_registries().into_iter().collect(),
-            named_registries,
+            registries_by_prefix,
             http_client: Arc::clone(ctx.http_client_arc),
             auth_headers: Arc::clone(&ctx.config.auth_headers),
             meta_cache: Arc::<InMemoryPackageMetaCache>::default(),

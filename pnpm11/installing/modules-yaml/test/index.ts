@@ -2,14 +2,14 @@
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { type Modules, readModulesManifest, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import isWindows from 'is-windows'
 import { readYamlFileSync } from 'read-yaml-file'
 import { temporaryDirectory } from 'tempy'
 
 test('writeModulesManifest() and readModulesManifest()', async () => {
   const modulesDir = temporaryDirectory()
-  const modulesYaml: StrictModules = {
+  const modulesYaml: Modules = {
     hoistedDependencies: {},
     included: {
       dependencies: true,
@@ -22,9 +22,6 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
     pendingBuilds: [],
     publicHoistPattern: [],
     prunedAt: new Date().toUTCString(),
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
     shamefullyHoist: false,
     skipped: [],
     storeDir: '/.pnpm-store',
@@ -67,7 +64,7 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=fa
 
 test('readModulesManifest() should create a node_modules directory', async () => {
   const modulesDir = path.join(temporaryDirectory(), 'node_modules')
-  const modulesYaml: StrictModules = {
+  const modulesYaml: Modules = {
     hoistedDependencies: {},
     included: {
       dependencies: true,
@@ -80,9 +77,6 @@ test('readModulesManifest() should create a node_modules directory', async () =>
     pendingBuilds: [],
     publicHoistPattern: [],
     prunedAt: new Date().toUTCString(),
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
     shamefullyHoist: false,
     skipped: [],
     storeDir: '/.pnpm-store',
@@ -96,4 +90,33 @@ test('readModulesManifest() should create a node_modules directory', async () =>
 test('readModulesManifest does not fail on empty file', async () => {
   const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/empty-modules-yaml'))
   expect(modulesYaml).toBeUndefined()
+})
+
+test('writeModulesManifest() drops the registries a pnpm 11 file recorded', async () => {
+  // The registries a project resolves from are read from its config, so a
+  // recorded copy is stale the moment the config changes.
+  const modulesDir = temporaryDirectory()
+  const modulesYaml: Modules = {
+    hoistedDependencies: {},
+    included: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    layoutVersion: 1,
+    packageManager: 'pnpm@2',
+    pendingBuilds: [],
+    prunedAt: new Date().toUTCString(),
+    skipped: [],
+    storeDir: '/.pnpm-store',
+    virtualStoreDir: path.join(modulesDir, '.pnpm'),
+    virtualStoreDirMaxLength: 120,
+  }
+  await writeModulesManifest(modulesDir, {
+    ...modulesYaml,
+    registries: { default: 'https://registry.npmjs.org/' },
+  } as Modules)
+
+  const raw = readYamlFileSync<Record<string, unknown>>(path.join(modulesDir, '.modules.yaml'))
+  expect(raw.registries).toBeUndefined()
 })

@@ -169,9 +169,12 @@ async fn is_already_published(
         .get("publishConfig")
         .and_then(|publish_config| publish_config.get("registry"))
         .and_then(Value::as_str);
-    let Ok(registry) =
-        find_registry_info(name, &config.registry, &config.registries, publish_config_registry)
-    else {
+    let Ok(registry) = find_registry_info(
+        name,
+        &config.registry,
+        &config.registries_by_scope,
+        publish_config_registry,
+    ) else {
         return false;
     };
     let outcome = fetch_full_metadata(

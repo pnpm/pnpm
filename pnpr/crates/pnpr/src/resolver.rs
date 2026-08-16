@@ -208,7 +208,7 @@ impl Resolver {
 
     /// Resolve (or build + intern) the `&'static Config` for a request's
     /// registry configuration. Pacquet's install path resolves against
-    /// `config.registry` / `named_registries` / `overrides`, so a request
+    /// `config.registry` / `registries_by_prefix` / `overrides`, so a request
     /// from a client with a different registry setup gets its own Config.
     ///
     /// `None` once [`MAX_INTERNED_CONFIGS`] distinct configurations have
@@ -330,7 +330,7 @@ fn intern_config(
     let key = serde_json::json!({
         "registry": registry,
         "lockfileSettings": lockfile_settings,
-        "namedRegistries": request.named_registries,
+        "registries": &request.registries,
         "overrides": overrides_key,
         "minimumReleaseAge": request.minimum_release_age,
         "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
@@ -356,7 +356,18 @@ fn intern_config(
     config.store_dir = store_dir.clone();
     config.cache_dir = cache_dir.to_path_buf();
     config.registry = registry;
-    config.named_registries = request.named_registries.clone();
+    // The client's declarations go through the same inversion the config
+    // reader runs on the `registries` setting, so the server routes scopes
+    // and prefixes exactly as the client would.
+    let lookups = pnpm_config::registries::declarations_into_lookups(request.registries.clone());
+    if request.registry.is_none()
+        && let Some(default_registry) = lookups.default_registry
+    {
+        config.registry = default_registry;
+    }
+    config.registries_by_scope = lookups.registries_by_scope;
+    config.registries_by_prefix = lookups.registries_by_prefix;
+    config.registry_options_by_url = lookups.registry_options_by_url;
     config.overrides = overrides;
     config.modules_dir = PathBuf::from("node_modules");
     config.lockfile = true;
@@ -407,6 +418,9 @@ pub(crate) async fn handle_resolve(
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
 
+    if let Some(response) = reject_invalid_registries(&request) {
+        return response;
+    }
     if let Some(response) = reject_inline_url_auth(&request) {
         return response;
     }
@@ -572,6 +586,9 @@ pub(crate) async fn handle_verify_lockfile(
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
 
+    if let Some(response) = reject_invalid_registries(&request) {
+        return response;
+    }
     if let Some(response) = reject_inline_url_auth(&request) {
         return response;
     }
@@ -781,7 +798,7 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         .collect();
     let input = serde_json::json!({
         "registry": &config.registry,
-        "namedRegistries": &request.named_registries,
+        "registries": &request.registries,
         "overrides": &request.overrides,
         "catalogs": &request.catalogs,
         "projects": projects,
@@ -1429,12 +1446,15 @@ fn reject_off_allowlist_fetches(
     request: &ResolveRequest,
     context: &RouteContext,
 ) -> Option<Response> {
-    // Registries are fetch targets whatever their scheme.
+    // Registries are fetch targets whatever their scheme. The registries the
+    // request *declares* are deliberately not checked here: a client describes
+    // its whole configuration, including scopes this resolve never reaches, and
+    // one of those is refused at the fetch instead (`RouteHook::allows_fetch`)
+    // so configuring a registry pnpr does not serve is not itself an error.
     let mut registries: Vec<&str> = Vec::new();
     if let Some(registry) = request.registry.as_deref() {
         registries.push(registry);
     }
-    registries.extend(request.named_registries.values().map(String::as_str));
     if let Some(off) = registries.into_iter().find(|registry| !context.allows_registry(registry)) {
         return Some(forbidden_off_allowlist(off));
     }
@@ -1548,6 +1568,18 @@ fn forbidden_off_allowlist(target: &str) -> Response {
     )
 }
 
+/// Reject a `registries` map the client could not have loaded itself.
+///
+/// The same validation the config reader runs on the setting, so a request
+/// cannot route one scope to two registries, or reach the resolver with a
+/// declaration pnpm would have refused on disk. The message is the reader's,
+/// with its registry URLs already redacted.
+fn reject_invalid_registries(request: &ResolveRequest) -> Option<Response> {
+    pnpm_config::registries::validate_declarations(request.registries.iter())
+        .err()
+        .map(|error| json_error(StatusCode::BAD_REQUEST, &error.to_string()))
+}
+
 /// Reject a request whose client-supplied URLs carry inline
 /// `user:pass@host` credentials, before any fetch or cache write. Covers
 /// the default and named registries, every dependency spec, catalog value,
@@ -1559,7 +1591,7 @@ fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
     if let Some(registry) = request.registry.as_deref() {
         specs.push(registry);
     }
-    specs.extend(request.named_registries.values().map(String::as_str));
+    specs.extend(request.registries.keys().map(String::as_str));
     let projects = request.projects_normalized();
     for project in &projects {
         for map in

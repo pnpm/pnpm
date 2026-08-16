@@ -18,7 +18,7 @@
 //! them into a violation reason instead of swallowing.
 
 use chrono::DateTime;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
 
 use crate::FetchMetadataError;
 
@@ -39,6 +39,9 @@ pub async fn fetch_attestation_published_at(
 ) -> Result<Option<String>, FetchMetadataError> {
     let registry = opts.registry.trim_end_matches('/');
     let url = format!("{registry}/-/npm/v1/attestations/{pkg_name}@{version}");
+    if !opts.auth_headers.allows_fetch(&url) {
+        return Err(FetchMetadataError::OffAllowlist { url: redact_url_credentials(&url) });
+    }
     // Verification-only lookup: queue in the background class so it
     // never outranks resolution-gating fetches.
     let mut request = opts

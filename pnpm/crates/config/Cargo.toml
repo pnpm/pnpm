@@ -16,6 +16,7 @@ pnpm-config-dir             = { workspace = true }
 pnpm-detect-libc            = { workspace = true }
 pnpm-env-replace            = { workspace = true }
 pnpm-fs                     = { workspace = true }
+pnpm-lockfile               = { workspace = true }
 pnpm-network                = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-package-manifest       = { workspace = true }

@@ -2,7 +2,10 @@ use derive_more::{Display, From, TryInto};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+};
 
 /// For tarball hosted remotely or locally.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -351,20 +354,21 @@ impl LockfileResolution {
     /// Convert an in-memory resolution into the form written to the lockfile.
     ///
     /// For a registry tarball whose URL is reconstructible from `name`,
-    /// `version`, and `registry`, the URL is dropped and only `{integrity}` is
-    /// kept — pnpm derives the tarball URL on demand. The URL is preserved when
-    /// `include_tarball_url` is set, when it is a `file:` tarball, when it is
-    /// git-hosted, or when it does not match the derived URL (e.g. private
-    /// registries with non-standard tarball paths). Non-tarball resolutions and
-    /// integrity-less tarballs pass through unchanged.
+    /// `version`, and the registry, the URL is dropped and only `{integrity}`
+    /// is kept — pnpm derives the tarball URL on demand. The URL is preserved
+    /// when [`LockfileFormOptions::include_tarball_url`] is set, when it is a
+    /// `file:` tarball, when it is git-hosted, or when it does not match the
+    /// derived URL (e.g. private registries with non-standard tarball paths).
+    /// Non-tarball resolutions and integrity-less tarballs pass through
+    /// unchanged.
     #[must_use]
     pub fn to_lockfile_form(
         &self,
         name: &str,
         version: &str,
-        registry: &str,
-        include_tarball_url: bool,
+        opts: LockfileFormOptions<'_>,
     ) -> LockfileResolution {
+        let LockfileFormOptions { registry, server_type, include_tarball_url } = opts;
         let LockfileResolution::Tarball(tarball) = self else { return self.clone() };
         let Some(integrity) = tarball.integrity.as_ref() else { return self.clone() };
 
@@ -378,7 +382,12 @@ impl LockfileResolution {
         if !include_tarball_url
             && !git_hosted
             && !tarball.tarball.starts_with("file:")
-            && is_canonical_registry_tarball_url(&tarball.tarball, name, version, registry)
+            && is_canonical_registry_tarball_url(
+                &tarball.tarball,
+                name,
+                version,
+                TarballUrlOptions { registry, server_type },
+            )
         {
             return LockfileResolution::Registry(RegistryResolution {
                 integrity: integrity.clone(),
@@ -397,46 +406,161 @@ impl LockfileResolution {
     }
 }
 
+/// The software serving a registry, declared through the `registries`
+/// setting. Modeled as an [`Option`] everywhere it is threaded, because
+/// "behaves like the npm registry" is a claim only the operator can make:
+///
+/// - [`None`] — strict. Only the exact canonical URL is reconstructible. This
+///   is how every registry but registry.npmjs.org is read by default.
+/// - [`RegistryServerType::Npm`] — behaves like registry.npmjs.org, which
+///   serves a scoped package from the percent-encoded path as well as the
+///   unencoded one. A faithful mirror or caching proxy of it is this.
+/// - [`RegistryServerType::Artifactory`] — repeats the scope in a scoped
+///   package's tarball filename.
+///
+/// Only layouts pnpm can rebuild a URL for belong here. A registry that serves
+/// tarballs from a content-derived path (GitHub Packages
+/// `/download/<scope>/<name>/<version>/<sha256>`) has no variant: the digest is
+/// a fact about the bytes rather than about the package's identity, so its URLs
+/// are kept in the lockfile instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RegistryServerType {
+    Npm,
+    Artifactory,
+}
+
+/// Non-secret, per-registry settings from the `registries` setting.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct RegistryOptions {
+    #[serde(default)]
+    pub server_type: Option<RegistryServerType>,
+}
+
+/// registry.npmjs.org is the one registry whose layout pnpm knows without
+/// being told, so it is a row of data rather than a hostname comparison. A
+/// declared server type wins over it.
+const DEFAULT_REGISTRY_SERVER_TYPES: &[(&str, RegistryServerType)] =
+    &[("https://registry.npmjs.org/", RegistryServerType::Npm)];
+
+/// The layout the user declared for `registry`, or [`None`] for none.
+///
+/// Built-in layouts are deliberately not applied here — they belong with the
+/// predicate that acts on them, so that a code path which never threads
+/// `registryOptions` still gets them.
+///
+/// `registry_options_by_url` is keyed by registry URL with a trailing slash, the way
+/// the config reader normalizes it, so the lookup normalizes its query to
+/// match.
+#[must_use]
+pub fn registry_server_type(
+    registry_options_by_url: &BTreeMap<String, RegistryOptions>,
+    registry: &str,
+) -> Option<RegistryServerType> {
+    let key = if registry.ends_with('/') {
+        Cow::Borrowed(registry)
+    } else {
+        Cow::Owned(format!("{registry}/"))
+    };
+    registry_options_by_url.get(key.as_ref()).copied().unwrap_or_default().server_type
+}
+
+/// A declared server type wins; otherwise the built-in layout of a known
+/// registry applies, and an unknown registry is read strictly.
+fn effective_server_type(opts: TarballUrlOptions<'_>) -> Option<RegistryServerType> {
+    opts.server_type.or_else(|| {
+        let registry = if opts.registry.ends_with('/') {
+            Cow::Borrowed(opts.registry)
+        } else {
+            Cow::Owned(format!("{}/", opts.registry))
+        };
+        DEFAULT_REGISTRY_SERVER_TYPES
+            .iter()
+            .find(|(default_registry, _)| *default_registry == registry.as_ref())
+            .map(|(_, server_type)| *server_type)
+    })
+}
+
+/// Everything needed to decide which registry a package came from and what
+/// that registry does: the scope-routed URLs, the `<name>:`-addressed aliases,
+/// and the declared per-registry settings.
+///
+/// Threaded as one value rather than as three parameters so a consumer cannot
+/// be handed the routing without the settings — dropping the settings is
+/// silent, the tarball URL is simply rebuilt in the wrong layout — and so a
+/// new per-registry setting reaches every consumer by being added here.
+///
+/// The counterpart of the TypeScript CLI's [`RegistryContext`].
+#[derive(Debug, Default, Clone)]
+pub struct RegistryContext {
+    pub registries: HashMap<String, String>,
+    /// As the user wrote it; built-in aliases are merged in at lookup.
+    pub registries_by_prefix: HashMap<String, String>,
+    pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
+}
+
+/// Where a package's tarball lives: the registry it resolved from, and the URL
+/// layout that registry serves.
+#[derive(Debug, Clone, Copy)]
+pub struct TarballUrlOptions<'a> {
+    pub registry: &'a str,
+    pub server_type: Option<RegistryServerType>,
+}
+
+/// Inputs to [`LockfileResolution::to_lockfile_form`].
+#[derive(Debug, Clone, Copy)]
+pub struct LockfileFormOptions<'a> {
+    pub registry: &'a str,
+    pub server_type: Option<RegistryServerType>,
+    /// Keep the tarball URL even when it is reconstructible.
+    pub include_tarball_url: bool,
+}
+
 /// Derive the canonical npm registry tarball URL for `name@version`. Port of
 /// the [`get-npm-tarball-url`](https://www.npmjs.com/package/get-npm-tarball-url)
 /// package pnpm uses.
+///
+/// This is the single source of the URL shape: the lockfile writer drops a
+/// tarball URL only when this function rebuilds it, and the lockfile reader
+/// rebuilds it with this function. Both sides therefore agree by construction,
+/// including under a non-npm [`RegistryServerType`].
 #[must_use]
-pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
+pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -> String {
+    let TarballUrlOptions { registry, server_type } = opts;
     let registry =
         if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
-    let scopeless = match name.strip_prefix('@') {
-        Some(scoped) => scoped.split_once('/').map_or(name, |(_, bare)| bare),
-        None => name,
+    // Artifactory keeps the scope in the filename of a scoped package's tarball
+    // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
+    let filename_name = match server_type {
+        Some(RegistryServerType::Artifactory) => name,
+        Some(RegistryServerType::Npm) | None => match name.strip_prefix('@') {
+            Some(scoped) => scoped.split_once('/').map_or(name, |(_, bare)| bare),
+            None => name,
+        },
     };
     let version = version.split_once('+').map_or(version, |(base, _)| base);
-    format!("{registry}{name}/-/{scopeless}-{version}.tgz")
+    format!("{registry}{name}/-/{filename_name}-{version}.tgz")
 }
 
-/// Whether `tarball` is the canonical npm registry URL derived from `name`,
-/// `version`, and `registry` — i.e. it can be dropped from the lockfile and
-/// rebuilt on demand.
+/// Whether `tarball` is the URL [`npm_tarball_url`] rebuilds for `name` and
+/// `version` — i.e. it can be dropped from the lockfile and rebuilt on demand.
 fn is_canonical_registry_tarball_url(
     tarball: &str,
     name: &str,
     version: &str,
-    registry: &str,
+    opts: TarballUrlOptions<'_>,
 ) -> bool {
-    let expected = npm_tarball_url(name, version, registry);
+    let expected = npm_tarball_url(name, version, opts);
     let expected = remove_protocol(&expected);
     let actual = remove_protocol(tarball);
-    // registry.npmjs.org serves a scoped package from both the encoded and the
-    // unencoded path; elsewhere only the encoded one may work.
-    // See <https://github.com/pnpm/pnpm/issues/13534>.
+    // A registry behaving like registry.npmjs.org serves a scoped package from
+    // both the encoded and the unencoded path. A registry that has not been
+    // declared to behave like it may serve only the encoded one, so its URL is
+    // kept. See <https://github.com/pnpm/pnpm/issues/13534>.
     expected == actual
-        || (is_public_npm_registry(registry)
+        || (effective_server_type(opts) == Some(RegistryServerType::Npm)
             && expected == actual.replace("%2f", "/").replace("%2F", "/"))
-}
-
-const PUBLIC_NPM_REGISTRY_HOST: &str = "registry.npmjs.org";
-
-fn is_public_npm_registry(registry: &str) -> bool {
-    let registry = remove_protocol(registry);
-    registry.strip_suffix('/').unwrap_or(registry) == PUBLIC_NPM_REGISTRY_HOST
 }
 
 /// Default-vs-scope routing for an npm package.

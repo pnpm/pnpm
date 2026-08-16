@@ -28,7 +28,7 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
     // `pnpm publish` and the resolvers actually use.
     if (key.endsWith(':registry')) {
       const scope = key.slice(0, key.length - ':registry'.length)
-      const merged = opts._config.registries?.[scope]
+      const merged = opts._config.registriesByScope?.[scope]
       if (merged !== undefined) {
         return { value: merged }
       }

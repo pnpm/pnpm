@@ -108,9 +108,12 @@ impl WhyArgs {
 
         let loaded =
             LoadedState::load(&lockfile_dir, Some(state.config.modules_dir.as_path()), false)?;
-        let Some(env) =
-            loaded.env(&lockfile_dir, state.config.virtual_store_dir_max_length as usize)
-        else {
+        let Some(env) = loaded.env(
+            &lockfile_dir,
+            state.config.virtual_store_dir_max_length as usize,
+            &state.config.resolved_registries(),
+            state.config.registry_options_by_url.clone(),
+        ) else {
             return Ok(());
         };
         let lockfile = env.current_lockfile;

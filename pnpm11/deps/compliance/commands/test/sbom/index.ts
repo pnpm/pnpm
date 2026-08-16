@@ -1003,7 +1003,7 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
-    registries: { default: REGISTRY_URL },
+    registriesByScope: { default: REGISTRY_URL },
     dir: workspaceDir,
     pnpmHomeDir: '',
     storeDir,
@@ -1012,7 +1012,7 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
 
   const { output, exitCode } = await sbom.handler({
     ...DEFAULT_OPTS,
-    registries: { default: REGISTRY_URL },
+    registriesByScope: { default: REGISTRY_URL },
     dir: workspaceDir,
     lockfileDir: workspaceDir,
     pnpmHomeDir: '',

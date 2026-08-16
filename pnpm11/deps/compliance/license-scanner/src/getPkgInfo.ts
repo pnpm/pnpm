@@ -7,7 +7,7 @@ import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.ut
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
-import type { PackageManifest, Registries } from '@pnpm/types'
+import type { PackageManifest, RegistriesByScope } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
 
@@ -25,8 +25,8 @@ export interface PackageInfo {
   version?: string
   depPath: string
   snapshot: PackageSnapshot
-  registries: Registries
-  namedRegistries?: Record<string, string>
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
 }
 
 export interface GetPackageInfoOptions {
@@ -56,7 +56,7 @@ export async function getPkgInfo (
   const packageResolution = pkgSnapshotToResolution(
     pkg.depPath,
     pkg.snapshot,
-    { registries: pkg.registries, namedRegistries: pkg.namedRegistries }
+    { registriesByScope: pkg.registriesByScope, registriesByPrefix: pkg.registriesByPrefix }
   )
 
   let files: Map<string, string>

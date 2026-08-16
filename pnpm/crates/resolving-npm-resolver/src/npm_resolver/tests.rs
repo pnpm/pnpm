@@ -69,7 +69,7 @@ fn build_resolver_with_registries(
     let cache_dir = TempDir::new().expect("tempdir");
     let resolver = NpmResolver {
         registries,
-        named_registries: HashMap::new(),
+        registries_by_prefix: HashMap::new(),
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
@@ -746,7 +746,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         let cache_dir = TempDir::new().expect("tempdir");
         let resolver = NpmResolver {
             registries,
-            named_registries: HashMap::new(),
+            registries_by_prefix: HashMap::new(),
             http_client: Arc::new(ThrottledClient::default()),
             auth_headers: Arc::new(AuthHeaders::default()),
             meta_cache: Arc::new(InMemoryPackageMetaCache::default()),

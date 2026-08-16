@@ -123,7 +123,7 @@ test('global add activates before cleaning up a same-hash pnpm replacement', asy
     bin: '/global/bin',
     dir: '/project',
     globalPkgDir: '/global/v11',
-    registries: {},
+    registriesByScope: {},
     updateResolutionPolicyManifest,
   } as any, ['file:/tmp/pnpm'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -157,7 +157,7 @@ test('global add does not clean up or persist policy when activation fails', asy
     bin: '/global/bin',
     dir: '/project',
     globalPkgDir: '/global/v11',
-    registries: {},
+    registriesByScope: {},
     updateResolutionPolicyManifest,
   } as any, ['file:/tmp/pnpm'], {})).rejects.toBe(activationError) // eslint-disable-line @typescript-eslint/no-explicit-any
 

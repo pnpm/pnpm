@@ -55,7 +55,7 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
     registries.insert("default".to_string(), registry.to_string());
     let resolver = NpmResolver {
         registries,
-        named_registries: std::collections::HashMap::new(),
+        registries_by_prefix: std::collections::HashMap::new(),
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),

@@ -48,6 +48,21 @@ pub trait UpstreamRouteHook: Send + Sync {
     /// route the decision selected. `None` means fetch anonymously.
     fn authorize(&self, url: &str, package: Option<&str>) -> Option<String>;
 
+    /// Whether this deployment may fetch `url` at all.
+    ///
+    /// A server resolves on behalf of callers who describe their own
+    /// registries, so a URL it was told about is not automatically one it may
+    /// reach. Answered at the fetch itself rather than when the request is
+    /// read, so a registry a caller merely configures — a scope it never
+    /// resolves a package from — costs nothing, while one it does resolve
+    /// from is refused before the request leaves the process.
+    ///
+    /// Defaults to `true` for hooks with no such policy (the CLI fetches as
+    /// the user, who may reach whatever they configured).
+    fn allows_fetch(&self, _url: &str) -> bool {
+        true
+    }
+
     /// Classify the metadata cache scope for a fetch to `url` for package
     /// `package` (`None` for non-package fetches). Unlike [`Self::authorize`]
     /// this is a read-only query — it must **not** record into the resolve's
@@ -378,6 +393,14 @@ impl AuthHeaders {
     pub fn with_route_hook(mut self, hook: Arc<dyn UpstreamRouteHook>) -> Self {
         self.route_hook = Some(hook);
         self
+    }
+
+    /// Whether the fetch to `url` is permitted, per an attached
+    /// [`UpstreamRouteHook`]. Always true without one — see
+    /// [`UpstreamRouteHook::allows_fetch`].
+    #[must_use]
+    pub fn allows_fetch(&self, url: &str) -> bool {
+        self.route_hook.as_ref().is_none_or(|hook| hook.allows_fetch(url))
     }
 
     /// Record the route for a metadata/tarball fetch that is about to be

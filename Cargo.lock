@@ -4420,6 +4420,7 @@ dependencies = [
  "pnpm-detect-libc",
  "pnpm-env-replace",
  "pnpm-fs",
+ "pnpm-lockfile",
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manifest",

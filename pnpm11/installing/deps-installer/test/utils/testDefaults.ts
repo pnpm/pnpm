@@ -4,7 +4,7 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -13,7 +13,7 @@ export function testDefaults<T> (
     fastUnpack?: boolean
     storeDir?: string
     prefix?: string
-    registries?: Registries
+    registriesByScope?: RegistriesByScope
     customResolvers?: CustomResolver[]
     customFetchers?: CustomFetcher[]
     minimumReleaseAge?: number
@@ -26,7 +26,7 @@ export function testDefaults<T> (
 ): InstallOptions &
   {
     cacheDir: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     storeController: StoreController
     storeDir: string
     resolutionVerifiers: ResolutionVerifier[]
@@ -43,7 +43,7 @@ export function testDefaults<T> (
   const { storeController, storeDir, cacheDir, resolutionVerifiers } = createTempStore({
     ...opts,
     clientOptions: {
-      ...(opts?.registries != null ? { registries: opts.registries } : {}),
+      ...(opts?.registriesByScope != null ? { registriesByScope: opts.registriesByScope } : {}),
       customResolvers: opts?.customResolvers,
       customFetchers: opts?.customFetchers,
       ...policyClientOptions,
@@ -60,7 +60,7 @@ export function testDefaults<T> (
   })
   const result = {
     cacheDir,
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     storeController,
@@ -71,7 +71,7 @@ export function testDefaults<T> (
     InstallOptions &
     {
       cacheDir: string
-      registries: Registries
+      registriesByScope: RegistriesByScope
       storeController: StoreController
       storeDir: string
       resolutionVerifiers: ResolutionVerifier[]

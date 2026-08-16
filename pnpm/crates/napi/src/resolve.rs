@@ -158,7 +158,7 @@ fn run_resolve_blocking(
         // `config.registries` alone omits it, which would leave the picker with a
         // host-less `/pkg` URL.
         registries: config.resolved_registries().into_iter().collect(),
-        named_registries: config.named_registries.clone().into_iter().collect(),
+        registries_by_prefix: config.registries_by_prefix.clone().into_iter().collect(),
         http_client: Arc::clone(&http_client),
         auth_headers: Arc::clone(&config.auth_headers),
         meta_cache: shared_in_memory_cache(),
@@ -206,13 +206,14 @@ fn run_resolve_blocking(
     // built-ins (today: `gh:` → GitHub Packages). A malformed URL here
     // fails fast with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`, matching the
     // install path.
-    let user_named_registries: HashMap<String, String> =
-        config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
-    let merged_named_registries =
-        merge_named_registries(&user_named_registries).map_err(|error| to_napi_error(&error))?;
-    let named_registry_aliases: HashSet<String> = merged_named_registries.keys().cloned().collect();
+    let user_registries_by_prefix: HashMap<String, String> =
+        config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
+    let merged_registries_by_prefix = merge_named_registries(&user_registries_by_prefix)
+        .map_err(|error| to_napi_error(&error))?;
+    let named_registry_aliases: HashSet<String> =
+        merged_registries_by_prefix.keys().cloned().collect();
     let named_registry_resolver = NamedRegistryResolver {
-        named_registries: merged_named_registries,
+        registries_by_prefix: merged_registries_by_prefix,
         registry_names: named_registry_aliases,
         http_client: Arc::clone(&http_client),
         auth_headers: Arc::clone(&config.auth_headers),

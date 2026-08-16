@@ -248,7 +248,7 @@ test('an override moving a cataloged package falls back', async () => {
       parsedOverrides: [{ selector: 'bar', newBareSpecifier: '2.1.0', targetPkg: { name: 'bar' } }],
       isLockfileUpToDate: async () => true,
       lockfileDir: '/test',
-      registries: { default: 'https://registry.npmjs.org/' },
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
       requestPackage: (() => {
         throw new Error('the fast path must not resolve anything')
       }) as never,

@@ -42,7 +42,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
     envLockfile = await resolvePackageManagerIntegrities(pm.version, {
       envLockfile,
-      registries: packageManagerConfig.registries,
+      registriesByScope: packageManagerConfig.registriesByScope,
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
@@ -59,7 +59,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
     envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
       envLockfile,
-      registries: packageManagerConfig.registries,
+      registriesByScope: packageManagerConfig.registriesByScope,
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
@@ -110,7 +110,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       storeToUse ??= await createStoreController({ ...config, ...context, ...packageManagerConfig })
       envLockfile = await resolvePackageManagerIntegrities(pm.version, {
         envLockfile,
-        registries: packageManagerConfig.registries,
+        registriesByScope: packageManagerConfig.registriesByScope,
         rootDir: context.rootProjectManifestDir,
         storeController: storeToUse.ctrl,
         storeDir: storeToUse.dir,
@@ -146,7 +146,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       envLockfile,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
-      registries: packageManagerConfig.registries,
+      registriesByScope: packageManagerConfig.registriesByScope,
       virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
       // Network settings so the engine identity check can reach the canonical

@@ -797,7 +797,8 @@ fn warn_global<Reporter: self::Reporter>(message: &str) {
 /// global cache key.
 fn registries_with_default(config: &Config) -> Vec<(String, String)> {
     let mut registries = vec![("default".to_string(), config.registry.clone())];
-    registries.extend(config.registries.iter().map(|(key, value)| (key.clone(), value.clone())));
+    registries
+        .extend(config.registries_by_scope.iter().map(|(key, value)| (key.clone(), value.clone())));
     registries
 }
 

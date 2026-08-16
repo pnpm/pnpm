@@ -233,7 +233,7 @@ fn registry_for(config: &Config, name: &str) -> String {
     let registry = name
         .strip_prefix('@')
         .and_then(|rest| rest.split('/').next())
-        .and_then(|scope| config.registries.get(&format!("@{scope}")))
+        .and_then(|scope| config.registries_by_scope.get(&format!("@{scope}")))
         .cloned()
         .unwrap_or_else(|| config.registry.clone());
     if registry.ends_with('/') { registry } else { format!("{registry}/") }

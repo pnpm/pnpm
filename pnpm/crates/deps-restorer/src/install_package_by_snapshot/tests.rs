@@ -51,7 +51,9 @@ fn emits_resolved_with_supplied_identifiers() {
 fn registry_resolution_uses_scoped_registry_tarball_base() {
     let mut config = Config::new();
     config.registry = "https://default.example/npm/".to_string();
-    config.registries.insert("@private".to_string(), "https://private.example/npm/".to_string());
+    config
+        .registries_by_scope
+        .insert("@private".to_string(), "https://private.example/npm/".to_string());
 
     let integrity = DUMMY_SHA512.parse().expect("parse integrity");
     let resolution = LockfileResolution::Registry(RegistryResolution { integrity });

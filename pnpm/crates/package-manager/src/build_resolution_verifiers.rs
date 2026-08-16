@@ -104,8 +104,8 @@ pub fn build_resolution_verifiers(
     // tarball-prefix routing see the same set. Validated here too: this runs
     // before the resolver chain that also validates, and on the frozen path
     // that chain never runs.
-    let named_registries = merge_named_registries(
-        &config.named_registries.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+    let registries_by_prefix = merge_named_registries(
+        &config.registries_by_prefix.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
     )
     .map_err(|source| BuildVerifiersError::InvalidNamedRegistries { source })?;
 
@@ -125,7 +125,7 @@ pub fn build_resolution_verifiers(
         trust_policy_exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         registries,
-        named_registries,
+        registries_by_prefix,
         http_client,
         auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
         cache_dir: Some(config.cache_dir.clone()),

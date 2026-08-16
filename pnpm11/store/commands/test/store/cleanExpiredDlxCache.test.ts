@@ -27,7 +27,7 @@ beforeEach(() => {
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
   packages,
-  registries: { default: 'https://registry.npmjs.com/' },
+  registriesByScope: { default: 'https://registry.npmjs.com/' },
 })
 
 function createSampleDlxCacheLinkTarget (dirPath: string): void {

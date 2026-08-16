@@ -197,7 +197,7 @@ impl ConfigOverrides {
             config.scope = Some(scope.clone());
         }
         for (scope, registry) in &self.registries {
-            config.registries.insert(scope.clone(), registry.clone());
+            config.registries_by_scope.insert(scope.clone(), registry.clone());
             config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
         }
         if let Some(value) = self.deploy_all_files {
@@ -296,7 +296,7 @@ fn scoped_registry_key(key: &str) -> Option<&str> {
 pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
     let registry = normalize_registry_url(registry);
     config.registry.clone_from(&registry);
-    config.registries.insert("default".to_string(), registry.clone());
+    config.registries_by_scope.insert("default".to_string(), registry.clone());
     config.package_manager_bootstrap.registry.clone_from(&registry);
     config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
 }

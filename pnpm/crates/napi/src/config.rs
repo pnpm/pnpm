@@ -260,11 +260,11 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     if let Some(registry) = &overlay.registry {
         config.registry.clone_from(registry);
-        config.registries.insert("default".to_string(), registry.clone());
+        config.registries_by_scope.insert("default".to_string(), registry.clone());
     }
     if let Some(registries) = &overlay.registries {
         for (scope, url) in registries {
-            config.registries.insert(scope.clone(), url.clone());
+            config.registries_by_scope.insert(scope.clone(), url.clone());
             if scope == "default" {
                 config.registry.clone_from(url);
             }

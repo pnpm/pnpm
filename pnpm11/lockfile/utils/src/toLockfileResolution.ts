@@ -1,6 +1,17 @@
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import { type GitResolution, isGitHostedTarballUrl, type Resolution, type TarballResolution } from '@pnpm/resolving.resolver-base'
 import { isCanonicalRegistryTarballUrl } from '@pnpm/resolving.tarball-url'
+import type { RegistryServerType } from '@pnpm/types'
+
+export interface ToLockfileResolutionOptions {
+  registry: string
+  /**
+   * Undeclared by default, which is the strict reading: only the exact
+   * canonical URL is dropped. See {@link RegistryServerType}.
+   */
+  serverType?: RegistryServerType
+  lockfileIncludeTarballUrl?: boolean
+}
 
 export function toLockfileResolution (
   pkg: {
@@ -8,9 +19,9 @@ export function toLockfileResolution (
     version: string
   },
   resolution: Resolution,
-  registry: string,
-  lockfileIncludeTarballUrl?: boolean
+  opts: ToLockfileResolutionOptions
 ): LockfileResolution {
+  const { registry, serverType, lockfileIncludeTarballUrl } = opts
   if (resolution.type !== undefined || !resolution['integrity']) {
     // Nothing checks a git checkout against a hash — the commit pins the
     // content — so an `integrity` some other tool recorded on a git
@@ -45,7 +56,7 @@ export function toLockfileResolution (
     !lockfileIncludeTarballUrl &&
     !gitHosted &&
     !tarball.startsWith('file:') &&
-    isCanonicalRegistryTarballUrl(tarball, pkg, registry)
+    isCanonicalRegistryTarballUrl(tarball, pkg, { registry, serverType })
   ) {
     return { integrity: resolution['integrity'] }
   }

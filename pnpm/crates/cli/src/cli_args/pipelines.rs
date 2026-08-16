@@ -16,6 +16,7 @@ use super::{
 use crate::{
     State,
     cli_args::{
+        config_warnings::warn_unmatched_registry_options,
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
         override_version_references::warn_deprecated_override_version_references,
         reporter::{ReporterType, reporter_emit},
@@ -660,6 +661,7 @@ pub(crate) fn derive_config_root_and_package_manager_to_sync(
     // knows the root manifest's directory.
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
+    warn_unmatched_registry_options(cfg);
     let package_manager_to_sync = root_manifest
         .as_ref()
         .and_then(|manifest| package_manager_to_sync(manifest, &config_root, cfg.pm_on_fail));

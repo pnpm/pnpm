@@ -766,27 +766,28 @@ pub fn tarball_url_and_integrity<'a>(
             // A registry-qualified key (`<name>@<registryName>:<version>`)
             // reconstructs its tarball from its named registry; everything
             // else routes by scope.
-            let (registry, version) = if let Some((registry_name, version)) =
-                package_key.suffix.registry_qualified()
-            {
-                let registry = pnpm_resolving_npm_resolver::BUILTIN_NAMED_REGISTRIES
-                    .iter()
-                    .find(|(name, _)| *name == registry_name)
-                    .map(|(_, url)| (*url).to_string())
-                    .pipe(|builtin| config.named_registries.get(registry_name).cloned().or(builtin))
-                    .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
-                        package_key: package_key.to_string(),
-                        registry_name: registry_name.to_string(),
-                    })?;
-                (registry, version.to_string())
-            } else {
-                let registries: HashMap<String, String> =
-                    config.resolved_registries().into_iter().collect();
-                (
-                    pick_registry_for_package(&registries, &name, None),
-                    package_key.suffix.version().to_string(),
-                )
-            };
+            let (registry, version) =
+                if let Some((registry_name, version)) = package_key.suffix.registry_qualified() {
+                    let registry = pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
+                        .iter()
+                        .find(|(name, _)| *name == registry_name)
+                        .map(|(_, url)| (*url).to_string())
+                        .pipe(|builtin| {
+                            config.registries_by_prefix.get(registry_name).cloned().or(builtin)
+                        })
+                        .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
+                            package_key: package_key.to_string(),
+                            registry_name: registry_name.to_string(),
+                        })?;
+                    (registry, version.to_string())
+                } else {
+                    let registries: HashMap<String, String> =
+                        config.resolved_registries().into_iter().collect();
+                    (
+                        pick_registry_for_package(&registries, &name, None),
+                        package_key.suffix.version().to_string(),
+                    )
+                };
             let registry = registry.strip_suffix('/').unwrap_or(&registry);
             let bare_name = package_key.name.bare.as_str();
             let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");

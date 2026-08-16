@@ -8,6 +8,7 @@ import { mergeCatalogs } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { toRegistryDeclarations } from '@pnpm/config.normalize-registries'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
@@ -44,7 +45,7 @@ import {
   type WantedDependency,
 } from '@pnpm/installing.deps-resolver'
 import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
-import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { type Modules, readModulesManifest, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
@@ -393,7 +394,7 @@ export async function mutateModules (
       include: opts.include,
       lockfileDir: opts.lockfileDir,
       modulesDir: opts.modulesDir ?? 'node_modules',
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       storeDir: opts.storeDir,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
@@ -502,7 +503,7 @@ export async function mutateModules (
         existsNonEmptyWantedLockfile: ctx.existsNonEmptyWantedLockfile,
         lockfileDir: ctx.lockfileDir,
         storeDir: ctx.storeDir,
-        registries: ctx.registries,
+        registries: ctx.registriesByScope,
       })
     }
   }
@@ -594,7 +595,7 @@ export async function mutateModules (
       // writeModulesManifest converts ignoredBuilds to an array before
       // serializing, so a Set is fine here.
       writtenManifest.ignoredBuilds = ignoredBuilds
-      await writeModulesManifest(ctx.rootModulesDir, writtenManifest as StrictModules)
+      await writeModulesManifest(ctx.rootModulesDir, writtenManifest as Modules)
     }
   }
   ignoredScriptsLogger.debug({
@@ -871,7 +872,7 @@ export async function mutateModules (
           lockfileDir: opts.lockfileDir,
           lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
           readPackageHook: opts.readPackageHook,
-          registries: ctx.registries,
+          registriesByScope: ctx.registriesByScope,
           requestPackage: opts.storeController.requestPackage,
           trustPolicy: opts.trustPolicy,
           trustPolicyExclude: opts.trustPolicyExclude
@@ -1959,8 +1960,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preferWorkspacePackages: opts.preferWorkspacePackages,
       preferredVersions,
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
-      registries: ctx.registries,
-      namedRegistries: opts.namedRegistries,
+      registriesByScope: ctx.registriesByScope,
+      registriesByPrefix: opts.registriesByPrefix,
+      registryOptionsByUrl: opts.registryOptionsByUrl,
       resolutionMode: opts.resolutionMode,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
@@ -2107,7 +2109,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         pruneStore: opts.pruneStore,
         pruneVirtualStore: opts.pruneVirtualStore,
         publicHoistPattern: ctx.publicHoistPattern,
-        registries: ctx.registries,
+        registriesByScope: ctx.registriesByScope,
         rootModulesDir: ctx.rootModulesDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
         symlink: opts.symlink,
@@ -2155,7 +2157,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         lockfileDir: ctx.lockfileDir,
         virtualStoreDir: ctx.virtualStoreDir,
         virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
-        registries: ctx.registries,
+        registriesByScope: ctx.registriesByScope,
       })
     }
 
@@ -2331,7 +2333,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           prunedAt: opts.pruneVirtualStore || ctx.modulesFile == null
             ? new Date().toUTCString()
             : ctx.modulesFile.prunedAt,
-          registries: ctx.registries,
           skipped: Array.from(ctx.skipped),
           storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
@@ -3067,8 +3068,8 @@ async function installViaPnprServer (
       devDependencies: projectsList ? undefined : manifest.devDependencies,
       optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
       projects: projectsList,
-      registry: opts.registries?.default,
-      namedRegistries: opts.namedRegistries,
+      registry: opts.registriesByScope?.default,
+      registries: toRegistryDeclarations(opts),
       authorization: pnprAuthorization,
       overrides: opts.overrides,
       // The reconstructed workspace the server builds from this request has no

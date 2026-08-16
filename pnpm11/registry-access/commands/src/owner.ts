@@ -3,7 +3,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
 import { parsePackageSpec, rcOptionsTypes } from './common.js'
@@ -70,7 +70,7 @@ export interface OwnerOptions extends CreateFetchFromRegistryOptions {
     otp?: string
   }
   configByUri?: Record<string, RegistryConfig>
-  registries?: Registries
+  registriesByScope?: RegistriesByScope
 }
 
 export async function handler (
@@ -99,7 +99,7 @@ async function ownerLs (
   }
 
   const { name: packageName, escapedName } = parsePackageSpec(params[0])
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = pickRegistryForPackage(opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
@@ -123,7 +123,7 @@ async function ownerAdd (
   const { name: packageName, escapedName } = parsePackageSpec(params[0])
   const owner = params[1]
 
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = pickRegistryForPackage(opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
@@ -157,7 +157,7 @@ async function ownerRm (
   const { name: packageName, escapedName } = parsePackageSpec(params[0])
   const owner = params[1]
 
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = pickRegistryForPackage(opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp

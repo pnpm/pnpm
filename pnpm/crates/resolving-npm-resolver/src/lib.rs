@@ -53,7 +53,7 @@ pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_
 pub use infer_range_spec_style::infer_range_spec_style;
 pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
-    BUILTIN_NAMED_REGISTRIES, MergeNamedRegistriesError, merge_named_registries,
+    BUILTIN_REGISTRIES_BY_PREFIX, MergeNamedRegistriesError, merge_named_registries,
     named_registry_tarball_prefixes, pick_registry_for_version,
 };
 pub use named_registry_resolver::NamedRegistryResolver;

@@ -491,7 +491,7 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
         if let Some(scope) = key.strip_suffix(":registry") {
             // Prefer the merged `registries` map so this reports the same URL
             // resolvers/publish use (pnpm/pnpm#11492).
-            if let Some(merged) = config.registries.get(scope) {
+            if let Some(merged) = config.registries_by_scope.get(scope) {
                 return Some(Value::String(merged.clone()));
             }
         }

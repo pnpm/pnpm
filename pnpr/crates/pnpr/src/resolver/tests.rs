@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use pnpm_config::Config as PacquetConfig;
+use pnpm_config::{Config as PacquetConfig, RegistryDeclaration};
 use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
@@ -184,6 +184,24 @@ fn resolution_cache_key_normalizes_single_project_requests() {
         resolution_cache_key(&config(), &top_level),
         resolution_cache_key(&config(), &projects),
     );
+}
+
+/// The `registries` map is keyed by URL and carries declarations only. The
+/// setting's older `<scope>: <url>` shape puts the URL in the *value*, where
+/// the boundary checks — which read a key as a fetch target — would not see
+/// it, so a request in that shape must not parse at all.
+#[test]
+fn a_scope_routed_registries_map_does_not_parse() {
+    let declarations = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "registries": { "https://npm.corp.example/": { "scopes": ["@acme"] } }
+    }))
+    .expect("a declaration map parses");
+    assert_eq!(declarations.registries.len(), 1);
+
+    let scope_routed = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "registries": { "@acme": "http://169.254.169.254/" }
+    }));
+    assert!(scope_routed.is_err(), "a scope-routed map must not parse");
 }
 
 #[test]
@@ -651,16 +669,21 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&ssrf, &context).is_some());
 
-    // A named registry off the allowlist is rejected too.
-    let named = ResolveRequest {
+    // A registry the request merely declares is not a fetch target: the client
+    // describes its whole configuration, including scopes this resolve never
+    // reaches. `RouteHook::allows_fetch` refuses the ones it does reach.
+    let declared = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),
-        named_registries: BTreeMap::from([(
-            "@acme".to_string(),
+        registries: BTreeMap::from([(
             "http://169.254.169.254/".to_string(),
+            RegistryDeclaration {
+                scopes: Some(vec!["@acme".to_string()]),
+                ..RegistryDeclaration::default()
+            },
         )]),
         ..ResolveRequest::default()
     };
-    assert!(reject_off_allowlist_fetches(&named, &context).is_some());
+    assert!(reject_off_allowlist_fetches(&declared, &context).is_none());
 
     // A semver-range dependency never hits the network, so it is ignored.
     let ranges = ResolveRequest {

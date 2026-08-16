@@ -333,7 +333,7 @@ impl PublishArgs {
     ) -> PublishPackedPkgOptions {
         PublishPackedPkgOptions {
             default_registry: config.registry.clone(),
-            scoped_registries: config.registries.clone(),
+            scoped_registries: config.registries_by_scope.clone(),
             access: self.flags.access.as_deref().and_then(Access::parse),
             tag: self.flags.tag.clone().unwrap_or_else(|| "latest".to_owned()),
             otp,

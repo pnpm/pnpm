@@ -913,7 +913,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
-    config.registries.insert("@private".to_string(), scoped_registry_url);
+    config.registries_by_scope.insert("@private".to_string(), scoped_registry_url);
     let config = config.leak();
 
     Install {
@@ -1480,7 +1480,7 @@ async fn install_emits_pnpm_event_sequence() {
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config
-        .registries
+        .registries_by_scope
         .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
     let config = config.leak();
 
@@ -1642,7 +1642,7 @@ async fn install_writes_modules_yaml() {
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config
-        .registries
+        .registries_by_scope
         .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
     let config = config.leak();
 
@@ -1707,7 +1707,6 @@ async fn install_writes_modules_yaml() {
         store_dir: emitted_store_dir,
         virtual_store_dir: emitted_virtual_store_dir,
         virtual_store_dir_max_length,
-        registries,
         package_manager,
         ..
     } = modules_dir
@@ -1726,14 +1725,6 @@ async fn install_writes_modules_yaml() {
     // to the absolute install-time path.
     assert_eq!(emitted_virtual_store_dir, virtual_store_dir.to_string_lossy());
     assert_eq!(virtual_store_dir_max_length, pnpm_config::default_virtual_store_dir_max_length());
-    assert_eq!(
-        registries.as_ref().and_then(|r| r.get("default")).map(String::as_str),
-        Some(config.registry.as_str()),
-    );
-    assert_eq!(
-        registries.as_ref().and_then(|r| r.get("@private")).map(String::as_str),
-        Some("https://private.example.com/npm/"),
-    );
     assert_eq!(package_manager, format!("pnpm@{}", pnpm_config::PNPM_VERSION));
 
     drop(dir);

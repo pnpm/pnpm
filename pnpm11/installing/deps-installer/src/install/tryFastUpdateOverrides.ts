@@ -1,3 +1,4 @@
+import { getRegistryServerType } from '@pnpm/config.normalize-registries'
 import type { VersionOverride } from '@pnpm/config.parse-overrides'
 import * as dp from '@pnpm/deps.path'
 import type {
@@ -13,7 +14,9 @@ import type {
   PackageManifest,
   PackageVersionPolicy,
   ReadPackageHook,
-  Registries,
+  RegistriesByScope,
+  RegistryOptions,
+  RegistryServerType,
   TrustPolicy,
 } from '@pnpm/types'
 import { clone, equals } from 'ramda'
@@ -51,7 +54,8 @@ export type FastRewriteOptions = ResolverPolicyOptions & {
   lockfileIncludeTarballUrl?: boolean
   isLockfileUpToDate: (lockfile: LockfileObject) => Promise<boolean>
   readPackageHook?: ReadPackageHook
-  registries: Registries
+  registriesByScope: RegistriesByScope
+  registryOptionsByUrl?: Record<string, RegistryOptions>
   requestPackage: RequestPackageFunction
   verifyLockfile?: (lockfile: LockfileObject) => Promise<void>
 }
@@ -120,7 +124,8 @@ export async function applyFastRewrite (
   const packages = rewritePackages(lockfile.packages ?? {}, {
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
     manifests,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
+    registryOptionsByUrl: opts.registryOptionsByUrl,
     rewriteContext,
   })
   if (packages == null) return false
@@ -421,7 +426,8 @@ function rewritePackages (
       manifest: PackageManifest
       resolution: Awaited<ReturnType<RequestPackageFunction>>['body']['resolution']
     }>
-    registries: Registries
+    registriesByScope: RegistriesByScope
+    registryOptionsByUrl?: Record<string, RegistryOptions>
     rewriteContext: RewriteContext
   }
 ): Record<DepPath, PackageSnapshot> | null {
@@ -458,12 +464,14 @@ function rewritePackages (
     })
     if (dependencies === null || optionalDependencies === null) return null
 
+    const registry = dp.getRegistryByPackageName(opts.registriesByScope, name)
     const newSnapshot = createPackageSnapshot(oldSnapshot, {
       dependencies,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
       manifest: resolved.manifest,
       optionalDependencies,
-      registry: dp.getRegistryByPackageName(opts.registries, name),
+      registry,
+      serverType: getRegistryServerType(opts, registry),
       resolution: resolved.resolution,
     })
     const existingSnapshot = packages[newDepPath]
@@ -560,6 +568,7 @@ function createPackageSnapshot (
     manifest: PackageManifest
     optionalDependencies?: ResolvedDependencies
     registry: string
+    serverType?: RegistryServerType
     resolution: Awaited<ReturnType<RequestPackageFunction>>['body']['resolution']
   }
 ): PackageSnapshot {
@@ -567,7 +576,11 @@ function createPackageSnapshot (
     resolution: toLockfileResolution({
       name: opts.manifest.name,
       version: opts.manifest.version,
-    }, opts.resolution, opts.registry, opts.lockfileIncludeTarballUrl),
+    }, opts.resolution, {
+      registry: opts.registry,
+      serverType: opts.serverType,
+      lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+    }),
   }
   if (opts.dependencies != null) snapshot.dependencies = opts.dependencies
   if (opts.optionalDependencies != null) snapshot.optionalDependencies = opts.optionalDependencies

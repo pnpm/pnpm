@@ -2373,6 +2373,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: 'link:'
@@ -3198,6 +3201,9 @@ importers:
 
   pnpm11/deps/graph-builder:
     dependencies:
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -6116,6 +6122,9 @@ importers:
       '@pnpm/building.policy':
         specifier: workspace:*
         version: link:../../building/policy
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -9047,6 +9056,10 @@ importers:
         version: 'link:'
 
   pnpm11/resolving/tarball-url:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

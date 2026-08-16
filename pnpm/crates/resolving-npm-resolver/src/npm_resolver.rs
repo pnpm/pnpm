@@ -86,11 +86,11 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub registries: HashMap<String, String>,
     /// User-supplied named-registry aliases (e.g. `gh:` →
     /// `https://npm.pkg.github.com/`). Merged with
-    /// [`crate::BUILTIN_NAMED_REGISTRIES`] at construction. Today
+    /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`] at construction. Today
     /// only consulted by the named-registry resolver (out of scope
     /// for this port); kept here so the install layer can build one
     /// resolver instance with the full registry view.
-    pub named_registries: HashMap<String, String>,
+    pub registries_by_prefix: HashMap<String, String>,
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub meta_cache: Arc<Cache>,

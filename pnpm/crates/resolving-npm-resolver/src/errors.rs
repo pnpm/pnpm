@@ -30,6 +30,19 @@ pub enum FetchMetadataError {
         pkg_mirror: std::path::PathBuf,
     },
 
+    /// The deployment's route policy refuses this origin. Only a server
+    /// with an [`UpstreamRouteHook`](pnpm_network::UpstreamRouteHook)
+    /// raises it: the CLI fetches as the user and reaches whatever the user
+    /// configured.
+    #[display(
+        "{url} is not allowed by this pnpr server; the operator must declare its registry as a public route or an upstream"
+    )]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_OFF_ALLOWLIST))]
+    OffAllowlist {
+        #[error(not(source))]
+        url: String,
+    },
+
     #[display("Failed to fetch metadata from {url}: {error}")]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
     Network {

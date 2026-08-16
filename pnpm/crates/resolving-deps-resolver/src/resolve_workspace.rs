@@ -27,6 +27,7 @@ use crate::{
     resolved_tree::ResolvedTree,
 };
 use chrono::{DateTime, Duration, Utc};
+use pnpm_lockfile::RegistryContext;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -139,14 +140,12 @@ pub struct WorkspaceResolveOptions {
     /// [`crate::ResolveImporterOptions::auto_install_peers`] — the
     /// setting is workspace-wide.
     pub auto_install_peers: bool,
-    /// Resolved registry map (`"default"` + per-scope), for
-    /// materializing a prior `Registry` lockfile resolution back into
-    /// its tarball URL when building the `currentPkg` payload custom
-    /// resolvers receive.
-    pub registries: std::collections::HashMap<String, String>,
-    /// Alias → URL map of named registries (built-ins merged with the
-    /// user's setting). See [`WorkspaceResolveOptions::registries`].
-    pub named_registries: std::collections::HashMap<String, String>,
+    /// How a package's registry is decided and what it serves: the scope
+    /// map, the named-registry aliases (built-ins merged with the user's
+    /// setting), and the per-registry settings. Used to materialize a
+    /// prior `Registry` lockfile resolution back into its tarball URL when
+    /// building the `currentPkg` payload custom resolvers receive.
+    pub registry_context: RegistryContext,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -202,8 +201,7 @@ where
         update_reuse_scopes_by_importer,
         update_depth,
         auto_install_peers,
-        registries,
-        named_registries,
+        registry_context,
     } = opts;
     // Taken before the lockfile moves into the workspace ctx below, and
     // only for the pre-pass that reads it — a lockfile is untrusted
@@ -226,8 +224,7 @@ where
             .with_allowed_deprecated_versions(allowed_deprecated_versions)
             .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
-            .with_registries(registries)
-            .with_named_registries(named_registries),
+            .with_registry_context(registry_context),
     );
 
     // Build every importer's options up front so the `time-based`

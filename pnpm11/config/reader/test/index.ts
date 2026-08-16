@@ -1118,7 +1118,7 @@ test('registries of scoped packages are read and normalized', async () => {
     },
   })
 
-  expect(config.registries).toStrictEqual({
+  expect(config.registriesByScope).toStrictEqual({
     default: 'https://default.com/',
     '@jsr': 'https://npm.jsr.io/',
     '@foo': 'https://foo.com/',
@@ -1142,7 +1142,7 @@ test('registries in current directory\'s .npmrc have bigger priority then global
     },
   })
 
-  expect(config.registries).toStrictEqual({
+  expect(config.registriesByScope).toStrictEqual({
     default: 'https://pnpm.io/',
     '@jsr': 'https://npm.jsr.io/',
     '@foo': 'https://foo.com/',
@@ -1166,8 +1166,8 @@ test('project .npmrc does not expand env variables in registry URLs', async () =
     },
   })
 
-  expect(config.registries.default).not.toBe('https://registry.example.com/secret/')
-  expect(JSON.stringify(config.registries)).not.toContain('secret')
+  expect(config.registriesByScope.default).not.toBe('https://registry.example.com/secret/')
+  expect(JSON.stringify(config.registriesByScope)).not.toContain('secret')
   expect(warnings).toEqual(expect.arrayContaining([
     expect.stringContaining('Ignored project-level request destination "registry"'),
   ]))
@@ -1196,7 +1196,7 @@ test('project .npmrc does not expand env variables in scoped registry URLs or UR
     },
   })
 
-  expect(config.registries['@scope']).toBeUndefined()
+  expect(config.registriesByScope['@scope']).toBeUndefined()
   expect(Object.keys(config.authConfig).join('\n')).not.toContain('secret')
   expect(warnings).toEqual(expect.arrayContaining([
     expect.stringContaining('Ignored project-level request destination "@scope:registry"'),
@@ -1331,7 +1331,7 @@ test('user .npmrc may expand env variables in registry URLs', async () => {
     },
   })
 
-  expect(config.registries.default).toBe('https://registry.example.com/secret/')
+  expect(config.registriesByScope.default).toBe('https://registry.example.com/secret/')
 })
 
 test('pnpm-workspace.yaml registries override the same scope from .npmrc (#11492)', async () => {
@@ -1350,7 +1350,7 @@ test('pnpm-workspace.yaml registries override the same scope from .npmrc (#11492
     workspaceDir: process.cwd(),
   })
 
-  expect(config.registries['@my-org']).toBe('https://from-workspace-yaml.example.com/')
+  expect(config.registriesByScope['@my-org']).toBe('https://from-workspace-yaml.example.com/')
 })
 
 test('pnpm-workspace.yaml registries.default is reflected in config.registry (#10099)', async () => {
@@ -1369,7 +1369,7 @@ test('pnpm-workspace.yaml registries.default is reflected in config.registry (#1
   })
 
   expect(config.registry).toBe('https://private.example.com/')
-  expect(config.registries.default).toBe('https://private.example.com/')
+  expect(config.registriesByScope.default).toBe('https://private.example.com/')
 })
 
 test('pnpm-workspace.yaml request destinations do not expand env variables', async () => {
@@ -1398,9 +1398,9 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
     workspaceDir: process.cwd(),
   })
 
-  expect(config.registries.default).not.toBe('https://private.example.com/secret/')
-  expect(config.registries['@scope']).toBeUndefined()
-  expect(config.namedRegistries).toStrictEqual({})
+  expect(config.registriesByScope.default).not.toBe('https://private.example.com/secret/')
+  expect(config.registriesByScope['@scope']).toBeUndefined()
+  expect(config.registriesByPrefix).toBeUndefined()
   expect(config.pnprServer).toBeUndefined()
   expect(config.httpsProxy).toBeUndefined()
   expect(config.httpProxy).toBeUndefined()
@@ -1446,7 +1446,7 @@ test('package manager bootstrap registries ignore project workspace registries',
     workspaceDir: process.cwd(),
   })
 
-  expect(config.registries).toMatchObject({
+  expect(config.registriesByScope).toMatchObject({
     '@pnpm': 'https://workspace-pnpm.example.com/',
     default: 'https://workspace.example.com/',
   })
@@ -1753,7 +1753,7 @@ test('pnpm_config__auth normalizes registry URL keys before keying auth', async 
   })
 
   expect(config.authConfig['//json-test.example/:_authToken']).toBe('json-token')
-  expect(config.registries.default).toBe('https://json-test.example/')
+  expect(config.registriesByScope.default).toBe('https://json-test.example/')
 })
 
 test('host-keyed pnpm_config__auth supports scoped tokens on a shared host', async () => {
@@ -1892,7 +1892,7 @@ test('global config.yaml registries cannot redirect pnpm_config__auth routes', a
 
   // `_auth` routes sit above global config.yaml in the registries merge, so a
   // user's global registry alias cannot rebind an `_auth` token's host.
-  expect(config.registries['@victim-scope']).toBe('https://registry.npmjs.org/')
+  expect(config.registriesByScope['@victim-scope']).toBe('https://registry.npmjs.org/')
   expect(config.authConfig['//attacker.example/:_authToken']).toBeUndefined()
   expect(config.authConfig['//registry.npmjs.org/:@victim-scope:_authToken']).toBe('secret-token')
 })
@@ -2105,7 +2105,7 @@ test('pnpm_config__auth "@" scope routes the default registry to its host', asyn
     packageManager: { name: 'pnpm', version: '1.0.0' },
   })
 
-  expect(config.registries.default).toBe('https://my-npm-proxy.example/')
+  expect(config.registriesByScope.default).toBe('https://my-npm-proxy.example/')
   expect(config.registry).toBe('https://my-npm-proxy.example/')
   expect(config.authConfig['//my-npm-proxy.example/:_authToken']).toBe('proxy-token')
 })
@@ -2128,7 +2128,7 @@ test('pnpm_config__auth keeps the last duplicate route in source order', async (
     packageManager: { name: 'pnpm', version: '1.0.0' },
   })
 
-  expect(config.registries.default).toBe('https://aaa.example/')
+  expect(config.registriesByScope.default).toBe('https://aaa.example/')
 })
 
 test('pnpm_config__auth scoped entry routes that scope to its host', async () => {
@@ -2147,7 +2147,7 @@ test('pnpm_config__auth scoped entry routes that scope to its host', async () =>
     packageManager: { name: 'pnpm', version: '1.0.0' },
   })
 
-  expect(config.registries['@org']).toBe('https://npm.pkg.github.com/')
+  expect(config.registriesByScope['@org']).toBe('https://npm.pkg.github.com/')
 })
 
 test('pnpm_config__auth env default registry wins over pnpm-workspace.yaml default', async () => {
@@ -2173,7 +2173,7 @@ test('pnpm_config__auth env default registry wins over pnpm-workspace.yaml defau
     workspaceDir: process.cwd(),
   })
 
-  expect(config.registries.default).toBe('https://my-npm-proxy.example/')
+  expect(config.registriesByScope.default).toBe('https://my-npm-proxy.example/')
   expect(config.registry).toBe('https://my-npm-proxy.example/')
 })
 
@@ -2200,7 +2200,7 @@ test('pnpm_config__auth env scoped registry wins over pnpm-workspace.yaml scoped
     workspaceDir: process.cwd(),
   })
 
-  expect(config.registries['@victim-scope']).toBe('https://registry.npmjs.org/')
+  expect(config.registriesByScope['@victim-scope']).toBe('https://registry.npmjs.org/')
   expect(config.authConfig['//attacker.example/:_authToken']).toBeUndefined()
   expect(config.authConfig['//attacker.example/:@victim-scope:_authToken']).toBeUndefined()
   expect(config.authConfig['//registry.npmjs.org/:@victim-scope:_authToken']).toBe('secret-token')
@@ -2227,7 +2227,7 @@ test('pnpm_config__auth scoped registry wins over user .npmrc scoped registry', 
     packageManager: { name: 'pnpm', version: '1.0.0' },
   })
 
-  expect(config.registries['@org']).toBe('https://env.example/')
+  expect(config.registriesByScope['@org']).toBe('https://env.example/')
   expect(config.packageManagerRegistries?.['@org']).toBe('https://env.example/')
 })
 
@@ -2249,7 +2249,7 @@ test('CLI --registry overrides pnpm_config__auth default registry routing', asyn
     packageManager: { name: 'pnpm', version: '1.0.0' },
   })
 
-  expect(config.registries.default).toBe('https://cli-registry.example/')
+  expect(config.registriesByScope.default).toBe('https://cli-registry.example/')
   expect(config.registry).toBe('https://cli-registry.example/')
   expect(config.packageManagerRegistries?.default).toBe('https://cli-registry.example/')
   // The token is still pinned to the env-declared host.
@@ -2300,7 +2300,7 @@ test('CLI scoped registry overrides pnpm_config__auth in packageManagerRegistrie
     packageManager: { name: 'pnpm', version: '1.0.0' },
   })
 
-  expect(config.registries['@org']).toBe('https://cli-registry.example/')
+  expect(config.registriesByScope['@org']).toBe('https://cli-registry.example/')
   expect(config.packageManagerRegistries?.['@org']).toBe('https://cli-registry.example/')
   // The token stays pinned to the env-declared host, not the CLI override host.
   expect(config.authConfig['//my-npm-proxy.example/:@org:_authToken']).toBe('org-token')
@@ -2372,8 +2372,8 @@ test('_auth from the global config yaml configures registry auth and routing', a
 
   expect(config.authConfig['//json-test.example/:_authToken']).toBe('yaml-token')
   expect(config.authConfig['//json-test.example/:@org:_authToken']).toBe('org-yaml-token')
-  expect(config.registries.default).toBe('https://json-test.example/')
-  expect(config.registries['@org']).toBe('https://json-test.example/')
+  expect(config.registriesByScope.default).toBe('https://json-test.example/')
+  expect(config.registriesByScope['@org']).toBe('https://json-test.example/')
 })
 
 test('pnpm_config__auth env wins over global yaml _auth on the same key', async () => {
@@ -2430,7 +2430,7 @@ test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry
   })
 
   expect(config.authConfig['//attacker.example/:_authToken']).toBeUndefined()
-  expect(config.registries.default).not.toBe('https://attacker.example/')
+  expect(config.registriesByScope.default).not.toBe('https://attacker.example/')
 })
 
 async function getConfigWithGlobalYaml (
@@ -3919,7 +3919,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
   expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
   expect(config.registry).toBe('https://registry.example.com/')
-  expect(config.registries.default).toBe('https://registry.example.com/')
+  expect(config.registriesByScope.default).toBe('https://registry.example.com/')
 })
 
 test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {
@@ -4134,7 +4134,7 @@ describe('global config.yaml', () => {
 
     expect(config.pnprServer).toBe('https://trusted.example.com/pnpr/')
     expect(config.registry).toBe('https://trusted.example.com/npm/')
-    expect(config.registries.default).toBe('https://trusted.example.com/npm/')
+    expect(config.registriesByScope.default).toBe('https://trusted.example.com/npm/')
   })
 
   test('reads registries and named registries from global config.yaml', async () => {
@@ -4163,9 +4163,9 @@ describe('global config.yaml', () => {
       workspaceDir: process.cwd(),
     })
 
-    expect(config.registries.default).toBe('https://trusted.example.com/npm/')
-    expect(config.registries['@scope']).toBe('https://trusted.example.com/scope/')
-    expect(config.namedRegistries).toStrictEqual({
+    expect(config.registriesByScope.default).toBe('https://trusted.example.com/npm/')
+    expect(config.registriesByScope['@scope']).toBe('https://trusted.example.com/scope/')
+    expect(config.registriesByPrefix).toStrictEqual({
       work: 'https://trusted.example.com/work/',
     })
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
@@ -4198,8 +4198,8 @@ describe('global config.yaml', () => {
       workspaceDir: process.cwd(),
     })
 
-    expect(config.registries.default).toBe('https://workspace.example.com/npm/')
-    expect(config.registries['@scope']).toBe('https://global.example.com/scope/')
+    expect(config.registriesByScope.default).toBe('https://workspace.example.com/npm/')
+    expect(config.registriesByScope['@scope']).toBe('https://global.example.com/scope/')
   })
 
   test('reads user-level preference settings from global config.yaml', async () => {
@@ -4905,4 +4905,178 @@ test('catalogPrune overrides its former name', async () => {
   })
 
   expect(config.catalogPrune).toBe(false)
+})
+
+test('getConfig() routes the scopes and the prefix a registry declares', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://npm.corp.example/': { scopes: ['@foo', '@bar'], serverType: 'artifactory' },
+      'https://npm.other.example/': { prefix: 'other' },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registriesByScope['@foo']).toBe('https://npm.corp.example/')
+  expect(config.registriesByScope['@bar']).toBe('https://npm.corp.example/')
+  // Declaring a scope leaves the default registry alone.
+  expect(config.registriesByScope.default).toBe('https://registry.npmjs.org/')
+  expect(config.registriesByPrefix).toStrictEqual({ other: 'https://npm.other.example/' })
+  expect(config.registryOptionsByUrl).toStrictEqual({
+    'https://npm.corp.example/': { serverType: 'artifactory' },
+  })
+})
+
+test('getConfig() reads a bare @ in scopes as the default registry', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://npm.corp.example/': { scopes: ['@'] },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registriesByScope.default).toBe('https://npm.corp.example/')
+  expect(config.registry).toBe('https://npm.corp.example/')
+})
+
+test('getConfig() still reads the older scope-keyed registries map', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      '@foo': 'https://npm.corp.example/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registriesByScope['@foo']).toBe('https://npm.corp.example/')
+  expect(config.registriesByScope.default).toBe('https://registry.npmjs.org/')
+})
+
+test('getConfig() warns about registries entries that match no configured registry', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registry: 'https://npm.example.com/',
+    registries: {
+      'https://npm.example.com/': { serverType: 'artifactory' },
+      'https://typo.example.com/': { serverType: 'artifactory' },
+    },
+  })
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  const registryOptionsWarnings = warnings.filter((warning) => warning.includes('"registries" entries'))
+  expect(registryOptionsWarnings).toHaveLength(1)
+  expect(registryOptionsWarnings[0]).toContain('were ignored: "https://typo.example.com/".')
+  // The declared registry matched, so it must not be listed as ignored.
+  expect(registryOptionsWarnings[0]).not.toContain('were ignored: "https://npm.example.com/"')
+  expect(registryOptionsWarnings[0]).toContain('The configured registries are: ')
+})
+
+test('getConfig() does not warn about a registries entry matched by PNPM_CONFIG_REGISTRY', async () => {
+  // The env loop sets `registries.default` after the yaml is merged, so the
+  // check has to run downstream of it or it reports a registry that is used.
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://from-env.example.com/': { serverType: 'artifactory' },
+    },
+  })
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+    env: { ...process.env, PNPM_CONFIG_REGISTRY: 'https://from-env.example.com/' },
+  })
+
+  expect(warnings.filter((warning) => warning.includes('"registries" entries'))).toStrictEqual([])
+})
+
+test('getConfig() redacts credentials in the unmatched registries warning', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registry: 'https://ci-user-6e42:hunter2@npm.example.com/',
+    registries: {
+      'https://typo.example.com/': { serverType: 'artifactory' },
+    },
+  })
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  const registryOptionsWarnings = warnings.filter((warning) => warning.includes('"registries" entries'))
+  expect(registryOptionsWarnings).toHaveLength(1)
+  expect(registryOptionsWarnings[0]).not.toContain('hunter2')
+  // A URL username is credential-bearing too.
+  expect(registryOptionsWarnings[0]).not.toContain('ci-user-6e42')
+  expect(registryOptionsWarnings[0]).toContain('npm.example.com')
+})
+
+test('getConfig() never expands an env placeholder in a registries key from a workspace manifest', async () => {
+  // pnpm-workspace.yaml is repo-controlled. Expanding `${VAR}` in a registry
+  // URL there is how a token would reach an attacker-chosen host, so the entry
+  // is dropped rather than expanded — and nothing echoes the secret either.
+  prepareEmpty()
+  process.env.PNPM_TEST_REGISTRY_TOKEN = 'super-secret-token'
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://evil.example.com/${PNPM_TEST_REGISTRY_TOKEN}/': { serverType: 'artifactory' },
+    },
+  })
+
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registryOptionsByUrl).toBeUndefined()
+    expect(JSON.stringify(config)).not.toContain('super-secret-token')
+    expect(warnings.join('\n')).not.toContain('super-secret-token')
+  } finally {
+    delete process.env.PNPM_TEST_REGISTRY_TOKEN
+  }
 })

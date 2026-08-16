@@ -13,7 +13,7 @@ import { PnpmError } from '@pnpm/error'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { familySync } from 'detect-libc'
 import semver from 'semver'
 
@@ -22,7 +22,7 @@ import { exePlatformPkgDirName, exePlatformPkgDirNameNext } from './installPnpm.
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/'
 
 export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions & {
-  registries: Registries
+  registriesByScope: RegistriesByScope
   configByUri?: Record<string, RegistryConfig>
   /**
    * The npm signing keys to trust. Defaults to {@link getNpmSigningKeys} (npm's
@@ -48,7 +48,7 @@ export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions & {
  * its own key pair; the signed packument is fetched from the configured registry,
  * which an npm mirror proxies transparently.
  *
- * Registries that serve no `dist.signatures` at all (private mirrors and feed
+ * RegistriesByScope that serve no `dist.signatures` at all (private mirrors and feed
  * proxies commonly strip them — https://github.com/pnpm/pnpm/issues/13147) do
  * not fail the check outright: the signature is then fetched from the canonical
  * npm registry instead, which proves exactly the same thing, since it is
@@ -82,7 +82,7 @@ export async function verifyPnpmEngineIdentity (
   const trustedKeys = opts.trustedKeys ?? getNpmSigningKeys()
   if (trustedKeys.length === 0) return // test seam: no trusted keys means skip
 
-  const toVerify = collectEnginePackagesToVerify(envLockfile, opts.registries)
+  const toVerify = collectEnginePackagesToVerify(envLockfile, opts.registriesByScope)
   if (toVerify.length === 0) {
     throw new PnpmError(
       'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
@@ -138,14 +138,14 @@ function isTolerableWithoutSignature (failure: InstalledSignatureFailure): boole
     !equalRegistries(failure.registry, CANONICAL_NPM_REGISTRY)
 }
 
-function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Registries): InstalledPackageToVerify[] {
+function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registriesByScope: RegistriesByScope): InstalledPackageToVerify[] {
   const pmDeps = envLockfile.importers['.']?.packageManagerDependencies ?? {}
   const toVerify: InstalledPackageToVerify[] = []
 
   for (const name of ['pnpm', '@pnpm/exe']) {
     const version = pmDeps[name]?.version
     if (version == null) continue
-    toVerify.push(engineComponentToVerify(envLockfile, registries, { name, version }))
+    toVerify.push(engineComponentToVerify(envLockfile, registriesByScope, { name, version }))
   }
 
   // The bytes actually executed are the host's platform binary, listed as an
@@ -177,7 +177,7 @@ function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Re
         `Cannot verify the identity of the @pnpm/exe.${process.platform}-${process.arch} native binary: it is missing from pnpm-lock.yaml.`
       )
     }
-    toVerify.push(engineComponentToVerify(envLockfile, registries, { name: platformName, version: optionalDeps[platformName] }))
+    toVerify.push(engineComponentToVerify(envLockfile, registriesByScope, { name: platformName, version: optionalDeps[platformName] }))
   }
 
   return toVerify
@@ -201,7 +201,7 @@ function nativeEngineWrapper (pmDeps: Record<string, { version: string }>): { na
 
 function engineComponentToVerify (
   envLockfile: EnvLockfile,
-  registries: Registries,
+  registriesByScope: RegistriesByScope,
   { name, version }: { name: string, version: string }
 ): InstalledPackageToVerify {
   const integrity = registryIntegrity(envLockfile.packages[`${name}@${version}`]?.resolution)
@@ -211,7 +211,7 @@ function engineComponentToVerify (
       `Cannot verify the identity of ${name}@${version}: its integrity metadata is missing from pnpm-lock.yaml.`
     )
   }
-  return { name, version, registry: pickRegistryForPackage(registries, name), integrity }
+  return { name, version, registry: pickRegistryForPackage(registriesByScope, name), integrity }
 }
 
 function registryIntegrity (resolution: unknown): string | undefined {

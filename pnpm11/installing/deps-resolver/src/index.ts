@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
@@ -448,8 +449,7 @@ export async function resolveDependencies (
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
     prefix: opts.virtualStoreDir,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    ...pickRegistryContext(opts),
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
   })
   if (time) {

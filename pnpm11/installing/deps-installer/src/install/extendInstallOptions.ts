@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -13,22 +13,12 @@ import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { PreferredVersions, ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type {
-  AllowedDeprecatedVersions,
-  PackageExtension,
-  PackageVulnerabilityAudit,
-  PeerDependencyRules,
-  ReadPackageHook,
-  Registries,
-  RegistryConfig,
-  SupportedArchitectures,
-  TrustPolicy,
-} from '@pnpm/types'
+import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyRules, ReadPackageHook, RegistryConfig, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
 
-export interface StrictInstallOptions {
+export interface StrictInstallOptions extends RegistryContext {
   autoConfirmAllPrompts: boolean
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
@@ -123,8 +113,6 @@ export interface StrictInstallOptions {
   childConcurrency: number
   userAgent: string
   unsafePerm: boolean
-  registries: Registries
-  namedRegistries?: Record<string, string>
   tag: string
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
@@ -348,7 +336,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     pruneLockfileImporters: false,
     pruneStore: false,
     configByUri: {},
-    registries: DEFAULT_REGISTRIES,
+    registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
     resolutionMode: 'highest',
     saveWorkspaceProtocol: 'rolling',
     scriptsPrependNodePath: false,
@@ -474,7 +462,7 @@ export function extendOptions (
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
-  extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
+  extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
   if (extendedOpts.enableGlobalVirtualStore) {
     if (extendedOpts.virtualStoreDir == null) {
       extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')

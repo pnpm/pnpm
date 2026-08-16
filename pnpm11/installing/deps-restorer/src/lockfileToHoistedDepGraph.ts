@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import type {
   DependenciesGraph,
@@ -28,11 +29,11 @@ import type {
   FetchPackageToStoreFunction,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type { AllowBuild, DepPath, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
+import type { AllowBuild, DepPath, ProjectId, RegistryContext, SupportedArchitectures } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 import { pathExists } from 'path-exists'
 
-export interface LockfileToHoistedDepGraphOptions {
+export interface LockfileToHoistedDepGraphOptions extends RegistryContext {
   allowBuild?: AllowBuild
   autoInstallPeers: boolean
   engineStrict: boolean
@@ -53,8 +54,6 @@ export interface LockfileToHoistedDepGraphOptions {
   modulesDir?: string
   nodeVersion: string
   pnpmVersion: string
-  registries: Registries
-  namedRegistries?: Record<string, string>
   patchedDependencies?: PatchGroupRecord
   /**
    * The dep paths a non-optional edge reaches, as classified by
@@ -231,7 +230,7 @@ async function fetchDeps (
 
     const dir = safeJoinModulesDir(modules, dep.name)
     const depLocation = path.relative(opts.lockfileDir, dir)
-    const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
+    const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, pickRegistryContext(opts))
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
     // We check for the existence of the package inside node_modules.
     // It will only be missing if the user manually removed it.

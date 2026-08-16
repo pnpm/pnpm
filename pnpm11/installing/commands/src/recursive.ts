@@ -81,7 +81,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'modulesDir'
 | 'pnprServer'
 | 'allowBuilds'
-| 'registries'
+| 'registriesByScope'
 | 'runtime'
 | 'save'
 | 'saveCatalogName'

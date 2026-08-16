@@ -32,7 +32,7 @@ function updateOptions (childRange: string, catalogSpecifier = '2.0.0') {
     catalogs: { default: { target: catalogSpecifier } },
     parsedOverrides: [],
     lockfileDir: '/project',
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     requestPackage: async () => ({
       body: {
         id: 'target@2.0.0',

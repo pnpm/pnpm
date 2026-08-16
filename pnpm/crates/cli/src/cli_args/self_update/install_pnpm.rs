@@ -341,7 +341,7 @@ mod tests;
 /// [`crate::config_deps`]'s `for_package_manager` context.
 fn apply_package_manager_bootstrap(cfg: &mut Config, bootstrap: &PackageManagerBootstrap) {
     cfg.registry.clone_from(&bootstrap.registry);
-    cfg.registries.clone_from(&bootstrap.registries);
+    cfg.registries_by_scope.clone_from(&bootstrap.registries);
     cfg.proxy.clone_from(&bootstrap.proxy);
     cfg.tls.clone_from(&bootstrap.tls);
     cfg.tls_by_uri.clone_from(&bootstrap.tls_by_uri);

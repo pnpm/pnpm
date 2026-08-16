@@ -61,8 +61,8 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// (`gh:` → GitHub Packages) plus any user-supplied overrides
     /// from `pnpm-workspace.yaml#namedRegistries`. Already validated
     /// — every URL parses and is http(s).
-    pub named_registries: HashMap<String, String>,
-    /// Precomputed key set of [`Self::named_registries`]. The parser
+    pub registries_by_prefix: HashMap<String, String>,
+    /// Precomputed key set of [`Self::registries_by_prefix`]. The parser
     /// checks aliases against this set per call, so caching it
     /// avoids rebuilding the set for every resolve.
     pub registry_names: HashSet<String>,
@@ -136,7 +136,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
 
         // Defensive: should never trigger because the parser checks
         // the alias set first, but kept as a belt-and-braces guard.
-        let Some(registry) = self.named_registries.get(&registry_name) else {
+        let Some(registry) = self.registries_by_prefix.get(&registry_name) else {
             return Ok(None);
         };
 

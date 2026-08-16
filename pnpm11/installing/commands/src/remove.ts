@@ -140,7 +140,7 @@ export async function handler (
   | 'lockfileDir'
   | 'optional'
   | 'production'
-  | 'registries'
+  | 'registriesByScope'
   | 'saveDev'
   | 'saveOptional'
   | 'saveProd'

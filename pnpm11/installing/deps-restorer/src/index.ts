@@ -67,6 +67,7 @@ import type {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store.controller-types'
+import type { RegistryContext } from '@pnpm/types'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,
@@ -77,7 +78,7 @@ import {
   type ProjectId,
   type ProjectManifest,
   type ProjectRootDir,
-  type Registries,
+  type RegistriesByScope,
   type RegistryConfig,
   type SupportedArchitectures,
 } from '@pnpm/types'
@@ -107,7 +108,7 @@ export interface Project {
   rootDir: ProjectRootDir
 }
 
-export interface HeadlessOptions {
+export interface HeadlessOptions extends RegistryContext {
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
   childConcurrency?: number
@@ -170,8 +171,6 @@ export interface HeadlessOptions {
   configByUri: Record<string, RegistryConfig>
   unsafePerm: boolean
   userAgent: string
-  registries: Registries
-  namedRegistries?: Record<string, string>
   reporter?: ReporterFunction
   packageManager: {
     name: string
@@ -280,7 +279,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const skipped = opts.skipped || new Set<DepPath>()
   const filterOpts = {
     include: opts.include,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     skipped,
     skipRuntimes: opts.skipRuntimes,
     currentEngine: opts.currentEngine,
@@ -413,7 +412,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       lockfileDir,
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
     })
   }
   const depNodes = Object.values(graph)
@@ -464,7 +463,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         filteredLockfile,
         lockfileDir,
         projects: selectedProjects,
-        registries: opts.registries,
+        registriesByScope: opts.registriesByScope,
         symlink: opts.symlink,
       })
     }
@@ -570,7 +569,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         filteredLockfile,
         lockfileDir,
         projects: selectedProjects,
-        registries: opts.registries,
+        registriesByScope: opts.registriesByScope,
         symlink: opts.symlink,
       })
     }
@@ -766,7 +765,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
         ? new Date().toUTCString()
         : opts.prunedAt,
-      registries: opts.registries,
       skipped: Array.from(skipped),
       storeDir: opts.storeDir,
       virtualStoreDir,
@@ -830,7 +828,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 }
 
-type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symlink' | 'lockfileDir'> & {
+type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registriesByScope' | 'symlink' | 'lockfileDir'> & {
   filteredLockfile: LockfileObject
   dedupe: boolean
   directDependenciesByImporterId: DirectDependenciesByImporterId
@@ -844,7 +842,7 @@ async function symlinkDirectDependencies (
     directDependenciesByImporterId,
     lockfileDir,
     projects,
-    registries,
+    registriesByScope,
     symlink,
   }: SymlinkDirectDependenciesOpts
 ): Promise<number> {
@@ -871,7 +869,7 @@ async function symlinkDirectDependencies (
         lockfileDir,
         projectDir: rootDir,
         importerManifestsByImporterId,
-        registries,
+        registriesByScope,
         rootDependencies: directDependenciesByImporterId[id],
       }),
     }]))
@@ -910,7 +908,7 @@ async function linkBinsOfImporter (
 async function getRootPackagesToLink (
   lockfile: LockfileObject,
   opts: {
-    registries: Registries
+    registriesByScope: RegistriesByScope
     projectDir: string
     importerId: ProjectId
     importerModulesDir: string

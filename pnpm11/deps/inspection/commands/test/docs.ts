@@ -12,7 +12,7 @@ const { docs } = await import('@pnpm/deps.inspection.commands')
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const DOCS_OPTIONS = {
-  registries: { default: REGISTRY_URL },
+  registriesByScope: { default: REGISTRY_URL },
 }
 
 test('docs: command should be available', () => {

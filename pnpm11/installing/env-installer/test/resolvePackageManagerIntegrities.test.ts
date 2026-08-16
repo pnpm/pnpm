@@ -77,7 +77,7 @@ test('registry tarball URLs are dropped from package-manager resolutions; file:,
   } as unknown as LockfileObject)
 
   const result = await resolvePackageManagerIntegrities('12.0.0', {
-    registries: { default: 'https://mirror.example.com/' },
+    registriesByScope: { default: 'https://mirror.example.com/' },
     rootDir: '/repo',
     storeController: {} as never,
     storeDir: '/store',

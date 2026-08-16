@@ -330,7 +330,7 @@ test('a removal override that leaves a patch unused falls back', async () => {
       parsedOverrides: [{ selector: 'victim', newBareSpecifier: '-', targetPkg: { name: 'victim' } }],
       isLockfileUpToDate: async () => true,
       lockfileDir: '/test',
-      registries: { default: 'https://registry.npmjs.org/' },
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
       requestPackage: (() => {
         throw new Error('a removal resolves nothing')
       }) as never,

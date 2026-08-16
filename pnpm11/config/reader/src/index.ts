@@ -5,8 +5,8 @@ import { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
-import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { BUILTIN_REGISTRIES_BY_PREFIX, GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
@@ -50,6 +50,7 @@ import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
+import { quoteAndJoin } from './quoteAndJoin.js'
 import { transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
 export { types }
@@ -355,7 +356,7 @@ export async function getConfig (opts: {
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
-    globalYamlRegistries = pnpmConfig.registries as Record<string, string> | undefined
+    globalYamlRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
   }
   const networkConfigs = getNetworkConfigs(pnpmConfig.authConfig)
   const registriesFromNpmrc = {
@@ -370,9 +371,9 @@ export async function getConfig (opts: {
       cliScopedRegistries[key.slice(0, -':registry'.length)] = normalizeRegistryUrl(value)
     }
   }
-  pnpmConfig.registries = { ...registriesFromNpmrc }
+  pnpmConfig.registriesByScope = { ...registriesFromNpmrc }
   if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
-    pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
+    pnpmConfig.registriesByScope.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
   pnpmConfig.packageManagerRegistries = {
     default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
@@ -507,7 +508,7 @@ export async function getConfig (opts: {
           workspaceManifest,
         })
         if (workspaceManifest.registries != null) {
-          workspaceManifestRegistries = pnpmConfig.registries as Record<string, string> | undefined
+          workspaceManifestRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
         }
       }
     } else if (cliOptions['global']) {
@@ -521,7 +522,7 @@ export async function getConfig (opts: {
           workspaceManifest,
         })
         if (workspaceManifest.registries != null) {
-          workspaceManifestRegistries = pnpmConfig.registries as Record<string, string> | undefined
+          workspaceManifestRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
         }
       }
     }
@@ -532,7 +533,7 @@ export async function getConfig (opts: {
   // via `authConfig`, so they're re-applied last here to avoid being buried
   // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
   // `explicitlySetKeys` is camelCased, which mangles `@org-a:registry`.
-  pnpmConfig.registries = {
+  pnpmConfig.registriesByScope = {
     ...registriesFromNpmrc,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
@@ -546,14 +547,14 @@ export async function getConfig (opts: {
   // as `cliScopedRegistries` — it entered `registriesFromNpmrc` via
   // `authConfig.registry` and would otherwise be buried by env JSON.
   if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
-    pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
+    pnpmConfig.registriesByScope.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
-  if (!pnpmConfig.registries.default) {
-    pnpmConfig.registries.default = registriesFromNpmrc.default
+  if (!pnpmConfig.registriesByScope.default) {
+    pnpmConfig.registriesByScope.default = registriesFromNpmrc.default
   }
-  for (const [scope, url] of Object.entries(pnpmConfig.registries)) {
+  for (const [scope, url] of Object.entries(pnpmConfig.registriesByScope)) {
     if (typeof url === 'string') {
-      pnpmConfig.registries[scope] = normalizeRegistryUrl(url)
+      pnpmConfig.registriesByScope[scope] = normalizeRegistryUrl(url)
     }
   }
 
@@ -562,8 +563,8 @@ export async function getConfig (opts: {
   // registry configured in pnpm-workspace.yaml. Only sync when the workspace
   // manifest actually contributed a different default than what .npmrc provided,
   // and when registry was not explicitly set via CLI.
-  if (!explicitlySetKeys.has('registry') && pnpmConfig.registries.default !== registriesFromNpmrc.default) {
-    pnpmConfig.registry = pnpmConfig.registries.default
+  if (!explicitlySetKeys.has('registry') && pnpmConfig.registriesByScope.default !== registriesFromNpmrc.default) {
+    pnpmConfig.registry = pnpmConfig.registriesByScope.default
   }
 
   // omit some schema that the custom parser can't yet handle
@@ -588,10 +589,15 @@ export async function getConfig (opts: {
       if (typeof value !== 'string') {
         throw new TypeError(`Unexpected type of registry, expecting a string but received ${JSON.stringify(value)}`)
       }
-      pnpmConfig.registries.default = normalizeRegistryUrl(value)
+      pnpmConfig.registriesByScope.default = normalizeRegistryUrl(value)
       pnpmConfig.packageManagerRegistries.default = normalizeRegistryUrl(value)
     }
   }
+
+  // After the env loop: PNPM_CONFIG_REGISTRY can still change
+  // `registries.default` above, and an entry matching it must not be reported
+  // as unused.
+  warnAboutUnmatchedRegistryOptions(pnpmConfig, warnings)
 
   // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
   // default. Without this, a user-set value would silently fall back to
@@ -1197,7 +1203,10 @@ type ProjectManifestSkippedKey =
   | typeof CREDENTIAL_KEYS[number]
 
 /** Every key a caller of {@link addSettingsFromWorkspaceManifestToConfig} may skip. */
-type SkippableKey = ProjectManifestSkippedKey | typeof SELF_UPDATE_SKIPPED_SETTINGS[number]
+type SkippableKey =
+  | ProjectManifestSkippedKey
+  | typeof SELF_UPDATE_SKIPPED_SETTINGS[number]
+  | typeof GLOBAL_CONFIG_ONLY_SKIPPED_KEYS[number]
 
 const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set([
   ...MACHINE_LOCATION_KEYS,
@@ -1213,9 +1222,20 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = ne
  * `--config.config-dir` would land back on a key the reader resolves for
  * itself, and only for the users who happen to have a `config.yaml`.
  */
-const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set(
-  [...PROJECT_MANIFEST_SKIPPED_KEYS].filter((key) => !isConfigFileKey(kebabCase(key)))
-)
+/**
+ * Only the layout half of a `registries` entry is workspace-only: it decides
+ * which tarball URLs are omitted from the lockfile, so a machine-local setting
+ * would make one developer write a lockfile their collaborators read back with
+ * a different layout. The routes to the registry are a legitimate global
+ * preference, which is why the whole `registries` key is not refused here.
+ */
+const GLOBAL_CONFIG_ONLY_SKIPPED_KEYS = ['registryOptionsByUrl'] as const satisfies ReadonlyArray<keyof Config>
+
+const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<SkippableKey> = new Set([
+  ...[...PROJECT_MANIFEST_SKIPPED_KEYS].filter((key) => !isConfigFileKey(kebabCase(key))),
+  ...GLOBAL_CONFIG_ONLY_SKIPPED_KEYS,
+])
+
 
 /**
  * Whether a project's `pnpm-workspace.yaml` would ignore this camelCase key.
@@ -1347,7 +1367,29 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
 
-/** Renders keys for a warning that lists the settings it ignored. */
-function quoteAndJoin (keys: string[]): string {
-  return keys.map(key => `"${key}"`).join(', ')
+/**
+ * A `registries` entry that routes nothing to itself — no `scopes`, no
+ * `prefix` — describes a registry configured elsewhere, so it only takes
+ * effect when its key is one pnpm actually resolves from. A key that matches
+ * none is inert: the wrong URL, a stale entry, a scope that moved. Warn rather
+ * than throw, because a shared config dependency can legitimately describe
+ * registries a given project does not use.
+ */
+function warnAboutUnmatchedRegistryOptions (config: Config, warnings: string[]): void {
+  const registryOptionsByUrl = config.registryOptionsByUrl
+  if (registryOptionsByUrl == null) return
+  const configuredRegistries = new Set([
+    ...Object.values(config.registriesByScope),
+    ...Object.values(config.registriesByPrefix ?? {}),
+    ...Object.values(BUILTIN_REGISTRIES_BY_PREFIX),
+  ].map(normalizeRegistryUrl))
+  const unmatched = Object.keys(registryOptionsByUrl).filter((registry) => !configuredRegistries.has(registry))
+  if (unmatched.length === 0) return
+  // A registry URL can carry `user:pass@` credentials, and the global config's
+  // keys have had `${VAR}` expanded by this point, so neither list may be
+  // echoed raw into a terminal or a CI log.
+  warnings.push(
+    `The following "registries" entries do not match any configured registry and were ignored: ${quoteAndJoin(unmatched.map(redactAndSanitize))}. ` +
+    `The configured registries are: ${quoteAndJoin([...configuredRegistries].sort().map(redactAndSanitize))}.`
+  )
 }

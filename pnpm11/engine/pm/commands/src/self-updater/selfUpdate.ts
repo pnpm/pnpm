@@ -206,7 +206,7 @@ export async function handler (
         if (shouldPersistLockfile({ ...opts.wantedPackageManager, fromDevEngines: true })) {
           const store = await createStoreController({ ...opts, ...bootstrapConfig })
           await resolvePackageManagerIntegrities(resolution.manifest.version, {
-            registries: bootstrapConfig.registries,
+            registriesByScope: bootstrapConfig.registriesByScope,
             rootDir: opts.rootProjectManifestDir,
             storeController: store.ctrl,
             storeDir: store.dir,
@@ -240,7 +240,7 @@ export async function handler (
 
   // Resolve integrities and write env lockfile to pnpm-lock.yaml
   const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
-    registries: bootstrapConfig.registries,
+    registriesByScope: bootstrapConfig.registriesByScope,
     rootDir: opts.pnpmHomeDir,
     storeController: store.ctrl,
     storeDir: store.dir,
