@@ -8,13 +8,13 @@
 
 use crate::{State, cli_args::add::add_package, executable_link::replace_executable};
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Config, PackageManagerBootstrap};
-use pacquet_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
-use pacquet_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::{DependencyGroup, parse_manifest};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
+use pnpm_config::{Config, PackageManagerBootstrap};
+use pnpm_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
+use pnpm_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_package_manifest::{DependencyGroup, parse_manifest};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::Reporter;
 use serde_json::Value;
 use std::{
     fs,

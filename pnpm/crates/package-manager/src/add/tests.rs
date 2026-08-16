@@ -4,12 +4,12 @@ use super::{
     workspace_save_specifier,
 };
 use crate::{ResolvedPackages, tests::project_local_config};
-use pacquet_config::LinkWorkspacePackages;
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
-use pacquet_workspace::Project;
+use pnpm_config::LinkWorkspacePackages;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_workspace::Project;
 use serde_json::json;
 use std::{
     collections::HashSet,
@@ -167,7 +167,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
-    config.catalog_mode = pacquet_config::CatalogMode::Prefer;
+    config.catalog_mode = pnpm_config::CatalogMode::Prefer;
     config.minimum_release_age = None;
     let mut servers = Vec::new();
     let mut mocks = Vec::new();

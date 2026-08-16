@@ -1,6 +1,6 @@
 use clap::Subcommand;
 use miette::Context;
-use pacquet_config::Config;
+use pnpm_config::Config;
 
 #[derive(Debug, Subcommand)]
 pub enum StoreCommand {

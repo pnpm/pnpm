@@ -1,11 +1,11 @@
 use clap::Args;
 use miette::{Context, IntoDiagnostic, Result};
-use pacquet_config::Config;
-use pacquet_lockfile::{
+use pnpm_config::Config;
+use pnpm_lockfile::{
     Lockfile, LockfileResolution, PackageMetadata, PkgName, ProjectSnapshot, ResolvedDependencySpec,
 };
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_store_dir::{
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_store_dir::{
     PackageFilesIndex, StoreIndex, StoreIndexError, git_hosted_store_index_key, store_index_key,
 };
 use serde_json::Value;

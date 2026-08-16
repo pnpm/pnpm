@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fs, io, path::Path};
 
-use pacquet_config::Config;
-use pacquet_network_web_auth::OpenUrl;
+use pnpm_config::Config;
+use pnpm_network_web_auth::OpenUrl;
 use serde_json::json;
 
 use super::{

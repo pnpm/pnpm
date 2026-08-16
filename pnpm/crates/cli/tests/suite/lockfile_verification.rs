@@ -5,7 +5,7 @@
 //! upstream-canonical diagnostic code in stderr.
 //!
 //! Doesn't try to exercise every branch — the unit tests in
-//! `pacquet-lockfile-verification` and `pacquet-resolving-npm-resolver`
+//! `pnpm-lockfile-verification` and `pnpm-resolving-npm-resolver`
 //! already do that. This file pins the user-visible contract: the
 //! gate runs from the CLI, the install fails when policy is
 //! tripped, and the error envelope carries the upstream code so
@@ -15,7 +15,7 @@ use crate::_utils;
 pub use _utils::*;
 
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
 
 /// `minimumReleaseAge` set to 100 years rejects every version the

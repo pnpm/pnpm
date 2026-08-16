@@ -18,15 +18,15 @@ use crate::{
     install_package_by_snapshot::tarball_url_and_integrity, retry_config::retry_opts_from_config,
 };
 use dashmap::DashSet;
-use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, LockfileResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::SilentReporter;
-use pacquet_store_dir::{
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexError,
     StoreIndexWriter, store_index_key,
 };
-use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
+use pnpm_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
 use ssri::Integrity;
 use std::{collections::HashSet, sync::Arc};
 
@@ -284,7 +284,7 @@ impl TarballPrefetcher {
     /// Entries with an `index.db` row are filtered out with one batched
     /// existence probe rather than spawned: the materialization pass
     /// already covers warm entries with its own batched verified lookup
-    /// ([`pacquet_tarball::prefetch_cas_paths`]), so spawning them here
+    /// ([`pnpm_tarball::prefetch_cas_paths`]), so spawning them here
     /// would only duplicate that work per key — on a fully warm store it
     /// turns the whole prefetch into a no-op. A row whose CAS files have
     /// gone missing is skipped here too; the materialization pass's

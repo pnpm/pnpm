@@ -3,7 +3,7 @@
 //! Pnpm v11 records configurational dependencies (and the
 //! `packageManager`/`devEngines` bootstrap deps) in a separate YAML
 //! document written ahead of the regular project lockfile. The
-//! `pacquet-env-installer` crate resolves config deps into this
+//! `pnpm-env-installer` crate resolves config deps into this
 //! document; the main install path preserves it verbatim when it
 //! rewrites the wanted lockfile (see [`crate::save_value_to_path`]).
 //!
@@ -19,7 +19,7 @@ use crate::{
     serialize_yaml,
     yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, read_first_yaml_document},
 };
-use pacquet_fs::write_atomic;
+use pnpm_fs::write_atomic;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},

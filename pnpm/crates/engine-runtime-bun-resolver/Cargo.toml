@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-engine-runtime-bun-resolver"
+name                  = "pnpm-engine-runtime-bun-resolver"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,11 +11,11 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-crypto-shasums-file     = { workspace = true }
-pacquet-lockfile                = { workspace = true }
-pacquet-network                 = { workspace = true }
-pacquet-resolving-npm-resolver  = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
+pnpm-crypto-shasums-file     = { workspace = true }
+pnpm-lockfile                = { workspace = true }
+pnpm-network                 = { workspace = true }
+pnpm-resolving-npm-resolver  = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

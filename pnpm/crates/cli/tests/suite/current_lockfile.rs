@@ -8,7 +8,7 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path, process::Command};
 
 const CURRENT_LOCKFILE: &str = "node_modules/.pnpm/lock.yaml";
@@ -17,7 +17,7 @@ fn rerun(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
-fn package_names(lockfile: &pacquet_lockfile::Lockfile) -> Vec<String> {
+fn package_names(lockfile: &pnpm_lockfile::Lockfile) -> Vec<String> {
     let mut names: Vec<String> = lockfile
         .packages
         .iter()
@@ -28,12 +28,12 @@ fn package_names(lockfile: &pacquet_lockfile::Lockfile) -> Vec<String> {
     names
 }
 
-fn assert_skipped_optional_is_retained(lockfile: &pacquet_lockfile::Lockfile) {
+fn assert_skipped_optional_is_retained(lockfile: &pnpm_lockfile::Lockfile) {
     dbg!(lockfile);
     assert!(
         importer_has_group_dependency(
             lockfile,
-            pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+            pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
             "optionalDependencies",
             "@pnpm.e2e/not-compatible-with-any-os",
         ),
@@ -240,7 +240,7 @@ fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
     assert!(
         importer_has_group_dependency(
             &lockfile,
-            pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+            pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
             "dependencies",
             "@pnpm.e2e/dep-of-pkg-with-1-dep",
         ),
@@ -451,7 +451,7 @@ fn a_skipped_optional_dependency_still_lets_a_repeat_frozen_install_be_a_no_op()
 
     let wanted_text =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
-    let wanted: pacquet_lockfile::Lockfile =
+    let wanted: pnpm_lockfile::Lockfile =
         serde_saphyr::from_str(&wanted_text).expect("parse pnpm-lock.yaml");
     assert_eq!(
         read_current_lockfile(&workspace),

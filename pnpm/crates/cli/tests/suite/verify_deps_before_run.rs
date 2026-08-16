@@ -8,7 +8,7 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::bump_mtime,
 };

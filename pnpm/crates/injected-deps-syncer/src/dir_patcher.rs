@@ -4,7 +4,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_directory_fetcher::{DirectoryFetcher, DirectoryFetcherError};
+use pnpm_directory_fetcher::{DirectoryFetcher, DirectoryFetcherError};
 use std::{
     collections::{BTreeMap, HashMap},
     fs, io,
@@ -226,7 +226,7 @@ fn is_already_exists(error: &PatchError) -> bool {
 }
 
 fn remove_recursive(target_path: &Path) -> Result<(), PatchError> {
-    match pacquet_fs::remove_dirent(target_path) {
+    match pnpm_fs::remove_dirent(target_path) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         result => {
             result.map_err(|error| PatchError::Remove { path: target_path.to_path_buf(), error })

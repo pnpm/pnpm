@@ -18,7 +18,7 @@
 
 use std::io;
 
-use pacquet_lockfile::Lockfile;
+use pnpm_lockfile::Lockfile;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
@@ -32,7 +32,7 @@ use sha2::{Digest, Sha256};
 pub fn hash_lockfile(lockfile: &Lockfile) -> String {
     let mut value = serde_json::to_value(lockfile)
         .expect("Lockfile serializes; serde_json::Value supports all JSON-shape variants");
-    pacquet_lockfile::prune_time(&mut value);
+    pnpm_lockfile::prune_time(&mut value);
     let normalized = normalize(value);
     let mut hasher = HashWriter(Sha256::new());
     serde_json::to_writer(&mut hasher, &normalized)

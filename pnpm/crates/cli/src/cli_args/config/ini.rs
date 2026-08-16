@@ -36,7 +36,7 @@ fn parse(text: &str) -> IndexMap<String, String> {
 
 /// Write `settings` to `path` as `key=value` lines, creating parent
 /// directories and replacing the file atomically and symlink-safely (see
-/// [`pacquet_fs::write_atomic`]).
+/// [`pnpm_fs::write_atomic`]).
 pub fn write(path: &Path, settings: &IndexMap<String, String>) -> io::Result<()> {
     let mut contents = String::new();
     for (key, value) in settings {
@@ -45,5 +45,5 @@ pub fn write(path: &Path, settings: &IndexMap<String, String>) -> io::Result<()>
         contents.push_str(value);
         contents.push('\n');
     }
-    pacquet_fs::write_atomic(path, contents.as_bytes())
+    pnpm_fs::write_atomic(path, contents.as_bytes())
 }

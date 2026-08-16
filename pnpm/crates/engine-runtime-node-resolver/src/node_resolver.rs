@@ -15,16 +15,16 @@ use std::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pacquet_crypto_shasums_file::{
+use pnpm_crypto_shasums_file::{
     FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file_cached,
     fetch_verified_node_shasums_file_cached,
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget, VariationsResolution,
 };
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_resolver_base::{
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };

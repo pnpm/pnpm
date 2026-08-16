@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_package_manifest::PackageManifest;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
 use std::{fs, path::Path, process::Command};
 

@@ -9,7 +9,7 @@
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -182,7 +182,7 @@ pub struct WorkspaceStateSettings {
 }
 
 /// pnpm's `trustPolicy: 'no-downgrade' | 'off'`. Same wire format as
-/// `pacquet_config::TrustPolicy`; duplicated here for the same reason
+/// `pnpm_config::TrustPolicy`; duplicated here for the same reason
 /// as [`NodeLinker`] below.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -192,8 +192,8 @@ pub enum TrustPolicy {
 }
 
 /// pnpm's `nodeLinker: 'hoisted' | 'isolated' | 'pnp'`. Same wire
-/// format as `pacquet_modules_yaml::NodeLinker`; duplicated here rather
-/// than depending on `pacquet-modules-yaml` so `workspace-state` stays
+/// format as `pnpm_modules_yaml::NodeLinker`; duplicated here rather
+/// than depending on `pnpm-modules-yaml` so `workspace-state` stays
 /// independent of the install pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

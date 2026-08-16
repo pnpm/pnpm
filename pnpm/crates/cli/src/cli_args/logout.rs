@@ -1,5 +1,5 @@
 //! `pacquet logout` — revoke the registry auth token and remove it from
-//! `auth.ini`. The command logic lives in `pacquet-auth-commands`; this
+//! `auth.ini`. The command logic lives in `pnpm-auth-commands`; this
 //! module is the thin CLI adapter that resolves config into
 //! [`LogoutOptions`].
 
@@ -8,10 +8,10 @@ use std::{collections::HashMap, time::Duration};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
-use pacquet_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
-use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_reporter::Reporter;
+use pnpm_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
+use pnpm_config::Config;
+use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_reporter::Reporter;
 
 /// Log out of an npm registry.
 #[derive(Debug, Args)]

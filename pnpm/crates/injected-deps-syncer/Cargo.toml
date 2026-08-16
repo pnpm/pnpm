@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-injected-deps-syncer"
+name                  = "pnpm-injected-deps-syncer"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,12 +11,12 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-cmd-shim          = { workspace = true }
-pacquet-directory-fetcher = { workspace = true }
-pacquet-fs                = { workspace = true }
-pacquet-modules-yaml      = { workspace = true }
-pacquet-package-manifest  = { workspace = true }
-pacquet-workspace         = { workspace = true }
+pnpm-cmd-shim          = { workspace = true }
+pnpm-directory-fetcher = { workspace = true }
+pnpm-fs                = { workspace = true }
+pnpm-modules-yaml      = { workspace = true }
+pnpm-package-manifest  = { workspace = true }
+pnpm-workspace         = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }
@@ -27,7 +27,7 @@ tracing     = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
-pacquet-testing-utils = { workspace = true }
+pnpm-testing-utils = { workspace = true }
 
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }

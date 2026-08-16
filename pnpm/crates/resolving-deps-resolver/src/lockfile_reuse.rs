@@ -4,13 +4,13 @@
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
 use node_semver::{Range, Version};
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
     ResolvedDependencySpec, SnapshotEntry, TarballResolution, npm_tarball_url,
     pick_registry_for_package,
 };
-use pacquet_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
-use pacquet_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
+use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
+use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
 use serde_json::{Map, Value};
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
@@ -216,7 +216,7 @@ fn satisfies_with_prereleases(range: &Range, version: &Version) -> bool {
 ///
 /// * Registry `id` / `name_ver` use the peer-stripped `name@version`; git
 ///   results retain their URL-shaped lockfile key and have no `name_ver`.
-/// * `resolution` is cloned from [`pacquet_lockfile::PackageMetadata`]
+/// * `resolution` is cloned from [`pnpm_lockfile::PackageMetadata`]
 ///   so the recorded integrity carries forward.
 /// * `manifest` is reconstructed from the metadata's
 ///   `peerDependencies` / `peerDependenciesMeta` / `engines` / `cpu` /
@@ -284,7 +284,7 @@ pub(crate) fn synthesize_reused_result(
 fn synthesize_manifest(
     name: &PkgName,
     version: Option<&str>,
-    metadata: &pacquet_lockfile::PackageMetadata,
+    metadata: &pnpm_lockfile::PackageMetadata,
 ) -> Value {
     let mut manifest = Map::new();
     manifest.insert("name".to_string(), Value::String(name.to_string()));

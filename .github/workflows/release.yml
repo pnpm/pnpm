@@ -664,7 +664,7 @@ jobs:
           grep -F "PNPM_VERSION: &str = \"$VERSION\"" pnpm/crates/config/src/defaults.rs
 
       - name: Build with cross
-        run: cross build --locked -p pacquet-cli --bin pnpm --release --target=${{ matrix.target }}
+        run: cross build --locked -p pnpm-cli --bin pnpm --release --target=${{ matrix.target }}
 
       - name: Build NAPI addon with cross
         # musl targets enable `crt-static` by default, but a `cdylib` (the
@@ -684,15 +684,15 @@ jobs:
           if [[ "$TARGET" == *musl* ]]; then
             export RUSTFLAGS="-C target-feature=-crt-static"
           fi
-          cross build --locked -p pacquet-napi --profile napi-release --target="$TARGET"
+          cross build --locked -p pnpm-napi --profile napi-release --target="$TARGET"
 
       - name: Prepare NAPI addon
         shell: bash
         run: |
           case "${{ runner.os }}" in
-            Windows) source="target/${{ matrix.target }}/napi-release/pacquet_napi.dll" ;;
-            macOS) source="target/${{ matrix.target }}/napi-release/libpacquet_napi.dylib" ;;
-            *) source="target/${{ matrix.target }}/napi-release/libpacquet_napi.so" ;;
+            Windows) source="target/${{ matrix.target }}/napi-release/pnpm_napi.dll" ;;
+            macOS) source="target/${{ matrix.target }}/napi-release/libpnpm_napi.dylib" ;;
+            *) source="target/${{ matrix.target }}/napi-release/libpnpm_napi.so" ;;
           esac
           cp "$source" "pnpm-napi.${{ matrix.code-target }}.node"
 

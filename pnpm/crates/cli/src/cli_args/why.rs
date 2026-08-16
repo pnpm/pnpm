@@ -3,7 +3,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use clap::Args;
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::{
     State,

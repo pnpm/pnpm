@@ -3,14 +3,14 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_store_dir::STORE_VERSION;
-use pacquet_testing_utils::{
+#[cfg(unix)]
+use pipe_trait::Pipe;
+use pnpm_store_dir::STORE_VERSION;
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
     fs::{bump_mtime, get_all_files, get_all_folders, is_symlink_or_junction},
 };
-#[cfg(unix)]
-use pipe_trait::Pipe;
 use std::{
     fmt::Write as _,
     fs::{self, OpenOptions},
@@ -356,7 +356,7 @@ fn should_install_exec_files() {
 
     #[cfg(unix)]
     {
-        use pacquet_testing_utils::fs::is_path_executable;
+        use pnpm_testing_utils::fs::is_path_executable;
         use pretty_assertions::assert_eq;
         use std::{fs::File, iter::repeat, os::unix::fs::MetadataExt};
 
@@ -1879,7 +1879,7 @@ fn frozen_lockfile_accepts_a_peer_package_extensions_injected() {
     // `autoInstallPeers` recorded it as a dependency of the importer. The
     // freshness check has to see the same peer, or it reads that entry as a
     // dependency the manifest dropped.
-    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load wanted lockfile")
         .expect("wanted lockfile");
     assert!(
@@ -2285,7 +2285,7 @@ fn ignore_pnpmfile_skips_the_update_config_hook() {
     .expect("write package.json");
 
     let recorded_auto_install_peers = || {
-        pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
             .expect("load wanted lockfile")
             .expect("wanted lockfile")
             .settings
@@ -2322,7 +2322,7 @@ fn write_read_package_pnpmfile(workspace: &Path) {
 }
 
 fn read_package_hook_applied(workspace: &Path) -> bool {
-    pacquet_lockfile::Lockfile::load_wanted_from_dir(workspace)
+    pnpm_lockfile::Lockfile::load_wanted_from_dir(workspace)
         .expect("load wanted lockfile")
         .expect("wanted lockfile")
         .packages

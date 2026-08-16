@@ -4,11 +4,11 @@ use super::{
     prepare_selected_manifests, selected_project_indices,
 };
 use crate::tests::project_local_config;
-use pacquet_config::{CatalogMode, Config};
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::SilentReporter;
-use pacquet_workspace::Project;
+use pnpm_config::{CatalogMode, Config};
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::SilentReporter;
+use pnpm_workspace::Project;
 use serde_json::json;
 use std::collections::{BTreeMap, HashSet};
 use tempfile::tempdir;

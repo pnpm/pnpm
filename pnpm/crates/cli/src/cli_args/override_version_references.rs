@@ -3,8 +3,8 @@
 //! is deprecated in favor of catalogs. pnpm still honors it, and warns
 //! once per command about every selector still using it.
 
-use pacquet_config::Config;
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_config::Config;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use serde_json::Value;
 
 /// Warn about the `overrides` selectors whose configured value is a

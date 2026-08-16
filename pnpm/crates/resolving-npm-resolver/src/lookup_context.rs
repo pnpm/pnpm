@@ -15,7 +15,7 @@
 //!
 use std::{collections::HashMap, sync::Arc};
 
-use pacquet_registry::Package;
+use pnpm_registry::Package;
 use tokio::sync::{Mutex, OnceCell};
 
 /// Per-version time map keyed by version string. The verifier only

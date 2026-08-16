@@ -3,8 +3,8 @@ use super::{
     collect_dependencies, compare_package_names, extract_license_author, extract_license_homepage,
     render_package_name, select_newer_version,
 };
-use pacquet_lockfile::Lockfile;
-use pacquet_package_is_installable::InstallabilityOptions;
+use pnpm_lockfile::Lockfile;
+use pnpm_package_is_installable::InstallabilityOptions;
 use serde_json::json;
 use tempfile::TempDir;
 

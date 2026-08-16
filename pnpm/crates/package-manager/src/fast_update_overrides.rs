@@ -1,14 +1,14 @@
 use futures_util::future::join_all;
 use indexmap::IndexMap;
 use node_semver::{Range, Version};
-use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
-use pacquet_lockfile::{
+use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use pnpm_lockfile::{
     BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey,
     PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, Prefix, ResolvedDependencyMap,
     SnapshotDepRef, SnapshotEntry, StringOrList, pick_registry_for_package,
 };
-use pacquet_resolving_deps_resolver::ManifestHook;
-use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
+use pnpm_resolving_deps_resolver::ManifestHook;
+use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},

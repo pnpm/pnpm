@@ -1,5 +1,5 @@
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path};
 
 /// Create `dir/node_modules/<name>/package.json` so the directory
@@ -53,7 +53,7 @@ fn clean_removes_package_links_into_the_virtual_store() {
     let node_modules = workspace.join("node_modules");
     let store_pkg_dir = node_modules.join(".pnpm").join("greenly@1.0.0").join("node_modules");
     seed_package(&store_pkg_dir, "greenly");
-    pacquet_fs::symlink_dir(&store_pkg_dir.join("greenly"), &node_modules.join("greenly"))
+    pnpm_fs::symlink_dir(&store_pkg_dir.join("greenly"), &node_modules.join("greenly"))
         .expect("link the package into node_modules");
 
     let output = pacquet.with_args(["clean"]).output().expect("run pacquet clean");

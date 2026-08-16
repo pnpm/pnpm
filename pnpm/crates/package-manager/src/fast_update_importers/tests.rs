@@ -1,6 +1,6 @@
-use pacquet_config::ResolutionMode::LowestDirect as LOWEST_DIRECT;
-use pacquet_lockfile::{Lockfile, PackageKey, PkgName};
-use pacquet_package_manifest::PackageManifest;
+use pnpm_config::ResolutionMode::LowestDirect as LOWEST_DIRECT;
+use pnpm_lockfile::{Lockfile, PackageKey, PkgName};
+use pnpm_package_manifest::PackageManifest;
 use serde_json::json;
 use std::path::PathBuf;
 
@@ -15,7 +15,7 @@ fn try_fast_update_importers(
         lockfile,
         manifests,
         &[],
-        &pacquet_config::Config::default(),
+        &pnpm_config::Config::default(),
         None,
         false,
     )
@@ -643,7 +643,7 @@ fn moves_several_dependencies_between_groups_in_one_pass() {
     .expect("group moves need no resolution");
 
     let importer = &updated.importers["."];
-    let recorded_aliases = |group: &Option<pacquet_lockfile::ResolvedDependencyMap>| {
+    let recorded_aliases = |group: &Option<pnpm_lockfile::ResolvedDependencyMap>| {
         group
             .as_ref()
             .map(|dependencies| {
@@ -906,7 +906,7 @@ fn rejects_a_new_project_that_depends_on_a_workspace_sibling() {
             &parsed_lockfile(WITH_A_NEW_PROJECT),
             &projects_of_a_new_project_lockfile(&existing, &locks_the_higher_child, &added),
             &[(PathBuf::from("/workspace/child"), &sibling)],
-            &pacquet_config::Config::default(),
+            &pnpm_config::Config::default(),
             None,
             false,
         )
@@ -919,7 +919,7 @@ fn rejects_a_new_project_that_depends_on_a_workspace_sibling() {
 fn rejects_a_widened_range_when_resolution_would_pick_its_lowest_locked_version() {
     let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.0.0" } }));
     let other = manifest_from(json!({ "dependencies": { "foo": "1.2.0" } }));
-    let config = pacquet_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
+    let config = pnpm_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
 
     assert!(
         crate::fast_update_compose::try_compose_fast_updates(
@@ -939,7 +939,7 @@ fn rejects_a_widened_range_when_resolution_would_pick_its_lowest_locked_version(
 fn rejects_a_new_project_when_resolution_would_pick_the_lowest_of_several_locked_versions() {
     let added = manifest_from(json!({ "dependencies": { "child": "^3.0.0" } }));
     let [existing, locks_the_higher_child] = a_new_project_lockfile_projects(&added);
-    let config = pacquet_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
+    let config = pnpm_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
 
     assert!(
         crate::fast_update_compose::try_compose_fast_updates(
@@ -1018,7 +1018,7 @@ fn try_prune_stale_importers(
         lockfile,
         manifests,
         &[],
-        &pacquet_config::Config::default(),
+        &pnpm_config::Config::default(),
         None,
         true,
     )
@@ -1050,7 +1050,7 @@ fn keeps_the_importer_when_the_run_does_not_see_every_project() {
             &parsed_lockfile(WITH_TWO_IMPORTERS),
             &[("packages/a".to_string(), &manifest)],
             &[],
-            &pacquet_config::Config::default(),
+            &pnpm_config::Config::default(),
             None,
             false,
         )
@@ -1202,7 +1202,7 @@ fn drops_a_dependency_a_surviving_suffix_only_ends_with_the_name_of() {
     );
     snapshots.insert(
         "@scope/foo@1.0.0".parse().expect("snapshot key"),
-        pacquet_lockfile::SnapshotEntry::default(),
+        pnpm_lockfile::SnapshotEntry::default(),
     );
     snapshots
         .get_mut(&"qux@5.0.0".parse().expect("snapshot key"))
@@ -1449,7 +1449,7 @@ fn rejects_adding_a_dependency_naming_a_workspace_project() {
             &parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD),
             &[(".".to_string(), &manifest)],
             &[(PathBuf::from("/child/package.json"), &sibling)],
-            &pacquet_config::Config::default(),
+            &pnpm_config::Config::default(),
             None,
             false,
         )
@@ -1464,7 +1464,7 @@ fn rejects_adding_a_dependency_several_locked_versions_satisfy_when_resolution_p
     let manifest = manifest_from(
         json!({ "dependencies": { "bar": "^2.0.0", "opt": "^5.0.0", "child": "^3.0.0" } }),
     );
-    let config = pacquet_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
+    let config = pnpm_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
 
     assert!(
         crate::fast_update_compose::try_compose_fast_updates(

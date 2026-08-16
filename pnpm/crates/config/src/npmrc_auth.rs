@@ -1,7 +1,7 @@
 use crate::{Config, api::EnvVar, proxy_keys::ProxyValue, workspace_yaml::LoadWorkspaceYamlError};
 use indexmap::IndexMap;
-use pacquet_env_replace::env_replace_lossy;
-use pacquet_network::{
+use pnpm_env_replace::env_replace_lossy;
+use pnpm_network::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls,
     base64_encode, nerf_dart,
 };
@@ -696,7 +696,7 @@ impl NpmrcAuth {
         } else {
             normalize_registry_url(&declared_registry)
         };
-        let uri = pacquet_network::nerf_dart(&target_registry);
+        let uri = pnpm_network::nerf_dart(&target_registry);
         if uri.is_empty() {
             // Unparsable registry (e.g. an unresolved `${VAR}`). Drop
             // the unscoped material — already taken above — rather than

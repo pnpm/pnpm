@@ -8,12 +8,12 @@
 
 use async_recursion::async_recursion;
 use futures_util::future;
-use pacquet_lockfile::PkgNameVerPeer;
-use pacquet_resolving_resolver_base::{
+use pipe_trait::Pipe;
+use pnpm_lockfile::PkgNameVerPeer;
+use pnpm_resolving_resolver_base::{
     CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
     RegistryResponseError, ResolveError, ResolveOptions, Resolver, WantedDependency,
 };
-use pipe_trait::Pipe;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::{borrow::Cow, collections::BTreeMap, path::Path, sync::Arc};
@@ -115,7 +115,7 @@ pub(super) enum NodeSeed {
 /// needs to decide whether this occurrence walks the package's
 /// children, and [`fn@seed_node_children`] needs to seed them.
 pub(super) struct PendingNode {
-    result: Arc<pacquet_resolving_resolver_base::ResolveResult>,
+    result: Arc<pnpm_resolving_resolver_base::ResolveResult>,
     id: String,
     alias: String,
     node_id: NodeId,
@@ -502,7 +502,7 @@ where
 // lockfile importer.
 pub(super) fn node_alias(
     wanted: &WantedDependency,
-    result: &pacquet_resolving_resolver_base::ResolveResult,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
     id: &str,
 ) -> String {
     wanted
@@ -985,7 +985,7 @@ pub(crate) fn parent_ids_contain_sequence(
 /// recorded lockfile entry — the non-`updated` arm, which keeps the
 /// prior child refs alive.
 fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> bool {
-    prior_key.without_peer().to_string() == pacquet_deps_path::remove_suffix(resolved_pkg_id)
+    prior_key.without_peer().to_string() == pnpm_deps_path::remove_suffix(resolved_pkg_id)
 }
 
 /// The package names the npm picker may consult the preferred-versions
@@ -1022,7 +1022,7 @@ async fn resolve_wanted_cached<Chain>(
     opts: &ResolveOptions,
     pick_overlay: Option<&Arc<PreferredVersionsOverlay>>,
     cache_key: WantedKey,
-) -> Result<Arc<pacquet_resolving_resolver_base::ResolveResult>, ResolveDependencyTreeError>
+) -> Result<Arc<pnpm_resolving_resolver_base::ResolveResult>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
@@ -1083,12 +1083,12 @@ where
         // hook can tell a workspace project's dependency instance apart from a
         // registry manifest — see `HookContext::dir`.
         let dir = match &result_inner.resolution {
-            pacquet_lockfile::LockfileResolution::Directory(directory_resolution) => {
+            pnpm_lockfile::LockfileResolution::Directory(directory_resolution) => {
                 Some(directory_resolution.directory.clone())
             }
             _ => None,
         };
-        let hook_ctx = pacquet_hooks::HookContext { log, dir };
+        let hook_ctx = pnpm_hooks::HookContext { log, dir };
 
         let updated = pnpmfile_hook
             .read_package((*manifest).clone(), hook_ctx)
@@ -1130,7 +1130,7 @@ where
 fn fallback_manifest(
     wanted: &WantedDependency,
     current_pkg: Option<&CurrentPkg>,
-) -> pacquet_resolving_resolver_base::DependencyManifest {
+) -> pnpm_resolving_resolver_base::DependencyManifest {
     if let Some(current) = current_pkg
         && let Some(name) = current.name.as_deref().filter(|name| !name.is_empty())
         && let Some(version) = current.version.as_deref().filter(|version| !version.is_empty())
@@ -1255,7 +1255,7 @@ pub(super) async fn warm_children_resolutions<Chain>(
 /// [`fn@recorded_children_match`] cannot compare, since the recorded
 /// context does not carry the catalogs the recording importer used.
 fn resolves_children_through_catalogs(
-    result: &pacquet_resolving_resolver_base::ResolveResult,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> bool {
     result.resolved_via == "workspace" && result.id.as_str().starts_with("file:")
 }

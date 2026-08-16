@@ -30,8 +30,8 @@ use super::{
     update::UpdateArgs,
 };
 use miette::Context;
-use pacquet_default_reporter::DefaultReporter;
-use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use pnpm_default_reporter::DefaultReporter;
+use pnpm_reporter::{NdjsonReporter, SilentReporter};
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {

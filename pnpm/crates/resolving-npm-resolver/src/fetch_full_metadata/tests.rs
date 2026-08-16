@@ -1,4 +1,4 @@
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use std::time::Duration;
 
 use super::{
@@ -18,7 +18,7 @@ fn accept_header_offers_the_detected_abbreviated_media_type() {
 /// Unwrap a [`FetchFullMetadataOutcome::Modified`], panicking on
 /// `NotModified`. Used by the success-path tests below where the
 /// mock always responds 200.
-fn expect_modified(outcome: FetchFullMetadataOutcome) -> pacquet_registry::Package {
+fn expect_modified(outcome: FetchFullMetadataOutcome) -> pnpm_registry::Package {
     match outcome {
         FetchFullMetadataOutcome::Modified(pkg) => *pkg,
         FetchFullMetadataOutcome::NotModified => {
@@ -81,7 +81,7 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::from_creds_map([(
-        pacquet_network::nerf_dart(&registry),
+        pnpm_network::nerf_dart(&registry),
         "Bearer top-secret".to_owned(),
     )]);
     let opts = FetchFullMetadataOptions {
@@ -135,7 +135,7 @@ async fn fetch_full_metadata_uses_package_scope_auth() {
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::from_creds_map([(
-        format!("{}@scope", pacquet_network::nerf_dart(&registry)),
+        format!("{}@scope", pnpm_network::nerf_dart(&registry)),
         "Bearer scoped-token".to_owned(),
     )]);
     let opts = FetchFullMetadataOptions {

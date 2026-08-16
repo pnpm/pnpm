@@ -12,7 +12,7 @@
 
 use crate::workspace_yaml::LoadWorkspaceYamlError;
 use indexmap::IndexMap;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use std::{collections::HashMap, path::Path};
 
 /// The dependency groups a `$dep-name` reference may point at, in

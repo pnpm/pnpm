@@ -1,4 +1,4 @@
-use pacquet_reporter::SilentReporter;
+use pnpm_reporter::SilentReporter;
 
 use super::{AddUserError, ClassicLoginOpError, add_user_error_to_op};
 

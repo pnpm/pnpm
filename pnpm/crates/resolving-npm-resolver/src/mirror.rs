@@ -57,8 +57,8 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::MetadataCacheScope;
-use pacquet_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions};
+use pnpm_network::MetadataCacheScope;
+use pnpm_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -623,7 +623,7 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
             for (version, absolute, len) in spans {
                 budget = budget.checked_sub(u64::from(len))?;
                 let mut bytes = vec![0u8; len as usize];
-                if pacquet_registry::read_exact_at(&file, &mut bytes, absolute).is_err() {
+                if pnpm_registry::read_exact_at(&file, &mut bytes, absolute).is_err() {
                     continue;
                 }
                 let Ok(json) = String::from_utf8(bytes) else { continue };

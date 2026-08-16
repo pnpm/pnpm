@@ -4,11 +4,11 @@ use super::{
     Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
     ParallelIterator, PathBuf, TarballError, UNIX_EPOCH, cas_write_pool,
 };
-use pacquet_fs::file_mode;
-use pacquet_package_manifest::{
+use pnpm_fs::file_mode;
+use pnpm_package_manifest::{
     files_include_install_scripts, manifest_requires_build, parse_manifest_bytes,
 };
-use pacquet_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir};
+use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir};
 use tar::Archive;
 use tracing::instrument;
 use zune_inflate::{DeflateDecoder, DeflateOptions};
@@ -68,7 +68,7 @@ pub(crate) fn decompress_gzip(
 ///
 /// The subset exists to bound what lands in `index.db`: a full manifest
 /// runs to tens of KB, and msgpackr-records tops out at `0x7f` record
-/// slots (see [`pacquet_store_dir::EncodeError::OutOfRecordSlots`]).
+/// slots (see [`pnpm_store_dir::EncodeError::OutOfRecordSlots`]).
 ///
 /// `None` rather than an empty object when nothing survives, which
 /// would otherwise round-trip as a zero-field record def.
@@ -109,7 +109,7 @@ pub(crate) fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<se
     // via `semver.clean(...)` (pnpm only loose-cleans for the bundled
     // row, not for resolution) is intentionally skipped: the inputs
     // from a real npm tarball are already semver-clean in practice,
-    // and pulling `node-semver` into `pacquet-tarball` purely for
+    // and pulling `node-semver` into `pnpm-tarball` purely for
     // this normalization would carry more risk than the deviation it
     // closes.
     if let Some(v) = map.get("version")

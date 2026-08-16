@@ -1,16 +1,16 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
 use node_semver::Range;
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
-use pacquet_lockfile::{
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
-use pacquet_lockfile_preferred_versions::get_version_selector_type;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::RangeSpecStyle;
-use pacquet_resolving_npm_resolver::infer_range_spec_style;
-use pacquet_resolving_resolver_base::VersionSelectorType;
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_resolving_npm_resolver::infer_range_spec_style;
+use pnpm_resolving_resolver_base::VersionSelectorType;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     sync::Mutex,

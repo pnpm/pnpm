@@ -9,23 +9,23 @@
 
 use crate::config_overrides::apply_store_dir_override;
 use miette::{IntoDiagnostic, Result, WrapErr};
-use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_config::{Config, Host, WorkspaceSettings};
-use pacquet_env_installer::{
+use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_config::{Config, Host, WorkspaceSettings};
+use pnpm_env_installer::{
     ConfigDepsInstallOptions, pnpm_engine_packages, resolve_and_install_config_deps,
     resolve_package_manager_integrities,
 };
-use pacquet_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
-use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter};
-use pacquet_resolving_npm_resolver::{
+use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
+use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
+use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pacquet_store_dir::StoreDir;
-use pacquet_workspace_state::ConfigDependency;
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_store_dir::StoreDir;
+use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -168,19 +168,19 @@ pub async fn resolve_engine_version(
         .minimum_release_age_exclude
         .as_deref()
         .filter(|patterns| !patterns.is_empty())
-        .map(pacquet_config::version_policy::create_package_version_policy)
+        .map(pnpm_config::version_policy::create_package_version_policy)
         .transpose()
         .into_diagnostic()
         .wrap_err("compile the minimum-release-age-exclude policy")?;
     let trust_policy = match config.trust_policy {
-        pacquet_config::TrustPolicy::Off => None,
-        pacquet_config::TrustPolicy::NoDowngrade => Some(pacquet_config::TrustPolicy::NoDowngrade),
+        pnpm_config::TrustPolicy::Off => None,
+        pnpm_config::TrustPolicy::NoDowngrade => Some(pnpm_config::TrustPolicy::NoDowngrade),
     };
     let trust_policy_exclude = config
         .trust_policy_exclude
         .as_deref()
         .filter(|patterns| !patterns.is_empty())
-        .map(pacquet_config::version_policy::create_package_version_policy)
+        .map(pnpm_config::version_policy::create_package_version_policy)
         .transpose()
         .into_diagnostic()
         .wrap_err("compile the trust-policy-exclude policy")?;
@@ -245,7 +245,7 @@ pub async fn add_config_dependencies<Reporter: self::Reporter>(
 
     resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false).await?;
 
-    pacquet_workspace_manifest_writer::set_config_dependencies(
+    pnpm_workspace_manifest_writer::set_config_dependencies(
         root_dir,
         added.iter().map(|(name, specifier)| (name.as_str(), specifier.as_str())),
     )
@@ -273,14 +273,14 @@ async fn resolve_and_install<Reporter: self::Reporter>(
 
 struct EnvInstallerContext {
     http_client: Arc<ThrottledClient>,
-    auth_headers: Arc<pacquet_network::AuthHeaders>,
+    auth_headers: Arc<pnpm_network::AuthHeaders>,
     registries: HashMap<String, String>,
     retry_opts: RetryOpts,
     store_dir: &'static StoreDir,
     node_version: String,
     verify_store_integrity: bool,
     offline: bool,
-    package_import_method: pacquet_config::PackageImportMethod,
+    package_import_method: pnpm_config::PackageImportMethod,
     resolver: NpmResolver<InMemoryPackageMetaCache>,
 }
 
@@ -300,7 +300,7 @@ impl EnvInstallerContext {
 
     /// Context for resolving the package manager pnpm auto-switches to
     /// (`pnpm` / `@pnpm/exe`), routed through the trusted
-    /// [`PackageManagerBootstrap`](pacquet_config::PackageManagerBootstrap)
+    /// [`PackageManagerBootstrap`](pnpm_config::PackageManagerBootstrap)
     /// config instead of the repository-controlled project registries.
     fn for_package_manager(config: &Config) -> Result<Self> {
         let bootstrap = &config.package_manager_bootstrap;
@@ -316,11 +316,11 @@ impl EnvInstallerContext {
 
     fn build(
         config: &Config,
-        proxy: &pacquet_network::ProxyConfig,
-        tls: &pacquet_network::TlsConfig,
-        tls_by_uri: &pacquet_network::PerRegistryTls,
+        proxy: &pnpm_network::ProxyConfig,
+        tls: &pnpm_network::TlsConfig,
+        tls_by_uri: &pnpm_network::PerRegistryTls,
         registries: std::collections::BTreeMap<String, String>,
-        auth_headers: Arc<pacquet_network::AuthHeaders>,
+        auth_headers: Arc<pnpm_network::AuthHeaders>,
     ) -> Result<Self> {
         let http_client = Arc::new(
             ThrottledClient::for_installs(
@@ -476,8 +476,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     // Seed the hook input with the catalogs read from the workspace
     // manifest (`catalog:` + `catalogs:`), which `WorkspaceSettings`
     // doesn't carry, so a hook can read and extend them.
-    let workspace_manifest =
-        pacquet_workspace::read_workspace_manifest(root_dir).into_diagnostic()?;
+    let workspace_manifest = pnpm_workspace::read_workspace_manifest(root_dir).into_diagnostic()?;
     let yaml_catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;

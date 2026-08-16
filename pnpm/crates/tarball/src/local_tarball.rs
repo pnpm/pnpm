@@ -8,7 +8,7 @@ use super::{
     decompress_gzip, io, normalize_bundled_manifest, post_download_semaphore, tar_entry_payload,
     verify_tarball_integrity,
 };
-use pacquet_package_manifest::parse_manifest_bytes;
+use pnpm_package_manifest::parse_manifest_bytes;
 use ssri::Integrity;
 use tar::Archive;
 
@@ -127,7 +127,7 @@ pub(crate) fn is_unc_like_file_payload(path: &str) -> bool {
 /// Read `<subdir>/package.json` out of a freshly extracted archive.
 ///
 /// Extraction only stashes the *root* `package.json` on the
-/// [`pacquet_store_dir::PackageFilesIndex`], so a package living in a subdirectory of the
+/// [`pnpm_store_dir::PackageFilesIndex`], so a package living in a subdirectory of the
 /// archive has to be read back from the CAS. Returns `None` when the
 /// subdirectory has no `package.json`, matching the root path's
 /// best-effort contract — the caller degrades rather than failing the
@@ -217,7 +217,7 @@ pub async fn read_local_tarball_metadata(
 
 /// Read the root `package.json` out of a decompressed tar stream,
 /// narrowed by [`normalize_bundled_manifest`] so it matches the
-/// manifest an extraction stashes on [`pacquet_store_dir::PackageFilesIndex`].
+/// manifest an extraction stashes on [`pnpm_store_dir::PackageFilesIndex`].
 ///
 /// Shares the entry conventions of
 /// [`crate::extract::extract_tarball_entries`] but deliberately not its

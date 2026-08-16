@@ -14,13 +14,13 @@ use crate::{
     resolve_optional_subdeps::resolve_optional_subdeps,
     verify_env_lockfile::write_verified_env_lockfile,
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
     SpecifierAndResolution, TarballResolution, npm_tarball_url,
 };
-use pacquet_reporter::Reporter;
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pacquet_workspace_state::ConfigDependency;
+use pnpm_reporter::Reporter;
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_workspace_state::ConfigDependency;
 use ssri::Integrity;
 use std::collections::BTreeMap;
 

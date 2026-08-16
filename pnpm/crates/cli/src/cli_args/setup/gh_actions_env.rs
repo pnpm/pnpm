@@ -14,8 +14,8 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::EnvVarOs;
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_config::EnvVarOs;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::{
     ffi::OsStr,
     fs::{self, File, OpenOptions},

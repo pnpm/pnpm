@@ -12,8 +12,8 @@ use crate::{
     },
     resolved_tree::{AncestorIds, ChildEdge, DependenciesTreeNode, TreeChildren},
 };
-use pacquet_deps_path::DepPath;
-use pacquet_resolving_resolver_base::get_peer_version_range;
+use pnpm_deps_path::DepPath;
+use pnpm_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 

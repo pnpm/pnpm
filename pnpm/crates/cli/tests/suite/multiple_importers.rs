@@ -15,7 +15,7 @@
 use crate::_utils;
 pub use _utils::*;
 
-use pacquet_testing_utils::fs::is_path_executable;
+use pnpm_testing_utils::fs::is_path_executable;
 use serde_json::json;
 use std::fs;
 
@@ -700,7 +700,7 @@ fn custom_virtual_store_directory_with_dedicated_lockfiles() {
 
     let expected = project.join("virtual-store");
     let assert_recorded_virtual_store = |phase: &str| {
-        let modules = pacquet_modules_yaml::read_modules_manifest::<pacquet_modules_yaml::Host>(
+        let modules = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
             &project.join("node_modules"),
         )
         .expect("read project .modules.yaml")

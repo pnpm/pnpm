@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
-use pacquet_config::Config as PacquetConfig;
-use pacquet_lockfile::Lockfile;
-use pacquet_resolving_resolver_base::{
+use pnpm_config::Config as PacquetConfig;
+use pnpm_lockfile::Lockfile;
+use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
 };
 use std::{
@@ -551,7 +551,7 @@ fn public_lockfile_routing_keeps_registry_resolutions_compact() {
 
 #[test]
 fn private_alias_lockfile_routing_uses_gateway_url() {
-    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
     registry.upstreams.insert(
         "corp".to_string(),
@@ -559,7 +559,7 @@ fn private_alias_lockfile_routing_uses_gateway_url() {
     );
     let router = tarball_router(&registry, user("alice"));
 
-    let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
+    let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
     let tarball = lockfile_tarball_url(&routed, "acme@1.0.0");
 
     assert!(tarball.starts_with("http://127.0.0.1:7677/~corp/acme/-/acme-1.0.0.tgz"));
@@ -574,7 +574,7 @@ fn private_alias_lockfile_routing_uses_gateway_url() {
 
 #[test]
 fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment() {
-    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
     registry.upstreams.insert(
         "corp".to_string(),
@@ -582,7 +582,7 @@ fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment
     );
     let router = tarball_router(&registry, user("alice"));
 
-    let routed = router.route_lockfile(&pacquet_config, &package_lockfile("@acme/foo", "1.0.0"));
+    let routed = router.route_lockfile(&pnpm_config, &package_lockfile("@acme/foo", "1.0.0"));
     let tarball = lockfile_tarball_url(&routed, "@acme/foo@1.0.0");
 
     assert!(tarball.contains("/~corp/@acme/foo/-/foo-1.0.0.tgz"));
@@ -597,12 +597,12 @@ fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment
 
 #[test]
 fn unknown_lockfile_routing_leaves_resolution_unrewritten() {
-    let pacquet_config = config_for_registry("https://unknown.example/");
+    let pnpm_config = config_for_registry("https://unknown.example/");
     let registry = registry_config();
     let router = tarball_router(&registry, user("alice"));
 
     let input = lockfile("1.0.0");
-    let routed = router.route_lockfile(&pacquet_config, &input);
+    let routed = router.route_lockfile(&pnpm_config, &input);
 
     // An unknown route has no upstream and no managed credential, so pnpr mints
     // no gateway URL: the integrity-only registry resolution is left untouched
@@ -804,13 +804,13 @@ fn reject_inline_url_auth_scans_catalogs() {
 fn private_cached_resolution_keeps_routed_tarball_urls() {
     let cache = Mutex::new(HashMap::new());
     let key = "base".to_string();
-    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
     registry
         .upstreams
         .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
     let router = tarball_router(&registry, user("alice"));
-    let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
+    let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
 
     assert!(store_resolution(
         &cache,
@@ -866,7 +866,7 @@ fn candidate_lists_stay_bounded_and_keep_public_entries() {
 
 #[test]
 fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
-    use pacquet_package_manager::{ResolutionObserver, ResolvedPackageHint};
+    use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint};
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let registry = public_registry_config("https://r.test/");
@@ -903,7 +903,7 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
 
 #[test]
 fn package_frames_route_private_alias_tarballs_to_gateway() {
-    use pacquet_package_manager::ResolvedPackageHint;
+    use pnpm_package_manager::ResolvedPackageHint;
 
     let mut registry = registry_config();
     registry.upstreams.insert(
@@ -932,7 +932,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
 
 #[test]
 fn package_frame_routes_split_domain_registry_tarball_by_registry() {
-    use pacquet_package_manager::ResolvedPackageHint;
+    use pnpm_package_manager::ResolvedPackageHint;
 
     let mut registry = registry_config();
     registry.upstreams.insert(
@@ -967,7 +967,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
 
 #[test]
 fn package_frame_strips_signed_token_from_public_registry_tarball() {
-    use pacquet_package_manager::ResolvedPackageHint;
+    use pnpm_package_manager::ResolvedPackageHint;
 
     let registry = registry_config();
     let registries =
@@ -995,8 +995,8 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
 
 #[test]
 fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
-    use pacquet_lockfile::Lockfile;
-    use pacquet_resolving_npm_resolver::{DistStats, observed_dist_stats_sink};
+    use pnpm_lockfile::Lockfile;
+    use pnpm_resolving_npm_resolver::{DistStats, observed_dist_stats_sink};
 
     let lockfile: Lockfile = serde_json::from_value(serde_json::json!({
         "lockfileVersion": "9.0",
@@ -1042,9 +1042,9 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
 
 #[test]
 fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
-    use pacquet_resolving_npm_resolver::observed_dist_stats_sink;
+    use pnpm_resolving_npm_resolver::observed_dist_stats_sink;
 
-    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let pnpm_config = config_for_registry("https://npm.corp.example/");
     let lockfile = lockfile("1.0.0");
     let stats = observed_dist_stats_sink();
     let mut registry = registry_config();
@@ -1054,7 +1054,7 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
     );
 
     let frames = super::frozen_package_frames(
-        &pacquet_config,
+        &pnpm_config,
         &tarball_router(&registry, user("alice")),
         &lockfile,
         &stats,
@@ -1068,7 +1068,7 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
 
 #[test]
 fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() {
-    use pacquet_lockfile::{LockfileResolution, TarballResolution};
+    use pnpm_lockfile::{LockfileResolution, TarballResolution};
 
     let tarball = |url: &str, git_hosted: Option<bool>| {
         LockfileResolution::Tarball(TarballResolution {
@@ -1134,13 +1134,13 @@ fn tarball_url_version_extracts_conventional_names_only() {
 #[test]
 fn intern_config_adopts_the_input_lockfile_settings() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-lockfile-settings-store"));
     let cache_dir = PathBuf::from("/tmp/pnpr-lockfile-settings-cache");
-    let request = |settings: Option<pacquet_lockfile::LockfileSettings>| ResolveRequest {
+    let request = |settings: Option<pnpm_lockfile::LockfileSettings>| ResolveRequest {
         registry: Some("https://a.test/".to_string()),
         lockfile: Some(Lockfile { settings, ..lockfile("1.0.0") }),
         frozen_lockfile: true,
@@ -1151,11 +1151,11 @@ fn intern_config_adopts_the_input_lockfile_settings() {
             .expect("intern config")
     };
 
-    let client_settings = pacquet_lockfile::LockfileSettings {
+    let client_settings = pnpm_lockfile::LockfileSettings {
         auto_install_peers: false,
         dedupe_peers: Some(true),
         exclude_links_from_lockfile: true,
-        ..pacquet_lockfile::LockfileSettings::default()
+        ..pnpm_lockfile::LockfileSettings::default()
     };
     let adopted = intern(&request(Some(client_settings)));
     assert!(!adopted.auto_install_peers);
@@ -1178,7 +1178,7 @@ fn intern_config_adopts_the_input_lockfile_settings() {
 #[test]
 fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
@@ -1187,10 +1187,10 @@ fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
     let request = ResolveRequest {
         registry: Some("https://a.test/".to_string()),
         lockfile: Some(Lockfile {
-            settings: Some(pacquet_lockfile::LockfileSettings {
+            settings: Some(pnpm_lockfile::LockfileSettings {
                 auto_install_peers: false,
                 exclude_links_from_lockfile: true,
-                ..pacquet_lockfile::LockfileSettings::default()
+                ..pnpm_lockfile::LockfileSettings::default()
             }),
             ..lockfile("1.0.0")
         }),
@@ -1212,7 +1212,7 @@ fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
 #[test]
 fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
@@ -1222,9 +1222,9 @@ fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
         registry: Some("https://a.test/".to_string()),
         frozen_lockfile: true,
         lockfile: Some(Lockfile {
-            settings: Some(pacquet_lockfile::LockfileSettings {
+            settings: Some(pnpm_lockfile::LockfileSettings {
                 peers_suffix_max_length: Some(peers_suffix_max_length),
-                ..pacquet_lockfile::LockfileSettings::default()
+                ..pnpm_lockfile::LockfileSettings::default()
             }),
             ..lockfile("1.0.0")
         }),
@@ -1245,7 +1245,7 @@ fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
 #[test]
 fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
@@ -1279,7 +1279,7 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
 #[test]
 fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
@@ -1304,7 +1304,7 @@ fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
 #[test]
 fn intern_config_keys_overrides_canonically_regardless_of_order() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());

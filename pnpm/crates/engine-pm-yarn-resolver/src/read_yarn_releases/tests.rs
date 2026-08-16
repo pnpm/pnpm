@@ -1,5 +1,5 @@
 use super::{ReadYarnReleasesError, asset_variants, parse_releases};
-use pacquet_lockfile::LockfileResolution;
+use pnpm_lockfile::LockfileResolution;
 use pretty_assertions::assert_eq;
 
 /// Shaped like the `yarnpkg/zpm` release API's answer, down to the

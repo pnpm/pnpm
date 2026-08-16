@@ -6,14 +6,14 @@
 use crate::{State, cli_args::recursive::RecursiveSharedLockfileUnsupported};
 use clap::Args;
 use indexmap::IndexMap;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
-use pacquet_package_is_installable::{
+use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
 };
-use pacquet_package_manager::{importer_root_dir, validate_importer_id};
-use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
+use pnpm_package_manager::{importer_root_dir, validate_importer_id};
+use pnpm_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
     collections::{HashMap, HashSet},
     io::Write,
@@ -258,7 +258,7 @@ fn classify_license(license: &str) -> serde_json::Value {
 /// bytes against it — so an SBOM never publishes a checksum as an assurance
 /// pnpm did not make. A git resolution's recorded hash is not one: nothing
 /// verifies a checkout against it (see
-/// [`pacquet_lockfile::GitResolution::integrity`]).
+/// [`pnpm_lockfile::GitResolution::integrity`]).
 fn integrity_string(resolution: &LockfileResolution) -> Option<String> {
     match resolution {
         LockfileResolution::Registry(r) => Some(r.integrity.to_string()),
@@ -291,7 +291,7 @@ fn peer_names_from_manifest(manifest: &serde_json::Value) -> HashSet<String> {
 }
 
 fn detect_dep_types(
-    lockfile: &pacquet_lockfile::Lockfile,
+    lockfile: &pnpm_lockfile::Lockfile,
     include_optional_transitive: bool,
 ) -> HashMap<PackageKey, DepType> {
     let snapshots = lockfile.snapshots.as_ref();
@@ -454,9 +454,9 @@ fn collect_components(
         include_optional_transitive: include.optional_dependencies,
         installability: InstallabilityOptions {
             supported_architectures: state.config.supported_architectures.as_ref(),
-            current_os: pacquet_detect_libc::host_platform(),
-            current_cpu: pacquet_detect_libc::host_arch(),
-            current_libc: pacquet_graph_hasher::host_libc(),
+            current_os: pnpm_detect_libc::host_platform(),
+            current_cpu: pnpm_detect_libc::host_arch(),
+            current_libc: pnpm_graph_hasher::host_libc(),
             ..Default::default()
         },
     };
@@ -1121,7 +1121,7 @@ fn serialize_cyclonedx(opts: &CycloneDxOpts<'_>) -> String {
         "tools": { "components": [{
             "type": "application",
             "name": "pnpm",
-            "version": pacquet_config::PNPM_VERSION,
+            "version": pnpm_config::PNPM_VERSION,
         }] },
         "component": root_component,
     });

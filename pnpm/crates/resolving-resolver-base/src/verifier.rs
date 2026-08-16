@@ -4,7 +4,7 @@
 
 use std::{future::Future, pin::Pin};
 
-use pacquet_lockfile::{LockfileResolution, PkgName};
+use pnpm_lockfile::{LockfileResolution, PkgName};
 
 /// One verifier's decision about a single `(name, version, resolution)`
 /// entry. A discriminated union (`{ ok: true } | { ok: false, code,

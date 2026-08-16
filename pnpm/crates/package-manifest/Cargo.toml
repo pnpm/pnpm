@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-package-manifest"
+name                  = "pnpm-package-manifest"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true

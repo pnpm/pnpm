@@ -1,9 +1,9 @@
 use crate::State;
 use clap::Args;
 use miette::Context;
-use pacquet_package_manager::{Install, ProjectMutation};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
 
 #[derive(Debug, Args)]
 pub struct FetchArgs {
@@ -49,7 +49,7 @@ impl FetchArgs {
             config: fetch_config,
             manifest,
             emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(&lockfile_path),
             // Optional dependencies follow production, so `--dev` (which
             // excludes production) excludes optional deps too.
@@ -74,7 +74,7 @@ impl FetchArgs {
             lockfile_only: false,
             dry_run: false,
             persist_policy_excludes: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAll,
             preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,

@@ -17,13 +17,13 @@ use super::{
     prefetch::{PrefetchedCasPaths, prefetch_cas_paths},
     zip_archive::extract_zip_entries,
 };
-use pacquet_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, ThrottledClient, UNPRIORITIZED};
-use pacquet_reporter::SilentReporter;
-use pacquet_store_dir::{
+use pipe_trait::Pipe;
+use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, ThrottledClient, UNPRIORITIZED};
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
     StoreIndexWriter, store_index_key,
 };
-use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::{
@@ -1664,7 +1664,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
 
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
-    let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
+    let registry_key = format!("{}@scope", pnpm_network::nerf_dart(&server.url()));
     let auth_headers =
         AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())]);
 
@@ -2159,7 +2159,7 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
     let auth_headers = AuthHeaders::from_creds_map([(
-        pacquet_network::nerf_dart(&url),
+        pnpm_network::nerf_dart(&url),
         "Bearer test-token".to_owned(),
     )]);
 
@@ -2201,7 +2201,7 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
+    let registry_key = format!("{}@scope", pnpm_network::nerf_dart(&server.url()));
     let auth_headers =
         AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())]);
 
@@ -2257,7 +2257,7 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
     let auth_headers = AuthHeaders::from_creds_map([(
-        pacquet_network::nerf_dart(&url),
+        pnpm_network::nerf_dart(&url),
         "Bearer test-token".to_owned(),
     )]);
 
@@ -2303,12 +2303,12 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
 async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{LogEvent, ProgressMessage};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2354,7 +2354,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         progress_reported: None,
         append_manifest: None,
     }
-    .run_with_mem_cache::<pacquet_reporter::SilentReporter>(&mem_cache)
+    .run_with_mem_cache::<pnpm_reporter::SilentReporter>(&mem_cache)
     .await
     .expect("first call should populate the mem cache");
 
@@ -2430,12 +2430,12 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
 async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{LogEvent, ProgressMessage};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2553,7 +2553,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
 /// the whole runtime).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
-    use pacquet_reporter::SilentReporter;
+    use pnpm_reporter::SilentReporter;
 
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
@@ -2662,12 +2662,12 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 async fn fetching_progress_and_fetched_events_fire_during_download() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{FetchingProgressMessage, LogEvent, ProgressMessage, Reporter as _};
+    use pnpm_reporter::{FetchingProgressMessage, LogEvent, ProgressMessage, Reporter as _};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2762,12 +2762,12 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
 async fn started_fires_for_connection_level_failures() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{FetchingProgressMessage, LogEvent};
+    use pnpm_reporter::{FetchingProgressMessage, LogEvent};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2839,12 +2839,12 @@ async fn started_fires_for_connection_level_failures() {
 async fn found_in_store_event_fires_on_cache_hit() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{LogEvent, ProgressMessage};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2904,7 +2904,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     // reporter sees the `found_in_store` emit; the mockito mock must
     // not be hit again (`expect(1)` above).
     let store_index = tokio::task::spawn_blocking(move || {
-        pacquet_store_dir::StoreIndex::shared_readonly_in(store_path)
+        pnpm_store_dir::StoreIndex::shared_readonly_in(store_path)
     })
     .await
     .expect("spawn_blocking")
@@ -2970,12 +2970,12 @@ async fn found_in_store_event_fires_on_cache_hit() {
 async fn request_retry_event_fires_per_retried_attempt() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{LogEvent, RequestRetryLog};
+    use pnpm_reporter::{LogEvent, RequestRetryLog};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -3127,7 +3127,7 @@ fn extract_zip_applies_ignore_filter_on_stripped_path() {
 
     // Filter matching the `NODE_EXTRAS_IGNORE_PATTERN` shape — strips
     // bundled npm / corepack — but compiled by hand so the test
-    // doesn't pull a regex engine into pacquet-tarball.
+    // doesn't pull a regex engine into pnpm-tarball.
     fn node_extras_filter(path: &str) -> bool {
         path.starts_with("lib/node_modules/npm/") || path.starts_with("lib/node_modules/corepack/")
     }
@@ -3285,7 +3285,7 @@ fn extract_zip_normalizes_dot_segments_in_entry_paths() {
 /// ever reaching `fetch_and_extract_with_retry`.
 #[tokio::test]
 async fn offline_mode_skips_network_on_cache_miss() {
-    use pacquet_diagnostics::miette::Diagnostic;
+    use pnpm_diagnostics::miette::Diagnostic;
 
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
@@ -3586,7 +3586,7 @@ mod normalize_bundled_manifest_tests {
 #[test]
 fn download_priority_never_reaches_the_class_sentinels() {
     let priority = download_priority(Some(usize::MAX), Some(usize::MAX));
-    assert!(priority < pacquet_network::BACKGROUND);
+    assert!(priority < pnpm_network::BACKGROUND);
     assert!(priority < UNPRIORITIZED);
     assert_eq!(priority, MAX_THROUGHPUT_PRIORITY);
 }
@@ -3760,12 +3760,12 @@ fn incompressible_tarball(min_bytes: usize) -> Vec<u8> {
 async fn in_progress_events_fire_only_for_big_tarballs() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{FetchingProgressMessage, LogEvent};
+    use pnpm_reporter::{FetchingProgressMessage, LogEvent};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -3796,9 +3796,9 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
         })
     }
 
-    async fn download_body<Reporter: pacquet_reporter::Reporter>(
+    async fn download_body<Reporter: pnpm_reporter::Reporter>(
         body: Vec<u8>,
-        store_path: &'static pacquet_store_dir::StoreDir,
+        store_path: &'static pnpm_store_dir::StoreDir,
     ) {
         let mut server = mockito::Server::new_async().await;
         let mock = server

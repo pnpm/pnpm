@@ -3,12 +3,12 @@
 
 use crate::{State, cli_args::add::add_package};
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Config, Host, default_state_dir};
-use pacquet_crypto_hash::create_hex_hash;
-use pacquet_fs::DirLock;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::SilentReporter;
+use pnpm_config::{Config, Host, default_state_dir};
+use pnpm_crypto_hash::create_hex_hash;
+use pnpm_fs::DirLock;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::SilentReporter;
 use serde_json::Value;
 use std::{
     fs,

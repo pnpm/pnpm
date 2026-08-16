@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use pacquet_network::{AuthHeaders, ThrottledClient};
 use pipe_trait::Pipe;
+use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -250,7 +250,7 @@ impl PackageVersion {
         // Format once and reuse for the request, the auth-header
         // lookup, and the error mapper. Keeps the auth lookup and
         // request URL byte-identical and saves two formats.
-        let encoded_name = pacquet_network::encode_package_name(name);
+        let encoded_name = pnpm_network::encode_package_name(name);
         let url = format!("{registry}{encoded_name}/{}", tag.registry_path_segment());
         let network_error = |error| NetworkError { error, url: url.clone() };
 

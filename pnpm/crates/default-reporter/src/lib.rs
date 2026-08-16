@@ -1,6 +1,6 @@
 //! pnpm-identical visual reporter for pacquet.
 //!
-//! [`DefaultReporter`] is a [`pacquet_reporter::Reporter`] sink that renders
+//! [`DefaultReporter`] is a [`pnpm_reporter::Reporter`] sink that renders
 //! the same terminal output `@pnpm/cli.default-reporter` produces for
 //! `install` / `add` / `update` / `remove`: a live progress line, a
 //! packages-diff summary, lifecycle script output, and a `Done in ...` footer.
@@ -25,7 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use pacquet_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
+use pnpm_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
 
 use crate::{
     colors::Colors,

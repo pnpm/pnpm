@@ -8,7 +8,7 @@ use std::process::Command;
 /// unparsable.
 pub(crate) fn system_runtime_version(runtime: &str) -> Option<String> {
     match runtime {
-        "node" => pacquet_graph_hasher::detect_node_version(),
+        "node" => pnpm_graph_hasher::detect_node_version(),
         "deno" => run_version_command("deno").as_deref().and_then(parse_deno_version),
         "bun" => run_version_command("bun").as_deref().and_then(parse_bun_version),
         _ => None,

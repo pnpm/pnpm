@@ -27,16 +27,16 @@ use std::{
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use miette::Diagnostic as _;
-use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pacquet_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
-use pacquet_registry::{
+use pipe_trait::Pipe;
+use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
+use pnpm_registry::{
     Approver, DerivedPackuments, NpmUser, Package, PackageDistribution, PackageVersion,
 };
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
 };
-use pipe_trait::Pipe;
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 use tokio::sync::OnceCell;
@@ -152,14 +152,14 @@ pub struct CreateNpmResolutionVerifierOptions {
     pub observed_dist_stats: Option<ObservedDistStats>,
     /// Fetch evidence the materialization path fills after its
     /// warm/cold partition (see
-    /// [`pacquet_resolving_resolver_base::PlannedCanonicalFetches`]).
+    /// [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`]).
     /// When supplied, an entry listed there passes the age check on a
     /// package-level `Last-Modified` HEAD probe alone — the planned
     /// canonical fetch fail-closes the entry's registry existence, so
     /// no metadata body is needed. `None` (paths that materialize
     /// nothing or run a resolver alongside) keeps the metadata-backed
     /// chain for every entry.
-    pub planned_canonical_fetches: Option<pacquet_resolving_resolver_base::PlannedCanonicalFetches>,
+    pub planned_canonical_fetches: Option<pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores
@@ -195,7 +195,7 @@ pub struct NpmResolutionVerifier {
     policy_snapshot: serde_json::Map<String, JsonValue>,
     lookup_context: PublishedAtLookupContext,
     observed_dist_stats: Option<ObservedDistStats>,
-    planned_canonical_fetches: Option<pacquet_resolving_resolver_base::PlannedCanonicalFetches>,
+    planned_canonical_fetches: Option<pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
 }
 
 impl std::fmt::Debug for NpmResolutionVerifier {
@@ -682,7 +682,7 @@ impl NpmResolutionVerifier {
                 let url = to_registry_url(registry, &name.to_string());
                 let guard = self
                     .http_client
-                    .acquire_for_url_with_priority(&url, pacquet_network::BACKGROUND)
+                    .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
                     .await;
                 let mut request = guard.head(&url);
                 if let Some(value) =
@@ -838,7 +838,7 @@ impl NpmResolutionVerifier {
                     full_metadata: false,
                     filter_metadata: false,
                     offline: self.offline,
-                    priority: pacquet_network::BACKGROUND,
+                    priority: pnpm_network::BACKGROUND,
                     retry_opts: self.retry_opts,
                 };
                 // Carry a fetch failure (auth/network/5xx) as the `Err` value
@@ -1021,7 +1021,7 @@ impl NpmResolutionVerifier {
             full_metadata: true,
             filter_metadata: false,
             offline: self.offline,
-            priority: pacquet_network::BACKGROUND,
+            priority: pnpm_network::BACKGROUND,
             retry_opts: self.retry_opts,
         };
         fetch_full_metadata_cached(&name.to_string(), &opts)
@@ -1081,9 +1081,9 @@ fn npm_registry_tarball(resolution: &LockfileResolution) -> Option<Option<&str>>
 fn is_excluded(policy: Option<&PackageVersionPolicy>, name: &PkgName, version: &str) -> bool {
     let Some(policy) = policy else { return false };
     match policy.matches(&name.to_string()) {
-        pacquet_config::version_policy::PolicyMatch::No => false,
-        pacquet_config::version_policy::PolicyMatch::AnyVersion => true,
-        pacquet_config::version_policy::PolicyMatch::ExactVersions(versions) => {
+        pnpm_config::version_policy::PolicyMatch::No => false,
+        pnpm_config::version_policy::PolicyMatch::AnyVersion => true,
+        pnpm_config::version_policy::PolicyMatch::ExactVersions(versions) => {
             versions.iter().any(|exact| exact == version)
         }
     }
@@ -1204,7 +1204,7 @@ fn project_trust_meta(meta: &Package) -> Package {
 fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
     let attestations =
         version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).map(|prov| {
-            pacquet_registry::AttestationsDist { provenance: Some(prov.clone()), url: None }
+            pnpm_registry::AttestationsDist { provenance: Some(prov.clone()), url: None }
         });
     // `get_trust_evidence` only reads `npm_user.approver` (presence) and
     // `npm_user.trusted_publisher`; drop the maintainer `name` / `email`

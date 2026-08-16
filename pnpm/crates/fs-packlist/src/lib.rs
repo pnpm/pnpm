@@ -47,8 +47,8 @@
 
 use derive_more::{Display, Error};
 use ignore::{WalkBuilder, gitignore::Gitignore};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_package_manifest::safe_read_package_json_from_dir;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},

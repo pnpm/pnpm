@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-real-hoist"
+name                  = "pnpm-real-hoist"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,7 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-lockfile = { workspace = true }
+pnpm-lockfile = { workspace = true }
 
 derive_more = { workspace = true }
 indexmap    = { workspace = true }

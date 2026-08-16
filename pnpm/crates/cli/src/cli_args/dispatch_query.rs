@@ -51,9 +51,9 @@ use super::{
     with::WithArgs,
 };
 use clap::CommandFactory;
-use pacquet_config::Config;
-use pacquet_default_reporter::DefaultReporter;
-use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use pnpm_config::Config;
+use pnpm_default_reporter::DefaultReporter;
+use pnpm_reporter::{NdjsonReporter, SilentReporter};
 
 pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(async move {
@@ -476,7 +476,7 @@ pub(super) fn stage<'a>(
     let dir = ctx.dir;
     let recursive = ctx.recursive;
     args.flags.report_summary |= ctx.recursive_report_summary;
-    async fn print_output<Reporter: pacquet_reporter::Reporter>(
+    async fn print_output<Reporter: pnpm_reporter::Reporter>(
         args: StageArgs,
         dir: &std::path::Path,
         config: &Config,
@@ -716,7 +716,7 @@ pub(super) fn ignored_builds<'a>(
 pub(super) fn bugs<'a>(ctx: &RunCtx<'a>, args: BugsArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     let dir = ctx.dir;
-    Ok(Box::pin(async move { args.run::<pacquet_network_web_auth::Host>(cfg, dir).await }))
+    Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg, dir).await }))
 }
 
 pub(super) fn find_hash<'a>(

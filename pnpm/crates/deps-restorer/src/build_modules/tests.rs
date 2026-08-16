@@ -10,15 +10,15 @@ use super::RebuildOptions;
 use crate::{
     RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout, store_index_key_for_resolution,
 };
-use pacquet_config::{Config, PackageImportMethod};
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_lockfile::{
+use pnpm_config::{Config, PackageImportMethod};
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_lockfile::{
     PackageKey, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec, SnapshotEntry,
 };
-use pacquet_reporter::{IgnoredScriptsLog, LogEvent, Reporter, SilentReporter};
+use pnpm_reporter::{IgnoredScriptsLog, LogEvent, Reporter, SilentReporter};
 #[cfg(unix)]
-use pacquet_reporter::{SkippedOptionalPackage, SkippedOptionalReason};
+use pnpm_reporter::{SkippedOptionalPackage, SkippedOptionalReason};
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
@@ -77,24 +77,23 @@ fn parse_key_without_leading_slash() {
 fn side_effects_key_for_git_hosted_tarball_matches_warm_lookup() {
     let integrity = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     let pkg_id = "https://codeload.github.com/pnpm/pnpm/tar.gz/abcdef";
-    let resolution =
-        pacquet_lockfile::LockfileResolution::Tarball(pacquet_lockfile::TarballResolution {
-            tarball: pkg_id.to_string(),
-            integrity: Some(integrity.parse().expect("parse integrity")),
-            git_hosted: Some(true),
-            path: None,
-        });
+    let resolution = pnpm_lockfile::LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+        tarball: pkg_id.to_string(),
+        integrity: Some(integrity.parse().expect("parse integrity")),
+        git_hosted: Some(true),
+        path: None,
+    });
 
     assert_eq!(
         store_index_key_for_resolution(&resolution, pkg_id, true),
-        Some(pacquet_store_dir::git_hosted_store_index_key(pkg_id, true)),
+        Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, true)),
     );
 }
 
 #[test]
 fn side_effects_key_for_git_resolution_does_not_require_integrity() {
     let pkg_id = "git+file:///tmp/repo#abcdef";
-    let resolution = pacquet_lockfile::LockfileResolution::Git(pacquet_lockfile::GitResolution {
+    let resolution = pnpm_lockfile::LockfileResolution::Git(pnpm_lockfile::GitResolution {
         repo: "file:///tmp/repo".to_string(),
         commit: "abcdef".to_string(),
         integrity: None,
@@ -103,7 +102,7 @@ fn side_effects_key_for_git_resolution_does_not_require_integrity() {
 
     assert_eq!(
         store_index_key_for_resolution(&resolution, pkg_id, true),
-        Some(pacquet_store_dir::git_hosted_store_index_key(pkg_id, true)),
+        Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, true)),
     );
 }
 
@@ -439,7 +438,7 @@ fn build_modules_collects_ignored_builds() {
     let ignored = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -508,7 +507,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
     let ignored = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -566,7 +565,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
     let ignored = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -644,7 +643,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
     let ignored = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -714,7 +713,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
     let ignored = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -768,7 +767,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
 ///
 /// Unix-gated because the script is POSIX shell syntax. The
 /// cmd-on-Windows path picks a different shell —
-/// `pacquet_executor::select_shell` (tested in the executor crate's
+/// `pnpm_executor::select_shell` (tested in the executor crate's
 /// `shell::tests`) covers the shell-selection branches in isolation.
 #[cfg(unix)]
 #[test]
@@ -801,7 +800,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     let ignored = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -889,12 +888,12 @@ fn using_side_effects_cache_skips_rebuild() {
 
     let pkg_key = key("@pnpm.e2e/failing-postinstall", "1.0.0");
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
-    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+    let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::from([(
             pkg_key.without_peer(),
-            pacquet_lockfile::PackageMetadata {
-                resolution: pacquet_lockfile::LockfileResolution::Registry(
-                    pacquet_lockfile::RegistryResolution {
+            pnpm_lockfile::PackageMetadata {
+                resolution: pnpm_lockfile::LockfileResolution::Registry(
+                    pnpm_lockfile::RegistryResolution {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                             .parse()
                             .expect("parse integrity"),
@@ -932,12 +931,12 @@ fn using_side_effects_cache_skips_rebuild() {
     // without the script re-running.
     let engine = "darwin;arm64;node20";
     let dep_graph = crate::build_deps_graph(&snapshots, &packages);
-    let mut state_cache = pacquet_graph_hasher::DepsStateCache::new();
-    let expected_cache_key = pacquet_graph_hasher::calc_dep_state(
+    let mut state_cache = pnpm_graph_hasher::DepsStateCache::new();
+    let expected_cache_key = pnpm_graph_hasher::calc_dep_state(
         &dep_graph,
         &mut state_cache,
         &pkg_key,
-        &pacquet_graph_hasher::CalcDepStateOptions {
+        &pnpm_graph_hasher::CalcDepStateOptions {
             engine_name: engine,
             patch_file_hash: None,
             include_dep_graph_hash: true,
@@ -965,7 +964,7 @@ fn using_side_effects_cache_skips_rebuild() {
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -1031,12 +1030,12 @@ fn using_side_effects_cache_skips_rebuild() {
 fn corrupt_side_effects_cache_falls_back_to_rebuild() {
     let pkg_key = key("@pnpm.e2e/postinstall-modifies-source", "1.0.0");
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
-    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+    let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::from([(
             pkg_key.without_peer(),
-            pacquet_lockfile::PackageMetadata {
-                resolution: pacquet_lockfile::LockfileResolution::Registry(
-                    pacquet_lockfile::RegistryResolution {
+            pnpm_lockfile::PackageMetadata {
+                resolution: pnpm_lockfile::LockfileResolution::Registry(
+                    pnpm_lockfile::RegistryResolution {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                             .parse()
                             .expect("parse integrity"),
@@ -1067,12 +1066,12 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
 
     let engine = "darwin;arm64;node20";
     let dep_graph = crate::build_deps_graph(&snapshots, &packages);
-    let mut state_cache = pacquet_graph_hasher::DepsStateCache::new();
-    let expected_cache_key = pacquet_graph_hasher::calc_dep_state(
+    let mut state_cache = pnpm_graph_hasher::DepsStateCache::new();
+    let expected_cache_key = pnpm_graph_hasher::calc_dep_state(
         &dep_graph,
         &mut state_cache,
         &pkg_key,
-        &pacquet_graph_hasher::CalcDepStateOptions {
+        &pnpm_graph_hasher::CalcDepStateOptions {
             engine_name: engine,
             patch_file_hash: None,
             include_dep_graph_hash: true,
@@ -1094,7 +1093,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -1146,12 +1145,12 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
 fn materialization_failure_on_incomplete_slot_is_fatal() {
     let pkg_key = key("@pnpm.e2e/postinstall-modifies-source", "1.0.0");
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
-    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+    let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::from([(
             pkg_key.without_peer(),
-            pacquet_lockfile::PackageMetadata {
-                resolution: pacquet_lockfile::LockfileResolution::Registry(
-                    pacquet_lockfile::RegistryResolution {
+            pnpm_lockfile::PackageMetadata {
+                resolution: pnpm_lockfile::LockfileResolution::Registry(
+                    pnpm_lockfile::RegistryResolution {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                             .parse()
                             .expect("parse integrity"),
@@ -1185,12 +1184,12 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
 
     let engine = "darwin;arm64;node20";
     let dep_graph = crate::build_deps_graph(&snapshots, &packages);
-    let mut state_cache = pacquet_graph_hasher::DepsStateCache::new();
-    let expected_cache_key = pacquet_graph_hasher::calc_dep_state(
+    let mut state_cache = pnpm_graph_hasher::DepsStateCache::new();
+    let expected_cache_key = pnpm_graph_hasher::calc_dep_state(
         &dep_graph,
         &mut state_cache,
         &pkg_key,
-        &pacquet_graph_hasher::CalcDepStateOptions {
+        &pnpm_graph_hasher::CalcDepStateOptions {
             engine_name: engine,
             patch_file_hash: None,
             include_dep_graph_hash: true,
@@ -1214,7 +1213,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
     let result = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -1262,7 +1261,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
 fn side_effects_cache_disabled_bypasses_the_gate() {
     let pkg_key = key("@pnpm.e2e/failing-postinstall", "1.0.0");
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
-    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+    let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::new();
     let importers = root_importers(&[("@pnpm.e2e/failing-postinstall", "1.0.0")]);
     let policy = policy_from_specs([], true);
@@ -1284,7 +1283,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     let err = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -1352,7 +1351,7 @@ fn fail_when_failing_postinstall_is_required() {
     let err = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -1397,10 +1396,10 @@ fn fail_when_failing_postinstall_is_required() {
 /// `patch_file_path` is left `None` because the frozen-store backstop
 /// fires before any patch application — the entry only has to make
 /// `has_patch` true and land the snapshot in the build sequence.
-fn single_patch(key: &PackageKey) -> HashMap<PackageKey, pacquet_patching::ExtendedPatchInfo> {
+fn single_patch(key: &PackageKey) -> HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo> {
     HashMap::from([(
         key.without_peer(),
-        pacquet_patching::ExtendedPatchInfo {
+        pnpm_patching::ExtendedPatchInfo {
             hash: "deadbeef".to_string(),
             patch_file_path: None,
             key: key.without_peer().to_string(),
@@ -1537,7 +1536,7 @@ fn frozen_store_without_gvs_does_not_trip_backstop() {
     let virtual_store_dir = tempdir().expect("create temp dir");
     let layout = VirtualStoreLayout::legacy(
         virtual_store_dir.path(),
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
 
     let ignored = frozen_backstop_run(&layout, true, false)
@@ -1589,7 +1588,7 @@ fn ignored_scripts_event_carries_returned_names() {
 
     let names = vec!["a@1.0.0".to_string(), "b@2.0.0".to_string()];
     RecordingReporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
-        level: pacquet_reporter::LogLevel::Debug,
+        level: pnpm_reporter::LogLevel::Debug,
         package_names: names.clone(),
         strict_dep_builds: false,
     }));
@@ -1665,11 +1664,11 @@ fn create_postinstall_modifies_source_fixture(
 ///
 /// Unix-gated because the fixture uses `sh -c` semantics for the
 /// `postinstall` script. Windows shell selection is exercised
-/// separately by `pacquet_executor::select_shell`.
+/// separately by `pnpm_executor::select_shell`.
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn write_path_populates_side_effects_row() {
-    use pacquet_store_dir::{
+    use pnpm_store_dir::{
         CafsFileInfo, HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter,
         store_index_key,
     };
@@ -1677,12 +1676,12 @@ async fn write_path_populates_side_effects_row() {
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
     let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
-    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+    let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::from([(
             pkg_key.without_peer(),
-            pacquet_lockfile::PackageMetadata {
-                resolution: pacquet_lockfile::LockfileResolution::Registry(
-                    pacquet_lockfile::RegistryResolution {
+            pnpm_lockfile::PackageMetadata {
+                resolution: pnpm_lockfile::LockfileResolution::Registry(
+                    pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
                     },
                 ),
@@ -1753,12 +1752,12 @@ async fn write_path_populates_side_effects_row() {
 
     let engine = "darwin;arm64;node20";
     let dep_graph = crate::build_deps_graph(&snapshots, &packages);
-    let mut state_cache = pacquet_graph_hasher::DepsStateCache::new();
-    let expected_cache_key = pacquet_graph_hasher::calc_dep_state(
+    let mut state_cache = pnpm_graph_hasher::DepsStateCache::new();
+    let expected_cache_key = pnpm_graph_hasher::calc_dep_state(
         &dep_graph,
         &mut state_cache,
         &pkg_key,
-        &pacquet_graph_hasher::CalcDepStateOptions {
+        &pnpm_graph_hasher::CalcDepStateOptions {
             engine_name: engine,
             patch_file_hash: None,
             include_dep_graph_hash: true,
@@ -1768,7 +1767,7 @@ async fn write_path_populates_side_effects_row() {
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -1830,19 +1829,19 @@ async fn write_path_populates_side_effects_row() {
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn write_path_disabled_skips_upload() {
-    use pacquet_store_dir::{
+    use pnpm_store_dir::{
         HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter, store_index_key,
     };
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
     let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
-    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+    let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::from([(
             pkg_key.without_peer(),
-            pacquet_lockfile::PackageMetadata {
-                resolution: pacquet_lockfile::LockfileResolution::Registry(
-                    pacquet_lockfile::RegistryResolution {
+            pnpm_lockfile::PackageMetadata {
+                resolution: pnpm_lockfile::LockfileResolution::Registry(
+                    pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
                     },
                 ),
@@ -1891,7 +1890,7 @@ async fn write_path_disabled_skips_upload() {
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -1938,17 +1937,17 @@ async fn write_path_disabled_skips_upload() {
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn frozen_store_skips_side_effects_upload() {
-    use pacquet_store_dir::{StoreDir, StoreIndexWriter};
+    use pnpm_store_dir::{StoreDir, StoreIndexWriter};
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
     let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
-    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+    let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::from([(
             pkg_key.without_peer(),
-            pacquet_lockfile::PackageMetadata {
-                resolution: pacquet_lockfile::LockfileResolution::Registry(
-                    pacquet_lockfile::RegistryResolution {
+            pnpm_lockfile::PackageMetadata {
+                resolution: pnpm_lockfile::LockfileResolution::Registry(
+                    pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
                     },
                 ),
@@ -1986,7 +1985,7 @@ async fn frozen_store_skips_side_effects_upload() {
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -2064,19 +2063,19 @@ async fn frozen_store_skips_side_effects_upload() {
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn upload_error_does_not_interrupt_install() {
-    use pacquet_store_dir::{
+    use pnpm_store_dir::{
         HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter, store_index_key,
     };
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
     let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
-    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+    let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::from([(
             pkg_key.without_peer(),
-            pacquet_lockfile::PackageMetadata {
-                resolution: pacquet_lockfile::LockfileResolution::Registry(
-                    pacquet_lockfile::RegistryResolution {
+            pnpm_lockfile::PackageMetadata {
+                resolution: pnpm_lockfile::LockfileResolution::Registry(
+                    pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
                     },
                 ),
@@ -2130,7 +2129,7 @@ async fn upload_error_does_not_interrupt_install() {
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -2257,7 +2256,7 @@ fn snapshot_regular_files(root: &Path) -> std::collections::BTreeMap<PathBuf, Ve
 /// When `BuildModules.patches` contains an entry for a snapshot,
 /// the side-effects-cache key computed for that snapshot must
 /// include the `;patch=<hash>` segment that
-/// [`pacquet_graph_hasher::CalcDepStateOptions::patch_file_hash`]
+/// [`pnpm_graph_hasher::CalcDepStateOptions::patch_file_hash`]
 /// appends.
 ///
 /// Drive this through the WRITE path so the test can read the
@@ -2266,8 +2265,8 @@ fn snapshot_regular_files(root: &Path) -> std::collections::BTreeMap<PathBuf, Ve
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn write_path_cache_key_includes_patch_hash() {
-    use pacquet_patching::ExtendedPatchInfo;
-    use pacquet_store_dir::{
+    use pnpm_patching::ExtendedPatchInfo;
+    use pnpm_store_dir::{
         CafsFileInfo, HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter,
         store_index_key,
     };
@@ -2275,12 +2274,12 @@ async fn write_path_cache_key_includes_patch_hash() {
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
     let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
-    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+    let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::from([(
             pkg_key.without_peer(),
-            pacquet_lockfile::PackageMetadata {
-                resolution: pacquet_lockfile::LockfileResolution::Registry(
-                    pacquet_lockfile::RegistryResolution {
+            pnpm_lockfile::PackageMetadata {
+                resolution: pnpm_lockfile::LockfileResolution::Registry(
+                    pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
                     },
                 ),
@@ -2369,12 +2368,12 @@ new file mode 100644
 
     let engine = "darwin;arm64;node20";
     let dep_graph = crate::build_deps_graph(&snapshots, &packages);
-    let mut state_cache = pacquet_graph_hasher::DepsStateCache::new();
-    let expected_cache_key_with_patch = pacquet_graph_hasher::calc_dep_state(
+    let mut state_cache = pnpm_graph_hasher::DepsStateCache::new();
+    let expected_cache_key_with_patch = pnpm_graph_hasher::calc_dep_state(
         &dep_graph,
         &mut state_cache,
         &pkg_key,
-        &pacquet_graph_hasher::CalcDepStateOptions {
+        &pnpm_graph_hasher::CalcDepStateOptions {
             engine_name: engine,
             patch_file_hash: Some(patch_hash),
             include_dep_graph_hash: true,
@@ -2388,7 +2387,7 @@ new file mode 100644
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -2449,8 +2448,8 @@ new file mode 100644
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn patch_only_snapshot_gets_patched_via_build_modules() {
-    use pacquet_patching::ExtendedPatchInfo;
-    use pacquet_store_dir::{StoreDir, StoreIndexWriter};
+    use pnpm_patching::ExtendedPatchInfo;
+    use pnpm_store_dir::{StoreDir, StoreIndexWriter};
 
     let pkg_key = key("is-positive", "1.0.0");
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
@@ -2504,7 +2503,7 @@ new file mode 100644
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -2555,8 +2554,8 @@ new file mode 100644
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn missing_patch_file_path_errors_with_diagnostic() {
-    use pacquet_patching::ExtendedPatchInfo;
-    use pacquet_store_dir::{StoreDir, StoreIndexWriter};
+    use pnpm_patching::ExtendedPatchInfo;
+    use pnpm_store_dir::{StoreDir, StoreIndexWriter};
 
     let pkg_key = key("is-positive", "1.0.0");
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
@@ -2592,7 +2591,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
     let err = BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
@@ -2856,7 +2855,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
             virtual_store_dir.path(),
-            pacquet_config::default_virtual_store_dir_max_length() as usize,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),

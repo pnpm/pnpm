@@ -13,15 +13,15 @@
 //! `PATH`.
 
 use miette::{Context, IntoDiagnostic};
-use pacquet_cmd_shim::{Host as CmdShimHost, PackageBinSource, link_bins_of_packages};
-use pacquet_config::Config;
-use pacquet_fs::DirLock;
-use pacquet_graph_hasher::{detect_node_major, engine_name};
-use pacquet_lockfile::{EnvLockfile, PackageKey};
-use pacquet_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
-use pacquet_package_manifest::parse_manifest;
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_store_dir::StoreDir;
+use pnpm_cmd_shim::{Host as CmdShimHost, PackageBinSource, link_bins_of_packages};
+use pnpm_config::Config;
+use pnpm_fs::DirLock;
+use pnpm_graph_hasher::{detect_node_major, engine_name};
+use pnpm_lockfile::{EnvLockfile, PackageKey};
+use pnpm_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
+use pnpm_package_manifest::parse_manifest;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_store_dir::StoreDir;
 use serde_json::Value;
 use std::{
     fs,

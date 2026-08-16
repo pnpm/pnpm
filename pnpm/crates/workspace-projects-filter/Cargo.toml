@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-workspace-projects-filter"
+name                  = "pnpm-workspace-projects-filter"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,8 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-config                   = { workspace = true }
-pacquet-workspace-projects-graph = { workspace = true }
+pnpm-config                   = { workspace = true }
+pnpm-workspace-projects-graph = { workspace = true }
 
 derive_more = { workspace = true }
 indexmap    = { workspace = true }
@@ -21,8 +21,8 @@ pathdiff    = { workspace = true }
 wax         = { workspace = true }
 
 [dev-dependencies]
-pacquet-testing-utils = { workspace = true }
-tempfile              = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+tempfile           = { workspace = true }
 
 [lints]
 workspace = true

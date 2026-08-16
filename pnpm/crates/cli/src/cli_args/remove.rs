@@ -1,9 +1,9 @@
 use crate::{State, cli_args::pipelines::InstallFamilySelection};
 use clap::Args;
 use miette::Context;
-use pacquet_package_manager::Remove;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pnpm_package_manager::Remove;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
 
 #[derive(Debug, Clone, Args)]
 pub struct RemoveDependencyOptions {

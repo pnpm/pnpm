@@ -394,7 +394,7 @@ fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
 
 // --------------------------------------------------------------------
 // End-to-end lifecycle against a hosted in-process pnpr. The shared
-// `pacquet_testing_utils` registry runs in proxy mode and rejects
+// `pnpm_testing_utils` registry runs in proxy mode and rejects
 // publishes, so these tests serve their own static-mode instance.
 // --------------------------------------------------------------------
 

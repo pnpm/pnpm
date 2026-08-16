@@ -10,11 +10,11 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
-use pacquet_config::Config;
-use pacquet_package_manager::{Update, build_workspace_packages_map};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
+use pnpm_config::Config;
+use pnpm_package_manager::{Update, build_workspace_packages_map};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::Reporter;
 use std::{collections::HashSet, path::Path};
 
 /// The `--prod`, `--dev`, and `--no-optional` flags that select which
@@ -451,7 +451,7 @@ impl UpdateArgs {
     }
 }
 
-fn manifest_root(manifest: &pacquet_package_manifest::PackageManifest) -> std::path::PathBuf {
+fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path::PathBuf {
     manifest.path().parent().expect("manifest path always has a parent directory").to_path_buf()
 }
 

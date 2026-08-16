@@ -12,16 +12,16 @@ use std::{
 };
 
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{RetryOpts, ThrottledClient};
-use pacquet_publish::{
+use pipe_trait::Pipe;
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_publish::{
     Host, PublishNetwork, PublishSummary, find_registry_info, resolve_otp_from_env,
 };
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_resolving_npm_resolver::{
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
 };
-use pipe_trait::Pipe;
 use serde_json::Value;
 
 use super::PublishArgs;
@@ -200,7 +200,7 @@ fn write_publish_summary(dir: &Path, published: &[PublishSummary]) -> miette::Re
     // the target sits under the repo-controlled workspace root, and a
     // non-atomic `std::fs::write` would follow a symlink planted there and
     // could leave a truncated file on a mid-write crash.
-    pacquet_fs::write_atomic(&path, json.as_bytes())
+    pnpm_fs::write_atomic(&path, json.as_bytes())
         .into_diagnostic()
         .wrap_err_with(|| format!("write {}", path.display()))
 }

@@ -3,8 +3,8 @@ use super::{
     SwitchSource, pre_command_plan_from_input, switch_target,
 };
 use crate::config_overrides::ConfigOverrides;
-use pacquet_config::{Config, PNPM_VERSION, PmOnFail};
-use pacquet_reporter::{Reporter, SilentReporter};
+use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
+use pnpm_reporter::{Reporter, SilentReporter};
 use std::{
     ffi::OsString,
     fs,

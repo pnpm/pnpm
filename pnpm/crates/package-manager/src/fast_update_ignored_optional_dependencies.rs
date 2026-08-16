@@ -2,8 +2,8 @@ use crate::{
     fast_update_compose::Drift,
     fast_update_lockfile::{DroppedEdgeTarget, GraphEdits},
 };
-use pacquet_config::matcher::create_matcher;
-use pacquet_lockfile::{Lockfile, PkgName};
+use pnpm_config::matcher::create_matcher;
+use pnpm_lockfile::{Lockfile, PkgName};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// Whether `ignoredOptionalDependencies` drifted from what the lockfile
@@ -80,7 +80,7 @@ fn remove_ignored_optional_dependencies<
 >(
     optional_dependencies: &mut Option<HashMap<PkgName, OptionalValue>>,
     dependencies: &mut Option<HashMap<PkgName, DependencyValue>>,
-    matcher: &pacquet_config::matcher::Matcher,
+    matcher: &pnpm_config::matcher::Matcher,
     edits: &mut GraphEdits,
 ) -> HashSet<PkgName> {
     let removed: HashSet<_> = optional_dependencies
@@ -113,7 +113,7 @@ fn remove_ignored_optional_dependencies<
     removed
 }
 
-fn matches_package_name(matcher: &pacquet_config::matcher::Matcher, name: &PkgName) -> bool {
+fn matches_package_name(matcher: &pnpm_config::matcher::Matcher, name: &PkgName) -> bool {
     if name.scope.is_some() {
         matcher.matches(&name.to_string())
     } else {

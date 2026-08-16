@@ -12,16 +12,16 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_lockfile::{LoadLockfileError, Lockfile};
-use pacquet_package_manifest::PackageManifest;
-use pacquet_workspace::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_lockfile::{LoadLockfileError, Lockfile};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::{
     FindWorkspaceDirError, FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project,
     ReadWorkspaceManifestError, find_workspace_dir, find_workspace_projects,
     read_workspace_manifest, workspace_package_patterns,
 };
-use pacquet_workspace_manifest_writer::{
+use pnpm_workspace_manifest_writer::{
     ResolvedPackageVersions, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
     update_workspace_manifest,
 };

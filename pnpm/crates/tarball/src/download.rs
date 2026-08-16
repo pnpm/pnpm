@@ -9,12 +9,12 @@ use super::{
     allocate_tarball_buffer, decompress_gzip, extract_tarball_entries, local_file_tarball_path,
     open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
 };
-use pacquet_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient};
-use pacquet_reporter::{
+use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient};
+use pnpm_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryError, RequestRetryLog,
 };
-use pacquet_store_dir::{
+use pnpm_store_dir::{
     PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
     StoreIndexWriter, store_index_key,
 };
@@ -105,7 +105,7 @@ pub struct DownloadTarballToStore<'a> {
     /// Install root the fetch belongs to. Threaded into the
     /// `pnpm:progress` `requester` field on `fetched` /
     /// `found_in_store` events. Same value as the
-    /// [`pacquet_reporter::StageLog::prefix`] computed in
+    /// [`pnpm_reporter::StageLog::prefix`] computed in
     /// `Install::run`.
     pub requester: &'a str,
     /// Pre-fetched cache lookups built once at install start

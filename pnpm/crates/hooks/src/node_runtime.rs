@@ -331,7 +331,7 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         if !worker.has_hooks().await {
             return None;
         }
-        pacquet_crypto_hash::create_hash_from_file(&self.file).ok()
+        pnpm_crypto_hash::create_hash_from_file(&self.file).ok()
     }
 
     fn source_path(&self) -> Option<&std::path::Path> {
@@ -419,7 +419,7 @@ impl crate::CustomResolver for NodeJsCustomResolver {
 
     async fn should_refresh_resolution(
         &self,
-        dep_path: &pacquet_lockfile::PackageKey,
+        dep_path: &pnpm_lockfile::PackageKey,
         pkg_snapshot: Value,
     ) -> Result<bool, HookError> {
         let res = self

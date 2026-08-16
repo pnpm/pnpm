@@ -1,5 +1,5 @@
 use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, create_symlink_layout};
-use pacquet_lockfile::{PackageKey, PkgName, SnapshotDepRef};
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotDepRef};
 use pretty_assertions::assert_eq;
 use std::{collections::HashMap, fs, path::PathBuf};
 use tempfile::tempdir;
@@ -48,7 +48,7 @@ fn links_matching_optional_sibling_alongside_regular_deps() {
     let virtual_store_dir = tmp.path().to_path_buf();
     let layout = VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
 
     let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
@@ -94,7 +94,7 @@ fn excludes_optional_link_deps_when_optional_dependencies_are_disabled() {
     fs::create_dir_all(&lockfile_dir).unwrap();
     let layout = VirtualStoreLayout::legacy(
         tmp.path().join("store"),
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     )
     .with_lockfile_dir(&lockfile_dir);
 
@@ -131,7 +131,7 @@ fn skips_optional_siblings_that_are_in_skipped() {
     let virtual_store_dir = tmp.path().to_path_buf();
     let layout = VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
 
     let mut optional: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
@@ -182,7 +182,7 @@ fn skips_dep_entries_whose_alias_matches_self_name() {
     let virtual_store_dir = tmp.path().to_path_buf();
     let layout = VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
 
     let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
@@ -219,7 +219,7 @@ fn both_dep_maps_absent_is_a_noop() {
     let virtual_store_dir = tmp.path().to_path_buf();
     let layout = VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let skipped = SkippedSnapshots::default();
     let virtual_node_modules_dir = tmp.path().join("self/node_modules");
@@ -246,7 +246,7 @@ fn alias_dep_links_under_alias_but_resolves_via_target() {
     let virtual_store_dir = tmp.path().to_path_buf();
     let layout = VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
 
     let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
@@ -291,7 +291,7 @@ fn rejects_traversal_dependency_alias() {
     let virtual_store_dir = tmp.path().to_path_buf();
     let layout = VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
 
     let traversal = format!("@x/{}OUTSIDE", "../".repeat(20));
@@ -339,7 +339,7 @@ fn links_a_link_dep_to_its_target_outside_the_store() {
 
     let layout = VirtualStoreLayout::legacy(
         tmp.path().to_path_buf(),
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     )
     .with_lockfile_dir(&lockfile_dir);
 
@@ -375,7 +375,7 @@ fn skips_a_link_dep_when_no_lockfile_dir_is_known() {
     let tmp = tempdir().expect("tempdir");
     let layout = VirtualStoreLayout::legacy(
         tmp.path().to_path_buf(),
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
 
     let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();

@@ -9,7 +9,7 @@
 //! and runs the command the script actually asked for: `npx` is npm's
 //! other bin, not another name for it.
 
-use pacquet_fs::write_atomic;
+use pnpm_fs::write_atomic;
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -78,7 +78,7 @@ fn shim_files(
     spec: &str,
     pnpm_execpath: &Path,
 ) -> Vec<(String, String)> {
-    use pacquet_cmd_shim::sh_single_quote;
+    use pnpm_cmd_shim::sh_single_quote;
 
     let run_as: Vec<String> = run_as.iter().map(|word| sh_single_quote(word)).collect();
     let contents = format!(
@@ -97,7 +97,7 @@ fn shim_files(
     spec: &str,
     pnpm_execpath: &Path,
 ) -> Vec<(String, String)> {
-    use pacquet_cmd_shim::cmd_escape;
+    use pnpm_cmd_shim::cmd_escape;
 
     let pnpm = cmd_escape(&pnpm_execpath.to_string_lossy());
     let spec = cmd_escape(spec);

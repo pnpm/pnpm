@@ -12,27 +12,27 @@ use crate::{
     AllowBuildPolicy, InstallWithFreshLockfileError, MinimumReleaseAgeError, VirtualStoreLayout,
     tests::project_local_config,
 };
-use pacquet_config::{Config, NodePackageMapType};
-use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
-use pacquet_modules_yaml::{
+use pipe_trait::Pipe;
+use pnpm_config::{Config, NodePackageMapType};
+use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
+use pnpm_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, LayoutVersion, Modules, NodeLinker,
     read_modules_manifest, write_modules_manifest,
 };
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::{
     BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage,
     Reporter, ScopeLog, SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
-use pacquet_store_dir::STORE_VERSION;
-use pacquet_testing_utils::{
+use pnpm_store_dir::STORE_VERSION;
+use pnpm_testing_utils::{
     fs::{get_all_folders, is_symlink_or_junction},
     registry::TestRegistry,
 };
-use pacquet_workspace_state::{
+use pnpm_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
-use pipe_trait::Pipe;
 use std::{fs, sync::Mutex};
 use tempfile::tempdir;
 use text_block_macros::text_block;
@@ -167,10 +167,10 @@ fn exclude_linked_dependencies_drops_link_deps_from_every_group() {
 fn is_modules_yaml_consistent(
     modules_dir: &std::path::Path,
     config: &Config,
-    node_linker: pacquet_config::NodeLinker,
-    included: pacquet_modules_yaml::IncludedDependencies,
+    node_linker: pnpm_config::NodeLinker,
+    included: pnpm_modules_yaml::IncludedDependencies,
 ) -> bool {
-    pacquet_modules_yaml::read_modules_layout::<Host>(modules_dir).ok().flatten().is_some_and(
+    pnpm_modules_yaml::read_modules_layout::<Host>(modules_dir).ok().flatten().is_some_and(
         |modules| super::modules_consistent_with(&modules, config, node_linker, included),
     )
 }
@@ -181,9 +181,9 @@ fn is_modules_yaml_consistent(
 fn is_modules_yaml_layout_consistent(
     modules_dir: &std::path::Path,
     config: &Config,
-    node_linker: pacquet_config::NodeLinker,
+    node_linker: pnpm_config::NodeLinker,
 ) -> bool {
-    pacquet_modules_yaml::read_modules_layout::<Host>(modules_dir)
+    pnpm_modules_yaml::read_modules_layout::<Host>(modules_dir)
         .ok()
         .flatten()
         .is_some_and(|modules| super::modules_layout_consistent_with(&modules, config, node_linker))
@@ -228,7 +228,7 @@ fn workspace_without_packages_field_enumerates_root_only() {
     fs::write(dir.path().join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: false\n")
         .expect("write settings-only workspace manifest");
 
-    let manifest = pacquet_workspace::read_workspace_manifest(dir.path())
+    let manifest = pnpm_workspace::read_workspace_manifest(dir.path())
         .expect("read workspace manifest")
         .expect("workspace manifest present");
 
@@ -246,12 +246,12 @@ fn workspace_without_packages_field_enumerates_root_only() {
 #[test]
 fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     let mut config = project_local_config();
-    assert!(crate::should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
-    assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
-    assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
+    assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Hoisted));
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Pnp));
 
     config.node_package_map_type = NodePackageMapType::Loose;
-    assert!(crate::should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
 }
 
 #[tokio::test]
@@ -310,7 +310,7 @@ async fn should_install_dependencies() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -473,7 +473,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -544,7 +544,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -629,7 +629,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -683,7 +683,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -763,7 +763,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -848,7 +848,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -935,7 +935,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: true,
         dry_run: false,
         persist_policy_excludes: true,
@@ -998,7 +998,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -1058,7 +1058,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -1147,7 +1147,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -1226,7 +1226,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -1325,7 +1325,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -1408,7 +1408,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -1515,7 +1515,7 @@ async fn install_emits_pnpm_event_sequence() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -1680,7 +1680,7 @@ async fn install_writes_modules_yaml() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -1725,10 +1725,7 @@ async fn install_writes_modules_yaml() {
     // `modules_dir`, so a relative on-disk value round-trips back
     // to the absolute install-time path.
     assert_eq!(emitted_virtual_store_dir, virtual_store_dir.to_string_lossy());
-    assert_eq!(
-        virtual_store_dir_max_length,
-        pacquet_config::default_virtual_store_dir_max_length(),
-    );
+    assert_eq!(virtual_store_dir_max_length, pnpm_config::default_virtual_store_dir_max_length(),);
     assert_eq!(
         registries.as_ref().and_then(|r| r.get("default")).map(String::as_str),
         Some(config.registry.as_str()),
@@ -1737,7 +1734,7 @@ async fn install_writes_modules_yaml() {
         registries.as_ref().and_then(|r| r.get("@private")).map(String::as_str),
         Some("https://private.example.com/npm/"),
     );
-    assert_eq!(package_manager, format!("pnpm@{}", pacquet_config::PNPM_VERSION));
+    assert_eq!(package_manager, format!("pnpm@{}", pnpm_config::PNPM_VERSION));
 
     drop(dir);
 }
@@ -1799,7 +1796,7 @@ async fn install_writes_workspace_state() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -1885,9 +1882,9 @@ async fn install_writes_workspace_state() {
 mod build_workspace_state_tests {
     use super::super::build_workspace_state;
     use crate::tests::project_local_config;
-    use pacquet_modules_yaml::IncludedDependencies;
-    use pacquet_package_manifest::PackageManifest;
-    use pacquet_workspace_state::ConfigDependency;
+    use pnpm_modules_yaml::IncludedDependencies;
+    use pnpm_package_manifest::PackageManifest;
+    use pnpm_workspace_state::ConfigDependency;
     use std::{collections::BTreeMap, path::PathBuf};
     use tempfile::tempdir;
 
@@ -1907,7 +1904,7 @@ mod build_workspace_state_tests {
         let state = build_workspace_state(
             dir.path(),
             &config,
-            pacquet_config::NodeLinker::default(),
+            pnpm_config::NodeLinker::default(),
             IncludedDependencies::default(),
             None,
             &BTreeMap::default(),
@@ -1942,7 +1939,7 @@ mod build_workspace_state_tests {
         let state = build_workspace_state(
             dir.path(),
             &config,
-            pacquet_config::NodeLinker::default(),
+            pnpm_config::NodeLinker::default(),
             IncludedDependencies::default(),
             None,
             &BTreeMap::default(),
@@ -1979,7 +1976,7 @@ mod build_workspace_state_tests {
         let state = build_workspace_state(
             dir.path(),
             &config,
-            pacquet_config::NodeLinker::default(),
+            pnpm_config::NodeLinker::default(),
             IncludedDependencies::default(),
             None,
             &BTreeMap::default(),
@@ -2051,7 +2048,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -2138,7 +2135,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -2249,7 +2246,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -2354,7 +2351,7 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -2394,7 +2391,7 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
         .dependencies
         .as_ref()
         .expect("dependencies map");
-    let peer_x_key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/closure-peer-x").unwrap();
+    let peer_x_key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/closure-peer-x").unwrap();
     let root_peer_x = root_deps.get(&peer_x_key).expect("closure-peer-x recorded at root");
     assert_eq!(root_peer_x.version.to_string(), "2.0.0");
 
@@ -2500,7 +2497,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -2613,7 +2610,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -2735,7 +2732,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -2801,7 +2798,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -2909,7 +2906,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3027,7 +3024,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3105,7 +3102,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3184,7 +3181,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3289,7 +3286,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3410,7 +3407,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3487,7 +3484,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3584,7 +3581,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3656,7 +3653,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     config.global_virtual_store_dir = config.store_dir.links();
     config.registry = registry.url();
     let config = config.leak();
-    let http_client = std::sync::Arc::new(pacquet_network::ThrottledClient::default());
+    let http_client = std::sync::Arc::new(pnpm_network::ThrottledClient::default());
 
     Install {
         tarball_mem_cache: Default::default(),
@@ -3678,7 +3675,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3743,7 +3740,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3854,7 +3851,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -3982,7 +3979,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -4076,7 +4073,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -4130,12 +4127,12 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
 /// manifest.
 ///
 /// [`SkippedSnapshots`]: super::super::SkippedSnapshots
-/// [`PackageKey`]: pacquet_lockfile::PackageKey
+/// [`PackageKey`]: pnpm_lockfile::PackageKey
 #[test]
 fn build_modules_manifest_serializes_skipped_set() {
     use crate::SkippedSnapshots;
-    use pacquet_lockfile::PackageKey;
-    use pacquet_modules_yaml::IncludedDependencies;
+    use pnpm_lockfile::PackageKey;
+    use pnpm_modules_yaml::IncludedDependencies;
     use std::collections::HashSet;
 
     let dir = tempdir().unwrap();
@@ -4159,7 +4156,7 @@ fn build_modules_manifest_serializes_skipped_set() {
     };
     let manifest = super::build_modules_manifest(
         config,
-        pacquet_config::NodeLinker::default(),
+        pnpm_config::NodeLinker::default(),
         included,
         Default::default(),
         Default::default(),
@@ -4186,7 +4183,7 @@ fn build_modules_manifest_serializes_skipped_set() {
 #[test]
 fn build_modules_manifest_skipped_is_empty_on_empty_set() {
     use crate::SkippedSnapshots;
-    use pacquet_modules_yaml::IncludedDependencies;
+    use pnpm_modules_yaml::IncludedDependencies;
 
     let dir = tempdir().unwrap();
     let mut config = project_local_config();
@@ -4197,7 +4194,7 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
 
     let manifest = super::build_modules_manifest(
         config,
-        pacquet_config::NodeLinker::default(),
+        pnpm_config::NodeLinker::default(),
         IncludedDependencies::default(),
         Default::default(),
         Default::default(),
@@ -4294,7 +4291,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -4429,7 +4426,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -4543,7 +4540,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -4660,7 +4657,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -4766,7 +4763,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -4875,7 +4872,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -4984,7 +4981,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -5088,7 +5085,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -5201,7 +5198,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         installs_only: true,
         supported_architectures: None,
         resolved_packages: &Default::default(),
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -5311,7 +5308,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         installs_only: true,
         supported_architectures: None,
         resolved_packages: &Default::default(),
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
@@ -5368,7 +5365,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
 ///
 /// The gate's positive / negative `verify_lockfile_resolutions`
 /// branches are exercised by the unit tests in
-/// `pacquet-lockfile-verification`; this test pins only the install
+/// `pnpm-lockfile-verification`; this test pins only the install
 /// wiring so it stays fast and doesn't depend on the mocked
 /// packument shape.
 #[tokio::test]
@@ -5424,7 +5421,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -5538,7 +5535,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -5564,7 +5561,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     assert!(
         matches!(
             verify_err,
-            pacquet_lockfile_verification::VerifyError::MinimumReleaseAgeViolation { .. }
+            pnpm_lockfile_verification::VerifyError::MinimumReleaseAgeViolation { .. }
         ),
         "expected MinimumReleaseAgeViolation, got {verify_err:?}",
     );
@@ -5637,7 +5634,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -5666,14 +5663,13 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     assert_eq!(lockfile.lockfile_version.major, 9);
     let importer = lockfile.root_project().expect("root importer recorded");
     let deps = importer.dependencies.as_ref().expect("dependencies map");
-    let hello_key: pacquet_lockfile::PkgName =
-        pacquet_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
+    let hello_key: pnpm_lockfile::PkgName =
+        pnpm_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
     let entry = deps.get(&hello_key).expect("hello-world-js-bin recorded");
     assert_eq!(entry.specifier, "1.0.0");
 
     let packages = lockfile.packages.as_ref().expect("packages map populated");
-    let pkg_key: pacquet_lockfile::PackageKey =
-        "@pnpm.e2e/hello-world-js-bin@1.0.0".parse().unwrap();
+    let pkg_key: pnpm_lockfile::PackageKey = "@pnpm.e2e/hello-world-js-bin@1.0.0".parse().unwrap();
     let metadata = packages.get(&pkg_key).expect("packages entry");
     assert!(metadata.resolution.integrity().is_some(), "registry resolution carries integrity");
 
@@ -5728,7 +5724,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -5815,7 +5811,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -5841,8 +5837,8 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
 
     let importer = lockfile.root_project().expect("root importer");
     let prod = importer.dependencies.as_ref().expect("prod section");
-    let hello_key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
-    let xyz_key = pacquet_lockfile::PkgName::parse("@pnpm/xyz").unwrap();
+    let hello_key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
+    let xyz_key = pnpm_lockfile::PkgName::parse("@pnpm/xyz").unwrap();
     assert!(prod.contains_key(&hello_key));
     assert!(!prod.contains_key(&xyz_key), "dev dep stays out of the prod section");
     let dev = importer.dev_dependencies.as_ref().expect("dev section");
@@ -5899,7 +5895,7 @@ async fn fresh_install_records_user_written_specifier() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -5925,7 +5921,7 @@ async fn fresh_install_records_user_written_specifier() {
 
     let importer = lockfile.root_project().expect("root importer");
     let deps = importer.dependencies.as_ref().expect("prod deps");
-    let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
+    let key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
     let entry = deps.get(&key).expect("hello-world-js-bin entry");
     assert_eq!(entry.specifier, "^1.0.0", "specifier must echo the manifest declaration");
 
@@ -5981,7 +5977,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6062,7 +6058,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6145,7 +6141,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6176,7 +6172,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         serde_saphyr::from_str(&content).expect("parse current lockfile");
     assert_eq!(current_lockfile.lockfile_version.major, 9);
     let importer = current_lockfile.root_project().expect("root importer");
-    let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
+    let key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
     assert!(
         importer.dependencies.as_ref().is_some_and(|deps| deps.contains_key(&key)),
         "current-lockfile reflects the resolved direct dep",
@@ -6242,7 +6238,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6287,7 +6283,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6362,7 +6358,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6440,7 +6436,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6546,7 +6542,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6661,7 +6657,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6743,7 +6739,7 @@ async fn fresh_install_honors_skip_runtimes() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6829,7 +6825,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6917,7 +6913,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -6999,7 +6995,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -7035,8 +7031,8 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
 /// — rather than short-circuiting to success and hiding it.
 #[test]
 fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
-    let modules = pacquet_modules_yaml::ModulesLayout {
-        ignored_builds: Some([pacquet_modules_yaml::DepPath::from("pkg@1.0.0".to_string())].into()),
+    let modules = pnpm_modules_yaml::ModulesLayout {
+        ignored_builds: Some([pnpm_modules_yaml::DepPath::from("pkg@1.0.0".to_string())].into()),
         ..Default::default()
     };
     let mut config = project_local_config();
@@ -7049,9 +7045,9 @@ fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
 #[test]
 fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
     let package_key = |name: &str, version: &str| {
-        pacquet_lockfile::PackageKey::new(
-            pacquet_lockfile::PkgName::parse(name).unwrap(),
-            version.parse::<pacquet_lockfile::PkgVerPeer>().unwrap(),
+        pnpm_lockfile::PackageKey::new(
+            pnpm_lockfile::PkgName::parse(name).unwrap(),
+            version.parse::<pnpm_lockfile::PkgVerPeer>().unwrap(),
         )
     };
     let retained = "retained@1.0.0";
@@ -7087,21 +7083,21 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
                 retained.to_string(),
                 indexmap::IndexMap::from([(
                     "retained-alias".to_string(),
-                    pacquet_modules_yaml::HoistKind::Private,
+                    pnpm_modules_yaml::HoistKind::Private,
                 )]),
             ),
             (
                 shared.to_string(),
                 indexmap::IndexMap::from([(
                     "stale-shared-alias".to_string(),
-                    pacquet_modules_yaml::HoistKind::Private,
+                    pnpm_modules_yaml::HoistKind::Private,
                 )]),
             ),
             (
                 stale_selected.to_string(),
                 indexmap::IndexMap::from([(
                     "stale-selected-alias".to_string(),
-                    pacquet_modules_yaml::HoistKind::Private,
+                    pnpm_modules_yaml::HoistKind::Private,
                 )]),
             ),
         ]),
@@ -7113,7 +7109,7 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ignored_builds: Some(
             [retained, shared, stale_selected]
                 .into_iter()
-                .map(|value| pacquet_modules_yaml::DepPath::from(value.to_string()))
+                .map(|value| pnpm_modules_yaml::DepPath::from(value.to_string()))
                 .collect(),
         ),
         skipped: vec![retained.to_string(), shared.to_string(), stale_selected.to_string()],
@@ -7129,7 +7125,7 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
             selected.to_string(),
             indexmap::IndexMap::from([(
                 "selected-alias".to_string(),
-                pacquet_modules_yaml::HoistKind::Private,
+                pnpm_modules_yaml::HoistKind::Private,
             )]),
         )]),
         hoisted_locations: Some(std::collections::BTreeMap::from([(
@@ -7138,7 +7134,7 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         )])),
         pending_builds: vec![selected.to_string()],
         ignored_builds: Some(
-            std::iter::once(pacquet_modules_yaml::DepPath::from(selected.to_string())).collect(),
+            std::iter::once(pnpm_modules_yaml::DepPath::from(selected.to_string())).collect(),
         ),
         skipped: vec![selected.to_string()],
         injected_deps: Some(std::collections::BTreeMap::from([
@@ -7167,7 +7163,7 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
             .as_ref()
             .unwrap()
             .iter()
-            .map(pacquet_modules_yaml::DepPath::as_str)
+            .map(pnpm_modules_yaml::DepPath::as_str)
             .collect::<Vec<_>>(),
         [retained, selected],
     );
@@ -7191,8 +7187,7 @@ fn filtered_modules_metadata_keeps_empty_optional_maps_omitted() {
             vec!["stale/location".to_string()],
         )])),
         ignored_builds: Some(
-            std::iter::once(pacquet_modules_yaml::DepPath::from("stale@1.0.0".to_string()))
-                .collect(),
+            std::iter::once(pnpm_modules_yaml::DepPath::from("stale@1.0.0".to_string())).collect(),
         ),
         injected_deps: Some(std::collections::BTreeMap::from([(
             "packages/stale".to_string(),
@@ -7223,8 +7218,8 @@ fn is_modules_yaml_consistent_returns_false_when_modules_yaml_absent() {
     assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
-        pacquet_config::NodeLinker::default(),
-        pacquet_modules_yaml::IncludedDependencies::default(),
+        pnpm_config::NodeLinker::default(),
+        pnpm_modules_yaml::IncludedDependencies::default(),
     ));
 }
 
@@ -7245,7 +7240,7 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
-    let included = pacquet_modules_yaml::IncludedDependencies {
+    let included = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: true,
         optional_dependencies: true,
@@ -7267,7 +7262,7 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
     assert!(is_modules_yaml_consistent(
         &modules_dir,
         config,
-        pacquet_config::NodeLinker::default(),
+        pnpm_config::NodeLinker::default(),
         included,
     ));
 }
@@ -7301,8 +7296,8 @@ fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
     assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
-        pacquet_config::NodeLinker::Isolated,
-        pacquet_modules_yaml::IncludedDependencies::default(),
+        pnpm_config::NodeLinker::Isolated,
+        pnpm_modules_yaml::IncludedDependencies::default(),
     ));
 }
 
@@ -7321,12 +7316,12 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
-    let prod_only = pacquet_modules_yaml::IncludedDependencies {
+    let prod_only = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: false,
     };
-    let with_optional = pacquet_modules_yaml::IncludedDependencies {
+    let with_optional = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: true,
@@ -7348,7 +7343,7 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
     assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         with_optional,
     ));
 }
@@ -7372,12 +7367,12 @@ fn included_drift_alone_does_not_make_the_layout_inconsistent() {
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
-    let prod_only = pacquet_modules_yaml::IncludedDependencies {
+    let prod_only = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: false,
     };
-    let with_optional = pacquet_modules_yaml::IncludedDependencies {
+    let with_optional = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: true,
@@ -7400,7 +7395,7 @@ fn included_drift_alone_does_not_make_the_layout_inconsistent() {
     assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         with_optional,
     ));
     // ...but the layout is still consistent, so the destructive purge does
@@ -7408,7 +7403,7 @@ fn included_drift_alone_does_not_make_the_layout_inconsistent() {
     assert!(is_modules_yaml_layout_consistent(
         &modules_dir,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
     ));
 }
 
@@ -7441,7 +7436,7 @@ fn layout_drift_still_makes_the_layout_inconsistent() {
     assert!(!is_modules_yaml_layout_consistent(
         &modules_dir,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
     ));
 }
 
@@ -7473,8 +7468,7 @@ async fn run_purge_regression_install(
     };
     // One client behind both fields, matching the CLI's single-source
     // wiring documented on [`Install::http_client_arc`].
-    let http_client_arc: std::sync::Arc<pacquet_network::ThrottledClient> =
-        std::sync::Arc::default();
+    let http_client_arc: std::sync::Arc<pnpm_network::ThrottledClient> = std::sync::Arc::default();
     Install {
         tarball_mem_cache: Default::default(),
         http_client: &http_client_arc,
@@ -7494,7 +7488,7 @@ async fn run_purge_regression_install(
         mutation,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -7658,7 +7652,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     })
     .expect("parse minimal v9 lockfile with one link dep");
 
-    let included = pacquet_modules_yaml::IncludedDependencies {
+    let included = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: false,
@@ -7705,7 +7699,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -7829,7 +7823,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     })
     .expect("parse minimal v9 lockfile with one link dep");
 
-    let included = pacquet_modules_yaml::IncludedDependencies {
+    let included = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: false,
@@ -7863,14 +7857,14 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         included,
         None,
     );
     workspace_state::update_workspace_state(
         &project_root,
-        &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+        &pnpm_workspace_state::WorkspaceState {
+            last_validated_timestamp: pnpm_workspace_state::now_millis() + 60_000,
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -7901,7 +7895,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -7973,7 +7967,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
-    let included = pacquet_modules_yaml::IncludedDependencies {
+    let included = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: false,
@@ -7988,14 +7982,14 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         included,
         None,
     );
     workspace_state::update_workspace_state(
         &project_root,
-        &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+        &pnpm_workspace_state::WorkspaceState {
+            last_validated_timestamp: pnpm_workspace_state::now_millis() + 60_000,
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -8009,7 +8003,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         config,
         manifest: &manifest,
         dependency_groups: vec![DependencyGroup::Prod],
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         supported_architectures: None,
     };
     let root = install_already_up_to_date(&check);
@@ -8076,7 +8070,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
-    let included = pacquet_modules_yaml::IncludedDependencies {
+    let included = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: true,
         optional_dependencies: true,
@@ -8099,7 +8093,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
     let validated_at = 0;
     workspace_state::update_workspace_state(
         &workspace_root,
-        &pacquet_workspace_state::WorkspaceState {
+        &pnpm_workspace_state::WorkspaceState {
             last_validated_timestamp: validated_at,
             projects,
             pnpmfiles: Vec::new(),
@@ -8107,7 +8101,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             config_dependencies: None,
             settings: crate::optimistic_repeat_install::settings::current_settings(
                 config,
-                pacquet_config::NodeLinker::Isolated,
+                pnpm_config::NodeLinker::Isolated,
                 included,
                 None,
             ),
@@ -8122,7 +8116,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             DependencyGroup::Dev,
             DependencyGroup::Optional,
         ],
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         supported_architectures: None,
     };
 
@@ -8145,7 +8139,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             DependencyGroup::Dev,
             DependencyGroup::Optional,
         ],
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         supported_architectures: None,
     };
 
@@ -8205,7 +8199,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     })
     .expect("parse lockfile");
 
-    let included = pacquet_modules_yaml::IncludedDependencies {
+    let included = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: false,
@@ -8237,14 +8231,14 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         included,
         None,
     );
     workspace_state::update_workspace_state(
         &project_root,
-        &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+        &pnpm_workspace_state::WorkspaceState {
+            last_validated_timestamp: pnpm_workspace_state::now_millis() + 60_000,
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -8274,7 +8268,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -8361,7 +8355,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
     })
     .expect("parse lockfile");
 
-    let included = pacquet_modules_yaml::IncludedDependencies {
+    let included = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: false,
@@ -8393,14 +8387,14 @@ async fn partial_install_disables_optimistic_short_circuit() {
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         included,
         None,
     );
     workspace_state::update_workspace_state(
         &project_root,
-        &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+        &pnpm_workspace_state::WorkspaceState {
+            last_validated_timestamp: pnpm_workspace_state::now_millis() + 60_000,
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -8430,7 +8424,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         mutation: ProjectMutation::InstallSome,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -8509,7 +8503,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
 
-    let included = pacquet_modules_yaml::IncludedDependencies {
+    let included = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
         dev_dependencies: false,
         optional_dependencies: false,
@@ -8541,14 +8535,14 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         included,
         None,
     );
     workspace_state::update_workspace_state(
         &project_root,
-        &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+        &pnpm_workspace_state::WorkspaceState {
+            last_validated_timestamp: pnpm_workspace_state::now_millis() + 60_000,
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -8582,7 +8576,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -8676,7 +8670,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -8743,7 +8737,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -8842,7 +8836,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -8917,7 +8911,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9015,7 +9009,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9114,7 +9108,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9205,7 +9199,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9360,7 +9354,7 @@ async fn fresh_lockfile_only_with_overrides(
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: true,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9387,7 +9381,7 @@ async fn fresh_lockfile_only_with_overrides(
 }
 
 fn assert_package_present(lockfile: &Lockfile, key: &str) {
-    let key: pacquet_lockfile::PackageKey = key.parse().unwrap();
+    let key: pnpm_lockfile::PackageKey = key.parse().unwrap();
     assert!(
         lockfile.packages.as_ref().is_some_and(|packages| packages.contains_key(&key)),
         "expected packages to contain {key}",
@@ -9395,7 +9389,7 @@ fn assert_package_present(lockfile: &Lockfile, key: &str) {
 }
 
 fn assert_package_absent(lockfile: &Lockfile, key: &str) {
-    let key: pacquet_lockfile::PackageKey = key.parse().unwrap();
+    let key: pnpm_lockfile::PackageKey = key.parse().unwrap();
     assert!(
         lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&key)),
         "expected packages not to contain {key}",
@@ -9475,7 +9469,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: true,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9542,12 +9536,12 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     let mut peers_meta = std::collections::BTreeMap::new();
     peers_meta.insert(
         "synthetic-peer".to_string(),
-        pacquet_config::PeerDependencyMeta { optional: Some(true) },
+        pnpm_config::PeerDependencyMeta { optional: Some(true) },
     );
     let mut extensions = indexmap::IndexMap::new();
     extensions.insert(
         "@pnpm.e2e/hello-world-js-bin".to_string(),
-        pacquet_config::PackageExtension {
+        pnpm_config::PackageExtension {
             peer_dependencies: Some(peers),
             peer_dependencies_meta: Some(peers_meta),
             ..Default::default()
@@ -9575,7 +9569,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9600,8 +9594,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse fresh lockfile");
 
     let packages = lockfile.packages.as_ref().expect("packages map populated");
-    let pkg_key: pacquet_lockfile::PackageKey =
-        "@pnpm.e2e/hello-world-js-bin@1.0.0".parse().unwrap();
+    let pkg_key: pnpm_lockfile::PackageKey = "@pnpm.e2e/hello-world-js-bin@1.0.0".parse().unwrap();
     let metadata = packages.get(&pkg_key).expect("packages entry recorded");
     let peers = metadata
         .peer_dependencies
@@ -9650,7 +9643,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     let mut extensions = indexmap::IndexMap::new();
     extensions.insert(
         "foo".to_string(),
-        pacquet_config::PackageExtension { dependencies: Some(deps), ..Default::default() },
+        pnpm_config::PackageExtension { dependencies: Some(deps), ..Default::default() },
     );
     config.package_extensions = Some(extensions);
     let config = config.leak();
@@ -9683,7 +9676,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9759,7 +9752,7 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9844,7 +9837,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -9932,7 +9925,7 @@ async fn read_package_hook_rewrites_the_project_own_specifier() {
         .dependencies
         .as_ref()
         .expect("dependencies map");
-    let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/pkg-with-1-dep").unwrap();
+    let key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/pkg-with-1-dep").unwrap();
     let recorded = root_deps.get(&key).expect("pkg-with-1-dep recorded at root");
     assert_eq!(recorded.specifier, "100.0.0");
     assert_eq!(recorded.version.to_string(), "100.0.0");
@@ -10005,7 +9998,7 @@ async fn install_workspace_member_with_pnpmfile(
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::default(),
+        node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -10047,7 +10040,7 @@ async fn read_package_hook_rewrites_a_workspace_member_own_specifier() {
     .await
     .expect("install should succeed");
 
-    let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/pkg-with-1-dep").unwrap();
+    let key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/pkg-with-1-dep").unwrap();
     let member_dependency = |lockfile: &Lockfile| {
         lockfile.importers["packages/member"].dependencies.as_ref().expect("member dependencies")
             [&key]
@@ -10170,7 +10163,7 @@ async fn pnpmfile_with_hooks_records_pnpmfile_checksum() {
 
     let lockfile_text = std::fs::read_to_string(dir.path().join("pnpm-lock.yaml")).unwrap();
     eprintln!("{lockfile_text}");
-    let expected = pacquet_crypto_hash::create_hash(pnpmfile_src);
+    let expected = pnpm_crypto_hash::create_hash(pnpmfile_src);
     assert!(
         lockfile_text.contains(&format!("pnpmfileChecksum: {expected}")),
         "pnpm-lock.yaml must record the pnpmfile's checksum",
@@ -10419,7 +10412,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
-    // Where the default store lands — see [`pacquet_config::store_path`].
+    // Where the default store lands — see [`pnpm_config::store_path`].
     let store_dir = modules_dir.join(".pnpm-store");
     let virtual_store_dir = modules_dir.join(".pacquet");
 
@@ -10473,7 +10466,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -10522,7 +10515,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -10608,7 +10601,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
         persist_policy_excludes: true,
@@ -10653,7 +10646,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: true,
         persist_policy_excludes: true,
@@ -10693,7 +10686,7 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
             "dependencies": { "sibling": "workspace:*" },
         }),
     );
-    let projects = [pacquet_workspace::Project {
+    let projects = [pnpm_workspace::Project {
         root_dir,
         manifest: importer_view,
         dependency_manifest: Some(dependency_view),

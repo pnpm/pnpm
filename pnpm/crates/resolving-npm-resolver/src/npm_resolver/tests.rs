@@ -5,10 +5,10 @@ use std::{
 };
 
 use chrono::TimeZone;
-use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pacquet_lockfile::LockfileResolution;
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_resolving_resolver_base::{
+use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
+use pnpm_lockfile::LockfileResolution;
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_resolving_resolver_base::{
     LatestQuery, PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
     ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
     WorkspacePackages, WorkspacePackagesByVersion,

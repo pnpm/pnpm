@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_modules_yaml::{Host as ModulesHost, read_modules_manifest, write_modules_manifest};
-use pacquet_testing_utils::{
+use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest, write_modules_manifest};
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };

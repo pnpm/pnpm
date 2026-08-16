@@ -21,18 +21,18 @@ use super::{
 pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
-    packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
-    patches: Option<&HashMap<PackageKey, pacquet_patching::ExtendedPatchInfo>>,
+    packages: Option<&HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
+    patches: Option<&HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo>>,
     requires_build_map: &HashMap<PackageKey, bool>,
     allow_build_policy: &AllowBuildPolicy,
     side_effects_maps_by_snapshot: Option<&crate::SideEffectsMapsBySnapshot>,
     engine_name: Option<&str>,
     side_effects_cache: bool,
     side_effects_cache_write: bool,
-    store_dir: Option<&pacquet_store_dir::StoreDir>,
-    store_index_writer: Option<&std::sync::Arc<pacquet_store_dir::StoreIndexWriter>>,
-    dep_graph: Option<&HashMap<PackageKey, pacquet_graph_hasher::DepsGraphNode<PackageKey>>>,
-    deps_state_cache: &Mutex<pacquet_graph_hasher::DepsStateCache<PackageKey>>,
+    store_dir: Option<&pnpm_store_dir::StoreDir>,
+    store_index_writer: Option<&std::sync::Arc<pnpm_store_dir::StoreIndexWriter>>,
+    dep_graph: Option<&HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>>,
+    deps_state_cache: &Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>>,
     ignored_builds: &Mutex<BTreeSet<String>>,
     layout: &crate::VirtualStoreLayout,
     pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
@@ -152,11 +152,11 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
         // an unfinished sub-walk that the next caller will redo.
         let mut cache_guard =
             deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        pacquet_graph_hasher::calc_dep_state(
+        pnpm_graph_hasher::calc_dep_state(
             graph,
             &mut cache_guard,
             snapshot_key,
-            &pacquet_graph_hasher::CalcDepStateOptions {
+            &pnpm_graph_hasher::CalcDepStateOptions {
                 engine_name: engine,
                 // `None` for unpatched snapshots leaves the
                 // `;patch=...` segment off the cache key entirely.
@@ -206,7 +206,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
         //
         // A materialization failure is usually *not* fatal. Side-effects
         // `added` blobs aren't re-verified (see
-        // [`pacquet_store_dir::build_file_maps_from_index`]), so a CAS
+        // [`pnpm_store_dir::build_file_maps_from_index`]), so a CAS
         // blob deleted out from under the store surfaces here as an
         // import error. That failure happens while staging the new
         // contents, before the existing slot is touched, so the pristine
@@ -398,7 +398,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
             node_gyp_path: None,
             user_agent: Some(user_agent),
             unsafe_perm,
-            node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
+            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
             scripts_prepend_node_path,
             script_shell,
             optional,
@@ -482,7 +482,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
             !ignore_scripts,
         )
         && let Err(err) =
-            pacquet_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
+            pnpm_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
     {
         tracing::warn!(
             target: "pacquet::build",

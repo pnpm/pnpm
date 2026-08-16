@@ -5,7 +5,7 @@ use super::{
     is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
-use pacquet_store_dir::{STORE_VERSION, StoreDir};
+use pnpm_store_dir::{STORE_VERSION, StoreDir};
 use pretty_assertions::assert_eq;
 use std::{io, path::PathBuf};
 

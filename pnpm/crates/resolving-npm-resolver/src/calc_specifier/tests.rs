@@ -1,4 +1,4 @@
-use pacquet_registry::{PackageVersion, RangeSpecStyle};
+use pnpm_registry::{PackageVersion, RangeSpecStyle};
 
 use super::{calc_prefixed_specifier, calc_specifier};
 

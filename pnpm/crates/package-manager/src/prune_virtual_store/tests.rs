@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use pacquet_lockfile::PkgNameVerPeer;
+use pnpm_lockfile::PkgNameVerPeer;
 
 use super::{
     prune_target_within_modules, prune_virtual_store, same_dir, should_prune_virtual_store,

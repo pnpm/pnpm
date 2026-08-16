@@ -4,7 +4,7 @@ use crate::{
     package_name::PackageName,
 };
 use chrono::{DateTime, Timelike, Utc};
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 use reqwest::{
     StatusCode,
     header::{self, HeaderMap, HeaderValue},
@@ -561,7 +561,7 @@ fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
 /// every character dropped is a byte off the wire.
 ///
 /// Both reduced forms stay parseable by pnpm (`new Date`) and pacquet
-/// ([`pacquet_resolving_resolver_base::parse_packument_timestamp`]).
+/// ([`pnpm_resolving_resolver_base::parse_packument_timestamp`]).
 /// Values are rounded *up* (see [`coarsen_timestamp`]) so the
 /// maturity- and trust-checks that read them stay fail-safe.
 /// Non-timestamp entries (the reserved `unpublished` object) and any

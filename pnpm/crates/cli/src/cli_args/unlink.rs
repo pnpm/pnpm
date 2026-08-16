@@ -1,7 +1,7 @@
 use clap::Args;
 use miette::Context;
-use pacquet_config::Config;
-use pacquet_workspace_manifest_writer::remove_overrides;
+use pnpm_config::Config;
+use pnpm_workspace_manifest_writer::remove_overrides;
 use std::path::Path;
 
 /// Remove the link created by `pnpm link` and reinstall the package as

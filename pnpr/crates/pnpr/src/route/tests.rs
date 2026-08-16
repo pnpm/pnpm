@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use pacquet_network::{MetadataCacheScope, UpstreamRouteHook};
+use pnpm_network::{MetadataCacheScope, UpstreamRouteHook};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};

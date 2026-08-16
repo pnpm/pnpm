@@ -27,8 +27,8 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_config::PackageExtension;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_config::PackageExtension;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Map, Value};
 use std::{collections::HashMap, sync::Arc};
 
@@ -170,14 +170,14 @@ impl PackageExtender {
         Arc::new(cloned)
     }
 
-    /// Wrap `self` in a [`pacquet_resolving_deps_resolver::ManifestHook`]
+    /// Wrap `self` in a [`pnpm_resolving_deps_resolver::ManifestHook`]
     /// the deps-resolver can plumb through `TreeCtx`. Returns `None`
     /// when the extender is empty so the install pipeline can pass
     /// `None` and skip the per-resolve dispatch entirely. The captured
     /// `Arc<PackageExtender>` keeps the grouped-by-name index alive
     /// across every concurrent resolve.
     #[must_use]
-    pub fn into_manifest_hook(self) -> Option<pacquet_resolving_deps_resolver::ManifestHook> {
+    pub fn into_manifest_hook(self) -> Option<pnpm_resolving_deps_resolver::ManifestHook> {
         if self.is_empty() {
             return None;
         }
@@ -236,7 +236,7 @@ fn merge_string_map<Key, Value_>(
 
 fn merge_peer_meta(
     manifest: &mut Map<String, Value>,
-    extension_meta: &std::collections::BTreeMap<String, pacquet_config::PeerDependencyMeta>,
+    extension_meta: &std::collections::BTreeMap<String, pnpm_config::PeerDependencyMeta>,
 ) {
     let existing = manifest
         .remove("peerDependenciesMeta")

@@ -7,22 +7,22 @@ use crate::{
 use derive_more::{Display, Error};
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use miette::Diagnostic;
-use pacquet_config::{Config, NodeLinker, PackageImportMethod};
-use pacquet_deps_path::get_pkg_id_with_patch_hash;
-use pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker;
-use pacquet_lockfile::{
+use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+use pnpm_deps_path::get_pkg_id_with_patch_hash;
+use pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker;
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgNameVerPeer,
     PlatformSelector, SnapshotEntry, select_platform_variant,
 };
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{
     files_include_install_scripts, manifest_requires_build, parse_manifest,
 };
-use pacquet_reporter::{
+use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
 };
-use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
-use pacquet_tarball::{MemCache, SharedReportedProgressKeys, prefetch_cas_paths};
+use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
+use pnpm_tarball::{MemCache, SharedReportedProgressKeys, prefetch_cas_paths};
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -33,7 +33,7 @@ use std::{
 /// Bundled package manifests recovered from the `SQLite` store index
 /// during [`CreateVirtualStore::run`], keyed by the same
 /// `PkgNameVerPeer` (without peer suffix) that
-/// [`pacquet_lockfile::Lockfile::packages`] uses. Consumed by the
+/// [`pnpm_lockfile::Lockfile::packages`] uses. Consumed by the
 /// bin-linker so it doesn't have to re-read `package.json` per child
 /// during [`crate::LinkVirtualStoreBins::run`].
 ///
@@ -49,10 +49,10 @@ pub type PackageManifests = HashMap<PkgNameVerPeer, std::sync::Arc<serde_json::V
 
 /// Per-snapshot side-effects-cache overlays, keyed by the snapshot's
 /// `PackageKey` and then by the dep-state cache key (the string
-/// `pacquet_graph_hasher::calc_dep_state` produces). The inner map
+/// `pnpm_graph_hasher::calc_dep_state` produces). The inner map
 /// is the post-build files map for that cache key — already with
 /// the `added` / `deleted` overlay applied against the base files
-/// (see `pacquet_store_dir::VerifyResult.side_effects_maps`).
+/// (see `pnpm_store_dir::VerifyResult.side_effects_maps`).
 ///
 /// Multiple snapshot peer-variants of the same package share one
 /// `Arc<_>` value — the store-index row is keyed peer-stripped, so
@@ -151,7 +151,7 @@ pub struct CreateVirtualStore<'a> {
     /// Whether snapshot `optionalDependencies` are included in this
     /// materialization.
     pub include_optional_dependencies: bool,
-    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     /// Lockfile / workspace root (`lockfileDir`). Threaded into the
     /// per-snapshot
     /// [`InstallPackageBySnapshot`] so the directory fetcher can
@@ -188,11 +188,11 @@ pub struct CreateVirtualStore<'a> {
     pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
     /// Fetch-evidence cell filled right after the warm/cold partition
     /// with the cold registry-resolved snapshots this run downloads —
-    /// see [`pacquet_resolving_resolver_base::PlannedCanonicalFetches`].
+    /// see [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`].
     /// `None` for callers with no concurrent verification fan-out to
     /// feed (the fresh-resolve path, `--filter` passes, tests).
     pub planned_canonical_fetches:
-        Option<&'a pacquet_resolving_resolver_base::PlannedCanonicalFetches>,
+        Option<&'a pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
     #[cfg(test)]
     pub link_concurrency_probe:
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
@@ -1171,7 +1171,7 @@ fn snapshot_cache_key(
                 return Ok(None);
             }
             // Git-hosted tarballs land in the CAS via
-            // `pacquet_git_fetcher::GitHostedTarballFetcher`, which
+            // `pnpm_git_fetcher::GitHostedTarballFetcher`, which
             // writes the row under `gitHostedStoreIndexKey(pkg_id,
             // built)` rather than the integrity-based key — and so
             // does a tarball with no integrity to key a row by.
@@ -1199,7 +1199,7 @@ fn snapshot_cache_key(
         }
         LockfileResolution::Git(_) => {
             // `Git` resolutions land in CAS via
-            // `pacquet_git_fetcher::GitFetcher`, which writes the
+            // `pnpm_git_fetcher::GitFetcher`, which writes the
             // row under the same `gitHostedStoreIndexKey` shape as
             // the git-hosted tarball path. Returning the key here
             // lets the warm prefetch reuse a previous install's

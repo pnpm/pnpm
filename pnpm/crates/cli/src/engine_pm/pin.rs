@@ -14,9 +14,9 @@
 //! refuses to run.
 
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_package_manifest::package_manager_spec::is_version_request;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_config::Config;
+use pnpm_package_manifest::package_manager_spec::is_version_request;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Map, Value};
 
 use crate::engine_pm::{
@@ -154,11 +154,11 @@ async fn resolve_yarn_binary_version(
     version_spec: &str,
 ) -> miette::Result<String> {
     let bootstrap = &config.package_manager_bootstrap;
-    let client = pacquet_network::ThrottledClient::for_installs(
+    let client = pnpm_network::ThrottledClient::for_installs(
         &bootstrap.proxy,
         &bootstrap.tls,
         &bootstrap.tls_by_uri,
-        &pacquet_network::NetworkSettings {
+        &pnpm_network::NetworkSettings {
             network_concurrency: config.network_concurrency,
             fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
             user_agent: config.user_agent.clone(),
@@ -166,7 +166,7 @@ async fn resolve_yarn_binary_version(
     )
     .into_diagnostic()
     .wrap_err("build the network client to resolve the Yarn release")?;
-    pacquet_engine_pm_yarn_resolver::resolve_yarn_version(&client, version_spec)
+    pnpm_engine_pm_yarn_resolver::resolve_yarn_version(&client, version_spec)
         .await
         .map_err(miette::Report::new)
 }

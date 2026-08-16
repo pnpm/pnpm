@@ -8,21 +8,21 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::{Config, NodeLinker, PackageImportMethod};
-use pacquet_directory_fetcher::DirectoryFetcher;
-use pacquet_fs::{lexical_normalize, remove_dirent};
-use pacquet_lockfile::{
+use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+use pnpm_directory_fetcher::DirectoryFetcher;
+use pnpm_fs::{lexical_normalize, remove_dirent};
+use pnpm_lockfile::{
     DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
     MaybeLazyLockfile, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
     TarballResolution, VersionPart,
 };
-use pacquet_package_manager::{
+use pnpm_package_manager::{
     ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, import_indexed_dir,
 };
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
 use serde_json::{Map, Value, json};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
@@ -1179,10 +1179,7 @@ fn resolve_snapshot_dep_ref(
     }
 }
 
-fn resolve_pkg_ver_peer(
-    version: &pacquet_lockfile::PkgVerPeer,
-    base: &Path,
-) -> Option<LocalResolve> {
+fn resolve_pkg_ver_peer(version: &pnpm_lockfile::PkgVerPeer, base: &Path) -> Option<LocalResolve> {
     let VersionPart::File(path) = version.version() else { return None };
     Some(LocalResolve {
         resolved_path: lexical_normalize(&base.join(path)),
@@ -1201,7 +1198,7 @@ fn resolve_link_payload(base: &Path, payload: &str) -> LocalResolve {
 }
 
 fn split_local_payload(payload: &str) -> (&str, &str) {
-    let suffix = pacquet_deps_path::index_of_dep_path_suffix(payload);
+    let suffix = pnpm_deps_path::index_of_dep_path_suffix(payload);
     match suffix.patch_hash_index.or(suffix.peers_index) {
         Some(index) => (&payload[..index], &payload[index..]),
         None => (payload, ""),

@@ -17,7 +17,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 
 use crate::SkippedSnapshots;
 
@@ -218,7 +218,7 @@ fn read_virtual_store_dir(virtual_store_dir: &Path) -> Option<Vec<String>> {
 /// Surplus entries are normally package directories, but a stray file or
 /// symlink could appear; any of them is removed.
 fn try_remove_pkg(path: &Path) -> bool {
-    match pacquet_fs::remove_dirent(path) {
+    match pnpm_fs::remove_dirent(path) {
         Ok(()) => true,
         Err(error) if error.kind() == io::ErrorKind::NotFound => true,
         Err(error) => {

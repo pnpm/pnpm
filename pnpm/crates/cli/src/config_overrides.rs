@@ -1,9 +1,9 @@
-use pacquet_config::{
+use pnpm_config::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
     VerifyDepsBeforeRun,
 };
-use pacquet_fs::lexical_normalize;
-use pacquet_store_dir::StoreDir;
+use pnpm_fs::lexical_normalize;
+use pnpm_store_dir::StoreDir;
 use std::{
     collections::BTreeMap,
     ffi::{OsStr, OsString},
@@ -239,7 +239,7 @@ impl ConfigOverrides {
 /// Presence-only, like pnpm's `!= null` check: an empty value still
 /// overrides (it disables the gate on the env-overlay side).
 fn verify_deps_env_is_set() -> bool {
-    ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
+    ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
         .iter()
         .any(|name| std::env::var(name).is_ok())
 }

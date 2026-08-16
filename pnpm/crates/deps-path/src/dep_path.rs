@@ -8,7 +8,7 @@ use std::sync::Arc;
 /// therefore exposes infallible `From<String>` / `From<&str>`
 /// constructors and skips a validating `TryFrom`.
 ///
-/// The newtype lives in `pacquet-deps-path` (not in the higher-level
+/// The newtype lives in `pnpm-deps-path` (not in the higher-level
 /// resolver crate) so that lower-level helpers (peer-id construction,
 /// suffix scanning, filename escaping) can speak in depPath terms
 /// without forcing a back-dependency from `deps-path` to the resolver.

@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 
 use napi_derive::napi;
-use pacquet_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
+use pnpm_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
@@ -105,7 +105,7 @@ pub fn read_config(options: ReadConfigOptions) -> napi::Result<ResolvedConfig> {
     Ok(project_config(config))
 }
 
-fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
+fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
     // `to_by_scope` maps `nerf-darted uri -> scope -> header`, carrying
     // only static credentials (a `tokenHelper` has no header until run).
     let by_scope = config.auth_headers.to_by_scope();
@@ -177,19 +177,19 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         shamefully_hoist: config.shamefully_hoist,
-        pnpm_home_dir: pacquet_config::default_pnpm_home_dir::<pacquet_config::Host>()
+        pnpm_home_dir: pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>()
             .map(|dir| dir.display().to_string()),
         explicit_settings: config.explicit_settings.keys().cloned().collect(),
     }
 }
 
-fn import_method_name(method: pacquet_config::PackageImportMethod) -> &'static str {
+fn import_method_name(method: pnpm_config::PackageImportMethod) -> &'static str {
     match method {
-        pacquet_config::PackageImportMethod::Auto => "auto",
-        pacquet_config::PackageImportMethod::Hardlink => "hardlink",
-        pacquet_config::PackageImportMethod::Copy => "copy",
-        pacquet_config::PackageImportMethod::Clone => "clone",
-        pacquet_config::PackageImportMethod::CloneOrCopy => "clone-or-copy",
+        pnpm_config::PackageImportMethod::Auto => "auto",
+        pnpm_config::PackageImportMethod::Hardlink => "hardlink",
+        pnpm_config::PackageImportMethod::Copy => "copy",
+        pnpm_config::PackageImportMethod::Clone => "clone",
+        pnpm_config::PackageImportMethod::CloneOrCopy => "clone-or-copy",
     }
 }
 

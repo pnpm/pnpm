@@ -3,8 +3,8 @@ use super::{
     safe_join_path,
 };
 use crate::error::PreparePackageError;
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_reporter::SilentReporter;
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_reporter::SilentReporter;
 use serde_json::json;
 use std::{collections::HashMap, fs, path::Path, sync::LazyLock};
 use tempfile::tempdir;

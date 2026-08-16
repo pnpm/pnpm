@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageKey, PkgName, PkgVerPeer,
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };

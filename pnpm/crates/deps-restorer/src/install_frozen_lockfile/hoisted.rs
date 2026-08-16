@@ -52,12 +52,12 @@ pub struct HoistedLinkerInputs<'a> {
     pub dependency_groups: &'a [DependencyGroup],
     /// Selected project anchors whose direct dependencies and workspace
     /// links are written by this filtered run.
-    pub project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
+    pub project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     /// Every real importer manifest represented in the full hoisted graph.
     /// The shared package map needs all project names for self-reference
     /// entries even though direct links are limited to selected anchors.
     pub package_map_project_manifests:
-        &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
+        &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     /// Lockfile root the walker resolves hoisted directories against.
     pub walker_lockfile_dir: &'a Path,
     /// Anchor for [`crate::SymlinkDirectDependencies`]'s per-importer
@@ -70,7 +70,7 @@ pub struct HoistedLinkerInputs<'a> {
     /// probe. `None` when no installability check ran (the fresh
     /// path, and constraint-free frozen lockfiles).
     pub host_node: Option<&'a crate::materialization_plan::HostNode>,
-    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     /// Per-package CAS index produced by [`crate::CreateVirtualStore`]
     /// under `node_linker == Hoisted`. The linker imports files from
     /// these paths into the on-disk hoisted tree.
@@ -166,9 +166,9 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         // otherwise a skip-optional / warning.
         engine_strict: config.engine_strict,
         current_node_version: host_node.map(|host| host.version.clone()).unwrap_or_default(),
-        current_os: pacquet_graph_hasher::host_platform().to_string(),
-        current_cpu: pacquet_graph_hasher::host_arch().to_string(),
-        current_libc: pacquet_graph_hasher::host_libc().to_string(),
+        current_os: pnpm_graph_hasher::host_platform().to_string(),
+        current_cpu: pnpm_graph_hasher::host_arch().to_string(),
+        current_libc: pnpm_graph_hasher::host_libc().to_string(),
         supported_architectures: supported_architectures.cloned(),
         hoist_workspace_packages: config.hoist_workspace_packages,
         hoisting_limits: crate::get_hoisting_limits(&lockfile.importers, config.hoisting_limits),
@@ -241,7 +241,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
         .iter()
         .map(|(project_dir, _)| {
-            pacquet_workspace::importer_id_from_root_dir(walker_lockfile_dir, project_dir)
+            pnpm_workspace::importer_id_from_root_dir(walker_lockfile_dir, project_dir)
         })
         .collect();
     SymlinkDirectDependencies {
@@ -285,22 +285,22 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
 pub(crate) fn link_selected_hoisted_direct_dependencies(
     config: &Config,
     lockfile_dir: &Path,
-    project_manifests: &[(PathBuf, &pacquet_package_manifest::PackageManifest)],
+    project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
     direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
 ) -> Result<(), HoistedLinkerError> {
     let modules_dir_name =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
-    let root_modules_dir = pacquet_fs::lexical_normalize(&lockfile_dir.join(modules_dir_name));
+    let root_modules_dir = pnpm_fs::lexical_normalize(&lockfile_dir.join(modules_dir_name));
     for (project_dir, _) in project_manifests {
-        let importer_id = pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir);
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir);
         let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&importer_id) else {
             continue;
         };
         let modules_dir = project_dir.join(modules_dir_name);
         // The workspace root owns the hoisted slot itself, so its own
         // entries are the real directories rather than links to them.
-        let is_workspace_root = pacquet_fs::lexical_normalize(project_dir)
-            == pacquet_fs::lexical_normalize(lockfile_dir);
+        let is_workspace_root =
+            pnpm_fs::lexical_normalize(project_dir) == pnpm_fs::lexical_normalize(lockfile_dir);
         let mut linked_names = Vec::new();
         for (alias, target) in direct_dependencies {
             let link_path =
@@ -321,8 +321,8 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
             // copy to run lifecycle scripts in. Checked after `link_path`
             // so an unusable alias still reports itself.
             if !is_workspace_root
-                && pacquet_fs::lexical_normalize(target)
-                    == pacquet_fs::lexical_normalize(&root_modules_dir.join(alias))
+                && pnpm_fs::lexical_normalize(target)
+                    == pnpm_fs::lexical_normalize(&root_modules_dir.join(alias))
             {
                 // An install that predates this rule, or one where the
                 // version had lost the slot, leaves a link here. Left in
@@ -334,7 +334,7 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
                 // Windows `symlink_dir` falls back to a junction when it
                 // cannot create a true symlink, and a junction is not a
                 // symlink to the stdlib.
-                let stale_link = match pacquet_fs::is_symlink_or_junction(&link_path) {
+                let stale_link = match pnpm_fs::is_symlink_or_junction(&link_path) {
                     Ok(is_link) => is_link,
                     // Nothing to clean up — the common case, and the one
                     // `junction::exists` reports as an error rather than
@@ -355,7 +355,7 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
                     }
                 };
                 if stale_link {
-                    pacquet_fs::remove_symlink_dir(&link_path).map_err(|error| {
+                    pnpm_fs::remove_symlink_dir(&link_path).map_err(|error| {
                         HoistedLinkerError::SymlinkDirectDependencies(
                             SymlinkDirectDependenciesError::SymlinkPackage {
                                 importer_id: importer_id.clone(),
@@ -371,7 +371,7 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
                 }
                 continue;
             }
-            if pacquet_fs::lexical_normalize(&link_path) == pacquet_fs::lexical_normalize(target) {
+            if pnpm_fs::lexical_normalize(&link_path) == pnpm_fs::lexical_normalize(target) {
                 linked_names.push(alias.clone());
                 continue;
             }
@@ -443,7 +443,7 @@ pub struct HoistPlan {
 #[must_use]
 pub fn workspace_packages_for_hoist(
     workspace_root: &Path,
-    project_manifests: &[(PathBuf, &pacquet_package_manifest::PackageManifest)],
+    project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
 ) -> indexmap::IndexMap<String, PathBuf> {
     project_manifests
         .iter()
@@ -463,8 +463,8 @@ pub fn compute_hoist_plan(
     config: &Config,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-    importers: &HashMap<String, pacquet_lockfile::ProjectSnapshot>,
-    dependency_groups: &[pacquet_package_manifest::DependencyGroup],
+    importers: &HashMap<String, pnpm_lockfile::ProjectSnapshot>,
+    dependency_groups: &[pnpm_package_manifest::DependencyGroup],
     skipped: &SkippedSnapshots,
     is_hoisted: bool,
     hoisted_workspace_packages: Option<&indexmap::IndexMap<String, PathBuf>>,
@@ -501,7 +501,7 @@ pub fn compute_hoist_plan(
     // workspace project still get privately hoisted into the shared
     // `<vs>/node_modules` and contribute to `hoistedDependencies`.
     // The `link:` workspace-sibling entries `build_direct_deps_by_importer`
-    // sees are skipped via [`pacquet_lockfile::ImporterDepVersion::as_regular`].
+    // sees are skipped via [`pnpm_lockfile::ImporterDepVersion::as_regular`].
     let direct_deps = build_direct_deps_by_importer(importers, dependency_groups.iter().copied());
     // `HoistInputs` takes `&HashSet<PackageKey>`; build it once from
     // the outer `SkippedSnapshots` by cloning the small skip set
@@ -545,7 +545,7 @@ pub fn collect_public_hoist_targets(
     // `node_modules/` too; their dedupe target is the project dir
     // the hoist symlink points at.
     for (alias, kind, project_dir) in &result.hoisted_workspace_aliases {
-        if matches!(kind, pacquet_modules_yaml::HoistKind::Public) {
+        if matches!(kind, pnpm_modules_yaml::HoistKind::Public) {
             targets.entry(alias.clone()).or_insert_with(|| project_dir.clone());
         }
     }
@@ -556,7 +556,7 @@ pub fn collect_public_hoist_targets(
         let Some(node) = graph.get(node_id) else { continue };
         let dep_dir = layout.slot_dir(node_id).join("node_modules").join(node.name.to_string());
         for (alias, kind) in alias_map {
-            if !matches!(kind, pacquet_modules_yaml::HoistKind::Public) {
+            if !matches!(kind, pnpm_modules_yaml::HoistKind::Public) {
                 continue;
             }
             // First-wins: the traversal already chose one source per alias

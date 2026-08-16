@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils::command_env::CommandTestExt;
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 

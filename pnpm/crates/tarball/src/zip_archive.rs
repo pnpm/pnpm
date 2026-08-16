@@ -11,13 +11,13 @@ use super::{
     apply_placeholder_manifest, emit_progress_found_in_store, is_transient_error,
     load_cached_cas_paths, post_download_semaphore, tarball_error_to_request_retry,
 };
-use pacquet_fs::file_mode;
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_reporter::{
+use pnpm_fs::file_mode;
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryLog,
 };
-use pacquet_store_dir::{
+use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
     StoreIndexWriter, store_index_key,
 };
@@ -120,7 +120,7 @@ pub(crate) fn extract_zip_entries(
         let normalized = segments.join("/");
 
         // Strip the archive's top-level basename (`prefix` on
-        // `pacquet_lockfile::BinaryResolution`) so the ignore filter
+        // `pnpm_lockfile::BinaryResolution`) so the ignore filter
         // sees paths relative to the archive root. If the entry path
         // doesn't start with `{prefix}/` we use the normalized form
         // (a no-op when the entry already lives at the archive root).
@@ -468,7 +468,7 @@ pub struct DownloadZipArchiveToStore<'a> {
     /// behind a token-protected proxy still authenticates correctly.
     pub auth_headers: &'a AuthHeaders,
     /// Basename of the archive's top-level directory, mirroring the
-    /// `prefix` field on `pacquet_lockfile::BinaryResolution`. The
+    /// `prefix` field on `pnpm_lockfile::BinaryResolution`. The
     /// zip extractor strips `{prefix}/` from each entry path before
     /// the ignore-filter check and the CAS write, so downstream
     /// consumers see paths relative to the package root rather than

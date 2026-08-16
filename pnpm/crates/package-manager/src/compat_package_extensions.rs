@@ -29,7 +29,7 @@
 
 use crate::PackageExtender;
 use indexmap::IndexMap;
-use pacquet_config::{PackageExtension, PeerDependencyMeta};
+use pnpm_config::{PackageExtension, PeerDependencyMeta};
 use std::{collections::BTreeMap, sync::LazyLock};
 
 // `pnpm_compat_package_extensions.json` holds pnpm-specific entries not in

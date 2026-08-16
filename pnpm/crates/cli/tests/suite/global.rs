@@ -5,8 +5,8 @@
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 #[cfg(unix)]
-use pacquet_testing_utils::bin::AddMockedRegistry;
-use pacquet_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::bin::AddMockedRegistry;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use std::{
     fs,
     path::{Path, PathBuf},

@@ -1,8 +1,8 @@
 use super::{FastOverrideOptions, try_fast_update_overrides};
 use indexmap::IndexMap;
-use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, SnapshotEntry, TarballResolution};
-use pacquet_resolving_resolver_base::{
+use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, SnapshotEntry, TarballResolution};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };

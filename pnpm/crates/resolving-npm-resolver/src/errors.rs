@@ -2,7 +2,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::redact_and_sanitize;
+use pnpm_network::redact_and_sanitize;
 
 /// Failure to fetch a registry metadata document. Used by
 /// [`crate::fetch_full_metadata()`] and
@@ -13,7 +13,7 @@ use pacquet_network::redact_and_sanitize;
 /// policy triggered the lookup.
 ///
 /// Every URL-bearing variant stores a credential-redacted `url` (the
-/// fetchers pass it through [`pacquet_network::redact_url_credentials`]
+/// fetchers pass it through [`pnpm_network::redact_url_credentials`]
 /// at construction), so a registry configured with inline
 /// `user:pass@host` basic-auth can't leak into the `Display` /
 /// `Diagnostic` message — which reaches the terminal, CI logs, and
@@ -42,7 +42,7 @@ pub enum FetchMetadataError {
     /// a `2xx` — a connection reset or truncated transfer mid-stream,
     /// reqwest's "error decoding response body". Kept distinct from
     /// [`FetchMetadataError::Network`] (the request itself, already
-    /// retried by [`pacquet_network::send_with_retry`]) so the body
+    /// retried by [`pnpm_network::send_with_retry`]) so the body
     /// re-fetch loop in the fetchers retries only this and
     /// [`FetchMetadataError::Decode`] — see
     /// [`FetchMetadataError::is_body_retryable`].
@@ -105,13 +105,13 @@ impl FetchMetadataError {
     /// ([`FetchMetadataError::BodyRead`]) or a body that parsed as
     /// broken JSON ([`FetchMetadataError::Decode`]). This is the
     /// predicate the fetchers hand to
-    /// [`pacquet_network::retry_async`]: retry exactly the body-read
+    /// [`pnpm_network::retry_async`]: retry exactly the body-read
     /// and JSON-parse failures while letting the network library own
     /// request retry.
     ///
     /// [`FetchMetadataError::Network`] stays non-retryable here: the
     /// request (transport error or a `4xx`/`5xx` status) was already
-    /// retried inside [`pacquet_network::send_with_retry`], so a fetch
+    /// retried inside [`pnpm_network::send_with_retry`], so a fetch
     /// failure is rejected immediately rather than re-running the outer
     /// operation.
     #[must_use]

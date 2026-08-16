@@ -6,11 +6,11 @@ use crate::{
     resolve_optional_subdeps::resolution_has_integrity,
     verify_env_lockfile::write_verified_env_lockfile,
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PkgName, PkgVerPeer, RegistryResolution,
     SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use std::{collections::HashMap, path::PathBuf};
 
 const PACKAGE_MANAGER_DEPS_WITH_EXE: [&str; 2] = ["pnpm", "@pnpm/exe"];

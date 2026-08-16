@@ -21,8 +21,8 @@ use std::{
     sync::Arc,
 };
 
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_resolving_resolver_base::{
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, UpdateBehavior, WantedDependency,
 };

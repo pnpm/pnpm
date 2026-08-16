@@ -13,11 +13,11 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
-use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
-use pacquet_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
-use pacquet_config::CatalogMode;
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
+use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_config::CatalogMode;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 
 /// Wanted dependency outside the version range defined in catalog.
 ///

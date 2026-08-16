@@ -1,5 +1,5 @@
 use crate::capabilities::FsWalkFiles;
-use pacquet_fs::is_subdir;
+use pnpm_fs::is_subdir;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 

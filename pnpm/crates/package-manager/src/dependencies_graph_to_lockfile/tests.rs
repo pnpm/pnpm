@@ -4,20 +4,20 @@ use super::{
     read_string_or_list,
 };
 use indexmap::IndexMap;
-use pacquet_deps_path::DepPath;
-use pacquet_lockfile::{
+use pnpm_deps_path::DepPath;
+use pnpm_lockfile::{
     DirectoryResolution, GitResolution, ImporterDepVersion, LockfileResolution, PackageKey,
     PackageMetadata, PkgName, PkgNameVer, ProjectSnapshot, RegistryResolution,
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, TarballResolution,
     VariationsResolution,
 };
-use pacquet_package_manifest::PackageManifest;
-use pacquet_resolving_deps_resolver::{
+use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_deps_resolver::{
     ChildEdge, DependenciesGraph, DependenciesGraphNode, DependenciesTreeNode, DirectDep, NodeId,
     PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedTree, TreeChildren, UpdateReuseScope,
     resolve_peers,
 };
-use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 static EMPTY_NAMED_REGISTRIES: std::sync::LazyLock<std::collections::HashMap<String, String>> =
@@ -41,12 +41,12 @@ fn recognizes_bin_directories_in_package_manifests() {
     assert_eq!(manifest_has_bin(Some(&json!({ "directories": { "bin": "" } }))), None);
 }
 
-fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pacquet_lockfile::Lockfile {
+fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pnpm_lockfile::Lockfile {
     try_dependencies_graph_to_lockfile(opts).expect("convert dependency graph to lockfile")
 }
 
 /// Shared empty catalogs for the catalog-free fixtures in this module.
-static EMPTY_CATALOGS: pacquet_catalogs_types::Catalogs = BTreeMap::new();
+static EMPTY_CATALOGS: pnpm_catalogs_types::Catalogs = BTreeMap::new();
 
 /// Build a single-importer [`GraphToLockfileOptions`] under the root key
 /// (`"."`). Every existing test exercises the single-importer shape;
@@ -548,7 +548,7 @@ fn overrides_flow_into_lockfile_verbatim_including_convergence_selectors() {
 
     let yaml = serde_saphyr::to_string(&lockfile).unwrap();
     eprintln!("YAML:\n{yaml}\n");
-    let reparsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&yaml).unwrap();
+    let reparsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&yaml).unwrap();
     assert_eq!(reparsed.overrides, Some(overrides));
 }
 
@@ -730,7 +730,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
     let mut direct = BTreeMap::new();
     direct.insert("js-yaml".to_string(), DepPath::from("@zkochan/js-yaml@0.0.11".to_string()));
 
-    let mut catalogs: pacquet_catalogs_types::Catalogs = BTreeMap::new();
+    let mut catalogs: pnpm_catalogs_types::Catalogs = BTreeMap::new();
     catalogs
         .entry("default".to_string())
         .or_default()
@@ -2278,7 +2278,7 @@ fn workspace_link_direct_dep_kept_when_exclude_links_from_lockfile_true() {
 /// self-aliased ref would double-prefix that key.
 #[test]
 fn same_name_injected_dep_serializes_as_plain_file_ref() {
-    use pacquet_lockfile::ImporterDepVersion;
+    use pnpm_lockfile::ImporterDepVersion;
 
     let node = DependenciesGraphNode {
         dep_path: DepPath::from("@scope/comp1@file:comp1(react@16.0.0)".to_string()),
@@ -2292,7 +2292,7 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
             manifest: Some(std::sync::Arc::new(
                 serde_json::json!({ "name": "@scope/comp1", "version": "1.0.0" }),
             )),
-            resolution: pacquet_lockfile::DirectoryResolution { directory: "comp1".to_string() }
+            resolution: pnpm_lockfile::DirectoryResolution { directory: "comp1".to_string() }
                 .into(),
             resolved_via: "local-filesystem".to_string(),
             normalized_bare_specifier: None,

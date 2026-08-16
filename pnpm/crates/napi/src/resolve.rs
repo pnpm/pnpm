@@ -5,7 +5,7 @@
 //! `resolveRemoteVersion`).
 //!
 //! Mirrors the install path's [`DefaultResolver`] chain (see
-//! `pacquet_package_manager::install_with_fresh_lockfile`) so a single
+//! `pnpm_package_manager::install_with_fresh_lockfile`) so a single
 //! resolve claims every protocol the install claims: npm registry
 //! (`name@version` / `range` / `tag`, incl. the `foo@npm:bar` alias
 //! form), git URLs, `http(s)` tarball URLs, `file:` / `link:` /
@@ -31,22 +31,20 @@ use std::{
 };
 
 use napi_derive::napi;
-use pacquet_engine_pm_yarn_resolver::YarnResolver;
-use pacquet_engine_runtime_bun_resolver::BunResolver;
-use pacquet_engine_runtime_deno_resolver::DenoResolver;
-use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_resolving_default_resolver::DefaultResolver;
-use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
-use pacquet_resolving_local_resolver::{
-    LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
-};
-use pacquet_resolving_npm_resolver::{
+use pnpm_engine_pm_yarn_resolver::YarnResolver;
+use pnpm_engine_runtime_bun_resolver::BunResolver;
+use pnpm_engine_runtime_deno_resolver::DenoResolver;
+use pnpm_engine_runtime_node_resolver::NodeResolver;
+use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_resolving_default_resolver::DefaultResolver;
+use pnpm_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
+use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
+use pnpm_resolving_npm_resolver::{
     NamedRegistryResolver, NpmResolver, merge_named_registries, shared_in_memory_cache,
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pacquet_resolving_tarball_resolver::TarballResolver;
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_tarball_resolver::TarballResolver;
 
 use crate::{
     config::{ConfigOverlay, resolve_config},

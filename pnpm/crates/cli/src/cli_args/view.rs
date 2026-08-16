@@ -13,15 +13,15 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream, Style};
-use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_resolving_npm_resolver::{
+use pnpm_config::Config;
+use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, PickPackageFromMetaOptions,
     fetch_full_metadata, parse_bare_specifier, pick_package_from_meta, pick_registry_for_package,
     pick_version_by_version_range,
 };
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_workspace::try_read_project_manifest;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_workspace::try_read_project_manifest;
 use serde_json::{Map, Value};
 
 use super::deprecate::normalize_registry_url;
@@ -226,10 +226,7 @@ async fn fetch_package_info(
 /// manifest and the packument-level fields. The picked version's raw JSON
 /// fragment is reused so registry key order is preserved in `--json` output,
 /// and the extra fields are appended in place.
-fn assemble_info(
-    meta: &pacquet_registry::Package,
-    picked: &pacquet_registry::PackageVersion,
-) -> Value {
+fn assemble_info(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageVersion) -> Value {
     let version_key = picked.version.to_string();
     let data = meta
         .versions
@@ -281,16 +278,16 @@ fn assemble_info(
 /// becomes [`ViewError::Fetch404`] (pnpm's `ERR_PNPM_FETCH_404`); every
 /// other failure is surfaced verbatim.
 fn map_fetch_error(
-    error: pacquet_resolving_npm_resolver::FetchMetadataError,
+    error: pnpm_resolving_npm_resolver::FetchMetadataError,
     registry: &str,
     pkg_name: &str,
 ) -> miette::Report {
-    use pacquet_resolving_npm_resolver::FetchMetadataError;
+    use pnpm_resolving_npm_resolver::FetchMetadataError;
     if let FetchMetadataError::Network { error: ref source, .. } = error
         && source.status() == Some(reqwest::StatusCode::NOT_FOUND)
     {
         return ViewError::Fetch404 {
-            url: pacquet_network::redact_url_credentials(&format!("{registry}{pkg_name}")),
+            url: pnpm_network::redact_url_credentials(&format!("{registry}{pkg_name}")),
         }
         .into();
     }

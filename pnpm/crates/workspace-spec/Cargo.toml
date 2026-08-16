@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-workspace-spec"
+name                  = "pnpm-workspace-spec"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true

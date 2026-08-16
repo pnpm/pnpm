@@ -4,10 +4,10 @@ use crate::path_env::{BadPathDir, prepend_dirs_to_path, set_command_path};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_executor::{push_script_arg, select_shell};
-use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_workspace::safe_read_project_manifest_only;
+use pnpm_config::Config;
+use pnpm_executor::{push_script_arg, select_shell};
+use pnpm_package_manager::{make_node_package_map_option, package_map_path_for_execution};
+use pnpm_workspace::safe_read_project_manifest_only;
 use std::{
     path::Path,
     process::{Command, ExitStatus},
@@ -177,12 +177,12 @@ pub(super) fn spawn_in_dir(
     set_command_path(&mut cmd, &path);
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
-    cmd.env(pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
+    cmd.env(pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
     if let Some(name) = read_package_name(dir) {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }
     let mut node_options = config.node_options.as_deref().map(|node_options| {
-        pacquet_config::esm_node_path_loader::keep_esm_node_path_loader_option(
+        pnpm_config::esm_node_path_loader::keep_esm_node_path_loader_option(
             node_options,
             config.extra_env.get("NODE_OPTIONS").map(String::as_str),
         )

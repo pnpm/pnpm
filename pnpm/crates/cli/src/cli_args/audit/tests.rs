@@ -17,7 +17,7 @@ use super::{
     version_ranges::{caret_range_for_patched, satisfies_safe},
 };
 use chrono::{DateTime, Utc};
-use pacquet_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
+use pnpm_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
 use std::{collections::HashSet, fmt::Write as _};
 
 fn parse_lockfile(yaml: &str) -> Lockfile {

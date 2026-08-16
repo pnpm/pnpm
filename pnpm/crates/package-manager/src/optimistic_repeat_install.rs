@@ -36,8 +36,8 @@
 //!
 //! ## Why a separate module
 //!
-//! Lives in `pacquet-package-manager` rather than a new
-//! `pacquet-deps-status` crate because both consumers — `Install::run`
+//! Lives in `pnpm-package-manager` rather than a new
+//! `pnpm-deps-status` crate because both consumers — `Install::run`
 //! and the verify-deps-before-run gate ([`check_deps_status_before_run`])
 //! — lean on install internals (`check_lockfile_settings_drift`,
 //! `check_importer_satisfies`, `build_workspace_state`) that a separate
@@ -77,14 +77,14 @@ use std::{
     time::SystemTime,
 };
 
-use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
-use pacquet_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
-use pacquet_modules_yaml::IncludedDependencies;
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_workspace_state::{
+use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
+use pnpm_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_workspace_state::{
     NodeLinker as WorkspaceStateNodeLinker, TrustPolicy as WorkspaceStateTrustPolicy,
     WorkspaceState, WorkspaceStateSettings, load_workspace_state, update_workspace_state,
 };
@@ -435,7 +435,7 @@ impl<'a> LinkedPackagesContext<'a> {
         if let Some(manifest) = self.manifests_by_dir.get(dir) {
             return manifest_string_field(manifest, "version");
         }
-        pacquet_package_manifest::safe_read_package_json_from_dir(dir)
+        pnpm_package_manifest::safe_read_package_json_from_dir(dir)
             .ok()
             .flatten()
             .and_then(|value| value.get("version").and_then(|v| v.as_str()).map(str::to_string))
@@ -576,7 +576,7 @@ pub(crate) fn current_pnpmfiles(workspace_root: &Path, config: &Config) -> Vec<S
     if config.ignore_pnpmfile {
         return Vec::new();
     }
-    pacquet_hooks::finder::find_pnpmfile(workspace_root)
+    pnpm_hooks::finder::find_pnpmfile(workspace_root)
         .map(|path| path.to_string_lossy().into_owned())
         .into_iter()
         .collect()

@@ -1,4 +1,4 @@
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     Lockfile, PkgName, PkgNameVerPeer, Prefix, ResolvedDependencySpec, SnapshotDepRef, VersionPart,
 };
 use std::collections::{HashSet, VecDeque};

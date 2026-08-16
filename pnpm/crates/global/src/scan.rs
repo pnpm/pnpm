@@ -2,8 +2,8 @@
 //! directory and the details needed to list, update, and remove them.
 
 use crate::read_package_json;
-use pacquet_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest};
-use pacquet_resolving_deps_resolver::is_valid_dependency_alias;
+use pnpm_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest};
+use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
     collections::BTreeSet,

@@ -1,7 +1,7 @@
 //! Ports `pnpm11/pnpm/test/packageManagerCheck.test.ts`.
 
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
     path::Path,
@@ -63,8 +63,8 @@ fn pm_on_fail_ignore_bypasses_the_package_manager_version_mismatch() {
 #[test]
 fn a_package_manager_field_with_an_integrity_hash_matches_the_running_version() {
     let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pacquet_config::PNPM_VERSION);
-    let pinned = format!("pnpm@{}+sha256.123456789", pacquet_config::PNPM_VERSION);
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let pinned = format!("pnpm@{}+sha256.123456789", pnpm_config::PNPM_VERSION);
     write_manifest(&workspace, &serde_json::json!({ "packageManager": pinned }));
     pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
@@ -201,8 +201,8 @@ fn dev_engines_package_manager_array_defaults_on_fail_to_ignore_before_the_last_
 #[test]
 fn a_command_outside_the_install_family_records_the_pinned_package_manager() {
     let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pacquet_config::PNPM_VERSION);
-    write_dev_engines_package_manager(&workspace, "pnpm", pacquet_config::PNPM_VERSION, None);
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    write_dev_engines_package_manager(&workspace, "pnpm", pnpm_config::PNPM_VERSION, None);
     pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
@@ -211,7 +211,7 @@ fn a_command_outside_the_install_family_records_the_pinned_package_manager() {
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the written lockfile");
     assert_contains(&lockfile, "packageManagerDependencies:");
-    assert_contains(&lockfile, &format!("pnpm@{}", pacquet_config::PNPM_VERSION));
+    assert_contains(&lockfile, &format!("pnpm@{}", pnpm_config::PNPM_VERSION));
     drop((root, npmrc_info));
 }
 
@@ -548,7 +548,7 @@ fn a_failing_runtime_check_does_not_block_the_version_output() {
     let output = run(pacquet, root.path(), &["--version"]);
 
     assert_success(&output);
-    assert_eq!(stdout(&output).trim(), pacquet_config::PNPM_VERSION);
+    assert_eq!(stdout(&output).trim(), pnpm_config::PNPM_VERSION);
 }
 
 /// `exec` is the cheapest command that still goes through the pre-command

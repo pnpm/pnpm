@@ -1,9 +1,9 @@
 use std::{fs, sync::Mutex};
 
 use crate::tests::project_local_config;
-use pacquet_lockfile::{LockfileResolution, RegistryResolution};
-use pacquet_reporter::{LogEvent, PromptAction, Reporter, SilentReporter};
-use pacquet_resolving_resolver_base::ResolutionPolicyViolation;
+use pnpm_lockfile::{LockfileResolution, RegistryResolution};
+use pnpm_reporter::{LogEvent, PromptAction, Reporter, SilentReporter};
+use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
 use ssri::Integrity;
 use tempfile::tempdir;
 

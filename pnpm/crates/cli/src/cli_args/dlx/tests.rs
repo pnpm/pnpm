@@ -3,7 +3,7 @@ use super::{
     scopeless,
 };
 use clap::Parser;
-use pacquet_package_is_installable::SupportedArchitectures;
+use pnpm_package_is_installable::SupportedArchitectures;
 use std::{
     collections::BTreeMap,
     fs,

@@ -23,25 +23,25 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_cmd_shim::{
+use pnpm_cmd_shim::{
     Host as CmdShimHost, PackageBinSource, link_bins_of_packages_context_aware,
     link_bins_of_packages_with_excludes, remove_bin,
 };
-use pacquet_config::{
+use pnpm_config::{
     CatalogMode, Config, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
 };
-use pacquet_fs::{is_subdir, lexical_normalize, remove_symlink_dir};
-use pacquet_global::{
+use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir};
+use pnpm_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
     create_global_cache_key, create_install_dir, find_global_package, get_hash_link,
     get_installed_bin_names, read_direct_dependencies, read_installed_packages,
     scan_global_packages,
 };
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pacquet_resolving_parse_wanted_dependency::{
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_resolving_parse_wanted_dependency::{
     is_valid_old_npm_package_name, parse_wanted_dependency,
 };
 use std::{
@@ -130,7 +130,7 @@ fn link_global_bins(
         let name = pkg.manifest.get("name").and_then(serde_json::Value::as_str);
         !name.is_some_and(|name| {
             (config.global_shims.is_enabled(name) || newly_enabled.contains(name))
-                && (!pacquet_package_manifest::is_runtime_alias(name)
+                && (!pnpm_package_manifest::is_runtime_alias(name)
                     || dependencies
                         .iter()
                         .any(|(alias, spec)| alias == name && spec.starts_with("runtime:")))
@@ -176,13 +176,10 @@ fn install_windows_node_dispatcher(
         if pkg.manifest.get("name").and_then(serde_json::Value::as_str) != Some("node") {
             return None;
         }
-        pacquet_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
-            &pkg.manifest,
-            &pkg.location,
-        )
-        .into_iter()
-        .find(|command| command.name == "node")
-        .map(|command| command.path)
+        pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(&pkg.manifest, &pkg.location)
+            .into_iter()
+            .find(|command| command.name == "node")
+            .map(|command| command.path)
     });
     if let Some(target) = target {
         crate::shim_dispatch::install_windows_node_dispatcher(global_bin_dir, &target)

@@ -7,7 +7,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest, pkg_owns_bin};
+use pnpm_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest, pkg_owns_bin};
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},

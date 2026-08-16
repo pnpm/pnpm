@@ -14,11 +14,11 @@
 //!   holds back a built-in shim would do.
 
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{
+use pnpm_config::{
     Config, GLOBAL_CONFIG_YAML_FILENAME, GlobalShims, GlobalShimsSetting, Host, NamedShimPolicy,
     ShimPolicy, ShimPolicyValue, WorkspaceSettings, default_config_dir,
 };
-use pacquet_workspace_manifest_writer::update_manifest_field;
+use pnpm_workspace_manifest_writer::update_manifest_field;
 use std::{
     collections::BTreeSet,
     fs,

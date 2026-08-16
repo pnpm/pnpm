@@ -5,7 +5,7 @@
 //! same answer before it can install them.
 
 use miette::Context;
-use pacquet_config::Config;
+use pnpm_config::Config;
 
 use crate::{
     config_deps::{ResolvedEngine, resolve_engine_version},

@@ -1,4 +1,4 @@
-use pacquet_lockfile::Lockfile;
+use pnpm_lockfile::Lockfile;
 
 /// The composed pipeline restricted to `ignoredOptionalDependencies`
 /// drift: every other input is neutral, so these tests exercise this
@@ -11,9 +11,9 @@ fn try_fast_update_ignored_optional_dependencies(
         lockfile,
         &[],
         &[],
-        &pacquet_config::Config {
+        &pnpm_config::Config {
             ignored_optional_dependencies: Some(ignored_optional_dependencies.to_vec()),
-            ..pacquet_config::Config::default()
+            ..pnpm_config::Config::default()
         },
         None,
         false,

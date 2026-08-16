@@ -16,13 +16,13 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_package_manager::Add;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_workspace_manifest_writer::set_allow_builds;
+use pnpm_config::Config;
+use pnpm_package_manager::Add;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_workspace_manifest_writer::set_allow_builds;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -483,7 +483,7 @@ pub(crate) async fn add_package<Reporter, DependencyGroupList>(
     range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
-    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     dependency_groups: DependencyGroupList,
 ) -> miette::Result<()>
 where
@@ -580,7 +580,7 @@ pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
-    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     dependency_groups: Option<DependencyGroupList>,
 ) -> miette::Result<()>
 where

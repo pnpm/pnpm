@@ -19,10 +19,10 @@ use p256::{
     ecdsa::{Signature, VerifyingKey, signature::Verifier},
     pkcs8::DecodePublicKey,
 };
-use pacquet_config::Config;
-use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
-use pacquet_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef, SpecifierAndResolution};
-use pacquet_network::{
+use pnpm_config::Config;
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef, SpecifierAndResolution};
+use pnpm_network::{
     NetworkSettings, RetryOpts, ThrottledClient, encode_package_name, redact_and_sanitize,
     send_with_retry,
 };

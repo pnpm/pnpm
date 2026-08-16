@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use pacquet_config::TrustPolicy;
+use pnpm_config::TrustPolicy;
 use serde_json::json;
 
 use super::{

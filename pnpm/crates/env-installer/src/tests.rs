@@ -3,23 +3,23 @@ use crate::{
     pnpm_engine_packages, prune_env_lockfile, resolve_and_install_config_deps,
     resolve_package_manager_integrities,
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
     SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_reporter::{InstallingConfigDepsStatus, LogEvent, Reporter, SilentReporter};
-use pacquet_resolving_npm_resolver::{
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_reporter::{InstallingConfigDepsStatus, LogEvent, Reporter, SilentReporter};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
-use pacquet_store_dir::StoreDir;
-use pacquet_testing_utils::registry::TestRegistry;
-use pacquet_workspace_state::ConfigDependency;
+use pnpm_store_dir::StoreDir;
+use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_workspace_state::ConfigDependency;
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -115,7 +115,7 @@ fn options<'a>(
         registries: &harness.registries,
         verify_store_integrity: true,
         offline: false,
-        package_import_method: pacquet_config::PackageImportMethod::default(),
+        package_import_method: pnpm_config::PackageImportMethod::default(),
         retry_opts: RetryOpts::default(),
         frozen_lockfile: frozen,
         supported_architectures: None,
@@ -710,7 +710,7 @@ async fn rejects_optional_subdep_with_path_traversal_name() {
     let malicious_name = "../../PWNED_SUBDEP".to_string();
     let malicious_key: PackageKey = format!("{malicious_name}@100.0.0").parse().unwrap();
     env.packages.insert(malicious_key, pkg);
-    let subdep_name: pacquet_lockfile::PkgName = malicious_name.parse().unwrap();
+    let subdep_name: pnpm_lockfile::PkgName = malicious_name.parse().unwrap();
     let subdep_ref: SnapshotDepRef = "100.0.0".parse().unwrap();
     env.snapshots.entry(parent_key).or_default().optional_dependencies =
         Some(std::iter::once((subdep_name, subdep_ref)).collect());
@@ -884,7 +884,7 @@ async fn rejects_optional_subdep_with_path_traversal_version() {
     let subdep_name = "@pnpm.e2e/bar";
     let malicious_key: PackageKey = format!("{subdep_name}@{malicious_version}").parse().unwrap();
     env.packages.insert(malicious_key, pkg);
-    let subdep_name_parsed: pacquet_lockfile::PkgName = subdep_name.parse().unwrap();
+    let subdep_name_parsed: pnpm_lockfile::PkgName = subdep_name.parse().unwrap();
     let subdep_ref: SnapshotDepRef = malicious_version.parse().unwrap();
     env.snapshots.entry(parent_key).or_default().optional_dependencies =
         Some(std::iter::once((subdep_name_parsed, subdep_ref)).collect());

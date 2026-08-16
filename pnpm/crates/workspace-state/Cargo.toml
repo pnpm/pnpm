@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-workspace-state"
+name                  = "pnpm-workspace-state"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,7 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-diagnostics = { workspace = true }
+pnpm-diagnostics = { workspace = true }
 
 derive_more = { workspace = true }
 indexmap    = { workspace = true }

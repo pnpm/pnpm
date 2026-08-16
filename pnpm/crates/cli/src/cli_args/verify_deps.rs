@@ -13,9 +13,9 @@ use std::{
 use derive_more::{Display, Error};
 use dialoguer::Confirm;
 use miette::{Diagnostic, IntoDiagnostic};
-use pacquet_config::{Config, VerifyDepsBeforeRun};
-use pacquet_default_reporter::colors::Colors;
-use pacquet_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
+use pnpm_config::{Config, VerifyDepsBeforeRun};
+use pnpm_default_reporter::colors::Colors;
+use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 enum VerifyDepsError {

@@ -1,6 +1,6 @@
 use super::VirtualStoreLayout;
-use pacquet_config::Config;
-use pacquet_lockfile::{
+use pnpm_config::Config;
+use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName,
     RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };

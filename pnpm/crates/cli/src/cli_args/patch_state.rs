@@ -1,7 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::{is_subdir, lexical_normalize};
-use pacquet_lockfile::PackageKey;
+use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_lockfile::PackageKey;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,

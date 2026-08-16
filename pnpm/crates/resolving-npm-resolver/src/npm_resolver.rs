@@ -27,11 +27,11 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pacquet_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
-use pacquet_resolving_resolver_base::{
+use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
+use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId,
     RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
     ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
@@ -609,7 +609,7 @@ pub(crate) enum RegistryPick {
 pub(crate) struct PickFromRegistryOptions<'a> {
     pub registry: &'a str,
     pub spec: &'a RegistryPackageSpec,
-    pub preferred_version_selectors: Option<&'a pacquet_resolving_resolver_base::VersionSelectors>,
+    pub preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub pick_lowest_version: bool,
@@ -618,7 +618,7 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub optional: bool,
     pub update_checksums: bool,
     pub package_version_guard:
-        Option<&'a Arc<dyn pacquet_resolving_resolver_base::PackageVersionGuard>>,
+        Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
 }
 
 /// Upper bound on guard rejections for one package before the resolver
@@ -676,7 +676,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             }
             PackageVersionGuardDecision::Reject { reason } => {
                 tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver",
+                    target: "pnpm_resolving_npm_resolver",
                     name = %opts.spec.name,
                     version = %version_str,
                     reason = %reason,
@@ -949,7 +949,7 @@ fn latest_allowed_by_policy<'a>(
     let latest = meta.dist_tag("latest")?;
     let Some(cutoff) = published_by else { return Some(latest) };
     if let Some(policy) = published_by_exclude {
-        use pacquet_config::version_policy::PolicyMatch;
+        use pnpm_config::version_policy::PolicyMatch;
         match policy.matches(&meta.name) {
             PolicyMatch::AnyVersion => return Some(latest),
             PolicyMatch::ExactVersions(versions)
@@ -980,7 +980,7 @@ fn detect_min_release_age_violation(
     let cutoff = published_by?;
     let timestamp = published_at?;
     if let Some(policy) = published_by_exclude {
-        use pacquet_config::version_policy::PolicyMatch;
+        use pnpm_config::version_policy::PolicyMatch;
         match policy.matches(&name.to_string()) {
             PolicyMatch::AnyVersion => return None,
             PolicyMatch::ExactVersions(versions)

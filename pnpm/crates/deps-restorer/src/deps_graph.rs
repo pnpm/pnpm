@@ -1,5 +1,5 @@
 //! Adapter from pacquet's lockfile structures to
-//! [`pacquet_graph_hasher::DepsGraphNode`].
+//! [`pnpm_graph_hasher::DepsGraphNode`].
 //!
 //! `BuildModules`'s `is_built` gate needs to call
 //! `calc_dep_state(graph, ...)` per snapshot to compute the
@@ -9,8 +9,8 @@
 //! + `optional_dependencies`.
 
 use indexmap::IndexMap;
-use pacquet_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
-use pacquet_lockfile::{
+use pnpm_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry,
 };
 use std::collections::HashMap;
@@ -127,7 +127,7 @@ fn full_pkg_id_for(pkg_key: &PackageKey, resolution: &LockfileResolution) -> Str
 /// from `dependencies` while taking its value from
 /// `optionalDependencies`. Both sections are sorted on disk, so sorting
 /// them here restores the order the graph hasher's digests are defined
-/// in (see [`pacquet_graph_hasher::DepsGraphNode::children`]).
+/// in (see [`pnpm_graph_hasher::DepsGraphNode::children`]).
 #[must_use]
 pub fn build_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
     build_children_with(snapshot, |alias, dep_ref| dep_ref.resolve(alias))
@@ -163,7 +163,7 @@ fn extend_children<Child>(
 /// directly hands the graph hasher a different entry-point order on
 /// every run — and the digests it computes for cyclic subgraphs depend
 /// on that order (see
-/// [`pacquet_graph_hasher::DepsGraphNode::children`]). Sorting by the
+/// [`pnpm_graph_hasher::DepsGraphNode::children`]). Sorting by the
 /// rendered snapshot key reproduces how pnpm writes — and therefore
 /// iterates — the `snapshots:` section.
 #[must_use]

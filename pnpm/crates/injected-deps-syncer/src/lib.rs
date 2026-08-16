@@ -16,13 +16,13 @@ pub use dir_patcher::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::{
+use pnpm_cmd_shim::{
     LinkBinsError, PackageBinSource, get_bins_from_package_manifest, link_bins,
     link_bins_of_packages, remove_bin,
 };
-use pacquet_modules_yaml::{ReadModulesError, read_modules_manifest};
-use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
-use pacquet_workspace::{
+use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
+use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_workspace::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects_no_check,
 };
 use std::{
@@ -112,7 +112,7 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
 
     let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
     let modules =
-        read_modules_manifest::<pacquet_modules_yaml::Host>(&workspace_dir.join("node_modules"))
+        read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace_dir.join("node_modules"))
             .map_err(|error| SyncInjectedDepsError::ReadModules { error })?;
     let Some(injected_deps) = modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
     else {
@@ -143,7 +143,7 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
     }
 
     let previous_bin_names = opts.manifest_before_scripts.map_or_else(Vec::new, |manifest| {
-        get_bins_from_package_manifest::<pacquet_cmd_shim::Host>(manifest, &pkg_root_dir)
+        get_bins_from_package_manifest::<pnpm_cmd_shim::Host>(manifest, &pkg_root_dir)
             .into_iter()
             .map(|command| command.name)
             .collect()
@@ -165,7 +165,7 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
 /// package's path relative to the workspace root, with forward slashes
 /// on every host.
 fn injected_dep_key(workspace_dir: &Path, pkg_root_dir: &Path) -> String {
-    pacquet_fs::relative_path(workspace_dir, pkg_root_dir).to_string_lossy().replace('\\', "/")
+    pnpm_fs::relative_path(workspace_dir, pkg_root_dir).to_string_lossy().replace('\\', "/")
 }
 
 /// Re-link the bins of a package whose files just changed: a build
@@ -197,7 +197,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
     // `link_bins` only ever creates shims, so a bin the script dropped keeps
     // its shim, pointing at a command that is no longer there.
     let current_bin_names: HashSet<String> =
-        get_bins_from_package_manifest::<pacquet_cmd_shim::Host>(&manifest, pkg_root_dir)
+        get_bins_from_package_manifest::<pnpm_cmd_shim::Host>(&manifest, pkg_root_dir)
             .into_iter()
             .map(|command| command.name)
             .collect();
@@ -229,7 +229,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
             continue;
         }
         let packages = [PackageBinSource::new(target_dir.clone(), Arc::clone(&manifest))];
-        link_bins_of_packages::<pacquet_cmd_shim::Host>(
+        link_bins_of_packages::<pnpm_cmd_shim::Host>(
             &packages,
             &parent_modules_dir.join(".bin"),
             &[],
@@ -257,7 +257,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
                 }
             })?;
         }
-        link_bins::<pacquet_cmd_shim::Host>(
+        link_bins::<pnpm_cmd_shim::Host>(
             &project_modules_dir,
             &project_modules_dir.join(".bin"),
             &[],

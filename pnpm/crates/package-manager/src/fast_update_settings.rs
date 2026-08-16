@@ -1,7 +1,7 @@
 use crate::fast_update_compose::Drift;
-use pacquet_config::Config;
-use pacquet_lockfile::{ImporterDepVersion, Lockfile, LockfileSettings, ProjectSnapshot};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_config::Config;
+use pnpm_lockfile::{ImporterDepVersion, Lockfile, LockfileSettings, ProjectSnapshot};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -17,7 +17,7 @@ pub(crate) fn lockfile_settings_from_config(config: &Config) -> LockfileSettings
         exclude_links_from_lockfile: config.exclude_links_from_lockfile,
         inject_workspace_packages: config.inject_workspace_packages,
         peers_suffix_max_length: (config.peers_suffix_max_length
-            != pacquet_config::default_peers_suffix_max_length())
+            != pnpm_config::default_peers_suffix_max_length())
         .then_some(config.peers_suffix_max_length),
     }
 }
@@ -74,27 +74,27 @@ fn changed_settings(
     settings: &LockfileSettings,
 ) -> Vec<ChangedSetting> {
     let mut changed = Vec::new();
-    if pacquet_lockfile::auto_install_peers_changed(recorded, settings.auto_install_peers) {
+    if pnpm_lockfile::auto_install_peers_changed(recorded, settings.auto_install_peers) {
         changed.push(ChangedSetting::AutoInstallPeers);
     }
-    if pacquet_lockfile::recorded_dedupe_peers(recorded)
-        != pacquet_lockfile::recorded_dedupe_peers(Some(settings))
+    if pnpm_lockfile::recorded_dedupe_peers(recorded)
+        != pnpm_lockfile::recorded_dedupe_peers(Some(settings))
     {
         changed.push(ChangedSetting::DedupePeers);
     }
-    if pacquet_lockfile::exclude_links_from_lockfile_changed(
+    if pnpm_lockfile::exclude_links_from_lockfile_changed(
         recorded,
         settings.exclude_links_from_lockfile,
     ) {
         changed.push(ChangedSetting::ExcludeLinksFromLockfile);
     }
-    if pacquet_lockfile::recorded_peers_suffix_max_length(recorded)
-        != pacquet_lockfile::recorded_peers_suffix_max_length(Some(settings))
+    if pnpm_lockfile::recorded_peers_suffix_max_length(recorded)
+        != pnpm_lockfile::recorded_peers_suffix_max_length(Some(settings))
     {
         changed.push(ChangedSetting::PeersSuffixMaxLength);
     }
-    if pacquet_lockfile::recorded_inject_workspace_packages(recorded)
-        != pacquet_lockfile::recorded_inject_workspace_packages(Some(settings))
+    if pnpm_lockfile::recorded_inject_workspace_packages(recorded)
+        != pnpm_lockfile::recorded_inject_workspace_packages(Some(settings))
     {
         changed.push(ChangedSetting::InjectWorkspacePackages);
     }

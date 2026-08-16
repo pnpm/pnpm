@@ -1,19 +1,19 @@
 //! The request half of `pnpm publish`: assemble the publish document, send the
 //! registry `PUT`, drive any OTP challenge through
-//! [`pacquet_network_web_auth`], and turn the registry's response into a
+//! [`pnpm_network_web_auth`], and turn the registry's response into a
 //! [`PublishSummary`].
 
 use std::collections::BTreeMap;
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
-use pacquet_network_web_auth::{
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
+use pnpm_network_web_auth::{
     Clock as WebAuthClock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError,
     OtpErrorBody, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
     WebAuthRetryOptions, WithOtpError, with_otp_handling,
 };
-use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_reporter::Reporter;
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::{Map, Value};
 
 use crate::{
@@ -65,7 +65,7 @@ pub struct PublishNetwork<'a> {
 ///
 /// `Sys` carries the OIDC capabilities used while resolving credentials; the
 /// OTP / web-authentication flow always runs against
-/// [`pacquet_network_web_auth::Host`].
+/// [`pnpm_network_web_auth::Host`].
 pub async fn publish_packed_pkg<Sys, Reporter>(
     pkg: &PackedPkg<'_>,
     opts: &PublishPackedPkgOptions,
@@ -224,7 +224,7 @@ impl OtpError for PublishHttpError {
 /// The operation returns `Ok` for every completed HTTP response (the caller
 /// inspects `ok`) and `Err` only for an OTP challenge or a transport failure.
 ///
-/// `Sys` is the web-auth [host](pacquet_network_web_auth::Host): production
+/// `Sys` is the web-auth [host](pnpm_network_web_auth::Host): production
 /// passes the real one, tests pass a fake so the poll / clock / prompt are
 /// scripted while the PUT still goes through a mocked registry.
 #[expect(

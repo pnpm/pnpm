@@ -35,9 +35,9 @@
 //! question without touching disk. The production [`Host`] impl
 //! performs the real link attempts via [`host_can_link_between_dirs`].
 //!
-//! [`pacquet_store_dir::STORE_VERSION`] (`"v11"`) is *not* appended in
+//! [`pnpm_store_dir::STORE_VERSION`] (`"v11"`) is *not* appended in
 //! this module; the path returned here is the un-suffixed base. Every
-//! caller wraps the result in [`pacquet_store_dir::StoreDir::from`],
+//! caller wraps the result in [`pnpm_store_dir::StoreDir::from`],
 //! which appends the suffix in one place — an
 //! `if (!endsWith(v11)) append(v11)` step. Doing the join at
 //! construction guarantees that everything pacquet exposes externally

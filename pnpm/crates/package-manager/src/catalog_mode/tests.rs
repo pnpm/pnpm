@@ -2,9 +2,9 @@ use super::{
     CatalogDecision, CatalogEntry, CatalogModeDep, CatalogVersionMismatchError, decide_catalog,
 };
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::CatalogMode;
-use pacquet_reporter::SilentReporter;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::CatalogMode;
+use pnpm_reporter::SilentReporter;
 
 /// Build a [`Catalogs`] map from `(catalog name, [(alias, specifier)])`
 /// tuples.
@@ -232,7 +232,7 @@ fn save_catalog_name_targets_a_named_catalog() {
 
 #[test]
 fn prefer_warns_and_keeps_the_direct_version_on_mismatch() {
-    use pacquet_reporter::{LogEvent, LogLevel, Reporter};
+    use pnpm_reporter::{LogEvent, LogLevel, Reporter};
     use std::sync::Mutex;
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

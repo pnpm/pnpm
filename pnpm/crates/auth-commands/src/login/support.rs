@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 
 use super::LoginOptions;
 use crate::ini::IniSettings;

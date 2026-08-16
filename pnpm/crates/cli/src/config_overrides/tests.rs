@@ -1,8 +1,8 @@
 use super::{ConfigOverrides, apply_registry_override, apply_store_dir_override};
-use pacquet_config::{
+use pnpm_config::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
 };
-use pacquet_store_dir::STORE_VERSION;
+use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, path::PathBuf};
 
@@ -250,7 +250,7 @@ fn dotted_proxy_overrides_apply_to_network_config() {
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://proxy.example:8080"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec![
+        Some(pnpm_network::NoProxySetting::List(vec![
             "localhost".to_string(),
             "127.0.0.1".to_string(),
         ])),

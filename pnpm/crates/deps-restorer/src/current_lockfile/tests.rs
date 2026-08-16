@@ -6,13 +6,13 @@ use std::{
 };
 
 use indexmap::IndexMap;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
     LockfileVersion, PackageKey, PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot,
     ResolvedCatalogEntry, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
     SnapshotEntry, TarballResolution,
 };
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 
 use crate::SkippedSnapshots;

@@ -207,8 +207,7 @@ fn parse_version_part(input: &str) -> Result<VersionPart, ParsePkgVerPeerError> 
     // the version, so tarball / git URLs and other custom resolution
     // ids in the version slot still parse. Mirror that here — only an
     // empty body is a hard error.
-    if let Some((registry_name, version)) =
-        pacquet_deps_path::parse_registry_qualified_version(input)
+    if let Some((registry_name, version)) = pnpm_deps_path::parse_registry_qualified_version(input)
     {
         return Ok(VersionPart::RegistryQualified {
             registry_name: registry_name.to_string(),

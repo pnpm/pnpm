@@ -7,11 +7,11 @@ use crate::{
     prepare_package::AllowBuildRef,
 };
 use miette::Diagnostic;
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_reporter::SilentReporter;
-use pacquet_store_dir::StoreDir;
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::StoreDir;
 #[cfg(unix)]
-use pacquet_testing_utils::env_guard::EnvGuard;
+use pnpm_testing_utils::env_guard::EnvGuard;
 use serde_json::Value;
 use std::{
     fs,

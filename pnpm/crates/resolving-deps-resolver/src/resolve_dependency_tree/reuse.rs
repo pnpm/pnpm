@@ -6,11 +6,11 @@
 
 use async_recursion::async_recursion;
 use futures_util::future;
-use pacquet_lockfile::{
+use pipe_trait::Pipe;
+use pnpm_lockfile::{
     PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
 };
-use pacquet_resolving_resolver_base::{Resolver, WantedDependency};
-use pipe_trait::Pipe;
+use pnpm_resolving_resolver_base::{Resolver, WantedDependency};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
@@ -146,7 +146,7 @@ pub(crate) fn record_changed_direct_deps(
 ///
 /// [`fn@resolve_catalog_specifiers`]: super::resolve_catalog_specifiers
 fn catalog_specifier_unchanged(
-    lockfile: Option<&pacquet_lockfile::Lockfile>,
+    lockfile: Option<&pnpm_lockfile::Lockfile>,
     recorded: &str,
     alias: &str,
     resolved_spec: &str,
@@ -249,7 +249,7 @@ pub(super) fn higher_direct_dep_version(
 /// `ResolveResult` synthesized from the lockfile metadata.
 pub(super) struct ReusedNode {
     key: PkgNameVerPeer,
-    result: pacquet_resolving_resolver_base::ResolveResult,
+    result: pnpm_resolving_resolver_base::ResolveResult,
 }
 
 /// Decide whether the current edge can reuse the prior lockfile's
@@ -318,7 +318,7 @@ fn update_excludes(scope: UpdateScope<'_>, name: &str, depth: i32) -> bool {
 /// even when the failing edge itself was never locked. This matches
 /// the TypeScript resolver's `wantedLockfileContainsSatisfyingEntry`.
 pub(super) fn wanted_lockfile_contains_satisfying_entry(
-    lockfile: Option<&pacquet_lockfile::Lockfile>,
+    lockfile: Option<&pnpm_lockfile::Lockfile>,
     wanted: &WantedDependency,
 ) -> bool {
     let Some(packages) = lockfile.and_then(|lockfile| lockfile.packages.as_ref()) else {
@@ -391,9 +391,8 @@ pub(super) fn real_package_name_of<'edge>(
         }
     }
     if bare.starts_with("jsr:") {
-        let spec = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(bare, alias)
-            .ok()
-            .flatten()?;
+        let spec =
+            pnpm_resolving_jsr_specifier_parser::parse_jsr_specifier(bare, alias).ok().flatten()?;
         return Some(Cow::Owned(spec.npm_pkg_name));
     }
     alias.map(Cow::Borrowed)
@@ -440,7 +439,7 @@ pub(super) fn is_update_target(
 /// [`WorkspaceTreeCtx::subtree_reusable`]: super::WorkspaceTreeCtx::subtree_reusable
 fn subtree_fully_reusable(
     ctx: &TreeCtx,
-    lockfile: &pacquet_lockfile::Lockfile,
+    lockfile: &pnpm_lockfile::Lockfile,
     key: &PkgNameVerPeer,
     depth: i32,
 ) -> bool {
@@ -470,7 +469,7 @@ fn subtree_fully_reusable(
 /// reuse path doesn't model.
 fn subtree_children_reusable(
     ctx: &TreeCtx,
-    lockfile: &pacquet_lockfile::Lockfile,
+    lockfile: &pnpm_lockfile::Lockfile,
     key: &PkgNameVerPeer,
     depth: i32,
 ) -> bool {
@@ -733,7 +732,7 @@ fn snapshot_child_refs(
 /// the reused child's [`crate::resolved_tree::ChildEdge`].
 fn is_optional_child(snapshot: Option<&SnapshotEntry>, alias: &str) -> bool {
     let Some(snapshot) = snapshot else { return false };
-    let Ok(name) = alias.parse::<pacquet_lockfile::PkgName>() else { return false };
+    let Ok(name) = alias.parse::<pnpm_lockfile::PkgName>() else { return false };
     snapshot.optional_dependencies.as_ref().is_some_and(|deps| deps.contains_key(&name))
 }
 

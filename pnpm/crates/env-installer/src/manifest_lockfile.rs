@@ -1,5 +1,5 @@
-use pacquet_lockfile::{BundledDependencies, PackageMetadata, PeerDependencyMeta, StringOrList};
-use pacquet_resolving_resolver_base::ResolveResult;
+use pnpm_lockfile::{BundledDependencies, PackageMetadata, PeerDependencyMeta, StringOrList};
+use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 use std::collections::HashMap;
 

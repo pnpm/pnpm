@@ -15,7 +15,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,

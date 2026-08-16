@@ -1,4 +1,4 @@
-use pacquet_lockfile::PkgNameVerPeer;
+use pnpm_lockfile::PkgNameVerPeer;
 
 use super::landed_on_prior_entry;
 
@@ -37,8 +37,8 @@ fn matches_a_name_prefixed_file_id() {
 /// A resolver that hands back no manifest still has to give the package
 /// an identity — see <https://github.com/pnpm/pnpm/issues/13410>.
 mod fallback_manifest {
-    use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-    use pacquet_resolving_resolver_base::{CurrentPkg, PkgResolutionId, WantedDependency};
+    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, WantedDependency};
 
     fn wanted(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
         WantedDependency {

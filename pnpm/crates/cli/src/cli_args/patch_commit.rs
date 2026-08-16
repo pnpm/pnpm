@@ -5,17 +5,17 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_crypto_hash::create_short_hash;
-use pacquet_fs::{is_subdir, lexical_normalize};
-use pacquet_lockfile::{LoadLockfileError, Lockfile, PackageKey};
-use pacquet_package_manager::{
+use pnpm_crypto_hash::create_short_hash;
+use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_lockfile::{LoadLockfileError, Lockfile, PackageKey};
+use pnpm_package_manager::{
     PatchCandidate, PatchCandidateSet, PatchTarget, PatchTargetError, PkgFilesForDiff,
     WritePackageForPatch, WritePackageForPatchError, diff_folders, patch_candidates_from_lockfile,
     prepare_pkg_files_for_diff,
 };
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
-use pacquet_reporter::Reporter;
-use pacquet_workspace_manifest_writer::UpdateWorkspaceManifestError;
+use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_reporter::Reporter;
+use pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError;
 use serde_json::Value;
 use std::{
     fs,
@@ -111,7 +111,7 @@ pub enum PatchCommitError {
     WritePackage(#[error(source)] WritePackageForPatchError),
 
     #[diagnostic(transparent)]
-    PatchCommit(#[error(source)] pacquet_package_manager::PatchCommitError),
+    PatchCommit(#[error(source)] pnpm_package_manager::PatchCommitError),
 
     #[diagnostic(transparent)]
     UpdateWorkspaceManifest(#[error(source)] UpdateWorkspaceManifestError),
@@ -217,7 +217,7 @@ impl PatchCommitArgs {
         let mut patched_dependencies =
             state.config.patched_dependencies.clone().unwrap_or_default();
         patched_dependencies.insert(patch_key, format!("{patches_dir_name}/{patch_file_name}"));
-        pacquet_workspace_manifest_writer::set_patched_dependencies(
+        pnpm_workspace_manifest_writer::set_patched_dependencies(
             &workspace_dir,
             &patched_dependencies,
         )

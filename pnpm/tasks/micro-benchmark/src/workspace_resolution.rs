@@ -29,13 +29,13 @@ use std::{
     time::Instant,
 };
 
-use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_deps_resolver::{
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_deps_resolver::{
     ResolveImporterOptions, UpdateDepth, UpdateReuseScope, WorkspaceImporter,
     WorkspaceResolveOptions, resolve_workspace,
 };
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
@@ -260,7 +260,7 @@ fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions 
         },
         pick_lowest_direct: false,
         subdep_published_by: None,
-        catalogs: pacquet_catalogs_types::Catalogs::new(),
+        catalogs: pnpm_catalogs_types::Catalogs::new(),
         exclude_links_from_lockfile: false,
         lockfile_dir: Some(PathBuf::from("/workspace")),
         modules_dir: Some(PathBuf::from("/workspace/node_modules")),

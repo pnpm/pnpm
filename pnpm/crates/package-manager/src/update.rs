@@ -15,39 +15,39 @@ use crate::{
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_config::{
+use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{
     CatalogMode, Config, SaveWorkspaceProtocol, matcher::create_matcher,
     version_policy::PackageVersionPolicy,
 };
-use pacquet_engine_pm_yarn_resolver::YarnResolver;
-use pacquet_engine_runtime_bun_resolver::BunResolver;
-use pacquet_engine_runtime_deno_resolver::DenoResolver;
-use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
-use pacquet_lockfile_preferred_versions::get_version_selector_type;
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::{
+use pnpm_engine_pm_yarn_resolver::YarnResolver;
+use pnpm_engine_runtime_bun_resolver::BunResolver;
+use pnpm_engine_runtime_deno_resolver::DenoResolver;
+use pnpm_engine_runtime_node_resolver::NodeResolver;
+use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
 };
-use pacquet_resolving_default_resolver::DefaultResolver;
-use pacquet_resolving_deps_resolver::UpdateDepth;
-use pacquet_resolving_npm_resolver::{
+use pnpm_resolving_default_resolver::DefaultResolver;
+use pnpm_resolving_deps_resolver::UpdateDepth;
+use pnpm_resolving_npm_resolver::{
     DeclaredSpecifiers, InMemoryPackageMetaCache, NpmResolver, calc_specifier_for_workspace_dep,
     merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType,
     WantedDependency, WorkspacePackages, WorkspacePackagesByVersion,
 };
-use pacquet_tarball::MemCache;
-use pacquet_workspace_range_resolver::resolve_workspace_range;
+use pnpm_tarball::MemCache;
+use pnpm_workspace_range_resolver::resolve_workspace_range;
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -135,7 +135,7 @@ pub struct Update<'a> {
     /// protocol instead of the registry. `None` is a plain update.
     pub workspace_packages: Option<&'a WorkspacePackages>,
     /// CLI-merged `supportedArchitectures`, forwarded to the install.
-    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     /// `--lockfile-only`: re-resolve and rewrite `pnpm-lock.yaml` without
     /// materializing `node_modules`. Forwarded to the install.
     pub lockfile_only: bool,
@@ -145,7 +145,7 @@ pub struct Update<'a> {
     /// whose guard rejects vulnerable versions so the resolver falls back
     /// to a safe one.
     ///
-    /// [`PackageVersionGuard`]: pacquet_resolving_resolver_base::PackageVersionGuard
+    /// [`PackageVersionGuard`]: pnpm_resolving_resolver_base::PackageVersionGuard
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 
@@ -176,28 +176,26 @@ pub enum UpdateError {
     ResolveLatest {
         name: String,
         #[error(source)]
-        error: pacquet_resolving_resolver_base::ResolveError,
+        error: pnpm_resolving_resolver_base::ResolveError,
     },
 
     /// A `named-registries` alias is misconfigured.
     #[diagnostic(transparent)]
-    InvalidNamedRegistry(
-        #[error(source)] pacquet_resolving_npm_resolver::MergeNamedRegistriesError,
-    ),
+    InvalidNamedRegistry(#[error(source)] pnpm_resolving_npm_resolver::MergeNamedRegistriesError),
 
     /// `minimumReleaseAgeExclude` contained an invalid rule.
     #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
     #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
-    MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
+    MinimumReleaseAgeExclude(#[error(source)] pnpm_config::version_policy::VersionPolicyError),
 
     /// Locating the workspace root (to read `pnpm-workspace.yaml`'s
     /// catalogs) failed while applying `catalogMode`.
     #[diagnostic(transparent)]
-    FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
+    FindWorkspaceDir(#[error(source)] pnpm_workspace::FindWorkspaceDirError),
 
     /// Reading `pnpm-workspace.yaml` failed while applying `catalogMode`.
     #[diagnostic(transparent)]
-    ReadWorkspaceManifest(#[error(source)] pacquet_workspace::ReadWorkspaceManifestError),
+    ReadWorkspaceManifest(#[error(source)] pnpm_workspace::ReadWorkspaceManifestError),
 
     /// `pnpm-workspace.yaml`'s catalog sections are misconfigured.
     #[diagnostic(transparent)]
@@ -335,7 +333,7 @@ impl Update<'_> {
         } = prepared;
         let manifest_dir =
             manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
-        let importer_id = pacquet_workspace::importer_id_from_root_dir(
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(
             &crate::install::lockfile_root_dir(config, &manifest_dir)
                 .map_err(UpdateError::FindWorkspaceDir)?,
             &manifest_dir,
@@ -427,7 +425,7 @@ impl Update<'_> {
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
-        projects: &mut [pacquet_workspace::Project],
+        projects: &mut [pnpm_workspace::Project],
         ordered_groups: &[Vec<PathBuf>],
         ordered_dirs: &[PathBuf],
         selected_dirs: &HashSet<PathBuf>,
@@ -562,7 +560,7 @@ impl Update<'_> {
         if let Some(applied) = applied.as_ref() {
             for (index, project) in projects.iter_mut().enumerate() {
                 let importer_id =
-                    pacquet_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir);
+                    pnpm_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir);
                 let Some(bumped) = applied.manifests.get(&importer_id) else { continue };
                 let already_persisting = persist_indices.contains(&index);
                 if apply_bumped_manifest_specs::<Reporter>(
@@ -814,7 +812,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             for selector in &selectors {
                 let Some(version) = selector.version.as_deref() else { continue };
                 tracing::warn!(
-                    target: "pacquet_package_manager::update",
+                    target: "pnpm_package_manager::update",
                     pattern = selector.pattern,
                     version,
                     r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: {{ "{}@<declared range>": "{version}" }}"#,
@@ -992,7 +990,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     reason = "selected update preparation reuses the command's matching inputs"
 )]
 async fn prepare_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
     workspace_root: &Path,
     http_client_arc: &Arc<ThrottledClient>,
@@ -1044,7 +1042,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         };
         any_work = true;
         let importer_id =
-            pacquet_workspace::importer_id_from_root_dir(workspace_root, &projects[index].root_dir);
+            pnpm_workspace::importer_id_from_root_dir(workspace_root, &projects[index].root_dir);
         for (name, selectors) in prepared.preferred_versions_override {
             preferred_versions_override.entry(name).or_default().extend(selectors);
         }
@@ -1139,7 +1137,7 @@ fn apply_bumped_manifest_specs<Reporter: self::Reporter>(
 }
 
 fn persist_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
 ) -> Result<(), UpdateError> {
     for &index in selected_indices {
@@ -1317,7 +1315,7 @@ fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRangeVerdict {
 /// Compile a single pattern into a matcher. Used to map a matched direct
 /// dependency back to the selector that claimed it (so a versioned
 /// selector's version is applied to the right dep).
-fn matcher_one(pattern: &str) -> pacquet_config::matcher::Matcher {
+fn matcher_one(pattern: &str) -> pnpm_config::matcher::Matcher {
     create_matcher(std::slice::from_ref(&pattern.to_string()))
 }
 
@@ -1376,13 +1374,13 @@ fn read_catalog_ctx(
 ) -> Result<CatalogCtx, UpdateError> {
     let manifest_dir =
         manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
-    let workspace_dir_opt = pacquet_workspace::find_workspace_dir(&manifest_dir)
-        .map_err(UpdateError::FindWorkspaceDir)?;
+    let workspace_dir_opt =
+        pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(UpdateError::FindWorkspaceDir)?;
     let catalogs = if let Some(catalogs) = config.catalogs.clone() {
         catalogs
     } else {
         let workspace_manifest = match workspace_dir_opt.as_deref() {
-            Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
+            Some(dir) => pnpm_workspace::read_workspace_manifest(dir)
                 .map_err(UpdateError::ReadWorkspaceManifest)?,
             None => None,
         };
@@ -1400,8 +1398,8 @@ fn read_catalog_ctx_with_catalogs(
 ) -> Result<CatalogCtx, UpdateError> {
     let manifest_dir =
         manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
-    let workspace_dir_opt = pacquet_workspace::find_workspace_dir(&manifest_dir)
-        .map_err(UpdateError::FindWorkspaceDir)?;
+    let workspace_dir_opt =
+        pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(UpdateError::FindWorkspaceDir)?;
     let prefix =
         workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
     Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })

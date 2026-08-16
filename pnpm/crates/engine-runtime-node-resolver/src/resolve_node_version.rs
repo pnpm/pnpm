@@ -16,7 +16,7 @@ use std::sync::Arc;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 use serde::Deserialize;
 
 /// Pattern matched against archive entries pacquet strips out of the

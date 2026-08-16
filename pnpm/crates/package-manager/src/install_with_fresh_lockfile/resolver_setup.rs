@@ -8,29 +8,27 @@
 
 use super::InstallWithFreshLockfileError;
 use crate::{PrefetchContext, PrefetchingResolver};
-use pacquet_config::Config;
-use pacquet_engine_pm_yarn_resolver::YarnResolver;
-use pacquet_engine_runtime_bun_resolver::BunResolver;
-use pacquet_engine_runtime_deno_resolver::DenoResolver;
-use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_lockfile::{Lockfile, LockfileResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_resolving_default_resolver::DefaultResolver;
-use pacquet_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
-use pacquet_resolving_local_resolver::{
-    LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
-};
-use pacquet_resolving_npm_resolver::{
+use pnpm_config::Config;
+use pnpm_engine_pm_yarn_resolver::YarnResolver;
+use pnpm_engine_runtime_bun_resolver::BunResolver;
+use pnpm_engine_runtime_deno_resolver::DenoResolver;
+use pnpm_engine_runtime_node_resolver::NodeResolver;
+use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_resolving_default_resolver::DefaultResolver;
+use pnpm_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
+use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NamedRegistryResolver, NpmResolver, merge_named_registries,
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::Resolver;
-use pacquet_resolving_tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
-use pacquet_store_dir::{
+use pnpm_resolving_resolver_base::Resolver;
+use pnpm_resolving_tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
+use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
     store_index_key,
 };
-use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 /// The store index the resolver chain and the install pass share, plus
@@ -38,7 +36,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 pub(super) struct StoreIndexHandles {
     pub index: Option<SharedReadonlyStoreIndex>,
     pub writer: Arc<StoreIndexWriter>,
-    pub writer_task: tokio::task::JoinHandle<Result<(), pacquet_store_dir::StoreIndexError>>,
+    pub writer_task: tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>,
 }
 
 /// Open the read-only index and spawn the batched writer *before* the
@@ -141,7 +139,7 @@ pub(super) struct ResolverChainInputs<'a> {
     pub meta_cache: &'a Arc<InMemoryPackageMetaCache>,
     pub lockfile_dir: &'a Path,
     pub requester: &'a str,
-    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub registries: &'a HashMap<String, String>,
     pub named_registries: &'a HashMap<String, String>,
     /// See `NpmResolver::full_metadata` — forced on when `time-based`
@@ -158,7 +156,7 @@ pub(super) struct ResolverChainInputs<'a> {
     pub prefetch_downloads: bool,
     /// In-process hooks supplied by an embedder; `None` falls back to
     /// the on-disk `.pnpmfile.cjs` lookup.
-    pub pnpmfile_hook_override: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 
@@ -169,12 +167,11 @@ pub(super) struct ResolverChainInputs<'a> {
 pub(super) struct ResolverChain {
     pub resolver: Box<dyn Resolver>,
     pub npm_resolver: Arc<dyn Resolver>,
-    pub fetch_locker: pacquet_resolving_npm_resolver::PackumentFetchLocker,
-    pub picked_manifest_cache: pacquet_resolving_npm_resolver::PickedManifestCache,
-    pub custom_resolvers: Vec<Arc<dyn pacquet_hooks::CustomResolver>>,
-    pub custom_fetcher_picker:
-        Option<Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub fetch_locker: pnpm_resolving_npm_resolver::PackumentFetchLocker,
+    pub picked_manifest_cache: pnpm_resolving_npm_resolver::PickedManifestCache,
+    pub custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>>,
+    pub custom_fetcher_picker: Option<Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 }
 
 /// Build the fresh-install resolver chain.
@@ -192,7 +189,7 @@ pub(super) struct ResolverChain {
 /// tarball-shaped result fires a background download while the tree walk
 /// continues, and — for the pnpr server only — [`crate::ObservingResolver`]
 /// so each resolution is reported to the client as it lands.
-pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 'static>(
+pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'static>(
     inputs: ResolverChainInputs<'_>,
 ) -> Result<ResolverChain, InstallWithFreshLockfileError> {
     let ResolverChainInputs {
@@ -325,11 +322,9 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
     };
 
     let pnpmfile_hook = pnpmfile_hook_override.or_else(|| {
-        (!config.ignore_pnpmfile)
-            .then(|| pacquet_hooks::finder::load_pnpmfile(lockfile_dir))
-            .flatten()
+        (!config.ignore_pnpmfile).then(|| pnpm_hooks::finder::load_pnpmfile(lockfile_dir)).flatten()
     });
-    let custom_resolvers: Vec<Arc<dyn pacquet_hooks::CustomResolver>> =
+    let custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>> =
         if let Some(ref hook) = pnpmfile_hook {
             hook.get_custom_resolvers().await.map_err(|err| {
                 tracing::error!(
@@ -354,7 +349,7 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
             InstallWithFreshLockfileError::CustomFetcherHook(err)
         })?;
         (!fetchers.is_empty()).then(|| {
-            Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))
+            Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))
         })
     } else {
         None
@@ -366,7 +361,7 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
             .iter()
             .filter(|custom| custom.has_can_resolve() && custom.has_resolve())
             .map(|custom| {
-                Box::new(pacquet_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
+                Box::new(pnpm_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
                     Arc::clone(custom),
                 )) as Box<dyn Resolver>
             }),

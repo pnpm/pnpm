@@ -1,6 +1,6 @@
 use super::get_hoisting_limits;
-use pacquet_config::HoistingLimits;
-use pacquet_lockfile::{
+use pnpm_config::HoistingLimits;
+use pnpm_lockfile::{
     Lockfile, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
 };
 use std::collections::{BTreeSet, HashMap};

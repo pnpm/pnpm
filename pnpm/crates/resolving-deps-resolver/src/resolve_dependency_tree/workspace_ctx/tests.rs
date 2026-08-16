@@ -1,4 +1,4 @@
-use pacquet_resolving_resolver_base::ResolveOptions;
+use pnpm_resolving_resolver_base::ResolveOptions;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -358,8 +358,8 @@ fn run_preferred_versions_pick_up_an_identity_recorded_after_the_first_visit() {
 }
 
 fn insert_named_package(workspace: &WorkspaceTreeCtx, name: &str, version: &str) {
-    let name_ver = pacquet_lockfile::PkgNameVer::new(
-        pacquet_lockfile::PkgName::parse(name).expect("parse package name"),
+    let name_ver = pnpm_lockfile::PkgNameVer::new(
+        pnpm_lockfile::PkgName::parse(name).expect("parse package name"),
         version.parse::<node_semver::Version>().expect("parse package version"),
     );
     let mut result = manifest_result(serde_json::json!({}));
@@ -388,7 +388,7 @@ fn insert_child_edge(workspace: &WorkspaceTreeCtx, parent_id: &str, alias: &str,
 }
 
 fn bucket_versions(
-    versions: &pacquet_resolving_resolver_base::PreferredVersions,
+    versions: &pnpm_resolving_resolver_base::PreferredVersions,
     name: &str,
 ) -> Vec<String> {
     versions.get(name).map(|bucket| bucket.keys().cloned().collect()).unwrap_or_default()

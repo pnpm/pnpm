@@ -1,6 +1,6 @@
 use super::{optional_children_match, optional_children_match_with};
 use crate::{CreateVirtualStoreError, SkippedSnapshots, VirtualStoreLayout};
-use pacquet_lockfile::{PackageKey, PkgName, SnapshotDepRef, SnapshotEntry};
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotDepRef, SnapshotEntry};
 use std::{collections::HashMap, fs, io};
 
 #[test]
@@ -49,7 +49,7 @@ fn invalid_optional_child_entries_do_not_match() {
         .expect("create slot modules directory");
     let target = temp_dir.path().join("optional-target");
     fs::create_dir(&target).expect("create optional target");
-    pacquet_fs::symlink_dir(&target, &child_path).expect("link optional child");
+    pnpm_fs::symlink_dir(&target, &child_path).expect("link optional child");
 
     assert!(
         optional_children_match(
@@ -87,7 +87,7 @@ fn invalid_optional_child_entries_do_not_match() {
         .expect("inspect unexpected dangling optional child"),
     );
 
-    pacquet_fs::remove_symlink_dir(&child_path).expect("remove dangling optional child");
+    pnpm_fs::remove_symlink_dir(&child_path).expect("remove dangling optional child");
     fs::write(&child_path, "not a directory").expect("create invalid optional child");
     assert!(
         !optional_children_match(

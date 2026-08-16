@@ -4,21 +4,21 @@ use super::{
     patch_candidates_from_lockfile, resolution_kind,
 };
 use crate::tests::project_local_config;
-use pacquet_config::ScriptsPrependNodePath;
-use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
-use pacquet_lockfile::{
+use pnpm_config::ScriptsPrependNodePath;
+use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, ComVer, GitResolution, Lockfile,
     LockfileResolution, LockfileVersion, PackageKey, PackageMetadata, RegistryResolution,
     TarballResolution, VariationsResolution,
 };
-use pacquet_network::{RetryOpts, ThrottledClient};
-use pacquet_resolving_npm_resolver::{
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pacquet_store_dir::{StoreDir, StoreIndex, store_index_key};
-use pacquet_testing_utils::registry::TestRegistry;
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
+use pnpm_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::{collections::HashMap, sync::Arc};
@@ -199,7 +199,7 @@ async fn patch_extract_imports_package_files_into_empty_destination() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract package for patching");
 
@@ -228,7 +228,7 @@ async fn patch_extract_rejects_symlinked_destination() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect_err("symlink destination must be rejected");
 
@@ -249,7 +249,7 @@ async fn patch_extract_records_download_in_store_index() {
     let mut config = project_local_config();
     config.registry = registry.url();
     config.store_dir = StoreDir::new(&store_dir);
-    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+    let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());
     let resolved = resolve_registry_fixture(
@@ -285,14 +285,14 @@ async fn patch_extract_records_download_in_store_index() {
     let dest = tmp.path().join("edit");
 
     WritePackageForPatch {
-        tarball_mem_cache: &pacquet_tarball::MemCache::default(),
+        tarball_mem_cache: &pnpm_tarball::MemCache::default(),
         http_client: http_client.as_ref(),
         config,
         current_lockfile: &lockfile,
         target: &target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract registry package");
 
@@ -317,7 +317,7 @@ async fn patch_extract_replaces_existing_empty_destination() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract into empty dir");
 
@@ -337,7 +337,7 @@ async fn patch_extract_git_hosted_tarball_runs_packlist() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract git-hosted package for patching");
 
@@ -362,7 +362,7 @@ async fn patch_extract_url_inferred_git_hosted_tarball_runs_packlist() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract URL-inferred git-hosted package for patching");
 
@@ -379,7 +379,7 @@ async fn patch_extract_rejects_unsupported_resolution_shape() {
     let tmp = tempfile::tempdir().expect("temp dir");
     let mut config = project_local_config();
     config.store_dir = tmp.path().join("store").into();
-    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+    let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
     let metadata: PackageMetadata = serde_json::from_value(json!({
         "resolution": {
             "type": "directory",
@@ -390,8 +390,8 @@ async fn patch_extract_rejects_unsupported_resolution_shape() {
     .unwrap();
     let lockfile = lockfile_with_package_metadata("foo@1.0.0", metadata);
     let target = patch_target("foo@1.0.0", &lockfile);
-    let mem_cache = pacquet_tarball::MemCache::default();
-    let http_client = pacquet_network::ThrottledClient::default();
+    let mem_cache = pnpm_tarball::MemCache::default();
+    let http_client = pnpm_network::ThrottledClient::default();
     let dest = tmp.path().join("edit");
 
     let err = WritePackageForPatch {
@@ -402,7 +402,7 @@ async fn patch_extract_rejects_unsupported_resolution_shape() {
         target: &target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .unwrap_err();
 
@@ -414,9 +414,9 @@ async fn patch_extract_rejects_missing_package_metadata() {
     let tmp = tempfile::tempdir().expect("temp dir");
     let mut config = project_local_config();
     config.store_dir = tmp.path().join("store").into();
-    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
-    let mem_cache = pacquet_tarball::MemCache::default();
-    let http_client = pacquet_network::ThrottledClient::default();
+    let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
+    let mem_cache = pnpm_tarball::MemCache::default();
+    let http_client = pnpm_network::ThrottledClient::default();
     let target = PatchTarget {
         alias: "missing".to_string(),
         version: "1.0.0".to_string(),
@@ -434,7 +434,7 @@ async fn patch_extract_rejects_missing_package_metadata() {
         target: &target,
         dest: &tmp.path().join("edit"),
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .unwrap_err();
 
@@ -521,9 +521,9 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
 
 struct PatchExtractFixture {
     tmp: tempfile::TempDir,
-    mem_cache: pacquet_tarball::MemCache,
-    http_client: pacquet_network::ThrottledClient,
-    config: &'static pacquet_config::Config,
+    mem_cache: pnpm_tarball::MemCache,
+    http_client: pnpm_network::ThrottledClient,
+    config: &'static pnpm_config::Config,
     lockfile: Lockfile,
     target: PatchTarget,
 }
@@ -547,7 +547,7 @@ impl PatchExtractFixture {
         use_git_hosted_url: bool,
         git_hosted_flag: bool,
     ) -> Self {
-        use pacquet_tarball::CacheValue;
+        use pnpm_tarball::CacheValue;
         use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
         let tmp = tempfile::tempdir().expect("temp dir");
@@ -569,7 +569,7 @@ impl PatchExtractFixture {
         config.registry = "https://registry.test/".to_string();
         config.store_dir = store_dir.into();
         config.offline = true;
-        let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+        let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
 
         let key = format!("{name}@{version}");
         let lockfile = lockfile_with_package_metadata(
@@ -591,7 +591,7 @@ impl PatchExtractFixture {
             ("index.js".to_string(), index),
             ("ignore.txt".to_string(), ignored),
         ]);
-        let mem_cache = pacquet_tarball::MemCache::default();
+        let mem_cache = pnpm_tarball::MemCache::default();
         mem_cache.insert(
             tarball_url,
             Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
@@ -600,7 +600,7 @@ impl PatchExtractFixture {
         Self {
             tmp,
             mem_cache,
-            http_client: pacquet_network::ThrottledClient::default(),
+            http_client: pnpm_network::ThrottledClient::default(),
             config,
             lockfile,
             target,
@@ -614,7 +614,7 @@ async fn resolve_registry_fixture(
     http_client: Arc<ThrottledClient>,
     alias: &str,
     range: &str,
-) -> pacquet_resolving_resolver_base::ResolveResult {
+) -> pnpm_resolving_resolver_base::ResolveResult {
     let mut registries = HashMap::new();
     registries.insert("default".to_string(), registry.to_string());
     let resolver = NpmResolver {

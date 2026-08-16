@@ -15,9 +15,9 @@
 
 use crate::{Lockfile, ProjectSnapshot};
 use derive_more::{Display, Error};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 #[derive(Clone, Copy)]

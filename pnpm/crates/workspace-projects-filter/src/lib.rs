@@ -7,7 +7,7 @@
 //! - [`filter_workspace_projects`] resolves selectors against a
 //!   pre-built [`ProjectGraph`].
 //! - [`filter_projects`] / [`filter_projects_by_selector_objects`] build
-//!   the graph (via `pacquet-workspace-projects-graph`) and run the
+//!   the graph (via `pnpm-workspace-projects-graph`) and run the
 //!   filter, handling the `--filter-prod` production-only graph.
 //!
 //! A `[<since>]` changed-packages selector selects the projects whose
@@ -28,4 +28,4 @@ pub use filter::{
 };
 pub use parse_project_selector::{ProjectSelector, parse_project_selector};
 
-pub use pacquet_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
+pub use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};

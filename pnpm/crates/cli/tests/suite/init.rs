@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{bin::CommandTempCwd, fs::get_filenames_in_folder};
+use pnpm_testing_utils::{bin::CommandTempCwd, fs::get_filenames_in_folder};
 use pretty_assertions::assert_eq;
 use std::fs;
 

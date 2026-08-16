@@ -1,5 +1,5 @@
 use super::{publish_eligible, write_publish_summary};
-use pacquet_publish::{PackedPkgInfo, create_publish_summary};
+use pnpm_publish::{PackedPkgInfo, create_publish_summary};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -28,7 +28,7 @@ fn missing_name_or_version_is_skipped() {
     assert_eq!(publish_eligible(&json!({})), None);
 }
 
-fn summary_for(name: &str, version: &str) -> pacquet_publish::PublishSummary {
+fn summary_for(name: &str, version: &str) -> pnpm_publish::PublishSummary {
     let manifest = json!({ "name": name, "version": version });
     create_publish_summary(
         &PackedPkgInfo {

@@ -14,7 +14,7 @@
 //!    the chain.
 //!
 //! Both seams sit in the same crate because several types cross over
-//! (a verifier needs [`pacquet_lockfile::LockfileResolution`]; a
+//! (a verifier needs [`pnpm_lockfile::LockfileResolution`]; a
 //! resolver result *also* carries one).
 
 mod errors;

@@ -448,7 +448,7 @@ fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
     fs::create_dir_all(&manifest_dir).expect("create current-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),
-        "[package]\nname       = \"pacquet-cli\"\n\n[[bin]]\nname = \"pnpm\"\n",
+        "[package]\nname       = \"pnpm-cli\"\n\n[[bin]]\nname = \"pnpm\"\n",
     )
     .expect("write current-layout manifest");
     assert_eq!(WorkEnv::cli_bin_name(&current), "pnpm");
@@ -459,7 +459,7 @@ fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
     fs::create_dir_all(&manifest_dir).expect("create old-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),
-        "[package]\nname = \"pacquet-cli\"\n\n[[bin]]\nname = \"pacquet\"\n",
+        "[package]\nname = \"pnpm-cli\"\n\n[[bin]]\nname = \"pacquet\"\n",
     )
     .expect("write old-layout manifest");
     assert_eq!(WorkEnv::cli_bin_name(&old), "pacquet");

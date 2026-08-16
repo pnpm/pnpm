@@ -1,10 +1,10 @@
 use crate::fast_update_compose::Drift;
-use pacquet_deps_path::{index_of_dep_path_suffix, remove_suffix};
-use pacquet_lockfile::{
+use pnpm_deps_path::{index_of_dep_path_suffix, remove_suffix};
+use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap,
     SnapshotDepRef,
 };
-use pacquet_patching::{
+use pnpm_patching::{
     PatchGroupRecord, PatchInput, all_patch_keys, get_patch_info, group_patched_dependencies,
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -98,7 +98,7 @@ fn plan_rekeys(lockfile: &Lockfile, groups: &PatchGroupRecord) -> Option<Rekeys>
         let suffix = index_of_dep_path_suffix(&rendered);
         let base = remove_suffix(&rendered);
         let peers = suffix.peers_index.map_or("", |index| &rendered[index..]);
-        let (name, version) = pacquet_deps_restorer::parse_name_version_from_key(base);
+        let (name, version) = pnpm_deps_restorer::parse_name_version_from_key(base);
         let patch = get_patch_info(Some(groups), &name, &version).ok()?;
         // The resolver matches patches against a package's plain semver
         // version, while this reads the version out of the key, where a
@@ -179,7 +179,7 @@ fn apply_rekeys(lockfile: &mut Lockfile, rekeys: &Rekeys) {
 }
 
 fn rewrite_snapshot_dependencies(
-    dependencies: &mut Option<HashMap<pacquet_lockfile::PkgName, SnapshotDepRef>>,
+    dependencies: &mut Option<HashMap<pnpm_lockfile::PkgName, SnapshotDepRef>>,
     rekeys: &Rekeys,
 ) {
     let Some(dependencies) = dependencies.as_mut() else {
@@ -275,18 +275,18 @@ pub(crate) fn every_configured_patch_is_applied(
 pub(crate) fn unused_patches(
     lockfile: &Lockfile,
     hashes: Option<&BTreeMap<String, String>>,
-) -> Option<pacquet_patching::UnusedPatches> {
+) -> Option<pnpm_patching::UnusedPatches> {
     let hashes = hashes.filter(|hashes| !hashes.is_empty())?;
     let groups = groups_from_hashes(hashes)?;
     let applied = applied_patch_keys(lockfile, &groups)?;
     let applied = applied.into_iter().map(str::to_string).collect();
-    pacquet_patching::verify_patches(&groups, &applied, true).ok().flatten()
+    pnpm_patching::verify_patches(&groups, &applied, true).ok().flatten()
 }
 
 /// Bucket `hashes` the way the resolver buckets configured patches.
 ///
 /// The patch file path is left out: nothing here applies a patch, and
-/// the hashes [`pacquet_config::Config::patched_dependency_hashes`]
+/// the hashes [`pnpm_config::Config::patched_dependency_hashes`]
 /// already computed are the only payload the rewrite needs, so no patch
 /// file is read twice.
 ///
@@ -322,7 +322,7 @@ fn applied_patch_keys<'a>(
         // `(patch_hash=...)` segment too, so stripping it leaves the
         // `name@version` the patch keys match on.
         let metadata_key = key.without_peer().to_string();
-        let (name, version) = pacquet_deps_restorer::parse_name_version_from_key(&metadata_key);
+        let (name, version) = pnpm_deps_restorer::parse_name_version_from_key(&metadata_key);
         if let Some(info) = get_patch_info(Some(patch_groups), &name, &version).ok()? {
             applied.insert(info.key.as_str());
         }

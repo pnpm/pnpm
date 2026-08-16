@@ -1,5 +1,5 @@
 use super::find_own_runtime_node_major;
-use pacquet_lockfile::{PkgName, SnapshotDepRef, SnapshotEntry};
+use pnpm_lockfile::{PkgName, SnapshotDepRef, SnapshotEntry};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 

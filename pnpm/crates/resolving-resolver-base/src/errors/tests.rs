@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{TimeDelta, Utc};
 use miette::Diagnostic;
-use pacquet_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 
 use super::{
     GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,

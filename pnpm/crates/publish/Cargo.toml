@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-publish"
+name                 = "pnpm-publish"
 description          = "Publish a package to an npm registry (the `pnpm publish` command)"
 version              = "0.0.1"
 publish              = false
@@ -11,14 +11,14 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-diagnostics                       = { workspace = true }
-pacquet-executor                          = { workspace = true }
-pacquet-network                           = { workspace = true }
-pacquet-network-web-auth                  = { workspace = true }
-pacquet-pack                              = { workspace = true }
-pacquet-package-manifest                  = { workspace = true }
-pacquet-reporter                          = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-diagnostics                       = { workspace = true }
+pnpm-executor                          = { workspace = true }
+pnpm-network                           = { workspace = true }
+pnpm-network-web-auth                  = { workspace = true }
+pnpm-pack                              = { workspace = true }
+pnpm-package-manifest                  = { workspace = true }
+pnpm-reporter                          = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
 
 base64        = { workspace = true }
 bytes         = { workspace = true }
@@ -40,7 +40,7 @@ tracing       = { workspace = true }
 url           = { workspace = true }
 
 [dev-dependencies]
-pacquet-network-web-auth-testing = { workspace = true }
+pnpm-network-web-auth-testing = { workspace = true }
 
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }

@@ -8,8 +8,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pacquet_fs::{is_subdir, lexical_normalize};
-use pacquet_lockfile::{
+use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_lockfile::{
     Lockfile, LockfileResolution, PkgNameVerPeer, npm_tarball_url, pick_registry_for_package,
 };
 
@@ -173,11 +173,7 @@ fn lookup_dep<'l>(
     lockfile: &'l Lockfile,
     dep_path: &PkgNameVerPeer,
     metadata_key: &PkgNameVerPeer,
-) -> (
-    bool,
-    Option<&'l pacquet_lockfile::SnapshotEntry>,
-    Option<&'l pacquet_lockfile::PackageMetadata>,
-) {
+) -> (bool, Option<&'l pnpm_lockfile::SnapshotEntry>, Option<&'l pnpm_lockfile::PackageMetadata>) {
     let snapshot = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_path));
     let metadata = lockfile.packages.as_ref().and_then(|packages| packages.get(metadata_key));
     (snapshot.is_some() || metadata.is_some(), snapshot, metadata)

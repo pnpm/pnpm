@@ -2,7 +2,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
 };
@@ -214,7 +214,7 @@ fn assert_success(output: &Output) {
 }
 
 fn assert_current_version(output: &Output) {
-    assert_eq!(stdout(output).trim(), pacquet_config::PNPM_VERSION);
+    assert_eq!(stdout(output).trim(), pnpm_config::PNPM_VERSION);
 }
 
 fn assert_semver_like(value: &str) {

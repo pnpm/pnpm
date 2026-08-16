@@ -9,9 +9,9 @@ use super::{
     PackageManifests, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot, SnapshotWithCacheKey,
     snapshot_needs_build_marker,
 };
-use pacquet_config::NodeLinker;
-use pacquet_lockfile::{PackageKey, SnapshotEntry};
-use pacquet_tarball::PrefetchResult;
+use pnpm_config::NodeLinker;
+use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_tarball::PrefetchResult;
 use std::collections::{HashMap, HashSet};
 
 /// One warm entry: the snapshot, its prefetched CAS paths, the cache key

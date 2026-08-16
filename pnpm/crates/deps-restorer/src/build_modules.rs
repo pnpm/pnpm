@@ -20,15 +20,15 @@ pub(crate) use slots::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{Config, PackageImportMethod};
-use pacquet_deps_path::{get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix};
-use pacquet_executor::{
+use pnpm_config::{Config, PackageImportMethod};
+use pnpm_deps_path::{get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix};
+use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
 };
-use pacquet_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
-use pacquet_package_manifest::pkg_requires_build;
-use pacquet_patching::{PatchApplyError, apply_patch_to_dir};
-use pacquet_reporter::{
+use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
+use pnpm_package_manifest::pkg_requires_build;
+use pnpm_patching::{PatchApplyError, apply_patch_to_dir};
+use pnpm_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
@@ -178,7 +178,7 @@ pub struct BuildModules<'a> {
     pub modules_dir: &'a Path,
     pub lockfile_dir: &'a Path,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    pub packages: Option<&'a HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
+    pub packages: Option<&'a HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
     pub allow_build_policy: &'a AllowBuildPolicy,
     /// Per-snapshot side-effects-cache overlays — passed in from
@@ -192,8 +192,8 @@ pub struct BuildModules<'a> {
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     /// `<platform>;<arch>;node<major>` — the prefix part of the
     /// dep-state cache key. Computed once at install
-    /// start by [`pacquet_graph_hasher::detect_node_major`] +
-    /// [`pacquet_graph_hasher::engine_name`]. When `None`, the
+    /// start by [`pnpm_graph_hasher::detect_node_major`] +
+    /// [`pnpm_graph_hasher::engine_name`]. When `None`, the
     /// gate falls through to "rebuild" (no key to look up).
     pub engine_name: Option<&'a str>,
     /// Mirrors `config.side_effects_cache`. When `false`, the
@@ -208,16 +208,16 @@ pub struct BuildModules<'a> {
     /// Store-dir handle for the WRITE path's `add_files_from_dir`
     /// call. `None` short-circuits the upload site entirely — used
     /// by unit tests that don't set up a CAFS.
-    pub store_dir: Option<&'a pacquet_store_dir::StoreDir>,
+    pub store_dir: Option<&'a pnpm_store_dir::StoreDir>,
     /// Shared batched writer for the side-effects upload's
     /// read-modify-write of the existing `PackageFilesIndex` row.
     /// `None` short-circuits the upload site.
-    pub store_index_writer: Option<&'a std::sync::Arc<pacquet_store_dir::StoreIndexWriter>>,
+    pub store_index_writer: Option<&'a std::sync::Arc<pnpm_store_dir::StoreIndexWriter>>,
     /// Per-snapshot resolved patch metadata. Keyed by the snapshot's
     /// peer-stripped `PackageKey`, value is the matching
     /// `ExtendedPatchInfo` (hash + absolute path) computed by
-    /// [`pacquet_patching::resolve_and_group`] + per-snapshot
-    /// [`pacquet_patching::get_patch_info`]. `None` when no
+    /// [`pnpm_patching::resolve_and_group`] + per-snapshot
+    /// [`pnpm_patching::get_patch_info`]. `None` when no
     /// `patchedDependencies` is configured.
     ///
     /// Drives three things:
@@ -225,10 +225,10 @@ pub struct BuildModules<'a> {
     /// 1. Build trigger — a snapshot with a patch entry becomes a
     ///    build candidate even when `requires_build` is false.
     /// 2. Side-effects-cache key — `patch_file_hash` carries the
-    ///    SHA-256 hex into [`pacquet_graph_hasher::CalcDepStateOptions`].
+    ///    SHA-256 hex into [`pnpm_graph_hasher::CalcDepStateOptions`].
     /// 3. Patch application — the patch is applied to the extracted
     ///    package dir before postinstall hooks run.
-    pub patches: Option<&'a HashMap<PackageKey, pacquet_patching::ExtendedPatchInfo>>,
+    pub patches: Option<&'a HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo>>,
     /// Mirrors `config.scripts_prepend_node_path`. Threaded through to
     /// [`RunPostinstallHooks::scripts_prepend_node_path`] for each
     /// spawned lifecycle script. Default [`ScriptsPrependNodePath::Never`].
@@ -242,7 +242,7 @@ pub struct BuildModules<'a> {
     /// Mirrors `config.user_agent`, stamped into each build script's
     /// `npm_config_user_agent`.
     pub user_agent: &'a str,
-    /// Mirrors `config.unsafe_perm`. When `false`, [`pacquet_executor`]
+    /// Mirrors `config.unsafe_perm`. When `false`, [`pnpm_executor`]
     /// runs each lifecycle script under a per-package TMPDIR set to
     /// `node_modules/.tmp`; when `true`, TMPDIR is left at the
     /// inherited value. Default `true`.
@@ -463,8 +463,8 @@ impl BuildModules<'_> {
         // mutates the cache through `&mut`, and rayon would
         // otherwise need each task to own a private cache, defeating
         // the point of memoization.
-        let deps_state_cache: Mutex<pacquet_graph_hasher::DepsStateCache<PackageKey>> =
-            Mutex::new(pacquet_graph_hasher::DepsStateCache::new());
+        let deps_state_cache: Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>> =
+            Mutex::new(pnpm_graph_hasher::DepsStateCache::new());
         // Prime it in lockfile key order before any chunk runs. The
         // chunk members race for the mutex, and a snapshot inside a
         // dependency cycle takes the digest of whichever walk reached
@@ -474,7 +474,7 @@ impl BuildModules<'_> {
         if let Some(graph) = &dep_graph {
             let mut cache_guard =
                 deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            pacquet_graph_hasher::warm_deps_state_cache(
+            pnpm_graph_hasher::warm_deps_state_cache(
                 graph,
                 &mut cache_guard,
                 crate::deps_graph::in_lockfile_order(graph).into_iter().map(|(key, _)| key),

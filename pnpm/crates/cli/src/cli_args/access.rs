@@ -2,8 +2,8 @@ use clap::Args;
 use derive_more::{Display, Error};
 use futures_util::StreamExt as _;
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{
+use pnpm_config::Config;
+use pnpm_network::{
     NetworkSettings, RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component,
     redact_and_sanitize, send_with_retry,
 };

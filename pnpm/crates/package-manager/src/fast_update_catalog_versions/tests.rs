@@ -1,7 +1,7 @@
 use super::try_fast_update_catalog_versions;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_lockfile::{Lockfile, LockfileResolution, TarballResolution};
-use pacquet_resolving_resolver_base::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_lockfile::{Lockfile, LockfileResolution, TarballResolution};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };

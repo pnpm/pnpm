@@ -7,14 +7,14 @@ use derive_more::{Display, Error};
 use dialoguer::{Confirm, Select};
 use miette::{Diagnostic, IntoDiagnostic, miette};
 use owo_colors::OwoColorize;
-use pacquet_fs::{is_subdir, lexical_normalize};
-use pacquet_lockfile::{LoadLockfileError, Lockfile};
-use pacquet_package_manager::{
+use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_lockfile::{LoadLockfileError, Lockfile};
+use pnpm_package_manager::{
     PatchCandidate, PatchCandidateSet, PatchTarget, PatchTargetError, WritePackageForPatch,
     WritePackageForPatchError, default_patch_target, patch_candidates_from_lockfile,
 };
-use pacquet_patching::PatchApplyError;
-use pacquet_reporter::Reporter;
+use pnpm_patching::PatchApplyError;
+use pnpm_reporter::Reporter;
 use std::{
     fs,
     io::{self, IsTerminal},
@@ -408,7 +408,7 @@ fn sanitize_bare_specifier(input: &str) -> String {
 }
 
 fn apply_existing_patch_file(
-    config: &pacquet_config::Config,
+    config: &pnpm_config::Config,
     target: &PatchTarget,
     edit_dir: &Path,
 ) -> Result<(), PatchError> {
@@ -430,7 +430,7 @@ fn apply_existing_patch_file(
     if !patch_file_path.exists() {
         return Err(PatchError::PatchFileNotFound { patch_file_path });
     }
-    pacquet_patching::apply_patch_to_dir(edit_dir, &patch_file_path)
+    pnpm_patching::apply_patch_to_dir(edit_dir, &patch_file_path)
         .map_err(PatchError::ApplyExistingPatch)
 }
 

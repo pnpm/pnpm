@@ -1,5 +1,5 @@
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
-use pacquet_store_dir::StoreDir;
+use pnpm_store_dir::StoreDir;
 use std::{env, path::PathBuf};
 
 #[cfg(windows)]
@@ -145,7 +145,7 @@ pub fn default_modules_dir() -> PathBuf {
 
 /// Resolve the directory pnpm reads `config.yaml` (the global config
 /// file) from. Threads this crate's [`EnvVar`] / [`GetHomeDir`] seam
-/// into [`pacquet_config_dir::config_dir`] — the shared resolver, also
+/// into [`pnpm_config_dir::config_dir`] — the shared resolver, also
 /// used by the registry server — under the `pnpm` leaf.
 pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
@@ -153,7 +153,7 @@ where
 {
     let xdg_config_home = Sys::var("XDG_CONFIG_HOME");
     let local_app_data = Sys::var("LOCALAPPDATA");
-    pacquet_config_dir::config_dir(
+    pnpm_config_dir::config_dir(
         "pnpm",
         env::consts::OS,
         xdg_config_home.as_deref(),
@@ -164,7 +164,7 @@ where
 
 /// Resolve pnpm's machine-local state directory (`XDG_STATE_HOME`
 /// convention). Same seam shape as [`default_config_dir`]; the layout
-/// itself lives in [`pacquet_config_dir::state_dir`], shared with the
+/// itself lives in [`pnpm_config_dir::state_dir`], shared with the
 /// TypeScript CLI's `getStateDir`.
 pub fn default_state_dir<Sys>() -> Option<PathBuf>
 where
@@ -172,7 +172,7 @@ where
 {
     let xdg_state_home = Sys::var("XDG_STATE_HOME");
     let local_app_data = Sys::var("LOCALAPPDATA");
-    pacquet_config_dir::state_dir(
+    pnpm_config_dir::state_dir(
         "pnpm",
         env::consts::OS,
         xdg_state_home.as_deref(),
@@ -251,8 +251,8 @@ pub fn default_virtual_store_dir_max_length() -> u64 {
 /// peer-dependency graph hash.
 ///
 /// Kept as a free function (not a re-export of
-/// `pacquet_lockfile::DEFAULT_PEERS_SUFFIX_MAX_LENGTH`) so
-/// `pacquet-config` doesn't pull in the lockfile crate just for one
+/// `pnpm_lockfile::DEFAULT_PEERS_SUFFIX_MAX_LENGTH`) so
+/// `pnpm-config` doesn't pull in the lockfile crate just for one
 /// integer. Both copies must agree.
 #[must_use]
 pub fn default_peers_suffix_max_length() -> u64 {
@@ -284,7 +284,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 pub const PNPM_VERSION: &str = "12.0.0-rc.6";
 
 pub fn default_fetch_timeout() -> u64 {
-    pacquet_network::DEFAULT_FETCH_TIMEOUT_MS
+    pnpm_network::DEFAULT_FETCH_TIMEOUT_MS
 }
 
 /// Default `User-Agent`, in the format
@@ -292,12 +292,12 @@ pub fn default_fetch_timeout() -> u64 {
 /// The `name/version` segment is `pnpm/<version>`. There is no embedded
 /// Node runtime, so the `node/` segment is the same `?` placeholder used
 /// for `npm/`. Platform and arch use Node's naming via
-/// [`pacquet_detect_libc::host_platform`] / [`pacquet_detect_libc::host_arch`].
+/// [`pnpm_detect_libc::host_platform`] / [`pnpm_detect_libc::host_arch`].
 pub fn default_user_agent() -> String {
     format!(
         "pnpm/{PNPM_VERSION} npm/? node/? {} {}",
-        pacquet_detect_libc::host_platform(),
-        pacquet_detect_libc::host_arch(),
+        pnpm_detect_libc::host_platform(),
+        pnpm_detect_libc::host_arch(),
     )
 }
 
@@ -361,7 +361,7 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
 ///
 /// Pacquet's executor doesn't currently consume `unsafe_perm` to
 /// actually drop uid/gid, but the TMPDIR-isolation side of the flag is
-/// honored — see `pacquet_executor::make_env`.
+/// honored — see `pnpm_executor::make_env`.
 ///
 /// Cygwin needs explicit handling because Rust's
 /// [`x86_64-pc-cygwin` target](https://doc.rust-lang.org/rustc/platform-support/x86_64-pc-cygwin.html)

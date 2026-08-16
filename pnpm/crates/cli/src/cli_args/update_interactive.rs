@@ -26,11 +26,11 @@ use crate::{
 use dialoguer::MultiSelect;
 use miette::{IntoDiagnostic, miette};
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::Reporter;
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::Reporter;
 use std::{collections::HashSet, path::Path};
 
 struct InteractiveUpdateProject<'a> {
@@ -68,7 +68,7 @@ pub(crate) async fn select_global_package_groups(
     };
     let mut labels = Vec::new();
     let mut hashes = Vec::new();
-    let global_packages = pacquet_global::scan_global_packages(&global_pkg_dir)
+    let global_packages = pnpm_global::scan_global_packages(&global_pkg_dir)
         .map_err(|err| miette!("failed to scan global packages: {err}"))?;
     if global_packages.is_empty() {
         println!("No global packages found");
@@ -99,7 +99,7 @@ pub(crate) async fn select_global_package_groups(
         let outdated = collect_outdated_for_importer(
             &state.manifest,
             lockfile,
-            pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+            pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
             config,
             &state.http_client,
             &query,
@@ -200,7 +200,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         .filter(|project| selection.selected_dirs.contains(&project.root_dir))
         .map(|project| InteractiveUpdateProject {
             manifest: &project.manifest,
-            importer_id: pacquet_workspace::importer_id_from_root_dir(
+            importer_id: pnpm_workspace::importer_id_from_root_dir(
                 &selection.workspace_root,
                 &project.root_dir,
             ),

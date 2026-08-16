@@ -11,8 +11,8 @@ use crate::{
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
 };
-use pacquet_deps_path::{DepPath, PeerId};
-use pacquet_resolving_resolver_base::PkgResolutionId;
+use pnpm_deps_path::{DepPath, PeerId};
+use pnpm_resolving_resolver_base::PkgResolutionId;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -2156,7 +2156,7 @@ fn a_cycle_package_resolves_identically_at_every_occurrence() {
     let mut ring00_variants: Vec<&str> = result
         .graph
         .keys()
-        .map(pacquet_deps_path::DepPath::as_str)
+        .map(pnpm_deps_path::DepPath::as_str)
         .filter(|path| path.starts_with("ring00@1.0.0"))
         .collect();
     ring00_variants.sort_unstable();

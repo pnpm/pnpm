@@ -1,5 +1,5 @@
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::fs;
 
 /// End-to-end `pacquet logout`: the binary resolves `auth.ini` from

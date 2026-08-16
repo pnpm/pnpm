@@ -3,11 +3,11 @@ use super::{
     snapshot_cache_key, snapshot_deps_equal,
 };
 use crate::install_package_by_snapshot::host_platform_selector;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     GitResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer,
     RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
-use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
+use pnpm_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
 use std::{
     collections::HashMap,
     fs,
@@ -92,9 +92,9 @@ fn removed_child_aliases_excludes_self_and_unchanged_sets() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cold_batch_links_slots_in_parallel() {
     use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
-    use pacquet_config::{Config, NodeLinker, PackageImportMethod};
-    use pacquet_store_dir::StoreIndexWriter;
-    use pacquet_tarball::{CacheValue, MemCache, SharedReportedProgressKeys};
+    use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+    use pnpm_store_dir::StoreIndexWriter;
+    use pnpm_tarball::{CacheValue, MemCache, SharedReportedProgressKeys};
 
     if rayon::current_num_threads() < 2 {
         eprintln!(
@@ -175,7 +175,7 @@ async fn cold_batch_links_slots_in_parallel() {
         crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::waiting_for_overlap();
 
     let output = CreateVirtualStore {
-        http_client: &pacquet_network::ThrottledClient::default(),
+        http_client: &pnpm_network::ThrottledClient::default(),
         config,
         packages: Some(&packages),
         snapshots: Some(&snapshots),
@@ -226,9 +226,9 @@ const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn gvs_link_pass_materializes_shared_slot_once() {
     use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
-    use pacquet_config::{Config, NodeLinker, PackageImportMethod};
-    use pacquet_store_dir::StoreIndexWriter;
-    use pacquet_tarball::{CacheValue, MemCache, SharedReportedProgressKeys};
+    use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+    use pnpm_store_dir::StoreIndexWriter;
+    use pnpm_tarball::{CacheValue, MemCache, SharedReportedProgressKeys};
 
     let root = tempfile::tempdir().expect("create temp dir");
     let workspace_root = root.path().join("workspace");
@@ -300,7 +300,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
     let probe = crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::default();
 
     CreateVirtualStore {
-        http_client: &pacquet_network::ThrottledClient::default(),
+        http_client: &pnpm_network::ThrottledClient::default(),
         config,
         packages: Some(&packages),
         snapshots: Some(&snapshots),
@@ -631,7 +631,7 @@ fn gvs_layout(
     packages: &HashMap<PackageKey, PackageMetadata>,
     lockfile_dir: &std::path::Path,
 ) -> crate::VirtualStoreLayout {
-    let mut config = pacquet_config::Config::new();
+    let mut config = pnpm_config::Config::new();
     config.enable_global_virtual_store = true;
     config.virtual_store_dir = std::path::PathBuf::from("/tmp/proj/node_modules/.pnpm");
     config.global_virtual_store_dir = std::path::PathBuf::from("/tmp/store/links");
@@ -648,7 +648,7 @@ fn gvs_layout(
 
 fn directory_metadata(directory: &str) -> PackageMetadata {
     PackageMetadata {
-        resolution: LockfileResolution::Directory(pacquet_lockfile::DirectoryResolution {
+        resolution: LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
             directory: directory.to_string(),
         }),
         version: Some("1.0.0".to_string()),
@@ -776,7 +776,7 @@ fn group_slots_by_dir_is_identity_without_gvs() {
     let peered: PackageKey =
         "comp@file:packages/comp(peer@1.0.0)".parse().expect("parse peered key");
 
-    let mut config = pacquet_config::Config::new();
+    let mut config = pnpm_config::Config::new();
     config.enable_global_virtual_store = false;
     config.virtual_store_dir = std::path::PathBuf::from("/tmp/proj/node_modules/.pnpm");
     let config = config.leak();

@@ -15,17 +15,17 @@ pub(crate) mod verify_engine;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes};
-use pacquet_config::{Config, PNPM_VERSION};
-use pacquet_env_installer::pnpm_engine_packages;
-use pacquet_fs::force_symlink_dir;
-use pacquet_global::{
+use pnpm_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes};
+use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_env_installer::pnpm_engine_packages;
+use pnpm_fs::force_symlink_dir;
+use pnpm_global::{
     create_global_cache_key, find_global_package, get_hash_link, read_installed_packages,
 };
-use pacquet_lockfile::EnvLockfile;
-use pacquet_package_manifest::PackageManifest;
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
+use pnpm_lockfile::EnvLockfile;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
 use serde_json::Value;
 use std::{collections::HashSet, io::IsTerminal, path::Path};
 
@@ -136,7 +136,7 @@ pub struct SelfUpdateArgs {
 /// A `trustPolicy` violation is not negotiable — it means the release's trust
 /// evidence weakened relative to the installed version.
 ///
-/// [`WorkspaceSettings::clear_self_update_policy`]: pacquet_config::WorkspaceSettings::clear_self_update_policy
+/// [`WorkspaceSettings::clear_self_update_policy`]: pnpm_config::WorkspaceSettings::clear_self_update_policy
 fn enforce_resolution_policy(
     config: &Config,
     version: &str,

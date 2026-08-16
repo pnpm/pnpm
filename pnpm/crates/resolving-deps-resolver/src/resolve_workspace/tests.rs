@@ -9,9 +9,9 @@ use std::{
 };
 
 use chrono::{DateTime, TimeZone, Utc};
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{
     LatestQuery, NoMatchingVersionError, PkgResolutionId, PreferredVersions, RegistryResponseError,
     RegistryResponseErrorOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
@@ -129,7 +129,7 @@ fn fake_result(
     published_at: Option<&str>,
     manifest: serde_json::Value,
 ) -> ResolveResult {
-    use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
     let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),
@@ -182,7 +182,7 @@ fn importer_opts(
         base_opts: ResolveOptions { published_by, project_dir, ..ResolveOptions::default() },
         pick_lowest_direct: false,
         subdep_published_by: published_by,
-        catalogs: pacquet_catalogs_types::Catalogs::new(),
+        catalogs: pnpm_catalogs_types::Catalogs::new(),
         exclude_links_from_lockfile: false,
         lockfile_dir: None,
         modules_dir: None,
@@ -228,8 +228,8 @@ fn importer_scoped_update_lockfile(
     direct_specifier: &str,
     direct_version: &str,
     transitive: Option<(&str, &str)>,
-) -> pacquet_lockfile::Lockfile {
-    use pacquet_lockfile::{
+) -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
         PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedDependencySpec,
         SnapshotDepRef, SnapshotEntry,
@@ -832,8 +832,8 @@ fn recorded_time(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
         .collect()
 }
 
-fn lockfile_recording_time(entries: &[(&str, &str)]) -> pacquet_lockfile::Lockfile {
-    use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion};
+fn lockfile_recording_time(entries: &[(&str, &str)]) -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion};
 
     Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
@@ -1045,9 +1045,9 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
     let dirs = [tmp_root.path(), tmp_a.path()];
     let mut opts = workspace_opts(false, false);
     opts.auto_install_peers = true;
-    opts.wanted_lockfile = Some(std::sync::Arc::new(pacquet_lockfile::Lockfile {
-        lockfile_version: pacquet_lockfile::LockfileVersion::<9>::try_from(
-            pacquet_lockfile::ComVer::new(9, 0),
+    opts.wanted_lockfile = Some(std::sync::Arc::new(pnpm_lockfile::Lockfile {
+        lockfile_version: pnpm_lockfile::LockfileVersion::<9>::try_from(
+            pnpm_lockfile::ComVer::new(9, 0),
         )
         .unwrap(),
         settings: None,
@@ -1060,8 +1060,8 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
         importers: std::collections::HashMap::new(),
         packages: None,
         snapshots: Some(std::collections::HashMap::from([(
-            pacquet_lockfile::PkgNameVerPeer::from_str("shared@1.0.0(opt@25.0.0)").unwrap(),
-            pacquet_lockfile::SnapshotEntry::default(),
+            pnpm_lockfile::PkgNameVerPeer::from_str("shared@1.0.0(opt@25.0.0)").unwrap(),
+            pnpm_lockfile::SnapshotEntry::default(),
         )])),
         time: None,
     }));
@@ -1618,8 +1618,8 @@ fn optional_failure_fixture(
 }
 
 /// A wanted lockfile whose `packages:` map holds exactly one entry.
-fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
-    use pacquet_lockfile::{
+fn lockfile_with_package(key: &str) -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{
         ComVer, LockfileVersion, PackageMetadata, PkgNameVerPeer, TarballResolution,
     };
     let key: PkgNameVerPeer = key.parse().expect("parse package key");
@@ -1642,7 +1642,7 @@ fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
         peer_dependencies: None,
         peer_dependencies_meta: None,
     };
-    pacquet_lockfile::Lockfile {
+    pnpm_lockfile::Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
         settings: None,
         catalogs: None,
@@ -2032,7 +2032,7 @@ async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
         .packages
         .as_mut()
         .expect("lockfile carries packages")
-        .get_mut(&"old@1.2.0".parse::<pacquet_lockfile::PkgNameVerPeer>().expect("parse key"))
+        .get_mut(&"old@1.2.0".parse::<pnpm_lockfile::PkgNameVerPeer>().expect("parse key"))
         .expect("direct entry")
         .deprecated = Some("use new instead".to_string());
     let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
@@ -2068,8 +2068,8 @@ fn reuse_graph_lockfile(
     direct: &[(&str, &str, &str)],
     graph: &[(&str, &[(&str, &str)])],
     catalogs: &[(&str, &str, &str, &str)],
-) -> pacquet_lockfile::Lockfile {
-    use pacquet_lockfile::{
+) -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
         PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedCatalogEntry,
         ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
@@ -2134,7 +2134,7 @@ fn reuse_graph_lockfile(
         snapshots.insert(key, SnapshotEntry { dependencies, ..SnapshotEntry::default() });
     }
     let catalog_snapshots = (!catalogs.is_empty()).then(|| {
-        let mut snapshot: pacquet_lockfile::CatalogSnapshots = BTreeMap::new();
+        let mut snapshot: pnpm_lockfile::CatalogSnapshots = BTreeMap::new();
         for (catalog, alias, specifier, version) in catalogs {
             snapshot.entry((*catalog).to_string()).or_default().insert(
                 (*alias).to_string(),
@@ -2509,7 +2509,7 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
         serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
     );
     unnamed.name_ver = None;
-    unnamed.id = pacquet_resolving_resolver_base::PkgResolutionId::from(TARBALL.to_string());
+    unnamed.id = pnpm_resolving_resolver_base::PkgResolutionId::from(TARBALL.to_string());
     unnamed.alias = Some("aliased".to_string());
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
@@ -2621,7 +2621,7 @@ async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: Mani
         unnamed.manifest = None;
     }
     unnamed.normalized_bare_specifier = Some(local.to_string());
-    unnamed.id = pacquet_resolving_resolver_base::PkgResolutionId::from(local.to_string());
+    unnamed.id = pnpm_resolving_resolver_base::PkgResolutionId::from(local.to_string());
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
             (("real-peer".to_string(), local.to_string()), unnamed),
@@ -2723,7 +2723,7 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
     );
     linked.name_ver = None;
     linked.normalized_bare_specifier = Some("link:vendor/real-peer".to_string());
-    linked.id = pacquet_resolving_resolver_base::PkgResolutionId::from("link:vendor/real-peer");
+    linked.id = pnpm_resolving_resolver_base::PkgResolutionId::from("link:vendor/real-peer");
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
             (("real-peer".to_string(), "link:vendor/real-peer".to_string()), linked),
@@ -2804,7 +2804,7 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
     );
     linked.name_ver = None;
     linked.normalized_bare_specifier = Some(WORKSPACE_RANGE.to_string());
-    linked.id = pacquet_resolving_resolver_base::PkgResolutionId::from(LINK.to_string());
+    linked.id = pnpm_resolving_resolver_base::PkgResolutionId::from(LINK.to_string());
     linked.resolution = LockfileResolution::Directory(DirectoryResolution {
         directory: "../packages/real-peer".to_string(),
     });
@@ -3150,7 +3150,7 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
     let mid2 = result
         .peers
         .graph
-        .get(&pacquet_deps_path::DepPath::from("mid2@1.0.0".to_string()))
+        .get(&pnpm_deps_path::DepPath::from("mid2@1.0.0".to_string()))
         .expect("mid2 in graph");
     assert_eq!(
         mid2.children.get("leaf2").map(std::string::ToString::to_string),
@@ -3255,8 +3255,8 @@ async fn resolve_pinned_versus_fresh(slow: (&str, &str)) -> crate::ResolvedTree 
     .merged_tree
 }
 
-fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
-    use pacquet_lockfile::{
+fn reuse_steal_lockfile() -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
         PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedDependencySpec,
         SnapshotDepRef, SnapshotEntry,
@@ -3384,8 +3384,8 @@ impl Resolver for OverlapRecordingResolver {
             }
             self.in_flight.lock().unwrap().remove(&project_dir);
 
-            let name_ver = pacquet_lockfile::PkgNameVer::new(
-                pacquet_lockfile::PkgName::parse(&alias).expect("alias parses as a package name"),
+            let name_ver = pnpm_lockfile::PkgNameVer::new(
+                pnpm_lockfile::PkgName::parse(&alias).expect("alias parses as a package name"),
                 node_semver::Version::from_str("1.0.0").expect("version parses"),
             );
             Ok::<_, ResolveError>(Some(ResolveResult {

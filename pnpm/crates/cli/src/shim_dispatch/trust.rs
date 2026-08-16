@@ -1,8 +1,8 @@
 //! The machine-local trust registry and its terminal prompt.
 
 use super::Candidate;
-use pacquet_config::{Host, default_state_dir};
-use pacquet_fs::lexical_normalize;
+use pnpm_config::{Host, default_state_dir};
+use pnpm_fs::lexical_normalize;
 use serde_json::{Value, json};
 use std::{io::IsTerminal, path::Path};
 

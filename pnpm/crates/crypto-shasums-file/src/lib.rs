@@ -25,11 +25,11 @@ use std::{io::Cursor, path::Path, string::FromUtf8Error, sync::Arc};
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::ThrottledClient;
 use pgp::{
     composed::{Deserializable, DetachedSignature, SignedPublicKey},
     types::KeyDetails,
 };
+use pnpm_network::ThrottledClient;
 
 use disk_cache::{ShasumsTrust, read_cached_bytes, read_cached_shasums, write_cached_shasums};
 use node_release_keys::{NODE_RELEASE_KEYS, NodeReleaseKey};

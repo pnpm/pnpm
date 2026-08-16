@@ -3,11 +3,11 @@ use super::{
     exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
     package_dir, pnpm_package_to_install, reuse_cached_engine, run_install,
 };
-use pacquet_config::Config;
-use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
-use pacquet_reporter::SilentReporter;
-use pacquet_store_dir::StoreDir;
-use pacquet_testing_utils::registry::TestRegistry;
+use pnpm_config::Config;
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::StoreDir;
+use pnpm_testing_utils::registry::TestRegistry;
 use std::fs;
 
 /// The engine install must stay anchored to its install dir even when an

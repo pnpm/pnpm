@@ -1,5 +1,5 @@
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_reporter::Reporter;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{

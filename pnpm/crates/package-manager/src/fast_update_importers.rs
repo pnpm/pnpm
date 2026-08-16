@@ -4,11 +4,11 @@ use crate::{
     fast_update_settings::{is_directory_dependency, workspace_package_names},
 };
 use node_semver::{Range, Version};
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
@@ -16,7 +16,7 @@ use std::{
 
 /// The lockfile's `packages:` block, which an absorbed edge reads the
 /// version it points at out of.
-type LockedPackages = HashMap<PackageKey, pacquet_lockfile::PackageMetadata>;
+type LockedPackages = HashMap<PackageKey, pnpm_lockfile::PackageMetadata>;
 
 /// Each manifest alias with its specifier and the group it is
 /// effectively declared under. Keyed by [`PkgName`] so membership tests
@@ -226,7 +226,7 @@ fn records_no_dependencies(importer: &ProjectSnapshot) -> bool {
 /// resolves to a directory rather than to a registry version, one whose
 /// specifier is not a semver range, and one no locked version satisfies.
 fn importer_from_locked_versions(
-    packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
+    packages: Option<&HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
     manifest: &PackageManifest,
     manifest_dependencies: &ManifestDependencies<'_>,
     plan: &ImportersPlan<'_, '_>,

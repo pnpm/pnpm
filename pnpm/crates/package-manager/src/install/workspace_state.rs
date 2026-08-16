@@ -16,7 +16,7 @@ pub struct UpToDateFastPathCheck<'a> {
     /// The CLI-merged effective `supportedArchitectures` (yaml plus
     /// `--cpu` / `--os` / `--libc`) — the fast path must not report
     /// "Already up to date" when a flag changed the target platforms.
-    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
 }
 
 /// Pre-runtime twin of the repeat-install short-circuit inside
@@ -60,7 +60,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir).ok()?;
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     let workspace_manifest = match workspace_dir_opt.as_deref() {
-        Some(dir) => pacquet_workspace::read_workspace_manifest(dir).ok()?,
+        Some(dir) => pnpm_workspace::read_workspace_manifest(dir).ok()?,
         None => None,
     };
     let catalogs = match config.catalogs.clone() {
@@ -91,7 +91,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     // is treated conservatively the same way (its `Err` can't prove the
     // absence of recorded ignored builds).
     if config.strict_dep_builds {
-        match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
+        match pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
             Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
                 Ok(Some(_)) => return None,
                 Ok(None) => {}
@@ -168,17 +168,17 @@ pub fn check_deps_status_before_run_at(
         return cannot_check();
     };
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| dir.to_path_buf());
-    let root_manifest = match pacquet_workspace::read_project_manifest_only(&workspace_root) {
+    let root_manifest = match pnpm_workspace::read_project_manifest_only(&workspace_root) {
         Ok(manifest) => manifest,
-        Err(pacquet_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound {
-            ..
-        }) if workspace_dir_opt.is_none() => {
+        Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
+            if workspace_dir_opt.is_none() =>
+        {
             return None;
         }
         Err(_) => return cannot_check(),
     };
     let workspace_manifest = match workspace_dir_opt.as_deref() {
-        Some(dir) => match pacquet_workspace::read_workspace_manifest(dir) {
+        Some(dir) => match pnpm_workspace::read_workspace_manifest(dir) {
             Ok(manifest) => manifest,
             Err(_) => return cannot_check(),
         },
@@ -188,7 +188,7 @@ pub fn check_deps_status_before_run_at(
     // state, before any project discovery — a fresh project (the common
     // out-of-sync case) must not pay for the workspace-projects walk
     // only to reach the same verdict inside the check.
-    let Ok(Some(workspace_state)) = pacquet_workspace_state::load_workspace_state(&workspace_root)
+    let Ok(Some(workspace_state)) = pnpm_workspace_state::load_workspace_state(&workspace_root)
     else {
         return cannot_check();
     };
@@ -240,7 +240,7 @@ pub fn check_deps_status_before_run_at(
 pub(super) fn build_project_manifests_list<'a>(
     workspace_root: &std::path::Path,
     root_manifest: &'a PackageManifest,
-    workspace_projects: Option<&'a [pacquet_workspace::Project]>,
+    workspace_projects: Option<&'a [pnpm_workspace::Project]>,
 ) -> Vec<(std::path::PathBuf, &'a PackageManifest)> {
     let Some(projects) = workspace_projects else {
         return vec![(workspace_root.to_path_buf(), root_manifest)];
@@ -279,7 +279,7 @@ pub(super) fn build_project_manifests_list<'a>(
 pub(super) fn build_root_importer_project_manifests_list<'a>(
     workspace_root: &Path,
     root_manifest: &'a PackageManifest,
-    workspace_projects: Option<&'a [pacquet_workspace::Project]>,
+    workspace_projects: Option<&'a [pnpm_workspace::Project]>,
 ) -> Vec<(PathBuf, &'a PackageManifest)> {
     let mut list = vec![(workspace_root.to_path_buf(), root_manifest)];
     if let Some(projects) = workspace_projects {
@@ -296,7 +296,7 @@ pub(super) fn build_root_importer_project_manifests_list<'a>(
 
 pub(super) fn build_selected_project_manifests_list<'a>(
     active_manifest: &'a PackageManifest,
-    projects: &'a [pacquet_workspace::Project],
+    projects: &'a [pnpm_workspace::Project],
     active_manifest_is_standin: bool,
 ) -> Vec<(PathBuf, &'a PackageManifest)> {
     let mut manifests = projects
@@ -328,13 +328,13 @@ pub(super) struct ProjectDirMatcher {
 
 impl ProjectDirMatcher {
     fn new(dir: &Path) -> Self {
-        let normalized = pacquet_fs::lexical_normalize(dir);
+        let normalized = pnpm_fs::lexical_normalize(dir);
         let canonical = std::fs::canonicalize(&normalized).ok();
         ProjectDirMatcher { normalized, canonical }
     }
 
     fn matches(&self, project_dir: &Path) -> bool {
-        let project_dir = pacquet_fs::lexical_normalize(project_dir);
+        let project_dir = pnpm_fs::lexical_normalize(project_dir);
         if project_dir == self.normalized {
             return true;
         }
@@ -382,15 +382,15 @@ pub(super) fn projects_running_own_scripts<'manifest>(
     };
     let mutated_dirs = match selected_dirs {
         Some(selected_dirs) => {
-            selected_dirs.iter().map(|dir| pacquet_fs::lexical_normalize(dir)).collect()
+            selected_dirs.iter().map(|dir| pnpm_fs::lexical_normalize(dir)).collect()
         }
-        None => HashSet::from([pacquet_fs::lexical_normalize(active_project_dir)]),
+        None => HashSet::from([pnpm_fs::lexical_normalize(active_project_dir)]),
     };
     // pnpm's recursive dispatch pushes the workspace root into the
     // mutated importers as a plain `mutation: 'install'` whenever the
     // selection leaves it out, so the root installs in full — and runs
     // its own scripts — even when the command was pointed elsewhere.
-    let workspace_root = pacquet_fs::lexical_normalize(workspace_root);
+    let workspace_root = pnpm_fs::lexical_normalize(workspace_root);
     let root_was_pushed_in = !mutated_dirs.contains(&workspace_root);
     let is_pushed_root = |project_dir: &Path| root_was_pushed_in && project_dir == workspace_root;
     // A run that mutates only part of the workspace materializes the rest
@@ -398,13 +398,13 @@ pub(super) fn projects_running_own_scripts<'manifest>(
     // mutate, whatever the mutation. Only when the mutated set covers the
     // whole workspace does the `mutation === 'install'` filter decide.
     let covers_workspace = project_manifests.iter().all(|(project_dir, _)| {
-        let project_dir = pacquet_fs::lexical_normalize(project_dir);
+        let project_dir = pnpm_fs::lexical_normalize(project_dir);
         mutated_dirs.contains(&project_dir) || is_pushed_root(&project_dir)
     });
     materialized_project_manifests
         .iter()
         .filter(|(project_dir, _)| {
-            let project_dir = pacquet_fs::lexical_normalize(project_dir);
+            let project_dir = pnpm_fs::lexical_normalize(project_dir);
             let pushed_root = is_pushed_root(&project_dir);
             if !pushed_root && !mutated_dirs.contains(&project_dir) {
                 return false;
@@ -421,14 +421,12 @@ pub(super) fn selected_manifest_freshness_inputs<'a>(
     selected_dirs: &HashSet<PathBuf>,
 ) -> Vec<(String, &'a PackageManifest)> {
     let selected_dirs =
-        selected_dirs.iter().map(|dir| pacquet_fs::lexical_normalize(dir)).collect::<HashSet<_>>();
+        selected_dirs.iter().map(|dir| pnpm_fs::lexical_normalize(dir)).collect::<HashSet<_>>();
     let mut inputs = project_manifests
         .iter()
-        .filter(|(project_dir, _)| {
-            selected_dirs.contains(&pacquet_fs::lexical_normalize(project_dir))
-        })
+        .filter(|(project_dir, _)| selected_dirs.contains(&pnpm_fs::lexical_normalize(project_dir)))
         .map(|(project_dir, manifest)| {
-            (pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir), *manifest)
+            (pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir), *manifest)
         })
         .collect::<Vec<_>>();
     inputs.sort_by(|(left, _), (right, _)| left.cmp(right));
@@ -438,10 +436,10 @@ pub(super) fn selected_manifest_freshness_inputs<'a>(
 pub(crate) fn configured_or_discovered_workspace_dir(
     config: &Config,
     manifest_dir: &Path,
-) -> Result<Option<PathBuf>, pacquet_workspace::FindWorkspaceDirError> {
+) -> Result<Option<PathBuf>, pnpm_workspace::FindWorkspaceDirError> {
     match config.workspace_dir.clone() {
         Some(workspace_dir) => Ok(Some(workspace_dir)),
-        None => pacquet_workspace::find_workspace_dir(manifest_dir),
+        None => pnpm_workspace::find_workspace_dir(manifest_dir),
     }
 }
 
@@ -458,7 +456,7 @@ pub(crate) fn configured_or_discovered_workspace_dir(
 pub(crate) fn lockfile_root_dir(
     config: &Config,
     manifest_dir: &Path,
-) -> Result<PathBuf, pacquet_workspace::FindWorkspaceDirError> {
+) -> Result<PathBuf, pnpm_workspace::FindWorkspaceDirError> {
     if !config.shared_workspace_lockfile {
         return Ok(manifest_dir.to_path_buf());
     }
@@ -470,7 +468,7 @@ pub(crate) fn lockfile_root_dir(
 /// resolver consults for `workspace:` specs. Returns `None` when
 /// `projects` is `None` (no workspace) so any `workspace:` spec the
 /// manifest happens to carry surfaces
-/// [`pacquet_resolving_npm_resolver::ResolveFromWorkspaceError::WorkspacePackagesNotLoaded`].
+/// [`pnpm_resolving_npm_resolver::ResolveFromWorkspaceError::WorkspacePackagesNotLoaded`].
 ///
 /// The map is a name/version index of per-project `WorkspacePackage`
 /// entries (`{ rootDir, manifest }`) consumed by the resolver.
@@ -483,10 +481,10 @@ pub(crate) fn lockfile_root_dir(
 /// reads as `0.0.0`, matching pnpm.
 #[must_use]
 pub fn build_workspace_packages_map(
-    projects: Option<&[pacquet_workspace::Project]>,
-) -> Option<pacquet_resolving_resolver_base::WorkspacePackages> {
+    projects: Option<&[pnpm_workspace::Project]>,
+) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
     let projects = projects?;
-    let mut map: pacquet_resolving_resolver_base::WorkspacePackages =
+    let mut map: pnpm_resolving_resolver_base::WorkspacePackages =
         std::collections::BTreeMap::new();
     for project in projects {
         let Some(name) = manifest_string_field(&project.manifest, "name") else { continue };
@@ -500,12 +498,12 @@ pub fn build_workspace_packages_map(
         };
         map.entry(name).or_default().insert(
             version,
-            pacquet_resolving_resolver_base::WorkspacePackage {
+            pnpm_resolving_resolver_base::WorkspacePackage {
                 root_dir: project.root_dir.clone(),
                 // The map feeds workspace picks resolved as *dependencies*
                 // (injected instances), so a project that splits its two
                 // views contributes its dependency manifest here — see
-                // `pacquet_workspace::Project::dependency_manifest`.
+                // `pnpm_workspace::Project::dependency_manifest`.
                 manifest: project
                     .dependency_manifest
                     .as_ref()
@@ -542,7 +540,7 @@ pub(super) fn build_projects_map(
 }
 
 /// Assemble the [`WorkspaceState`] payload for
-/// [`pacquet_workspace_state::update_workspace_state`].
+/// [`pnpm_workspace_state::update_workspace_state`].
 ///
 /// Records the projects pacquet just materialized plus the resolved
 /// settings the install used.
@@ -559,7 +557,7 @@ pub(crate) fn build_workspace_state(
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
-    supported_architectures: Option<&pacquet_package_is_installable::SupportedArchitectures>,
+    supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
     catalogs: &Catalogs,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     filtered_install: bool,

@@ -32,21 +32,21 @@ use crate::{
     retry_config::retry_opts_from_config,
 };
 use dashmap::{DashMap, DashSet};
-use pacquet_config::Config;
-use pacquet_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_package_is_installable::{
+use pnpm_config::Config;
+use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_package_is_installable::{
     SupportedArchitectures, WantedPlatformRef, platform_is_supported,
 };
-use pacquet_reporter::{Reporter, SilentReporter};
-use pacquet_resolving_resolver_base::{
+use pnpm_reporter::{Reporter, SilentReporter};
+use pnpm_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
     Resolver, WantedDependency,
 };
-use pacquet_store_dir::{
+use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
-use pacquet_tarball::{
+use pnpm_tarball::{
     DownloadTarballToStore, FetchTarballForResolution, MemCache, RetryOpts,
     SharedReportedProgressKeys,
 };
@@ -174,9 +174,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
             supported_architectures: supported_architectures.cloned(),
-            current_os: pacquet_graph_hasher::host_platform(),
-            current_cpu: pacquet_graph_hasher::host_arch(),
-            current_libc: pacquet_graph_hasher::host_libc(),
+            current_os: pnpm_graph_hasher::host_platform(),
+            current_cpu: pnpm_graph_hasher::host_arch(),
+            current_libc: pnpm_graph_hasher::host_libc(),
             progress_reported: SharedReportedProgressKeys::clone(progress_reported),
             spawned_urls: Arc::new(DashSet::new()),
             integrity_cache: Arc::new(DashMap::new()),

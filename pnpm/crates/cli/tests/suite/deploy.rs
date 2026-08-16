@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::Lockfile;
-use pacquet_testing_utils::{
+use pnpm_lockfile::Lockfile;
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
@@ -395,7 +395,7 @@ fn deploy_rejects_linked_target_parent() {
     write_workspace(&workspace, false);
     let outside = root.path().join("outside-target");
     fs::create_dir_all(&outside).unwrap();
-    pacquet_fs::symlink_dir(&outside, &workspace.join("out")).unwrap();
+    pnpm_fs::symlink_dir(&outside, &workspace.join("out")).unwrap();
 
     let output = pacquet
         .with_args(["--filter", "app", "deploy", "--legacy", "--force", "out/deploy"])

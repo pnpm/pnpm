@@ -1,6 +1,6 @@
 use super::{bumped_range, split_npm_alias};
-use pacquet_lockfile::ImporterDepVersion;
-use pacquet_registry::RangeSpecStyle;
+use pnpm_lockfile::ImporterDepVersion;
+use pnpm_registry::RangeSpecStyle;
 
 fn bump(declared: &str, version: &str) -> Option<String> {
     let version = version.parse::<ImporterDepVersion>().expect("parse the resolved version");

@@ -2,8 +2,8 @@
 //! returning what a caller needs to run it.
 
 use miette::Context;
-use pacquet_config::Config;
-use pacquet_reporter::Reporter;
+use pnpm_config::Config;
+use pnpm_reporter::Reporter;
 use std::path::{Path, PathBuf};
 
 use crate::{

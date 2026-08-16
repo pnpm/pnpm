@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-config-dir"
+name                  = "pnpm-config-dir"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true

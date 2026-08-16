@@ -9,9 +9,9 @@ use crate::{
 };
 use itertools::Itertools;
 use os_display::Quotable;
-use pacquet_fs::file_mode::make_file_executable;
-use pacquet_registry_mock::pick_unused_port;
 use pipe_trait::Pipe;
+use pnpm_fs::file_mode::make_file_executable;
+use pnpm_registry_mock::pick_unused_port;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -743,7 +743,7 @@ impl WorkEnv {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            let mut command = pacquet_registry_mock::pnpr_command_with_binary(
+            let mut command = pnpm_registry_mock::pnpr_command_with_binary(
                 &binary,
                 mock_port,
                 Some(&registry.url),

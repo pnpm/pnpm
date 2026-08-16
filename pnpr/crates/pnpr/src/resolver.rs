@@ -71,21 +71,21 @@ use axum::{
     response::Response,
 };
 use indexmap::IndexMap;
-use pacquet_config::Config as PacquetConfig;
-use pacquet_lockfile::{
+use pnpm_config::Config as PacquetConfig;
+use pnpm_lockfile::{
     Lockfile, LockfileResolution, TarballResolution, is_git_hosted_tarball_url,
     pick_registry_for_package,
 };
-use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
-use pacquet_network::{AuthHeaders, ThrottledClient, UpstreamRouteHook};
-use pacquet_package_manager::{
+use pnpm_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
+use pnpm_network::{AuthHeaders, ThrottledClient, UpstreamRouteHook};
+use pnpm_package_manager::{
     ResolvedPackageHint, build_resolution_verifiers, tarball_url_and_integrity,
 };
-use pacquet_resolving_npm_resolver::{
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, observed_dist_stats_sink,
 };
-use pacquet_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
-use pacquet_store_dir::StoreDir;
+use pnpm_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
+use pnpm_store_dir::StoreDir;
 use sha2::{Digest, Sha256};
 
 pub(crate) use self::osv::{OsvIndex, format_advisory_ids, load_osv_index};
@@ -262,8 +262,8 @@ struct AdoptedLockfileSettings {
     exclude_links_from_lockfile: bool,
 }
 
-impl From<&pacquet_lockfile::LockfileSettings> for AdoptedLockfileSettings {
-    fn from(settings: &pacquet_lockfile::LockfileSettings) -> Self {
+impl From<&pnpm_lockfile::LockfileSettings> for AdoptedLockfileSettings {
+    fn from(settings: &pnpm_lockfile::LockfileSettings) -> Self {
         AdoptedLockfileSettings {
             auto_install_peers: settings.auto_install_peers,
             // Written only while the setting is on, so an absent key is `false`.
@@ -504,7 +504,7 @@ pub(crate) async fn handle_resolve(
     // observer, then a terminal `done` / `error` frame. The response
     // body drains the channel as frames arrive.
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
-    let observer: Arc<dyn pacquet_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
+    let observer: Arc<dyn pnpm_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
         tx: tx.clone(),
         package_version_guard: package_version_guard.clone(),
         tarball_router: tarball_router.clone(),
@@ -980,7 +980,7 @@ fn upstream_endpoint_tarball_url(
 /// the client incrementally rather than being buffered by the encoder.
 const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
 
-/// [`ResolutionObserver`](pacquet_package_manager::ResolutionObserver)
+/// [`ResolutionObserver`](pnpm_package_manager::ResolutionObserver)
 /// that turns each resolved tarball into a `package` NDJSON frame and
 /// pushes it down the response channel. `on_resolved` is best-effort: a
 /// closed channel (client hung up) or a serialization failure drops the
@@ -991,8 +991,8 @@ struct StreamObserver {
     tarball_router: TarballRouter,
 }
 
-impl pacquet_package_manager::ResolutionObserver for StreamObserver {
-    fn on_resolved(&self, hint: pacquet_package_manager::ResolvedPackageHint<'_>) {
+impl pnpm_package_manager::ResolutionObserver for StreamObserver {
+    fn on_resolved(&self, hint: pnpm_package_manager::ResolvedPackageHint<'_>) {
         if let Ok(line) = ndjson_line(&package_frame(&self.tarball_router, &hint)) {
             let _ = self.tx.send(line);
         }

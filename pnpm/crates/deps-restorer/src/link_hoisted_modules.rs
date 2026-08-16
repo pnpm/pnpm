@@ -23,10 +23,10 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
-use pacquet_config::PackageImportMethod;
-use pacquet_lockfile::PkgIdWithPatchHash;
-use pacquet_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
+use pnpm_cmd_shim::{Host, LinkBinsError, link_bins};
+use pnpm_config::PackageImportMethod;
+use pnpm_lockfile::PkgIdWithPatchHash;
+use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
@@ -71,7 +71,7 @@ pub struct LinkHoistedModulesOpts<'a> {
     pub logged_methods: &'a AtomicU8,
     /// Install root, threaded into `pnpm:progress` `imported`'s
     /// `requester`. Same value as the `prefix` in
-    /// [`pacquet_reporter::StageLog`].
+    /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
     /// Containment root for orphan removal: an orphan directory that
     /// does not sit lexically inside this root is skipped, never

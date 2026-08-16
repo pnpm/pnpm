@@ -18,7 +18,7 @@
 //! them into a violation reason instead of swallowing.
 
 use chrono::DateTime;
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{AuthHeaders, ThrottledClient};
 
 use crate::FetchMetadataError;
 
@@ -43,7 +43,7 @@ pub async fn fetch_attestation_published_at(
     // never outranks resolution-gating fetches.
     let mut request = opts
         .http_client
-        .acquire_for_url_with_priority(&url, pacquet_network::BACKGROUND)
+        .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
         .await
         .get(&url);
     if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
@@ -55,7 +55,7 @@ pub async fn fetch_attestation_published_at(
             // Swallow the error and return None so the caller falls
             // through to the full-metadata layer. The attestation
             // endpoint is an optimization, not a required source.
-            tracing::debug!(target: "pacquet_resolving_npm_resolver::attestation", ?error, %url, "attestation fetch failed; falling back");
+            tracing::debug!(target: "pnpm_resolving_npm_resolver::attestation", ?error, %url, "attestation fetch failed; falling back");
             return Ok(None);
         }
     };
@@ -65,7 +65,7 @@ pub async fn fetch_attestation_published_at(
     let body: serde_json::Value = match response.json().await {
         Ok(body) => body,
         Err(error) => {
-            tracing::debug!(target: "pacquet_resolving_npm_resolver::attestation", ?error, %url, "attestation body parse failed; falling back");
+            tracing::debug!(target: "pnpm_resolving_npm_resolver::attestation", ?error, %url, "attestation body parse failed; falling back");
             return Ok(None);
         }
     };

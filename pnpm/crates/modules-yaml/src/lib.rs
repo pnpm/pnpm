@@ -7,9 +7,9 @@
 
 use derive_more::{Display, Error, From, Into};
 use indexmap::{IndexMap, IndexSet};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_fs::lexical_normalize;
 use pipe_trait::Pipe;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_fs::lexical_normalize;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,

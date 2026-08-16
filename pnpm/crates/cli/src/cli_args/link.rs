@@ -3,11 +3,11 @@ use clap::Args;
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic};
-use pacquet_config::Config;
-use pacquet_package_manager::{Install, ProjectMutation, UpdateSeedPolicy};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::Reporter;
-use pacquet_workspace_manifest_writer::set_overrides;
+use pnpm_config::Config;
+use pnpm_package_manager::{Install, ProjectMutation, UpdateSeedPolicy};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::Reporter;
+use pnpm_workspace_manifest_writer::set_overrides;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -138,7 +138,7 @@ impl LinkArgs {
             config,
             manifest,
             emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(&lockfile_path),
             dependency_groups: [
                 DependencyGroup::Prod,

@@ -1,9 +1,9 @@
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_cmd_shim::{
+use pnpm_cmd_shim::{
     FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest, remove_bin,
 };
-use pacquet_fs::{read_symlink_dir, relative_path, remove_symlink_dir};
+use pnpm_fs::{read_symlink_dir, relative_path, remove_symlink_dir};
 use std::{
     collections::{BTreeMap, HashSet},
     fs, io,
@@ -36,10 +36,10 @@ impl FsSwapHashLink for Host {
 /// to the non-atomic remove-and-recreate.
 fn swap_hash_link_atomically(target: &Path, link: &Path) -> io::Result<()> {
     if cfg!(windows) {
-        return pacquet_fs::force_symlink_dir(target, link).map(|_| ());
+        return pnpm_fs::force_symlink_dir(target, link).map(|_| ());
     }
     let Some(parent) = link.parent() else {
-        return pacquet_fs::force_symlink_dir(target, link).map(|_| ());
+        return pnpm_fs::force_symlink_dir(target, link).map(|_| ());
     };
     fs::create_dir_all(parent)?;
     let staged = link.with_extension(format!("{}.tmp", std::process::id()));
@@ -61,7 +61,7 @@ fn symlink_dir_entry(target: &Path, link: &Path) -> io::Result<()> {
 
 #[cfg(not(unix))]
 fn symlink_dir_entry(target: &Path, link: &Path) -> io::Result<()> {
-    pacquet_fs::force_symlink_dir(target, link).map(|_| ())
+    pnpm_fs::force_symlink_dir(target, link).map(|_| ())
 }
 
 impl FsRename for Host {

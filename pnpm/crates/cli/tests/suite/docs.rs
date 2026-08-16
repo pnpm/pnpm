@@ -9,7 +9,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::process::Command;
 
 fn pacquet(workspace: &std::path::Path) -> Command {

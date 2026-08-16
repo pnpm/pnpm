@@ -4,16 +4,16 @@
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use pacquet_git_fetcher::{GitManifestQuery, read_git_manifest};
-use pacquet_lockfile::{GitResolution, LockfileResolution, TarballResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::SilentReporter;
-use pacquet_resolving_resolver_base::{
+use pnpm_git_fetcher::{GitManifestQuery, read_git_manifest};
+use pnpm_lockfile::{GitResolution, LockfileResolution, TarballResolution};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_reporter::SilentReporter;
+use pnpm_resolving_resolver_base::{
     GitResolveError, LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
-use pacquet_store_dir::{StoreDir, StoreIndexWriter};
-use pacquet_tarball::{FetchTarballForResolution, RetryOpts};
+use pnpm_store_dir::{StoreDir, StoreIndexWriter};
+use pnpm_tarball::{FetchTarballForResolution, RetryOpts};
 
 use crate::{
     create_git_hosted_pkg_id::create_git_hosted_pkg_id,

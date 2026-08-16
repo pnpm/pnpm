@@ -5,10 +5,10 @@ use crate::{
     resolve_peers::{ResolvePeersOptions, discovery::PeerDiscoveryCaches, walker::Walker},
     resolved_tree::{DependenciesTreeNode, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PkgName, PkgNameVer, TarballResolution,
 };
-use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::FxHashMap as HashMap;
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 

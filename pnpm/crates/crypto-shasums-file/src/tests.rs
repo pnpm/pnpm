@@ -94,7 +94,7 @@ async fn fetches_node_shasums_when_signature_verifies() {
         .with_body(signature)
         .create_async()
         .await;
-    let client = pacquet_network::ThrottledClient::new_for_installs();
+    let client = pnpm_network::ThrottledClient::new_for_installs();
     let body = fetch_verified_node_shasums(
         &client,
         &format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url()),
@@ -130,7 +130,7 @@ async fn missing_node_shasums_signature_fails() {
         .with_status(404)
         .create_async()
         .await;
-    let client = pacquet_network::ThrottledClient::new_for_installs();
+    let client = pnpm_network::ThrottledClient::new_for_installs();
     let err = fetch_verified_node_shasums(
         &client,
         &format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url()),
@@ -165,7 +165,7 @@ async fn verified_fetch_caches_the_body_after_verification() {
         .create_async()
         .await;
     let cache_dir = tempfile::tempdir().expect("create temp cache dir");
-    let client = pacquet_network::ThrottledClient::new_for_installs();
+    let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
 
     let fetched = fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
@@ -199,7 +199,7 @@ async fn verified_fetch_does_not_cache_an_unverified_body() {
         .create_async()
         .await;
     let cache_dir = tempfile::tempdir().expect("create temp cache dir");
-    let client = pacquet_network::ThrottledClient::new_for_installs();
+    let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
 
     for _ in 0..2 {
@@ -221,7 +221,7 @@ async fn plain_fetch_caches_the_body() {
         .create_async()
         .await;
     let cache_dir = tempfile::tempdir().expect("create temp cache dir");
-    let client = pacquet_network::ThrottledClient::new_for_installs();
+    let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/v1.2.3/SHASUMS256.txt", server.url());
 
     let fetched = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path()))
@@ -260,7 +260,7 @@ async fn seeded_verified_cache_without_valid_signature_is_refetched() {
         .create_async()
         .await;
     let cache_dir = tempfile::tempdir().expect("create temp cache dir");
-    let client = pacquet_network::ThrottledClient::new_for_installs();
+    let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
     write_cached_shasums(
         Some(cache_dir.path()),

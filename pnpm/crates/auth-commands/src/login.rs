@@ -5,7 +5,7 @@
 //! and, when the registry doesn't support it (HTTP 404 / 405), falls back to
 //! classic username / password / email authentication (`PUT
 //! -/user/org.couchdb.user:<name>`). Either path may raise a two-factor (OTP)
-//! challenge, which is satisfied through [`pacquet_network_web_auth`] — a
+//! challenge, which is satisfied through [`pnpm_network_web_auth`] — a
 //! browser round-trip when the registry offers web auth, or a prompted
 //! one-time password otherwise.
 //!
@@ -14,7 +14,7 @@
 //! pnpm injects every side effect the flow touches as a bag of closures on a
 //! `context` object. This port threads them through the project's capability
 //! seam instead: the interactive OTP / web-auth effects reuse
-//! [`pacquet_network_web_auth`]'s capability traits (composed on the single
+//! [`pnpm_network_web_auth`]'s capability traits (composed on the single
 //! `Sys` type parameter), the credential prompts read through the crate-local
 //! [`PromptInput`] / [`PromptPassword`] capabilities — the raw `dialoguer`
 //! terminal reads, wrapped by `prompt_line` — and `auth.ini` I/O reuses
@@ -28,12 +28,12 @@
 
 use std::{io, path::Path};
 
-use pacquet_network::{ThrottledClient, nerf_dart, redact_and_sanitize};
-use pacquet_network_web_auth::{
+use pnpm_network::{ThrottledClient, nerf_dart, redact_and_sanitize};
+use pnpm_network_web_auth::{
     Clock, EnterKeyListener, OpenUrl, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
     WebAuthFetchOptions, WebAuthRetryOptions,
 };
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 
 use crate::{
     ini::IniSettings,

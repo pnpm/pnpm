@@ -149,7 +149,7 @@ pub async fn send_with_retry_at_priority<'client>(
                 drop(client);
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
-                    target: "pacquet_network::retry",
+                    target: "pnpm_network::retry",
                     url = %redact_url_credentials(url),
                     ?status,
                     attempt = attempt + 1,
@@ -171,7 +171,7 @@ pub async fn send_with_retry_at_priority<'client>(
                 // error to keep it out of the log.
                 let error = error.without_url();
                 tracing::warn!(
-                    target: "pacquet_network::retry",
+                    target: "pnpm_network::retry",
                     url = %redact_url_credentials(url),
                     error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,
@@ -222,7 +222,7 @@ where
             Err(error) if is_retryable(&error) && attempt < retry_opts.retries => {
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
-                    target: "pacquet_network::retry",
+                    target: "pnpm_network::retry",
                     url = %redact_url_credentials(url),
                     error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,

@@ -16,7 +16,7 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
@@ -803,7 +803,7 @@ fn package_that_is_peer_dependency_of_itself() {
     assert!(workspace.join("node_modules/@pnpm.e2e/peer-of-itself").exists());
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
-    let lockfile: pacquet_lockfile::Lockfile =
+    let lockfile: pnpm_lockfile::Lockfile =
         serde_saphyr::from_str(&lockfile).expect("parse pnpm-lock.yaml");
     let packages = lockfile.packages.expect("lockfile has a packages section");
     let (_, metadata) = packages

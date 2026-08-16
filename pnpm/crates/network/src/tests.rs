@@ -17,7 +17,7 @@ use super::{
     parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
-use pacquet_testing_utils::env_guard::EnvGuard;
+use pnpm_testing_utils::env_guard::EnvGuard;
 use reqwest::{
     Url,
     dns::{Addrs, Name, Resolve, Resolving},

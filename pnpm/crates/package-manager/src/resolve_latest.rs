@@ -11,10 +11,10 @@
 use crate::resolution_policy::{PickPolicy, pick_package_context};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_network::ThrottledClient;
-use pacquet_registry::{PackageTag, PackageVersion};
-use pacquet_resolving_npm_resolver::{
+use pnpm_config::Config;
+use pnpm_network::ThrottledClient;
+use pnpm_registry::{PackageTag, PackageVersion};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
     RegistryPackageSpec, pick_package, pick_registry_for_package,
 };
@@ -27,7 +27,7 @@ pub enum ResolveLatestError {
     Pick(#[error(source)] Box<PickPackageError>),
 
     #[diagnostic(transparent)]
-    Registry(#[error(source)] pacquet_registry::RegistryError),
+    Registry(#[error(source)] pnpm_registry::RegistryError),
 
     /// The packument carries no version behind the `latest` tag (nor a
     /// fallback pick) — e.g. every version was unpublished.

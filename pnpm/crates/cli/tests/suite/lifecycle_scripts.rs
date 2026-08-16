@@ -75,8 +75,8 @@ mod dependency_build_scripts {
     };
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use pipe_trait::Pipe;
+    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use std::{fs, path::Path, process::Command};
 
     /// `packageNames` from the run's `pnpm:ignored-scripts` NDJSON event.
@@ -255,7 +255,7 @@ mod dependency_build_scripts {
         eprintln!("Checking generated bins are executable...");
         #[cfg(unix)]
         {
-            use pacquet_testing_utils::fs::is_path_executable;
+            use pnpm_testing_utils::fs::is_path_executable;
             assert!(is_path_executable(&node_modules.join(".bin/cmd1")));
             assert!(is_path_executable(&node_modules.join(".bin/cmd2")));
         }
@@ -275,7 +275,7 @@ mod dependency_build_scripts {
         eprintln!("Checking generated bins are executable after frozen reinstall...");
         #[cfg(unix)]
         {
-            use pacquet_testing_utils::fs::is_path_executable;
+            use pnpm_testing_utils::fs::is_path_executable;
             assert!(is_path_executable(&node_modules.join(".bin/cmd1")));
             assert!(is_path_executable(&node_modules.join(".bin/cmd2")));
         }
@@ -346,7 +346,7 @@ mod dependency_build_scripts {
         eprintln!("Checking bins are linked...");
         #[cfg(unix)]
         {
-            use pacquet_testing_utils::fs::is_path_executable;
+            use pnpm_testing_utils::fs::is_path_executable;
             assert!(is_path_executable(&node_modules.join(".bin/peer-with-bin")));
         }
 
@@ -371,7 +371,7 @@ mod dependency_build_scripts {
         eprintln!("Checking bins are linked after frozen reinstall...");
         #[cfg(unix)]
         {
-            use pacquet_testing_utils::fs::is_path_executable;
+            use pnpm_testing_utils::fs::is_path_executable;
             assert!(is_path_executable(&node_modules.join(".bin/peer-with-bin")));
         }
 
@@ -1062,8 +1062,8 @@ mod dependency_build_scripts {
     }
 
     fn read_ignored_builds(workspace: &Path) -> Vec<String> {
-        let mut recorded: Vec<String> = pacquet_modules_yaml::read_modules_manifest::<
-            pacquet_modules_yaml::Host,
+        let mut recorded: Vec<String> = pnpm_modules_yaml::read_modules_manifest::<
+            pnpm_modules_yaml::Host,
         >(&workspace.join("node_modules"))
         .expect("read .modules.yaml")
         .expect(".modules.yaml exists")
@@ -1084,8 +1084,8 @@ mod pending_builds {
     use super::workspace_yaml::allow_builds;
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pacquet_modules_yaml::{Host, read_modules_manifest};
-    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use pnpm_modules_yaml::{Host, read_modules_manifest};
+    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use std::{fs, path::Path};
 
     fn read_pending_builds(workspace: &Path) -> Vec<String> {
@@ -1392,7 +1392,7 @@ mod pending_builds {
 mod project_scripts {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use std::{fs, process::Command};
 
     /// A `node -e` lifecycle script that appends `<stage>\n` to
@@ -1794,7 +1794,7 @@ mod project_scripts {
         use super::{append_order_script, project_with_lifecycle_scripts};
         use assert_cmd::prelude::*;
         use command_extra::CommandExtra;
-        use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+        use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
         use std::{fs, process::Command};
 
         fn project_with_dev_preinstall() -> serde_json::Value {
@@ -2057,7 +2057,7 @@ mod project_scripts {
 mod project_scripts_in_a_workspace {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use std::{ffi::OsStr, fs, path::Path, process::Command};
     use tempfile::TempDir;
 
@@ -2265,7 +2265,7 @@ mod script_shell {
     use super::workspace_yaml::{allow_builds, append_workspace_yaml_key};
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use std::{fs, os::unix::fs::PermissionsExt, path::Path};
 
     /// Install a shell shim that appends each script it is asked to run

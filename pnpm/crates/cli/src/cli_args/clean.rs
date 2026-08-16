@@ -3,9 +3,9 @@ use super::{
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_fs::{is_subdir, lexical_normalize, relative_path, remove_dirent};
-use pacquet_workspace::read_project_manifest_only;
+use pnpm_config::Config;
+use pnpm_fs::{is_subdir, lexical_normalize, relative_path, remove_dirent};
+use pnpm_workspace::read_project_manifest_only;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -83,7 +83,7 @@ impl CleanArgs {
 /// (`None` when the manifest is absent), mirroring pnpm's
 /// `safeReadProjectManifestOnly` tolerance for a missing `package.json`.
 fn script_of(
-    manifest: Option<pacquet_package_manifest::PackageManifest>,
+    manifest: Option<pnpm_package_manifest::PackageManifest>,
     command_name: &str,
 ) -> Option<String> {
     manifest?

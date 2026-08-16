@@ -3,7 +3,7 @@
 //! to decide whether a wanted dependency should be looked up in a
 //! catalog before falling through to the npm / git / tarball resolvers.
 
-use pacquet_catalogs_types::DEFAULT_CATALOG_NAME;
+use pnpm_catalogs_types::DEFAULT_CATALOG_NAME;
 
 const CATALOG_PROTOCOL: &str = "catalog:";
 

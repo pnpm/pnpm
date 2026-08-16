@@ -12,7 +12,7 @@ use super::{
     unlink::UnlinkArgs,
 };
 use clap::Parser;
-use pacquet_default_reporter::SummaryScope;
+use pnpm_default_reporter::SummaryScope;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -811,7 +811,7 @@ fn config_merged_boolean_negations_parse() {
 
 #[test]
 fn add_ignore_pnpmfile_flag_applies_to_config() {
-    let mut config = pacquet_config::Config::default();
+    let mut config = pnpm_config::Config::default();
     add_args(&["pacquet", "add", "foo"]).apply_cli_config(&mut config);
     assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
 
@@ -853,7 +853,7 @@ fn every_command_pnpm_takes_ignore_pnpmfile_on_takes_it() {
 
 #[test]
 fn dedupe_ignore_pnpmfile_flag_applies_to_config() {
-    let mut config = pacquet_config::Config::default();
+    let mut config = pnpm_config::Config::default();
     dedupe_args(&["pacquet", "dedupe"]).apply_cli_config(&mut config);
     assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
 
@@ -863,7 +863,7 @@ fn dedupe_ignore_pnpmfile_flag_applies_to_config() {
 
 #[test]
 fn unlink_ignore_pnpmfile_flag_applies_to_config() {
-    let mut config = pacquet_config::Config::default();
+    let mut config = pnpm_config::Config::default();
     unlink_args(&["pacquet", "unlink"]).apply_cli_config(&mut config);
     assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
 

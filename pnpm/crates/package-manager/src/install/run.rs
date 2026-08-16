@@ -16,8 +16,8 @@ use super::{
     selected_manifest_freshness_inputs, try_fast_update_lockfile,
     unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
-use pacquet_config::Config;
-use pacquet_executor::DEV_PREINSTALL_STAGE;
+use pnpm_config::Config;
+use pnpm_executor::DEV_PREINSTALL_STAGE;
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
@@ -148,7 +148,7 @@ where
             lockfile_root_dir(config, manifest_dir).map_err(InstallError::FindWorkspaceDir)?;
 
         let workspace_manifest = match workspace_dir_opt.as_deref() {
-            Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
+            Some(dir) => pnpm_workspace::read_workspace_manifest(dir)
                 .map_err(InstallError::ReadWorkspaceManifest)?,
             None => None,
         };
@@ -272,14 +272,14 @@ where
                 .selected_dirs
                 .iter()
                 .map(|project_dir| {
-                    pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
+                    pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
                 })
                 .collect::<HashSet<_>>()
         });
         let real_importer_ids = project_manifests
             .iter()
             .map(|(project_dir, _)| {
-                pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
             })
             .collect::<HashSet<_>>();
         let filtered_install = selected_importer_ids
@@ -336,7 +336,7 @@ where
                 true
             };
             let strict_builds_safe = if config.strict_dep_builds {
-                match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
+                match pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
                     Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config)
                     {
                         Ok(Some(package_names)) => {
@@ -423,7 +423,7 @@ where
             // shaped relative store paths (resolved-on-disk: outside the
             // workspace; lexical: starts with the workspace prefix).
             if let Err(error) =
-                std::fs::create_dir_all(pacquet_store_dir::StoreDir::root(&config.store_dir))
+                std::fs::create_dir_all(pnpm_store_dir::StoreDir::root(&config.store_dir))
             {
                 tracing::warn!(
                     target: "pacquet::install",
@@ -431,8 +431,7 @@ where
                     "Failed to ensure store root exists before project registry write; install continues",
                 );
             }
-            if let Err(error) =
-                pacquet_store_dir::register_project(&config.store_dir, &workspace_root)
+            if let Err(error) = pnpm_store_dir::register_project(&config.store_dir, &workspace_root)
             {
                 tracing::warn!(
                     target: "pacquet::install",
@@ -458,7 +457,7 @@ where
         // the resolve path below so an install spawns at most one.
         let pnpmfile_hook = pnpmfile_hook_override.or_else(|| {
             (!config.ignore_pnpmfile)
-                .then(|| pacquet_hooks::finder::load_pnpmfile(&workspace_root))
+                .then(|| pnpm_hooks::finder::load_pnpmfile(&workspace_root))
                 .flatten()
         });
 
@@ -490,7 +489,7 @@ where
         {
             Some(hook) => {
                 let log = hook.source_path().map_or_else(
-                    || Arc::new(|_| {}) as pacquet_hooks::LogFn,
+                    || Arc::new(|_| {}) as pnpm_hooks::LogFn,
                     |from| {
                         crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
                             &workspace_root,
@@ -501,7 +500,7 @@ where
                 );
                 futures_util::future::try_join_all(project_manifests.iter().map(
                     |(project_dir, manifest)| {
-                        let ctx = pacquet_hooks::HookContext { log: Arc::clone(&log), dir: None };
+                        let ctx = pnpm_hooks::HookContext { log: Arc::clone(&log), dir: None };
                         async move {
                             let value = hook
                                 .read_package(manifest.value().clone(), ctx)
@@ -536,7 +535,7 @@ where
                 .iter()
                 .map(|(project_dir, manifest)| {
                     (
-                        pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
+                        pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
                         *manifest,
                     )
                 })
@@ -662,7 +661,7 @@ where
         // this install's own canonical tarball fetches instead of a
         // metadata body per entry.
         let planned_canonical_fetches =
-            pacquet_resolving_resolver_base::PlannedCanonicalFetches::default();
+            pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
         let resolution_verifiers = if trust_lockfile {
             Vec::new()
         } else {
@@ -670,7 +669,7 @@ where
                 config,
                 Arc::clone(&http_client_arc),
                 Some(Arc::clone(&meta_cache)
-                    as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
+                    as Arc<dyn pnpm_resolving_npm_resolver::PackageMetaCache>),
                 auth_override.clone(),
                 None,
                 Some(std::sync::Arc::clone(&planned_canonical_fetches)),
@@ -718,12 +717,10 @@ where
             // back to the executor's own read covers a root that isn't
             // among the importers, as a filtered install's is not —
             // pnpm's `safeReadProjectManifestOnly` fallback.
-            let normalized_root = pacquet_fs::lexical_normalize(&workspace_root);
+            let normalized_root = pnpm_fs::lexical_normalize(&workspace_root);
             let root_defines_hook = project_manifests
                 .iter()
-                .find(|(project_dir, _)| {
-                    pacquet_fs::lexical_normalize(project_dir) == normalized_root
-                })
+                .find(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir) == normalized_root)
                 .is_none_or(|(_, manifest)| {
                     matches!(manifest.script(DEV_PREINSTALL_STAGE, true), Ok(Some(_)))
                 });

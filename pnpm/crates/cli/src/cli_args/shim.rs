@@ -15,12 +15,12 @@
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_cmd_shim::{
+use pnpm_cmd_shim::{
     Host as CmdShimHost, get_bins_from_package_manifest, is_virtual_shim_for, link_virtual_shims,
     remove_bin,
 };
-use pacquet_config::{Config, NamedShimPolicy, ShimPolicyValue};
-use pacquet_global::bin_slot_exists;
+use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
+use pnpm_global::bin_slot_exists;
 use std::{collections::BTreeMap, fmt::Write as _, fs, path::Path};
 
 use crate::{config_deps, engine_pm::channel::PackageManager};

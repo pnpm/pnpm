@@ -1,5 +1,5 @@
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
 
 /// Error type of [`crate::prepare_package()`].
 ///
@@ -27,7 +27,7 @@ pub enum PreparePackageError {
     #[diagnostic(code(ERR_PNPM_PREPARE_PACKAGE))]
     LifecycleFailed {
         #[error(source)]
-        source: pacquet_executor::LifecycleScriptError,
+        source: pnpm_executor::LifecycleScriptError,
     },
 
     /// `path` field on the resolution pointed outside the cloned dir
@@ -37,7 +37,7 @@ pub enum PreparePackageError {
     InvalidPath { path: String },
 
     #[diagnostic(transparent)]
-    ReadManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
+    ReadManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
 
     /// The dependency pins the package manager that prepares it, and pnpm
     /// could not put that package manager on the build's `PATH`.
@@ -136,14 +136,14 @@ If its specifier does not ask for SSH (for example "github:owner/repo"), the loc
     Io(#[error(source)] std::io::Error),
 
     #[diagnostic(transparent)]
-    ReadManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
+    ReadManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
 
     #[diagnostic(transparent)]
     Prepare(#[error(source)] PreparePackageError),
 
     #[diagnostic(transparent)]
-    Packlist(#[error(source)] pacquet_fs_packlist::PacklistError),
+    Packlist(#[error(source)] pnpm_fs_packlist::PacklistError),
 
     #[diagnostic(transparent)]
-    AddFilesFromDir(#[error(source)] pacquet_store_dir::AddFilesFromDirError),
+    AddFilesFromDir(#[error(source)] pnpm_store_dir::AddFilesFromDirError),
 }

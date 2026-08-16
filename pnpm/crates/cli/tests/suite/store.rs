@@ -1,8 +1,8 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_store_dir::STORE_VERSION;
-use pacquet_testing_utils::bin::CommandTempCwd;
 use pipe_trait::Pipe;
+use pnpm_store_dir::STORE_VERSION;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use std::{
     fs,

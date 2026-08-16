@@ -4,8 +4,8 @@
 //! which occurrence of a package records its children.
 
 use chrono::{DateTime, Utc};
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_lockfile::{PkgName, PkgNameVerPeer};
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_lockfile::{PkgName, PkgNameVerPeer};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
@@ -81,8 +81,8 @@ use super::{
 /// Ordinary keep-all importers use no importer scope and retain the existing
 /// cross-importer cache sharing.
 ///
-/// [`Resolver::resolve`]: pacquet_resolving_resolver_base::Resolver::resolve
-/// [`WantedDependency`]: pacquet_resolving_resolver_base::WantedDependency
+/// [`Resolver::resolve`]: pnpm_resolving_resolver_base::Resolver::resolve
+/// [`WantedDependency`]: pnpm_resolving_resolver_base::WantedDependency
 /// [`extend_tree`]: super::extend_tree
 /// [`fn@resolve_node`]: super::walk::resolve_node
 pub(super) type WantedKey = (
@@ -249,10 +249,10 @@ pub struct WorkspaceTreeCtx {
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     pub(super) all_peer_dep_names: Mutex<HashSet<String>>,
     pub(super) policy_violations:
-        Mutex<Vec<pacquet_resolving_resolver_base::ResolutionPolicyViolation>>,
+        Mutex<Vec<pnpm_resolving_resolver_base::ResolutionPolicyViolation>>,
     pub(super) applied_patches: Mutex<HashSet<String>>,
     pub(super) resolved_by_wanted:
-        Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
+        Mutex<HashMap<WantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
     pub(super) children_specs_by_id: Mutex<HashMap<Arc<str>, Arc<Vec<ChildSpec>>>>,
     /// Package ids whose children have already been speculatively
     /// resolved. A package is warmed once, however many occurrences of
@@ -286,7 +286,7 @@ pub struct WorkspaceTreeCtx {
     /// `None` on a first install or when reuse is disabled.
     ///
     /// [`resolve_node`]: super::walk::resolve_node
-    pub(super) wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+    pub(super) wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
     /// Lockfile-reuse suppression for `pacquet update`. `update`
     /// re-resolves its target deps to highest-in-range, so a reused
     /// resolution would defeat the bump. See [`UpdateReuseScope`].
@@ -307,7 +307,7 @@ pub struct WorkspaceTreeCtx {
     /// calls, pre-bound to the install's reporter, project prefix, and
     /// pnpmfile path. `None` leaves hook logging a no-op. See
     /// [`WorkspaceTreeCtx::with_read_package_log`].
-    pub(super) read_package_log: Option<pacquet_hooks::LogFn>,
+    pub(super) read_package_log: Option<pnpm_hooks::LogFn>,
     /// Sink for skipped-optional-dependency notifications. `None`
     /// keeps the skip behavior but drops the notification. See
     /// [`SkippedOptionalLogFn`].
@@ -439,7 +439,7 @@ pub(super) struct RunVersionsCache {
     /// and a later wave can add such an edge to an already-visited
     /// package.
     awaiting_identity: HashSet<String>,
-    pub(super) versions: pacquet_resolving_resolver_base::PreferredVersions,
+    pub(super) versions: pnpm_resolving_resolver_base::PreferredVersions,
 }
 
 /// Append-only record of which keys of the shared maps have been
@@ -483,7 +483,7 @@ impl Default for WorkspaceTreeCtx {
                 children_rewrites: 0,
                 visited: HashSet::default(),
                 awaiting_identity: HashSet::default(),
-                versions: pacquet_resolving_resolver_base::PreferredVersions::new(),
+                versions: pnpm_resolving_resolver_base::PreferredVersions::new(),
             }),
             dependencies_tree: Mutex::new(HashMap::default()),
             all_peer_dep_names: Mutex::new(HashSet::default()),
@@ -644,14 +644,14 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn with_wanted_lockfile(
         mut self,
-        wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+        wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
     ) -> Self {
         self.wanted_lockfile = wanted_lockfile;
         self
     }
 
     /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
-    pub fn wanted_lockfile(&self) -> Option<&Arc<pacquet_lockfile::Lockfile>> {
+    pub fn wanted_lockfile(&self) -> Option<&Arc<pnpm_lockfile::Lockfile>> {
         self.wanted_lockfile.as_ref()
     }
 
@@ -738,7 +738,7 @@ impl WorkspaceTreeCtx {
 
     /// The `name → version` entries of every package reachable from any
     /// importer's recorded direct dependencies, shaped as the plain
-    /// [`pacquet_resolving_resolver_base::PreferredVersions`] entries the
+    /// [`pnpm_resolving_resolver_base::PreferredVersions`] entries the
     /// peer-hoist pickers bias toward.
     ///
     /// Derived from the settled tree — the recorded roots plus the
@@ -1120,7 +1120,7 @@ impl WorkspaceTreeCtx {
     /// reporter, project prefix, and pnpmfile path into the closure so the
     /// resolver stays reporter-agnostic.
     #[must_use]
-    pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
+    pub fn with_read_package_log(mut self, read_package_log: Option<pnpm_hooks::LogFn>) -> Self {
         self.read_package_log = read_package_log;
         self
     }
@@ -1221,13 +1221,13 @@ impl WorkspaceTreeCtx {
 /// Fold one `name → version` pair into `versions` as a plain
 /// `version` selector; the first fold of a pair wins over later ones.
 fn fold_version(
-    versions: &mut pacquet_resolving_resolver_base::PreferredVersions,
+    versions: &mut pnpm_resolving_resolver_base::PreferredVersions,
     name: String,
     version: String,
 ) {
     versions.entry(name).or_default().entry(version).or_insert(
-        pacquet_resolving_resolver_base::VersionSelectorEntry::Plain(
-            pacquet_resolving_resolver_base::VersionSelectorType::Version,
+        pnpm_resolving_resolver_base::VersionSelectorEntry::Plain(
+            pnpm_resolving_resolver_base::VersionSelectorType::Version,
         ),
     );
 }

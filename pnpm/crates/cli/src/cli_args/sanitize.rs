@@ -1,4 +1,4 @@
-use pacquet_network::LimitedBody;
+use pnpm_network::LimitedBody;
 use std::borrow::Cow;
 
 #[cfg(test)]

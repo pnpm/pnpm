@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 
 /// `pacquet dlx` with no command is an error, mirroring pnpm's dlx, which
 /// prints help and exits non-zero when given neither a command nor a
@@ -39,7 +39,7 @@ fn dlx_errors_when_no_command_given() {
 /// proves both the install and the bin execution worked end-to-end.
 ///
 /// Locally this needs the in-repo pnpr (the mocked registry); in CI
-/// `add_mocked_registry()` starts it via `pacquet-testing-utils`.
+/// `add_mocked_registry()` starts it via `pnpm-testing-utils`.
 #[cfg(unix)]
 #[test]
 fn dlx_installs_and_runs_packages_bin() {

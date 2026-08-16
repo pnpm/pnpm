@@ -11,7 +11,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
 
 /// Three-project workspace with `injectWorkspacePackages: true`.
@@ -129,7 +129,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     // away. The ref is the plain `file:` form — the `<name>@<ref>`
     // alias form is reserved for renamed deps, and here the alias
     // equals the package name.
-    let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
         .map_err(|err| {
             format!(
                 "re-parse the lockfile we just wrote (this should never fail): {err}\n{lockfile}",
@@ -139,7 +139,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
 
     let importer_version = |importer_id: &str, dep_name: &str| -> String {
         let dep_name_parsed = dep_name
-            .parse::<pacquet_lockfile::PkgName>()
+            .parse::<pnpm_lockfile::PkgName>()
             .unwrap_or_else(|err| panic!("parse PkgName {dep_name:?}: {err}"));
         let importer = parsed.importers.get(importer_id).unwrap_or_else(|| {
             panic!("pnpm-lock.yaml missing `importers[{importer_id:?}]` block:\n{lockfile}")
@@ -290,7 +290,7 @@ fn dependencies_meta_injected_per_dep_overrides_global_off() {
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
-    let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
         .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
 
     let importer = parsed
@@ -301,7 +301,7 @@ fn dependencies_meta_injected_per_dep_overrides_global_off() {
         .dependencies
         .as_ref()
         .unwrap_or_else(|| panic!("missing project-2 dependencies:\n{lockfile}"));
-    let project_1_name: pacquet_lockfile::PkgName = "project-1".parse().unwrap();
+    let project_1_name: pnpm_lockfile::PkgName = "project-1".parse().unwrap();
     let spec = deps
         .get(&project_1_name)
         .unwrap_or_else(|| panic!("missing project-1 in project-2 deps:\n{lockfile}"));

@@ -5,10 +5,8 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
-use pacquet_reporter::{
-    LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter,
-};
+use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -243,7 +241,7 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.
 ///
 /// `parent_env` is captured by the caller so multi-stage callers (the
-/// [`run_postinstall_hooks`] wrapper and `pacquet-git-fetcher`'s
+/// [`run_postinstall_hooks`] wrapper and `pnpm-git-fetcher`'s
 /// package-preparation step) can snapshot once and reuse across stages,
 /// so each stage sees the same parent env regardless of what siblings
 /// wrote into the process's own env.

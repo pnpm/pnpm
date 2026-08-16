@@ -33,12 +33,12 @@ use std::{
 
 use dashmap::DashMap;
 use indexmap::IndexMap;
-use pacquet_config::{
+use pnpm_config::{
     Config, GetHomeDir, Host, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker,
     PackageExtension, PackageImportMethod, default_registry,
 };
-use pacquet_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart, normalize_auth_key};
-use pacquet_store_dir::StoreDir;
+use pnpm_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart, normalize_auth_key};
+use pnpm_store_dir::StoreDir;
 
 /// Host-supplied config values. Every field is optional: `None` keeps the
 /// value [`Config::current`] resolved from `.npmrc` / `pnpm-workspace.yaml` /
@@ -133,7 +133,7 @@ pub struct ConfigOverlay {
 }
 
 /// Host-supplied `peerDependencyRules`. Mirrors pnpm's shape and pacquet's
-/// [`pacquet_config::Config::peer_dependency_rules`] fields.
+/// [`pnpm_config::Config::peer_dependency_rules`] fields.
 #[derive(Debug, Default)]
 pub struct PeerDependencyRulesOverlay {
     pub ignore_missing: Option<Vec<String>>,
@@ -168,14 +168,14 @@ fn hash_config_sources(dir: &Path, hasher: &mut DefaultHasher) {
         .or_else(|| std::env::var_os("npm_config_workspace_dir"))
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .or_else(|| pacquet_workspace::find_workspace_dir(dir).ok().flatten());
+        .or_else(|| pnpm_workspace::find_workspace_dir(dir).ok().flatten());
     if let Some(workspace_dir) = workspace_dir {
-        hash_file(&workspace_dir.join(pacquet_config::WORKSPACE_MANIFEST_FILENAME), hasher);
+        hash_file(&workspace_dir.join(pnpm_config::WORKSPACE_MANIFEST_FILENAME), hasher);
         hash_file(&workspace_dir.join(".npmrc"), hasher);
     }
 
-    if let Some(config_dir) = pacquet_config::default_config_dir::<Host>() {
-        hash_file(&config_dir.join(pacquet_config::GLOBAL_CONFIG_YAML_FILENAME), hasher);
+    if let Some(config_dir) = pnpm_config::default_config_dir::<Host>() {
+        hash_file(&config_dir.join(pnpm_config::GLOBAL_CONFIG_YAML_FILENAME), hasher);
         hash_file(&config_dir.join("auth.ini"), hasher);
     }
     if let Some(home_dir) = Host::home_dir() {

@@ -3,8 +3,8 @@
 
 use std::collections::BTreeMap;
 
-use pacquet_catalogs_types::Catalogs;
-use pacquet_network::AuthHeadersByScope;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_network::AuthHeadersByScope;
 use serde::Deserialize;
 
 pub type DepMap = BTreeMap<String, String>;
@@ -82,7 +82,7 @@ pub struct ResolveRequest {
     /// client's policy before resolving) and as the resolution-reuse
     /// seed. Absent on a true first install (nothing to verify).
     #[serde(default)]
-    pub lockfile: Option<pacquet_lockfile::Lockfile>,
+    pub lockfile: Option<pnpm_lockfile::Lockfile>,
     /// Governs *resolution behavior* only — frozen (use the lockfile
     /// as-is) vs reuse-and-update. Does not affect whether the input
     /// lockfile is verified.
@@ -118,7 +118,7 @@ pub struct ResolveRequest {
     pub minimum_release_age_ignore_missing_time: Option<bool>,
     /// The client's supply-chain trust policy. Defaults to `off`.
     #[serde(default)]
-    pub trust_policy: pacquet_config::TrustPolicy,
+    pub trust_policy: pnpm_config::TrustPolicy,
     /// Glob patterns opting packages out of the `trustPolicy` check.
     #[serde(default)]
     pub trust_policy_exclude: Option<Vec<String>>,

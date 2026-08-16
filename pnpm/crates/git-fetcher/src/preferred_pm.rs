@@ -7,7 +7,7 @@
 //! snapshots almost always ship a lockfile at the repo root, and the
 //! fall-through is `Npm`.
 
-use pacquet_package_manifest::package_manager_spec::{
+use pnpm_package_manifest::package_manager_spec::{
     dev_engines_package_managers, engine_name_version, split_spec, version_without_build,
 };
 use serde_json::Value;

@@ -2,13 +2,13 @@ use std::future::Future;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::{ThrottledClient, encode_uri_component, redact_and_sanitize};
-use pacquet_network_web_auth::{
+use pnpm_network::{ThrottledClient, encode_uri_component, redact_and_sanitize};
+use pnpm_network_web_auth::{
     Clock, EnterKeyListener, OpenUrl, OtpChallenge, OtpError, PromptError, PromptOtp, Sleep,
     StdinIsTty, StdoutIsTty, SyntheticOtpError, WebAuthFetch, WebAuthFetchOptions,
     with_otp_handling,
 };
-use pacquet_reporter::Reporter;
+use pnpm_reporter::Reporter;
 use serde_json::{Value, json};
 
 use super::{

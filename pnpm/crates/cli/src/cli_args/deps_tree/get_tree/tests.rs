@@ -7,8 +7,8 @@ use std::{
     path::Path,
 };
 
-use pacquet_lockfile::Lockfile;
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_lockfile::Lockfile;
+use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 
 use super::{GetTreeOptions, MaterializationCache, MaxDepth, get_tree};

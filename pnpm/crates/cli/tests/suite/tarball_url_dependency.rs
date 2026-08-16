@@ -37,7 +37,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::minimal_tarball,
 };
@@ -330,7 +330,7 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
 fn a_remote_tarball_is_indexed_once_under_the_bare_url() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
@@ -350,7 +350,7 @@ fn a_remote_tarball_is_indexed_once_under_the_bare_url() {
     .expect("write package.json");
     pacquet_at(&workspace).with_arg("install").assert().success();
 
-    let keys = pacquet_store_dir::StoreIndex::open_readonly_in(&store_dir)
+    let keys = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
         .expect("open the store index")
         .keys()
         .expect("read the store index keys");

@@ -120,7 +120,7 @@ impl FragmentSource {
                 let mut bytes = vec![0u8; *len as usize];
                 if let Err(error) = read_exact_at(&file.file, &mut bytes, *offset) {
                     tracing::warn!(
-                        target: "pacquet_registry",
+                        target: "pnpm_registry",
                         %error,
                         offset,
                         "could not read a metadata mirror fragment",
@@ -131,7 +131,7 @@ impl FragmentSource {
                     Ok(json) => Some(Cow::Owned(json)),
                     Err(error) => {
                         tracing::warn!(
-                            target: "pacquet_registry",
+                            target: "pnpm_registry",
                             %error,
                             offset,
                             "metadata mirror fragment is not valid UTF-8",
@@ -204,7 +204,7 @@ impl VersionSlot {
                     Ok(parsed) => Some(Arc::new(parsed)),
                     Err(error) => {
                         tracing::warn!(
-                            target: "pacquet_registry",
+                            target: "pnpm_registry",
                             %error,
                             version,
                             "skipping registry version with an undecodable manifest",
@@ -297,7 +297,7 @@ impl PackageVersions {
 }
 
 /// Constructors and accessors for the indexed on-disk mirror format
-/// (see `pacquet-resolving-npm-resolver`'s `mirror` module, which owns
+/// (see `pnpm-resolving-npm-resolver`'s `mirror` module, which owns
 /// the file layout).
 impl PackageVersions {
     /// Build a map whose fragments are byte spans read on demand from
@@ -374,7 +374,7 @@ impl PackageVersions {
                     Ok(json) => return Some((version, Cow::Owned(json))),
                     Err(error) => {
                         tracing::warn!(
-                            target: "pacquet_registry",
+                            target: "pnpm_registry",
                             %error,
                             version,
                             "failed to re-serialize a typed manifest for the metadata mirror",
@@ -438,7 +438,7 @@ impl Serialize for PackageVersions {
                     Ok(raw) => map.serialize_entry(version, raw)?,
                     Err(error) => {
                         tracing::warn!(
-                            target: "pacquet_registry",
+                            target: "pnpm_registry",
                             %error,
                             version,
                             "skipping registry version with a corrupt fragment during serialization",

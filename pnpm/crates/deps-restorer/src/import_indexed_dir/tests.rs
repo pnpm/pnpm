@@ -1,6 +1,6 @@
 use super::{ImportIndexedDirError, ImportIndexedDirOpts, claim_dir, import_indexed_dir};
-use pacquet_config::PackageImportMethod;
-use pacquet_reporter::SilentReporter;
+use pnpm_config::PackageImportMethod;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,

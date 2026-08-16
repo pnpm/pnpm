@@ -11,7 +11,7 @@ pub use _utils::append_workspace_yaml_key;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::minimal_tarball,
     fs::get_all_files,

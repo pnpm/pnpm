@@ -20,7 +20,7 @@ use crate::cli_args::recursive::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_config::Config;
+use pnpm_config::Config;
 use std::{
     path::{Path, PathBuf},
     time::Instant,

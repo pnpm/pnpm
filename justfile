@@ -111,7 +111,7 @@ micro-benchmark:
 # running binary, failing with `os error 5` on Windows MSVC.
 registry-mock +args:
   cargo nextest run --no-run
-  cargo run --bin=pacquet-registry-mock -- {{args}}
+  cargo run --bin=pnpm-registry-mock -- {{args}}
 
 # The benchmark may auto-spawn the registry mock (via
 # `AutoMockInstance::load_or_init()`), so make sure `pnpr`

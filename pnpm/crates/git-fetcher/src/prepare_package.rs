@@ -11,11 +11,11 @@ use crate::{
     pm_shims::{shim_names, write_pm_shims},
     preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
 };
-use pacquet_executor::{
+use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
 };
-use pacquet_package_manifest::safe_read_package_json_from_dir;
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -38,8 +38,8 @@ const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 /// a dep path is allowed to run lifecycle scripts.
 ///
 /// We pass a closure rather than `&AllowBuildPolicy` so the
-/// `pacquet-git-fetcher` crate stays free of a back-edge into
-/// `pacquet-package-manager`. The caller adapts whatever policy
+/// `pnpm-git-fetcher` crate stays free of a back-edge into
+/// `pnpm-package-manager`. The caller adapts whatever policy
 /// structure it has into this shape.
 pub type AllowBuildFn<'a> = Box<dyn Fn(&str) -> bool + Send + Sync + 'a>;
 pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> bool + Send + Sync);
@@ -143,7 +143,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
         node_gyp_path: None,
         user_agent: opts.user_agent,
         unsafe_perm: opts.unsafe_perm,
-        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
+        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: opts.scripts_prepend_node_path,
         script_shell: opts.script_shell,
         optional: false,

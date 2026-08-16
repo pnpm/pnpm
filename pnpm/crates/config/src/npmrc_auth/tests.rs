@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use pacquet_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting};
+use pnpm_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting};
 use pretty_assertions::assert_eq;
 
 use crate::Config;
@@ -11,7 +11,7 @@ use super::{EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
 /// `&[(&str, &str)]` literal — saves each cascade test from spelling
 /// out an `impl EnvVar` block. Avoids touching the real process
 /// environment so cascade tests don't need
-/// [`pacquet_testing_utils::env_guard::EnvGuard`]'s global lock.
+/// [`pnpm_testing_utils::env_guard::EnvGuard`]'s global lock.
 macro_rules! static_env {
     ($name:ident, $entries:expr) => {
         struct $name;

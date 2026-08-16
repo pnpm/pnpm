@@ -3,11 +3,11 @@
 //! plugs in; future resolver-side verifiers append to the same vec.
 //!
 //! Returning `Vec<Arc<dyn ResolutionVerifier>>` matches the runner's
-//! input shape ([`pacquet_lockfile_verification::verify_lockfile_resolutions()`])
+//! input shape ([`pnpm_lockfile_verification::verify_lockfile_resolutions()`])
 //! and lets the install path skip the call entirely when the vec is
 //! empty (the runner is a no-op on `&[]`). The function never returns
 //! an error; an invalid exclude pattern surfaces from
-//! [`pacquet_config::version_policy::create_package_version_policy()`]
+//! [`pnpm_config::version_policy::create_package_version_policy()`]
 //! and propagates via [`BuildVerifiersError`].
 //!
 //! The verifier list is built from the install's config fields just
@@ -17,16 +17,16 @@ use std::{collections::HashMap, sync::Arc};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{
+use pnpm_config::{
     Config, TrustPolicy,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_resolving_npm_resolver::{
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_resolving_npm_resolver::{
     CreateNpmResolutionVerifierOptions, MergeNamedRegistriesError, ObservedDistStats,
     PackageMetaCache, create_npm_resolution_verifier, merge_named_registries,
 };
-use pacquet_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
+use pnpm_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
 
 use crate::retry_config::retry_opts_from_config;
 

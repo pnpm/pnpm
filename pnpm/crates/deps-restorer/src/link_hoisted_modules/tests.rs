@@ -4,10 +4,10 @@ use super::{
     CasPathsByPkgId, LinkHoistedModulesError, LinkHoistedModulesOpts, link_hoisted_modules,
 };
 use crate::{DepHierarchy, DependenciesGraph, DependenciesGraphNode};
-use pacquet_config::PackageImportMethod;
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
-use pacquet_modules_yaml::DepPath;
-use pacquet_reporter::SilentReporter;
+use pnpm_config::PackageImportMethod;
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
+use pnpm_modules_yaml::DepPath;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},

@@ -16,12 +16,12 @@ use crate::{
         AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package, safe_join_path,
     },
 };
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_fs_packlist::packlist;
-use pacquet_network::{redact_and_sanitize, redact_and_sanitize_multiline};
-use pacquet_package_manifest::safe_read_package_json_from_dir;
-use pacquet_reporter::Reporter;
-use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_fs_packlist::packlist;
+use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
+use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_reporter::Reporter;
+use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -98,7 +98,7 @@ pub struct GitFetchOutput {
     /// of host platform.
     pub cas_paths: HashMap<String, PathBuf>,
     /// `shouldBeBuilt` from `prepare_package`. The caller routes this
-    /// into the `built` dimension of [`pacquet_store_dir::pick_store_index_key`].
+    /// into the `built` dimension of [`pnpm_store_dir::pick_store_index_key`].
     pub built: bool,
 }
 

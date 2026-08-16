@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 
 /// `pacquet create` with no template name is an error, mirroring pnpm's
 /// `create`, which throws `ERR_PNPM_MISSING_ARGS` when given no arguments.

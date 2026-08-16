@@ -1,8 +1,8 @@
 //! Candidate identity: which package provides a bin, and the
 //! fingerprint a trust approval is bound to.
 
-use pacquet_cmd_shim::VIRTUAL_TARGET_PREFIX;
-use pacquet_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
+use pnpm_cmd_shim::VIRTUAL_TARGET_PREFIX;
+use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 

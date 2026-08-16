@@ -47,7 +47,7 @@ pub(crate) use context::SharedChain;
 use context::{ChainSuffixMemo, CurrentProviderSource, importer_relative_link_dep_path};
 use discovery::PeerDiscoveryCaches;
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,

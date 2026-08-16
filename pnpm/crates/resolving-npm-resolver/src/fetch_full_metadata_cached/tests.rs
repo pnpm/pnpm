@@ -1,5 +1,5 @@
 use mockito::Matcher;
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use tempfile::TempDir;
 
 use super::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
@@ -82,7 +82,7 @@ async fn cold_cache_writes_mirror_on_200() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -116,7 +116,7 @@ async fn offline_with_mirror_reads_cache_without_registry() {
         full_metadata: true,
         filter_metadata: false,
         offline: true,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -142,7 +142,7 @@ async fn offline_without_mirror_errors_without_registry() {
         full_metadata: true,
         filter_metadata: false,
         offline: true,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -189,7 +189,7 @@ async fn unsolicited_304_retries_without_cache() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -229,7 +229,7 @@ async fn repeated_unsolicited_304_reports_missing_cache() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -291,7 +291,7 @@ async fn cache_loss_after_304_stops_after_one_fallback() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -355,7 +355,7 @@ async fn cache_loss_after_304_body_retry_remains_bypassed() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: fast_retry_opts(),
     };
 
@@ -408,7 +408,7 @@ async fn cache_loss_after_304_registry_error_propagates() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -470,7 +470,7 @@ async fn assert_cache_loss_after_304_recovers(
         full_metadata,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -545,7 +545,7 @@ async fn filtered_full_cache_writes_filtered_mirror_on_200() {
         full_metadata: true,
         filter_metadata: true,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -603,7 +603,7 @@ async fn a_full_doc_served_for_an_abbreviated_request_is_normalized_before_cachi
         full_metadata: false,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -657,7 +657,7 @@ async fn a_doc_served_with_the_abbreviated_content_type_is_cached_verbatim() {
         full_metadata: false,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -704,7 +704,7 @@ async fn warm_cache_serves_from_mirror_on_304() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -749,7 +749,7 @@ async fn a_304_renews_the_mirror_mtime() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -810,7 +810,7 @@ async fn stale_cache_refreshes_mirror_on_200() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -848,7 +848,7 @@ async fn no_cache_dir_skips_mirror_io() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -886,7 +886,7 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -923,7 +923,7 @@ async fn body_read_failure_retries_and_writes_mirror() {
         full_metadata: true,
         filter_metadata: false,
         offline: false,
-        priority: pacquet_network::UNPRIORITIZED,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: fast_retry_opts(),
     };
 

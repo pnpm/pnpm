@@ -3,8 +3,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, LatestQuery, PreferredVersions, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, VersionSelectorEntry,
     VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
@@ -23,7 +23,7 @@ use crate::{
 
 #[test]
 fn locked_peer_context_is_recorded_by_direct_alias() {
-    use pacquet_lockfile::{
+    use pnpm_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PkgName, PkgVerPeer,
         ProjectSnapshot, ResolvedDependencySpec,
     };
@@ -67,7 +67,7 @@ fn locked_peer_context_is_recorded_by_direct_alias() {
 
 #[test]
 fn changed_direct_dependency_discards_prior_peer_context() {
-    use pacquet_lockfile::PkgName;
+    use pnpm_lockfile::PkgName;
     use std::sync::Arc;
 
     let mut names_by_alias = HashMap::from_iter([
@@ -91,7 +91,7 @@ fn changed_direct_dependency_discards_prior_peer_context() {
 
 #[test]
 fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
-    use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer, SnapshotEntry};
+    use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer, SnapshotEntry};
 
     let lockfile = Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
@@ -133,7 +133,7 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
 
 #[test]
 fn hashed_peer_suffix_uses_package_peer_metadata() {
-    use pacquet_lockfile::{
+    use pnpm_lockfile::{
         ComVer, DirectoryResolution, Lockfile, LockfileResolution, LockfileVersion,
         PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
     };
@@ -195,7 +195,7 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
     assert!(names_by_alias.is_empty());
 }
 
-fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> HashSet<String> {
+fn locked_peer_names(wanted_lockfile: Option<&pnpm_lockfile::Lockfile>) -> HashSet<String> {
     let Some(lockfile) = wanted_lockfile else {
         return HashSet::default();
     };
@@ -275,7 +275,7 @@ impl Resolver for StubResolver {
 }
 
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
-    use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
     let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),
@@ -336,7 +336,7 @@ fn default_opts() -> ResolveImporterOptions {
         base_opts: ResolveOptions::default(),
         pick_lowest_direct: false,
         subdep_published_by: None,
-        catalogs: pacquet_catalogs_types::Catalogs::new(),
+        catalogs: pnpm_catalogs_types::Catalogs::new(),
         exclude_links_from_lockfile: false,
         lockfile_dir: None,
         modules_dir: None,
@@ -1510,7 +1510,7 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
 
-    let mut catalogs = pacquet_catalogs_types::Catalogs::new();
+    let mut catalogs = pnpm_catalogs_types::Catalogs::new();
     catalogs.insert(
         "default".to_string(),
         std::iter::once(("foo".to_string(), "^1.0.0".to_string())).collect(),
@@ -1696,8 +1696,8 @@ mod resolution_mode {
     use super::{StubResolver, default_opts, fake_manifest, fake_result};
     use crate::resolve_importer;
     use chrono::{DateTime, TimeZone, Utc};
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::{
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_resolving_resolver_base::{
         ResolveFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
     };
     use pretty_assertions::assert_eq;
@@ -1745,9 +1745,9 @@ mod resolution_mode {
 
         fn resolve_latest<'a>(
             &'a self,
-            query: &'a pacquet_resolving_resolver_base::LatestQuery,
+            query: &'a pnpm_resolving_resolver_base::LatestQuery,
             opts: &'a ResolveOptions,
-        ) -> pacquet_resolving_resolver_base::ResolveLatestFuture<'a> {
+        ) -> pnpm_resolving_resolver_base::ResolveLatestFuture<'a> {
             self.inner.resolve_latest(query, opts)
         }
     }

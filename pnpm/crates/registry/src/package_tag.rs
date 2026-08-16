@@ -26,8 +26,8 @@ impl PackageTag {
     pub fn registry_path_segment(&self) -> String {
         match self {
             PackageTag::Latest => "latest".to_string(),
-            PackageTag::Version(v) => pacquet_network::encode_uri_component(&v.to_string()),
-            PackageTag::Tag(tag) => pacquet_network::encode_uri_component(tag),
+            PackageTag::Version(v) => pnpm_network::encode_uri_component(&v.to_string()),
+            PackageTag::Tag(tag) => pnpm_network::encode_uri_component(tag),
         }
     }
 }

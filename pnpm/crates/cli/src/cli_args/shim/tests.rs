@@ -1,5 +1,5 @@
 use super::{installed_shims, virtual_shim_package, virtual_shims};
-use pacquet_cmd_shim::{Host as CmdShimHost, link_virtual_shims};
+use pnpm_cmd_shim::{Host as CmdShimHost, link_virtual_shims};
 use std::{collections::HashMap, fs};
 use tempfile::tempdir;
 
@@ -54,7 +54,7 @@ fn a_body_that_only_mentions_the_marker_is_not_a_shim() {
 #[test]
 fn installing_a_package_manager_globally_records_the_opt_in() {
     use super::policy::{record_package_manager_shims, recorded_entries};
-    use pacquet_config::{Config, NamedShimPolicy, ShimPolicyValue};
+    use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
 
     let dir = tempdir().unwrap();
     let config = Config { config_dir: Some(dir.path().to_path_buf()), ..Config::default() };
@@ -81,7 +81,7 @@ fn installing_a_package_manager_globally_records_the_opt_in() {
 #[test]
 fn a_global_disable_is_not_undone_by_installing_a_package_manager() {
     use super::policy::record_package_manager_shims;
-    use pacquet_config::Config;
+    use pnpm_config::Config;
 
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("config.yaml"), "globalShims: false\n").unwrap();

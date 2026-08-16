@@ -21,10 +21,10 @@ use std::collections::{BTreeMap, HashSet};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::TrustPolicy;
-use pacquet_lockfile::Lockfile;
-use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::TrustPolicy;
+use pnpm_lockfile::Lockfile;
+use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
@@ -602,7 +602,7 @@ fn build_verify_error(mut violations: Vec<WireViolation>) -> VerifyError {
 
 /// Map a wire violation code back to the `&'static str` constant
 /// [`VerifyError::from_rendered`] matches on. Values are byte-identical
-/// to `pacquet_resolving_npm_resolver`'s violation codes; an unknown
+/// to `pnpm_resolving_npm_resolver`'s violation codes; an unknown
 /// code falls back to the generic envelope rather than fabricating a
 /// variant. Kept inline (rather than depending on the npm resolver)
 /// for the same reason the verification crate aliases them.

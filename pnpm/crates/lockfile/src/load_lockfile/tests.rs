@@ -2,7 +2,7 @@ use crate::{
     DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey, PkgName,
     SnapshotDepRef,
 };
-use pacquet_diagnostics::miette::Diagnostic;
+use pnpm_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
 use std::{collections::BTreeMap, fmt::Write, path::Path};
 use tempfile::tempdir;
@@ -212,7 +212,7 @@ fn parse_error_does_not_include_lockfile_content() {
         std::error::Error::source(&error).is_none(),
         "parse error source could expose lockfile content",
     );
-    let report = format!("{:?}", pacquet_diagnostics::miette::Report::new(error));
+    let report = format!("{:?}", pnpm_diagnostics::miette::Report::new(error));
     assert!(!report.contains(secret), "diagnostic included lockfile content: {report}");
 }
 

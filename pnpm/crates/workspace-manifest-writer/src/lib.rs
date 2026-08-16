@@ -19,11 +19,11 @@ use std::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config_parse_overrides::parse_pkg_and_parent_selector;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 
-pub use pacquet_config::version_policy::ResolvedPackageVersions;
+pub use pnpm_config::version_policy::ResolvedPackageVersions;
 
 mod edit;
 mod model;
@@ -505,7 +505,7 @@ pub fn set_audit_ignore_ghsas(
 /// Set `dir`'s `pnpm-workspace.yaml` top-level `minimumReleaseAgeExclude:` to
 /// `excludes` (the complete desired list), creating the file/block if absent
 /// and removing the block when `excludes` is empty. The caller merges with any
-/// existing entries (via `pacquet_config::version_policy::merge_package_version_specs`)
+/// existing entries (via `pnpm_config::version_policy::merge_package_version_specs`)
 /// before calling. Used by `pnpm audit --fix` to let patched versions through
 /// the `minimumReleaseAge` maturity cutoff.
 pub fn set_minimum_release_age_excludes(

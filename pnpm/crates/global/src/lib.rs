@@ -13,7 +13,7 @@ mod global_package_dir;
 mod list;
 mod scan;
 
-use pacquet_package_manifest::{convert_engines_runtime_to_dependencies, parse_manifest};
+use pnpm_package_manifest::{convert_engines_runtime_to_dependencies, parse_manifest};
 use serde_json::Value;
 use std::path::Path;
 
@@ -38,7 +38,7 @@ pub use scan::{
 /// dependency field — the manifest writer folds `<name>: runtime:<v>`
 /// into it on save. Reifying it back into `dependencies` /
 /// `devDependencies` here (the same conversion
-/// [`pacquet_package_manifest::PackageManifest`] applies on read) lets
+/// [`pnpm_package_manifest::PackageManifest`] applies on read) lets
 /// every global scanner and bin-linker treat an installed runtime as the
 /// direct dependency it is.
 pub(crate) fn read_package_json(dir: &Path) -> Option<Value> {

@@ -25,7 +25,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pacquet_deps_path::{DepPath, get_pkg_id_with_patch_hash};
+use pnpm_deps_path::{DepPath, get_pkg_id_with_patch_hash};
 
 use crate::{
     dep_path_compatibility::is_compatible_and_has_more_deps, dependencies_graph::DependenciesGraph,
