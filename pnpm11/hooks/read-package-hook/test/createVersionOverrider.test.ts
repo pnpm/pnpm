@@ -907,6 +907,29 @@ test('createVersionsOverrider() collects declared ranges of convergence-governed
   ]))
 })
 
+test('createVersionsOverrider() does not mutate the original manifest', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newBareSpecifier: '2.12.0',
+    },
+  ], process.cwd())
+  const originalManifest = {
+    dependencies: {
+      foo: '^1.0.0',
+    },
+  }
+  const result = overrider(originalManifest)
+  expect(result).toStrictEqual({
+    dependencies: {
+      foo: '2.12.0',
+    },
+  })
+  expect(originalManifest.dependencies.foo).toBe('^1.0.0')
+})
+
 describe('createDependencyOverrider()', () => {
   test('resolves a generic override for a dependency that has no manifest', () => {
     const overrideDependency = createDependencyOverrider(parseOverrides({

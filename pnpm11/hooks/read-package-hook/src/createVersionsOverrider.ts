@@ -67,12 +67,27 @@ export function createVersionsOverrider (
         (!parentPkg.bareSpecifier || semver.satisfies(manifest.version, parentPkg.bareSpecifier))
       )
     })
-    overrideDepsOfPkg({ manifest, dir }, versionOverridesWithParent, genericVersionOverrides, {
+    const clonedManifest = {
+      ...manifest,
+    }
+    if (manifest.dependencies) {
+      clonedManifest.dependencies = { ...manifest.dependencies }
+    }
+    if (manifest.devDependencies) {
+      clonedManifest.devDependencies = { ...manifest.devDependencies }
+    }
+    if (manifest.optionalDependencies) {
+      clonedManifest.optionalDependencies = { ...manifest.optionalDependencies }
+    }
+    if (manifest.peerDependencies) {
+      clonedManifest.peerDependencies = { ...manifest.peerDependencies }
+    }
+    overrideDepsOfPkg({ manifest: clonedManifest, dir }, versionOverridesWithParent, genericVersionOverrides, {
       convergeVersions,
       convergeDeclaredRanges: opts?.convergeDeclaredRanges,
     })
 
-    return manifest
+    return clonedManifest
   }) as ReadPackageHook
 }
 
