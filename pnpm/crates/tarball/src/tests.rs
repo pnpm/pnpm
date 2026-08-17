@@ -1418,6 +1418,36 @@ fn streaming_extract_parses_manifest_larger_than_entry_buffer() {
     drop(tempdir);
 }
 
+/// A `package.json` header claiming more than
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`] must be rejected before its payload
+/// is read — buffering it would defeat the streaming path's
+/// bounded-memory guarantee, and skipping the parse would record wrong
+/// build metadata. No payload follows the forged header below: the
+/// guard has to fire on the header alone.
+#[test]
+fn streaming_extract_rejects_manifest_beyond_prealloc_cap() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut header = tar::Header::new_gnu();
+    header.set_path("package/package.json").expect("set tar entry path");
+    header.set_size(MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1);
+    header.set_mode(0o644);
+    header.set_entry_type(tar::EntryType::Regular);
+    header.set_cksum();
+
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(header.as_bytes()), store_path, None)
+        .expect_err("oversized manifest must be rejected, not buffered");
+
+    match err {
+        TarballError::ReadTarballEntries(io_err) => {
+            assert_eq!(io_err.kind(), ErrorKind::InvalidData);
+        }
+        other => panic!("expected ReadTarballEntries(InvalidData), got: {other:?}"),
+    }
+
+    drop(tempdir);
+}
+
 /// Corrupt gzip bytes must surface as a [`TarballError`] the retry
 /// classifier treats as transient, matching the eager path's
 /// `DecodeGzip` handling; on the streaming path the decoder fails

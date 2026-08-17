@@ -517,8 +517,8 @@ fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
 /// the store via [`StoreDir::write_cas_file_from_reader`] without ever
 /// being held in memory. `package.json` is the exception — the bundled
 /// manifest must be parsed from bytes (build-script detection depends
-/// on it), so it is buffered whatever its size, with only its
-/// preallocation bounded per [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+/// on it), so it is buffered up to [`MAX_UNTRUSTED_PREALLOC_BYTES`],
+/// beyond which the archive is rejected as hostile.
 pub(crate) const STREAM_ENTRY_BUFFER_MAX: u64 = 4 * 1024 * 1024;
 
 /// Byte budget for one batch of buffered entries on the streaming
@@ -608,18 +608,29 @@ pub(crate) fn extract_tarball_entries_streaming(
             file_build_hooks = true;
         }
 
-        // `package.json` must be buffered whatever its header claims —
-        // the bundled manifest and its build-script detection are
-        // parsed from bytes, exactly as on the eager path — but a
-        // hostile size still can't force an unbounded reservation: the
-        // preallocation is capped, and the buffer then grows only to
-        // what the archive actually contains.
+        // `package.json` must be buffered — the bundled manifest and
+        // its build-script detection are parsed from bytes, exactly as
+        // on the eager path — so its size is hard-capped instead:
+        // buffering an unbounded manifest would defeat this path's
+        // bounded-memory guarantee, and silently skipping the parse
+        // would record wrong build metadata. A manifest beyond the cap
+        // exists only in a hostile archive (real ones are a few KB), so
+        // failing loudly is the honest outcome. A tar entry's payload
+        // can never exceed its header size, so the pre-read check is
+        // sufficient.
+        if cleaned_entry_path == "package.json" && file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
+            return Err(TarballError::ReadTarballEntries(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "tar entry package.json is {file_size} bytes, which exceeds the \
+                     {MAX_UNTRUSTED_PREALLOC_BYTES}-byte manifest limit",
+                ),
+            )));
+        }
         let buffer_entry =
             file_size <= STREAM_ENTRY_BUFFER_MAX || cleaned_entry_path == "package.json";
         if buffer_entry {
-            let prealloc =
-                usize::try_from(file_size).unwrap_or(usize::MAX).min(MAX_UNTRUSTED_PREALLOC_BYTES);
-            let mut data = Vec::with_capacity(prealloc);
+            let mut data = Vec::with_capacity(file_size as usize);
             entry.read_to_end(&mut data).map_err(TarballError::ReadTarballEntries)?;
             if data.len() as u64 != file_size {
                 return Err(truncated());
