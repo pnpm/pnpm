@@ -71,7 +71,8 @@
     "path-absolute": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
-    "realpath-missing": "catalog:"
+    "realpath-missing": "catalog:",
+    "rename-overwrite": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:",

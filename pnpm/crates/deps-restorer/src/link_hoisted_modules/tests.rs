@@ -308,10 +308,11 @@ fn missing_cas_for_optional_dep_skips_silently() {
 /// An install interrupted before the current lockfile and
 /// `.modules.yaml` are written leaves nested copies on disk that the
 /// previous-graph diff can never see, because the next install starts
-/// without a previous graph. See
-/// <https://github.com/pnpm/pnpm/issues/13676>.
+/// without a previous graph. They go to `.ignored` rather than being
+/// deleted: pnpm has no record of installing them, so they may hold work
+/// someone did by hand. See <https://github.com/pnpm/pnpm/issues/13676>.
 #[test]
-fn unplanned_directory_in_importer_modules_is_removed() {
+fn unplanned_directory_in_importer_modules_is_quarantined() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let cas_root = tmp.path().join("cas");
     let lockfile_dir = tmp.path().join("repo");
@@ -323,6 +324,7 @@ fn unplanned_directory_in_importer_modules_is_removed() {
         fs::create_dir_all(dir).expect("create unplanned dir");
         fs::write(dir.join("package.json"), r#"{"name":"stale","version":"1.0.0"}"#)
             .expect("write unplanned manifest");
+        fs::write(dir.join("hand-edit.js"), "work someone did by hand").expect("write hand edit");
     }
 
     let (graph, hierarchy, cas_paths) = flat_layout(
@@ -346,6 +348,13 @@ fn unplanned_directory_in_importer_modules_is_removed() {
 
     assert!(!unplanned.exists(), "unplanned dir at {unplanned:?}");
     assert!(!scoped_unplanned.exists(), "unplanned scoped dir at {scoped_unplanned:?}");
+    for pkg_name in ["stale", "@scope/stale"] {
+        let quarantined = modules.join(".ignored").join(pkg_name).join("hand-edit.js");
+        assert_eq!(
+            fs::read_to_string(&quarantined).expect("quarantined hand edit"),
+            "work someone did by hand",
+        );
+    }
     assert!(modules.join("a").join("package").join("index.js").exists());
 }
 

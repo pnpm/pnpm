@@ -25,7 +25,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{Host, LinkBinsError, link_bins};
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::read_modules_dir;
+use pnpm_fs::{read_modules_dir, rename_overwrite};
 use pnpm_lockfile::PkgIdWithPatchHash;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use rayon::prelude::*;
@@ -48,6 +48,16 @@ use std::{
 /// and the CAS contents are the same regardless of where they're
 /// extracted to.
 pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HashMap<String, PathBuf>>;
+
+/// A package directory on disk that the hoisting plan does not place.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct UnplannedDir {
+    dir: PathBuf,
+    modules_dir: PathBuf,
+    /// `dir` relative to `modules_dir`, so scoped packages keep their
+    /// `@scope/` prefix.
+    pkg_name: String,
+}
 
 /// Inputs the linker reads from. Borrows everything so callers
 /// can keep ownership of the graph / CAS state — the linker
@@ -167,45 +177,81 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     Ok(())
 }
 
-/// Phase 1: rimraf every directory the previous install placed that
-/// the new plan doesn't, together with every package directory that
-/// physically sits in an importer's `node_modules` without the new
-/// plan placing it there. Removal errors are swallowed silently with
-/// the same `EPERM`/`EBUSY` tolerance — a directory we can't remove
-/// right now is no worse than leaving a stale entry, and the next
-/// install will retry. Returns the orphan count (attempted, not
-/// necessarily removed — the same number pnpm's `dirsToRemove.length`
-/// reports).
+/// Phase 1: clear every directory the new plan does not place.
+///
+/// A directory the previous install recorded is pnpm's to delete. One
+/// that only the on-disk scan found is not — pnpm has no record of
+/// putting it there, so it is quarantined under `.ignored` instead, the
+/// way an alien package directory already is. Both are best-effort with
+/// the same `EPERM`/`EBUSY` tolerance: a directory we cannot clear right
+/// now is no worse than leaving a stale entry, and the next install will
+/// retry. Returns the count attempted, not necessarily cleared — the
+/// same number pnpm reports.
 fn remove_orphans(opts: &LinkHoistedModulesOpts<'_>) -> Result<u64, LinkHoistedModulesError> {
-    let from_prev_graph = opts
+    let recorded_dirs: BTreeSet<PathBuf> = opts
         .prev_graph
         .into_iter()
         .flatten()
         .map(|(dir, _)| dir.clone())
-        .filter(|dir| !opts.graph.contains_key(dir));
-    let mut unplanned = Vec::new();
-    for (project_dir, planned_deps) in opts.hierarchy {
-        unplanned.extend(find_unplanned_dirs(project_dir, planned_deps)?);
-    }
-    let orphan_dirs: BTreeSet<PathBuf> = from_prev_graph
-        .chain(unplanned)
-        .filter(|dir| {
-            let confined = dir.starts_with(opts.confine_root)
-                && dir.components().all(|part| !matches!(part, std::path::Component::ParentDir));
-            if !confined {
-                tracing::warn!(
-                    ?dir,
-                    confine_root = ?opts.confine_root,
-                    "refusing to remove an orphan directory outside the install root",
-                );
-            }
-            confined
-        })
+        .filter(|dir| !opts.graph.contains_key(dir))
+        .filter(|dir| confined(dir, opts.confine_root))
         .collect();
-    orphan_dirs.par_iter().for_each(|dir| {
+    let mut unplanned_dirs = BTreeSet::new();
+    for (project_dir, planned_deps) in opts.hierarchy {
+        for unplanned in find_unplanned_dirs(project_dir, planned_deps)? {
+            if !recorded_dirs.contains(&unplanned.dir)
+                && confined(&unplanned.dir, opts.confine_root)
+            {
+                unplanned_dirs.insert(unplanned);
+            }
+        }
+    }
+    recorded_dirs.par_iter().for_each(|dir| {
         let _ = try_remove_dir(dir);
     });
-    Ok(orphan_dirs.len() as u64)
+    unplanned_dirs.par_iter().for_each(quarantine_dir);
+    Ok((recorded_dirs.len() + unplanned_dirs.len()) as u64)
+}
+
+/// Whether `dir` sits lexically inside `confine_root`. The walker builds
+/// every graph dir through `safe_join_modules_dir`, so this is the
+/// invariant — checking it here keeps the deletion site from depending
+/// on the constructor's discipline.
+fn confined(dir: &Path, confine_root: &Path) -> bool {
+    let confined = dir.starts_with(confine_root)
+        && dir.components().all(|part| !matches!(part, std::path::Component::ParentDir));
+    if !confined {
+        tracing::warn!(
+            ?dir,
+            ?confine_root,
+            "refusing to remove an orphan directory outside the install root",
+        );
+    }
+    confined
+}
+
+/// Move a package directory pnpm has no record of installing into the
+/// `.ignored` sibling of the `node_modules` holding it.
+///
+/// Deleting is reserved for what the previous install recorded placing.
+/// Anything else may hold work someone did by hand, so it is displaced
+/// rather than destroyed. Getting it out of `node_modules` is what makes
+/// the tree correct; the bytes are incidental.
+fn quarantine_dir(unplanned: &UnplannedDir) {
+    let ignored_dir = unplanned.modules_dir.join(".ignored").join(&unplanned.pkg_name);
+    let Some(parent) = ignored_dir.parent() else { return };
+    if fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    if rename_overwrite(&unplanned.dir, &ignored_dir).is_err() {
+        return;
+    }
+    tracing::warn!(
+        pkg_name = %unplanned.pkg_name,
+        modules_dir = ?unplanned.modules_dir,
+        "moving a package to \"node_modules/.ignored\": it is not in the dependency tree \
+         and pnpm has no record of installing it",
+    );
 }
 
 /// Package directories that physically exist inside `project_dir`'s
@@ -229,20 +275,25 @@ fn remove_orphans(opts: &LinkHoistedModulesOpts<'_>) -> Result<u64, LinkHoistedM
 fn find_unplanned_dirs(
     project_dir: &Path,
     planned_deps: &DepHierarchy,
-) -> Result<Vec<PathBuf>, LinkHoistedModulesError> {
+) -> Result<Vec<UnplannedDir>, LinkHoistedModulesError> {
     let modules_dir = project_dir.join("node_modules");
     let pkg_names = read_modules_dir(&modules_dir).map_err(|source| {
         LinkHoistedModulesError::ReadModulesDir { path: modules_dir.clone(), source }
     })?;
     let mut unplanned = Vec::new();
-    for dir in pkg_names.into_iter().map(|pkg_name| modules_dir.join(pkg_name)) {
+    for pkg_name in pkg_names {
+        let dir = modules_dir.join(&pkg_name);
         if planned_deps.0.contains_key(&dir) {
             continue;
         }
         match fs::symlink_metadata(&dir) {
             Ok(metadata) if metadata.is_dir() => {
                 if dir.join("package.json").exists() {
-                    unplanned.push(dir);
+                    unplanned.push(UnplannedDir {
+                        dir,
+                        modules_dir: modules_dir.clone(),
+                        pkg_name,
+                    });
                 }
             }
             // A symlink or a file is not a package directory the plan owns.

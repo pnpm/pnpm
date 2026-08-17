@@ -24,8 +24,17 @@ import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
+import { renameOverwrite } from 'rename-overwrite'
 
 const limitLinking = pLimit(16)
+
+/** A package directory on disk that the hoisting plan does not place. */
+interface UnplannedDir {
+  dir: string
+  modulesDir: string
+  /** `dir` relative to `modulesDir`, so scoped packages keep their `@scope/` prefix. */
+  pkgName: string
+}
 
 export async function linkHoistedModules (
   storeController: StoreController,
@@ -45,20 +54,26 @@ export async function linkHoistedModules (
   }
 ): Promise<void> {
   // TODO: remove nested node modules first
-  const dirsToRemove = Array.from(new Set([
-    ...difference(
-      Object.keys(prevGraph),
-      Object.keys(graph)
-    ),
-    ...await findUnplannedDirs(hierarchy),
-  ]))
+  const dirsToRemove = difference(
+    Object.keys(prevGraph),
+    Object.keys(graph)
+  )
+  // A directory the previous install recorded is pnpm's to delete. One that only
+  // the on-disk scan found is not: pnpm has no record of putting it there, so it
+  // is quarantined instead, the way an alien package directory already is.
+  const recordedDirs = new Set(dirsToRemove)
+  const dirsToQuarantine = (await findUnplannedDirs(hierarchy))
+    .filter(({ dir }) => !recordedDirs.has(dir))
   statsLogger.debug({
     prefix: opts.lockfileDir,
-    removed: dirsToRemove.length,
+    removed: dirsToRemove.length + dirsToQuarantine.length,
   })
   // We should avoid removing unnecessary directories while simultaneously adding new ones.
   // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
-  await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
+  await Promise.all([
+    ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
+    ...dirsToQuarantine.map((unplanned) => quarantineDir(unplanned, opts.lockfileDir)),
+  ])
   // Resolve the project's pinned runtime Node version once, before
   // the recursive walk. The graph is keyed by install directory in
   // this module, so scanning `Object.keys(graph)` would miss every
@@ -84,6 +99,36 @@ export async function linkHoistedModules (
         })
       })
   )
+}
+
+/**
+ * Move a package directory pnpm has no record of installing into the
+ * `node_modules/.ignored` sibling of wherever it sits.
+ *
+ * Deleting is reserved for what the previous install recorded placing. Anything
+ * else may hold work someone did by hand, so it is displaced rather than
+ * destroyed — the treatment `safeIsInnerLink` already gives a package directory
+ * that pnpm did not put there. Getting it out of `node_modules` is what makes
+ * the tree correct; the bytes are incidental.
+ */
+async function quarantineDir ({ dir, modulesDir, pkgName }: UnplannedDir, lockfileDir: string): Promise<void> {
+  const ignoredDir = path.join(modulesDir, '.ignored', pkgName)
+  removalLogger.debug(dir)
+  try {
+    await fs.mkdir(path.dirname(ignoredDir), { recursive: true })
+    await renameOverwrite(dir, ignoredDir)
+  } catch (err: unknown) {
+    logger.warn({
+      error: err as Error,
+      message: `Failed to move "${dir}" to "${ignoredDir}"`,
+      prefix: lockfileDir,
+    })
+    return
+  }
+  logger.warn({
+    message: `Moving ${pkgName} to "node_modules/.ignored". It is not in the dependency tree and pnpm has no record of installing it.`,
+    prefix: path.dirname(modulesDir),
+  })
 }
 
 async function tryRemoveDir (dir: string): Promise<void> {
@@ -198,7 +243,7 @@ async function linkAllPkgsInOrder (
  * Symlinks are skipped: that is how workspace packages and `link:` dependencies
  * are attached, and they are absent from the graph by design.
  */
-async function findUnplannedDirs (hierarchy: DepHierarchy): Promise<string[]> {
+async function findUnplannedDirs (hierarchy: DepHierarchy): Promise<UnplannedDir[]> {
   const unplannedDirs = await Promise.all(
     Object.entries(hierarchy).map(async ([projectDir, plannedDeps]) => {
       const modulesDir = path.join(projectDir, 'node_modules')
@@ -206,12 +251,12 @@ async function findUnplannedDirs (hierarchy: DepHierarchy): Promise<string[]> {
       if (pkgNames == null) return []
       const plannedDirs = new Set(Object.keys(plannedDeps))
       const candidates = pkgNames
-        .map((pkgName) => path.join(modulesDir, pkgName))
-        .filter((dir) => !plannedDirs.has(dir))
+        .map((pkgName) => ({ dir: path.join(modulesDir, pkgName), modulesDir, pkgName }))
+        .filter(({ dir }) => !plannedDirs.has(dir))
       const checked = await Promise.all(
-        candidates.map(async (dir) => await isPackageDir(dir) ? dir : null)
+        candidates.map(async (candidate) => await isPackageDir(candidate.dir) ? candidate : null)
       )
-      return checked.filter((dir) => dir != null)
+      return checked.filter((candidate) => candidate != null)
     })
   )
   return unplannedDirs.flat()

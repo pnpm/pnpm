@@ -909,19 +909,21 @@ test('installing in a workspace with node-linker=hoisted', async () => {
 
 // An install interrupted before the current lockfile and `.modules.yaml` are
 // written leaves nested copies on disk that no later install could see, because
-// the next run starts from an empty previous graph. See
-// https://github.com/pnpm/pnpm/issues/13676
-test('installing in a workspace with node-linker=hoisted removes directories that the hoisting plan does not place', async () => {
+// the next run starts from an empty previous graph. They go to `.ignored`
+// rather than being deleted: pnpm has no record of installing them, so they may
+// hold work someone did by hand. See https://github.com/pnpm/pnpm/issues/13676
+test('installing in a workspace with node-linker=hoisted quarantines directories that the hoisting plan does not place', async () => {
   const prefix = f.prepare('workspace2')
 
   const orphans = [
-    path.join(prefix, 'node_modules/orphan'),
-    path.join(prefix, 'foo/node_modules/orphan'),
-    path.join(prefix, 'bar/node_modules/@scope/orphan'),
+    { dir: path.join(prefix, 'node_modules/orphan'), ignored: path.join(prefix, 'node_modules/.ignored/orphan') },
+    { dir: path.join(prefix, 'foo/node_modules/orphan'), ignored: path.join(prefix, 'foo/node_modules/.ignored/orphan') },
+    { dir: path.join(prefix, 'bar/node_modules/@scope/orphan'), ignored: path.join(prefix, 'bar/node_modules/.ignored/@scope/orphan') },
   ]
-  for (const orphan of orphans) {
-    fs.mkdirSync(orphan, { recursive: true })
-    fs.writeFileSync(path.join(orphan, 'package.json'), JSON.stringify({ name: 'orphan', version: '1.0.0' }))
+  for (const { dir } of orphans) {
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'orphan', version: '1.0.0' }))
+    fs.writeFileSync(path.join(dir, 'hand-edit.js'), 'work someone did by hand')
   }
   const toolCache = path.join(prefix, 'foo/node_modules/.cache')
   fs.mkdirSync(toolCache, { recursive: true })
@@ -947,8 +949,9 @@ test('installing in a workspace with node-linker=hoisted removes directories tha
     ],
   }))
 
-  for (const orphan of orphans) {
-    expect(fs.existsSync(orphan)).toBeFalsy()
+  for (const { dir, ignored } of orphans) {
+    expect(fs.existsSync(dir)).toBeFalsy()
+    expect(fs.readFileSync(path.join(ignored, 'hand-edit.js'), 'utf8')).toBe('work someone did by hand')
   }
   expect(fs.existsSync(toolCache)).toBeTruthy()
   expect(fs.existsSync(buildOutput)).toBeTruthy()

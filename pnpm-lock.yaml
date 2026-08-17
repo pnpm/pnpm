@@ -6221,6 +6221,9 @@ importers:
       realpath-missing:
         specifier: 'catalog:'
         version: 2.0.0
+      rename-overwrite:
+        specifier: 'catalog:'
+        version: 7.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
