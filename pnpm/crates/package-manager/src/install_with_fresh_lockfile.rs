@@ -1036,6 +1036,16 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             &update_reuse_scope,
             &update_reuse_scopes_by_importer,
         );
+        let reuse_lockfile_subtrees = lockfile_reuse_seed.is_some();
+        // A withheld seed means config drift the fast rewrites cannot
+        // absorb, so recorded subtrees must re-resolve — but the prior
+        // lockfile still pins each edge whose recorded version satisfies
+        // its hook-rewritten manifest range. Without it every open range
+        // (`*`) would re-pick the highest locked version and churn the
+        // lockfile (the edges a changed override or extension actually
+        // reaches fail the satisfies gate and re-resolve).
+        let resolution_lockfile = lockfile_reuse_seed
+            .or_else(|| wanted_lockfile.map(|lockfile| Arc::new(lockfile.clone())));
 
         let phase_start = std::time::Instant::now();
         Reporter::emit(&LogEvent::Stage(StageLog {
@@ -1062,7 +1072,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             pick_lowest_direct,
             time_based,
             published_by,
-            lockfile_reuse_seed,
+            resolution_lockfile,
+            reuse_lockfile_subtrees,
             update_reuse_scope,
             update_reuse_scopes_by_importer,
             update_depth: update_seed_policy.max_depth(),

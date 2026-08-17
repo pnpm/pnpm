@@ -93,6 +93,15 @@ pub struct WorkspaceResolveOptions {
     /// first install or when reuse is disabled.
     pub wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
 
+    /// Whether the walk may reuse whole already-resolved subtrees from
+    /// [`Self::wanted_lockfile`]. `false` keeps the lockfile as a
+    /// per-edge version-pin source only: every node re-resolves against
+    /// its (hook-rewritten) manifest range, and an edge whose recorded
+    /// version still satisfies that range stays on it — mirroring the
+    /// TypeScript resolver's forced full resolution, which forces the
+    /// walk without unpinning still-satisfied edges.
+    pub reuse_lockfile_subtrees: bool,
+
     /// Which dependencies `pacquet update` excludes from lockfile-
     /// resolution reuse. [`UpdateReuseScope::All`] for `install` / `add`.
     pub update_reuse_scope: UpdateReuseScope,
@@ -197,6 +206,7 @@ where
         pick_lowest_direct,
         time_based,
         wanted_lockfile,
+        reuse_lockfile_subtrees,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         update_depth,
@@ -215,6 +225,7 @@ where
             .with_manifest_hook(manifest_hook)
             .with_overrides_hook(overrides_hook)
             .with_wanted_lockfile(wanted_lockfile)
+            .with_reuse_lockfile_subtrees(reuse_lockfile_subtrees)
             .with_update_reuse_scope(update_reuse_scope)
             .with_update_reuse_scopes_by_importer(update_reuse_scopes_by_importer)
             .with_update_depth(update_depth)
