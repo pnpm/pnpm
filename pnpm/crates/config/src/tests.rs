@@ -2101,10 +2101,7 @@ pub fn default_config_disables_gvs_and_points_it_at_the_store() {
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
 }
 
-/// `virtualStoreType` is the canonical spelling; `enableGlobalVirtualStore`
-/// is the boolean one pnpm 11 shipped. Both reach the same field, and the
-/// canonical key wins when a file carries both — including when the two
-/// contradict each other.
+/// Both spellings reach one field, so which of them applies last decides.
 #[test]
 pub fn virtual_store_type_supersedes_the_boolean_spelling() {
     for (yaml, expected) in [
@@ -2119,6 +2116,29 @@ pub fn virtual_store_type_supersedes_the_boolean_spelling() {
         fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
             .expect("write to pnpm-workspace.yaml");
         let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(config.enable_global_virtual_store, expected, "yaml: {yaml}");
+    }
+}
+
+/// `pnpm config get enableGlobalVirtualStore` reads the explicit-settings
+/// record, which therefore has to name the value the install will use, not
+/// the spelling the canonical key overrode.
+#[test]
+pub fn explicit_settings_report_the_spelling_that_won() {
+    for (yaml, expected) in [
+        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
+        ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+        ("virtualStoreType: project\n", false),
+    ] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(
+            config.explicit_settings.get("enableGlobalVirtualStore"),
+            Some(&serde_json::Value::Bool(expected)),
+            "yaml: {yaml}",
+        );
         assert_eq!(config.enable_global_virtual_store, expected, "yaml: {yaml}");
     }
 }

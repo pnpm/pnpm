@@ -1478,9 +1478,7 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
     drop((root, mock_instance));
 }
 
-/// `virtualStoreType` is the spelling a project reaches for; the boolean
-/// `enableGlobalVirtualStore` it supersedes still works. Both are checked
-/// through a real install, because the setting only means anything once
+/// Driven through a real install: the setting only means anything once
 /// something has been materialized somewhere.
 #[test]
 fn virtual_store_type_selects_where_packages_are_materialized() {

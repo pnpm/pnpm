@@ -3078,6 +3078,12 @@ impl Config {
 /// `_auth` key is dropped — it carries credentials and never belongs in
 /// `pnpm config list` output (raw auth keys come from `raw_auth_config`,
 /// censored at render time).
+///
+/// `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
+/// setting, so a source that sets the canonical one also decides the boolean:
+/// the record follows [`WorkspaceSettings::apply_to`] and derives it, or
+/// `pnpm config get enableGlobalVirtualStore` would report the spelling the
+/// install did not use.
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,
@@ -3090,6 +3096,12 @@ fn collect_explicit_settings(
             continue;
         }
         target.insert(key, value);
+    }
+    if let Some(virtual_store_type) = settings.virtual_store_type {
+        target.insert(
+            "enableGlobalVirtualStore".to_string(),
+            serde_json::Value::Bool(virtual_store_type.is_global()),
+        );
     }
 }
 

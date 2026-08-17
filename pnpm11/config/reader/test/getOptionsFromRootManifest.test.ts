@@ -563,11 +563,16 @@ test('getOptionsFromPnpmSettings() translates virtualStoreType to enableGlobalVi
 })
 
 test('getOptionsFromPnpmSettings() lets virtualStoreType win over enableGlobalVirtualStore', () => {
-  const options = getOptionsFromPnpmSettings(process.cwd(), {
-    virtualStoreType: 'project',
-    enableGlobalVirtualStore: true,
-  }) as any // eslint-disable-line
-  expect(options.enableGlobalVirtualStore).toBe(false)
+  for (const [virtualStoreType, enableGlobalVirtualStore, expected] of [
+    ['project', true, false],
+    ['global', false, true],
+  ] as const) {
+    const options = getOptionsFromPnpmSettings(process.cwd(), {
+      virtualStoreType,
+      enableGlobalVirtualStore,
+    }) as any // eslint-disable-line
+    expect(options.enableGlobalVirtualStore).toBe(expected)
+  }
 })
 
 test('getOptionsFromPnpmSettings() keeps enableGlobalVirtualStore working on its own', () => {

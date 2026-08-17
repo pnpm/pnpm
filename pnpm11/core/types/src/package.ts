@@ -284,8 +284,8 @@ export interface PnpmSettings {
    * Where the virtual store lives, and therefore who shares it: one store
    * per machine (`global`) or one per project (`project`).
    *
-   * The canonical spelling of {@link PnpmSettings.enableGlobalVirtualStore},
-   * which is kept working. When both are set, this one wins.
+   * The canonical spelling of {@link PnpmSettings.enableGlobalVirtualStore}.
+   * When both are set, this one wins.
    */
   virtualStoreType?: VirtualStoreType
   /**

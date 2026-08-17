@@ -354,10 +354,10 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
  * `enableGlobalVirtualStore` boolean the rest of pnpm reads, and removes the
  * raw key from the returned options.
  *
- * `enableGlobalVirtualStore` is the boolean spelling, kept working for
- * projects written against it. When both are set, `virtualStoreType` wins —
- * silently, like `catalogPrune` superseding `cleanupUnusedCatalogs`, because
- * naming one setting two ways is not itself a mistake worth warning about.
+ * `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
+ * setting, and a manifest may carry either or both. The canonical one wins,
+ * silently: spelling a setting two ways is not itself a mistake worth
+ * warning about. Same rule as `catalogPrune` over `cleanupUnusedCatalogs`.
  */
 function translateVirtualStoreType (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
   delete (settings as { virtualStoreType?: unknown }).virtualStoreType

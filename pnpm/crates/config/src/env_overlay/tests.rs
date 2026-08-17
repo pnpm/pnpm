@@ -183,8 +183,6 @@ fn tri_array_env_var_parses_arrays_and_rejects_null() {
     assert_eq!(parse_tri_array("not-json"), None);
 }
 
-/// `PNPM_CONFIG_VIRTUAL_STORE_TYPE` carries the canonical spelling
-/// through the env layer, and rejects anything outside the two values.
 #[test]
 fn virtual_store_type_env_var_parses_its_two_values() {
     macro_rules! env_with_virtual_store_type {

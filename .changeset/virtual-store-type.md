@@ -11,6 +11,6 @@ Added `virtualStoreType`, which names where the virtual store lives — one stor
 virtualStoreType: global   # or: project
 ```
 
-It is the canonical spelling of `enableGlobalVirtualStore`, which keeps working. When a project sets both, `virtualStoreType` wins. The default is unchanged: pnpm 12 installs into the global store, pnpm 11 into a project-local one.
+It is the canonical spelling of `enableGlobalVirtualStore`, which keeps working. When a project sets both, `virtualStoreType` wins. It can also be set through `PNPM_CONFIG_VIRTUAL_STORE_TYPE` and read back with `pnpm config get virtualStoreType`. The default is unchanged: pnpm 12 installs into the global store, pnpm 11 into a project-local one.
 
 The setting is independent of `nodeLinker`. `isolated` and `pnp` both work with either store type, and `hoisted` writes no virtual store at all, so it is unaffected.

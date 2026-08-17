@@ -179,8 +179,8 @@ pub struct WorkspaceSettings {
     /// [`Config::enable_global_virtual_store`] for the default.
     pub virtual_store_type: Option<VirtualStoreType>,
     /// `enableGlobalVirtualStore`, the boolean spelling of
-    /// [`Self::virtual_store_type`]. Superseded by it when both are set,
-    /// and kept working for projects written against pnpm 11.
+    /// [`Self::virtual_store_type`]. A file may carry either or both; the
+    /// canonical key wins.
     pub enable_global_virtual_store: Option<bool>,
     /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
     /// [`Config::virtual_store_only`].

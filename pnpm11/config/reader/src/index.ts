@@ -11,7 +11,7 @@ import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { isCamelCase } from '@pnpm/text.naming-cases'
-import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
+import type { DevEngines, EngineDependency, ProjectManifest, VirtualStoreType } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { betterPathResolve } from 'better-path-resolve'
@@ -574,12 +574,22 @@ export async function getConfig (opts: {
     'umask', // the type is a private function named 'Umask'
   ], types)
 
+  let virtualStoreTypeFromEnv: VirtualStoreType | undefined
   for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
     // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
     // TODO: should we throw some error or print some warning here?
     if (value === undefined) continue
 
     if (Object.hasOwn(cliOptions, key) || Object.hasOwn(cliOptions, kebabCase(key))) continue
+
+    // Held back rather than assigned: the rest of pnpm reads the boolean
+    // spelling, and applying the translation after the loop is what makes
+    // the canonical key win over `PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE`
+    // whichever order the two arrive in.
+    if (key === 'virtualStoreType') {
+      virtualStoreTypeFromEnv = value as VirtualStoreType
+      continue
+    }
 
     // @ts-expect-error
     pnpmConfig[key] = value
@@ -592,6 +602,10 @@ export async function getConfig (opts: {
       pnpmConfig.registriesByScope.default = normalizeRegistryUrl(value)
       pnpmConfig.packageManagerRegistries.default = normalizeRegistryUrl(value)
     }
+  }
+  if (virtualStoreTypeFromEnv != null) {
+    pnpmConfig.enableGlobalVirtualStore = virtualStoreTypeFromEnv === 'global'
+    explicitlySetKeys.add('enableGlobalVirtualStore')
   }
 
   // After the env loop: PNPM_CONFIG_REGISTRY can still change
