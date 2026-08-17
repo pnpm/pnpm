@@ -10702,18 +10702,11 @@ fn slow_store_verification_is_reported_with_its_time() {
         files: 1234,
         duration: Duration::from_millis(2450),
     });
-    assert_eq!(
-        messages,
-        vec![
-            "The integrity of 1234 files was checked in 2.5s. This might have caused installation to take longer."
-                .to_string(),
-        ],
-    );
+    assert_eq!(messages, vec!["The integrity of 1234 files was checked in 2.5s.".to_string()]);
 }
 
-/// Under the time threshold the install was not held up, so the message
-/// drops the claim that it was and points at what keeps invalidating
-/// the store instead.
+/// Under the time threshold there is no time worth naming, so the
+/// message points at what keeps invalidating the store instead.
 #[test]
 fn quick_verification_of_many_files_is_reported_as_churn() {
     let messages = recorded_verified_file_integrity_report(VerifiedFileIntegrity {

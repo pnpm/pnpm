@@ -617,10 +617,10 @@ const VERIFIED_FILE_INTEGRITY_SLOW: Duration = Duration::from_secs(1);
 /// time.
 const VERIFIED_FILE_INTEGRITY_MANY: u64 = 1000;
 
-/// Tell the user when store verification re-hashed files: that it cost
-/// time, or failing that, that it happened at all on a scale a healthy
-/// store never reaches. The two are separate claims, so they are
-/// separate messages, and the slower one wins when both hold — it
+/// Tell the user when store verification re-hashed files: how much time
+/// it cost, or failing that, that it happened at all on a scale a
+/// healthy store never reaches. The two are separate claims, so they
+/// are separate messages, and the timed one wins when both hold — it
 /// carries the file count anyway.
 ///
 /// `verified` covers this install alone, and its `duration` is summed
@@ -636,9 +636,7 @@ pub(super) fn report_verified_file_integrity<Reporter: self::Reporter>(
     let files = verified.files;
     let message = if verified.duration > VERIFIED_FILE_INTEGRITY_SLOW {
         let seconds = verified.duration.as_secs_f64();
-        format!(
-            "The integrity of {files} files was checked in {seconds:.1}s. This might have caused installation to take longer.",
-        )
+        format!("The integrity of {files} files was checked in {seconds:.1}s.")
     } else if files > VERIFIED_FILE_INTEGRITY_MANY {
         format!(
             "The integrity of {files} files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.",

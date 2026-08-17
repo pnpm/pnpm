@@ -9,12 +9,11 @@ test('store verification that took long enough is reported with its time', () =>
     reportVerifiedFileIntegrity({ files: 1234, ms: 2450 })
   })
 
-  expect(messages).toEqual(['The integrity of 1234 files was checked in 2.5s. This might have caused installation to take longer.'])
+  expect(messages).toEqual(['The integrity of 1234 files was checked in 2.5s.'])
 })
 
-// Under the time threshold the install was not held up, so the message
-// drops the claim that it was and points at what keeps invalidating the
-// store instead.
+// Under the time threshold there is no time worth naming, so the
+// message points at what keeps invalidating the store instead.
 test('quick verification of many files is reported as churn', () => {
   const messages = captureInfo(() => {
     reportVerifiedFileIntegrity({ files: 1001, ms: 80 })

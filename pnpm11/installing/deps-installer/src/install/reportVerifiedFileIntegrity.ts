@@ -15,11 +15,11 @@ const SLOW_MS = 1000
 const MANY_FILES = 1000
 
 /**
- * Tell the user when store verification re-hashed files: that it cost
- * time, or failing that, that it happened at all on a scale a healthy
- * store never reaches. The two are separate claims, so they are
- * separate messages, and the slower one wins when both hold — it
- * carries the file count anyway.
+ * Tell the user when store verification re-hashed files: how much time
+ * it cost, or failing that, that it happened at all on a scale a
+ * healthy store never reaches. The two are separate claims, so they are
+ * separate messages, and the timed one wins when both hold — it carries
+ * the file count anyway.
  *
  * `verified` covers this install alone, and its `ms` is summed across
  * the workers that did the hashing, so it is the work spent and can
@@ -32,7 +32,7 @@ const MANY_FILES = 1000
 export function reportVerifiedFileIntegrity (verified: VerifiedFileIntegrity): void {
   if (verified.ms > SLOW_MS) {
     const seconds = (verified.ms / 1000).toFixed(1)
-    globalInfo(`The integrity of ${verified.files} files was checked in ${seconds}s. This might have caused installation to take longer.`)
+    globalInfo(`The integrity of ${verified.files} files was checked in ${seconds}s.`)
   } else if (verified.files > MANY_FILES) {
     globalInfo(`The integrity of ${verified.files} files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.`)
   }
