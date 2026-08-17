@@ -11,6 +11,9 @@ importers:
       gone-pkg:
         specifier: 9.9.9
         version: 9.9.9
+      absent-pkg:
+        specifier: 8.8.8
+        version: 8.8.8
 
 packages: {}
 

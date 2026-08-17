@@ -2,6 +2,7 @@
   "name": "only-broken-lockfile",
   "version": "0.0.0",
   "dependencies": {
-    "gone-pkg": "9.9.9"
+    "gone-pkg": "9.9.9",
+    "absent-pkg": "8.8.8"
   }
 }
