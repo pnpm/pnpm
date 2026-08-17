@@ -45,7 +45,7 @@ export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: 
   if (auditRequest.unresolvable.length > 0) {
     const unresolvableIssues: SignatureIssue[] = auditRequest.unresolvable.map(({ name, depPath }) => ({
       name,
-      registry: pickRegistryForPackage(opts.registries, name),
+      registry: pickRegistryForPackage(opts.registriesByScope, name),
       version: '',
       reason: `Lockfile entry "${depPath}" has no corresponding package in the lockfile's packages/snapshots section. The lockfile may be broken or tampered with; try reinstalling with --frozen-lockfile to confirm.`,
     }))
