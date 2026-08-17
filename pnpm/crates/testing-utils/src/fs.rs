@@ -87,7 +87,7 @@ pub fn mtime_ms(path: &Path) -> i64 {
         |error| panic!("mtime of {path:?} predates the Unix epoch: {error}"),
         |elapsed| {
             let millis = elapsed.as_millis();
-            i64::try_from(millis).unwrap_or_else(|_| {
+            millis.pipe(i64::try_from).unwrap_or_else(|_| {
                 panic!("mtime of {path:?} is {millis} ms past the epoch, beyond an i64 timestamp")
             })
         },
