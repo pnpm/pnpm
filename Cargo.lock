@@ -5615,6 +5615,7 @@ dependencies = [
  "command-extra",
  "dunce",
  "flate2",
+ "pipe-trait",
  "pnpm-fs",
  "pnpm-workspace-state",
  "pnpr",

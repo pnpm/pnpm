@@ -15,6 +15,7 @@ assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
 dunce             = { workspace = true }
 flate2            = { workspace = true }
+pipe-trait        = { workspace = true }
 pnpr              = { workspace = true }
 serde_json        = { workspace = true }
 ssri              = { workspace = true }

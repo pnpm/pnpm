@@ -1,3 +1,4 @@
+use pipe_trait::Pipe;
 use pnpm_workspace_state::load_workspace_state;
 use std::{
     fs, io,
@@ -78,7 +79,8 @@ pub const MTIME_STEP_MS: i64 = 1_000;
 /// workspace state records `lastValidatedTimestamp`.
 #[must_use]
 pub fn mtime_ms(path: &Path) -> i64 {
-    let modified = fs::metadata(path)
+    let modified = path
+        .pipe(fs::metadata)
         .and_then(|metadata| metadata.modified())
         .unwrap_or_else(|error| panic!("stat {path:?}: {error}"));
     modified.duration_since(SystemTime::UNIX_EPOCH).map_or_else(
@@ -119,7 +121,8 @@ pub fn set_mtime_ms(path: &Path, ms: i64) {
 pub fn backdate_existing_files(root: &Path) -> i64 {
     // Only regular files: the freshness check stats manifests, lockfiles,
     // patches, and pnpmfiles, and `set_times` cannot open a directory.
-    let files: Vec<_> = WalkDir::new(root)
+    let files: Vec<_> = root
+        .pipe(WalkDir::new)
         .into_iter()
         .map(|entry| entry.expect("access entry"))
         .filter(|entry| entry.file_type().is_file())
