@@ -1003,8 +1003,6 @@ async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
 #[tokio::test]
 async fn prefer_workspace_packages_skips_the_registry_entirely() {
     let mut server = mockito::Server::new_async().await;
-    // The workspace copy wins whatever the registry says, so the request must
-    // not be made at all.
     let mock = server.mock("GET", "/acme").expect(0).create_async().await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
@@ -1021,7 +1019,6 @@ async fn prefer_workspace_packages_skips_the_registry_entirely() {
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
-    // `latest` comes from registry metadata, so the fast path cannot report it.
     assert_eq!(result.latest, None);
     mock.assert_async().await;
 }
@@ -1041,8 +1038,6 @@ async fn prefer_workspace_packages_still_consults_registry_for_several_local_cop
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    // Two local copies: the registry's picked version decides which one wins,
-    // so the request is still required.
     let packages = build_workspace_packages_at(
         "acme",
         &[("1.0.0", "/repo/packages/acme-1"), ("1.1.0", "/repo/packages/acme-11")],
@@ -1056,7 +1051,6 @@ async fn prefer_workspace_packages_still_consults_registry_for_several_local_cop
         ..WantedDependency::default()
     };
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
-    // The fallback must have gone to the registry.
     mock.assert_async().await;
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme-11");
@@ -1082,8 +1076,6 @@ async fn prefer_workspace_packages_still_consults_registry_for_injected_deps() {
     let mut opts = workspace_resolve_options(packages);
     opts.prefer_workspace_packages = true;
 
-    // Injected deps resolve to `file:`, which is not treated as a local package
-    // downstream, so `latest` stays observable and the request is still needed.
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
         bare_specifier: Some("^1.0.0".to_string()),
@@ -1091,7 +1083,6 @@ async fn prefer_workspace_packages_still_consults_registry_for_injected_deps() {
         ..WantedDependency::default()
     };
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
-    // The fallback must have gone to the registry.
     mock.assert_async().await;
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
@@ -1112,7 +1103,6 @@ async fn prefer_workspace_packages_does_not_engage_without_a_matching_local_vers
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    // The only local copy is outside the wanted range, so the registry decides.
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
     opts.prefer_workspace_packages = true;
@@ -1123,7 +1113,6 @@ async fn prefer_workspace_packages_does_not_engage_without_a_matching_local_vers
         ..WantedDependency::default()
     };
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
-    // The fallback must have gone to the registry.
     mock.assert_async().await;
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.id.as_str(), "acme@2.0.0");
@@ -1144,8 +1133,6 @@ async fn prefer_workspace_packages_still_consults_registry_under_no_downgrade() 
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    // `no-downgrade` validates registry metadata even when a workspace package wins, so the
-    // fast path must stay out of the way.
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
     opts.prefer_workspace_packages = true;
@@ -1160,7 +1147,6 @@ async fn prefer_workspace_packages_still_consults_registry_under_no_downgrade() 
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
-    // The fallback must have gone to the registry.
     mock.assert_async().await;
 }
 
@@ -1179,7 +1165,6 @@ async fn prefer_workspace_packages_still_consults_registry_when_updating_checksu
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    // `update_checksums` asks the resolver to rewrite cached metadata, which needs the fetch.
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
     opts.prefer_workspace_packages = true;
@@ -1194,7 +1179,6 @@ async fn prefer_workspace_packages_still_consults_registry_when_updating_checksu
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
-    // The fallback must have gone to the registry.
     mock.assert_async().await;
 }
 
@@ -1213,8 +1197,6 @@ async fn prefer_workspace_packages_still_consults_registry_when_injecting_worksp
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    // The install-wide `inject_workspace_packages` has the same effect as the per-dependency
-    // `injected` flag: a `file:` id, which is not treated as a local package downstream.
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
     opts.prefer_workspace_packages = true;
@@ -1228,9 +1210,9 @@ async fn prefer_workspace_packages_still_consults_registry_when_injecting_worksp
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
-    // The fallback must have gone to the registry.
     mock.assert_async().await;
 }
+
 #[tokio::test]
 async fn workspace_higher_version_shadows_registry_pick() {
     let mut server = mockito::Server::new_async().await;

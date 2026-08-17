@@ -217,18 +217,9 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             .then_some(opts.workspace_packages.as_ref())
             .flatten();
 
-        // Fast path: skip the registry when the workspace copy is guaranteed
-        // to win. Under `prefer_workspace_packages`, `try_workspace_shadow`
-        // below returns the local package whatever the registry says, so the
-        // request only adds latency — and a workspace package that was never
-        // published costs a 404 on every install, uncached. Mirrors the
-        // TypeScript CLI (`pnpm11/resolving/npm-resolver/src/index.ts`).
-        //
-        // Restricted to a single local copy: with several, the exact-match arm
-        // of `try_workspace_shadow` picks by the registry's version. Injected
-        // deps keep the request because they resolve to `file:`, which is not
-        // treated as a local package downstream, so `latest` stays observable.
-        // `no-downgrade` and `update_checksums` both need registry metadata.
+        // A store-manifest peek, once pacquet grows one, has to run before
+        // this fast path — the TypeScript counterpart
+        // (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
         if opts.prefer_workspace_packages
             && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
             && !opts.update_checksums

@@ -605,24 +605,15 @@ async function resolveNpm (
     }
   }
 
-  // Fast path: skip the registry when the workspace copy is guaranteed to win.
-  //
-  // Under `preferWorkspacePackages`, the prefer-workspace gate below returns the local
-  // package whatever the registry says, so the request only adds latency — and a workspace
-  // package that was never published costs a 404 on every install, uncached.
-  //
-  // Two conditions are non-obvious. It runs *after* the store peek because a tag-specified
-  // dep whose only local copy is a prerelease reaches here with `update: false`
-  // (`wantedDepIsLocallyAvailable` ignores prereleases for tags, `pickMatchingLocalVersionOrNull`
-  // does not), and the peek must keep winning there. And `update` is deliberately not excluded:
-  // that same helper forces it on for these deps, so excluding it would make this unreachable.
-  //
-  // `latest` is not carried over. It comes from registry metadata, and is only read for
-  // non-local packages — which is why injected deps, resolving to `file:`, keep the request.
+  // This runs *after* the store peek because a tag-specified dep whose only local copy is a
+  // prerelease reaches here with `update: false` (`wantedDepIsLocallyAvailable` ignores
+  // prereleases for tags, `pickMatchingLocalVersionOrNull` does not), and the peek must keep
+  // winning there. `update` is deliberately absent from the guard: that same helper forces it
+  // on for exactly these deps, so excluding it would make this block unreachable.
   if (
     opts.preferWorkspacePackages === true &&
     workspacePackages != null &&
-    opts.projectDir != null &&
+    opts.projectDir &&
     opts.trustPolicy !== 'no-downgrade' &&
     !opts.updateChecksums &&
     opts.injectWorkspacePackages !== true &&
