@@ -7,6 +7,7 @@ pub mod bugs;
 pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
+pub(crate) mod catalogs;
 pub mod change;
 pub mod changelog;
 pub mod ci;
