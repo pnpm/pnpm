@@ -340,7 +340,7 @@ fn removal_override_composes_with_a_settled_catalog_override() {
     fs::write(
         &workspace_yaml_path,
         format!(
-            "{workspace_yaml}trustLockfile: true\ncatalog:\n  '@pnpm.e2e/bar': 100.0.0\n  '@pnpm.e2e/foo': 1.0.0\noverrides:\n  '@pnpm.e2e/foo': 'catalog:'\n"
+            "{workspace_yaml}trustLockfile: true\ncatalog:\n  '@pnpm.e2e/bar': 100.0.0\n  '@pnpm.e2e/foo': 1.0.0\noverrides:\n  '@pnpm.e2e/foo': 'catalog:'\n",
         ),
     )
     .expect("write the settled catalog override");
