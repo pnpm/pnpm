@@ -272,3 +272,94 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   const wantedLockfileAfterMergeOther = project.readLockfile()
   expect(wantedLockfileAfterMergeOther).toEqual(otherLockfileContent)
 })
+
+test('install with --merge-git-branch-lockfiles when a branch lockfile has a dependency that was removed', async () => {
+  const project = prepareEmpty()
+
+  // is-positive removed from the main branch
+  writeYamlFileSync(WANTED_LOCKFILE, {
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@types/semver@5.3.31': {
+        resolution: {
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+        },
+      },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  // the other branch was created before is-positive was removed
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@types/semver@5.3.31': {
+        resolution: {
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+        },
+      },
+      'is-positive@3.1.0': {
+        resolution: {
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+        },
+      },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
+      'is-positive@3.1.0': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const projectManifest: ProjectManifest = {
+    dependencies: {
+      '@types/semver': '5.3.31',
+    },
+  }
+  const opts = testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
+  })
+  await install(projectManifest, opts)
+
+  expect(fs.existsSync(otherLockfilePath)).toBe(false)
+
+  const wantedLockfileAfterMergeOther = project.readLockfile()
+  expect(wantedLockfileAfterMergeOther.importers['.'].dependencies).toStrictEqual({
+    '@types/semver': {
+      specifier: '5.3.31',
+      version: '5.3.31',
+    },
+  })
+  project.hasNot('is-positive')
+})

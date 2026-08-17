@@ -7,12 +7,13 @@ import {
   existsNonEmptyWantedLockfile,
   isEmptyLockfile,
   type LockfileObject,
+  type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
   readWantedLockfileAndAutofixConflicts,
 } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
-import type { ProjectId, ProjectRootDir } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type ProjectId, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import { clone, equals } from 'ramda'
 
 export interface PnpmContext {
@@ -33,6 +34,7 @@ export async function readLockfiles (
     frozenLockfile: boolean
     projects: Array<{
       id: ProjectId
+      manifest: ProjectManifest
       rootDir: ProjectRootDir
     }>
     lockfileDir: string
@@ -143,6 +145,14 @@ export async function readLockfiles (
       }
     }
   }
+  // A branch lockfile is a snapshot taken before the main branch removed a
+  // dependency, and merging it back can only ever add entries, so the manifests
+  // are the only record of what has since been dropped.
+  if (opts.mergeGitBranchLockfiles) {
+    for (const project of opts.projects) {
+      pruneUndeclaredDependencies(wantedLockfile.importers[project.id], project.manifest)
+    }
+  }
   return {
     currentLockfile,
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
@@ -152,5 +162,29 @@ export async function readLockfiles (
     wantedLockfile,
     wantedLockfileIsModified,
     lockfileHadConflicts,
+  }
+}
+
+function pruneUndeclaredDependencies (importer: ProjectSnapshot, manifest: ProjectManifest): void {
+  const declaredDepNames = new Set([
+    ...DEPENDENCIES_FIELDS.flatMap((depField) => Object.keys(manifest[depField] ?? {})),
+    ...Object.keys(manifest.peerDependencies ?? {}),
+  ])
+  for (const depField of DEPENDENCIES_FIELDS) {
+    const deps = importer[depField]
+    if (deps == null) continue
+    for (const depName of Object.keys(deps)) {
+      if (!declaredDepNames.has(depName)) {
+        delete deps[depName]
+      }
+    }
+    if (Object.keys(deps).length === 0) {
+      delete importer[depField]
+    }
+  }
+  for (const depName of Object.keys(importer.specifiers)) {
+    if (!declaredDepNames.has(depName)) {
+      delete importer.specifiers[depName]
+    }
   }
 }
