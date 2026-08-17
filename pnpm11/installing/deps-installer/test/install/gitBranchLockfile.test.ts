@@ -365,3 +365,78 @@ test('install with --merge-git-branch-lockfiles when a branch lockfile has a dep
   expect(wantedLockfileAfterMergeOther.snapshots).not.toHaveProperty(['is-positive@3.1.0'])
   project.hasNot('is-positive')
 })
+
+test('install with --merge-git-branch-lockfiles when a branch lockfile has a dependency in another group', async () => {
+  const project = prepareEmpty()
+
+  // @types/semver moved to dependencies in the main branch
+  writeYamlFileSync(WANTED_LOCKFILE, {
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@types/semver@5.3.31': {
+        resolution: {
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+        },
+      },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  // the other branch still has it in devDependencies
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: {
+      '.': {
+        devDependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@types/semver@5.3.31': {
+        resolution: {
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+        },
+      },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const projectManifest: ProjectManifest = {
+    dependencies: {
+      '@types/semver': '5.3.31',
+    },
+  }
+  const opts = testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
+  })
+  await install(projectManifest, opts)
+
+  expect(fs.existsSync(otherLockfilePath)).toBe(false)
+
+  const wantedLockfileAfterMergeOther = project.readLockfile()
+  expect(wantedLockfileAfterMergeOther.importers['.'].devDependencies).toBeUndefined()
+})
