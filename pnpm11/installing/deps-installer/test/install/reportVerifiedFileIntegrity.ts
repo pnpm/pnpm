@@ -2,22 +2,37 @@ import { expect, test } from '@jest/globals'
 import { reportVerifiedFileIntegrity } from '@pnpm/installing.deps-installer'
 import { streamParser } from '@pnpm/logger'
 
-// The message string is a cross-stack contract: pacquet renders the
-// same one from the same figures.
-test('store verification that took long enough is reported with its time and file count', () => {
+// Both message strings are a cross-stack contract: pacquet renders the
+// same ones from the same figures.
+test('store verification that took long enough is reported with its time', () => {
   const messages = captureInfo(() => {
     reportVerifiedFileIntegrity({ files: 1234, ms: 2450 })
   })
 
-  expect(messages).toContain('The integrity of 1234 files was checked in 2.5s. This might have caused installation to take longer.')
+  expect(messages).toEqual(['The integrity of 1234 files was checked in 2.5s. This might have caused installation to take longer.'])
 })
 
-test('store verification under the threshold stays quiet, however many files it covered', () => {
+// Under the time threshold the install was not held up, so the message
+// drops the claim that it was and points at what keeps invalidating the
+// store instead.
+test('quick verification of many files is reported as churn', () => {
   const messages = captureInfo(() => {
-    reportVerifiedFileIntegrity({ files: 100_000, ms: 1000 })
+    reportVerifiedFileIntegrity({ files: 1001, ms: 80 })
   })
 
-  expect(messages).toEqual([])
+  expect(messages).toEqual(['The integrity of 1001 files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.'])
+})
+
+test('verification below both thresholds is not reported', () => {
+  for (const verified of [
+    { files: 1000, ms: 1000 },
+    { files: 12, ms: 3 },
+    { files: 0, ms: 0 },
+  ]) {
+    expect(captureInfo(() => {
+      reportVerifiedFileIntegrity(verified)
+    })).toEqual([])
+  }
 })
 
 function captureInfo (run: () => void): string[] {

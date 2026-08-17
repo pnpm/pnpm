@@ -609,37 +609,44 @@ fn report_install_completion<Reporter: self::Reporter>(
 
 /// Spending this long re-hashing store files is well past what a
 /// healthy store needs, so the install owns up to the time.
-///
-/// A time threshold rather than a file count: a thousand small files
-/// can hash in a blink, while a handful of multi-megabyte blobs can
-/// stall an install for seconds. The time is what the message claims,
-/// so the time is what gates it.
-const VERIFIED_FILE_INTEGRITY_REPORT_THRESHOLD: Duration = Duration::from_secs(1);
+const VERIFIED_FILE_INTEGRITY_SLOW: Duration = Duration::from_secs(1);
 
-/// Tell the user when store verification spent a noticeable amount of
-/// time re-hashing files, so a slow install has a visible cause.
+/// Re-hashing this many files says something keeps invalidating the
+/// store even when the hashing itself was quick — worth telling the
+/// user about before the store grows and the same churn does cost them
+/// time.
+const VERIFIED_FILE_INTEGRITY_MANY: u64 = 1000;
+
+/// Tell the user when store verification re-hashed files: that it cost
+/// time, or failing that, that it happened at all on a scale a healthy
+/// store never reaches. The two are separate claims, so they are
+/// separate messages, and the slower one wins when both hold — it
+/// carries the file count anyway.
 ///
 /// `verified` covers this install alone, and its `duration` is summed
 /// across the threads that did the hashing — see
 /// [`pnpm_store_dir::VerifiedFileIntegrity`].
 ///
 /// The seconds are formatted with one decimal rather than through a
-/// pretty-printer because pnpm renders the same message from the same
+/// pretty-printer because pnpm renders the same messages from the same
 /// figures, and the two have to agree character for character.
 pub(super) fn report_verified_file_integrity<Reporter: self::Reporter>(
     verified: VerifiedFileIntegrity,
 ) {
-    if verified.duration <= VERIFIED_FILE_INTEGRITY_REPORT_THRESHOLD {
-        return;
-    }
     let files = verified.files;
-    let seconds = verified.duration.as_secs_f64();
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Info,
-        message: format!(
+    let message = if verified.duration > VERIFIED_FILE_INTEGRITY_SLOW {
+        let seconds = verified.duration.as_secs_f64();
+        format!(
             "The integrity of {files} files was checked in {seconds:.1}s. This might have caused installation to take longer.",
-        ),
-    }));
+        )
+    } else if files > VERIFIED_FILE_INTEGRITY_MANY {
+        format!(
+            "The integrity of {files} files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.",
+        )
+    } else {
+        return;
+    };
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
 }
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {

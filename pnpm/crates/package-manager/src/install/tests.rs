@@ -10693,44 +10693,53 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
 }
 
 /// The report is what tells a user why an otherwise warm install took
-/// so long, so it has to name the time and the file count — and stay
-/// silent for a store whose verification cost nothing worth mentioning.
-/// The message string is a cross-stack contract: pnpm renders the same
-/// one from the same figures.
+/// so long, or that their store is being churned even when it didn't.
+/// Both message strings are a cross-stack contract: pnpm renders the
+/// same ones from the same figures.
 #[test]
-fn slow_store_verification_is_reported_once_past_the_threshold() {
-    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    // Reset in case nextest reuses the process for a retry of this test.
-    EVENTS.lock().unwrap().clear();
-
-    struct RecordingReporter;
-    impl Reporter for RecordingReporter {
-        fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
-        }
-    }
-
-    // A whole second of hashing is the boundary itself, and a huge file
-    // count under it stays quiet — the time is what the message claims.
-    report_verified_file_integrity::<RecordingReporter>(VerifiedFileIntegrity {
-        files: 100_000,
-        duration: Duration::from_secs(1),
-    });
-    assert!(EVENTS.lock().unwrap().is_empty(), "one second of hashing is still quiet");
-
-    report_verified_file_integrity::<RecordingReporter>(VerifiedFileIntegrity {
+fn slow_store_verification_is_reported_with_its_time() {
+    let messages = recorded_verified_file_integrity_report(VerifiedFileIntegrity {
         files: 1234,
         duration: Duration::from_millis(2450),
     });
-    let events = EVENTS.lock().unwrap();
-    let [LogEvent::Global(log)] = events.as_slice() else {
-        panic!("expected exactly one global log, got {events:?}");
-    };
-    assert_eq!(log.level, LogLevel::Info);
     assert_eq!(
-        log.message,
-        "The integrity of 1234 files was checked in 2.5s. This might have caused installation to take longer.",
+        messages,
+        vec![
+            "The integrity of 1234 files was checked in 2.5s. This might have caused installation to take longer."
+                .to_string(),
+        ],
     );
+}
+
+/// Under the time threshold the install was not held up, so the message
+/// drops the claim that it was and points at what keeps invalidating
+/// the store instead.
+#[test]
+fn quick_verification_of_many_files_is_reported_as_churn() {
+    let messages = recorded_verified_file_integrity_report(VerifiedFileIntegrity {
+        files: 1001,
+        duration: Duration::from_millis(80),
+    });
+    assert_eq!(
+        messages,
+        vec![
+            "The integrity of 1001 files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this."
+                .to_string(),
+        ],
+    );
+}
+
+/// Both thresholds are exclusive, and a healthy store sits far below
+/// either — the install says nothing at all.
+#[test]
+fn verification_below_both_thresholds_is_not_reported() {
+    for verified in [
+        VerifiedFileIntegrity { files: 1000, duration: Duration::from_secs(1) },
+        VerifiedFileIntegrity { files: 12, duration: Duration::from_millis(3) },
+        VerifiedFileIntegrity { files: 0, duration: Duration::ZERO },
+    ] {
+        assert_eq!(recorded_verified_file_integrity_report(verified), Vec::<String>::new());
+    }
 }
 
 /// Each install reports its own verification, so a second install in
@@ -10745,4 +10754,30 @@ fn verified_file_integrity_is_scoped_to_one_install() {
     dbg!(this_install);
     assert_eq!(this_install.files, 1);
     assert_eq!(this_install.duration, Duration::from_millis(100));
+}
+
+/// The `pnpm:global` messages one report emits, at `info` — the only
+/// level these carry.
+fn recorded_verified_file_integrity_report(verified: VerifiedFileIntegrity) -> Vec<String> {
+    static MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    // The recorder is one shared static, so one caller uses it at a
+    // time. `cargo nextest` gives each test its own process, but a
+    // plain `cargo test` runs them as threads of one.
+    static RECORDER: Mutex<()> = Mutex::new(());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Global(log) = event {
+                assert_eq!(log.level, LogLevel::Info);
+                MESSAGES.lock().unwrap().push(log.message.clone());
+            }
+        }
+    }
+
+    let _guard = RECORDER.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    MESSAGES.lock().unwrap().clear();
+    report_verified_file_integrity::<RecordingReporter>(verified);
+    let messages = MESSAGES.lock().unwrap().clone();
+    dbg!(messages)
 }
