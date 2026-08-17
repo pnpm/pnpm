@@ -4310,6 +4310,7 @@ dependencies = [
  "pnpm-auth-commands",
  "pnpm-catalogs-config",
  "pnpm-catalogs-protocol-parser",
+ "pnpm-catalogs-resolver",
  "pnpm-catalogs-types",
  "pnpm-cmd-shim",
  "pnpm-config",

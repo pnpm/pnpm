@@ -18,6 +18,7 @@ path = "src/bin/main.rs"
 pnpm-auth-commands                     = { workspace = true }
 pnpm-catalogs-config                   = { workspace = true }
 pnpm-catalogs-protocol-parser          = { workspace = true }
+pnpm-catalogs-resolver                 = { workspace = true }
 pnpm-catalogs-types                    = { workspace = true }
 pnpm-cmd-shim                          = { workspace = true }
 pnpm-crypto-hash                       = { workspace = true }

@@ -199,6 +199,11 @@ impl Package {
             .send()
             .await
             .map_err(network_error)?
+            // A registry answers an unknown package with a JSON error
+            // body, which would otherwise surface as a decode failure
+            // instead of the status the registry actually returned.
+            .error_for_status()
+            .map_err(network_error)?
             .json::<Package>()
             .await
             .map_err(network_error)?
