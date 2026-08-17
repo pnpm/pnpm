@@ -2081,16 +2081,24 @@ pub fn test_current_folder_fallback_to_default() {
 }
 
 #[test]
-pub fn gvs_default_is_on_and_paths_derive_cleanly() {
-    for ci in [false, true] {
-        let tmp = tempdir().unwrap();
-        let config = Config { ci, ..Config::new() }
-            .current::<HostNoHome>(tmp.path())
-            .expect("workspace yaml absent => no error");
-        assert!(config.enable_global_virtual_store, "GVS is on by default in pnpm 12; ci: {ci}");
-        assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
-        assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
-    }
+pub fn gvs_default_is_off_and_paths_derive_cleanly() {
+    let tmp = tempdir().unwrap();
+    let config =
+        Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
+    assert!(!config.enable_global_virtual_store, "GVS is off by default");
+    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
+    assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
+}
+
+/// A `Config` that never goes through [`Config::current`] never runs
+/// [`Config::apply_global_virtual_store_derivation`] either, so the
+/// `SmartDefault` has to hold the same invariant on its own: the
+/// machine-wide store never points at the working directory.
+#[test]
+pub fn default_config_disables_gvs_and_points_it_at_the_store() {
+    let config = Config::default();
+    assert!(!config.enable_global_virtual_store);
+    assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
 }
 
 #[test]
@@ -2377,13 +2385,11 @@ pub fn empty_npm_config_workspace_dir_falls_through() {
 /// `<tempdir>/pnpm/config.yaml` rather than touching the
 /// developer's real config dir.
 #[test]
-pub fn global_config_yaml_disables_gvs() {
+pub fn global_config_yaml_enables_gvs() {
     let xdg = tempdir().unwrap();
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
-    // Opposite of the default, so the assertion below can only pass if
-    // the global config.yaml layer reached the config.
-    fs::write(config_dir.join("config.yaml"), "enableGlobalVirtualStore: false\n")
+    fs::write(config_dir.join("config.yaml"), "enableGlobalVirtualStore: true\n")
         .expect("write to global config.yaml");
 
     static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
@@ -2420,7 +2426,7 @@ pub fn global_config_yaml_disables_gvs() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
     assert!(
-        !config.enable_global_virtual_store,
+        config.enable_global_virtual_store,
         "enableGlobalVirtualStore from global config.yaml must apply",
     );
 }

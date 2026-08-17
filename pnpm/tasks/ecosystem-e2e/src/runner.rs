@@ -154,9 +154,8 @@ fn prepare_cell(
 
 /// Pin the store and cache inside the cell so pnpm and pacquet never share a
 /// store, and so every cell starts cold. `enableGlobalVirtualStore` is
-/// written explicitly because the two binaries default it differently —
-/// pnpm 11 off, pnpm 12 on — and the layout axis has to mean the same
-/// thing for both.
+/// written explicitly so the layout axis means the same thing for both
+/// binaries no matter what either one defaults it to.
 ///
 /// `dangerouslyAllowAllBuilds` lets dependency build scripts run unattended
 /// (esbuild, etc.) so the build stage exercises a real, fully-built

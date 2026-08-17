@@ -886,9 +886,7 @@ pub struct Config {
     /// project keeps its own virtual store at
     /// `<project>/node_modules/.pnpm`.
     ///
-    /// Defaults to `true`, in every environment. The TypeScript CLI
-    /// defaults it off — see `default_enable_global_virtual_store` in
-    /// `crates/config/src/defaults.rs` for why the two majors differ.
+    /// Defaults to `false`, matching the TypeScript CLI.
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
 

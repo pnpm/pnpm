@@ -116,11 +116,6 @@ async fn cold_batch_links_slots_in_parallel() {
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir.clone();
-    // The shared store is the default, and a `Config` that never went
-    // through `Config::current` still points it at the machine's store
-    // rather than the tempdir one assigned above — materializing there
-    // would leave test packages in the developer's real store.
-    config.enable_global_virtual_store = false;
     config.package_import_method = PackageImportMethod::Copy;
     config.offline = true;
     let config = config.leak();
