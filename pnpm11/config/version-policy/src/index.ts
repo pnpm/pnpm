@@ -3,9 +3,14 @@ import { PnpmError } from '@pnpm/error'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
-export function createPackageVersionPolicy (patterns: string[]): PackageVersionPolicy {
+/**
+ * `patterns` arrives as a lone string when the setting is written as a YAML
+ * scalar or comes from a `PNPM_CONFIG_*` env var.
+ */
+export function createPackageVersionPolicy (patterns: string[] | string): PackageVersionPolicy {
   const rules: VersionPolicyRule[] = []
-  for (const pattern of patterns) {
+  const patternList = typeof patterns === 'string' ? [patterns] : patterns
+  for (const pattern of patternList) {
     const parsed = parseVersionPolicyRule(pattern)
     rules.push({ nameMatcher: createMatcher(parsed.packageName), exactVersions: parsed.exactVersions })
   }
@@ -17,7 +22,7 @@ export function createPackageVersionPolicy (patterns: string[]): PackageVersionP
  * `INVALID_<KEY>` PnpmError so the message points at the user-facing config key
  * (e.g. `minimumReleaseAgeExclude`) instead of the internal parser code.
  */
-export function createPackageVersionPolicyOrThrow (patterns: string[], key: string): PackageVersionPolicy {
+export function createPackageVersionPolicyOrThrow (patterns: string[] | string, key: string): PackageVersionPolicy {
   try {
     return createPackageVersionPolicy(patterns)
   } catch (err) {

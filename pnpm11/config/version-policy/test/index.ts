@@ -81,6 +81,11 @@ test('createPackageVersionPolicy()', () => {
     const match = createPackageVersionPolicy(['ax*', 'axios@1.12.2'])
     expect(match('axios')).toBe(true)
   }
+  {
+    const match = createPackageVersionPolicy('axios@1.12.2')
+    expect(match('axios')).toStrictEqual(['1.12.2'])
+    expect(match('lodash')).toBe(false)
+  }
 })
 
 test('createPackageVersionPolicyOrThrow() rewraps parser errors with INVALID_<KEY>', () => {
