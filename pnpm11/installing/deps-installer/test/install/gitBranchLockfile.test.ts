@@ -360,7 +360,7 @@ test('--merge-git-branch-lockfiles keeps the branch lockfiles under lockfileChec
 test('install with --merge-git-branch-lockfiles when a branch lockfile has a dependency that was removed', async () => {
   const project = prepareEmpty()
 
-  // is-positive removed from the main branch
+  // is-positive removed from the main branch, is-negative installed as a peer
   writeYamlFileSync(WANTED_LOCKFILE, {
     importers: {
       '.': {
@@ -368,6 +368,10 @@ test('install with --merge-git-branch-lockfiles when a branch lockfile has a dep
           '@types/semver': {
             specifier: '5.3.31',
             version: '5.3.31',
+          },
+          'is-negative': {
+            specifier: '^1.0.0',
+            version: '1.0.0',
           },
         },
       },
@@ -379,9 +383,15 @@ test('install with --merge-git-branch-lockfiles when a branch lockfile has a dep
           integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
+      'is-negative@1.0.0': {
+        resolution: {
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
+        },
+      },
     },
     snapshots: {
       '@types/semver@5.3.31': {},
+      'is-negative@1.0.0': {},
     },
   }, { lineWidth: 1000 })
 
@@ -428,6 +438,9 @@ test('install with --merge-git-branch-lockfiles when a branch lockfile has a dep
     dependencies: {
       '@types/semver': '5.3.31',
     },
+    peerDependencies: {
+      'is-negative': '^1.0.0',
+    },
   }
   const opts = testDefaults({
     useGitBranchLockfile: true,
@@ -443,6 +456,10 @@ test('install with --merge-git-branch-lockfiles when a branch lockfile has a dep
     '@types/semver': {
       specifier: '5.3.31',
       version: '5.3.31',
+    },
+    'is-negative': {
+      specifier: '^1.0.0',
+      version: '1.0.0',
     },
   })
   expect(wantedLockfileAfterMergeOther.packages).not.toHaveProperty(['is-positive@3.1.0'])
