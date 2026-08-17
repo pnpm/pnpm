@@ -367,7 +367,13 @@ export async function mutateModules (
   // flags) still fall through to the normal flow.
   if (opts.pnprServer && canUsePnprForMutations(projects)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
-    if (pnprResult) return pnprResult
+    if (pnprResult) {
+      // This path materializes packages of its own, so it verifies the
+      // store like any other install and returns without reaching the
+      // report below.
+      reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
+      return pnprResult
+    }
   }
 
   const allowBuild = createAllowBuildFunction(opts)

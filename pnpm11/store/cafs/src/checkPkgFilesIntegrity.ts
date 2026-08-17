@@ -207,27 +207,39 @@ function tallyVerifyFileIntegrity (
   integrity: Integrity
 ): boolean {
   const startedAt = performance.now()
-  try {
-    return verifyFileIntegrity(filename, integrity)
-  } finally {
-    verifiedFileIntegrity.files++
-    verifiedFileIntegrity.ms += performance.now() - startedAt
-  }
+  const data = readFileForIntegrity(filename)
+  // A file that vanished under us hashed nothing, so it belongs in
+  // neither half of the tally: the install reports the figures as time
+  // spent hashing.
+  if (data == null) return false
+  const passed = hashMatches(data, integrity)
+  verifiedFileIntegrity.files++
+  verifiedFileIntegrity.ms += performance.now() - startedAt
+  return passed
 }
 
 export function verifyFileIntegrity (
   filename: string,
   integrity: Integrity
 ): boolean {
-  let data: Buffer
+  const data = readFileForIntegrity(filename)
+  if (data == null) return false
+  return hashMatches(data, integrity)
+}
+
+/** The file's content, or `null` if it is no longer there. */
+function readFileForIntegrity (filename: string): Buffer | null {
   try {
-    data = gfs.readFileSync(filename)
+    return gfs.readFileSync(filename)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return false
+      return null
     }
     throw err
   }
+}
+
+function hashMatches (data: Buffer, integrity: Integrity): boolean {
   try {
     return crypto.hash(integrity.algorithm, data, 'hex') === integrity.digest
   } catch {

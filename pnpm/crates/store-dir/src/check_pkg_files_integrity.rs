@@ -42,13 +42,22 @@ struct VerifiedFileIntegrityTally {
 }
 
 impl VerifiedFileIntegrityTally {
+    /// The two counters move separately, so a reader running alongside
+    /// a hashing thread can catch one of them mid-update. The install
+    /// that reports the figures has already awaited its own
+    /// verification, so it never races itself; only a second install
+    /// hashing concurrently in the same process can, and its work
+    /// perturbs the figures either way. Time goes in first regardless,
+    /// so the duration the report gates on is never the half left
+    /// behind.
+    ///
+    /// Saturating so a pathological duration can't wrap the tally into
+    /// a small number and silence the report. 2^64 ns is ~584 years, so
+    /// this never fires in practice.
     fn record(&self, elapsed: Duration) {
-        self.files.fetch_add(1, Ordering::Relaxed);
-        // Saturating so a pathological duration can't wrap the tally
-        // into a small number and silence the report. 2^64 ns is ~584
-        // years, so this never fires in practice.
         self.nanos
             .fetch_add(elapsed.as_nanos().min(u128::from(u64::MAX)) as u64, Ordering::Relaxed);
+        self.files.fetch_add(1, Ordering::Relaxed);
     }
 
     fn snapshot(&self) -> VerifiedFileIntegrity {
