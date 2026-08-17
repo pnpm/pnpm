@@ -62,9 +62,10 @@ fn includes_phantom_dependency_entries() {
 }
 
 /// The phantom findings must never name a target that is not an
-/// installable npm package. `estree` (a type-only import whose types
-/// live in `@types/estree`, with no runtime package behind it) slipped
-/// in once and made every fresh resolve of eslint fail with a 404.
+/// installable npm package. `estree` is a type-only import whose types
+/// live in `@types/estree` — there is no runtime package behind it, so
+/// an entry targeting it makes every fresh resolve of the extended
+/// package fail with a 404.
 #[test]
 fn phantom_entries_never_target_estree() {
     for (selector, extension) in COMPAT_PACKAGE_EXTENSIONS.iter() {
