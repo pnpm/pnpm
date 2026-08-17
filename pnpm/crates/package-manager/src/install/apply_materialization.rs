@@ -617,7 +617,7 @@ pub(super) fn report_verified_file_integrity<Reporter: self::Reporter>(count: u6
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Info,
         message: format!(
-            "The integrity of {count} files was checked. This might have caused installation to take longer."
+            "The integrity of {count} files was checked. This might have caused installation to take longer.",
         ),
     }));
 }
