@@ -50,7 +50,7 @@ mod verdict_cache;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, LazyLock, Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
@@ -248,27 +248,50 @@ const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configuration
 /// `128 KiB` is far above any real registry/overrides configuration.
 const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
 
-/// The slice of an input lockfile's `settings` block that
-/// [`intern_config`] adopts, and the only part of it the interning key
-/// carries. Keying on the whole block would let a caller mint an
-/// unbounded number of distinct configs out of the fields the config
-/// never reads (`peersSuffixMaxLength` alone is a `u64`) and exhaust
-/// [`MAX_INTERNED_CONFIGS`], after which no caller gets a config at all.
+/// The settings a request resolves under, and the only part of an input
+/// lockfile's `settings` block the interning key carries. Keying on the whole
+/// block would let a caller mint an unbounded number of distinct configs out
+/// of the fields the config never reads (`peersSuffixMaxLength` alone is a
+/// `u64`) and exhaust [`MAX_INTERNED_CONFIGS`], after which no caller gets a
+/// config at all.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-struct AdoptedLockfileSettings {
+struct EffectiveResolverSettings {
     auto_install_peers: bool,
     dedupe_peers: bool,
     exclude_links_from_lockfile: bool,
 }
 
-impl From<&pnpm_lockfile::LockfileSettings> for AdoptedLockfileSettings {
-    fn from(settings: &pnpm_lockfile::LockfileSettings) -> Self {
-        AdoptedLockfileSettings {
-            auto_install_peers: settings.auto_install_peers,
-            // Written only while the setting is on, so an absent key is `false`.
-            dedupe_peers: settings.dedupe_peers.unwrap_or(false),
-            exclude_links_from_lockfile: settings.exclude_links_from_lockfile,
+impl EffectiveResolverSettings {
+    /// The client's own values whenever it sends them. A client that sends
+    /// none (one older than
+    /// [pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)) falls
+    /// back to the input lockfile on a frozen request — nothing is
+    /// re-resolved there, the freshness gate compares these three against the
+    /// config, and the server's defaults would call a lockfile that is valid
+    /// for its owner stale. On an update-capable request it falls back to the
+    /// server's defaults instead: the lockfile records what the *last* install
+    /// used, which is stale exactly when the client has just changed one of
+    /// these.
+    fn for_request(request: &ResolveRequest) -> Self {
+        static DEFAULTS: LazyLock<PacquetConfig> = LazyLock::new(PacquetConfig::new);
+
+        let lockfile_settings =
+            request.frozen_lockfile.then(|| request.lockfile.as_ref()?.settings.as_ref()).flatten();
+
+        EffectiveResolverSettings {
+            auto_install_peers: request
+                .auto_install_peers
+                .or_else(|| lockfile_settings.map(|settings| settings.auto_install_peers))
+                .unwrap_or(DEFAULTS.auto_install_peers),
+            dedupe_peers: request
+                .dedupe_peers
+                .or_else(|| lockfile_settings.and_then(|settings| settings.dedupe_peers))
+                .unwrap_or(DEFAULTS.dedupe_peers),
+            exclude_links_from_lockfile: request
+                .exclude_links_from_lockfile
+                .or_else(|| lockfile_settings.map(|settings| settings.exclude_links_from_lockfile))
+                .unwrap_or(DEFAULTS.exclude_links_from_lockfile),
         }
     }
 }
@@ -308,28 +331,11 @@ fn intern_config(
         .as_ref()
         .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
 
-    // The protocol carries no `autoInstallPeers` / `dedupePeers` /
-    // `excludeLinksFromLockfile`, so the server's own defaults would
-    // otherwise decide them. On a frozen request the input lockfile is the
-    // contract — nothing is re-resolved, and the freshness gate compares
-    // these three against the config — so its recorded values are the ones
-    // to honor; the server's defaults would reject a lockfile that is
-    // valid for its owner.
-    //
-    // A request that may update resolutions keeps the server defaults: the
-    // lockfile records what the *last* install used, which is stale exactly
-    // when the client has just changed one of these. Neither value is the
-    // client's current setting, and only the protocol can carry that
-    // ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
-    let lockfile_settings = request
-        .frozen_lockfile
-        .then(|| request.lockfile.as_ref()?.settings.as_ref())
-        .flatten()
-        .map(AdoptedLockfileSettings::from);
+    let resolver_settings = EffectiveResolverSettings::for_request(request);
 
     let key = serde_json::json!({
         "registry": registry,
-        "lockfileSettings": lockfile_settings,
+        "resolverSettings": resolver_settings,
         "registries": &request.registries,
         "overrides": overrides_key,
         "minimumReleaseAge": request.minimum_release_age,
@@ -384,11 +390,9 @@ fn intern_config(
     config.trust_policy = request.trust_policy;
     config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
     config.trust_policy_ignore_after = request.trust_policy_ignore_after;
-    if let Some(settings) = lockfile_settings {
-        config.auto_install_peers = settings.auto_install_peers;
-        config.dedupe_peers = settings.dedupe_peers;
-        config.exclude_links_from_lockfile = settings.exclude_links_from_lockfile;
-    }
+    config.auto_install_peers = resolver_settings.auto_install_peers;
+    config.dedupe_peers = resolver_settings.dedupe_peers;
+    config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
     let config: &'static PacquetConfig = config.leak();
     configs.insert(key, config);
     Some(config)
@@ -801,6 +805,9 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         "registries": &request.registries,
         "overrides": &request.overrides,
         "catalogs": &request.catalogs,
+        "autoInstallPeers": config.auto_install_peers,
+        "dedupePeers": config.dedupe_peers,
+        "excludeLinksFromLockfile": config.exclude_links_from_lockfile,
         "projects": projects,
         "inputLockfileHash": request.lockfile.as_ref().map(hash_lockfile),
         "frozenLockfile": request.frozen_lockfile,

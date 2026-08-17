@@ -85,6 +85,16 @@ pub struct ResolveRequest {
     /// and overrides.
     #[serde(default)]
     pub catalogs: Option<Catalogs>,
+    /// The client's current values for the settings that shape the lockfile
+    /// this request resolves. `None` is a client that doesn't send them, not
+    /// `Some(false)`; `EffectiveResolverSettings` documents what each one
+    /// falls back to.
+    #[serde(default)]
+    pub auto_install_peers: Option<bool>,
+    #[serde(default)]
+    pub dedupe_peers: Option<bool>,
+    #[serde(default)]
+    pub exclude_links_from_lockfile: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target (the server verifies it under the
     /// client's policy before resolving) and as the resolution-reuse

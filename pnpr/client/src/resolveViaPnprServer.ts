@@ -65,6 +65,16 @@ export interface ResolveViaPnprServerOptions {
   /** Node.js version for resolution */
   nodeVersion?: string
   /**
+   * The client's current values for the settings that shape the lockfile the
+   * server resolves. Leaving one out is not the same as sending `false`: the
+   * server then falls back to the input lockfile (on a frozen request) or to
+   * its own default, which is what a client too old to send them gets
+   * ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
+   */
+  autoInstallPeers?: boolean
+  dedupePeers?: boolean
+  excludeLinksFromLockfile?: boolean
+  /**
    * The client's verification policy. The server is the only place these
    * run on the pnpr path — the client skips its own
    * `verifyLockfileResolutions` whenever a pnpr server is configured — so
@@ -149,6 +159,9 @@ export async function resolveViaPnprServer (
     overrides: opts.overrides,
     catalogs: opts.catalogs,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
+    autoInstallPeers: opts.autoInstallPeers,
+    dedupePeers: opts.dedupePeers,
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     os: process.platform,
     arch: process.arch,
     minimumReleaseAge: opts.minimumReleaseAge,

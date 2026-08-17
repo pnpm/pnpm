@@ -167,6 +167,22 @@ test("pnpr forwards the client's whole verification policy, not just the age cut
   }))
 })
 
+test("pnpr forwards the client's current resolver settings, not just the last install's", async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const resolverSettings = {
+    autoInstallPeers: false,
+    dedupePeers: true,
+    excludeLinksFromLockfile: true,
+  } satisfies Partial<MutateModulesOptions>
+  const options = createOptions(workspaceRoot, rootDir, resolverSettings)
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining(resolverSettings))
+})
+
 test('pnpr forwards the resolution mode so --frozen-lockfile is not silently ignored', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir

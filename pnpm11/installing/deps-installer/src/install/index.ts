@@ -3076,6 +3076,9 @@ async function installViaPnprServer (
       // catalog sections, so forward the catalogs for the server to resolve
       // `catalog:` specifiers in both dependencies and overrides.
       catalogs: opts.catalogs,
+      autoInstallPeers: opts.autoInstallPeers,
+      dedupePeers: opts.dedupePeers,
+      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       minimumReleaseAge: opts.minimumReleaseAge,
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,

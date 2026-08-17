@@ -71,6 +71,15 @@ pub struct ResolveOptions {
     /// cannot resolve a `catalog:` specifier in either dependencies or
     /// overrides ([pnpm/pnpm#13232](https://github.com/pnpm/pnpm/issues/13232)).
     pub catalogs: Option<Catalogs>,
+    /// The client's current values for the settings that shape the lockfile
+    /// the server resolves. `None` is not `Some(false)`: it leaves the
+    /// setting to the server, which takes the input lockfile's value on a
+    /// frozen request and its own default otherwise — what a client too old
+    /// to send them gets
+    /// ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
+    pub auto_install_peers: Option<bool>,
+    pub dedupe_peers: Option<bool>,
+    pub exclude_links_from_lockfile: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target and the resolution-reuse seed.
     pub lockfile: Option<Lockfile>,
@@ -124,6 +133,9 @@ pub struct ResolveProjectsOptions {
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub catalogs: Option<Catalogs>,
+    pub auto_install_peers: Option<bool>,
+    pub dedupe_peers: Option<bool>,
+    pub exclude_links_from_lockfile: Option<bool>,
     pub lockfile: Option<Lockfile>,
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
@@ -153,6 +165,9 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             authorization: opts.authorization,
             overrides: opts.overrides,
             catalogs: opts.catalogs,
+            auto_install_peers: opts.auto_install_peers,
+            dedupe_peers: opts.dedupe_peers,
+            exclude_links_from_lockfile: opts.exclude_links_from_lockfile,
             lockfile: opts.lockfile,
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
@@ -451,6 +466,9 @@ impl PnprClient {
             "registries": opts.registries,
             "overrides": opts.overrides,
             "catalogs": opts.catalogs,
+            "autoInstallPeers": opts.auto_install_peers,
+            "dedupePeers": opts.dedupe_peers,
+            "excludeLinksFromLockfile": opts.exclude_links_from_lockfile,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
