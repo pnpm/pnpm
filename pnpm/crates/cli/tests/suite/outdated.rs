@@ -480,6 +480,7 @@ fn outdated_catalog_entry_missing_is_a_catalog_error() {
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
     let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "the run should fail: {stderr}");
     assert!(
         stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
         "missing catalog entry should be reported as such: {stderr}",
