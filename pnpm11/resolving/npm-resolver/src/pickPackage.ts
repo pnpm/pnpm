@@ -236,6 +236,15 @@ export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, cacheBypass?: boolean, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
+    /**
+     * Whether a time-based resolution has to read the full metadata of
+     * `registry`, because that registry's abbreviated form carries no `time`.
+     * Asked per registry: the answer differs between the public registry and a
+     * proxy that does carry it, and the mirror path and cache key below are
+     * already keyed by registry, so two registries may disagree within one
+     * install.
+     */
+    needsFullMetadataFor?: (registry: string) => boolean
     metaCache: PackageMetaCache
     cacheDir: string
     offline?: boolean
@@ -261,7 +270,12 @@ export async function pickPackage (
 
   // Use full metadata for optional dependencies to get libc field.
   // See: https://github.com/pnpm/pnpm/issues/9950
-  const fullMetadata = opts.optional === true || ctx.fullMetadata === true
+  // The per-registry answer is authoritative when the caller can give one: it
+  // already folds in the reasons that hold for every registry, so a registry
+  // that carries `time` is free to stay on abbreviated metadata while the
+  // others do not.
+  const policyWantsFullMetadata = ctx.needsFullMetadataFor?.(opts.registry) ?? ctx.fullMetadata === true
+  const fullMetadata = opts.optional === true || policyWantsFullMetadata
   const metaDir = fullMetadata
     ? (ctx.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR)
     : ABBREVIATED_META_DIR

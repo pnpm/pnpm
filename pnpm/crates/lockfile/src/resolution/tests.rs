@@ -1064,7 +1064,10 @@ fn to_lockfile_form_keeps_the_artifactory_url_when_include_tarball_url_is_set() 
 fn registry_server_type_is_undeclared_by_default_and_tolerates_a_missing_trailing_slash() {
     let options = BTreeMap::from([(
         ARTIFACTORY_REGISTRY.to_string(),
-        RegistryOptions { server_type: Some(RegistryServerType::Artifactory) },
+        RegistryOptions {
+            server_type: Some(RegistryServerType::Artifactory),
+            supports_time_field: None,
+        },
     )]);
     assert_eq!(
         registry_server_type(&options, ARTIFACTORY_REGISTRY.trim_end_matches('/')),

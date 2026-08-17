@@ -532,3 +532,24 @@ test('getOptionsFromPnpmSettings() rejects an unknown field in a registry declar
     },
   })).toThrow(/is not a known registry setting/)
 })
+
+test('getOptionsFromPnpmSettings() reads a declared supportsTimeField', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { supportsTimeField: true },
+      'https://artifactory.example/': { serverType: 'artifactory', supportsTimeField: false },
+    },
+  })
+  expect(options.registryOptionsByUrl).toStrictEqual({
+    'https://npm.corp.example/': { supportsTimeField: true },
+    'https://artifactory.example/': { serverType: 'artifactory', supportsTimeField: false },
+  })
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-boolean supportsTimeField', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { supportsTimeField: 'yes' as never },
+    },
+  })).toThrow(/supportsTimeField" setting should be a boolean, but got string/)
+})

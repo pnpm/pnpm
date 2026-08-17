@@ -100,7 +100,7 @@ const SECRET_REGISTRY_KEYS = new Set([
 ])
 
 /** The fields a `registries` entry may carry. Anything else is a typo. */
-const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'scopes', 'prefix'])
+const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'supportsTimeField', 'scopes', 'prefix'])
 
 /**
  * Turns the settings that name registries into the three lookups the rest of
@@ -205,13 +205,19 @@ function splitRegistryDeclarations (entries: Array<[string, RegistryDeclaration]
     // resolved from matches its declaration however either one spelled the
     // trailing slash.
     const normalizedRegistry = normalizeRegistryUrl(registry)
-    const { serverType, scopes, prefix } = declaration
-    if (serverType != null) {
-      if (!REGISTRY_SERVER_TYPES.has(serverType)) {
-        throw new PnpmError('INVALID_SETTING',
-          `The "${settingPath}.serverType" setting should be one of ${quoteAndJoin([...REGISTRY_SERVER_TYPES])}, but got ${JSON.stringify(serverType)}`)
+    const { serverType, supportsTimeField, scopes, prefix } = declaration
+    if (serverType != null && !REGISTRY_SERVER_TYPES.has(serverType)) {
+      throw new PnpmError('INVALID_SETTING',
+        `The "${settingPath}.serverType" setting should be one of ${quoteAndJoin([...REGISTRY_SERVER_TYPES])}, but got ${JSON.stringify(serverType)}`)
+    }
+    if (supportsTimeField != null) {
+      assertBoolean(supportsTimeField, `${settingPath}.supportsTimeField`)
+    }
+    if (serverType != null || supportsTimeField != null) {
+      lookups.registryOptionsByUrl[normalizedRegistry] = {
+        ...(serverType != null ? { serverType } : {}),
+        ...(supportsTimeField != null ? { supportsTimeField } : {}),
       }
-      lookups.registryOptionsByUrl[normalizedRegistry] = { serverType }
     }
     if (scopes != null) {
       assertStringArray(scopes, `${settingPath}.scopes`)

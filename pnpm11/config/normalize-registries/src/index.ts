@@ -82,8 +82,8 @@ export function toRegistryDeclarations (context: Partial<RegistryContext>): Reco
     declarationFor(registry).prefix = prefix
   }
   for (const [registry, options] of Object.entries(context.registryOptionsByUrl ?? {})) {
-    if (options.serverType == null) continue
-    declarationFor(registry).serverType = options.serverType
+    if (options.serverType != null) declarationFor(registry).serverType = options.serverType
+    if (options.supportsTimeField != null) declarationFor(registry).supportsTimeField = options.supportsTimeField
   }
   return declarations
 }
@@ -100,4 +100,20 @@ export function getRegistryServerType (
   registry: string
 ): RegistryServerType | undefined {
   return registryContext.registryOptionsByUrl?.[normalizeRegistryUrl(registry)]?.serverType
+}
+
+/**
+ * Whether `registry`'s abbreviated metadata carries the `time` field, from its
+ * own declaration if it has one and from the `registrySupportsTimeField`
+ * setting otherwise.
+ *
+ * The setting is the answer for every registry a project does not describe.
+ */
+export function registrySupportsTimeField (
+  registryContext: Pick<RegistryContext, 'registryOptionsByUrl'> & { registrySupportsTimeField?: boolean },
+  registry: string
+): boolean {
+  return registryContext.registryOptionsByUrl?.[normalizeRegistryUrl(registry)]?.supportsTimeField
+    ?? registryContext.registrySupportsTimeField
+    ?? false
 }
