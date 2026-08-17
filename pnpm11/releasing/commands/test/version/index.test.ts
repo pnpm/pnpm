@@ -277,6 +277,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
         gitTagVersion: false,
       } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
 
+      expect(result).toContain('Version bump plan:')
       expect(result).toContain('1.0.0 → 1.0.1')
       expect(fs.readFileSync(manifestPath, 'utf-8')).toBe(manifestBefore)
     })

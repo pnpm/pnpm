@@ -653,6 +653,7 @@ fn dry_run_reports_the_bump_without_writing_the_manifest() {
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Version bump plan:"), "{stdout}");
     assert!(stdout.contains("1.0.0 → 1.0.1"), "{stdout}");
     assert_eq!(manifest_text(&workspace), manifest_before);
     drop(root);

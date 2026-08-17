@@ -210,7 +210,7 @@ export async function handler (
     return JSON.stringify(changes.map(({ manifestPath: _manifestPath, ...change }) => change), null, 2)
   }
 
-  let output = 'Version bumped successfully:\n'
+  let output = opts.dryRun ? 'Version bump plan:\n' : 'Version bumped successfully:\n'
   for (const change of changes) {
     output += `${change.name}: ${change.currentVersion} → ${change.newVersion}\n`
   }

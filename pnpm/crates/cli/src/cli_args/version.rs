@@ -227,7 +227,11 @@ impl VersionArgs {
         }
 
         use std::fmt::Write as _;
-        let mut output = String::from("Version bumped successfully:\n");
+        let mut output = String::from(if self.dry_run {
+            "Version bump plan:\n"
+        } else {
+            "Version bumped successfully:\n"
+        });
         for change in &changes {
             writeln!(
                 output,
@@ -241,8 +245,9 @@ impl VersionArgs {
     }
 
     /// Bump one package's manifest, running its `preversion` and `version`
-    /// lifecycle hooks around the write. Returns `None` — bumping nothing —
-    /// when the manifest has no name or no version.
+    /// lifecycle hooks around the write. Both the write and the hooks are
+    /// skipped on a dry run. Returns `None` — bumping nothing — when the
+    /// manifest has no name or no version.
     fn bump_package_version<Reporter: pnpm_reporter::Reporter>(
         &self,
         pkg_dir: &Path,
@@ -473,9 +478,9 @@ impl VersionArgs {
 }
 
 /// Run one `preversion` / `version` / `postversion` script of the bumped
-/// package, when the manifest declares it and scripts are not ignored.
-/// The manifest is re-read so the `version` and `postversion` hooks see
-/// the bumped version.
+/// package, when the manifest declares it, scripts are not ignored and this
+/// is not a dry run. The manifest is re-read so the `version` and
+/// `postversion` hooks see the bumped version.
 fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     stage: &str,
     change: &VersionChange,
