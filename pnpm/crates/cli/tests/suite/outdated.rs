@@ -461,6 +461,33 @@ fn outdated_compatible_uses_the_catalog_range() {
     drop((root, anchor));
 }
 
+/// A dependency left on `catalog:` after its catalog entry is gone
+/// fails with pnpm's catalog error, not with whatever the registry
+/// answers for the bare dependency key.
+#[test]
+fn outdated_catalog_entry_missing_is_a_catalog_error() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(&workspace, "catalog", format!("{{ '{DEP}': '^100.0.0' }}"));
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    let without_catalog =
+        yaml.lines().filter(|line| !line.starts_with("catalog:")).collect::<Vec<_>>().join("\n");
+    fs::write(&workspace_yaml, without_catalog).expect("drop the catalog entry");
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
+        "missing catalog entry should be reported as such: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
 /// `--prod` and `--dev` restrict the report to the matching dependency
 /// group. Ports pnpm's "showing only prod or dev dependencies".
 #[test]
