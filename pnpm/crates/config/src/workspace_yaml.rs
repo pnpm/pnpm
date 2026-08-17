@@ -1120,12 +1120,17 @@ impl WorkspaceSettings {
     /// are filtered instead of expanding environment variables into
     /// request URLs.
     ///
-    /// `otp` is filtered for the same reason from the other side: it is a
-    /// credential this file gets to choose, and `publish` puts it on the wire
-    /// as an `npm-otp` header to a registry this same file can point anywhere.
-    /// Expanding a placeholder here would let a repository turn any variable
-    /// in the publisher's environment into an outbound header. A literal `otp`
-    /// still works — only a `${VAR}` in it is refused.
+    /// `otp` is filtered as an auth value: `publish` puts it on the wire as an
+    /// `npm-otp` header to a registry this same file can point anywhere, so
+    /// expanding a placeholder would let a repository turn any variable in the
+    /// publisher's environment into an outbound header. A literal `otp` still
+    /// works — only a `${VAR}` in it is refused.
+    ///
+    /// `SECURITY.md` states the policy these two groups implement, and its
+    /// bounds: this is hardening against silent credential exfiltration that
+    /// survives `--ignore-scripts`, not a general-purpose sandbox. A setting
+    /// outside the two groups — `tag` and `access` reach the registry too — is
+    /// deliberately still expanded.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`] and filtered values do not.
