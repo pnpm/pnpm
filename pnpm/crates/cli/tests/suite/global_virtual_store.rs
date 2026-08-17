@@ -1486,6 +1486,7 @@ fn virtual_store_type_selects_where_packages_are_materialized() {
         ("virtualStoreType: global\n", true),
         ("enableGlobalVirtualStore: false\n", false),
         ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
     ] {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
