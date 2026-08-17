@@ -72,13 +72,24 @@ test('concurrent installs each see only their own verification', async () => {
     }
   }
 
+  // The trusting install samples only once the verifying one has
+  // finished hashing. Without that barrier it could sample first and
+  // read zeroes even from a shared tally, and the test would pass on
+  // exactly the bug it exists to catch.
+  let hashingDone!: () => void
+  const hashed = new Promise<void>((resolve) => {
+    hashingDone = resolve
+  })
+
   const [verified, trusted] = await Promise.all([
     trackVerifiedFileIntegrity(async () => {
       await readPkgFromCafs({ storeDir: verifying.storeDir, verifyStoreIntegrity: true }, verifying.filesIndexFile)
+      hashingDone()
       return currentVerifiedFileIntegrity()
     }),
     trackVerifiedFileIntegrity(async () => {
       await readPkgFromCafs({ storeDir: trusting.storeDir, verifyStoreIntegrity: false }, trusting.filesIndexFile)
+      await hashed
       return currentVerifiedFileIntegrity()
     }),
   ])
