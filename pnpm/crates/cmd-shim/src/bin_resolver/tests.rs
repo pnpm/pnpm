@@ -326,6 +326,26 @@ fn empty_bin_string_declares_no_command() {
     assert!(get_bins_from_package_manifest::<Host>(&manifest, Path::new("/p")).is_empty());
 }
 
+#[test]
+fn empty_bin_string_falls_through_to_directories_bin() {
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("pkg");
+    let bin_dir = pkg.join("bin-dir");
+    create_dir_all(&bin_dir).unwrap();
+    write_file(bin_dir.join("tool.js"), "").unwrap();
+
+    let manifest = json!({
+        "name": "empty-bin",
+        "version": "1.0.0",
+        "bin": "",
+        "directories": {"bin": "bin-dir"},
+    });
+    let commands = get_bins_from_package_manifest::<Host>(&manifest, &pkg);
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].name, "tool.js");
+    assert_eq!(commands[0].path, bin_dir.join("tool.js"));
+}
+
 /// The relative names `.` and `..` survive the URL-safe guard's character
 /// set (`.` is unescaped by `encodeURIComponent`) but resolve to the bin
 /// directory itself or its parent when joined to a target dir, so
