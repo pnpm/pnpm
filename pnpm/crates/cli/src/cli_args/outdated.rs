@@ -28,6 +28,7 @@ use clap::{Args, ValueEnum};
 use miette::IntoDiagnostic;
 use node_semver::Version;
 use owo_colors::{OwoColorize, Stream};
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{
@@ -296,6 +297,12 @@ fn dereference_catalog<'a>(
     alias: &str,
     bare_specifier: &'a str,
 ) -> miette::Result<Cow<'a, str>> {
+    // Most dependencies are not catalog entries, and every walked
+    // dependency reaches this, so screen them out before the resolver's
+    // owned `WantedDependency`.
+    if parse_catalog_protocol(bare_specifier).is_none() {
+        return Ok(Cow::Borrowed(bare_specifier));
+    }
     let wanted =
         WantedDependency { alias: alias.to_string(), bare_specifier: bare_specifier.to_string() };
     match resolve_from_catalog(catalogs, &wanted) {
