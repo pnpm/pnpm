@@ -2090,6 +2090,17 @@ pub fn gvs_default_is_off_and_paths_derive_cleanly() {
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
 }
 
+/// A `Config` that never goes through [`Config::current`] never runs
+/// [`Config::apply_global_virtual_store_derivation`] either, so the
+/// `SmartDefault` has to hold the same invariant on its own: the
+/// machine-wide store never points at the working directory.
+#[test]
+pub fn default_config_disables_gvs_and_points_it_at_the_store() {
+    let config = Config::default();
+    assert!(!config.enable_global_virtual_store);
+    assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
+}
+
 #[test]
 pub fn gvs_disabled_keeps_project_local_virtual_store() {
     let tmp = tempdir().unwrap();
