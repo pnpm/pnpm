@@ -75,6 +75,11 @@ export interface ResolveViaPnprServerOptions {
   dedupePeers?: boolean
   excludeLinksFromLockfile?: boolean
   /**
+   * The client's `resolutionMode`. The server picks versions the way the
+   * client would, instead of falling back to its own default.
+   */
+  resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
+  /**
    * The client's verification policy. The server is the only place these
    * run on the pnpr path — the client skips its own
    * `verifyLockfileResolutions` whenever a pnpr server is configured — so
@@ -164,6 +169,7 @@ export async function resolveViaPnprServer (
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     os: process.platform,
     arch: process.arch,
+    resolutionMode: opts.resolutionMode,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,

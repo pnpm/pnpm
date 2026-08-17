@@ -3079,6 +3079,7 @@ async function installViaPnprServer (
       autoInstallPeers: opts.autoInstallPeers,
       dedupePeers: opts.dedupePeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      resolutionMode: opts.resolutionMode,
       minimumReleaseAge: opts.minimumReleaseAge,
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
@@ -3086,7 +3087,7 @@ async function installViaPnprServer (
       trustPolicyExclude: opts.trustPolicyExclude,
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       trustLockfile: opts.trustLockfile,
-      // Resolution mode. Without these the server always reuse-and-updates,
+      // Lockfile reuse. Without these the server always reuse-and-updates,
       // so `--frozen-lockfile` would silently resolve and rewrite the very
       // lockfile it promises to leave alone.
       frozenLockfile: opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null),
