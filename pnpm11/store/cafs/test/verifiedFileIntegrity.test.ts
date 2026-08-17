@@ -11,27 +11,6 @@ import {
   takeVerifiedFileIntegrity,
 } from '../src/index.js'
 
-/**
- * A store holding one file, plus the index entry describing it. The
- * `checkedAt` is pushed a minute into the past so the file counts as
- * modified, which is what makes verification re-hash its content
- * instead of trusting the index.
- */
-function storeWithOneFile (): { storeDir: string, filePath: string, digest: string, size: number } {
-  const storeDir = temporaryDirectory()
-  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
-  const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
-  const { digest, size } = filesIndex.get('foo.txt')!
-  return { storeDir, filePath: getFilePathByModeInCafs(storeDir, digest, 420), digest, size }
-}
-
-function indexEntry (digest: string, size: number, algo = 'sha512') {
-  return {
-    algo,
-    files: new Map([['foo.txt', { digest, mode: 420, size, checkedAt: Date.now() - 60_000 }]]),
-  }
-}
-
 describe('the verified-file-integrity tally', () => {
   beforeEach(() => {
     takeVerifiedFileIntegrity()
@@ -85,3 +64,24 @@ describe('the verified-file-integrity tally', () => {
     expect(takeVerifiedFileIntegrity()).toEqual({ files: 0, ms: 0 })
   })
 })
+
+/** A store holding one file. */
+function storeWithOneFile (): { storeDir: string, filePath: string, digest: string, size: number } {
+  const storeDir = temporaryDirectory()
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+  const { digest, size } = filesIndex.get('foo.txt')!
+  return { storeDir, filePath: getFilePathByModeInCafs(storeDir, digest, 420), digest, size }
+}
+
+/**
+ * The index row describing that file, with `checkedAt` a minute in the
+ * past so the file counts as modified — which is what makes
+ * verification re-hash its content instead of trusting the row.
+ */
+function indexEntry (digest: string, size: number, algo = 'sha512') {
+  return {
+    algo,
+    files: new Map([['foo.txt', { digest, mode: 420, size, checkedAt: Date.now() - 60_000 }]]),
+  }
+}

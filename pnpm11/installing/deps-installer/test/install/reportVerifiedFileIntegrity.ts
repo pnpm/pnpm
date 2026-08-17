@@ -2,20 +2,6 @@ import { expect, test } from '@jest/globals'
 import { reportVerifiedFileIntegrity } from '@pnpm/installing.deps-installer'
 import { streamParser } from '@pnpm/logger'
 
-function captureInfo (run: () => void): string[] {
-  const messages: string[] = []
-  const reporter = (log: { level?: string, message?: string }) => {
-    if (log.level === 'info' && log.message != null) messages.push(log.message)
-  }
-  streamParser.on('data', reporter as never)
-  try {
-    run()
-  } finally {
-    streamParser.removeListener('data', reporter as never)
-  }
-  return messages
-}
-
 // The message string is a cross-stack contract: pacquet renders the
 // same one from the same figures.
 test('store verification that took long enough is reported with its time and file count', () => {
@@ -33,3 +19,17 @@ test('store verification under the threshold stays quiet, however many files it 
 
   expect(messages).toEqual([])
 })
+
+function captureInfo (run: () => void): string[] {
+  const messages: string[] = []
+  const reporter = (log: { level?: string, message?: string }) => {
+    if (log.level === 'info' && log.message != null) messages.push(log.message)
+  }
+  streamParser.on('data', reporter as never)
+  try {
+    run()
+  } finally {
+    streamParser.removeListener('data', reporter as never)
+  }
+  return messages
+}
