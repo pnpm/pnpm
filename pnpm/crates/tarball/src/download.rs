@@ -7,7 +7,8 @@ use super::{
     Arc, Duration, HashMap, HttpStatusError, IgnoreEntryFilter, Instant, NetworkError, PathBuf,
     PrefetchedCasPaths, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
     allocate_tarball_buffer, decompress_gzip, extract_tarball_entries, local_file_tarball_path,
-    open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
+    open_local_tarball, post_download_semaphore, read_local_tarball_buffer, should_stream_extract,
+    stream_extract_gzipped_tarball,
 };
 use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient};
 use pnpm_reporter::{
@@ -290,9 +291,23 @@ pub(crate) async fn extract_tarball_buffer(
                 expected_integrity,
                 package_url_owned,
             )?;
-            let tar_data = decompress_gzip(&buffer, package_unpacked_size)?;
+            // A large archive is extracted by streaming the gzip
+            // decode straight into the tar walk, so the only
+            // whole-archive allocation alive during extraction is the
+            // compressed body — the eager path would hold the
+            // decompressed archive (typically several times larger)
+            // next to it.
             let (cas_paths, pkg_files_idx) =
-                extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern.as_deref())?;
+                if should_stream_extract(buffer.len(), package_unpacked_size) {
+                    stream_extract_gzipped_tarball(
+                        &buffer,
+                        store_dir,
+                        ignore_file_pattern.as_deref(),
+                    )?
+                } else {
+                    let tar_data = decompress_gzip(&buffer, package_unpacked_size)?;
+                    extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern.as_deref())?
+                };
             Ok((integrity, cas_paths, pkg_files_idx))
         },
     )

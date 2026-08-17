@@ -6,9 +6,10 @@ use super::{
     },
     error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
     extract::{
-        allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest,
-        bounded_gzip_size_hint, decompress_gzip, extract_tarball_entries,
-        normalize_bundled_manifest,
+        STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD, allocate_tarball_buffer,
+        apply_append_manifest, apply_placeholder_manifest, bounded_gzip_size_hint, decompress_gzip,
+        extract_tarball_entries, normalize_bundled_manifest, should_stream_extract,
+        stream_extract_gzipped_tarball,
     },
     local_tarball::{
         allocate_local_tarball_buffer, local_file_tarball_path, open_local_tarball,
@@ -1180,6 +1181,397 @@ fn extract_tarball_reads_a_manifest_that_starts_with_a_utf8_bom() {
     assert_eq!(pkg_files_idx.requires_build, Some(true));
     assert!(pkg_files_idx.manifest.is_some(), "the bundled manifest must be recorded");
     drop(tempdir);
+}
+
+#[test]
+fn should_stream_extract_pivots_on_compressed_size_and_unpacked_hint() {
+    assert!(!should_stream_extract(0, None));
+    assert!(!should_stream_extract(STREAM_EXTRACT_COMPRESSED_THRESHOLD - 1, None));
+    assert!(should_stream_extract(STREAM_EXTRACT_COMPRESSED_THRESHOLD, None));
+    assert!(!should_stream_extract(0, Some(MAX_UNTRUSTED_PREALLOC_BYTES - 1)));
+    assert!(should_stream_extract(0, Some(MAX_UNTRUSTED_PREALLOC_BYTES)));
+    // A hostile hint only routes to the (still correct) streaming path.
+    assert!(should_stream_extract(0, Some(usize::MAX)));
+}
+
+/// Build a tar archive spanning every entry shape the streaming
+/// extractor branches on: a manifest, an executable, a small file, a
+/// directory (skipped), and one payload above
+/// [`STREAM_ENTRY_BUFFER_MAX`] that must take the
+/// direct-to-store streaming branch.
+fn mixed_size_tar() -> (Vec<u8>, Vec<u8>) {
+    let large_payload: Vec<u8> =
+        (0..=STREAM_ENTRY_BUFFER_MAX).map(|index| (index % 251) as u8).collect();
+
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut dir_header = tar::Header::new_gnu();
+    dir_header.set_size(0);
+    dir_header.set_mode(0o755);
+    dir_header.set_entry_type(tar::EntryType::Directory);
+    dir_header.set_cksum();
+    builder.append_data(&mut dir_header, "package/lib/", &b""[..]).expect("append dir entry");
+    for (path, mode, body) in [
+        (
+            "package/package.json",
+            0o644,
+            &br#"{"name":"big","scripts":{"install":"node-gyp rebuild"}}"#[..],
+        ),
+        ("package/bin/tool", 0o755, &b"#!/bin/sh\necho hi\n"[..]),
+        ("package/big.bin", 0o644, large_payload.as_slice()),
+        ("package/lib/small.js", 0o644, &b"module.exports = 1\n"[..]),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(mode);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder.append_data(&mut header, path, body).expect("append entry");
+    }
+    let tar_bytes = builder.into_inner().expect("finish tar");
+    (tar_bytes, large_payload)
+}
+
+fn gzip_bytes(bytes: &[u8]) -> Vec<u8> {
+    use std::io::Write;
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    encoder.write_all(bytes).expect("gzip bytes");
+    encoder.finish().expect("finish gzip")
+}
+
+/// The streaming extractor must produce byte-identical outputs to the
+/// eager whole-archive extractor — same store-relative CAS paths, same
+/// digests/modes/sizes in the index row, same bundled manifest and
+/// requires-build flag — because [`should_stream_extract`] routes
+/// between the two per download and the shared `index.db` must not be
+/// able to tell them apart.
+#[test]
+fn streaming_extract_matches_eager_extract() {
+    let (tar_bytes, large_payload) = mixed_size_tar();
+
+    let (eager_tempdir, eager_store) = tempdir_with_leaked_path();
+    let (eager_cas_paths, eager_idx) =
+        extract_tarball_entries(&tar_bytes, eager_store, None).expect("eager extraction");
+
+    let (streaming_tempdir, streaming_store) = tempdir_with_leaked_path();
+    let (streaming_cas_paths, streaming_idx) =
+        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), streaming_store, None)
+            .expect("streaming extraction");
+
+    let relative =
+        |cas_paths: &HashMap<String, PathBuf>, store: &StoreDir| -> HashMap<String, PathBuf> {
+            cas_paths
+                .iter()
+                .map(|(key, path)| {
+                    let path = path.strip_prefix(store.root()).expect("path within store");
+                    (key.clone(), path.to_path_buf())
+                })
+                .collect()
+        };
+    assert_eq!(
+        relative(&streaming_cas_paths, streaming_store),
+        relative(&eager_cas_paths, eager_store),
+    );
+
+    let comparable = |idx: &PackageFilesIndex| -> Vec<(String, String, u32, u64)> {
+        let mut rows: Vec<_> = idx
+            .files
+            .iter()
+            .map(|(path, info)| (path.clone(), info.digest.clone(), info.mode, info.size))
+            .collect();
+        rows.sort();
+        rows
+    };
+    assert_eq!(comparable(&streaming_idx), comparable(&eager_idx));
+    assert_eq!(streaming_idx.manifest, eager_idx.manifest);
+    assert_eq!(streaming_idx.requires_build, Some(true));
+    assert_eq!(streaming_idx.algo, eager_idx.algo);
+
+    let large_cas_path = &streaming_cas_paths["big.bin"];
+    assert_eq!(
+        std::fs::read(large_cas_path).expect("read streamed large entry"),
+        large_payload,
+        "the direct-to-store streamed entry must land byte-identical content",
+    );
+    assert!(
+        streaming_cas_paths["bin/tool"].to_string_lossy().ends_with("-exec"),
+        "executable entries must keep the -exec CAS suffix on the streaming path",
+    );
+
+    drop(eager_tempdir);
+    drop(streaming_tempdir);
+}
+
+/// Streaming-path counterpart of
+/// [`extract_rejects_parent_dir_component_in_entry_path`] — the
+/// traversal guard must hold on both extraction paths.
+#[test]
+fn streaming_extract_rejects_parent_dir_component_in_entry_path() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(5);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        // Same `set_path`-bypass as the eager-path test: raw name
+        // bytes + recomputed checksum.
+        let raw = header.as_mut_bytes();
+        let name = b"package/../evil.txt";
+        raw[..name.len()].copy_from_slice(name);
+        for result_b in &mut raw[name.len()..100] {
+            *result_b = 0;
+        }
+        header.set_cksum();
+        builder.append(&header, &b"evil!"[..]).expect("append entry");
+        builder.finish().expect("finalize tar");
+    }
+
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+        .expect_err("parent-dir component must be rejected, not normalized");
+
+    match err {
+        TarballError::ReadTarballEntries(io_err) => {
+            assert_eq!(io_err.kind(), ErrorKind::InvalidData);
+        }
+        other => panic!("expected ReadTarballEntries(InvalidData), got: {other:?}"),
+    }
+
+    drop(tempdir);
+}
+
+/// Streaming-path counterpart of
+/// [`extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps`].
+#[test]
+fn streaming_extract_applies_ignore_filter_dropping_entries_from_both_maps() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        for (path, body) in [
+            ("package/bin/tool", &b"binary"[..]),
+            ("package/lib/node_modules/npm/package.json", &b"{}"[..]),
+            ("package/README.md", &b"readme"[..]),
+        ] {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(body.len() as u64);
+            header.set_mode(0o644);
+            header.set_entry_type(tar::EntryType::Regular);
+            header.set_cksum();
+            builder.append_data(&mut header, path, body).expect("append entry");
+        }
+        builder.finish().expect("finalize tar");
+    }
+
+    fn drop_npm(path: &str) -> bool {
+        path.starts_with("lib/node_modules/npm/")
+    }
+
+    let (cas_paths, pkg_files_idx) =
+        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, Some(&drop_npm))
+            .expect("streaming extraction with ignore filter");
+
+    dbg!(&cas_paths);
+    assert!(cas_paths.contains_key("bin/tool"));
+    assert!(cas_paths.contains_key("README.md"));
+    assert!(!cas_paths.contains_key("lib/node_modules/npm/package.json"));
+    assert!(!pkg_files_idx.files.contains_key("lib/node_modules/npm/package.json"));
+    assert_eq!(pkg_files_idx.requires_build, Some(false));
+
+    drop(tempdir);
+}
+
+/// A `package.json` above [`STREAM_ENTRY_BUFFER_MAX`] must still be
+/// buffered and parsed on the streaming path — routing it through the
+/// direct-to-store branch would silently record
+/// `requires_build: Some(false)` and drop the bundled manifest.
+#[test]
+fn streaming_extract_parses_manifest_larger_than_entry_buffer() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let padding = "p".repeat(usize::try_from(STREAM_ENTRY_BUFFER_MAX).unwrap() + 1);
+    let manifest =
+        format!(r#"{{"name":"pad","scripts":{{"install":"node-gyp rebuild"}},"x":"{padding}"}}"#);
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(manifest.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "package/package.json", manifest.as_bytes())
+            .expect("append manifest");
+        builder.finish().expect("finalize tar");
+    }
+
+    let (_cas_paths, pkg_files_idx) =
+        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+            .expect("streaming extraction");
+
+    assert_eq!(pkg_files_idx.requires_build, Some(true));
+    assert!(pkg_files_idx.manifest.is_some(), "the bundled manifest must be recorded");
+    drop(tempdir);
+}
+
+/// A `package.json` header claiming more than
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`] must be rejected before its payload
+/// is read — buffering it would defeat the streaming path's
+/// bounded-memory guarantee, and skipping the parse would record wrong
+/// build metadata. No payload follows the forged header below: the
+/// guard has to fire on the header alone.
+#[test]
+fn streaming_extract_rejects_manifest_beyond_prealloc_cap() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut header = tar::Header::new_gnu();
+    header.set_path("package/package.json").expect("set tar entry path");
+    header.set_size(MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1);
+    header.set_mode(0o644);
+    header.set_entry_type(tar::EntryType::Regular);
+    header.set_cksum();
+
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(header.as_bytes()), store_path, None)
+        .expect_err("oversized manifest must be rejected, not buffered");
+
+    match err {
+        TarballError::ReadTarballEntries(io_err) => {
+            assert_eq!(io_err.kind(), ErrorKind::InvalidData);
+        }
+        other => panic!("expected ReadTarballEntries(InvalidData), got: {other:?}"),
+    }
+
+    drop(tempdir);
+}
+
+/// A large entry cut short by a truncated (but gzip-valid) archive
+/// must fail extraction without committing the partial payload to the
+/// CAS — the blob would be correctly content-addressed, but a
+/// cut-short transfer must leave the store as it found it.
+#[test]
+fn streaming_extract_truncated_large_entry_commits_nothing() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    let mut header = tar::Header::new_gnu();
+    header.set_path("package/big.bin").expect("set tar entry path");
+    header.set_size(STREAM_ENTRY_BUFFER_MAX + 1);
+    header.set_mode(0o644);
+    header.set_entry_type(tar::EntryType::Regular);
+    header.set_cksum();
+    tar_bytes.extend_from_slice(header.as_bytes());
+    // Only 1 KiB of the claimed payload is present.
+    tar_bytes.extend_from_slice(&[0u8; 1024]);
+
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+        .expect_err("truncated large entry must fail extraction");
+    assert!(
+        matches!(err, TarballError::ReadTarballEntries(_)),
+        "expected ReadTarballEntries, got: {err:?}",
+    );
+
+    fn count_files_recursively(dir: &Path) -> usize {
+        std::fs::read_dir(dir).map_or(0, |entries| {
+            entries
+                .map(|entry| entry.expect("read dirent"))
+                .map(|entry| {
+                    if entry.file_type().expect("dirent file type").is_dir() {
+                        count_files_recursively(&entry.path())
+                    } else {
+                        1
+                    }
+                })
+                .sum()
+        })
+    }
+    assert_eq!(
+        count_files_recursively(&store_path.root().join("files")),
+        0,
+        "the truncated entry must not commit anything to the CAS",
+    );
+
+    drop(tempdir);
+}
+
+/// Corrupt gzip bytes must surface as a [`TarballError`] the retry
+/// classifier treats as transient, matching the eager path's
+/// `DecodeGzip` handling; on the streaming path the decoder fails
+/// through the tar reader as `ReadTarballEntries`.
+#[test]
+fn streaming_extract_propagates_corrupt_gzip_as_read_error() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let bogus: Vec<u8> = vec![0xFF; 1024];
+    let err = stream_extract_gzipped_tarball(&bogus, store_path, None)
+        .expect_err("corrupt gzip must surface a TarballError, not panic");
+
+    assert!(
+        matches!(err, TarballError::ReadTarballEntries(_)),
+        "expected ReadTarballEntries, got: {err:?}",
+    );
+    assert!(is_transient_error(&err), "a corrupt stream must remain retryable");
+
+    drop(tempdir);
+}
+
+/// A registry `dist.unpackedSize` at the streaming pivot routes the
+/// full download pipeline — integrity verification included — through
+/// the streaming extractor.
+#[tokio::test]
+async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let (tar_bytes, large_payload) = mixed_size_tar();
+    let body = gzip_bytes(&tar_bytes);
+    let pkg_integrity = {
+        let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+        opts.input(&body);
+        opts.result()
+    };
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(&body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+
+    let (computed_integrity, cas_paths, pkg_files_idx) =
+        fetch_and_extract_with_retry::<SilentReporter>(
+            &client,
+            &url,
+            Some(&pkg_integrity),
+            Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+            0,
+            "test-pkg",
+            "",
+            store_path,
+            fast_retry_opts(),
+            &AuthHeaders::default(),
+            None,
+            None,
+        )
+        .await
+        .expect("download with a large unpacked-size hint");
+
+    assert_eq!(computed_integrity.to_string(), pkg_integrity.to_string());
+    assert!(cas_paths.contains_key("package.json"));
+    assert!(cas_paths.contains_key("bin/tool"));
+    assert_eq!(
+        std::fs::read(&cas_paths["big.bin"]).expect("read streamed large entry"),
+        large_payload,
+    );
+    assert_eq!(pkg_files_idx.requires_build, Some(true));
+    mock.assert_async().await;
+    drop(store_dir_keep);
 }
 
 /// `RetryOpts::default()` uses pnpm's network-fetch defaults: 2
