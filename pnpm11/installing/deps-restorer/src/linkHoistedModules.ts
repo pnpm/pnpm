@@ -115,7 +115,13 @@ async function quarantineDir ({ dir, modulesDir, pkgName }: UnplannedDir, lockfi
   const ignoredDir = path.join(modulesDir, '.ignored', pkgName)
   removalLogger.debug(dir)
   try {
-    await fs.mkdir(path.dirname(ignoredDir), { recursive: true })
+    if (!await makeIgnoredParent(modulesDir, pkgName)) {
+      logger.warn({
+        message: `Not moving ${pkgName} to "node_modules/.ignored": the destination leads outside "${modulesDir}"`,
+        prefix: lockfileDir,
+      })
+      return
+    }
     await renameOverwrite(dir, ignoredDir)
   } catch (err: unknown) {
     logger.warn({
@@ -129,6 +135,34 @@ async function quarantineDir ({ dir, modulesDir, pkgName }: UnplannedDir, lockfi
     message: `Moving ${pkgName} to "node_modules/.ignored". It is not in the dependency tree and pnpm has no record of installing it.`,
     prefix: path.dirname(modulesDir),
   })
+}
+
+/**
+ * Create `.ignored`, and the scope directory under it when `pkgName` is scoped,
+ * refusing to descend through a level that already exists as anything but a
+ * real directory.
+ *
+ * `mkdir -p` traverses a symlink it finds on the way, so a `.ignored` link
+ * would redirect the move — and `renameOverwrite` deletes an occupied
+ * destination before retrying — outside the tree pnpm is allowed to touch.
+ */
+async function makeIgnoredParent (modulesDir: string, pkgName: string): Promise<boolean> {
+  const ignoredDir = await makeRealDir(modulesDir, '.ignored')
+  if (ignoredDir == null) return false
+  const [scope] = pkgName.split('/')
+  if (scope === pkgName) return true
+  return await makeRealDir(ignoredDir, scope) != null
+}
+
+async function makeRealDir (parent: string, name: string): Promise<string | null> {
+  const dir = path.join(parent, name)
+  try {
+    await fs.mkdir(dir)
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    if (!await isRealDir(dir)) return null
+  }
+  return dir
 }
 
 async function tryRemoveDir (dir: string): Promise<void> {

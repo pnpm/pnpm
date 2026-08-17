@@ -239,8 +239,13 @@ fn confined(dir: &Path, confine_root: &Path) -> bool {
 /// the tree correct; the bytes are incidental.
 fn quarantine_dir(unplanned: &UnplannedDir) {
     let ignored_dir = unplanned.modules_dir.join(".ignored").join(&unplanned.pkg_name);
-    let Some(parent) = ignored_dir.parent() else { return };
-    if fs::create_dir_all(parent).is_err() {
+    if !make_ignored_parent(&unplanned.modules_dir, &unplanned.pkg_name) {
+        tracing::warn!(
+            pkg_name = %unplanned.pkg_name,
+            modules_dir = ?unplanned.modules_dir,
+            "not moving a package to \"node_modules/.ignored\": the destination leads outside \
+             the modules directory",
+        );
         return;
     }
     if rename_overwrite(&unplanned.dir, &ignored_dir).is_err() {
@@ -252,6 +257,34 @@ fn quarantine_dir(unplanned: &UnplannedDir) {
         "moving a package to \"node_modules/.ignored\": it is not in the dependency tree \
          and pnpm has no record of installing it",
     );
+}
+
+/// Create `.ignored`, and the scope directory under it when `pkg_name`
+/// is scoped, refusing to descend through a level that already exists as
+/// anything but a real directory.
+///
+/// `create_dir_all` traverses a symlink it finds on the way, so a
+/// `.ignored` link would redirect the move — and [`rename_overwrite`]
+/// removes an occupied destination before retrying — outside the tree
+/// pnpm is allowed to touch.
+fn make_ignored_parent(modules_dir: &Path, pkg_name: &str) -> bool {
+    let Some(ignored_dir) = make_real_dir(modules_dir, ".ignored") else { return false };
+    match pkg_name.split_once('/') {
+        Some((scope, _)) => make_real_dir(&ignored_dir, scope).is_some(),
+        None => true,
+    }
+}
+
+fn make_real_dir(parent: &Path, name: &str) -> Option<PathBuf> {
+    let dir = parent.join(name);
+    match fs::create_dir(&dir) {
+        Ok(()) => Some(dir),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            let is_real_dir = fs::symlink_metadata(&dir).is_ok_and(|metadata| metadata.is_dir());
+            is_real_dir.then_some(dir)
+        }
+        Err(_) => None,
+    }
 }
 
 /// Package directories that physically exist inside `project_dir`'s

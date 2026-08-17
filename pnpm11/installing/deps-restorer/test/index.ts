@@ -932,6 +932,12 @@ test('installing in a workspace with node-linker=hoisted quarantines directories
   const buildOutput = path.join(prefix, 'foo/node_modules/build-output')
   fs.mkdirSync(buildOutput, { recursive: true })
   fs.writeFileSync(path.join(buildOutput, 'bundle.js'), '')
+  // `.ignored` is a write destination, so a symlink there would redirect the
+  // move out of the project — and renameOverwrite clears an occupied
+  // destination before retrying, which would delete on the way.
+  const outsideIgnored = path.join(prefix, '../outside-ignored')
+  fs.mkdirSync(outsideIgnored, { recursive: true })
+  fs.symlinkSync(outsideIgnored, path.join(prefix, 'bar/node_modules/.ignored'), 'junction')
   const linkedDep = path.join(prefix, 'foo/node_modules/linked-dep')
   fs.symlinkSync(path.join(prefix, 'bar'), linkedDep, 'junction')
   // A symlinked scope container would put every name under it outside the
@@ -950,9 +956,13 @@ test('installing in a workspace with node-linker=hoisted quarantines directories
   }))
 
   for (const { dir, ignored } of orphans) {
+    if (dir.startsWith(path.join(prefix, 'bar'))) continue
     expect(fs.existsSync(dir)).toBeFalsy()
     expect(fs.readFileSync(path.join(ignored, 'hand-edit.js'), 'utf8')).toBe('work someone did by hand')
   }
+  // Nothing may travel through the symlinked `.ignored`, so bar's orphan stays put.
+  expect(fs.readdirSync(outsideIgnored)).toStrictEqual([])
+  expect(fs.existsSync(path.join(prefix, 'bar/node_modules/@scope/orphan'))).toBeTruthy()
   expect(fs.existsSync(toolCache)).toBeTruthy()
   expect(fs.existsSync(buildOutput)).toBeTruthy()
   expect(fs.lstatSync(linkedDep).isSymbolicLink()).toBeTruthy()

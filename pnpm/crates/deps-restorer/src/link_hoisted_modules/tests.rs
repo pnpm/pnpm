@@ -406,6 +406,50 @@ fn entries_that_are_not_packages_are_preserved() {
     assert!(build_output.exists(), "non-package dir at {build_output:?}");
 }
 
+/// `.ignored` is a write destination, so a symlink there redirects the
+/// move out of the project — and `rename_overwrite` clears an occupied
+/// destination before retrying, which would delete on the way.
+#[test]
+fn quarantine_does_not_follow_a_symlinked_ignored_dir() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let modules = lockfile_dir.join("node_modules");
+
+    let unplanned = modules.join("stale");
+    fs::create_dir_all(&unplanned).expect("create unplanned dir");
+    fs::write(unplanned.join("package.json"), r#"{"name":"stale","version":"1.0.0"}"#)
+        .expect("write unplanned manifest");
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(&outside).expect("create outside dir");
+    pnpm_fs::symlink_dir(&outside, &modules.join(".ignored")).expect("create .ignored symlink");
+
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"hi")])],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &logged,
+        requester: lockfile_dir.to_str().expect("requester"),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+
+    assert!(
+        fs::read_dir(&outside).expect("read outside").next().is_none(),
+        "nothing may land outside the project at {outside:?}",
+    );
+    assert!(unplanned.exists(), "the package stays put when it cannot be quarantined");
+}
+
 /// A name below a symlinked scope container is lexically inside the
 /// install root while its target is not, and the confinement check is
 /// lexical, so removal would follow the symlink straight out of it.
