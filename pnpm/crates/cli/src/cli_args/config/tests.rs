@@ -472,11 +472,11 @@ fn get_virtual_store_type_and_its_boolean_spelling() {
     );
     assert_eq!(
         config_get(&config, flags(true, None, false), "virtual-store-type").unwrap(),
-        "global"
+        "global",
     );
     assert_eq!(
         config_get(&config, flags(true, None, false), "virtualStoreType").unwrap(),
-        "global"
+        "global",
     );
     assert_eq!(
         config_get(&config, flags(true, None, false), "enable-global-virtual-store").unwrap(),
