@@ -2718,7 +2718,6 @@ fn pkg_root_for_key_isolated_uses_layout() {
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
-    config.enable_global_virtual_store = false;
     let config = config.leak();
     let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 

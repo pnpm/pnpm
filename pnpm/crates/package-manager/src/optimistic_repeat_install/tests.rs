@@ -8,7 +8,6 @@ use super::{
     settings::{current_settings, current_settings_with_catalogs},
     timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
 };
-use crate::tests::project_local_config;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
@@ -202,7 +201,7 @@ fn setup_fresh_install_with_config(
     // the same millisecond bucket and `<=` vs `<` flips the test.
     sleep(Duration::from_millis(20));
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     configure(&mut config);
     let config = Box::leak(Box::new(config));
@@ -737,7 +736,7 @@ fn returns_skipped_when_config_disabled() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.optimistic_repeat_install = false;
     let config = config.leak();
@@ -764,7 +763,7 @@ fn returns_skipped_when_no_state_file() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     let config = config.leak();
 
@@ -860,7 +859,7 @@ fn returns_skipped_when_overrides_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut overrides = indexmap::IndexMap::new();
@@ -869,7 +868,7 @@ fn returns_skipped_when_overrides_drift() {
     let config = config.leak();
 
     // Cached state has `foo: "1.0.0"` for the same key.
-    let mut stale_overrides_config = project_local_config();
+    let mut stale_overrides_config = Config::new();
     stale_overrides_config.modules_dir = config.modules_dir.clone();
     let mut overrides = indexmap::IndexMap::new();
     overrides.insert("foo".to_string(), "1.0.0".to_string());
@@ -910,13 +909,13 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.inject_workspace_packages = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.inject_workspace_packages = false;
     let stale_settings = current_settings(
@@ -954,13 +953,13 @@ fn returns_skipped_when_enable_global_virtual_store_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.enable_global_virtual_store = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.enable_global_virtual_store = false;
     let stale_settings = current_settings(
@@ -1028,13 +1027,13 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.exclude_links_from_lockfile = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.exclude_links_from_lockfile = false;
     let stale_settings = current_settings(
@@ -1071,13 +1070,13 @@ fn returns_skipped_when_minimum_release_age_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.minimum_release_age = Some(2880);
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.minimum_release_age = Some(1440);
     let stale_settings = current_settings(
@@ -1113,13 +1112,13 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.minimum_release_age_ignore_missing_time = false;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.minimum_release_age_ignore_missing_time = true;
     let stale_settings = current_settings(
@@ -1154,13 +1153,13 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.ignored_optional_dependencies = Some(vec!["new-pattern".to_string()]);
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.ignored_optional_dependencies = Some(vec!["old-pattern".to_string()]);
     let stale_settings = current_settings(
@@ -1194,7 +1193,7 @@ fn returns_skipped_when_patched_dependencies_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut patched = indexmap::IndexMap::new();
@@ -1202,7 +1201,7 @@ fn returns_skipped_when_patched_dependencies_drift() {
     config.patched_dependencies = Some(patched);
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     let mut patched = indexmap::IndexMap::new();
     patched.insert("foo@1.0.0".to_string(), "patches/foo.patch".to_string());
@@ -1246,7 +1245,7 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
     fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
     fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut patched = indexmap::IndexMap::new();
@@ -1291,7 +1290,7 @@ fn returns_up_to_date_when_patch_file_unchanged() {
     fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
     fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut patched = indexmap::IndexMap::new();
@@ -1329,13 +1328,13 @@ fn returns_skipped_when_dedupe_peers_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.dedupe_peers = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.dedupe_peers = false;
     let stale_settings = current_settings(
@@ -1370,13 +1369,13 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.prefer_workspace_packages = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.prefer_workspace_packages = false;
     let stale_settings = current_settings(
@@ -1410,13 +1409,13 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.peers_suffix_max_length = 100;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.peers_suffix_max_length = 1000;
     let stale_settings = current_settings(
@@ -1454,7 +1453,7 @@ fn returns_skipped_when_package_extensions_drift() {
     deps.insert("dep-a".to_string(), "1.0.0".to_string());
     let extension =
         pnpm_config::PackageExtension { dependencies: Some(deps), ..Default::default() };
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut extensions = indexmap::IndexMap::new();
@@ -1463,7 +1462,7 @@ fn returns_skipped_when_package_extensions_drift() {
     let config = config.leak();
 
     // Cached state recorded a different `dep-a` version for `foo`.
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     let mut deps = std::collections::BTreeMap::new();
     deps.insert("dep-a".to_string(), "2.0.0".to_string());
@@ -1505,13 +1504,13 @@ fn returns_skipped_when_allow_builds_drift() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.allow_builds.insert("foo".to_string(), true);
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.allow_builds.insert("foo".to_string(), false);
     let stale_settings = current_settings(
@@ -1564,13 +1563,13 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.dedupe_direct_deps = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.dedupe_direct_deps = false;
     let stale_settings = current_settings(
@@ -1606,7 +1605,7 @@ fn returns_skipped_when_trust_policy_is_newly_configured() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = workspace_root.join("node_modules");
     let stale_settings = current_settings(
         &stale_config,
@@ -1622,7 +1621,7 @@ fn returns_skipped_when_trust_policy_is_newly_configured() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.trust_policy = pnpm_config::TrustPolicy::NoDowngrade;
@@ -1644,7 +1643,7 @@ fn returns_skipped_when_trust_policy_is_newly_configured() {
 /// resolution rule being mirrored.
 #[test]
 fn records_minimum_release_age_strict_like_pnpm_resolves_it() {
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.explicit_settings.insert("minimumReleaseAge".to_string(), serde_json::Value::from(1440));
     let settings =
         current_settings(&config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
@@ -1679,7 +1678,7 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
@@ -1719,7 +1718,7 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
@@ -1766,7 +1765,7 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
@@ -1821,7 +1820,7 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
@@ -2170,7 +2169,7 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     fs::write(workspace_root.join("package.json"), FOO_MANIFEST).unwrap();
     fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
     fs::create_dir_all(&config.virtual_store_dir).unwrap();
@@ -2429,7 +2428,7 @@ importers:
     )
     .unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
     config.link_workspace_packages = link_workspace_packages;
@@ -2586,7 +2585,7 @@ importers:
 ",
     )
     .unwrap();
-    let config = project_local_config();
+    let config = Config::new();
     let project_manifests =
         [(workspace_root.to_path_buf(), &root_manifest), (sibling_dir, &sibling_manifest)];
     let context = LinkedPackagesContext::new(&config, &project_manifests);
@@ -2693,7 +2692,7 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
     let (dir, config) = setup_content_check_project();
     // `Config` is leaked per test; build a second one with `lockfile`
     // off instead of mutating the shared reference.
-    let mut no_lockfile_config = project_local_config();
+    let mut no_lockfile_config = Config::new();
     no_lockfile_config.modules_dir = config.modules_dir.clone();
     no_lockfile_config.virtual_store_dir = config.virtual_store_dir.clone();
     no_lockfile_config.lockfile = false;
