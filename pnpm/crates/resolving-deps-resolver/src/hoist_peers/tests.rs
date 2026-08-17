@@ -4,7 +4,7 @@
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, path::Path};
 
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
 };
 use pretty_assertions::assert_eq;

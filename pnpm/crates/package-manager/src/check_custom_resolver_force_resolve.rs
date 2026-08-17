@@ -6,8 +6,8 @@ use std::{path::Path, sync::Arc};
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use serde_json::Value;
 
-use pacquet_hooks::{CustomResolver, HookError, finder};
-use pacquet_lockfile::{Lockfile, PackageKey, SnapshotEntry};
+use pnpm_hooks::{CustomResolver, HookError, finder};
+use pnpm_lockfile::{Lockfile, PackageKey, SnapshotEntry};
 
 /// Load the pnpmfile at `lockfile_dir` (if any) and report whether its
 /// custom resolvers force re-resolution of `lockfile`. Used by the

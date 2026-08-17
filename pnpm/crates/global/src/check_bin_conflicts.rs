@@ -7,7 +7,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest, pkg_owns_bin};
+use pnpm_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest, pkg_owns_bin};
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
@@ -131,7 +131,8 @@ pub fn check_global_bin_conflicts(
 /// On Windows the `node` runtime bin is linked as `<name>.exe` (with no bare
 /// `<name>` file), so that flavor is checked too — otherwise an existing
 /// `node.exe` would not be detected as a conflict.
-fn bin_slot_exists(global_bin_dir: &Path, name: &str) -> bool {
+#[must_use]
+pub fn bin_slot_exists(global_bin_dir: &Path, name: &str) -> bool {
     if global_bin_dir.join(name).exists() {
         return true;
     }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.npm-resolver",
-  "version": "1103.1.0",
+  "version": "1103.2.1",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -63,7 +63,6 @@
     "ramda": "catalog:",
     "rename-overwrite": "catalog:",
     "semver": "catalog:",
-    "semver-utils": "catalog:",
     "ssri": "catalog:",
     "validate-npm-package-name": "catalog:",
     "version-selector-type": "catalog:"

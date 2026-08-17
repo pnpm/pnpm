@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 use clap::Args;
 use miette::IntoDiagnostic;
-use pacquet_config::Config;
-use pacquet_global::{ListReportAs, find_global_install_dirs, list_global_packages};
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_config::Config;
+use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
+use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::cli_args::{
     deps_tree::{
@@ -275,7 +275,12 @@ impl ListArgs {
             Some(config.modules_dir.as_path()),
             self.lockfile_only,
         )?;
-        let env = state.env(lockfile_dir, config.virtual_store_dir_max_length as usize);
+        let env = state.env(
+            lockfile_dir,
+            config.virtual_store_dir_max_length as usize,
+            &config.resolved_registries(),
+            config.registry_options_by_url.clone(),
+        );
 
         let mut hierarchies: Vec<(PathBuf, DependenciesHierarchy)> = Vec::new();
         if self.depth == RecursionLimit::ProjectsOnly || env.is_none() {

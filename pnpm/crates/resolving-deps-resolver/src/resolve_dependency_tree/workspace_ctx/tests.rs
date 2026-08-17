@@ -1,4 +1,4 @@
-use pacquet_resolving_resolver_base::ResolveOptions;
+use pnpm_resolving_resolver_base::ResolveOptions;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -24,20 +24,27 @@ fn importer_snapshot_excludes_other_importers_occurrence_nodes() {
         (
             root.clone(),
             DependenciesTreeNode::new(
-                "root@1.0.0".to_string(),
-                TreeChildren::Realized(BTreeMap::from([("child".to_string(), child.clone())])),
+                Arc::from("root@1.0.0".to_string()),
+                TreeChildren::Realized(
+                    BTreeMap::from([("child".to_string(), child.clone())]).into(),
+                ),
                 0,
                 true,
             ),
         ),
         (
             child.clone(),
-            DependenciesTreeNode::new("child@1.0.0".to_string(), TreeChildren::empty(), 1, true),
+            DependenciesTreeNode::new(
+                Arc::from("child@1.0.0".to_string()),
+                TreeChildren::empty(),
+                1,
+                true,
+            ),
         ),
         (
             unrelated.clone(),
             DependenciesTreeNode::new(
-                "unrelated@1.0.0".to_string(),
+                Arc::from("unrelated@1.0.0".to_string()),
                 TreeChildren::empty(),
                 0,
                 true,
@@ -68,25 +75,26 @@ fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
     lock_recoverable(&workspace.dependencies_tree).insert(
         root.clone(),
         DependenciesTreeNode::new(
-            "root@1.0.0".to_string(),
+            Arc::from("root@1.0.0".to_string()),
             TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
             0,
             true,
         ),
     );
     for pkg_id in ["root@1.0.0", "lazy-child@1.0.0", "foreign@1.0.0"] {
-        lock_recoverable(&workspace.packages).insert(pkg_id.to_string(), snapshot_package(pkg_id));
+        lock_recoverable(&workspace.packages)
+            .insert(Arc::from(pkg_id.to_string()), snapshot_package(pkg_id));
     }
     lock_recoverable(&workspace.children_by_id).insert(
-        "root@1.0.0".to_string(),
+        Arc::from("root@1.0.0".to_string()),
         recorded(vec![ChildEdge {
             alias: "lazy-child".to_string(),
-            pkg_id: "lazy-child@1.0.0".to_string(),
+            pkg_id: Arc::from("lazy-child@1.0.0".to_string()),
             optional: false,
         }]),
     );
     lock_recoverable(&workspace.children_by_id)
-        .insert("foreign@1.0.0".to_string(), recorded(Vec::new()));
+        .insert(Arc::from("foreign@1.0.0".to_string()), recorded(Vec::new()));
 
     let snapshot = workspace.snapshot_reachable_from(vec![DirectDep {
         alias: "root".to_string(),
@@ -130,6 +138,13 @@ fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
         ),
         "the non-owner occurrence flips to lazy",
     );
+
+    make_non_owner_nodes_lazy(&ctx, "pkg@1.0.0", &owner);
+    assert_eq!(
+        workspace.children_rewrites(),
+        1,
+        "an occurrence already reading the owner's children is not a rewrite",
+    );
 }
 
 #[test]
@@ -152,7 +167,7 @@ fn owner_missing_record_is_written_once_per_generation() {
         peer_shadowed: Arc::new(HashSet::default()),
     };
     lock_recoverable(&ctx.children_owner_by_id)
-        .insert("pkg@1.0.0".to_string(), entry(owner.clone()));
+        .insert(Arc::from("pkg@1.0.0".to_string()), entry(owner.clone()));
 
     let names = |names: &[&str]| -> HashSet<String> {
         names.iter().map(|name| (*name).to_string()).collect()
@@ -180,7 +195,8 @@ fn owner_missing_record_is_written_once_per_generation() {
     );
 
     let new_owner = ChildrenOwner { depth: 0, ..owner };
-    lock_recoverable(&ctx.children_owner_by_id).insert("pkg@1.0.0".to_string(), entry(new_owner));
+    lock_recoverable(&ctx.children_owner_by_id)
+        .insert(Arc::from("pkg@1.0.0".to_string()), entry(new_owner));
     ctx.record_first_walk_missing(".", &miss(&none));
     assert_eq!(
         ctx.first_walk_missing_by_pkg().get("pkg@1.0.0").map(HashSet::len),
@@ -205,7 +221,7 @@ fn owner_scope_snapshots_are_shared_until_a_write_changes_the_map() {
         importer_id: ".".to_string(),
     };
     lock_recoverable(&ctx.children_owner_by_id).insert(
-        "pkg@1.0.0".to_string(),
+        Arc::from("pkg@1.0.0".to_string()),
         ChildrenOwnerEntry { owner, peer_shadowed: Arc::new(HashSet::default()) },
     );
 
@@ -251,7 +267,7 @@ fn importer_scoped_update_owner_wins_before_discovery_order() {
 
 fn snapshot_package(pkg_id: &str) -> super::ResolvedPackage {
     super::ResolvedPackage {
-        id: pkg_id.to_string(),
+        id: Arc::from(pkg_id.to_string()),
         result: std::sync::Arc::new(manifest_result(serde_json::json!({}))),
         peer_dependencies: BTreeMap::new(),
         optional: false,
@@ -295,7 +311,8 @@ fn run_preferred_versions_grow_with_new_roots_and_rebuild_on_children_rewrites()
 
     // A children-ownership rewrite can drop edges, so the closure is
     // rebuilt rather than grown.
-    lock_recoverable(&workspace.children_by_id).insert("root@1.0.0".to_string(), recorded(vec![]));
+    lock_recoverable(&workspace.children_by_id)
+        .insert(Arc::from("root@1.0.0".to_string()), recorded(vec![]));
     workspace.record_children_rewrite();
     workspace.bump_revision();
     let cache = workspace.run_preferred_versions();
@@ -308,7 +325,7 @@ fn run_preferred_versions_grow_with_new_roots_and_rebuild_on_children_rewrites()
 fn run_preferred_versions_fold_workspace_manifest_identities_once_reachable() {
     let workspace = WorkspaceTreeCtx::default();
     lock_recoverable(&workspace.packages)
-        .insert("link:packages/opt".to_string(), snapshot_package("link:packages/opt"));
+        .insert(Arc::from("link:packages/opt".to_string()), snapshot_package("link:packages/opt"));
     workspace.record_workspace_manifest_identity("link:packages/opt", "opt", "1.0.0");
     insert_named_package(&workspace, "root", "1.0.0");
     workspace.record_preferred_version_roots(std::iter::once("root@1.0.0"));
@@ -329,7 +346,7 @@ fn run_preferred_versions_pick_up_an_identity_recorded_after_the_first_visit() {
     let workspace = WorkspaceTreeCtx::default();
     insert_named_package(&workspace, "root", "1.0.0");
     lock_recoverable(&workspace.packages)
-        .insert("link:packages/opt".to_string(), snapshot_package("link:packages/opt"));
+        .insert(Arc::from("link:packages/opt".to_string()), snapshot_package("link:packages/opt"));
     insert_child_edge(&workspace, "root@1.0.0", "opt", "link:packages/opt");
     workspace.record_preferred_version_roots(std::iter::once("root@1.0.0"));
     workspace.bump_revision();
@@ -341,8 +358,8 @@ fn run_preferred_versions_pick_up_an_identity_recorded_after_the_first_visit() {
 }
 
 fn insert_named_package(workspace: &WorkspaceTreeCtx, name: &str, version: &str) {
-    let name_ver = pacquet_lockfile::PkgNameVer::new(
-        pacquet_lockfile::PkgName::parse(name).expect("parse package name"),
+    let name_ver = pnpm_lockfile::PkgNameVer::new(
+        pnpm_lockfile::PkgName::parse(name).expect("parse package name"),
         version.parse::<node_semver::Version>().expect("parse package version"),
     );
     let mut result = manifest_result(serde_json::json!({}));
@@ -350,28 +367,28 @@ fn insert_named_package(workspace: &WorkspaceTreeCtx, name: &str, version: &str)
     result.name_ver = Some(name_ver);
     let pkg_id = format!("{name}@{version}");
     let package = super::ResolvedPackage {
-        id: pkg_id.clone(),
+        id: Arc::from(pkg_id.clone()),
         result: std::sync::Arc::new(result),
         peer_dependencies: BTreeMap::new(),
         optional: false,
         is_leaf: false,
     };
-    lock_recoverable(&workspace.packages).insert(pkg_id, package);
+    lock_recoverable(&workspace.packages).insert(Arc::from(pkg_id), package);
 }
 
 fn insert_child_edge(workspace: &WorkspaceTreeCtx, parent_id: &str, alias: &str, child_id: &str) {
     lock_recoverable(&workspace.children_by_id).insert(
-        parent_id.to_string(),
+        Arc::from(parent_id.to_string()),
         recorded(vec![crate::resolved_tree::ChildEdge {
             alias: alias.to_string(),
-            pkg_id: child_id.to_string(),
+            pkg_id: Arc::from(child_id.to_string()),
             optional: false,
         }]),
     );
 }
 
 fn bucket_versions(
-    versions: &pacquet_resolving_resolver_base::PreferredVersions,
+    versions: &pnpm_resolving_resolver_base::PreferredVersions,
     name: &str,
 ) -> Vec<String> {
     versions.get(name).map(|bucket| bucket.keys().cloned().collect()).unwrap_or_default()
@@ -449,7 +466,7 @@ fn record_package(workspace: &WorkspaceTreeCtx, pkg_id: &str, peer_names: &[&str
         })
         .collect();
     lock_recoverable(&workspace.packages).insert(
-        pkg_id.to_string(),
+        Arc::from(pkg_id.to_string()),
         super::ResolvedPackage { peer_dependencies, ..snapshot_package(pkg_id) },
     );
     let mut all_peers = lock_recoverable(&workspace.all_peer_dep_names);
@@ -473,7 +490,7 @@ fn record_tree_node(workspace: &WorkspaceTreeCtx, node_id: &NodeId, pkg_id: &str
         }
         std::collections::hash_map::Entry::Vacant(entry) => {
             entry.insert(DependenciesTreeNode::new(
-                pkg_id.to_string(),
+                Arc::from(pkg_id.to_string()),
                 TreeChildren::empty(),
                 depth,
                 true,
@@ -502,7 +519,8 @@ fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChild
 fn recorded_children_match_only_under_the_recording_context() {
     use super::super::{UpdateReuseScope, tree_ctx::TreeCtx};
     use super::{
-        RecordedChildrenContext, claim_children_owner, record_children, recorded_children_match,
+        ChildrenRecording, RecordedChildrenContext, claim_children_owner, record_children,
+        recorded_children_match,
     };
     use std::sync::Arc;
 
@@ -515,7 +533,10 @@ fn recorded_children_match_only_under_the_recording_context() {
         update_active: false,
     };
     assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &context()), "nothing recorded yet");
-    assert!(record_children(&ctx, "pkg@1.0.0", &claim.owner, Vec::new(), context()));
+    assert_ne!(
+        record_children(&ctx, "pkg@1.0.0", &claim.owner, Vec::new(), context()),
+        ChildrenRecording::Declined,
+    );
 
     assert!(recorded_children_match(&ctx, "pkg@1.0.0", &context()));
     let shadowed = RecordedChildrenContext {
@@ -533,12 +554,48 @@ fn recorded_children_match_only_under_the_recording_context() {
     assert!(matches!(ctx.update_reuse_scope(), UpdateReuseScope::All));
 }
 
+/// Which of a package's dependencies its own peers supply is a
+/// property of the occurrence, and pinned children were filtered under
+/// the recording occurrence's set — so the pins stand in for a fresh
+/// walk only where the two shadow the same names.
+#[test]
+fn a_pin_stands_in_only_for_a_walk_that_shadows_the_same_dependencies() {
+    use super::RecordedChildrenContext;
+    use std::sync::Arc;
+
+    let fresh = RecordedChildrenContext {
+        peer_shadowed: Arc::default(),
+        prior_key: None,
+        update_active: false,
+    };
+    let pinned = RecordedChildrenContext {
+        prior_key: Some("pkg@1.0.0".parse().expect("parse snapshot key")),
+        ..fresh.clone()
+    };
+    assert!(pinned.pins_children_over(&fresh));
+
+    let shadowed = RecordedChildrenContext {
+        peer_shadowed: Arc::new(HashSet::from_iter(["peer".to_string()])),
+        ..pinned.clone()
+    };
+    assert!(!shadowed.pins_children_over(&fresh), "a different shadow set filtered them");
+    assert!(shadowed.pins_children_over(&RecordedChildrenContext {
+        peer_shadowed: Arc::clone(&shadowed.peer_shadowed),
+        ..fresh.clone()
+    }));
+
+    let updating = RecordedChildrenContext { update_active: true, ..fresh };
+    assert!(!pinned.pins_children_over(&updating), "an update re-resolves pins on purpose");
+}
+
 /// A walk that lost the claim while it ran must not overwrite the
 /// children the occurrence that outranked it published.
 #[test]
 fn children_are_published_only_by_the_standing_owner() {
     use super::super::tree_ctx::TreeCtx;
-    use super::{RecordedChildrenContext, claim_children_owner, record_children};
+    use super::{
+        ChildrenRecording, RecordedChildrenContext, claim_children_owner, record_children,
+    };
     use std::sync::Arc;
 
     let workspace = Arc::new(WorkspaceTreeCtx::default());
@@ -552,9 +609,86 @@ fn children_are_published_only_by_the_standing_owner() {
     let shallow = claim_children_owner(&ctx, "pkg@1.0.0", 0, &[], HashSet::default());
     assert!(deep.owns_children && shallow.owns_children, "each claim won when it was taken");
 
-    assert!(
-        !record_children(&ctx, "pkg@1.0.0", &deep.owner, Vec::new(), context()),
+    assert_eq!(
+        record_children(&ctx, "pkg@1.0.0", &deep.owner, Vec::new(), context()),
+        ChildrenRecording::Declined,
         "the deeper walk lost the claim before it published",
     );
-    assert!(record_children(&ctx, "pkg@1.0.0", &shallow.owner, Vec::new(), context()));
+    assert_ne!(
+        record_children(&ctx, "pkg@1.0.0", &shallow.owner, Vec::new(), context()),
+        ChildrenRecording::Declined,
+    );
+}
+
+/// A later owner re-walks whenever its resolution context differs from
+/// the recorded one, which the claim's own `peer_shadowed` comparison
+/// cannot see. Only edges that actually moved stale the realized
+/// children every other occurrence node still holds — and never the
+/// ones the prior lockfile pinned, whose whole point is to survive a
+/// fresh walk's different answer.
+#[test]
+fn re_recording_reports_whether_the_child_edges_moved() {
+    use super::super::tree_ctx::TreeCtx;
+    use super::{
+        ChildrenRecording, RecordedChildrenContext, claim_children_owner, record_children,
+    };
+    use std::sync::Arc;
+
+    let workspace = Arc::new(WorkspaceTreeCtx::default());
+    let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
+    let context = || RecordedChildrenContext {
+        peer_shadowed: Arc::default(),
+        prior_key: None,
+        update_active: false,
+    };
+    let edges = |pkg_id: &str| {
+        vec![crate::resolved_tree::ChildEdge {
+            alias: "dep".to_string(),
+            pkg_id: Arc::from(pkg_id.to_string()),
+            optional: false,
+        }]
+    };
+    let owner = claim_children_owner(&ctx, "pkg@1.0.0", 0, &[], HashSet::default());
+
+    assert_eq!(
+        record_children(&ctx, "pkg@1.0.0", &owner.owner, edges("dep@1.0.0"), context()),
+        ChildrenRecording::Published,
+        "no occurrence node can hold children of a package nothing recorded yet",
+    );
+    assert_eq!(
+        record_children(&ctx, "pkg@1.0.0", &owner.owner, edges("dep@1.0.0"), context()),
+        ChildrenRecording::Published,
+    );
+    assert_eq!(
+        record_children(&ctx, "pkg@1.0.0", &owner.owner, edges("dep@2.0.0"), context()),
+        ChildrenRecording::PublishedOverStale,
+    );
+
+    let pinned = RecordedChildrenContext {
+        prior_key: Some("pkg@1.0.0".parse().expect("parse snapshot key")),
+        ..context()
+    };
+    assert_eq!(
+        record_children(&ctx, "pkg@1.0.0", &owner.owner, edges("dep@1.0.0"), pinned),
+        ChildrenRecording::PublishedOverStale,
+    );
+    assert_eq!(
+        record_children(&ctx, "pkg@1.0.0", &owner.owner, edges("dep@1.0.0"), context()),
+        ChildrenRecording::Declined,
+        "a fresh walk that agrees does not republish the pin away either",
+    );
+    assert_eq!(
+        record_children(&ctx, "pkg@1.0.0", &owner.owner, edges("dep@2.0.0"), context()),
+        ChildrenRecording::Declined,
+        "a fresh walk does not unpin the subtree the lockfile-reusing occurrences realized",
+    );
+    let standing = lock_recoverable(&workspace.children_by_id);
+    let standing: Vec<&str> = standing
+        .get("pkg@1.0.0")
+        .expect("pinned children")
+        .edges
+        .iter()
+        .map(|edge| &*edge.pkg_id)
+        .collect();
+    assert_eq!(standing, ["dep@1.0.0"], "the pinned children are what every occurrence reads");
 }

@@ -33,7 +33,7 @@ const DEFAULT_OPTIONS = {
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   configByUri: {},
-  registries: {
+  registriesByScope: {
     default: REGISTRY_URL,
   },
   rootProjectManifestDir: '',

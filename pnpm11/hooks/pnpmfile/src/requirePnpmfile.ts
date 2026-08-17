@@ -94,17 +94,21 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
       console.error(err)
       process.exit(1)
     }
-    if (!util.types.isNativeError(err)) {
-      throw new PnpmFileFailError(pnpmFilePath, toError(err))
+    if (isModuleNotFoundError(err) && !pnpmFileExistsSync(pnpmFilePath)) {
+      return undefined
     }
-    if (
-      !('code' in err && (err.code === 'MODULE_NOT_FOUND' || err.code === 'ERR_MODULE_NOT_FOUND')) ||
-      pnpmFileExistsSync(pnpmFilePath)
-    ) {
-      throw new PnpmFileFailError(pnpmFilePath, err)
-    }
-    return undefined
+    throw new PnpmFileFailError(pnpmFilePath, toError(err))
   }
+}
+
+/**
+ * Errors are matched by shape, not by class, because asynchronous module customization
+ * hooks forward them from their own realm, where `util.types.isNativeError()` returns false.
+ * See https://github.com/pnpm/pnpm/issues/11701
+ */
+function isModuleNotFoundError (err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err &&
+    (err.code === 'MODULE_NOT_FOUND' || err.code === 'ERR_MODULE_NOT_FOUND')
 }
 
 function pnpmFileExistsSync (pnpmFilePath: string): boolean {
@@ -115,7 +119,7 @@ function pnpmFileExistsSync (pnpmFilePath: string): boolean {
 }
 
 function toError (err: unknown): Error {
-  if (err instanceof Error) return err
+  if (util.types.isNativeError(err) || err instanceof Error) return err
   try {
     return new Error(String(err), { cause: err })
   } catch {

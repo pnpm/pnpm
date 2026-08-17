@@ -2,7 +2,7 @@ use crate::{
     SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout,
     safe_join_modules_dir::safe_join_modules_dir, symlink_package,
 };
-use pacquet_lockfile::{PkgName, SnapshotDepRef};
+use pnpm_lockfile::{PkgName, SnapshotDepRef};
 use std::{collections::HashMap, path::Path};
 
 /// Create symlink layout of dependencies for a package in a virtual dir.

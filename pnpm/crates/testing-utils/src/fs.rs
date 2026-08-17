@@ -1,4 +1,4 @@
-use pacquet_workspace_state::load_workspace_state;
+use pnpm_workspace_state::load_workspace_state;
 use std::{
     fs, io,
     path::Path,
@@ -50,7 +50,7 @@ pub fn get_all_files(root: &Path) -> Vec<String> {
 }
 
 pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
-    pacquet_fs::is_symlink_or_junction(path)
+    pnpm_fs::is_symlink_or_junction(path)
 }
 
 /// Check if a file is executable.
@@ -113,6 +113,8 @@ pub fn set_mtime_ms(path: &Path, ms: i64) {
 /// Both gaps are [`MTIME_STEP_MS`] wide, and the value comes from the newest
 /// mtime in the tree, so it shares a clock with every file the freshness
 /// check compares it against.
+///
+/// Panics when `root` holds no regular file to take that mtime from.
 #[must_use]
 pub fn backdate_existing_files(root: &Path) -> i64 {
     // Only regular files: the freshness check stats manifests, lockfiles,
@@ -144,9 +146,8 @@ pub fn backdate_existing_files(root: &Path) -> i64 {
 /// timestamp ahead of the present, so it is the reference even when it
 /// post-dates the file.
 ///
-/// # Panics
-///
-/// When no install has recorded a `lastValidatedTimestamp` above `path`.
+/// Panics when no install has recorded a `lastValidatedTimestamp` above
+/// `path`.
 pub fn bump_mtime(path: &Path) {
     let baseline = recorded_validation_timestamp(path);
     set_mtime_ms(path, baseline.max(mtime_ms(path)) + MTIME_STEP_MS);

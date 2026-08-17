@@ -165,7 +165,7 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_hard_link_errors() {
 /// against a packlist entry that escapes the source dir. It is unit-tested
 /// directly because the packlist now filters escaping `main` / `bin`
 /// fields upstream (see `escaping_main_and_bin_fields_are_not_force_included`
-/// in `pacquet-fs-packlist`), so the integration path below no longer
+/// in `pnpm-fs-packlist`), so the integration path below no longer
 /// surfaces one.
 #[test]
 fn safe_package_file_path_rejects_paths_that_escape_source() {

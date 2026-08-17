@@ -1,9 +1,9 @@
 use super::{importer_manifest_name, sanitized_importer_dir};
 use crate::resolver::protocol::ResolveRequest;
-use pacquet_config::{Config, LinkWorkspacePackages};
-use pacquet_lockfile::{ImporterDepVersion, Lockfile, PkgName};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_store_dir::StoreDir;
+use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_store_dir::StoreDir;
 use std::sync::Arc;
 
 #[test]

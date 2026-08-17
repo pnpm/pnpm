@@ -1,7 +1,7 @@
 use super::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
 };
-use pacquet_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{Catalog, Catalogs};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, fs, path::Path};
 use tempfile::tempdir;

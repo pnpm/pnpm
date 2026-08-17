@@ -7,9 +7,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{
     DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions,
     VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
 };

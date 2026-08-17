@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-catalogs-resolver"
+name                  = "pnpm-catalogs-resolver"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,8 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-protocol-parser = { workspace = true }
-pacquet-catalogs-types           = { workspace = true }
+pnpm-catalogs-protocol-parser = { workspace = true }
+pnpm-catalogs-types           = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

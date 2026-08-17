@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Mutex, time::Duration};
 
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
     Resolver, WantedDependency,
 };
@@ -77,8 +77,251 @@ impl Resolver for DelayedAliasResolver {
     }
 }
 
+/// Stub resolver fed from a `name` → versions table, picking the way
+/// the npm resolver does: the highest version the range admits, except
+/// that a version the walk's preferred-versions overlay carries wins
+/// over it. Lets a test vary one edge's pick by the level it resolves
+/// under. `delayed` holds back one `(alias, range)` edge, so the
+/// occurrence behind it reaches a shared package second.
+struct OverlayPickResolver {
+    versions: HashMap<String, Vec<ResolveResult>>,
+    delayed: (String, String),
+}
+
+impl Resolver for OverlayPickResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let name = wanted.alias.clone().unwrap_or_default();
+        let bare = wanted.bare_specifier.clone().unwrap_or_default();
+        let range = node_semver::Range::from_str(&bare).expect("test range");
+        let preferred: Vec<&str> = opts
+            .preferred_versions_overlay
+            .as_ref()
+            .map(|overlay| overlay.versions_for(&name))
+            .unwrap_or_default();
+        let satisfying: Vec<&ResolveResult> = self
+            .versions
+            .get(&name)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .filter(|result| {
+                result.name_ver.as_ref().is_some_and(|name_ver| range.satisfies(&name_ver.suffix))
+            })
+            .collect();
+        let highest = |from: Vec<&ResolveResult>| {
+            from.into_iter()
+                .max_by(|left, right| {
+                    version_of(left).partial_cmp(version_of(right)).expect("comparable versions")
+                })
+                .cloned()
+        };
+        let result = highest(
+            satisfying
+                .iter()
+                .copied()
+                .filter(|result| preferred.contains(&version_of(result).to_string().as_str()))
+                .collect(),
+        )
+        .or_else(|| highest(satisfying));
+        let delayed = (name, bare) == self.delayed;
+        Box::pin(async move {
+            if delayed {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            Ok::<_, ResolveError>(result)
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+fn version_of(result: &ResolveResult) -> &node_semver::Version {
+    &result.name_ver.as_ref().expect("test result carries a name and version").suffix
+}
+
+/// The versions table both settlement tests resolve against: `pin` in
+/// two versions, and a `shared` package whose own `pin` edge the level
+/// it is reached from decides.
+fn settlement_versions(
+    extra: impl IntoIterator<Item = (String, Vec<ResolveResult>)>,
+) -> HashMap<String, Vec<ResolveResult>> {
+    let mut versions: HashMap<String, Vec<ResolveResult>> = HashMap::from_iter([
+        (
+            "shared".to_string(),
+            vec![fake_result(
+                "shared",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "shared",
+                    "version": "1.0.0",
+                    "dependencies": { "pin": "^1.0.0" }
+                }),
+            )],
+        ),
+        (
+            "pin".to_string(),
+            vec![
+                fake_result(
+                    "pin",
+                    "1.0.0",
+                    serde_json::json!({ "name": "pin", "version": "1.0.0" }),
+                ),
+                fake_result(
+                    "pin",
+                    "1.5.0",
+                    serde_json::json!({ "name": "pin", "version": "1.5.0" }),
+                ),
+            ],
+        ),
+    ]);
+    versions.extend(extra);
+    versions
+}
+
+fn dependency_result(name: &str, dependencies: &serde_json::Value) -> (String, Vec<ResolveResult>) {
+    (
+        name.to_string(),
+        vec![fake_result(
+            name,
+            "1.0.0",
+            serde_json::json!({ "name": name, "version": "1.0.0", "dependencies": dependencies }),
+        )],
+    )
+}
+
+async fn resolve_settlement_tree(
+    resolver: &OverlayPickResolver,
+    root_deps: serde_json::Value,
+) -> crate::ResolvedTree {
+    let (_tmp, manifest) = fake_manifest(root_deps);
+    resolve_dependency_tree(
+        resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            overrides_hook: None,
+            pnpmfile_hook: None,
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .unwrap()
+}
+
+/// A package's children follow the occurrence that owns them — the
+/// shallowest, here the one under `wrap`, whose level prefers
+/// `pin@1.0.0` — however slowly that occurrence resolves
+/// (<https://github.com/pnpm/pnpm/issues/13685>).
+#[tokio::test(start_paused = true)]
+async fn children_follow_the_shallowest_occurrence_however_late_it_resolves() {
+    let resolver = OverlayPickResolver {
+        versions: settlement_versions([
+            dependency_result("slow", &serde_json::json!({ "wrap": "1.0.0" })),
+            dependency_result("wrap", &serde_json::json!({ "pin": "1.0.0", "shared": "^1.0.0" })),
+            dependency_result("deep", &serde_json::json!({ "mid": "1.0.0" })),
+            dependency_result("mid", &serde_json::json!({ "nested": "1.0.0" })),
+            dependency_result("nested", &serde_json::json!({ "shared": "^1.0.0" })),
+        ]),
+        delayed: ("wrap".to_string(), "1.0.0".to_string()),
+    };
+
+    let tree =
+        resolve_settlement_tree(&resolver, serde_json::json!({ "deep": "1.0.0", "slow": "1.0.0" }))
+            .await;
+
+    let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
+    assert_eq!(shared_children.len(), 1);
+    assert_eq!(&*shared_children[0].pkg_id, "pin@1.0.0");
+}
+
+/// The winning occurrence's peer-shadowed set is the one that filters
+/// the package's children: `shared` declares `pin` as both a
+/// dependency and a peer, so the edge survives only where the scope
+/// reaching it cannot supply the peer itself. Down `a-parent`, which
+/// resolves `pin` beside the node that depends on `shared`, it does
+/// not — and `a-parent` sorts first.
+#[tokio::test(start_paused = true)]
+async fn peer_shadowing_follows_the_occurrence_that_wins_the_level() {
+    let shadowing_shared = fake_result(
+        "shared",
+        "1.0.0",
+        serde_json::json!({
+            "name": "shared",
+            "version": "1.0.0",
+            "dependencies": { "pin": "1.0.0" },
+            "peerDependencies": { "pin": "^1.0.0" }
+        }),
+    );
+    // `shared` is reached at the same depth down both paths, and its
+    // own peer-shadowing scope is the level of the parent that reaches
+    // it: only `a-parent`'s level resolves `pin`.
+    let mut versions = settlement_versions([
+        dependency_result("a-parent", &serde_json::json!({ "mid-a": "1.0.0", "pin": "1.0.0" })),
+        dependency_result("mid-a", &serde_json::json!({ "shared": "^1.0.0" })),
+        dependency_result("b-parent", &serde_json::json!({ "mid-b": "1.0.0" })),
+        dependency_result("mid-b", &serde_json::json!({ "shared": "1.0.0" })),
+    ]);
+    versions.insert("shared".to_string(), vec![shadowing_shared]);
+    let resolver =
+        OverlayPickResolver { versions, delayed: ("shared".to_string(), "^1.0.0".to_string()) };
+
+    let tree = resolve_settlement_tree(
+        &resolver,
+        serde_json::json!({ "a-parent": "1.0.0", "b-parent": "1.0.0" }),
+    )
+    .await;
+
+    let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
+    eprintln!("SHARED CHILDREN:\n{shared_children:#?}\n");
+    assert!(shared_children.is_empty());
+}
+
+/// Occurrences at the same depth are settled by their parent path, so
+/// the one under `a-parent` decides even when the one under `b-parent`
+/// resolves first.
+#[tokio::test(start_paused = true)]
+async fn same_depth_occurrences_are_settled_by_parent_path() {
+    let resolver = OverlayPickResolver {
+        versions: settlement_versions([
+            dependency_result(
+                "a-parent",
+                &serde_json::json!({ "pin": "1.0.0", "shared": "^1.0.0" }),
+            ),
+            dependency_result(
+                "b-parent",
+                &serde_json::json!({ "pin": "1.5.0", "shared": "1.0.0" }),
+            ),
+        ]),
+        delayed: ("shared".to_string(), "^1.0.0".to_string()),
+    };
+
+    let tree = resolve_settlement_tree(
+        &resolver,
+        serde_json::json!({ "a-parent": "1.0.0", "b-parent": "1.0.0" }),
+    )
+    .await;
+
+    let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
+    assert_eq!(shared_children.len(), 1);
+    assert_eq!(&*shared_children[0].pkg_id, "pin@1.0.0");
+}
+
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
-    use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
     let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),
@@ -175,7 +418,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
     assert_eq!(foo_tree_node.children.realized().len(), 1);
     let bar_node_id = foo_tree_node.children.realized().get("bar").unwrap();
     let bar_tree_node = tree.dependencies_tree.get(bar_node_id).unwrap();
-    assert_eq!(bar_tree_node.resolved_package_id, "bar@2.3.0");
+    assert_eq!(&*bar_tree_node.resolved_package_id, "bar@2.3.0");
     assert!(tree.policy_violations.is_empty());
 }
 
@@ -320,7 +563,7 @@ async fn shallower_revisit_takes_over_shared_children_context() {
     let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
     assert_eq!(shared_children.len(), 1);
     assert_eq!(shared_children[0].alias, "cycle");
-    assert_eq!(shared_children[0].pkg_id, "cycle@1.0.0");
+    assert_eq!(&*shared_children[0].pkg_id, "cycle@1.0.0");
 }
 
 #[tokio::test]
@@ -391,8 +634,11 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
     let shared_via_a = a_tree.children.realized().get("shared").unwrap();
     let shared_via_b = b_tree.children.realized().get("shared").unwrap();
     assert_eq!(shared_via_a, shared_via_b);
-    let shared_occurrences =
-        tree.dependencies_tree.values().filter(|n| n.resolved_package_id == "shared@1.0.0").count();
+    let shared_occurrences = tree
+        .dependencies_tree
+        .values()
+        .filter(|n| n.resolved_package_id == "shared@1.0.0".into())
+        .count();
     assert_eq!(shared_occurrences, 1);
 }
 
@@ -406,8 +652,8 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
 /// `link:<rel-path>` with no peer-graph suffix.
 #[tokio::test]
 async fn workspace_link_node_is_short_circuited_in_tree() {
-    use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-    use pacquet_resolving_resolver_base::PkgResolutionId;
+    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_resolving_resolver_base::PkgResolutionId;
 
     let link_id = "link:../shared";
     let mut table = HashMap::default();
@@ -556,8 +802,8 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
 mod block_exotic_subdeps {
     use std::{collections::HashMap, sync::Mutex};
 
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_resolving_resolver_base::ResolveOptions;
 
     use super::{StubResolver, fake_manifest, fake_result};
     use crate::resolve_dependency_tree::{
@@ -568,7 +814,7 @@ mod block_exotic_subdeps {
         name: &str,
         version: &str,
         manifest: serde_json::Value,
-    ) -> pacquet_resolving_resolver_base::ResolveResult {
+    ) -> pnpm_resolving_resolver_base::ResolveResult {
         let mut result = fake_result(name, version, manifest);
         result.resolved_via = "git-repository".to_string();
         result
@@ -756,13 +1002,64 @@ mod block_exotic_subdeps {
         .expect("exotic subdep must pass when disabled");
         assert!(tree.packages.contains_key("say-hi@1.0.0"));
     }
+
+    #[tokio::test]
+    async fn allows_exotic_dep_under_workspace_dep() {
+        let mut table = HashMap::default();
+        let mut workspace_dep_res = fake_result(
+            "workspace-dep",
+            "1.0.0",
+            serde_json::json!({
+                "name": "workspace-dep",
+                "version": "1.0.0",
+                "dependencies": { "say-hi": "github:zkochan/hi" }
+            }),
+        );
+        workspace_dep_res.resolved_via = "workspace".to_string();
+        table.insert(
+            ("workspace-dep".to_string(), "workspace:^1.0.0".to_string()),
+            workspace_dep_res,
+        );
+        table.insert(
+            ("say-hi".to_string(), "github:zkochan/hi".to_string()),
+            git_result(
+                "say-hi",
+                "1.0.0",
+                serde_json::json!({ "name": "say-hi", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "workspace-dep": "workspace:^1.0.0" }));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions {
+                    block_exotic_subdeps: true,
+                    ..ResolveOptions::default()
+                },
+                patched_dependencies: None,
+                manifest_hook: None,
+                overrides_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+                auto_install_peers: false,
+            },
+        )
+        .await
+        .expect("exotic dep under workspace dep must pass");
+        assert!(tree.packages.contains_key("say-hi@1.0.0"));
+    }
 }
 
 mod peers {
     use std::{collections::HashMap, sync::Mutex};
 
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_resolving_resolver_base::ResolveOptions;
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
@@ -770,7 +1067,7 @@ mod peers {
         resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree},
         resolve_peers::{ResolvePeersOptions, resolve_peers},
     };
-    use pacquet_deps_path::DepPath;
+    use pnpm_deps_path::DepPath;
 
     #[tokio::test]
     async fn pure_package_has_dep_path_equal_to_pkg_id() {
@@ -2041,7 +2338,7 @@ mod peers {
         let peer_only_node_ids: Vec<&NodeId> = tree
             .dependencies_tree
             .iter()
-            .filter(|(_, node)| node.resolved_package_id == "peer-only@1.0.0")
+            .filter(|(_, node)| node.resolved_package_id == "peer-only@1.0.0".into())
             .map(|(id, _)| id)
             .collect();
         assert!(!peer_only_node_ids.is_empty(), "expected at least one tree entry for peer-only");
@@ -2137,7 +2434,7 @@ mod peers {
         let pure_pre: Vec<(&crate::node_id::NodeId, bool)> = tree
             .dependencies_tree
             .iter()
-            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0")
+            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0".into())
             .map(|(id, node)| (id, matches!(node.children, TreeChildren::Lazy { .. })))
             .collect();
         assert_eq!(pure_pre.len(), 2, "expected two occurrences of pure, got {pure_pre:?}");
@@ -2158,7 +2455,7 @@ mod peers {
         let still_lazy = tree
             .dependencies_tree
             .iter()
-            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0")
+            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0".into())
             .filter(|(_, node)| matches!(node.children, TreeChildren::Lazy { .. }))
             .count();
         assert_eq!(
@@ -2172,8 +2469,8 @@ mod peers {
     /// slice.
     #[tokio::test]
     async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
-        use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-        use pacquet_resolving_resolver_base::PkgResolutionId;
+        use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+        use pnpm_resolving_resolver_base::PkgResolutionId;
 
         let link_id = "link:/abs/external";
         let mut table = HashMap::default();
@@ -2195,7 +2492,7 @@ mod peers {
         // read from the manifest, not the id).
         table.insert(
             ("peer-a".to_string(), "link:/abs/external".to_string()),
-            pacquet_resolving_resolver_base::ResolveResult {
+            pnpm_resolving_resolver_base::ResolveResult {
                 id: PkgResolutionId::from(link_id.to_string()),
                 name_ver: None,
                 latest: None,
@@ -2272,9 +2569,9 @@ mod patched_dependencies {
         sync::{Arc, Mutex},
     };
 
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
-    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
+    use pnpm_resolving_resolver_base::ResolveOptions;
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
@@ -2284,7 +2581,7 @@ mod patched_dependencies {
         },
         resolve_peers::{ResolvePeersOptions, resolve_peers},
     };
-    use pacquet_deps_path::DepPath;
+    use pnpm_deps_path::DepPath;
 
     fn exact_group(version: &str, key: &str, hash: &str) -> PatchGroup {
         let info = ExtendedPatchInfo {
@@ -2803,7 +3100,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             true,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("foo".to_string(), "workspace:*".to_string(), false, false)]);
@@ -2818,7 +3115,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             true,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("peer-only".to_string(), "^2.0.0".to_string(), false, false)]);
@@ -2834,7 +3131,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             false,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("regular".to_string(), "^1.0.0".to_string(), false, false)]);
@@ -2850,7 +3147,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             false,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("foo".to_string(), "^2.0.0".to_string(), true, false)]);
@@ -2871,7 +3168,7 @@ mod importer_wanted_specs {
             &manifest,
             ALL_GROUPS,
             false,
-            &pacquet_catalogs_types::Catalogs::new(),
+            &pnpm_catalogs_types::Catalogs::new(),
         )
         .unwrap();
         assert_eq!(wanted, vec![("foo".to_string(), "1.0.0".to_string(), false, false)]);
@@ -2896,7 +3193,7 @@ mod peer_own_dep_shadowing {
         }
     }
 
-    fn parser_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult> {
+    fn parser_table() -> HashMap<(String, String), pnpm_resolving_resolver_base::ResolveResult> {
         let mut table = HashMap::default();
         table.insert(
             ("parser".to_string(), "^1.0.0".to_string()),
@@ -2924,8 +3221,7 @@ mod peer_own_dep_shadowing {
 
     /// [`parser_table`] plus the higher `types` an importer can hold as
     /// a direct dependency of its own.
-    fn shadowing_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult>
-    {
+    fn shadowing_table() -> HashMap<(String, String), pnpm_resolving_resolver_base::ResolveResult> {
         let mut table = parser_table();
         table.insert(
             ("types".to_string(), "^2.0.0".to_string()),
@@ -3081,8 +3377,8 @@ mod peer_own_dep_shadowing {
 mod level_preferred_versions {
     use super::{HashMap, Mutex, fake_manifest, fake_result};
     use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::{
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_resolving_resolver_base::{
         LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
         ResolveResult, Resolver, WantedDependency,
     };
@@ -3344,19 +3640,19 @@ mod cycle_edges {
 /// The `(name, dir)` pairs recorded by [`RecordingHooks`].
 type RecordedReadPackageCalls = std::sync::Arc<Mutex<Vec<(String, Option<String>)>>>;
 
-/// [`pacquet_hooks::PnpmfileHooks`] stub that records the `(name, dir)` pair
+/// [`pnpm_hooks::PnpmfileHooks`] stub that records the `(name, dir)` pair
 /// of every `read_package` call and returns the manifest unchanged.
 struct RecordingHooks {
     calls: RecordedReadPackageCalls,
 }
 
 #[async_trait::async_trait]
-impl pacquet_hooks::PnpmfileHooks for RecordingHooks {
+impl pnpm_hooks::PnpmfileHooks for RecordingHooks {
     async fn read_package(
         &self,
         pkg: serde_json::Value,
-        ctx: pacquet_hooks::HookContext,
-    ) -> Result<pacquet_hooks::ReadPackageResult, pacquet_hooks::HookError> {
+        ctx: pnpm_hooks::HookContext,
+    ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
         let name = pkg.get("name").and_then(|name| name.as_str()).unwrap_or_default().to_string();
         self.calls.lock().unwrap().push((name, ctx.dir));
         Ok(std::sync::Arc::new(pkg))
@@ -3365,19 +3661,19 @@ impl pacquet_hooks::PnpmfileHooks for RecordingHooks {
     async fn after_all_resolved(
         &self,
         lockfile: serde_json::Value,
-        _ctx: pacquet_hooks::HookContext,
-    ) -> Result<serde_json::Value, pacquet_hooks::HookError> {
+        _ctx: pnpm_hooks::HookContext,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
         Ok(lockfile)
     }
 
     async fn pre_resolution(
         &self,
-        _ctx: pacquet_hooks::PreResolutionHookContext,
-        _logger: pacquet_hooks::PreResolutionHookLogger,
+        _ctx: pnpm_hooks::PreResolutionHookContext,
+        _logger: pnpm_hooks::PreResolutionHookLogger,
     ) {
     }
 
-    async fn filter_log(&self, _log: serde_json::Value, _ctx: pacquet_hooks::HookContext) -> bool {
+    async fn filter_log(&self, _log: serde_json::Value, _ctx: pnpm_hooks::HookContext) -> bool {
         true
     }
 }
@@ -3386,7 +3682,7 @@ impl pacquet_hooks::PnpmfileHooks for RecordingHooks {
 /// instance apart from registry packages and substitute its raw manifest.
 #[tokio::test]
 async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
-    use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
 
     let mut injected = fake_result(
         "injected",
@@ -3442,7 +3738,7 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
     );
 }
 
-/// [`pacquet_hooks::PnpmfileHooks`] stub whose `readPackage` replaces every
+/// [`pnpm_hooks::PnpmfileHooks`] stub whose `readPackage` replaces every
 /// manifest wholesale, the way an embedder substitutes a workspace project's
 /// raw manifest.
 struct ReplacingHook {
@@ -3450,31 +3746,31 @@ struct ReplacingHook {
 }
 
 #[async_trait::async_trait]
-impl pacquet_hooks::PnpmfileHooks for ReplacingHook {
+impl pnpm_hooks::PnpmfileHooks for ReplacingHook {
     async fn read_package(
         &self,
         _pkg: serde_json::Value,
-        _ctx: pacquet_hooks::HookContext,
-    ) -> Result<pacquet_hooks::ReadPackageResult, pacquet_hooks::HookError> {
+        _ctx: pnpm_hooks::HookContext,
+    ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
         Ok(std::sync::Arc::new(self.replacement.clone()))
     }
 
     async fn after_all_resolved(
         &self,
         _lockfile: serde_json::Value,
-        _ctx: pacquet_hooks::HookContext,
-    ) -> Result<serde_json::Value, pacquet_hooks::HookError> {
+        _ctx: pnpm_hooks::HookContext,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
         Ok(serde_json::Value::Null)
     }
 
     async fn pre_resolution(
         &self,
-        _ctx: pacquet_hooks::PreResolutionHookContext,
-        _logger: pacquet_hooks::PreResolutionHookLogger,
+        _ctx: pnpm_hooks::PreResolutionHookContext,
+        _logger: pnpm_hooks::PreResolutionHookLogger,
     ) {
     }
 
-    async fn filter_log(&self, _log: serde_json::Value, _ctx: pacquet_hooks::HookContext) -> bool {
+    async fn filter_log(&self, _log: serde_json::Value, _ctx: pnpm_hooks::HookContext) -> bool {
         true
     }
 }

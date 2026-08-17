@@ -1534,6 +1534,156 @@ describe('add', () => {
     ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_CATALOG_VERSION_MISMATCH' }))
   })
 
+  test('adding the version a named catalog pins exactly keeps the named catalog with catalogMode: strict', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo@1.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          foo: { '@pnpm.e2e/foo': '1.0.0' },
+        },
+        catalogMode: 'strict',
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    })
+    expect(readLockfile()).toMatchObject({
+      catalogs: { foo: { '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:foo', version: '1.0.0' } } } },
+    })
+  })
+
+  // Regression test for https://github.com/pnpm/pnpm/issues/13715
+  test('adding a version within the catalog range uses the catalog with catalogMode: strict', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }, {
+      name: 'project2',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        default: { '@pnpm.e2e/foo': '^1.0.0' },
+      },
+      catalogMode: 'strict' as const,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    const { updatedManifest, updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo@1.3.0'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        allowNew: true,
+      })
+
+    // The catalog covers the wanted version, so the dependency keeps using the
+    // catalog instead of pinning the version directly in the manifest.
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      default: { '@pnpm.e2e/foo': '^1.3.0' },
+    })
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.3.0', version: '1.3.0' } } },
+      importers: {
+        project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.3.0' } } },
+        project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.3.0' } } },
+      },
+    })
+  })
+
+  test('adding a version the catalog range covers moves a catalog locked on another version', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }, {
+      name: 'project2',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+      catalogMode: 'strict' as const,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Widen the catalog to a range that keeps 1.0.0 locked, so the wanted version below is
+    // inside the range but is not what the entry resolves to.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    const { updatedManifest, updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo@1.1.0'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        allowNew: true,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      default: { '@pnpm.e2e/foo': '^1.1.0' },
+    })
+
+    // project2 was not part of the add, so it keeps the version the entry resolved to
+    // before until it is installed itself.
+    const lockfile = readLockfile()
+    expect(lockfile).toMatchObject({
+      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.1.0', version: '1.1.0' } } },
+      importers: {
+        project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.1.0' } } },
+        project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.0.0' } } },
+      },
+    })
+    expect(Object.keys(lockfile.snapshots).sort()).toEqual(['@pnpm.e2e/foo@1.0.0', '@pnpm.e2e/foo@1.1.0'])
+  })
+
   test('adding mismatched version with catalogMode: prefer will warn and use direct', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
@@ -1642,6 +1792,54 @@ describe('update', () => {
   // is-positive since public packages can release new versions and break the
   // tests here.
 
+  test('a project left behind by a catalog update follows the entry on its next install', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }, {
+      name: 'project2',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Update one project. The other keeps the version the entry resolved to before, which
+    // the bumped entry no longer admits.
+    const { updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        update: true,
+      })
+    expect(updatedCatalogs).toEqual({ default: { '@pnpm.e2e/foo': '^1.3.0' } })
+    catalogs.default['@pnpm.e2e/foo'] = '^1.3.0'
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // A catalog entry resolves to one version for every project that references it.
+    expect(readLockfile().importers).toMatchObject({
+      project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.3.0' } } },
+      project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.3.0' } } },
+    })
+  })
+
   test('update works on cataloged dependency', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
@@ -1705,6 +1903,73 @@ describe('update', () => {
 
     // Ensure the old 1.0.0 version is no longer used.
     expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@1.3.0'])
+  })
+
+  // Simulates `pnpm update <pkg>@<version> --recursive --lockfile-only` against a
+  // catalog entry that is a range, the command Renovate runs.
+  // Regression test for https://github.com/pnpm/pnpm/issues/13715
+  test('updating to a version within the catalog range works with catalogMode: strict', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }, {
+      name: 'project2',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+      catalogMode: 'strict' as const,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Widen the catalog to a range while 1.0.0 stays locked, so the targeted
+    // update below is the only thing that can move the resolution.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    const { updatedCatalogs, updatedProjects } = await mutateModules(
+      Object.entries(projects).map(([id, manifest]) => ({
+        ...manifest,
+        rootDir: path.resolve(id) as ProjectRootDir,
+        mutation: 'installSome' as const,
+        dependencySelectors: ['@pnpm.e2e/foo@1.1.0'],
+        allowNew: false,
+        update: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    expect(updatedProjects[0]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+    expect(updatedProjects[1]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+    expect(updatedCatalogs).toEqual({
+      default: { '@pnpm.e2e/foo': '^1.1.0' },
+    })
+
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs).toEqual({
+      default: { '@pnpm.e2e/foo': { specifier: '^1.1.0', version: '1.1.0' } },
+    })
+    expect(lockfile.importers).toMatchObject({
+      project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.1.0' } } },
+      project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '1.1.0' } } },
+    })
+    expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@1.1.0'])
   })
 
   test('overrides that reference a catalog are updated in the lockfile when the catalog is updated', async () => {

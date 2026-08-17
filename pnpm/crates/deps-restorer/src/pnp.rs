@@ -1,7 +1,7 @@
 use crate::package_map::{PackageMapOptions, lockfile_to_package_map};
 use derive_more::{Display, Error};
-use pacquet_lockfile::Lockfile;
-use pacquet_package_manifest::PackageManifest;
+use pnpm_lockfile::Lockfile;
+use pnpm_package_manifest::PackageManifest;
 use std::path::{Path, PathBuf};
 
 pub const PNP_FILENAME: &str = ".pnp.cjs";
@@ -11,13 +11,13 @@ pub enum WritePnpFileError {
     #[display("failed to serialize the PnP package registry: {_0}")]
     Serialize(#[error(source)] serde_json::Error),
     #[display("failed to write .pnp.cjs: {_0}")]
-    Write(#[error(source)] pacquet_fs::EnsureFileError),
+    Write(#[error(source)] pnpm_fs::EnsureFileError),
 }
 
 pub fn write_pnp_file(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
-    config: &pacquet_config::Config,
+    config: &pnpm_config::Config,
     layout: &crate::VirtualStoreLayout,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> Result<(), WritePnpFileError> {
@@ -26,7 +26,7 @@ pub fn write_pnp_file(
         &PackageMapOptions {
             lockfile_dir,
             modules_dir: &config.modules_dir,
-            package_map_type: pacquet_config::NodePackageMapType::Standard,
+            package_map_type: pnpm_config::NodePackageMapType::Standard,
             layout,
             project_manifests,
         },
@@ -122,6 +122,6 @@ module.exports = api;
 setup();
 ",
     );
-    pacquet_fs::ensure_file(&lockfile_dir.join(PNP_FILENAME), contents.as_bytes(), None)
+    pnpm_fs::ensure_file(&lockfile_dir.join(PNP_FILENAME), contents.as_bytes(), None)
         .map_err(WritePnpFileError::Write)
 }

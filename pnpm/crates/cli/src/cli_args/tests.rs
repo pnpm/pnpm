@@ -2,15 +2,17 @@ use super::{
     CliArgs,
     add::AddArgs,
     cli_command::{CliCommand, WorkspaceRootError},
+    dedupe::DedupeArgs,
     install::{InstallArgs, resolve_bool_override},
     list::RecursionLimit,
     package_manager::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
         read_manifest_json,
     },
+    unlink::UnlinkArgs,
 };
 use clap::Parser;
-use pacquet_default_reporter::SummaryScope;
+use pnpm_default_reporter::SummaryScope;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -805,4 +807,80 @@ fn config_merged_boolean_negations_parse() {
     assert!(args.no_prefer_offline);
     assert!(args.no_frozen_store);
     assert!(args.no_ignore_scripts);
+}
+
+#[test]
+fn add_ignore_pnpmfile_flag_applies_to_config() {
+    let mut config = pnpm_config::Config::default();
+    add_args(&["pacquet", "add", "foo"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
+
+    add_args(&["pacquet", "add", "foo", "--ignore-pnpmfile"]).apply_cli_config(&mut config);
+    assert!(config.ignore_pnpmfile, "flag present → config set");
+}
+
+/// The install-family commands pnpm accepts `--ignore-pnpmfile` on.
+/// `remove`, `prune`, `import`, `rebuild`, and `link` reject it there,
+/// so they must reject it here too.
+#[test]
+fn every_command_pnpm_takes_ignore_pnpmfile_on_takes_it() {
+    for argv in [
+        ["pacquet", "install", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "add", "foo", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "update", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "dedupe", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "fetch", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "unlink", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "deploy", "--ignore-pnpmfile", "out"].as_slice(),
+        ["pacquet", "ci", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "install-test", "--ignore-pnpmfile"].as_slice(),
+    ] {
+        CliArgs::try_parse_from(argv).unwrap_or_else(|err| panic!("{argv:?} parses: {err}"));
+    }
+
+    for argv in [
+        ["pacquet", "remove", "foo", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "prune", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "import", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "rebuild", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "link", "--ignore-pnpmfile"].as_slice(),
+    ] {
+        CliArgs::try_parse_from(argv)
+            .err()
+            .unwrap_or_else(|| panic!("{argv:?} is rejected, as pnpm rejects it"));
+    }
+}
+
+#[test]
+fn dedupe_ignore_pnpmfile_flag_applies_to_config() {
+    let mut config = pnpm_config::Config::default();
+    dedupe_args(&["pacquet", "dedupe"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
+
+    dedupe_args(&["pacquet", "dedupe", "--ignore-pnpmfile"]).apply_cli_config(&mut config);
+    assert!(config.ignore_pnpmfile, "flag present → config set");
+}
+
+#[test]
+fn unlink_ignore_pnpmfile_flag_applies_to_config() {
+    let mut config = pnpm_config::Config::default();
+    unlink_args(&["pacquet", "unlink"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
+
+    unlink_args(&["pacquet", "unlink", "--ignore-pnpmfile"]).apply_cli_config(&mut config);
+    assert!(config.ignore_pnpmfile, "flag present → config set");
+}
+
+fn dedupe_args(argv: &[&str]) -> DedupeArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Dedupe(dedupe) => dedupe,
+        other => panic!("expected dedupe, got {other:?}"),
+    }
+}
+
+fn unlink_args(argv: &[&str]) -> UnlinkArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Unlink(unlink) => unlink,
+        other => panic!("expected unlink, got {other:?}"),
+    }
 }

@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-napi"
+name                  = "pnpm-napi"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -14,31 +14,32 @@ repository.workspace  = true
 crate-type = ["cdylib"]
 
 [dependencies]
-pacquet-config                            = { workspace = true }
-pacquet-diagnostics                       = { workspace = true }
-pacquet-catalogs-types                    = { workspace = true }
-pacquet-engine-runtime-bun-resolver       = { workspace = true }
-pacquet-engine-runtime-deno-resolver      = { workspace = true }
-pacquet-engine-runtime-node-resolver      = { workspace = true }
-pacquet-hooks                             = { workspace = true }
-pacquet-lockfile                          = { workspace = true }
-pacquet-network                           = { workspace = true }
-pacquet-pack                              = { workspace = true }
-pacquet-package-manager                   = { workspace = true }
-pacquet-resolving-deps-resolver           = { workspace = true }
-node-semver                               = { workspace = true }
-pacquet-package-manifest                  = { workspace = true }
-pacquet-reporter                          = { workspace = true }
-pacquet-resolving-default-resolver        = { workspace = true }
-pacquet-resolving-git-resolver            = { workspace = true }
-pacquet-resolving-local-resolver          = { workspace = true }
-pacquet-resolving-npm-resolver            = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
-pacquet-resolving-resolver-base           = { workspace = true }
-pacquet-resolving-tarball-resolver        = { workspace = true }
-pacquet-store-dir                         = { workspace = true }
-pacquet-tarball                           = { workspace = true }
-pacquet-workspace                         = { workspace = true }
+pnpm-config                            = { workspace = true }
+pnpm-diagnostics                       = { workspace = true }
+pnpm-catalogs-types                    = { workspace = true }
+pnpm-engine-pm-yarn-resolver           = { workspace = true }
+pnpm-engine-runtime-bun-resolver       = { workspace = true }
+pnpm-engine-runtime-deno-resolver      = { workspace = true }
+pnpm-engine-runtime-node-resolver      = { workspace = true }
+pnpm-hooks                             = { workspace = true }
+pnpm-lockfile                          = { workspace = true }
+pnpm-network                           = { workspace = true }
+pnpm-pack                              = { workspace = true }
+pnpm-package-manager                   = { workspace = true }
+pnpm-resolving-deps-resolver           = { workspace = true }
+node-semver                            = { workspace = true }
+pnpm-package-manifest                  = { workspace = true }
+pnpm-reporter                          = { workspace = true }
+pnpm-resolving-default-resolver        = { workspace = true }
+pnpm-resolving-git-resolver            = { workspace = true }
+pnpm-resolving-local-resolver          = { workspace = true }
+pnpm-resolving-npm-resolver            = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-resolving-resolver-base           = { workspace = true }
+pnpm-resolving-tarball-resolver        = { workspace = true }
+pnpm-store-dir                         = { workspace = true }
+pnpm-tarball                           = { workspace = true }
+pnpm-workspace                         = { workspace = true }
 
 async-trait = { workspace = true }
 dashmap     = { workspace = true }
@@ -54,10 +55,10 @@ tokio       = { workspace = true }
 napi-build = { workspace = true }
 
 [dev-dependencies]
-mockito               = { workspace = true }
-pretty_assertions     = { workspace = true }
-pacquet-testing-utils = { workspace = true }
-tempfile              = { workspace = true }
+mockito            = { workspace = true }
+pretty_assertions  = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+tempfile           = { workspace = true }
 
 [lints]
 workspace = true

@@ -2,12 +2,16 @@ mod boolean_negations;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod engine_pm;
+mod executable_link;
 mod flag_relocation;
 mod github_actions;
 mod job_control;
 mod leading_separator;
 mod parse_boundary;
+mod path_env;
 mod renamed_options;
+mod shim_dispatch;
 mod shorthands;
 mod state;
 mod with_current;
@@ -18,7 +22,7 @@ use cli_args::CliArgs;
 use config_overrides::ConfigOverrides;
 use flag_relocation::relocate_pre_subcommand_flags;
 use miette::set_panic_hook;
-use pacquet_diagnostics::{enable_tracing_by_env, install_report_handler};
+use pnpm_diagnostics::{enable_tracing_by_env, install_report_handler};
 use state::State;
 use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
@@ -58,6 +62,16 @@ fn run_cli() -> miette::Result<()> {
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let argv_with_alias = argv_with_alias_subcommand();
+    // Context-aware global shims invoke the versioned dispatcher with
+    // `--shim <name> <shim> <target> -- <args>` on every bare invocation,
+    // so this runs before any argv rewriting or clap machinery below.
+    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv_with_alias) {
+        #[expect(
+            clippy::exit,
+            reason = "the shim dispatcher propagates the dispatched command's exit status"
+        )]
+        std::process::exit(exit_code);
+    }
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
@@ -67,7 +81,7 @@ fn run_cli() -> miette::Result<()> {
     let argv = with_current::rewrite(argv)?;
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
-    pacquet_default_reporter::set_package_version(pacquet_config::PNPM_VERSION);
+    pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
     // Parse through a command augmented with a `--no-<flag>` negation for
     // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
     // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
@@ -103,7 +117,7 @@ fn run_cli() -> miette::Result<()> {
             {
                 return Ok(());
             }
-            println!("{}", pacquet_config::PNPM_VERSION);
+            println!("{}", pnpm_config::PNPM_VERSION);
             return Ok(());
         }
         Err(err) => err.exit(),

@@ -8,7 +8,7 @@ use std::{
 };
 
 use node_semver::Version;
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
 };
 use serde::Deserialize;

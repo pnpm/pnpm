@@ -1,7 +1,8 @@
 use super::{
-    install_pnpm, is_installed_globally, package_manager_pin_specifier, update_version_constraint,
-    version_lt,
+    install_pnpm, is_installed_globally, package_manager_pin_specifier,
+    refresh_global_shim_dispatcher, update_version_constraint, version_lt,
 };
+use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use std::{fs, path::Path};
 
 #[test]
@@ -34,8 +35,7 @@ fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
         format!(r#"{{"name":"{package_name}","version":"{version}"}}"#),
     )
     .unwrap();
-    pacquet_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}")))
-        .unwrap();
+    pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}"))).unwrap();
 }
 
 #[test]
@@ -78,6 +78,93 @@ fn version_lt_compares_semver() {
     assert!(!version_lt("1.0.0", "1.0.0"));
     // Unparsable input compares as not-less-than (never downgrades).
     assert!(!version_lt("not-a-version", "1.0.0"));
+}
+
+#[test]
+fn self_update_refreshes_an_existing_v1_dispatcher_from_the_v12_engine() {
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("bin");
+    let install_dir = root.path().join("engine");
+    fs::create_dir_all(&global_bin).unwrap();
+    let executable = install_pnpm::pnpm_executable_path(&install_dir, "pnpm");
+    fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    fs::write(&executable, b"new v12 engine").unwrap();
+    let dispatcher = global_shim_dispatcher_path(&global_bin);
+    fs::write(&dispatcher, b"old v12 engine").unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir,
+        package_name: "pnpm",
+        already_existed: false,
+    };
+
+    refresh_global_shim_dispatcher(&global_bin, &installed, "12.0.0-alpha.1").unwrap();
+
+    assert_eq!(fs::read(dispatcher).unwrap(), b"new v12 engine");
+}
+
+#[cfg(windows)]
+#[test]
+fn self_update_refreshes_node_when_it_is_the_v1_dispatcher() {
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("bin");
+    let install_dir = root.path().join("engine");
+    fs::create_dir_all(&global_bin).unwrap();
+    let executable = install_pnpm::pnpm_executable_path(&install_dir, "pnpm");
+    fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    fs::write(&executable, b"new v12 engine").unwrap();
+    let dispatcher = global_shim_dispatcher_path(&global_bin);
+    fs::write(&dispatcher, b"old v12 engine").unwrap();
+    let node = global_bin.join("node.exe");
+    fs::hard_link(&dispatcher, &node).unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir,
+        package_name: "pnpm",
+        already_existed: false,
+    };
+
+    refresh_global_shim_dispatcher(&global_bin, &installed, "12.0.0").unwrap();
+
+    assert_eq!(fs::read(dispatcher).unwrap(), b"new v12 engine");
+    assert_eq!(fs::read(node).unwrap(), b"new v12 engine");
+}
+
+#[test]
+fn self_update_leaves_a_missing_v1_dispatcher_absent() {
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir: root.path().join("engine"),
+        package_name: "pnpm",
+        already_existed: false,
+    };
+
+    refresh_global_shim_dispatcher(&global_bin, &installed, "12.0.0").unwrap();
+
+    assert!(!global_shim_dispatcher_path(&global_bin).exists());
+}
+
+#[test]
+fn self_update_to_pre_v12_preserves_the_v1_dispatcher() {
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let dispatcher = global_shim_dispatcher_path(&global_bin);
+    fs::write(&dispatcher, b"v12 dispatcher").unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir: root.path().join("legacy-engine"),
+        package_name: "@pnpm/exe",
+        already_existed: false,
+    };
+
+    refresh_global_shim_dispatcher(&global_bin, &installed, "11.10.0").unwrap();
+
+    assert_eq!(fs::read(dispatcher).unwrap(), b"v12 dispatcher");
+}
+
+fn global_shim_dispatcher_path(global_bin: &Path) -> std::path::PathBuf {
+    let suffix = if cfg!(windows) { ".exe" } else { "" };
+    global_bin.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{suffix}"))
 }
 
 /// The engine is a native binary, so building a runnable and a non-runnable one

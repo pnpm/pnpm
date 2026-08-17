@@ -1,6 +1,4 @@
-import path from 'node:path'
-
-import { expect, jest, test } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 import type { GlobalPackageInfo } from '@pnpm/global.packages'
 import type { DependencyManifest } from '@pnpm/types'
 
@@ -11,8 +9,6 @@ type CheckGlobalBinConflictsOptions = {
   shouldSkip: (pkg: GlobalPackageInfo) => boolean
 }
 
-const linkBinsOfPackages = jest.fn<(pkgs: unknown[], globalBinDir: string, opts: { excludeBins: Set<string> }) => Promise<void>>().mockResolvedValue(undefined)
-const removeBin = jest.fn<(cmd: string) => Promise<void>>().mockResolvedValue(undefined)
 const cleanOrphanedInstallDirs = jest.fn()
 const createGlobalCacheKey = jest.fn().mockReturnValue('new-hash')
 const createInstallDir = jest.fn().mockReturnValue('/global/v11/new')
@@ -29,10 +25,9 @@ const installGlobalPackages = jest.fn<(...args: unknown[]) => Promise<{ ignoredB
 const promptApproveGlobalBuilds = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
 const readInstalledPackages = jest.fn<() => Promise<[]>>().mockResolvedValue([])
 const summaryDebug = jest.fn()
-const symlinkDir = jest.fn<(src: string, dest: string, opts: { overwrite: boolean }) => Promise<void>>().mockResolvedValue(undefined)
+const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['pnpm']))
+const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
 
-jest.unstable_mockModule('@pnpm/bins.linker', () => ({ linkBinsOfPackages }))
-jest.unstable_mockModule('@pnpm/bins.remover', () => ({ removeBin }))
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({
   cleanOrphanedInstallDirs,
@@ -46,14 +41,23 @@ jest.unstable_mockModule('@pnpm/global.packages', () => ({
 jest.unstable_mockModule('@pnpm/pkg-manifest.reader', () => ({
   readPackageJsonFromDirRawSync,
 }))
-jest.unstable_mockModule('is-subdir', () => ({ isSubdir: () => true }))
-jest.unstable_mockModule('symlink-dir', () => ({ symlinkDir }))
 jest.unstable_mockModule('../src/checkGlobalBinConflicts.js', () => ({ checkGlobalBinConflicts }))
 jest.unstable_mockModule('../src/installGlobalPackages.js', () => ({ installGlobalPackages }))
+jest.unstable_mockModule('../src/globalActivation.js', () => ({ cleanupReplacedGlobalInstalls, activateGlobalInstall }))
 jest.unstable_mockModule('../src/promptApproveGlobalBuilds.js', () => ({ promptApproveGlobalBuilds }))
 jest.unstable_mockModule('../src/readInstalledPackages.js', () => ({ readInstalledPackages }))
 
 const { getReplacementAliases, handleGlobalAdd, shouldReplaceExistingGlobalInstall } = await import('../src/globalAdd.js')
+
+beforeEach(() => {
+  jest.clearAllMocks()
+  checkGlobalBinConflicts.mockResolvedValue(new Set())
+  cleanupReplacedGlobalInstalls.mockResolvedValue(undefined)
+  createGlobalCacheKey.mockReturnValue('new-hash')
+  findGlobalPackage.mockReturnValue(null)
+  activateGlobalInstall.mockResolvedValue(new Set(['pnpm']))
+  scanGlobalPackages.mockReturnValue([])
+})
 
 test('global add treats pnpm and @pnpm/exe as replacement aliases', () => {
   expect(getReplacementAliases(['@pnpm/exe'])).toStrictEqual(['@pnpm/exe', 'pnpm'])
@@ -97,15 +101,19 @@ test('global add still replaces exact aliases in mixed existing groups', () => {
   }, aliases, replacementAliases)).toBe(true)
 })
 
-test('global add replaces an existing pnpm install when installing @pnpm/exe', async () => {
+test('global add activates before cleaning up a same-hash pnpm replacement', async () => {
   const existingPnpm = {
     dependencies: { pnpm: '12.0.0-alpha.2' },
     hash: 'old-pnpm',
     installDir: '/global/v11/old-pnpm',
   }
+  const activatedBins = new Set(['pnpm'])
+  const updateResolutionPolicyManifest = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+  createGlobalCacheKey.mockReturnValue('old-pnpm')
   findGlobalPackage.mockImplementation((_globalDir: string, alias: string) => {
     return alias === 'pnpm' ? existingPnpm : null
   })
+  activateGlobalInstall.mockResolvedValue(activatedBins)
   checkGlobalBinConflicts.mockImplementation(async (opts) => {
     expect(opts.shouldSkip(existingPnpm)).toBe(true)
     return new Set()
@@ -115,12 +123,44 @@ test('global add replaces an existing pnpm install when installing @pnpm/exe', a
     bin: '/global/bin',
     dir: '/project',
     globalPkgDir: '/global/v11',
-    registries: {},
+    registriesByScope: {},
+    updateResolutionPolicyManifest,
   } as any, ['file:/tmp/pnpm'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
 
   expect(findGlobalPackage).toHaveBeenCalledWith('/global/v11', '@pnpm/exe')
   expect(findGlobalPackage).toHaveBeenCalledWith('/global/v11', 'pnpm')
-  expect(removeBin).toHaveBeenCalledWith(path.join('/global/bin', 'pnpm'))
-  expect(symlinkDir).toHaveBeenCalledWith('/global/v11/new', '/global/v11/new-hash', { overwrite: true })
-  expect(linkBinsOfPackages).toHaveBeenCalledWith([], '/global/bin', { excludeBins: new Set() })
+  expect(activateGlobalInstall).toHaveBeenCalledWith({
+    installDir: '/global/v11/new',
+    hashLink: '/global/v11/old-pnpm',
+    globalBinDir: '/global/bin',
+    pkgs: [],
+    binsToSkip: new Set(),
+  })
+  expect(cleanupReplacedGlobalInstalls).toHaveBeenCalledWith({
+    groups: [existingPnpm],
+    globalDir: '/global/v11',
+    globalBinDir: '/global/bin',
+    activeHash: 'old-pnpm',
+    activatedBins,
+    protectedBins: new Set(),
+  })
+  expect(activateGlobalInstall.mock.invocationCallOrder[0]).toBeLessThan(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[0])
+  expect(cleanupReplacedGlobalInstalls.mock.invocationCallOrder[0]).toBeLessThan(updateResolutionPolicyManifest.mock.invocationCallOrder[0])
+})
+
+test('global add does not clean up or persist policy when activation fails', async () => {
+  const activationError = new Error('activation failed')
+  const updateResolutionPolicyManifest = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+  activateGlobalInstall.mockRejectedValue(activationError)
+
+  await expect(handleGlobalAdd({
+    bin: '/global/bin',
+    dir: '/project',
+    globalPkgDir: '/global/v11',
+    registriesByScope: {},
+    updateResolutionPolicyManifest,
+  } as any, ['file:/tmp/pnpm'], {})).rejects.toBe(activationError) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(cleanupReplacedGlobalInstalls).not.toHaveBeenCalled()
+  expect(updateResolutionPolicyManifest).not.toHaveBeenCalled()
 })

@@ -3,11 +3,11 @@
 //! plugs in; future resolver-side verifiers append to the same vec.
 //!
 //! Returning `Vec<Arc<dyn ResolutionVerifier>>` matches the runner's
-//! input shape ([`pacquet_lockfile_verification::verify_lockfile_resolutions()`])
+//! input shape ([`pnpm_lockfile_verification::verify_lockfile_resolutions()`])
 //! and lets the install path skip the call entirely when the vec is
 //! empty (the runner is a no-op on `&[]`). The function never returns
 //! an error; an invalid exclude pattern surfaces from
-//! [`pacquet_config::version_policy::create_package_version_policy()`]
+//! [`pnpm_config::version_policy::create_package_version_policy()`]
 //! and propagates via [`BuildVerifiersError`].
 //!
 //! The verifier list is built from the install's config fields just
@@ -17,16 +17,16 @@ use std::{collections::HashMap, sync::Arc};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{
+use pnpm_config::{
     Config, TrustPolicy,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_resolving_npm_resolver::{
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_resolving_npm_resolver::{
     CreateNpmResolutionVerifierOptions, MergeNamedRegistriesError, ObservedDistStats,
     PackageMetaCache, create_npm_resolution_verifier, merge_named_registries,
 };
-use pacquet_resolving_resolver_base::ResolutionVerifier;
+use pnpm_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
 
 use crate::retry_config::retry_opts_from_config;
 
@@ -85,6 +85,7 @@ pub fn build_resolution_verifiers(
     meta_cache: Option<Arc<dyn PackageMetaCache>>,
     auth_override: Option<Arc<AuthHeaders>>,
     observed_dist_stats: Option<ObservedDistStats>,
+    planned_canonical_fetches: Option<PlannedCanonicalFetches>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
     let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
 
@@ -103,8 +104,8 @@ pub fn build_resolution_verifiers(
     // tarball-prefix routing see the same set. Validated here too: this runs
     // before the resolver chain that also validates, and on the frozen path
     // that chain never runs.
-    let named_registries = merge_named_registries(
-        &config.named_registries.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+    let registries_by_prefix = merge_named_registries(
+        &config.registries_by_prefix.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
     )
     .map_err(|source| BuildVerifiersError::InvalidNamedRegistries { source })?;
 
@@ -124,14 +125,16 @@ pub fn build_resolution_verifiers(
         trust_policy_exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         registries,
-        named_registries,
+        registries_by_prefix,
         http_client,
         auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
         cache_dir: Some(config.cache_dir.clone()),
         meta_cache,
+        offline: config.offline,
         retry_opts: retry_opts_from_config(config),
         now: None,
         observed_dist_stats,
+        planned_canonical_fetches,
     };
 
     verifiers.push(Arc::new(create_npm_resolution_verifier(opts)));

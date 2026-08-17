@@ -1,6 +1,11 @@
 use miette::IntoDiagnostic;
-use pacquet_config::PmOnFail;
-use pacquet_package_manifest::parse_manifest;
+use pnpm_config::PmOnFail;
+use pnpm_package_manifest::{
+    package_manager_spec::{
+        dev_engines_package_managers, is_version_request, split_spec, version_without_build,
+    },
+    parse_manifest,
+};
 use serde_json::Value;
 use std::{fs, io::ErrorKind, path::Path};
 
@@ -78,27 +83,25 @@ pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageMa
 }
 
 fn parse_dev_engines_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
-    let value = manifest.get("devEngines")?.get("packageManager")?;
-    if let Some(items) = value.as_array() {
-        if items.is_empty() {
-            return None;
-        }
-        let index = items
+    let entries: Vec<&Value> = dev_engines_package_managers(manifest).collect();
+    let declared_as_list = manifest.get("devEngines")?.get("packageManager")?.is_array();
+    let (index, entry) = if declared_as_list {
+        // pnpm's own entry is the one that governs this CLI; without one,
+        // the first entry does.
+        let index = entries
             .iter()
-            .position(|item| item.get("name").and_then(Value::as_str) == Some("pnpm"))
+            .position(|entry| entry.get("name").and_then(Value::as_str) == Some("pnpm"))
             .unwrap_or(0);
-        let item = &items[index];
-        let on_fail =
-            item.get("onFail").and_then(Value::as_str).map(ToString::to_string).or_else(|| {
-                Some(if index == items.len() - 1 { "error" } else { "ignore" }.to_string())
-            });
-        return package_manager_from_engine(item, true, on_fail);
-    }
-    package_manager_from_engine(
-        value,
-        true,
-        value.get("onFail").and_then(Value::as_str).map(ToString::to_string),
-    )
+        (Some(index), *entries.get(index)?)
+    } else {
+        (None, *entries.first()?)
+    };
+    let on_fail =
+        entry.get("onFail").and_then(Value::as_str).map(ToString::to_string).or_else(|| {
+            let index = index?;
+            Some(if index == entries.len() - 1 { "error" } else { "ignore" }.to_string())
+        });
+    package_manager_from_engine(entry, true, on_fail)
 }
 
 fn package_manager_from_engine(
@@ -115,28 +118,11 @@ fn package_manager_from_engine(
 }
 
 pub(crate) fn parse_package_manager(package_manager: &str) -> (String, Option<String>) {
-    // Split on the `@` that separates the name from the reference. A leading
-    // `@` belongs to a scoped name (e.g. `@scope/pm@1.2.3`), so skip it;
-    // otherwise the first `@` is the separator. The *first* `@` (not the last)
-    // is used so a reference that is a URL containing `@` (e.g. credentials)
-    // stays intact.
-    let separator_index = if let Some(rest) = package_manager.strip_prefix('@') {
-        rest.find('@').map(|index| index + 1)
-    } else {
-        package_manager.find('@')
-    };
-    let Some(separator_index) = separator_index else {
-        return (package_manager.to_string(), None);
-    };
-    let name = &package_manager[..separator_index];
-    let reference = &package_manager[separator_index + 1..];
-    if reference.contains(':') {
-        return (name.to_string(), None);
-    }
-    (
-        name.to_string(),
-        Some(reference.split_once('+').map_or(reference, |(version, _)| version).to_string()),
-    )
+    let (name, reference) = split_spec(package_manager);
+    let version = reference
+        .filter(|reference| is_version_request(reference))
+        .map(|reference| version_without_build(reference).to_string());
+    (name.to_string(), version)
 }
 
 pub(crate) fn should_persist_package_manager_lockfile(pm: &WantedPackageManager) -> bool {

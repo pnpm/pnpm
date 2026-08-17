@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-registry-mock"
+name                 = "pnpm-registry-mock"
 version              = "0.0.0"
 description          = "Drives pnpr against the in-repo registry fixtures for pacquet benchmarks"
 publish              = false
@@ -11,12 +11,12 @@ license.workspace    = true
 repository.workspace = true
 
 [lib]
-name = "pacquet_registry_mock"
+name = "pnpm_registry_mock"
 path = "src/lib.rs"
 doc  = true
 
 [[bin]]
-name = "pacquet-registry-mock"
+name = "pnpm-registry-mock"
 path = "src/main.rs"
 doc  = false
 

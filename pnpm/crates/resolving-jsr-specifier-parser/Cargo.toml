@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-resolving-jsr-specifier-parser"
+name                  = "pnpm-resolving-jsr-specifier-parser"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,7 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

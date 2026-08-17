@@ -5,10 +5,10 @@ use std::{
 };
 
 use chrono::TimeZone;
-use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pacquet_lockfile::LockfileResolution;
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_resolving_resolver_base::{
+use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
+use pnpm_lockfile::LockfileResolution;
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_resolving_resolver_base::{
     LatestQuery, PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
     ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
     WorkspacePackages, WorkspacePackagesByVersion,
@@ -69,7 +69,7 @@ fn build_resolver_with_registries(
     let cache_dir = TempDir::new().expect("tempdir");
     let resolver = NpmResolver {
         registries,
-        named_registries: HashMap::new(),
+        registries_by_prefix: HashMap::new(),
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
@@ -206,6 +206,25 @@ async fn range_specifier_picks_max_in_range() {
     assert_eq!(result.alias.as_deref(), Some("acme"));
     assert!(result.policy_violation.is_none());
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
+}
+
+#[tokio::test]
+async fn empty_specifier_resolves_to_the_max_published_version() {
+    // Regression test for pnpm/pnpm#13673.
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some(String::new()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.id.as_str(), "acme@1.1.0");
+    assert_eq!(result.resolved_via, "npm-registry");
 }
 
 #[tokio::test]
@@ -727,7 +746,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         let cache_dir = TempDir::new().expect("tempdir");
         let resolver = NpmResolver {
             registries,
-            named_registries: HashMap::new(),
+            registries_by_prefix: HashMap::new(),
             http_client: Arc::new(ThrottledClient::default()),
             auth_headers: Arc::new(AuthHeaders::default()),
             meta_cache: Arc::new(InMemoryPackageMetaCache::default()),

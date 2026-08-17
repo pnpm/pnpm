@@ -27,7 +27,7 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileOnly'
 | 'nodeLinker'
 | 'packageConfigs'
-| 'registries'
+| 'registriesByScope'
 | 'sharedWorkspaceLockfile'
 > & Pick<ConfigContext,
 | 'hooks'

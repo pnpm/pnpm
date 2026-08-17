@@ -6,13 +6,13 @@ use std::{
 };
 
 use indexmap::IndexMap;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
     LockfileVersion, PackageKey, PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot,
     ResolvedCatalogEntry, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
     SnapshotEntry, TarballResolution,
 };
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 
 use crate::SkippedSnapshots;
@@ -88,6 +88,7 @@ fn empty_lockfile() -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 
@@ -130,6 +131,7 @@ fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 
@@ -467,7 +469,7 @@ fn orphan_snapshots_are_pruned() {
 }
 
 #[test]
-fn materialization_closure_traverses_importer_snapshot_and_link_cycles() {
+fn materialization_closure_keeps_importer_links_shallow_and_traverses_snapshot_links() {
     let nested_id = "packages/nested/a".to_string();
     let linked_id = "packages/b".to_string();
     let shared_id = "packages/shared".to_string();
@@ -553,7 +555,8 @@ fn materialization_closure_traverses_importer_snapshot_and_link_cycles() {
         &SkippedSnapshots::new(),
     );
 
-    assert_eq!(closure.importer_ids, HashSet::from([nested_id.clone(), linked_id, shared_id]));
+    assert_eq!(closure.importer_ids, HashSet::from([nested_id.clone(), shared_id]));
+    assert!(!closure.importer_ids.contains(&linked_id));
     assert!(!closure.importer_ids.contains(&disjoint_id));
     let nested = closure.lockfile.importers.get(&nested_id).unwrap();
     assert!(nested.dev_dependencies.is_none());
@@ -562,12 +565,12 @@ fn materialization_closure_traverses_importer_snapshot_and_link_cycles() {
     for reached_key in [
         key("start", "1.0.0"),
         key("child", "1.0.0"),
-        key("linked-pkg", "1.0.0"),
         key("common", "1.0.0"),
         key("shared-pkg", "1.0.0"),
     ] {
         assert!(reached.contains_key(&reached_key), "missing {reached_key}");
     }
+    assert!(!reached.contains_key(&key("linked-pkg", "1.0.0")));
     assert!(!reached.contains_key(&key("dev-only", "1.0.0")));
     assert!(!reached.contains_key(&key("optional-only", "1.0.0")));
     assert!(!reached.contains_key(&key("disjoint", "1.0.0")));
@@ -687,7 +690,7 @@ fn materialization_closure_excludes_optional_snapshot_link_when_optionals_are_di
 }
 
 #[test]
-fn nested_importer_and_peer_snapshot_links_use_distinct_bases() {
+fn nested_importer_links_stay_shallow_and_snapshot_links_use_lockfile_base() {
     let nested_id = "packages/nested/a".to_string();
     let importer_target_id = "packages/importer-target".to_string();
     let snapshot_target_id = "packages/snapshot-target".to_string();
@@ -722,10 +725,8 @@ fn nested_importer_and_peer_snapshot_links_use_distinct_bases() {
         &SkippedSnapshots::new(),
     );
 
-    assert_eq!(
-        closure.importer_ids,
-        HashSet::from([nested_id, importer_target_id, snapshot_target_id]),
-    );
+    assert_eq!(closure.importer_ids, HashSet::from([nested_id, snapshot_target_id]));
+    assert!(!closure.importer_ids.contains(&importer_target_id));
 }
 
 #[test]
@@ -1262,33 +1263,33 @@ fn merge_filtered_current_lockfile_uses_one_fresh_shared_snapshot() {
 }
 
 #[test]
-fn merge_filtered_current_lockfile_replaces_link_reached_importers() {
+fn merge_filtered_current_lockfile_preserves_shallow_link_target_importers() {
     let selected_id = "packages/a".to_string();
     let linked_id = "packages/b".to_string();
+    let previous_linked = ProjectSnapshot {
+        dependencies: Some(importer_map(&[("linked-old", "1.0.0")])),
+        ..Default::default()
+    };
     let mut previous = empty_lockfile();
-    previous.importers = HashMap::from([(
-        linked_id.clone(),
-        ProjectSnapshot {
-            dependencies: Some(importer_map(&[("linked-old", "1.0.0")])),
-            ..Default::default()
-        },
-    )]);
+    previous.importers = HashMap::from([(linked_id.clone(), previous_linked.clone())]);
     previous.snapshots =
         Some(HashMap::from([(key("linked-old", "1.0.0"), SnapshotEntry::default())]));
 
     let mut selected_dependencies = ResolvedDependencyMap::new();
     selected_dependencies.insert(pkg("linked"), importer_link("../b"));
-    let fresh_linked = ProjectSnapshot {
-        dependencies: Some(importer_map(&[("linked-new", "2.0.0")])),
-        ..Default::default()
-    };
     let mut wanted = empty_lockfile();
     wanted.importers = HashMap::from([
         (
             selected_id.clone(),
             ProjectSnapshot { dependencies: Some(selected_dependencies), ..Default::default() },
         ),
-        (linked_id.clone(), fresh_linked.clone()),
+        (
+            linked_id.clone(),
+            ProjectSnapshot {
+                dependencies: Some(importer_map(&[("linked-new", "2.0.0")])),
+                ..Default::default()
+            },
+        ),
     ]);
     wanted.snapshots =
         Some(HashMap::from([(key("linked-new", "2.0.0"), SnapshotEntry::default())]));
@@ -1302,9 +1303,9 @@ fn merge_filtered_current_lockfile_replaces_link_reached_importers() {
         Path::new("/workspace"),
     );
 
-    assert_eq!(merged.importers.get(&linked_id), Some(&fresh_linked));
-    assert!(merged.snapshots.as_ref().unwrap().contains_key(&key("linked-new", "2.0.0")));
-    assert!(!merged.snapshots.as_ref().unwrap().contains_key(&key("linked-old", "1.0.0")));
+    assert_eq!(merged.importers.get(&linked_id), Some(&previous_linked));
+    assert!(merged.snapshots.as_ref().unwrap().contains_key(&key("linked-old", "1.0.0")));
+    assert!(!merged.snapshots.as_ref().unwrap().contains_key(&key("linked-new", "2.0.0")));
 }
 
 #[test]

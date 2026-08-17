@@ -1,7 +1,7 @@
 use super::{BuildSnapshotError, build_package_snapshot, registry_package_key};
 use node_semver::Version;
-use pacquet_lockfile::{LockfileResolution, PkgName, PkgVerPeer};
-use pacquet_registry::{PackageDistribution, PackageVersion};
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgVerPeer};
+use pnpm_registry::{PackageDistribution, PackageVersion};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::collections::HashMap;

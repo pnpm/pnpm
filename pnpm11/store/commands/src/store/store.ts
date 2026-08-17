@@ -75,7 +75,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registries' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & Partial<Pick<Config, 'globalPkgDir'>> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registriesByScope' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & Partial<Pick<Config, 'globalPkgDir'>> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 

@@ -1,6 +1,6 @@
 //! `install` / `rebuild` / `getPeerDependencyIssues`.
 //!
-//! [`install`] runs `pacquet_package_manager::Install` against caller-supplied
+//! [`install`] runs `pnpm_package_manager::Install` against caller-supplied
 //! in-memory manifests. pacquet's install pipeline holds borrowed state
 //! (`&'a PackageManifest`, `&'a ResolvedPackages`) and a `&'static Config`, and
 //! the CLI drives it from a dedicated 32 MiB-stack thread with its own tokio
@@ -23,15 +23,15 @@ use std::{
 
 use indexmap::IndexMap;
 use napi_derive::napi;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
-use pacquet_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
-use pacquet_package_manager::{
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
+use pnpm_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
+use pnpm_package_manager::{
     DepsRequiringBuildSink, Install, ProjectMutation, RebuildOptions, ResolvedPackages,
     UpdateSeedPolicy,
 };
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_tarball::MemCache;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_tarball::MemCache;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -98,6 +98,11 @@ pub struct InstallOptions {
     pub package_extensions: Option<IndexMap<String, PackageExtensionInput>>,
     /// Patch paths keyed by package selector. Relative paths resolve from `dir`.
     pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// Warn instead of failing with `ERR_PNPM_UNUSED_PATCH` when a
+    /// `patchedDependencies` entry matches no installed package. Lets an
+    /// embedder ship a patch keyed to a version range that only some
+    /// workspaces resolve.
+    pub allow_unused_patches: Option<bool>,
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
@@ -336,7 +341,7 @@ enum EngineMode {
     /// and collects the per-importer peer-dependency issues into the
     /// sink. Mirrors v11's `getPeerDependencyIssues` (`dryRun: true`,
     /// `forceFullResolution: true`).
-    PeerIssues(pacquet_package_manager::PeerIssuesSink),
+    PeerIssues(pnpm_package_manager::PeerIssuesSink),
 }
 
 impl EngineMode {
@@ -407,7 +412,7 @@ fn run_install_inner(
     // package selectors, so an update always targets every dependency
     // (`UpdateSeedPolicy::drop_all()`); `depth` is only pnpm's direct-vs-any-depth
     // selector toggle, which has no effect without selectors and is accepted for
-    // API compatibility only. Mirrors `pacquet_package_manager::Update`, which
+    // API compatibility only. Mirrors `pnpm_package_manager::Update`, which
     // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
     // re-resolution is not short-circuited by the auto-frozen / repeat-install
     // fast paths.
@@ -486,7 +491,9 @@ fn run_install_inner(
                 // A peer-issue query resolves without writing anything;
                 // the sink presence suppresses the CLI dry-run report.
                 dry_run: matches!(mode, EngineMode::PeerIssues(_)),
+                persist_policy_excludes: false,
                 update_seed_policy,
+                preferred_versions_override: None,
                 auth_override: None,
                 resolution_observer: None,
                 peer_issues_sink: match &mode {
@@ -523,7 +530,7 @@ fn run_install_inner(
 
 /// Build the in-memory workspace-projects override from the caller's importer
 /// list. `None` for a single importer (the plain, non-workspace install path);
-/// otherwise one [`pacquet_workspace::Project`] per importer so `workspace:`
+/// otherwise one [`pnpm_workspace::Project`] per importer so `workspace:`
 /// specifiers resolve across them and each importer gets its own resolved
 /// dependency tree. The root importer (the project at the install dir) is
 /// included too — `Install::run` skips its `"."` id for the per-importer
@@ -531,7 +538,7 @@ fn run_install_inner(
 /// `workspace:`-spec lookup.
 fn build_workspace_projects_override(
     projects: &[NodeApiProject],
-) -> Option<Vec<pacquet_workspace::Project>> {
+) -> Option<Vec<pnpm_workspace::Project>> {
     if projects.len() <= 1 {
         return None;
     }
@@ -547,7 +554,7 @@ fn build_workspace_projects_override(
                     .dependency_manifest
                     .as_ref()
                     .map(|value| PackageManifest::from_value(manifest_path.clone(), value.clone()));
-                pacquet_workspace::Project { root_dir, manifest, dependency_manifest }
+                pnpm_workspace::Project { root_dir, manifest, dependency_manifest }
             })
             .collect(),
     )
@@ -583,7 +590,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
                     };
                     (
                         selector.clone(),
-                        pacquet_config::PackageExtension {
+                        pnpm_config::PackageExtension {
                             dependencies: to_sorted(&extension.dependencies),
                             optional_dependencies: to_sorted(&extension.optional_dependencies),
                             peer_dependencies: to_sorted(&extension.peer_dependencies),
@@ -593,7 +600,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
                                         .map(|(name, entry)| {
                                             (
                                                 name.clone(),
-                                                pacquet_config::PeerDependencyMeta {
+                                                pnpm_config::PeerDependencyMeta {
                                                     optional: entry.optional,
                                                 },
                                             )
@@ -607,6 +614,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
                 .collect()
         }),
         patched_dependencies: options.patched_dependencies.clone(),
+        allow_unused_patches: options.allow_unused_patches,
         hoist_pattern: options.hoist_pattern.clone(),
         public_hoist_pattern: options.public_hoist_pattern.clone(),
         external_dependencies: options
@@ -783,24 +791,24 @@ fn parse_single_string(value: &serde_json::Value) -> napi::Result<Option<String>
     }
 }
 
-fn parse_node_linker(value: &str) -> Option<pacquet_config::NodeLinker> {
+fn parse_node_linker(value: &str) -> Option<pnpm_config::NodeLinker> {
     match value {
-        "hoisted" => Some(pacquet_config::NodeLinker::Hoisted),
-        "isolated" => Some(pacquet_config::NodeLinker::Isolated),
-        "pnp" => Some(pacquet_config::NodeLinker::Pnp),
+        "hoisted" => Some(pnpm_config::NodeLinker::Hoisted),
+        "isolated" => Some(pnpm_config::NodeLinker::Isolated),
+        "pnp" => Some(pnpm_config::NodeLinker::Pnp),
         _ => None,
     }
 }
 
 /// Parse the JS `linkWorkspacePackages` value (`true` / `false` / `"deep"`)
-/// into a [`pacquet_config::LinkWorkspacePackages`], reusing the config
+/// into a [`pnpm_config::LinkWorkspacePackages`], reusing the config
 /// crate's `Deserialize`. Rejects any other value.
 fn parse_link_workspace_packages(
     value: Option<&serde_json::Value>,
-) -> napi::Result<Option<pacquet_config::LinkWorkspacePackages>> {
+) -> napi::Result<Option<pnpm_config::LinkWorkspacePackages>> {
     value
         .map(|value| {
-            serde_json::from_value::<pacquet_config::LinkWorkspacePackages>(value.clone()).map_err(
+            serde_json::from_value::<pnpm_config::LinkWorkspacePackages>(value.clone()).map_err(
                 |error| {
                     napi::Error::from_reason(format!(
                         r#"invalid linkWorkspacePackages (expected true, false, or "deep"): {error}"#,
@@ -811,13 +819,13 @@ fn parse_link_workspace_packages(
         .transpose()
 }
 
-pub(crate) fn parse_import_method(value: &str) -> Option<pacquet_config::PackageImportMethod> {
+pub(crate) fn parse_import_method(value: &str) -> Option<pnpm_config::PackageImportMethod> {
     match value {
-        "auto" => Some(pacquet_config::PackageImportMethod::Auto),
-        "hardlink" => Some(pacquet_config::PackageImportMethod::Hardlink),
-        "copy" => Some(pacquet_config::PackageImportMethod::Copy),
-        "clone" => Some(pacquet_config::PackageImportMethod::Clone),
-        "clone-or-copy" => Some(pacquet_config::PackageImportMethod::CloneOrCopy),
+        "auto" => Some(pnpm_config::PackageImportMethod::Auto),
+        "hardlink" => Some(pnpm_config::PackageImportMethod::Hardlink),
+        "copy" => Some(pnpm_config::PackageImportMethod::Copy),
+        "clone" => Some(pnpm_config::PackageImportMethod::Clone),
+        "clone-or-copy" => Some(pnpm_config::PackageImportMethod::CloneOrCopy),
         _ => None,
     }
 }
@@ -961,7 +969,7 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
         ..InstallOptions::default()
     };
 
-    let sink: pacquet_package_manager::PeerIssuesSink = Arc::default();
+    let sink: pnpm_package_manager::PeerIssuesSink = Arc::default();
     run_install_inner(&install_options, None, EngineMode::PeerIssues(Arc::clone(&sink)))?;
     let issues_by_importer =
         std::mem::take(&mut *sink.lock().expect("peer-issues sink lock poisoned"));
@@ -980,11 +988,12 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
 /// ranges intersect via semver bound-set intersection (`null`
 /// intersection → conflict).
 fn peer_issues_to_json(
-    issues: &pacquet_resolving_deps_resolver::PeerDependencyIssues,
+    issues: &pnpm_resolving_deps_resolver::PeerDependencyIssues,
 ) -> serde_json::Value {
-    let parents_json = |parents: &[pacquet_resolving_deps_resolver::ParentPackageRef]| {
+    let parents_json = |parents: &pnpm_resolving_deps_resolver::ParentChain| {
         parents
-            .iter()
+            .to_refs()
+            .into_iter()
             .map(|parent| serde_json::json!({ "name": parent.name, "version": parent.version }))
             .collect::<Vec<_>>()
     };

@@ -104,6 +104,52 @@ fn save_reproduces_pnpm_authored_bytes() {
 }
 
 #[test]
+fn time_survives_a_save_round_trip() {
+    let lockfile: Lockfile = serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{DIRECT_TIME}"))
+        .expect("parse fixture lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+
+    let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
+    assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
+}
+
+#[test]
+fn time_is_pruned_to_the_importers_direct_dependencies() {
+    const TIME_WITH_TRANSITIVE: &str = text_block! {
+        ""
+        "time:"
+        "  object-assign@4.1.1: '2016-06-08T00:00:00.000Z'"
+        "  react-dom@17.0.2: '2021-03-22T15:00:00.000Z'"
+        "  react@17.0.2: '2021-03-22T14:00:00.000Z'"
+        "  typescript@5.1.6: '2023-06-27T18:00:00.000Z'"
+    };
+
+    let lockfile: Lockfile =
+        serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{TIME_WITH_TRANSITIVE}"))
+            .expect("parse fixture lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+
+    let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
+    assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
+}
+
+/// The `time:` section of [`LOCKFILE_YAML`] once pruned: one entry per
+/// direct dependency, with `react-dom`'s peer suffix stripped.
+const DIRECT_TIME: &str = text_block! {
+    ""
+    "time:"
+    "  react-dom@17.0.2: '2021-03-22T15:00:00.000Z'"
+    "  react@17.0.2: '2021-03-22T14:00:00.000Z'"
+    "  typescript@5.1.6: '2023-06-27T18:00:00.000Z'"
+};
+
+#[test]
 fn workspace_lockfile_with_link_dep_round_trips() {
     const WORKSPACE_YAML: &str = text_block! {
         "lockfileVersion: '9.0'"
@@ -229,6 +275,7 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
         importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
+        time: None,
     };
 
     let tmp = tempdir().expect("create tempdir");
@@ -265,6 +312,7 @@ fn peers_suffix_max_length_serialized_when_set() {
         importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
+        time: None,
     };
 
     let tmp = tempdir().expect("create tempdir");

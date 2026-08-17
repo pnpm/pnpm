@@ -232,7 +232,7 @@ jobs:
           save-cache: false # it's insufficient
 
       - name: Install pnpm
-        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           install: false
 
@@ -253,7 +253,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # v2.85.8
+        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
         with:
           tool: just
 
@@ -300,6 +300,32 @@ jobs:
           just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
+
+      - name: 'Benchmark: Isolated linker: repeat install, hot cache + hot store'
+        shell: bash
+        # Populated, up-to-date `node_modules`: nothing is wiped between
+        # iterations, so the timed command is the repeat-install
+        # short-circuit ("Already up to date"). Guards pnpm/pnpm#13904 —
+        # the harness asserts pnpr@HEAD is not slower than pacquet@HEAD
+        # here, since a configured pnpr server must cost nothing when
+        # there is nothing to resolve. Cheapest scenario per iteration.
+        timeout-minutes: 15
+        run: |
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.repeat-install.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
+
+      - name: 'Benchmark: Isolated linker: repeat install, cold cache + hot store'
+        shell: bash
+        # Same populated repeat install with `cache-dir` wiped per
+        # iteration: the up-to-date answer must be reached without any
+        # metadata or verification-cache reads, so a cold cache may not
+        # slow it down (same pnpm/pnpm#13904 gate as the hot variant).
+        timeout-minutes: 15
+        run: |
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.repeat-install.cold-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.json
 
       - name: 'Benchmark: Isolated linker: fresh install, cold cache + cold store'
         shell: bash
@@ -406,6 +432,31 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json
 
+      - name: 'Benchmark: GVS linker: fresh restore, hot cache + hot store'
+        shell: bash
+        # The layout pnpm 12 installs into by default, which no other
+        # scenario measures — every `isolated-linker.*` fixture pins
+        # `enableGlobalVirtualStore: false`.
+        #
+        # Same frozen install as the isolated fresh-restore hot/hot
+        # scenario, against the same warm cache and store, so the pair
+        # brackets what the layout is worth: the per-iteration wipe takes
+        # `node_modules` either way, but under the shared store the
+        # materialized package directories live outside it and survive,
+        # leaving symlinking as the measured work. Locally that is ~190 ms
+        # against ~1.05 s for the isolated scenario, so this is also the
+        # scenario where a regression in slot reuse would show up as a
+        # jump toward that isolated number.
+        #
+        # The harness pre-warms the shared store per target before
+        # hyperfine starts, because the scenario's contract is a
+        # populated GVS and the pre-benchmark wipe empties it.
+        timeout-minutes: 15
+        run: |
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=gvs-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
+
       # When a scenario fails, hyperfine aborts and the benchmarked install's
       # own output is invisible: each target's script redirects stdout+stderr to
       # `bench-work-env/<target>/BENCHMARK_OUTPUT.ndjson` (to keep hyperfine's
@@ -472,7 +523,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -484,7 +535,31 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '### Scenario: Isolated linker: repeat install, hot cache + hot store'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '### Scenario: Isolated linker: repeat install, cold cache + hot store'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -496,7 +571,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -508,7 +583,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -520,7 +595,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -532,7 +607,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
             echo '```'
             echo
             echo '</details>'
@@ -544,7 +619,7 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.json
             echo '```'
             echo
             echo '</details>'
@@ -556,7 +631,21 @@ jobs:
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '### Scenario: GVS linker: fresh restore, hot cache + hot store'
+            echo
+            echo 'Same install as the isolated fresh-restore hot/hot scenario, into the shared virtual store — the layout pnpm 12 installs into by default. Comparable to that scenario head-to-head.'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times)' bench-work-env/BENCHMARK_REPORT_GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -617,21 +706,27 @@ jobs:
           build_bencher_file bench-work-env/bencher-results.json pacquet@HEAD \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \
             'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store' \
+            'ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.repeat-install.hot-cache.hot-store' \
+            'ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.repeat-install.cold-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
             'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.peer-heavy-resolve.hot-cache.offline' \
-            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
+            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr' \
+            'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE:gvs-linker.fresh-restore.hot-cache.hot-store'
 
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \
             'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store' \
+            'ISOLATED_REPEAT_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.repeat-install.hot-cache.hot-store' \
+            'ISOLATED_REPEAT_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.repeat-install.cold-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
             'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
-            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
+            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr' \
+            'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE:gvs-linker.fresh-restore.hot-cache.hot-store'
 
       - name: Stage artifact contents
         # The artifact carries the rendered report plus the
@@ -639,10 +734,16 @@ jobs:
         # workflow. The PR number and runner OS are derived from the
         # trusted workflow_run event payload in that workflow, not
         # from fork-controlled artifact contents.
+        #
+        # The raw per-scenario hyperfine exports ride along too: they
+        # keep the per-run sample distributions that the summary's
+        # embedded JSON strips to stay under GitHub's comment size
+        # limit, so noise investigations still have the full data.
         shell: bash
         run: |
           mkdir -p benchmark-artifact
           cp bench-work-env/SUMMARY.md benchmark-artifact/SUMMARY.md
+          cp bench-work-env/BENCHMARK_REPORT_*.json benchmark-artifact/
           cp bench-work-env/bencher-results.json benchmark-artifact/bencher-results.json
           cp bench-work-env/bencher-results-pnpr.json benchmark-artifact/bencher-results-pnpr.json
 

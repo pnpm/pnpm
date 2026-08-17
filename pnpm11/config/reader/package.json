@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.reader",
-  "version": "1101.16.0",
+  "version": "1101.17.0",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
@@ -40,6 +40,7 @@
     "@pnpm/config.registry-auth-key": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.esm-node-path-loader": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",

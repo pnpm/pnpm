@@ -122,7 +122,7 @@ fn select_materialized_state<'a>(
         .iter()
         .filter(|(project_dir, _)| {
             let importer_id =
-                pacquet_workspace::importer_id_from_root_dir(inputs.workspace_root, project_dir);
+                pnpm_workspace::importer_id_from_root_dir(inputs.workspace_root, project_dir);
             project_anchor_importer_ids.contains(&importer_id)
         })
         .cloned()
@@ -172,10 +172,10 @@ async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
             .as_deref()
             .and_then(crate::install_frozen_lockfile::parse_major_from_version);
         let engine_name = match runtime_major.or(configured_major) {
-            Some(major) => Some(pacquet_graph_hasher::engine_name(major, None, None)),
+            Some(major) => Some(pnpm_graph_hasher::engine_name(major, None, None)),
             None if config.enable_global_virtual_store => tokio::task::spawn_blocking(|| {
-                pacquet_graph_hasher::detect_node_major()
-                    .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
+                pnpm_graph_hasher::detect_node_major()
+                    .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
             })
             .await
             .ok()
@@ -233,7 +233,7 @@ async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
 }
 
 struct CommitModulesStateInputs<'a> {
-    prior_modules: Option<&'a pacquet_modules_yaml::ModulesLayout>,
+    prior_modules: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     config: &'static Config,
     workspace_root: &'a Path,
     materialized_current_lockfile: Option<&'a Lockfile>,
@@ -254,6 +254,7 @@ struct CommitModulesStateInputs<'a> {
     take_frozen_path: bool,
     lockfile_synthesized_from_current: bool,
     lockfile_was_fast_updated: bool,
+    save_lockfile: bool,
     loaded_wanted_lockfile: Option<&'a Lockfile>,
 }
 
@@ -280,6 +281,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         take_frozen_path,
         lockfile_synthesized_from_current,
         lockfile_was_fast_updated,
+        save_lockfile,
         loaded_wanted_lockfile,
     } = inputs;
     let now = SystemTime::now();
@@ -358,7 +360,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
                 project_requires_lifecycle_scripts(project_dir, manifest)
             })
             .map(|(project_dir, _)| {
-                pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
             })
             .collect::<Vec<_>>()
     });
@@ -445,6 +447,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     if take_frozen_path
         && (lockfile_synthesized_from_current || lockfile_was_fast_updated)
         && config.lockfile
+        && save_lockfile
         && let Some(updated) = loaded_wanted_lockfile
     {
         updated
@@ -498,7 +501,7 @@ fn run_materialized_project_scripts<Reporter: self::Reporter>(
                 .iter()
                 .filter(|(project_dir, _)| {
                     let importer_id =
-                        pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir);
+                        pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
                     rebuild.pending_projects.contains(&importer_id)
                 })
                 .cloned()
@@ -576,7 +579,7 @@ fn report_install_completion<Reporter: self::Reporter>(
             .iter()
             .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))
             .collect();
-        pacquet_workspace_manifest_writer::scaffold_allow_builds(
+        pnpm_workspace_manifest_writer::scaffold_allow_builds(
             workspace_manifest_dir,
             allow_build_keys.iter().map(String::as_str),
         )
@@ -621,16 +624,16 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) injected_deps: BTreeMap<String, Vec<String>>,
     pub(super) ignored_builds: Vec<String>,
     pub(super) deferred_builds: Vec<String>,
-    pub(super) modules_manifest: Option<pacquet_modules_yaml::ModulesLayout>,
+    pub(super) modules_manifest: Option<pnpm_modules_yaml::ModulesLayout>,
     pub(super) rebuild: Option<RebuildOptions>,
     pub(super) take_frozen_path: bool,
     pub(super) lockfile_synthesized_from_current: bool,
     pub(super) lockfile_was_fast_updated: bool,
+    pub(super) save_lockfile: bool,
     pub(super) mutation: ProjectMutation,
     pub(super) manifest_dir: &'a Path,
     pub(super) selection: Option<WorkspaceInstallSelection<'selection>>,
-    pub(super) supported_architectures:
-        Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub(super) supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) catalogs: Catalogs,
 }
 
@@ -668,6 +671,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         take_frozen_path,
         lockfile_synthesized_from_current,
         lockfile_was_fast_updated,
+        save_lockfile,
         mutation,
         manifest_dir,
         selection,
@@ -741,6 +745,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         take_frozen_path,
         lockfile_synthesized_from_current,
         lockfile_was_fast_updated,
+        save_lockfile,
         loaded_wanted_lockfile: lockfile,
     })?;
 

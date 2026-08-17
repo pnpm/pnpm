@@ -2,28 +2,31 @@
 import path from 'node:path'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
+import type { PnpmError } from '@pnpm/error'
 import isWindows from 'is-windows'
 
 jest.unstable_mockModule('@pnpm/network.fetch', () => ({
   fetchWithDispatcher: jest.fn(),
 }))
-jest.unstable_mockModule('graceful-git', () => ({
-  gracefulGit: jest.fn(),
+jest.unstable_mockModule('execa', () => ({
+  safeExeca: jest.fn(),
 }))
 const { fetchWithDispatcher } = await import('@pnpm/network.fetch')
-const { gracefulGit: git } = await import('graceful-git')
+const { safeExeca: execa } = await import('execa')
 const { createGitResolver } = await import('@pnpm/resolving.git-resolver')
+const { lsRemote } = await import('../lib/lsRemote.js')
 
 const resolveFromGit = createGitResolver({})
 
 beforeEach(() => {
-  jest.mocked(git).mockImplementation(lsRemoteFromFixture)
+  mockGit(lsRemoteFromFixture)
   mockFetchAsPublic()
 })
 
 test('resolveFromGit() passes GIT_TERMINAL_PROMPT=0 to prevent interactive credential prompts', async () => {
   await resolveFromGit({ bareSpecifier: 'zkochan/is-negative#master' })
-  expect(jest.mocked(git)).toHaveBeenCalledWith(
+  expect(jest.mocked(execa)).toHaveBeenCalledWith(
+    'git',
     expect.any(Array),
     expect.objectContaining({
       env: expect.objectContaining({
@@ -206,7 +209,7 @@ test('resolveFromGit() with sub folder', async () => {
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
     return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
-  jest.mocked(git).mockImplementation(async (args: string[]) => {
+  mockGit(async (args: string[]) => {
     if (args.includes('--exit-code')) {
       return { stdout: `${headCommit}\tHEAD` }
     }
@@ -230,7 +233,7 @@ test('resolveFromGit() with both sub folder and branch', async () => {
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
     return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
-  jest.mocked(git).mockImplementation(async (args: string[]) => {
+  mockGit(async (args: string[]) => {
     if (args.includes('--exit-code')) {
       return { stdout: `${betaCommit}\tHEAD` }
     }
@@ -283,8 +286,8 @@ test('resolveFromGit() with commit from non-github repo', async () => {
 // TODO: make it pass on CI servers
 test.skip('resolveFromGit() with commit from non-github repo with no commit', async () => {
   const localPath = path.resolve('..', '..')
-  const result = await git(['rev-parse', 'origin/master'], { retries: 0 })
-  const hash: string = result.stdout.trim()
+  const result = await execa('git', ['rev-parse', 'origin/master'])
+  const hash = (result.stdout as string).trim()
   const resolveResult = await resolveFromGit({ bareSpecifier: `git+file://${localPath}` })
   expect(resolveResult).toStrictEqual({
     id: `git+file://${localPath}#${hash}`,
@@ -319,7 +322,7 @@ test.skip('resolveFromGit() bitbucket with commit', async () => {
 // Stopped working. Environmental issue.
 test.skip('resolveFromGit() bitbucket with no commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'bitbucket:pnpmjs/git-resolver' })
-  const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
+  const result = await lsRemote(['--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
     id: `https://bitbucket.org/pnpmjs/git-resolver/get/${hash}.tar.gz`,
@@ -334,7 +337,7 @@ test.skip('resolveFromGit() bitbucket with no commit', async () => {
 // Stopped working. Environmental issue.
 test.skip('resolveFromGit() bitbucket with branch', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'bitbucket:pnpmjs/git-resolver#master' })
-  const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
+  const result = await lsRemote(['--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
     id: `https://bitbucket.org/pnpmjs/git-resolver/get/${hash}.tar.gz`,
@@ -382,7 +385,7 @@ test('resolveFromGit() gitlab tarball uses /-/archive/ URL without encoded slash
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
     return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
-  jest.mocked(git).mockImplementation(async () => ({ stdout: `${headCommit}\tHEAD` }))
+  mockGit(async () => ({ stdout: `${headCommit}\tHEAD` }))
   const resolveResult = await resolveFromGit({ bareSpecifier: 'https://gitlab.com/pnpmjs/git-resolver' })
   expect(resolveResult).toStrictEqual({
     id: `https://gitlab.com/pnpmjs/git-resolver/-/archive/${headCommit}/git-resolver-${headCommit}.tar.gz`,
@@ -412,7 +415,7 @@ test.skip('resolveFromGit() gitlab with commit', async () => {
 // This test stopped working. Probably an environmental issue.
 test.skip('resolveFromGit() gitlab with no commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver' })
-  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
+  const result = await lsRemote(['--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
     id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
@@ -427,7 +430,7 @@ test.skip('resolveFromGit() gitlab with no commit', async () => {
 // This test stopped working. Probably an environmental issue.
 test.skip('resolveFromGit() gitlab with branch', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#master' })
-  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
+  const result = await lsRemote(['--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
     id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
@@ -509,17 +512,17 @@ test('resolveFromGit() normalizes full url (alternative form 2)', async () => {
 // current implementation does not try git ls-remote on bareSpecifier with full commit hash, this fake repo url will pass.
 test('resolveFromGit() private repo with commit hash', async () => {
   // parseBareSpecifier will try to access the repository with --exit-code
-  git.mockImplementation(() => {
+  mockGit(() => {
     throw new Error('private')
   })
   mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ bareSpecifier: 'fake/private-repo#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5' })
   expect(resolveResult).toStrictEqual({
-    id: 'git+ssh://git@github.com/fake/private-repo.git#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+    id: 'git+https://github.com/fake/private-repo.git#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
     normalizedBareSpecifier: 'github:fake/private-repo#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
     resolution: {
       commit: '2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
-      repo: 'git+ssh://git@github.com/fake/private-repo.git',
+      repo: 'https://github.com/fake/private-repo.git',
       type: 'git',
     },
     resolvedVia: 'git-repository',
@@ -527,8 +530,12 @@ test('resolveFromGit() private repo with commit hash', async () => {
 })
 
 test('resolve a private repository using the HTTPS protocol without auth token', async () => {
-  jest.mocked(git).mockImplementation(async (args: string[]) => {
-    expect(args).toContain('git+ssh://git@github.com/foo/bar.git')
+  mockGit(async (args: string[]) => {
+    // Probes use --exit-code, resolution calls use --. Fail probes, succeed resolution.
+    if (args.includes('--exit-code')) {
+      throw new Error('access denied')
+    }
+    expect(args).toContain('https://github.com/foo/bar.git')
     return {
       stdout: '0'.repeat(40) + '\tHEAD',
     }
@@ -536,20 +543,160 @@ test('resolve a private repository using the HTTPS protocol without auth token',
   mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ bareSpecifier: 'git+https://github.com/foo/bar.git' })
   expect(resolveResult).toStrictEqual({
-    id: 'git+ssh://git@github.com/foo/bar.git#0000000000000000000000000000000000000000',
+    id: 'git+https://github.com/foo/bar.git#0000000000000000000000000000000000000000',
     normalizedBareSpecifier: 'github:foo/bar',
     resolution: {
       commit: '0000000000000000000000000000000000000000',
-      repo: 'git+ssh://git@github.com/foo/bar.git',
+      repo: 'https://github.com/foo/bar.git',
       type: 'git',
     },
     resolvedVia: 'git-repository',
   })
 })
 
+test('resolve over HTTPS when the visibility probe fails but anonymous HTTPS git access works', async () => {
+  // A public repo whose HEAD probe is throttled (e.g. GitHub rate-limiting a CI
+  // runner) must still resolve over HTTPS: recording SSH would poison the
+  // lockfile for every environment without SSH keys.
+  mockFetchAsPrivate()
+  const gitCalls: string[][] = []
+  mockGit(async (args: string[]) => {
+    gitCalls.push(args)
+    if (args.some((arg) => arg.includes('git@'))) throw new Error('Permission denied (publickey)')
+    return { stdout: '0'.repeat(40) + '\tHEAD' }
+  })
+  const resolveResult = await resolveFromGit({ bareSpecifier: 'foo/bar' })
+  expect(resolveResult).toStrictEqual({
+    id: `git+https://github.com/foo/bar.git#${'0'.repeat(40)}`,
+    normalizedBareSpecifier: 'git+https://github.com/foo/bar.git',
+    resolution: {
+      commit: '0'.repeat(40),
+      repo: 'https://github.com/foo/bar.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+  expect(gitCalls.flat().some((arg) => arg.includes('git@'))).toBe(false)
+})
+
+test('a public repository resolves over HTTPS without probing git access', async () => {
+  const gitCalls: string[][] = []
+  mockGit(async (args: string[]) => {
+    gitCalls.push(args)
+    return lsRemoteFromFixture(args)
+  })
+  await resolveFromGit({ bareSpecifier: 'zkochan/is-negative#master' })
+  expect(gitCalls).toStrictEqual([
+    ['ls-remote', '--', 'https://github.com/zkochan/is-negative.git', 'master', 'master^{}'],
+  ])
+})
+
+test('an explicit SSH specifier resolves over SSH when git cannot use HTTPS', async () => {
+  mockGit(async (args: string[]) => {
+    if (args.some((arg) => arg.startsWith('https://'))) throw new Error('SSL certificate problem')
+    return { stdout: '0'.repeat(40) + '\tHEAD' }
+  })
+  const resolveResult = await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/foo/bar.git' })
+  expect(resolveResult?.resolution).toStrictEqual({
+    commit: '0'.repeat(40),
+    repo: 'git@github.com:foo/bar.git',
+    type: 'git',
+  })
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/13743.
+test('an unreachable remote names the dependency and how to substitute the transport', async () => {
+  mockGit(async () => {
+    throw Object.assign(new Error('Command failed with exit code 128'), {
+      stderr: "fatal: unable to access 'https://github.com/zkochan/is-negative.git/': SSL certificate problem",
+    })
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'zkochan/is-negative#next' }))
+  expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
+  expect(err.message).toBe('Failed to resolve git dependency "zkochan/is-negative#next": git ls-remote failed: fatal: unable to access \'https://github.com/zkochan/is-negative.git/\': SSL certificate problem')
+  expect(err.hint).toContain('git config --global url."git@github.com:".insteadOf "https://github.com/"')
+})
+
+test('an unreachable remote redacts the credentials git echoes back', async () => {
+  mockGit(async () => {
+    throw Object.assign(new Error('Command failed with exit code 128'), {
+      stderr: "fatal: unable to access 'https://hunter2:x-oauth-basic@github.com/foo/bar.git/': not found",
+    })
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+https://hunter2:x-oauth-basic@github.com/foo/bar.git' }))
+  expect(err.message).not.toContain('hunter2')
+  expect(err.message).not.toContain('x-oauth-basic')
+  expect(err.hint).not.toContain('hunter2')
+})
+
+test.each([
+  ['an unresolvable ref', 'no-such-branch', 'Could not resolve no-such-branch to a commit of'],
+  ['a range matching no tag', 'semver:^1.0.0', 'Could not resolve ^1.0.0 to a commit of'],
+])('%s redacts the credentials the repository URL carries', async (_name, committish, expected) => {
+  mockGit(async () => ({ stdout: `${'0'.repeat(40)}\tHEAD` }))
+  mockFetchAsPrivate()
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: `git+https://hunter2:x-oauth-basic@github.com/foo/bar.git#${committish}` }))
+  expect(err.message).toContain(expected)
+  // The whole `user:pass@` goes, not just one half of it — a GitHub token is
+  // the *user* in `<token>:x-oauth-basic@` — while the part of the URL that
+  // tells the reader which repository failed stays.
+  expect(err.message).not.toContain('hunter2')
+  expect(err.message).not.toContain('x-oauth-basic')
+  expect(err.message).toContain('https://github.com/foo/bar.git')
+})
+
+test('a missing git binary is reported as one', async () => {
+  mockGit(async () => {
+    throw Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'zkochan/is-negative#master' }))
+  expect(err.message).toBe('Failed to resolve git dependency "zkochan/is-negative#master": git ls-remote failed: `git` executable not found on PATH. Install git to resolve git-hosted packages.')
+})
+
+test('an unreachable SSH remote carries no transport substitution hint', async () => {
+  mockFetchAsPrivate()
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/foo/bar.git' }))
+  expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
+  expect(err.hint).toBeUndefined()
+})
+
+test('resolve an explicit SSH specifier over SSH when only SSH access works', async () => {
+  mockFetchAsPrivate()
+  mockGit(async (args: string[]) => {
+    if (!args.includes('git@github.com:foo/bar.git')) throw new Error('access denied')
+    return { stdout: '0'.repeat(40) + '\tHEAD' }
+  })
+  const resolveResult = await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/foo/bar.git' })
+  expect(resolveResult).toStrictEqual({
+    id: `git+ssh://git@github.com/foo/bar.git#${'0'.repeat(40)}`,
+    normalizedBareSpecifier: 'github:foo/bar',
+    resolution: {
+      commit: '0'.repeat(40),
+      repo: 'git@github.com:foo/bar.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
+test('the terminal credential prompt is disabled when a private repository is probed and resolved', async () => {
+  mockFetchAsPrivate()
+  let invocations = 0
+  mockGit(async () => {
+    invocations++
+    return { stdout: '0'.repeat(40) + '\tHEAD' }
+  })
+  await resolveFromGit({ bareSpecifier: 'git+https://github.com/foo/bar.git' })
+  // The access probe and the ref resolution both shell out to git.
+  expect(invocations).toBe(2)
+})
+
 test('resolve a private repository using the HTTPS protocol with a commit hash', async () => {
   mockFetchAsPrivate()
-  jest.mocked(git).mockImplementation(async (args: string[]) => {
+  mockGit(async (args: string[]) => {
     expect(args).toContain('ls-remote')
     expect(args).toContain('https://github.com/foo/bar.git')
     return {
@@ -572,7 +719,7 @@ test('resolve a private repository using the HTTPS protocol with a commit hash',
 })
 
 test('resolve a private repository using the HTTPS protocol and an auth token', async () => {
-  git.mockImplementation(async (args: string[]) => {
+  mockGit(async (args: string[]) => {
     if (!args.includes('https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git')) throw new Error('')
     return { stdout: '0000000000000000000000000000000000000000\tHEAD' }
   })
@@ -591,7 +738,7 @@ test('resolve a private repository using the HTTPS protocol and an auth token', 
 })
 
 test('resolve an internal repository using SSH protocol with range semver', async () => {
-  git.mockImplementation(async (args: string[]) => {
+  mockGit(async (args: string[]) => {
     if (!args.includes('ssh://git@example.com/org/repo.git')) throw new Error('')
     return {
       stdout: '0000000000000000000000000000000000000000\tHEAD\n\
@@ -613,7 +760,7 @@ cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
 })
 
 test('resolve an internal repository using SSH protocol with range semver and SCP-like URL', async () => {
-  git.mockImplementation(async (args: string[]) => {
+  mockGit(async (args: string[]) => {
     if (!args.includes('ssh://git@example.com/org/repo.git')) throw new Error('')
     return {
       stdout: '0000000000000000000000000000000000000000\tHEAD\n\
@@ -634,6 +781,16 @@ cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
   })
 })
 
+function mockGit (run: (args: string[]) => Promise<{ stdout: string }>): void {
+  jest.mocked(execa).mockImplementation(((file: string, args?: readonly string[], opts?: { env?: NodeJS.ProcessEnv }) => {
+    // Every git invocation has to disable the terminal credential prompt,
+    // otherwise a repository that needs credentials blocks the command.
+    expect(file).toBe('git')
+    expect(opts?.env?.GIT_TERMINAL_PROMPT).toBe('0')
+    return run(args ? [...args] : [])
+  }) as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
 function mockFetchAsPublic (): void {
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
     return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -644,6 +801,15 @@ function mockFetchAsPrivate (): void {
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
     return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
+}
+
+async function resolveFailure (resolving: Promise<unknown>): Promise<PnpmError> {
+  return resolving.then(
+    () => {
+      throw new Error('expected the git resolution to fail')
+    },
+    (err: unknown) => err as PnpmError
+  )
 }
 
 async function lsRemoteFromFixture (args: string[]): Promise<{ stdout: string }> {

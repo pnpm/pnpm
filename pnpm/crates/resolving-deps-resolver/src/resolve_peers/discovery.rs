@@ -14,7 +14,7 @@ use crate::{
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -111,6 +111,12 @@ pub(crate) struct PeerDiscoveryCaches {
     pub(super) retained_peer_node_ids: HashSet<NodeId>,
     pub(super) peer_provider_children_by_pkg_id: HashMap<String, PeerProviderChildren>,
     pub(super) peer_provider_index_peer_names: HashSet<String>,
+    /// The shared record-only occurrence per canonical back-edge
+    /// target; persisted so later rounds reuse instead of re-creating
+    /// (and re-walking) them. Entries are validated against the current
+    /// tree on lookup, so a walker over a different tree view recreates
+    /// what its tree lacks.
+    pub(super) canonical_backedge_nodes: HashMap<std::sync::Arc<str>, NodeId>,
 }
 
 /// What one peer-hoist discovery pass reports back to the hoist loop —
@@ -222,6 +228,7 @@ fn discover_peers(
         );
         fold_output(&mut result, output);
     }
+    walker.drain_pending_canonical_nodes(&importer_parents, &importer_parent_dep_paths);
     result.peer_dependency_issues = std::mem::take(&mut walker.issues);
     result.missing_ancestor_pkg_ids = std::mem::take(&mut walker.missing_ancestor_pkg_ids);
     (result, walker.into_caches())

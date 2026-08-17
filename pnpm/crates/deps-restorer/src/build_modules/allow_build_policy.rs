@@ -69,7 +69,7 @@ impl AllowBuildPolicy {
 
     /// Build the policy from a resolved [`Config`]. Reads
     /// `allow_builds` and `dangerously_allow_all_builds`, which are
-    /// populated by [`pacquet_config::WorkspaceSettings::apply_to`]
+    /// populated by [`pnpm_config::WorkspaceSettings::apply_to`]
     /// from `pnpm-workspace.yaml`. pnpm v11 stopped reading these
     /// from `package.json#pnpm` — see pnpm/pacquet#397 item 5.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
@@ -177,7 +177,7 @@ impl AllowBuildPolicy {
 /// lumped suffix handling, the patch hash) so config keys compare equal
 /// to the `metadata_key.to_string()` form used at the runtime call sites.
 ///
-/// [`PkgVerPeer::without_peer`]: pacquet_lockfile::PkgVerPeer::without_peer
+/// [`PkgVerPeer::without_peer`]: pnpm_lockfile::PkgVerPeer::without_peer
 #[must_use]
 pub fn normalize_build_dep_path(dep_path: &str) -> String {
     remove_suffix(dep_path).to_string()

@@ -85,7 +85,7 @@ export function parseJsrSpecifierToRegistryPackageSpec (
   }
 }
 
-export { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
+export { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
 
 export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
   registryName: string

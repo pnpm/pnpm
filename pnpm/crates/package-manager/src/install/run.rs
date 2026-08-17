@@ -1,21 +1,23 @@
 use super::{
     ApplyMaterializationInputs, Arc, AtomicU8, ContextLog, DependencyGroup,
-    FastUpdateImporterLockfileOptions, FreshnessCheckError, HashSet, Host,
+    FastUpdateLockfileOptions, FreshnessCheckError, FreshnessScope, HashSet, Host,
     InMemoryPackageMetaCache, IncludedDependencies, Install, InstallError, InstallRunOptions,
     IsTerminal, Lockfile, LogEvent, LogLevel, MaterializationInputs, MaterializationOutput,
-    OptimisticRepeatInstallCheck, OptimisticRepeatInstallDecision, Path, PnpmLog,
-    PrepareModulesStateInputs, PreparedModulesState, Reporter, ScopeLog, Stage, StageLog,
+    OptimisticRepeatInstallCheck, OptimisticRepeatInstallDecision, PackageManifest, Path, PathBuf,
+    PnpmLog, PrepareModulesStateInputs, PreparedModulesState, Reporter, ScopeLog, Stage, StageLog,
     SummaryLog, UpdateSeedPolicy, apply_materialization_result, build_project_manifests_list,
     build_resolution_verifiers, build_root_importer_project_manifests_list,
     build_selected_project_manifests_list, check_lockfile_freshness,
     check_optimistic_repeat_install, configured_or_discovered_workspace_dir,
     dev_preinstall_already_ran, emit_initial_package_manifest,
     get_catalogs_from_workspace_manifest, gvs_build_marker_present,
-    gvs_build_markers_may_require_recovery, load_workspace_projects, map_frozen_lockfile_error,
-    materialize, prepare_modules_state, run_dev_preinstall, selected_manifest_freshness_inputs,
-    try_fast_update_importer_lockfile, unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
+    gvs_build_markers_may_require_recovery, load_workspace_projects, lockfile_root_dir,
+    map_frozen_lockfile_error, materialize, prepare_modules_state, run_dev_preinstall,
+    selected_manifest_freshness_inputs, try_fast_update_lockfile,
+    unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
-use pacquet_executor::DEV_PREINSTALL_STAGE;
+use pnpm_config::Config;
+use pnpm_executor::DEV_PREINSTALL_STAGE;
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
@@ -30,6 +32,8 @@ where
             rebuild,
             selection,
             root_manifest_as_workspace_root,
+            save_lockfile,
+            manifest_spec_bumps,
             prompt_eligibility_override,
         } = options;
         let Install {
@@ -55,7 +59,9 @@ where
             node_linker,
             lockfile_only,
             dry_run,
+            persist_policy_excludes,
             update_seed_policy,
+            preferred_versions_override,
             auth_override,
             resolution_observer,
             peer_issues_sink,
@@ -135,21 +141,14 @@ where
             .map_err(InstallError::FindWorkspaceDir)?;
         let workspace_manifest_dir =
             workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
-        // Dedicated per-project lockfiles (`sharedWorkspaceLockfile:
-        // false`) anchor everything `workspace_root` names — the wanted
-        // lockfile, importer ids, reporter prefixes, the workspace-state
-        // file — at the active project, mirroring pnpm's `lockfileDir =
-        // sharedWorkspaceLockfile ? workspaceDir : projectDir`. Catalogs
-        // and workspace packages still come from the real workspace dir
-        // (`workspace_dir_opt`).
-        let workspace_root = if config.shared_workspace_lockfile {
-            workspace_manifest_dir.clone()
-        } else {
-            manifest_dir.to_path_buf()
-        };
+        // Catalogs and workspace packages still come from the real
+        // workspace dir (`workspace_dir_opt`), which `lockfile_root_dir`
+        // parts ways with under `sharedWorkspaceLockfile: false`.
+        let workspace_root =
+            lockfile_root_dir(config, manifest_dir).map_err(InstallError::FindWorkspaceDir)?;
 
         let workspace_manifest = match workspace_dir_opt.as_deref() {
-            Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
+            Some(dir) => pnpm_workspace::read_workspace_manifest(dir)
                 .map_err(InstallError::ReadWorkspaceManifest)?,
             None => None,
         };
@@ -254,35 +253,33 @@ where
             ),
             None => build_project_manifests_list(&workspace_root, manifest, workspace_projects),
         };
-        let manifest_freshness_inputs = match selection.as_ref() {
-            Some(selection) => selected_manifest_freshness_inputs(
-                &workspace_root,
-                &project_manifests,
-                selection.selected_dirs,
-            ),
-            None => project_manifests
-                .iter()
-                .map(|(project_dir, manifest)| {
-                    (
-                        pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
-                        *manifest,
-                    )
-                })
-                .collect(),
-        };
+        // Only an unfiltered install of a whole workspace sees the complete
+        // project list, so only it may conclude that an importer the
+        // lockfile records belongs to a project that is gone. This is
+        // pnpm's `pruneLockfileImporters`, which its recursive install
+        // defaults to the same condition — outside a workspace there is no
+        // project list to compare against.
+        // A `NodeApiProject[]` handed in by an API consumer carries no
+        // promise of listing every workspace project, so it cannot stand
+        // in for the project list either.
+        let prune_stale_importers = selection.is_none()
+            && mutation.is_full_install()
+            && workspace_projects.is_some()
+            && !workspace_projects_are_overridden
+            && config.shared_workspace_lockfile;
         let selected_importer_ids = selection.as_ref().map(|selection| {
             selection
                 .selected_dirs
                 .iter()
                 .map(|project_dir| {
-                    pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
+                    pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
                 })
                 .collect::<HashSet<_>>()
         });
         let real_importer_ids = project_manifests
             .iter()
             .map(|(project_dir, _)| {
-                pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
             })
             .collect::<HashSet<_>>();
         let filtered_install = selected_importer_ids
@@ -339,7 +336,7 @@ where
                 true
             };
             let strict_builds_safe = if config.strict_dep_builds {
-                match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
+                match pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
                     Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config)
                     {
                         Ok(Some(package_names)) => {
@@ -367,10 +364,22 @@ where
             }
         }
 
+        // Read the *current* lockfile (`<virtual_store_dir>/lock.yaml`)
+        // off the reactor while the wanted lockfile parses on this
+        // task: both are megabyte-scale YAML documents on a large
+        // workspace, and neither read depends on the other. The result
+        // is consumed further down, where the install dispatch needs
+        // it.
+        let current_lockfile_task = tokio::task::spawn_blocking({
+            let virtual_store_dir = config.virtual_store_dir.clone();
+            move || Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        });
+
         // Past the repeat-install fast path every install flavor needs
         // the wanted lockfile's contents; force the deferred load here.
         // A broken lockfile is regenerable state, so only a frozen
         // install treats it as fatal (upstream `readLockfiles`).
+        let phase_start = std::time::Instant::now();
         let lockfile = match lockfile.get() {
             Ok(lockfile) => lockfile,
             Err(error) if !frozen_lockfile => {
@@ -386,6 +395,12 @@ where
             }
             Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
         };
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "load_wanted_lockfile",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Register
@@ -408,7 +423,7 @@ where
             // shaped relative store paths (resolved-on-disk: outside the
             // workspace; lexical: starts with the workspace prefix).
             if let Err(error) =
-                std::fs::create_dir_all(pacquet_store_dir::StoreDir::root(&config.store_dir))
+                std::fs::create_dir_all(pnpm_store_dir::StoreDir::root(&config.store_dir))
             {
                 tracing::warn!(
                     target: "pacquet::install",
@@ -416,8 +431,7 @@ where
                     "Failed to ensure store root exists before project registry write; install continues",
                 );
             }
-            if let Err(error) =
-                pacquet_store_dir::register_project(&config.store_dir, &workspace_root)
+            if let Err(error) = pnpm_store_dir::register_project(&config.store_dir, &workspace_root)
             {
                 tracing::warn!(
                     target: "pacquet::install",
@@ -441,8 +455,92 @@ where
         // costs a `stat`. The Node worker only starts if a gate has to
         // ask whether the pnpmfile exports hooks. The handle is handed to
         // the resolve path below so an install spawns at most one.
-        let pnpmfile_hook = pnpmfile_hook_override
-            .or_else(|| pacquet_hooks::finder::load_pnpmfile(&workspace_root));
+        let pnpmfile_hook = pnpmfile_hook_override.or_else(|| {
+            (!config.ignore_pnpmfile)
+                .then(|| pnpm_hooks::finder::load_pnpmfile(&workspace_root))
+                .flatten()
+        });
+
+        // pnpm's `getContext` runs `readPackage` over every project
+        // manifest before anything reads it, so a hook that rewrites a
+        // project's own specifier steers the resolution, the freshness
+        // gates, and the importer entries the lockfile records alike.
+        // The optimistic repeat-install check above stays on the on-disk
+        // manifests on purpose: it is the one gate that must not spawn
+        // the Node worker.
+        // `packageExtensions` runs ahead of the pnpmfile's `readPackage`,
+        // the order the resolver applies them in. The freshness gates below
+        // compare against these, because the lockfile they check was written
+        // from the extended manifests too — a peer an extension injects into
+        // a workspace project is auto-installed and recorded, so a check that
+        // read the file on disk would see it as a dependency that vanished.
+        let extended_project_manifests: Vec<(PathBuf, PackageManifest)> =
+            extend_project_manifests(config, &project_manifests)?;
+        let project_manifests: Vec<(PathBuf, &PackageManifest)> =
+            if extended_project_manifests.is_empty() {
+                project_manifests
+            } else {
+                extended_project_manifests
+                    .iter()
+                    .map(|(project_dir, manifest)| (project_dir.clone(), manifest))
+                    .collect()
+            };
+        let hooked_project_manifests: Vec<(PathBuf, PackageManifest)> = match pnpmfile_hook.as_ref()
+        {
+            Some(hook) => {
+                let log = hook.source_path().map_or_else(
+                    || Arc::new(|_| {}) as pnpm_hooks::LogFn,
+                    |from| {
+                        crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+                            &workspace_root,
+                            from,
+                            "readPackage",
+                        )
+                    },
+                );
+                futures_util::future::try_join_all(project_manifests.iter().map(
+                    |(project_dir, manifest)| {
+                        let ctx = pnpm_hooks::HookContext { log: Arc::clone(&log), dir: None };
+                        async move {
+                            let value = hook
+                                .read_package(manifest.value().clone(), ctx)
+                                .await
+                                .map_err(InstallError::ReadPackageHook)?;
+                            let mut hooked = (*manifest).clone();
+                            *hooked.value_mut() = (*value).clone();
+                            Ok::<_, InstallError>((project_dir.clone(), hooked))
+                        }
+                    },
+                ))
+                .await?
+            }
+            None => Vec::new(),
+        };
+        let project_manifests: Vec<(PathBuf, &PackageManifest)> =
+            if hooked_project_manifests.is_empty() {
+                project_manifests
+            } else {
+                hooked_project_manifests
+                    .iter()
+                    .map(|(project_dir, manifest)| (project_dir.clone(), manifest))
+                    .collect()
+            };
+        let manifest_freshness_inputs = match selection.as_ref() {
+            Some(selection) => selected_manifest_freshness_inputs(
+                &workspace_root,
+                &project_manifests,
+                selection.selected_dirs,
+            ),
+            None => project_manifests
+                .iter()
+                .map(|(project_dir, manifest)| {
+                    (
+                        pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
+                        *manifest,
+                    )
+                })
+                .collect(),
+        };
 
         // Load the *current* lockfile that records what the previous
         // install actually materialized in `<virtual_store_dir>/lock.yaml`.
@@ -453,8 +551,9 @@ where
         // version-incompatible file is disposable state: pnpm warns and
         // continues with an empty current lockfile because the wanted
         // lockfile and filesystem remain authoritative.
+        let phase_start = std::time::Instant::now();
         let current_lockfile =
-            match Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir) {
+            match current_lockfile_task.await.expect("join the current-lockfile load task") {
                 Ok(lockfile) => lockfile,
                 Err(error) => {
                     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
@@ -468,6 +567,12 @@ where
                     None
                 }
             };
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "load_current_lockfile",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Synthesize the wanted lockfile from `<virtual_store_dir>/lock.yaml`
         // when `pnpm-lock.yaml` is absent and the materialized snapshot still
@@ -481,8 +586,11 @@ where
                     config,
                     &catalogs,
                     pnpmfile_hook.as_ref(),
-                    ignore_manifest_check,
-                    true,
+                    FreshnessScope {
+                        ignore_manifest_check,
+                        allow_missing_dependency_free_importers: true,
+                        prune_stale_importers,
+                    },
                 )
                 .await
                 .ok()
@@ -497,16 +605,20 @@ where
         // would hide the change of a real install creating `pnpm-lock.yaml`.
         let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
-        let can_fast_update_importers =
-            !frozen_lockfile && !dry_run && prefer_frozen_lockfile && mutation.is_full_install();
-        let fast_updated_lockfile = if can_fast_update_importers {
-            try_fast_update_importer_lockfile(FastUpdateImporterLockfileOptions {
+        let can_fast_update_lockfile = !frozen_lockfile
+            && !dry_run
+            && prefer_frozen_lockfile
+            && mutation.may_fast_update_lockfile();
+        let fast_updated_lockfile = if can_fast_update_lockfile {
+            try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
                 lockfile,
                 manifests: &manifest_freshness_inputs,
+                project_manifests: &project_manifests,
                 config,
                 catalogs: &catalogs,
                 pnpmfile_hook: pnpmfile_hook.as_ref(),
                 ignore_manifest_check,
+                prune_stale_importers,
             })
             .await
         } else {
@@ -544,6 +656,12 @@ where
         // a policy could apply, independent of whether a lockfile is loaded, so the
         // fresh-resolve path can record the freshly written lockfile as
         // already-verified (see `record_lockfile_verified` below).
+        // Shared with `CreateVirtualStore`, which fills it after its
+        // warm/cold partition so the verifier's age gate can lean on
+        // this install's own canonical tarball fetches instead of a
+        // metadata body per entry.
+        let planned_canonical_fetches =
+            pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
         let resolution_verifiers = if trust_lockfile {
             Vec::new()
         } else {
@@ -551,9 +669,10 @@ where
                 config,
                 Arc::clone(&http_client_arc),
                 Some(Arc::clone(&meta_cache)
-                    as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
+                    as Arc<dyn pnpm_resolving_npm_resolver::PackageMetaCache>),
                 auth_override.clone(),
                 None,
+                Some(std::sync::Arc::clone(&planned_canonical_fetches)),
             )
             .map_err(InstallError::BuildVerifiers)?
         };
@@ -598,12 +717,10 @@ where
             // back to the executor's own read covers a root that isn't
             // among the importers, as a filtered install's is not —
             // pnpm's `safeReadProjectManifestOnly` fallback.
-            let normalized_root = pacquet_fs::lexical_normalize(&workspace_root);
+            let normalized_root = pnpm_fs::lexical_normalize(&workspace_root);
             let root_defines_hook = project_manifests
                 .iter()
-                .find(|(project_dir, _)| {
-                    pacquet_fs::lexical_normalize(project_dir) == normalized_root
-                })
+                .find(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir) == normalized_root)
                 .is_none_or(|(_, manifest)| {
                     matches!(manifest.script(DEV_PREINSTALL_STAGE, true), Ok(Some(_)))
                 });
@@ -677,8 +794,15 @@ where
                 config,
                 &catalogs,
                 pnpmfile_hook.as_ref(),
-                ignore_manifest_check,
-                false,
+                FreshnessScope {
+                    ignore_manifest_check,
+                    allow_missing_dependency_free_importers: false,
+                    // pnpm's importer-set gate sits in the auto-frozen branch
+                    // of `isFrozenInstallPossible`, which an explicit
+                    // `--frozen-lockfile` short-circuits past, so a removed
+                    // project does not fail the install there.
+                    prune_stale_importers: false,
+                },
             )
             .await
             .map_err(InstallError::from)?;
@@ -700,8 +824,11 @@ where
                     config,
                     &catalogs,
                     pnpmfile_hook.as_ref(),
-                    ignore_manifest_check,
-                    true,
+                    FreshnessScope {
+                        ignore_manifest_check,
+                        allow_missing_dependency_free_importers: true,
+                        prune_stale_importers,
+                    },
                 )
                 .await
                 {
@@ -714,6 +841,7 @@ where
                     // lockfile). A throwing hook aborts the install.
                     Ok(()) => {
                         lockfile_synthesized_from_current
+                            || config.ignore_pnpmfile
                             || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
                                 lockfile,
                                 &workspace_root,
@@ -800,6 +928,7 @@ where
             lockfile_verification_override,
             lockfile_synthesized_from_current,
             lockfile_was_fast_updated,
+            save_lockfile,
             catalogs: &catalogs,
             project_manifests: &project_manifests,
             prefix: &prefix,
@@ -849,6 +978,7 @@ where
             skip_runtimes,
             modules_manifest,
             prior_hoisted_dependencies,
+            planned_canonical_fetches,
             prune_orphans,
             logged_methods: &logged_methods,
             update_checksums,
@@ -856,12 +986,16 @@ where
             resolve_only,
             dry_run,
             can_prompt,
+            persist_policy_excludes,
             update_seed_policy,
+            preferred_versions_override,
             auth_override,
             resolution_observer,
             peer_issues_sink,
             deps_requiring_build_sink,
             pnpmfile_hook,
+            save_lockfile,
+            manifest_spec_bumps,
             catalogs: &catalogs,
             prefix: &prefix,
         })
@@ -898,6 +1032,7 @@ where
             take_frozen_path,
             lockfile_synthesized_from_current,
             lockfile_was_fast_updated,
+            save_lockfile,
             mutation,
             manifest_dir,
             selection,
@@ -906,4 +1041,47 @@ where
         })
         .await
     }
+}
+
+/// `project_manifests` with `packageExtensions` applied — pnpm's built-in
+/// compatibility set and the user's, in that order, matching what the
+/// resolver hands the rest of the install.
+///
+/// Empty when no extension applies, so the caller keeps using the manifests
+/// it read from disk rather than a set of identical clones.
+fn extend_project_manifests(
+    config: &Config,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+) -> Result<Vec<(PathBuf, PackageManifest)>, InstallError> {
+    let compat_extender = (!config.ignore_compatibility_db)
+        .then(crate::compat_package_extensions::compat_package_extender);
+    let extender = match config.package_extensions.as_ref() {
+        Some(extensions) => crate::PackageExtender::new(extensions)
+            .map(|extender| (!extender.is_empty()).then_some(extender))
+            .map_err(InstallError::InvalidPackageExtensionSelector)?,
+        None => None,
+    };
+    let selects = |manifest: &PackageManifest| {
+        compat_extender.is_some_and(|extender| extender.matches(manifest.value()))
+            || extender.as_ref().is_some_and(|extender| extender.matches(manifest.value()))
+    };
+    // A workspace project is rarely named by an extension — pnpm's
+    // compatibility set names published packages — so this usually finds
+    // nothing and the caller keeps the manifests it read from disk.
+    if !project_manifests.iter().any(|(_, manifest)| selects(manifest)) {
+        return Ok(Vec::new());
+    }
+    Ok(project_manifests
+        .iter()
+        .map(|(project_dir, manifest)| {
+            let mut extended = (*manifest).clone();
+            if let Some(compat_extender) = compat_extender {
+                compat_extender.apply(extended.value_mut());
+            }
+            if let Some(extender) = extender.as_ref() {
+                extender.apply(extended.value_mut());
+            }
+            (project_dir.clone(), extended)
+        })
+        .collect())
 }

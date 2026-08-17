@@ -2,8 +2,9 @@ use pretty_assertions::assert_eq;
 
 use super::{
     FetchVerifiedNodeShasumsError, PickFileChecksumError, ShasumsFileItem,
-    fetch_verified_node_shasums, is_signed_by_trusted_node_release_key, parse_shasums_file,
-    pick_file_checksum_from_shasums_file,
+    fetch_shasums_file_cached, fetch_verified_node_shasums,
+    fetch_verified_node_shasums_file_cached, is_signed_by_trusted_node_release_key,
+    parse_shasums_file, pick_file_checksum_from_shasums_file,
 };
 
 #[test]
@@ -93,7 +94,7 @@ async fn fetches_node_shasums_when_signature_verifies() {
         .with_body(signature)
         .create_async()
         .await;
-    let client = pacquet_network::ThrottledClient::new_for_installs();
+    let client = pnpm_network::ThrottledClient::new_for_installs();
     let body = fetch_verified_node_shasums(
         &client,
         &format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url()),
@@ -129,7 +130,7 @@ async fn missing_node_shasums_signature_fails() {
         .with_status(404)
         .create_async()
         .await;
-    let client = pacquet_network::ThrottledClient::new_for_installs();
+    let client = pnpm_network::ThrottledClient::new_for_installs();
     let err = fetch_verified_node_shasums(
         &client,
         &format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url()),
@@ -141,6 +142,150 @@ async fn missing_node_shasums_signature_fails() {
         err,
         FetchVerifiedNodeShasumsError::StatusNotOk { what: "SHASUMS256.txt.sig", status: 404, .. },
     ));
+}
+
+/// The second fetch must be served from the cache: the mocks expect
+/// exactly one hit each. The persisted signature is re-verified on the
+/// cached read.
+#[tokio::test]
+async fn verified_fetch_caches_the_body_after_verification() {
+    let mut server = mockito::Server::new_async().await;
+    let shasums = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(NODE_22_11_0_SHASUMS)
+        .expect(1)
+        .create_async()
+        .await;
+    let signature = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt.sig")
+        .with_status(200)
+        .with_body(node_22_11_0_signature())
+        .expect(1)
+        .create_async()
+        .await;
+    let cache_dir = tempfile::tempdir().expect("create temp cache dir");
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
+
+    let fetched = fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+        .await
+        .expect("fetch and verify");
+    let cached = fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+        .await
+        .expect("serve from cache");
+
+    assert_eq!(fetched, cached);
+    shasums.assert_async().await;
+    signature.assert_async().await;
+}
+
+/// A body that fails signature verification must not be cached: the
+/// retry after the failure still refetches.
+#[tokio::test]
+async fn verified_fetch_does_not_cache_an_unverified_body() {
+    let mut server = mockito::Server::new_async().await;
+    let _shasums = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(NODE_22_11_0_SHASUMS)
+        .expect(2)
+        .create_async()
+        .await;
+    let signature = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt.sig")
+        .with_status(404)
+        .expect(2)
+        .create_async()
+        .await;
+    let cache_dir = tempfile::tempdir().expect("create temp cache dir");
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
+
+    for _ in 0..2 {
+        fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+            .await
+            .expect_err("missing signature must fail");
+    }
+    signature.assert_async().await;
+}
+
+#[tokio::test]
+async fn plain_fetch_caches_the_body() {
+    let mut server = mockito::Server::new_async().await;
+    let shasums = server
+        .mock("GET", "/download/v1.2.3/SHASUMS256.txt")
+        .with_status(200)
+        .with_body("ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  foo.tar.gz\n")
+        .expect(1)
+        .create_async()
+        .await;
+    let cache_dir = tempfile::tempdir().expect("create temp cache dir");
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let url = format!("{}/download/v1.2.3/SHASUMS256.txt", server.url());
+
+    let fetched = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+        .await
+        .expect("fetch the body");
+    let cached = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+        .await
+        .expect("serve from cache");
+
+    assert_eq!(fetched, cached);
+    assert_eq!(fetched.len(), 1);
+    shasums.assert_async().await;
+}
+
+/// A pre-seeded verified entry whose persisted signature does not
+/// verify is a miss: the cache directory is project-configurable, so a
+/// verified hit must prove itself against the release keys on every
+/// read. The refetched genuine pair then replaces the seeded one.
+#[tokio::test]
+async fn seeded_verified_cache_without_valid_signature_is_refetched() {
+    use crate::disk_cache::{ShasumsTrust, write_cached_shasums};
+
+    let mut server = mockito::Server::new_async().await;
+    let shasums = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(NODE_22_11_0_SHASUMS)
+        .expect(1)
+        .create_async()
+        .await;
+    let signature = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt.sig")
+        .with_status(200)
+        .with_body(node_22_11_0_signature())
+        .expect(1)
+        .create_async()
+        .await;
+    let cache_dir = tempfile::tempdir().expect("create temp cache dir");
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
+    write_cached_shasums(
+        Some(cache_dir.path()),
+        ShasumsTrust::Verified,
+        &url,
+        b"0000000000000000000000000000000000000000000000000000000000000000  node-v22.11.0-linux-x64.tar.gz\n",
+    );
+    write_cached_shasums(
+        Some(cache_dir.path()),
+        ShasumsTrust::Verified,
+        &format!("{url}.sig"),
+        b"not a signature",
+    );
+
+    let refetched = fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+        .await
+        .expect("seeded entry rejected, genuine pair fetched");
+    let cached = fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+        .await
+        .expect("genuine pair now serves from the cache");
+
+    assert_eq!(refetched, cached);
+    assert!(refetched.iter().any(|item| item.file_name == "node-v22.11.0-linux-x64.tar.gz"));
+    shasums.assert_async().await;
+    signature.assert_async().await;
 }
 
 fn node_22_11_0_signature() -> Vec<u8> {

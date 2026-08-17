@@ -1,6 +1,12 @@
 use std::collections::HashMap;
 
-use pacquet_lockfile::{
+/// The registry facts with only the scope map populated — what these tests
+/// vary; the aliases and per-registry settings stay empty.
+fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::RegistryContext {
+    pnpm_lockfile::RegistryContext { registries, ..Default::default() }
+}
+
+use pnpm_lockfile::{
     ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion,
     PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution,
     ResolvedDependencySpec, TarballResolution,
@@ -42,6 +48,7 @@ fn empty_lockfile() -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 
@@ -104,6 +111,7 @@ fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
             resolution: LockfileResolution::Git(GitResolution {
                 repo: "file:///repo".to_string(),
                 commit: "0123456789012345678901234567890123456789".to_string(),
+                integrity: None,
                 path: None,
             }),
             version: Some("1.0.0".to_string()),
@@ -194,6 +202,7 @@ fn synthesizes_a_git_resolution_with_the_locked_commit_and_manifest_version() {
     metadata.resolution = LockfileResolution::Git(GitResolution {
         repo: "file:///repo".to_string(),
         commit: "0123456789012345678901234567890123456789".to_string(),
+        integrity: None,
         path: None,
     });
     metadata.version = Some("1.2.3".to_string());
@@ -239,7 +248,7 @@ fn current_pkg_materializes_a_registry_resolution_into_its_tarball_url() {
         Some(HashMap::from([("react@18.2.0".parse().expect("parse key"), registry_metadata())]));
 
     let current_pkg =
-        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
             .expect("packages entry exists");
 
     assert_eq!(current_pkg.id.to_string(), "react@18.2.0");
@@ -261,7 +270,7 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
     registries.insert("@scope".to_string(), "https://scoped.example.test/".to_string());
 
     let current_pkg =
-        super::current_pkg_from_lockfile(&lockfile, &key, &registries, &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(registries))
             .expect("packages entry exists");
 
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
@@ -284,7 +293,7 @@ fn current_pkg_passes_a_recorded_tarball_resolution_through() {
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
 
     let current_pkg =
-        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
             .expect("packages entry exists");
 
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
@@ -298,7 +307,7 @@ fn current_pkg_is_none_without_a_packages_entry() {
     let key: PkgNameVerPeer = "react@18.2.0".parse().expect("parse key");
     let lockfile = empty_lockfile();
     assert!(
-        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
             .is_none(),
     );
 }
@@ -309,14 +318,14 @@ fn current_pkg_is_withheld_for_a_registry_entry_without_a_registry_map() {
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
     assert!(
-        super::current_pkg_from_lockfile(&lockfile, &key, &HashMap::new(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(HashMap::new()))
             .is_none(),
     );
 }
 
 #[test]
 fn prior_child_key_applies_the_satisfies_gate() {
-    let snapshot: pacquet_lockfile::SnapshotEntry =
+    let snapshot: pnpm_lockfile::SnapshotEntry =
         serde_json::from_value(serde_json::json!({ "dependencies": { "bar": "1.2.0" } }))
             .expect("parse snapshot entry");
 

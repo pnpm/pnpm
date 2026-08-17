@@ -14,12 +14,12 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::{Host, get_bins_from_package_manifest, remove_bin};
-use pacquet_config::Config;
-use pacquet_fs::{read_symlink_dir, remove_symlink_dir};
-use pacquet_lockfile::Lockfile;
-use pacquet_modules_yaml::IncludedDependencies;
-use pacquet_package_manifest::{DependencyGroup, parse_manifest_bytes};
+use pnpm_cmd_shim::{Host, get_bins_from_package_manifest, remove_bin};
+use pnpm_config::Config;
+use pnpm_fs::{read_symlink_dir, remove_symlink_dir};
+use pnpm_lockfile::Lockfile;
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::{DependencyGroup, parse_manifest_bytes};
 use std::{
     collections::HashSet,
     ffi::OsStr,

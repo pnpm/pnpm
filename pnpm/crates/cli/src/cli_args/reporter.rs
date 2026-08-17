@@ -1,6 +1,6 @@
 use clap::ValueEnum;
-use pacquet_default_reporter::{DefaultReporter, SummaryScope};
-use pacquet_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
+use pnpm_default_reporter::{DefaultReporter, SummaryScope};
+use pnpm_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
 use std::path::Path;
 
 /// Output format for progress and log messages.
@@ -40,13 +40,17 @@ pub(crate) fn configure_default_reporter(
     reports_scope: bool,
     hide_added_pkgs_progress: bool,
     is_recursive: bool,
+    use_stderr: bool,
 ) {
-    pacquet_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
-    pacquet_default_reporter::set_summary_scope(summary_scope);
-    pacquet_default_reporter::set_reports_scope(reports_scope);
-    pacquet_default_reporter::set_hide_added_pkgs_progress(hide_added_pkgs_progress);
-    pacquet_default_reporter::set_is_recursive(is_recursive);
+    pnpm_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
+    if use_stderr {
+        pnpm_default_reporter::use_stderr();
+    }
+    pnpm_default_reporter::set_summary_scope(summary_scope);
+    pnpm_default_reporter::set_reports_scope(reports_scope);
+    pnpm_default_reporter::set_hide_added_pkgs_progress(hide_added_pkgs_progress);
+    pnpm_default_reporter::set_is_recursive(is_recursive);
     if matches!(reporter, ReporterType::AppendOnly) {
-        pacquet_default_reporter::force_append_only();
+        pnpm_default_reporter::force_append_only();
     }
 }

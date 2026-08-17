@@ -173,7 +173,7 @@ export type OutdatedCommandOptions = {
 | 'optional'
 | 'production'
 | 'configByUri'
-| 'registries'
+| 'registriesByScope'
 | 'strictSsl'
 | 'tag'
 | 'userAgent'

@@ -528,7 +528,7 @@ fn modify_preserves_executable_mode() {
 /// `PermissionDenied`, and the original target must still be on disk
 /// with its original content. Mirrors the crash-safety guarantee of
 /// the atomic-replace pattern in
-/// [`pacquet_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs).
+/// [`pnpm_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs).
 #[cfg(unix)]
 #[test]
 fn modify_does_not_destroy_target_on_write_failure() {

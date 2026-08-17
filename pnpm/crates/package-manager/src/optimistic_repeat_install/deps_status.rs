@@ -117,7 +117,7 @@ pub fn check_deps_status_before_run(
         return outdated("Patches were modified".to_string());
     }
     if let Some(issue) =
-        pnpmfiles_drift(workspace_root, &state.pnpmfiles, state.last_validated_timestamp)
+        pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
     {
         return outdated(issue);
     }

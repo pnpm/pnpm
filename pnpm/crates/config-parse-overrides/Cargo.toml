@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-config-parse-overrides"
+name                  = "pnpm-config-parse-overrides"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,12 +11,12 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-derive_more                               = { workspace = true }
-miette                                    = { workspace = true }
-node-semver                               = { workspace = true }
-pacquet-catalogs-resolver                 = { workspace = true }
-pacquet-catalogs-types                    = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
+derive_more                            = { workspace = true }
+miette                                 = { workspace = true }
+node-semver                            = { workspace = true }
+pnpm-catalogs-resolver                 = { workspace = true }
+pnpm-catalogs-types                    = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
 
 [lints]
 workspace = true

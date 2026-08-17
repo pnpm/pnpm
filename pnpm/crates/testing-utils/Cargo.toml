@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-testing-utils"
+name                 = "pnpm-testing-utils"
 version              = "0.0.0"
 description          = "Common utilities to test pacquet code"
 publish              = false
@@ -25,9 +25,9 @@ url               = { workspace = true }
 walkdir           = { workspace = true }
 text-block-macros = { workspace = true }
 pnpr-fixtures     = { workspace = true }
-pacquet-fs        = { workspace = true }
+pnpm-fs           = { workspace = true }
 
-pacquet-workspace-state = { workspace = true }
+pnpm-workspace-state = { workspace = true }
 
 [lints]
 workspace = true

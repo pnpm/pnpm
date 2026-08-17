@@ -7,7 +7,7 @@ import {
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
+import type { DependenciesField, ProjectId, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 
 import { getPkgInfo } from './getPkgInfo.js'
 
@@ -41,8 +41,8 @@ export interface LicenseExtractOptions {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   dir: string
-  registries: Registries
-  namedRegistries?: Record<string, string>
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   supportedArchitectures?: SupportedArchitectures
   depTypes: DepTypes
 }
@@ -81,8 +81,8 @@ export async function lockfileToLicenseNode (
           version,
           depPath,
           snapshot: pkgSnapshot,
-          registries: options.registries,
-          namedRegistries: options.namedRegistries,
+          registriesByScope: options.registriesByScope,
+          registriesByPrefix: options.registriesByPrefix,
         },
         {
           storeDir: options.storeDir,
@@ -155,8 +155,8 @@ export async function lockfileToLicenseNodeTree (
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           modulesDir: opts.modulesDir,
           dir: opts.dir,
-          registries: opts.registries,
-          namedRegistries: opts.namedRegistries,
+          registriesByScope: opts.registriesByScope,
+          registriesByPrefix: opts.registriesByPrefix,
           supportedArchitectures: opts.supportedArchitectures,
           depTypes,
         })

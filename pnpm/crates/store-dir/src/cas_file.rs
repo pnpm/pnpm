@@ -1,7 +1,7 @@
 use crate::{FileHash, StoreDir};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::{
+use pnpm_fs::{
     EnsureFileError, ensure_file, ensure_parent_dir,
     file_mode::{EXEC_MODE, is_executable},
 };
@@ -50,7 +50,7 @@ impl StoreDir {
             return None;
         }
         // Same executable-bit rule the write side uses
-        // (`pacquet_fs::file_mode::is_executable`), so a blob written as
+        // (`pnpm_fs::file_mode::is_executable`), so a blob written as
         // `-exec` is read back as `-exec` and vice versa.
         let suffix = if is_executable(mode) { "-exec" } else { "" };
         Some(self.file_path_by_hex_str(hex, suffix))

@@ -6,8 +6,8 @@
 use std::{fs, path::PathBuf};
 
 use indexmap::IndexMap;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_package_manifest::PackageManifest;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_package_manifest::PackageManifest;
 use tempfile::TempDir;
 
 use crate::{
@@ -44,7 +44,7 @@ fn run_with(original: Option<&str>, opts: &UpdateWorkspaceManifestOptions<'_>) -
 }
 
 /// [`run_with`] for the cleanup cases: merge `updated` (when `Some`), then
-/// run the `cleanupUnusedCatalogs` pass over `projects`.
+/// run the `catalogPrune` pass over `projects`.
 fn run_cleanup(
     original: Option<&str>,
     updated: Option<&Catalogs>,
@@ -54,8 +54,9 @@ fn run_cleanup(
         original,
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: updated,
-            cleanup_unused_catalogs: true,
+            catalog_prune: true,
             all_projects: projects,
+            ..Default::default()
         },
     )
 }
@@ -1152,6 +1153,12 @@ fn delete_unset_field_is_noop() {
     assert_eq!(parsed["cacheDir"], serde_json::json!("~/cache"));
 }
 
+#[test]
+fn delete_field_without_a_manifest_is_noop() {
+    let out = run_update_field(None, "virtualStoreDir", &serde_json::Value::Null);
+    assert_eq!(out, None);
+}
+
 /// Ported from upstream `removeCatalogs.test.ts`. The upstream tests
 /// assert the parsed shape; these assert the format-preserving text the
 /// pacquet writer produces for the same inputs.
@@ -1308,6 +1315,118 @@ mod remove_unused_catalogs {
                  overrides:\n  foo: 'catalog:'\n  def: 'catalog:bar'\n",
             ),
         );
+    }
+}
+
+/// The `minimumReleaseAgeExcludePrune` pass: entries of
+/// `minimumReleaseAgeExclude` are pruned against the versions the
+/// freshly resolved lockfile records.
+mod minimum_release_age_exclude_prune {
+    use crate::ResolvedPackageVersions;
+
+    use super::{UpdateWorkspaceManifestOptions, run_with};
+
+    fn resolved(entries: &[(&str, &[&str])]) -> ResolvedPackageVersions {
+        entries
+            .iter()
+            .map(|(name, versions)| {
+                (name.to_string(), versions.iter().map(ToString::to_string).collect())
+            })
+            .collect()
+    }
+
+    fn run_age_cleanup(
+        original: Option<&str>,
+        resolved: Option<&ResolvedPackageVersions>,
+    ) -> Option<String> {
+        run_with(
+            original,
+            &UpdateWorkspaceManifestOptions {
+                resolved_package_versions: resolved,
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn drops_a_versioned_entry_whose_version_is_no_longer_resolved() {
+        let original = "packages:\n  - '*'\nminimumReleaseAgeExclude:\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some("packages:\n  - '*'\n"));
+    }
+
+    #[test]
+    fn keeps_a_versioned_entry_whose_version_is_resolved() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn rewrites_a_narrowed_version_union_canonically() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - foo@2.0.0\n"));
+    }
+
+    #[test]
+    fn keeps_a_union_entry_verbatim_when_every_version_is_resolved() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@2.0.0 || 1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0", "2.0.0"])])));
+        assert_eq!(out.as_deref(), Some(original), "no version was dropped, so no rewrite");
+    }
+
+    #[test]
+    fn keeps_a_bare_name_when_the_package_is_resolved() {
+        let original = "minimumReleaseAgeExclude:\n  - foo\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    /// A package resolved only via a non-semver source (git, tarball,
+    /// `file:`) registers with an empty version set: its bare-name entry
+    /// survives (the package is still a dependency) but its versioned
+    /// entries are pruned (no exact version can be confirmed).
+    #[test]
+    fn keeps_the_bare_name_but_prunes_versions_of_a_non_semver_only_package() {
+        let original = "minimumReleaseAgeExclude:\n  - foo\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &[])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - foo\n"));
+    }
+
+    #[test]
+    fn drops_a_bare_name_when_the_package_is_absent() {
+        let original = "minimumReleaseAgeExclude:\n  - foo\n  - bar@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("bar", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - bar@1.0.0\n"));
+    }
+
+    #[test]
+    fn keeps_a_glob_entry_with_no_match() {
+        let original = "minimumReleaseAgeExclude:\n  - '@babel/*'\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn removes_the_file_when_the_emptied_block_was_the_only_key() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out, None, "an emptied manifest file must be deleted");
+    }
+
+    #[test]
+    fn skips_cleanup_without_resolved_versions() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), None);
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn keeps_an_unparsable_entry_verbatim() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@>=1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
     }
 }
 

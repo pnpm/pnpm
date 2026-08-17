@@ -1,5 +1,5 @@
 use super::{build_deps_graph, build_deps_subgraph};
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer, RegistryResolution,
     SnapshotDepRef, SnapshotEntry,
 };

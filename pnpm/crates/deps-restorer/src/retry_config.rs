@@ -1,5 +1,5 @@
-use pacquet_config::Config;
-use pacquet_tarball::RetryOpts;
+use pnpm_config::Config;
+use pnpm_tarball::RetryOpts;
 use std::time::Duration;
 
 /// Build the [`RetryOpts`] the tarball download path expects from the

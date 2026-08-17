@@ -3,13 +3,13 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Range;
-use pacquet_config::Config;
-use pacquet_network::{
+use pnpm_config::Config;
+use pnpm_network::{
     NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, read_limited_body,
     redact_url_credentials, retry_async, send_with_retry,
 };
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_npm_resolver::pick_registry_for_package;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::{

@@ -29,13 +29,13 @@ use std::{
     time::Instant,
 };
 
-use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_deps_resolver::{
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, RegistryContext, TarballResolution};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_deps_resolver::{
     ResolveImporterOptions, UpdateDepth, UpdateReuseScope, WorkspaceImporter,
     WorkspaceResolveOptions, resolve_workspace,
 };
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
@@ -260,7 +260,7 @@ fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions 
         },
         pick_lowest_direct: false,
         subdep_published_by: None,
-        catalogs: pacquet_catalogs_types::Catalogs::new(),
+        catalogs: pnpm_catalogs_types::Catalogs::new(),
         exclude_links_from_lockfile: false,
         lockfile_dir: Some(PathBuf::from("/workspace")),
         modules_dir: Some(PathBuf::from("/workspace/node_modules")),
@@ -274,7 +274,7 @@ fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions 
 
 fn workspace_options() -> WorkspaceResolveOptions {
     WorkspaceResolveOptions {
-        named_registries: HashMap::new(),
+        registry_context: RegistryContext::default(),
         dedupe_peers: true,
         dedupe_injected_deps: true,
         dedupe_peer_dependents: true,
@@ -296,7 +296,6 @@ fn workspace_options() -> WorkspaceResolveOptions {
         allowed_deprecated_versions: BTreeMap::new(),
         deprecation_log: None,
         auto_install_peers: true,
-        registries: HashMap::new(),
     }
 }
 

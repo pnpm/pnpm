@@ -2,7 +2,7 @@
 //! [`fn@crate::dedupe_peer_dependents::dedupe_peer_dependents`] and
 //! [`fn@crate::dedupe_injected_deps::dedupe_injected_deps`].
 
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 use rustc_hash::FxHashSet as HashSet;
 
 use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};

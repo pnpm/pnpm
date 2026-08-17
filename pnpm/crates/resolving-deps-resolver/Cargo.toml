@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-resolving-deps-resolver"
+name                  = "pnpm-resolving-deps-resolver"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,36 +11,36 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-rustc-hash                                = { workspace = true }
-pacquet-catalogs-resolver                 = { workspace = true }
-pacquet-catalogs-types                    = { workspace = true }
-pacquet-deps-path                         = { workspace = true }
-pacquet-fs                                = { workspace = true }
-pacquet-hooks                             = { workspace = true }
-pacquet-lockfile                          = { workspace = true }
-pacquet-package-manifest                  = { workspace = true }
-pacquet-patching                          = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
-pacquet-resolving-resolver-base           = { workspace = true }
+rustc-hash                             = { workspace = true }
+pnpm-catalogs-resolver                 = { workspace = true }
+pnpm-catalogs-types                    = { workspace = true }
+pnpm-deps-path                         = { workspace = true }
+pnpm-fs                                = { workspace = true }
+pnpm-hooks                             = { workspace = true }
+pnpm-lockfile                          = { workspace = true }
+pnpm-package-manifest                  = { workspace = true }
+pnpm-patching                          = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-resolving-resolver-base           = { workspace = true }
 
-async-recursion                        = { workspace = true }
-chrono                                 = { workspace = true }
-derive_more                            = { workspace = true }
-futures-util                           = { workspace = true }
-miette                                 = { workspace = true }
-node-semver                            = { workspace = true }
-pacquet-resolving-jsr-specifier-parser = { workspace = true }
-pathdiff                               = { workspace = true }
-pipe-trait                             = { workspace = true }
-serde_json                             = { workspace = true }
-tokio                                  = { workspace = true, features = ["sync"] }
+async-recursion                     = { workspace = true }
+chrono                              = { workspace = true }
+derive_more                         = { workspace = true }
+futures-util                        = { workspace = true }
+miette                              = { workspace = true }
+node-semver                         = { workspace = true }
+pnpm-resolving-jsr-specifier-parser = { workspace = true }
+pathdiff                            = { workspace = true }
+pipe-trait                          = { workspace = true }
+serde_json                          = { workspace = true }
+tokio                               = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 async-trait       = { workspace = true }
 node-semver       = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }
-tokio             = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio             = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 
 [lints]
 workspace = true

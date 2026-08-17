@@ -1,8 +1,8 @@
 //! `pacquet pack` — create a tarball from a package.
 //!
-//! The single-project work lives in [`pacquet_pack::api`]; this module
+//! The single-project work lives in [`pnpm_pack::api`]; this module
 //! maps the resolved [`Config`] and CLI flags onto
-//! [`pacquet_pack::PackOptions`], and drives the recursive (`-r`) sweep
+//! [`pnpm_pack::PackOptions`], and drives the recursive (`-r`) sweep
 //! over the workspace the same way the other recursive commands do.
 //!
 //! `--workspace-concurrency` is accepted but the recursive sweep runs
@@ -15,15 +15,15 @@ use crate::cli_args::recursive::{
 };
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_pack::{
+use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_pack::{
     Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
 };
-use pacquet_reporter::Reporter;
-use pacquet_workspace::read_workspace_manifest;
+use pnpm_reporter::Reporter;
+use pnpm_workspace::read_workspace_manifest;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,

@@ -4,8 +4,8 @@ use std::{
     sync::Arc,
 };
 
-use pacquet_network::NoProxySetting;
-use pacquet_testing_utils::registry::TestRegistry;
+use pnpm_network::NoProxySetting;
+use pnpm_testing_utils::registry::TestRegistry;
 
 use super::{
     DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject,
@@ -16,6 +16,16 @@ use crate::{
     config::{ConfigOverlay, resolve_config},
     reporter_bridge::{begin_stats, take_stats},
 };
+
+const WELL_FORMED_PATCH: &str = concat!(
+    "diff --git a/patched-marker.txt b/patched-marker.txt\n",
+    "new file mode 100644\n",
+    "index 0000000..3f2e1d4\n",
+    "--- /dev/null\n",
+    "+++ b/patched-marker.txt\n",
+    "@@ -0,0 +1 @@\n",
+    "+patched\n",
+);
 
 #[test]
 fn resolve_config_reloads_changed_workspace_yaml() {
@@ -112,8 +122,25 @@ fn resolved_config_applies_trust_lockfile() {
 }
 
 #[test]
+fn resolved_config_applies_allow_unused_patches() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    for (allow_unused_patches, expected) in
+        [(Some(false), false), (Some(true), true), (None, false)]
+    {
+        let mut options = install_options();
+        options.allow_unused_patches = allow_unused_patches;
+        let overlay = build_overlay(&options).expect("overlay");
+        assert_eq!(
+            resolve_config(dir.path(), &overlay).expect("config").allow_unused_patches,
+            expected,
+        );
+    }
+}
+
+#[test]
 fn build_overlay_parses_link_workspace_packages() {
-    use pacquet_config::LinkWorkspacePackages;
+    use pnpm_config::LinkWorkspacePackages;
 
     let mut options = install_options();
     options.link_workspace_packages = Some(serde_json::json!("deep"));
@@ -502,6 +529,45 @@ fn lockfile_records_overrides_in_declaration_order() {
     assert!(zzz < aaa, "overrides must keep declaration order (zzz before aaa), got:\n{lockfile}");
 }
 
+#[test]
+fn allow_unused_patches_downgrades_an_unmatched_patch_to_a_warning() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+    std::fs::create_dir(project_dir.join("patches")).expect("create patches dir");
+    std::fs::write(project_dir.join("patches/unmatched.patch"), WELL_FORMED_PATCH)
+        .expect("write patch file");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: project_dir_string,
+        manifest: serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+        dependency_manifest: None,
+    }];
+    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.patched_dependencies = Some(indexmap::IndexMap::from_iter([(
+        "is-negative@1.0.0".to_string(),
+        "patches/unmatched.patch".to_string(),
+    )]));
+
+    let error = run_install_inner(&options, None, EngineMode::Install(None))
+        .expect_err("an unmatched patch must fail the install");
+    assert!(
+        error.reason.contains("ERR_PNPM_UNUSED_PATCH"),
+        "expected ERR_PNPM_UNUSED_PATCH, got: {reason}",
+        reason = error.reason,
+    );
+
+    options.allow_unused_patches = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None))
+        .expect("allowUnusedPatches must let the install through");
+}
+
 fn install_options() -> InstallOptions {
     InstallOptions {
         dir: String::new(),
@@ -535,6 +601,7 @@ fn install_options() -> InstallOptions {
         global_virtual_store_dir: None,
         package_extensions: None,
         patched_dependencies: None,
+        allow_unused_patches: None,
         peers_suffix_max_length: None,
         dedupe_peer_dependents: None,
         dedupe_peers: None,
@@ -614,14 +681,15 @@ fn safe_intersect_matches_merge_peers_semantics() {
 /// missing ranges, and disjoint ranges surfacing under `conflicts`.
 #[test]
 fn peer_issues_to_json_derives_conflicts_and_intersections() {
-    use pacquet_resolving_deps_resolver::{MissingPeer, ParentPackageRef, PeerDependencyIssues};
+    use pnpm_resolving_deps_resolver::{
+        MissingPeer, ParentChain, PeerDependencyIssue, PeerDependencyIssues,
+    };
 
-    let parent = ParentPackageRef { name: "comp1".to_string(), version: "1.0.0".to_string() };
     let missing_entry = |range: &str, optional: bool| MissingPeer {
         wanted_range: range.to_string(),
         raw_range: range.to_string(),
         optional,
-        parents: vec![parent.clone()],
+        parents: ParentChain::from_names(["comp1".to_string()]),
     };
     let mut issues = PeerDependencyIssues::default();
     issues.missing.insert("react".to_string(), vec![missing_entry("^16.8.0", false)]);
@@ -630,6 +698,20 @@ fn peer_issues_to_json_derives_conflicts_and_intersections() {
         vec![missing_entry("^1.0.0", false), missing_entry("^2.0.0", false)],
     );
     issues.missing.insert("optional-only".to_string(), vec![missing_entry("*", true)]);
+    issues.bad.insert(
+        "styled".to_string(),
+        vec![PeerDependencyIssue {
+            wanted_range: "^5.0.0".to_string(),
+            found_version: "4.1.0".to_string(),
+            optional: false,
+            parents: ParentChain::from_names([
+                "root".to_string(),
+                "mid".to_string(),
+                "leaf".to_string(),
+            ]),
+            resolved_from: ParentChain::from_names(["provider".to_string()]),
+        }],
+    );
 
     let json = super::peer_issues_to_json(&issues);
     assert_eq!(json["intersections"]["react"], "^16.8.0");
@@ -637,5 +719,17 @@ fn peer_issues_to_json_derives_conflicts_and_intersections() {
     assert!(json["intersections"].get("optional-only").is_none());
     assert_eq!(json["missing"]["react"][0]["wantedRange"], "^16.8.0");
     assert_eq!(json["missing"]["react"][0]["parents"][0]["name"], "comp1");
-    assert_eq!(json["bad"], serde_json::json!({}));
+    assert_eq!(
+        json["bad"]["styled"][0]["parents"],
+        serde_json::json!([
+            { "name": "root", "version": "" },
+            { "name": "mid", "version": "" },
+            { "name": "leaf", "version": "" },
+        ]),
+    );
+    assert_eq!(
+        json["bad"]["styled"][0]["resolvedFrom"],
+        serde_json::json!([{ "name": "provider", "version": "" }]),
+    );
+    assert_eq!(json["bad"]["styled"][0]["foundVersion"], "4.1.0");
 }

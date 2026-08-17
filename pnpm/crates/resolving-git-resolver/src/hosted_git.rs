@@ -14,7 +14,7 @@
 //!   exercises it and the install path has no gist-shaped store key.
 //! - `browse` / `bugs` / `file` / `git` templates are not implemented.
 
-use pacquet_network::encode_uri_component;
+use pnpm_network::encode_uri_component;
 use std::fmt;
 
 /// Three host families pacquet recognises. Mirrors upstream's

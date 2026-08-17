@@ -9,7 +9,7 @@ use super::{
     set_script::SetScriptArgs,
 };
 use miette::Context;
-use pacquet_package_manifest::PackageManifest;
+use pnpm_package_manifest::PackageManifest;
 
 pub(super) fn init<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     let result = PackageManifest::init(ctx.manifest_path).wrap_err("initialize package.json");

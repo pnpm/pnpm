@@ -2,7 +2,7 @@ use super::{
     CatalogLookup, ResolvedDirectDependency, UpdateProjectManifestOptions, WantedDependencyUpdate,
     update_project_manifest,
 };
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 

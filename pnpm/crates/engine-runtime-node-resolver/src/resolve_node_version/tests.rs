@@ -1,6 +1,6 @@
 use pretty_assertions::assert_eq;
 
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 
 use super::{NodeVersion, filter_versions, resolve_node_version, resolve_node_versions};
 

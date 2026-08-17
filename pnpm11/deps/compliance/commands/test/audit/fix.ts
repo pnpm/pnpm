@@ -53,6 +53,86 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(axiosExclude).toContain('0.21.2')
 })
 
+test('no minimumReleaseAgeExclude entries are added for patched versions published before the cutoff', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, {
+      axios: [
+        {
+          id: 1,
+          title: 'vulnerability in axios',
+          severity: 'high',
+          vulnerable_versions: '<=0.18.0',
+          url: 'https://github.com/advisories/GHSA-mock-mock-mock',
+        },
+      ],
+    })
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/axios', method: 'GET' })
+    .reply(200, {
+      name: 'axios',
+      time: { '0.18.1': '2020-01-01T00:00:00.000Z' },
+    })
+
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    minimumReleaseAge: 1440,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).not.toContain('minimumReleaseAgeExclude')
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  expect(manifest.minimumReleaseAgeExclude).toBeUndefined()
+})
+
+test('minimumReleaseAgeExclude entries are added for patched versions published after the cutoff', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, {
+      axios: [
+        {
+          id: 1,
+          title: 'vulnerability in axios',
+          severity: 'high',
+          vulnerable_versions: '<=0.18.0',
+          url: 'https://github.com/advisories/GHSA-mock-mock-mock',
+        },
+      ],
+    })
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/axios', method: 'GET' })
+    .reply(200, {
+      name: 'axios',
+      time: { '0.18.1': new Date().toISOString() },
+    })
+
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    minimumReleaseAge: 1440,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toContain('entries were added to minimumReleaseAgeExclude')
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  expect(manifest.minimumReleaseAgeExclude).toEqual(['axios@0.18.1'])
+})
+
 test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
@@ -146,52 +226,134 @@ function advisory (moduleName: string, vulnerableVersions: string, patchedVersio
 }
 
 describe('createMinimumReleaseAgeExcludes', () => {
-  test('combines multiple advisories for the same module into a single sorted entry', () => {
+  // The publish times are unknown: every entry is kept.
+  const unknownPublishTimes = async (): Promise<undefined> => undefined
+
+  test('combines multiple advisories for the same module into a single sorted entry', async () => {
     const advisories = [
       advisory('axios', '<0.21.2', '>=0.21.2'),
       advisory('axios', '<=0.18.0', '>=0.18.1'),
       advisory('axios', '<0.21.1', '>=0.21.1'),
     ]
-    const excludes = createMinimumReleaseAgeExcludes(advisories)
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: unknownPublishTimes,
+      minimumReleaseAge: 1440,
+    })
     expect(excludes).toEqual(['axios@0.18.1 || 0.21.1 || 0.21.2'])
   })
 
-  test('keeps different modules as separate entries', () => {
+  test('keeps different modules as separate entries', async () => {
     const advisories = [
       advisory('axios', '<=0.18.0', '>=0.18.1'),
       advisory('lodash', '<4.17.21', '>=4.17.21'),
     ]
-    const excludes = createMinimumReleaseAgeExcludes(advisories)
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: unknownPublishTimes,
+      minimumReleaseAge: 1440,
+    })
     expect(excludes).toEqual([
       'axios@0.18.1',
       'lodash@4.17.21',
     ])
   })
 
-  test('skips advisories without patched_versions', () => {
+  test('skips advisories without patched_versions', async () => {
     const advisories = [
       advisory('axios', '<=0.18.0', '>=0.18.1'),
       advisory('sync-exec', '>=0.0.0'),
     ]
-    const excludes = createMinimumReleaseAgeExcludes(advisories)
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: unknownPublishTimes,
+      minimumReleaseAge: 1440,
+    })
     expect(excludes).toEqual(['axios@0.18.1'])
   })
 
-  test('returns empty array when no advisories are fixable', () => {
+  test('returns empty array when no advisories are fixable', async () => {
     const advisories = [
       advisory('sync-exec', '>=0.0.0'),
     ]
-    const excludes = createMinimumReleaseAgeExcludes(advisories)
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: unknownPublishTimes,
+      minimumReleaseAge: 1440,
+    })
     expect(excludes).toEqual([])
   })
 
-  test('deduplicates the same minimum patched version for a module', () => {
+  test('deduplicates the same minimum patched version for a module', async () => {
     const advisories = [
       advisory('axios', '<=0.18.0', '>=0.18.1'),
       advisory('axios', '<=0.17.0', '>=0.18.1'),
     ]
-    const excludes = createMinimumReleaseAgeExcludes(advisories)
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: unknownPublishTimes,
+      minimumReleaseAge: 1440,
+    })
     expect(excludes).toEqual(['axios@0.18.1'])
+  })
+
+  test('omits entries for patched versions published at or before the cutoff', async () => {
+    const advisories = [
+      advisory('axios', '<=0.18.0', '>=0.18.1'),
+      advisory('lodash', '<4.17.21', '>=4.17.21'),
+    ]
+    const publishTimes: Record<string, Record<string, string>> = {
+      axios: { '0.18.1': '2026-01-01T00:00:00.000Z' },
+      lodash: { '4.17.21': '2026-01-07T23:30:00.000Z' },
+    }
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async (pkgName) => publishTimes[pkgName],
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual(['lodash@4.17.21'])
+  })
+
+  test('keeps entries whose publish time is missing from the packument', async () => {
+    const advisories = [
+      advisory('axios', '<=0.18.0', '>=0.18.1'),
+      advisory('lodash', '<4.17.21', '>=4.17.21'),
+    ]
+    const publishTimes: Record<string, Record<string, string>> = {
+      axios: { '0.18.1': '2026-01-01T00:00:00.000Z' },
+      lodash: {},
+    }
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async (pkgName) => publishTimes[pkgName],
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual(['lodash@4.17.21'])
+  })
+
+  test('omits entries for patched versions published exactly at the cutoff', async () => {
+    const advisories = [
+      advisory('axios', '<=0.18.0', '>=0.18.1'),
+    ]
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async () => ({ '0.18.1': '2026-01-07T23:00:00.000Z' }),
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual([])
+  })
+
+  test('keeps entries whose publish time is not a valid date string', async () => {
+    const advisories = [
+      advisory('axios', '<=0.18.0', '>=0.18.1'),
+      advisory('lodash', '<4.17.21', '>=4.17.21'),
+    ]
+    const publishTimes: Record<string, Record<string, string>> = {
+      axios: { '0.18.1': 'not-a-date' },
+      // A non-string value smuggled past the registry response type.
+      lodash: { '4.17.21': 0 as unknown as string },
+    }
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async (pkgName) => publishTimes[pkgName],
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual(['axios@0.18.1', 'lodash@4.17.21'])
   })
 })
 

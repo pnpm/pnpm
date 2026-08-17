@@ -1,6 +1,6 @@
 use super::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
-use pacquet_config::SaveWorkspaceProtocol;
-use pacquet_registry::RangeSpecStyle;
+use pnpm_config::SaveWorkspaceProtocol;
+use pnpm_registry::RangeSpecStyle;
 use pretty_assertions::assert_eq;
 
 /// `calc_specifier_for_workspace_dep` for a non-aliased dependency on

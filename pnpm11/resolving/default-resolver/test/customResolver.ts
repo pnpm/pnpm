@@ -31,7 +31,7 @@ test('custom resolver intercepts matching packages', async () => {
     retry: {},
     timeout: 60000,
     storeDir: '.store',
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   const result = await resolve(
@@ -76,7 +76,7 @@ test('custom resolver with synchronous methods', async () => {
     retry: {},
     timeout: 60000,
     storeDir: '.store',
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   const result = await resolve(
@@ -120,7 +120,7 @@ test('multiple custom resolvers - first matching wins', async () => {
     retry: {},
     timeout: 60000,
     storeDir: '.store',
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   const result = await resolve(
@@ -153,7 +153,7 @@ test('custom resolver error handling', async () => {
     retry: {},
     timeout: 60000,
     storeDir: '.store',
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   await expect(resolve({ alias: 'any', bareSpecifier: '1.0.0' }, { lockfileDir: '/test', projectDir: '/test', preferredVersions: {} })).rejects.toThrow('Custom resolver failed')
@@ -177,7 +177,7 @@ test('preferredVersions are passed to custom resolver', async () => {
     retry: {},
     timeout: 60000,
     storeDir: '.store',
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   await resolvePackage(
@@ -217,7 +217,7 @@ test('custom resolver can intercept any protocol', async () => {
     retry: {},
     timeout: 60000,
     storeDir: '.store',
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   const result = await resolve(
@@ -248,7 +248,7 @@ test('custom resolver falls through when not supported', async () => {
     retry: {},
     timeout: 60000,
     storeDir: '.store',
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   await expect(
@@ -281,7 +281,7 @@ test('custom resolver can override npm registry resolution', async () => {
     retry: {},
     timeout: 60000,
     storeDir: '.store',
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   const result = await resolve(
@@ -319,7 +319,7 @@ test('custom custom fetcher: reuse local tarball fetcher', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     storeDir: '.store',
   })
 
@@ -356,7 +356,7 @@ test('custom custom fetcher: reuse remote tarball downloader', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     storeDir: '.store',
   })
 
@@ -397,7 +397,7 @@ test('custom custom fetcher: wrap npm registry with custom logic', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     storeDir: '.store',
   })
 
@@ -446,7 +446,7 @@ test('custom resolver receives currentPkg when provided', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   // First call without currentPkg

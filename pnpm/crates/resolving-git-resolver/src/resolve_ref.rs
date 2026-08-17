@@ -12,6 +12,7 @@ use std::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
+use pnpm_network::redact_and_sanitize;
 
 /// Capability seam for `git ls-remote`.
 ///
@@ -59,7 +60,9 @@ pub enum GitResolveRefError {
         commit: String,
     },
 
-    /// Plain `Could not resolve <ref> to a commit of <repo>.` error.
+    /// Plain `Could not resolve <ref> to a commit of <repo>.` error. The repo
+    /// is redacted: a specifier can carry `user:pass@` credentials, which the
+    /// resolution URL keeps.
     #[display("Could not resolve {ref_} to a commit of {repo}.")]
     UnknownRef {
         #[error(not(source))]
@@ -176,7 +179,7 @@ fn resolve_ref_from_refs(
         }
         return Err(GitResolveRefError::UnknownRef {
             ref_: ref_.to_string(),
-            repo: repo.to_string(),
+            repo: redact_and_sanitize(repo),
         });
     };
 
@@ -200,7 +203,7 @@ fn resolve_ref_from_refs(
 
     let parsed_range = Range::parse(range).map_err(|_| GitResolveRefError::UnknownRange {
         range: range.to_string(),
-        repo: repo.to_string(),
+        repo: redact_and_sanitize(repo),
         available: v_tags.iter().cloned().collect::<Vec<_>>().join(", "),
     })?;
     let pick = resolve_v_tags(&v_tags, &parsed_range);
@@ -215,7 +218,7 @@ fn resolve_ref_from_refs(
     }
     Err(GitResolveRefError::UnknownRange {
         range: range.to_string(),
-        repo: repo.to_string(),
+        repo: redact_and_sanitize(repo),
         available: v_tags.iter().cloned().collect::<Vec<_>>().join(", "),
     })
 }

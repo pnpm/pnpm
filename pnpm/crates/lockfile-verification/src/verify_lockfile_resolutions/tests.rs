@@ -6,9 +6,9 @@ use std::{
     },
 };
 
-use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName};
-use pacquet_reporter::{LockfileVerificationMessage, LogEvent, Reporter, SilentReporter};
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName};
+use pnpm_reporter::{LockfileVerificationMessage, LogEvent, Reporter, SilentReporter};
+use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
 use tempfile::TempDir;

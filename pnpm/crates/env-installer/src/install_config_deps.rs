@@ -10,21 +10,21 @@ use crate::{
     ConfigDepError, NormalizedConfigDep, NormalizedSubdep, options::ConfigDepsInstallOptions,
     verify_env_lockfile::verify_env_lockfile,
 };
-use pacquet_graph_hasher::{
+use pnpm_graph_hasher::{
     calc_global_virtual_store_path_with_subdeps, calc_leaf_global_virtual_store_path,
     join_global_virtual_store_path,
 };
-use pacquet_lockfile::{EnvLockfile, LockfileResolution, npm_tarball_url};
-use pacquet_package_is_installable::{
+use pnpm_lockfile::{EnvLockfile, LockfileResolution, TarballUrlOptions, npm_tarball_url};
+use pnpm_package_is_installable::{
     InstallabilityOptions, PackageInstallabilityManifest, check_package,
 };
-use pacquet_package_manager::{ImportIndexedDirOpts, import_indexed_dir};
-use pacquet_reporter::{
+use pnpm_package_manager::{ImportIndexedDirOpts, import_indexed_dir};
+use pnpm_reporter::{
     InstalledConfigDep, InstallingConfigDepsLog, InstallingConfigDepsStatus, LogEvent, LogLevel,
     Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
 };
-use pacquet_store_dir::SharedVerifiedFilesCache;
-use pacquet_tarball::DownloadTarballToStore;
+use pnpm_store_dir::SharedVerifiedFilesCache;
+use pnpm_tarball::DownloadTarballToStore;
 use ssri::Integrity;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -120,7 +120,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
                 error,
             })?;
         }
-        pacquet_fs::force_symlink_dir(&pkg_dir_in_gvs, &config_dep_path)
+        pnpm_fs::force_symlink_dir(&pkg_dir_in_gvs, &config_dep_path)
             .map_err(|error| ConfigDepError::Symlink { path: config_dep_path.clone(), error })?;
         installed.push(InstalledConfigDep { name: name.clone(), version: dep.version.clone() });
     }
@@ -274,7 +274,7 @@ async fn install_optional_subdeps<Reporter: self::Reporter>(
             fs::create_dir_all(parent)
                 .map_err(|error| ConfigDepError::Symlink { path: link_path.clone(), error })?;
         }
-        pacquet_fs::force_symlink_dir(&subdep_dir, &link_path)
+        pnpm_fs::force_symlink_dir(&subdep_dir, &link_path)
             .map_err(|error| ConfigDepError::Symlink { path: link_path.clone(), error })?;
     }
     Ok(())
@@ -326,10 +326,10 @@ fn is_compatible<Reporter: self::Reporter>(
                 parents: None,
                 prefix: opts.root_dir.to_string_lossy().into_owned(),
                 reason: match error.skip_reason() {
-                    pacquet_package_is_installable::SkipReason::UnsupportedEngine => {
+                    pnpm_package_is_installable::SkipReason::UnsupportedEngine => {
                         SkippedOptionalReason::UnsupportedEngine
                     }
-                    pacquet_package_is_installable::SkipReason::UnsupportedPlatform => {
+                    pnpm_package_is_installable::SkipReason::UnsupportedPlatform => {
                         SkippedOptionalReason::UnsupportedPlatform
                     }
                 },
@@ -407,10 +407,7 @@ fn normalize_from_lockfile(
 
 fn read_optional_subdeps(
     parent_name: &str,
-    optionals: &std::collections::HashMap<
-        pacquet_lockfile::PkgName,
-        pacquet_lockfile::SnapshotDepRef,
-    >,
+    optionals: &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
     env_lockfile: &EnvLockfile,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<Vec<NormalizedSubdep>, ConfigDepError> {
@@ -466,9 +463,10 @@ fn integrity_and_tarball(
     registry: &str,
 ) -> Option<(Integrity, String)> {
     match resolution {
-        LockfileResolution::Registry(registry_resolution) => {
-            Some((registry_resolution.integrity.clone(), npm_tarball_url(name, version, registry)))
-        }
+        LockfileResolution::Registry(registry_resolution) => Some((
+            registry_resolution.integrity.clone(),
+            npm_tarball_url(name, version, TarballUrlOptions { registry, server_type: None }),
+        )),
         LockfileResolution::Tarball(tarball) => {
             let integrity = tarball.integrity.clone()?;
             Some((integrity, tarball.tarball.clone()))
@@ -479,16 +477,15 @@ fn integrity_and_tarball(
 
 /// Remove a stale `.pnpm-config` entry (or optional-subdep sibling).
 /// These are directory symlinks/junctions created by
-/// [`pacquet_fs::force_symlink_dir`], so they're unlinked via
-/// [`pacquet_fs::remove_symlink_dir`] rather than recursively deleted —
+/// [`pnpm_fs::force_symlink_dir`], so they're unlinked via
+/// [`pnpm_fs::remove_symlink_dir`] rather than recursively deleted —
 /// `remove_dir_all` is the wrong primitive for a link and behaves
 /// inconsistently across platforms. A real directory left by an older
 /// layout falls back to a recursive remove. A genuine failure (anything
 /// but "already gone") is logged rather than silently swallowed.
 fn prune_link(path: &Path) {
     let is_link = fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink());
-    let result =
-        if is_link { pacquet_fs::remove_symlink_dir(path) } else { fs::remove_dir_all(path) };
+    let result = if is_link { pnpm_fs::remove_symlink_dir(path) } else { fs::remove_dir_all(path) };
     if let Err(error) = result
         && error.kind() != std::io::ErrorKind::NotFound
     {

@@ -24,25 +24,25 @@ pub use hoisted::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::LinkBinsError;
-use pacquet_config::{Config, NodeLinker, matcher::create_matcher};
-use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
-use pacquet_lockfile::{
+use pnpm_cmd_shim::LinkBinsError;
+use pnpm_config::{Config, NodeLinker, matcher::create_matcher};
+use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pnpm_lockfile::{
     Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };
-use pacquet_lockfile_verification::{
+use pnpm_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
 };
-use pacquet_modules_yaml::{Host, IncludedDependencies, read_modules_manifest};
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_patching::{
+use pnpm_modules_yaml::{Host, IncludedDependencies, read_modules_manifest};
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_patching::{
     ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
 };
-use pacquet_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
-use pacquet_resolving_resolver_base::ResolutionVerifier;
-use pacquet_store_dir::StoreIndexWriter;
-use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_resolving_resolver_base::ResolutionVerifier;
+use pnpm_store_dir::StoreIndexWriter;
+use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::OsStr,
@@ -79,7 +79,7 @@ where
     /// references because the hoisted-linker walker
     /// ([`crate::lockfile_to_hoisted_dep_graph`]) takes a
     /// `&Lockfile` (it threads the lockfile into
-    /// [`pacquet_real_hoist::hoist`] which needs every importer's
+    /// [`pnpm_real_hoist::hoist`] which needs every importer's
     /// direct deps plus the full `packages` / `snapshots` maps in
     /// one borrow). Isolated installs ignore the field.
     pub lockfile: &'a Lockfile,
@@ -113,9 +113,9 @@ where
     pub current_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub dependency_groups: DependencyGroupList,
-    pub project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
+    pub project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     pub package_map_project_manifests:
-        &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
+        &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
@@ -150,7 +150,7 @@ where
     /// overrides. Threaded into [`crate::InstallabilityHost`] so the
     /// platform-tagged optional-dependency filter respects user-
     /// supplied architecture overrides.
-    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 
     /// When `true`, runtime dependencies (`node@runtime:`,
     /// `deno@runtime:`, `bun@runtime:`) — i.e. packages whose
@@ -167,7 +167,7 @@ where
     /// `nodeLinker` value to honor for *this* invocation. Threaded
     /// from the package manager's `Install` caller (which has already
     /// applied any `--node-linker` CLI override on top of
-    /// [`pacquet_config::Config::node_linker`]).
+    /// [`pnpm_config::Config::node_linker`]).
     ///
     /// Under [`NodeLinker::Hoisted`] the install pipeline routes
     /// through [`crate::lockfile_to_hoisted_dep_graph`] +
@@ -204,6 +204,12 @@ where
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
+    /// Fetch-evidence cell `CreateVirtualStore` fills after its
+    /// warm/cold partition so the concurrent verification fan-out's
+    /// age gate can lean on this install's canonical tarball fetches.
+    /// See [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`].
+    pub planned_canonical_fetches:
+        Option<&'a pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -224,7 +230,7 @@ pub enum InstallFrozenLockfileError {
     /// custom-resolver load on the fresh-lockfile path.
     #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
-    CustomFetcherHook(#[error(not(source))] pacquet_hooks::HookError),
+    CustomFetcherHook(#[error(not(source))] pnpm_hooks::HookError),
 
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
@@ -295,7 +301,7 @@ pub enum InstallFrozenLockfileError {
     ///   slice that lands the config setting doesn't churn the
     ///   error enum again.
     #[diagnostic(transparent)]
-    Installability(#[error(source)] Box<pacquet_package_is_installable::InstallabilityError>),
+    Installability(#[error(source)] Box<pnpm_package_is_installable::InstallabilityError>),
 
     /// Surfaces failures from
     /// [`crate::lockfile_to_hoisted_dep_graph`] when the install is
@@ -368,6 +374,7 @@ where
             rebuild,
             prior_hoisted_dependencies,
             prune_orphans,
+            planned_canonical_fetches,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -478,7 +485,7 @@ where
                 closure_lockfile: lockfile,
                 closure_root: workspace_root,
                 closure_importer_ids: &closure_importer_ids,
-                included: pacquet_modules_yaml::IncludedDependencies {
+                included: pnpm_modules_yaml::IncludedDependencies {
                     dependencies: dependency_groups.contains(&DependencyGroup::Prod),
                     dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
                     optional_dependencies: include_optional,
@@ -535,7 +542,7 @@ where
         // Build the install-scoped slot-directory layout. When
         // `enable_global_virtual_store` is on the layout precomputes
         // each snapshot's `<scope>/<name>/<version>/<hash>` suffix
-        // from [`pacquet_graph_hasher::calc_graph_node_hash`];
+        // from [`pnpm_graph_hasher::calc_graph_node_hash`];
         // otherwise it falls through to the legacy
         // `to_virtual_store_name`-shaped flat name on every
         // `slot_dir` call. Either way every downstream consumer
@@ -558,7 +565,7 @@ where
         // resolution-verification fan-out where the offline name check
         // would otherwise run. The slot-containment half needs the
         // install-time `layout`, so it can't live in the verifier crate.
-        pacquet_lockfile_verification::verify_lockfile_dependency_names(lockfile)
+        pnpm_lockfile_verification::verify_lockfile_dependency_names(lockfile)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
         crate::validate_virtual_store_slot_containment(snapshots, &layout)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
@@ -594,7 +601,11 @@ where
             .await
             .map_err(InstallFrozenLockfileError::LockfileVerification)
         };
-        let custom_fetcher_picker = load_custom_fetcher_picker(workspace_root).await?;
+        let custom_fetcher_picker = if config.ignore_pnpmfile {
+            None
+        } else {
+            load_custom_fetcher_picker(workspace_root).await?
+        };
         let create_virtual_store_fut = async {
             CreateVirtualStore {
                 http_client,
@@ -616,6 +627,7 @@ where
                 progress_reported: &progress_reported,
                 tarball_mem_cache,
                 custom_fetcher_picker: custom_fetcher_picker.as_ref(),
+                planned_canonical_fetches,
                 #[cfg(test)]
                 link_concurrency_probe: None,
             }
@@ -677,7 +689,7 @@ where
         let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
             .iter()
             .map(|(project_dir, _)| {
-                pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
             })
             .collect();
         let root_component_importers: std::collections::HashSet<String> = project_manifests
@@ -686,7 +698,7 @@ where
                 manifest.install_config_hoisting_limits() == Some(crate::HOISTING_LIMITS_WORKSPACES)
             })
             .map(|(project_dir, _)| {
-                pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
             })
             .collect();
         let sidecar_included = IncludedDependencies {
@@ -756,10 +768,7 @@ where
             None => engine_name,
         };
 
-        let mut build_extra_env = config.extra_env.clone();
-        if let Some(node_options) = &config.node_options {
-            build_extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-        }
+        let mut build_extra_env = config.extra_env_with_node_options();
         if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
             let package_map_path =
                 config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
@@ -856,13 +865,13 @@ pub struct InstallFrozenLockfileOutput {
     /// hoisted linker placed each package at. Empty under the
     /// isolated linker — the field is hoisted-only on disk and
     /// only meaningful when `nodeLinker: hoisted`. Round-trips
-    /// through [`pacquet_modules_yaml::Modules::hoisted_locations`]
+    /// through [`pnpm_modules_yaml::Modules::hoisted_locations`]
     /// so a follow-up install (or rebuild) can locate every
     /// package without re-running the walker.
     pub hoisted_locations: BTreeMap<String, Vec<String>>,
     /// Per-source-project list of virtual-store package directories
     /// its injected `file:` copies were materialized at. Round-trips
-    /// through [`pacquet_modules_yaml::Modules::injected_deps`] —
+    /// through [`pnpm_modules_yaml::Modules::injected_deps`] —
     /// see [`crate::collect_injected_deps`].
     pub injected_deps: BTreeMap<String, Vec<String>>,
     /// Install-time skip set produced by `compute_skipped_snapshots`,
@@ -908,10 +917,10 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
 async fn load_custom_fetcher_picker(
     lockfile_dir: &Path,
 ) -> Result<
-    Option<Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
+    Option<Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
     InstallFrozenLockfileError,
 > {
-    let Some(hook) = pacquet_hooks::finder::load_pnpmfile(lockfile_dir) else {
+    let Some(hook) = pnpm_hooks::finder::load_pnpmfile(lockfile_dir) else {
         return Ok(None);
     };
     let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
@@ -924,7 +933,7 @@ async fn load_custom_fetcher_picker(
     if fetchers.is_empty() {
         return Ok(None);
     }
-    Ok(Some(Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))))
+    Ok(Some(Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))))
 }
 
 #[cfg(test)]

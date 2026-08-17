@@ -13,9 +13,9 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_registry::{Package, PackageVersion};
-use pacquet_resolving_resolver_base::parse_packument_timestamp;
+use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_registry::{Package, PackageVersion};
+use pnpm_resolving_resolver_base::parse_packument_timestamp;
 
 /// Rank of supply-chain evidence on a single version. Variants are
 /// declared weakest-first so the derived `Ord` matches `trust_rank`.

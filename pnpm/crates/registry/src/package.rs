@@ -3,8 +3,8 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
-use pacquet_network::{AuthHeaders, ThrottledClient};
 use pipe_trait::Pipe;
+use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -181,7 +181,7 @@ impl Package {
         registry: &str,
         auth_headers: &AuthHeaders,
     ) -> Result<Self, RegistryError> {
-        let encoded_name = pacquet_network::encode_package_name(name);
+        let encoded_name = pnpm_network::encode_package_name(name);
         let url = format!("{registry}{encoded_name}"); // TODO: use reqwest URL directly
         let network_error = |error| NetworkError { error, url: url.clone() };
         // Hold the semaphore permit across send + body consumption so the

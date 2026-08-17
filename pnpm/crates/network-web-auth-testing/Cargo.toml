@@ -1,6 +1,6 @@
 [package]
-name                 = "pacquet-network-web-auth-testing"
-description          = "Shared test fakes for the OTP / web-auth flow (pacquet-network-web-auth)"
+name                 = "pnpm-network-web-auth-testing"
+description          = "Shared test fakes for the OTP / web-auth flow (pnpm-network-web-auth)"
 version              = "0.0.1"
 publish              = false
 authors.workspace    = true
@@ -11,9 +11,9 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-diagnostics      = { workspace = true }
-pacquet-network-web-auth = { workspace = true }
-pacquet-reporter         = { workspace = true }
+pnpm-diagnostics      = { workspace = true }
+pnpm-network-web-auth = { workspace = true }
+pnpm-reporter         = { workspace = true }
 
 derive_more = { workspace = true }
 serde_json  = { workspace = true }

@@ -37,7 +37,7 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -97,7 +97,7 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -200,7 +200,7 @@ jobs:
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
-      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0

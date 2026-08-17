@@ -1,5 +1,5 @@
 use crate::{PkgName, ResolvedDependencyMap, ResolvedDependencySpec};
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_package_manifest::DependencyGroup;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

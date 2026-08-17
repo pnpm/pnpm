@@ -1,6 +1,6 @@
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, ThrottledClient};
+use pnpm_config::Config;
+use pnpm_network::{NetworkSettings, ThrottledClient};
 use std::time::Duration;
 
 /// Build the network client a one-off registry query (`whoami`, `ping`, ...)

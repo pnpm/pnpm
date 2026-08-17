@@ -1,8 +1,8 @@
 use super::{ConfigOverrides, apply_registry_override, apply_store_dir_override};
-use pacquet_config::{
+use pnpm_config::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
 };
-use pacquet_store_dir::STORE_VERSION;
+use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, path::PathBuf};
 
@@ -23,7 +23,10 @@ fn extract_separates_config_tokens_from_argv() {
     overrides.apply(&mut config);
     assert_eq!(config.registry, "https://example.test/");
     assert_eq!(config.package_manager_bootstrap.registry, "https://example.test/");
-    assert_eq!(config.registries.get("default").map(String::as_str), Some("https://example.test/"));
+    assert_eq!(
+        config.registries_by_scope.get("default").map(String::as_str),
+        Some("https://example.test/"),
+    );
     assert_eq!(
         config.package_manager_bootstrap.registries.get("default").map(String::as_str),
         Some("https://example.test/"),
@@ -97,7 +100,10 @@ fn registry_cli_override_normalizes_and_sets_every_registry_slot() {
     // No trailing slash on the input; it is normalized on the way in.
     apply_registry_override(&mut config, "https://cli.example");
     assert_eq!(config.registry, "https://cli.example/");
-    assert_eq!(config.registries.get("default").map(String::as_str), Some("https://cli.example/"));
+    assert_eq!(
+        config.registries_by_scope.get("default").map(String::as_str),
+        Some("https://cli.example/"),
+    );
     assert_eq!(config.package_manager_bootstrap.registry, "https://cli.example/");
     assert_eq!(
         config.package_manager_bootstrap.registries.get("default").map(String::as_str),
@@ -116,7 +122,7 @@ fn extract_applies_scoped_registry_overrides() {
     let mut config = Config::default();
     overrides.apply(&mut config);
     assert_eq!(
-        config.registries.get("@private").map(String::as_str),
+        config.registries_by_scope.get("@private").map(String::as_str),
         Some("https://private.example/npm/"),
     );
     assert_eq!(
@@ -130,14 +136,16 @@ fn scoped_registry_override_wins_over_existing_config() {
     let (overrides, _) =
         ConfigOverrides::extract(argv(["--config.@private:registry=https://cli.example/npm/"]));
     let mut config = Config::default();
-    config.registries.insert("@private".to_string(), "https://workspace.example/npm/".to_string());
+    config
+        .registries_by_scope
+        .insert("@private".to_string(), "https://workspace.example/npm/".to_string());
     config
         .package_manager_bootstrap
         .registries
         .insert("@private".to_string(), "https://json-env.example/npm/".to_string());
     overrides.apply(&mut config);
     assert_eq!(
-        config.registries.get("@private").map(String::as_str),
+        config.registries_by_scope.get("@private").map(String::as_str),
         Some("https://cli.example/npm/"),
     );
     assert_eq!(
@@ -250,7 +258,7 @@ fn dotted_proxy_overrides_apply_to_network_config() {
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://proxy.example:8080"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec![
+        Some(pnpm_network::NoProxySetting::List(vec![
             "localhost".to_string(),
             "127.0.0.1".to_string(),
         ])),

@@ -12,7 +12,7 @@ import { lt, rsort, valid } from 'semver'
 import tar from 'tar-stream'
 
 export type PreviousChangelogOptions = CreateFetchFromRegistryOptions & Pick<Config,
-| 'registries'
+| 'registriesByScope'
 | 'fetchRetries'
 | 'fetchRetryFactor'
 | 'fetchRetryMaxtimeout'
@@ -95,7 +95,7 @@ export function createVersionPublishedChecker (opts: PreviousChangelogOptions): 
 }
 
 async function fetchPackument (client: RegistryClient, opts: PreviousChangelogOptions, pkgName: string): Promise<PackageMeta | undefined> {
-  const registry = pickRegistryForPackage(opts.registries, pkgName)
+  const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
   let fetchResult
   try {
     fetchResult = await fetchMetadataFromFromRegistry(

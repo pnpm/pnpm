@@ -1,5 +1,5 @@
-import { expect, test } from '@jest/globals'
-import { toLockfileResolution } from '@pnpm/lockfile.utils'
+import { describe, expect, test } from '@jest/globals'
+import { pkgSnapshotToResolution, toLockfileResolution } from '@pnpm/lockfile.utils'
 
 const REGISTRY = 'https://registry.npmjs.org/'
 const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
@@ -8,8 +8,7 @@ test('keeps the tarball when lockfileIncludeTarballUrl is true', () => {
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: 'sha512-AAAA', tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz' },
-    REGISTRY,
-    true
+    { registry: REGISTRY, lockfileIncludeTarballUrl: true }
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
@@ -20,7 +19,7 @@ test('drops the tarball for standard registry URLs by default', () => {
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: 'sha512-AAAA', tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz' },
-    REGISTRY
+    { registry: REGISTRY }
   )).toEqual({
     integrity: 'sha512-AAAA',
   })
@@ -30,8 +29,7 @@ test('drops the tarball for standard registry URLs when lockfileIncludeTarballUr
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: 'sha512-AAAA', tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz' },
-    REGISTRY,
-    false
+    { registry: REGISTRY, lockfileIncludeTarballUrl: false }
   )).toEqual({
     integrity: 'sha512-AAAA',
   })
@@ -45,11 +43,37 @@ test('keeps the tarball for non-standard registry URLs when lockfileIncludeTarba
   expect(toLockfileResolution(
     { name: 'esprima-fb', version: '3001.1.0-dev-harmony-fb' },
     { integrity: 'sha512-AAAA', tarball: 'https://example.com/esprima-fb/-/esprima-fb-3001.1.0-dev-harmony-fb.tgz' },
-    REGISTRY,
-    false
+    { registry: REGISTRY, lockfileIncludeTarballUrl: false }
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'https://example.com/esprima-fb/-/esprima-fb-3001.1.0-dev-harmony-fb.tgz',
+  })
+})
+
+test.each([
+  'https://npm.example.com/@babel%2Fcore/-/core-7.0.0.tgz',
+  'https://npm.example.com/@babel%2fcore/-/core-7.0.0.tgz',
+])('keeps a scoped tarball URL that percent-encodes the scope separator: %s', (tarball) => {
+  expect(toLockfileResolution(
+    { name: '@babel/core', version: '7.0.0' },
+    { integrity: 'sha512-AAAA', tarball },
+    { registry: 'https://npm.example.com/', lockfileIncludeTarballUrl: false }
+  )).toEqual({
+    integrity: 'sha512-AAAA',
+    tarball,
+  })
+})
+
+test.each([
+  'https://registry.npmjs.org/@babel%2Fcore/-/core-7.0.0.tgz',
+  'https://registry.npmjs.org/@babel%2fcore/-/core-7.0.0.tgz',
+])('drops a percent-encoded scoped tarball URL on the public registry: %s', (tarball) => {
+  expect(toLockfileResolution(
+    { name: '@babel/core', version: '7.0.0' },
+    { integrity: 'sha512-AAAA', tarball },
+    { registry: REGISTRY, lockfileIncludeTarballUrl: false }
+  )).toEqual({
+    integrity: 'sha512-AAAA',
   })
 })
 
@@ -60,8 +84,7 @@ test('keeps GitHub Packages /download/ tarball URLs when lockfileIncludeTarballU
   expect(toLockfileResolution(
     { name: '@example/private', version: '1.2.3' },
     { integrity: 'sha512-AAAA', tarball: 'https://npm.pkg.github.com/download/@example/private/1.2.3/0123456789abcdef0123456789abcdef01234567' },
-    'https://npm.pkg.github.com/',
-    false
+    { registry: 'https://npm.pkg.github.com/', lockfileIncludeTarballUrl: false }
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'https://npm.pkg.github.com/download/@example/private/1.2.3/0123456789abcdef0123456789abcdef01234567',
@@ -74,8 +97,7 @@ test('keeps file: tarballs even when lockfileIncludeTarballUrl is false', () => 
   expect(toLockfileResolution(
     { name: 'test-package', version: '1.0.0' },
     { integrity: 'sha512-AAAA', tarball: 'file:test-package-1.0.0.tgz' },
-    REGISTRY,
-    false
+    { registry: REGISTRY, lockfileIncludeTarballUrl: false }
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'file:test-package-1.0.0.tgz',
@@ -86,7 +108,7 @@ test('keeps file: tarballs even when lockfileIncludeTarballUrl is undefined', ()
   expect(toLockfileResolution(
     { name: 'test-package', version: '1.0.0' },
     { integrity: 'sha512-AAAA', tarball: 'file:test-package-1.0.0.tgz' },
-    REGISTRY
+    { registry: REGISTRY }
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'file:test-package-1.0.0.tgz',
@@ -97,8 +119,7 @@ test('keeps git-hosted tarballs when lockfileIncludeTarballUrl is false', () => 
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: 'sha512-AAAA', tarball: GIT_TARBALL },
-    REGISTRY,
-    false
+    { registry: REGISTRY, lockfileIncludeTarballUrl: false }
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: GIT_TARBALL,
@@ -113,8 +134,7 @@ test('keeps the path of a git-hosted tarball pointing to a subdirectory', () => 
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: 'sha512-AAAA', tarball: GIT_TARBALL, gitHosted: true, path: '/packages/foo' },
-    REGISTRY,
-    false
+    { registry: REGISTRY, lockfileIncludeTarballUrl: false }
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: GIT_TARBALL,
@@ -127,8 +147,7 @@ test('keeps the path of a git-hosted tarball when lockfileIncludeTarballUrl is t
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: 'sha512-AAAA', tarball: GIT_TARBALL, gitHosted: true, path: '/packages/foo' },
-    REGISTRY,
-    true
+    { registry: REGISTRY, lockfileIncludeTarballUrl: true }
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: GIT_TARBALL,
@@ -141,11 +160,113 @@ test('records gitHosted on the lockfile entry when set on the resolution', () =>
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: 'sha512-AAAA', tarball: GIT_TARBALL, gitHosted: true },
-    REGISTRY,
-    true
+    { registry: REGISTRY, lockfileIncludeTarballUrl: true }
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: GIT_TARBALL,
     gitHosted: true,
+  })
+})
+
+test('drops an integrity recorded on a git resolution', () => {
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    {
+      type: 'git',
+      repo: 'https://github.com/foo/bar.git',
+      commit: 'e63c09e460269b0c535e4c34debf69bb91d57b22',
+      integrity: 'sha512-AAAA',
+    } as never,
+    { registry: REGISTRY }
+  )).toEqual({
+    type: 'git',
+    repo: 'https://github.com/foo/bar.git',
+    commit: 'e63c09e460269b0c535e4c34debf69bb91d57b22',
+  })
+})
+
+test('keeps a git resolution without an integrity untouched', () => {
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    {
+      type: 'git',
+      repo: 'https://github.com/foo/bar.git',
+      commit: 'e63c09e460269b0c535e4c34debf69bb91d57b22',
+      path: '/packages/foo',
+    },
+    { registry: REGISTRY }
+  )).toEqual({
+    type: 'git',
+    repo: 'https://github.com/foo/bar.git',
+    commit: 'e63c09e460269b0c535e4c34debf69bb91d57b22',
+    path: '/packages/foo',
+  })
+})
+
+describe('on a registry declared as Artifactory', () => {
+  const registry = 'https://artifactory.example/artifactory/api/npm/npm-virtual/'
+  const registryOptionsByUrl = { [registry]: { serverType: 'artifactory' as const } }
+  const pkg = { name: '@acme/widget', version: '1.2.3' }
+  const tarball = `${registry}@acme/widget/-/@acme/widget-1.2.3.tgz`
+
+  test('drops the scoped tarball URL it advertises', () => {
+    expect(toLockfileResolution(
+      pkg,
+      { integrity: 'sha512-AAAA', tarball },
+      { registry, serverType: 'artifactory' }
+    )).toEqual({
+      integrity: 'sha512-AAAA',
+    })
+  })
+
+  // The invariant the whole setting rests on: whatever the writer omits, the
+  // reader has to rebuild byte for byte, or a frozen install fetches a URL the
+  // registry never served.
+  test('rebuilds the dropped URL exactly', () => {
+    const lockfileResolution = toLockfileResolution(
+      pkg,
+      { integrity: 'sha512-AAAA', tarball },
+      { registry, serverType: 'artifactory' }
+    )
+    expect(pkgSnapshotToResolution('@acme/widget@1.2.3', { resolution: lockfileResolution }, {
+      registriesByScope: { default: registry },
+      registryOptionsByUrl,
+    })).toEqual({ integrity: 'sha512-AAAA', tarball })
+  })
+
+  test('keeps the npm-layout URL, which this registry does not serve', () => {
+    const npmLayoutTarball = `${registry}@acme/widget/-/widget-1.2.3.tgz`
+    expect(toLockfileResolution(
+      pkg,
+      { integrity: 'sha512-AAAA', tarball: npmLayoutTarball },
+      { registry, serverType: 'artifactory' }
+    )).toEqual({
+      integrity: 'sha512-AAAA',
+      tarball: npmLayoutTarball,
+    })
+  })
+
+  test('keeps the scoped tarball URL when lockfileIncludeTarballUrl is true', () => {
+    expect(toLockfileResolution(
+      pkg,
+      { integrity: 'sha512-AAAA', tarball },
+      { registry, serverType: 'artifactory', lockfileIncludeTarballUrl: true }
+    )).toEqual({
+      integrity: 'sha512-AAAA',
+      tarball,
+    })
+  })
+})
+
+test('keeps the Artifactory-shaped URL of a registry that was not declared as Artifactory', () => {
+  const registry = 'https://artifactory.example/artifactory/api/npm/npm-virtual/'
+  const tarball = `${registry}@acme/widget/-/@acme/widget-1.2.3.tgz`
+  expect(toLockfileResolution(
+    { name: '@acme/widget', version: '1.2.3' },
+    { integrity: 'sha512-AAAA', tarball },
+    { registry }
+  )).toEqual({
+    integrity: 'sha512-AAAA',
+    tarball,
   })
 })

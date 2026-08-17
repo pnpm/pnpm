@@ -11,8 +11,8 @@
 use crate::StoreDir;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_crypto_hash::create_short_hash;
-use pacquet_fs::{lexical_normalize, read_symlink_dir, remove_symlink_dir, symlink_dir};
+use pnpm_crypto_hash::create_short_hash;
+use pnpm_fs::{lexical_normalize, read_symlink_dir, remove_symlink_dir, symlink_dir};
 use std::{
     fs,
     io::{self, ErrorKind},
@@ -207,7 +207,7 @@ pub enum GetRegisteredProjectsError {
 /// Returns the surviving project root paths (absolute: an absolute
 /// target is used as-is, a relative one is resolved against the link's
 /// parent directory — pacquet's [`register_project`] always writes
-/// absolute targets via [`pacquet_fs::symlink_dir`], but the
+/// absolute targets via [`pnpm_fs::symlink_dir`], but the
 /// relative-target branch is preserved so a registry seeded by pnpm
 /// (which uses `symlink-dir`'s "make relative when possible" behaviour
 /// on some platforms) still resolves correctly).

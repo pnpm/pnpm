@@ -44,7 +44,7 @@ export const DEFAULT_OPTS = {
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   proxy: undefined,
-  registries: { default: REGISTRY_URL },
+  registriesByScope: { default: REGISTRY_URL },
   registry: REGISTRY_URL,
   rootProjectManifestDir: '',
   sort: true,

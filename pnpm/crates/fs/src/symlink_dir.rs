@@ -17,9 +17,9 @@ use std::{
 ///
 /// On Windows the writer tries a true directory symlink first
 /// (`std::os::windows::fs::symlink_dir`) and falls back to a junction
-/// on `PermissionDenied` (symbolic links may require elevated
+/// on a privilege error (symbolic links may require elevated
 /// privileges; junctions don't). The first successful branch is cached
-/// process-wide so subsequent calls skip the EPERM probe.
+/// process-wide so subsequent calls skip the privilege probe.
 pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
@@ -424,9 +424,9 @@ mod windows {
         // running in Developer Mode (or as Administrator) get, and
         // true symlinks are preferred over junctions when allowed.
         // `CreateSymbolicLinkW` returns
-        // `ERROR_PRIVILEGE_NOT_HELD` (`PermissionDenied`) when the
-        // process can't create symlinks; junctions don't carry that
-        // constraint, so fall back to those.
+        // `ERROR_PRIVILEGE_NOT_HELD` when the process can't create
+        // symlinks; junctions don't carry that constraint, so fall
+        // back to those.
         match create_true_symlink(original, link) {
             Ok(()) => {
                 MODE.store(USE_SYMLINK, Ordering::Relaxed);
@@ -441,8 +441,13 @@ mod windows {
 
     pub(super) fn should_fallback_to_junction(error: &io::Error) -> bool {
         const ERROR_DIRECTORY: i32 = 267;
+        // `CreateSymbolicLinkW` without symlink privilege (no Developer
+        // Mode, not elevated) fails with `ERROR_PRIVILEGE_NOT_HELD`,
+        // which std maps to `Uncategorized` — not `PermissionDenied` —
+        // so it must be matched by raw os error.
+        const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
         error.kind() == io::ErrorKind::PermissionDenied
-            || error.raw_os_error() == Some(ERROR_DIRECTORY)
+            || matches!(error.raw_os_error(), Some(ERROR_DIRECTORY | ERROR_PRIVILEGE_NOT_HELD))
     }
 
     fn create_and_cache_junction(original: &Path, link: &Path) -> io::Result<()> {

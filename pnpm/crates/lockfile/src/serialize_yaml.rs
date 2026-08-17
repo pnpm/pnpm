@@ -4,7 +4,8 @@
 //! The byte-level YAML rendering lives in [`crate::yaml_emit`], a port of the
 //! `@zkochan/js-yaml` dumper pnpm uses for `pnpm-lock.yaml`. This module keeps
 //! the `serialize_with` helpers that canonicalize map key order before that
-//! rendering runs.
+//! rendering runs, plus the on-write normalization pnpm applies to the
+//! document as a whole.
 
 use serde::{
     Serialize,
@@ -13,8 +14,15 @@ use serde::{
 use std::{collections::HashMap, fmt::Display};
 
 /// Serialize `value` to a YAML string matching pnpm's lockfile formatting.
-pub(crate) fn to_string<Value: Serialize>(value: &Value) -> Result<String, serde_json::Error> {
-    crate::yaml_emit::to_string(value)
+///
+/// The document is normalized before rendering, the way pnpm's
+/// `normalizeLockfile` normalizes a lockfile on its way to disk.
+pub(crate) fn to_string<Document: Serialize>(
+    value: &Document,
+) -> Result<String, serde_json::Error> {
+    let mut document = serde_json::to_value(value)?;
+    crate::prune_time(&mut document);
+    Ok(crate::yaml_emit::to_string(document))
 }
 
 /// Serialize a [`HashMap`] with its entries emitted in canonical key order.

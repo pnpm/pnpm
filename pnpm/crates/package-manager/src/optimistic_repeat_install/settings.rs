@@ -2,8 +2,8 @@
 
 use super::{
     Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker, Path,
-    SupportedArchitectures, WorkspaceState, WorkspaceStateNodeLinker, WorkspaceStateSettings,
-    load_workspace_state,
+    SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
+    WorkspaceStateSettings, WorkspaceStateTrustPolicy, load_workspace_state,
 };
 
 /// Whether the `supportedArchitectures` recorded by the last install
@@ -135,9 +135,17 @@ pub(crate) fn first_setting_drift(
     );
     return_drift_if!("minimumReleaseAge", recorded.minimum_release_age != live.minimum_release_age,);
     return_drift_if!(
+        "minimumReleaseAgeExclude",
+        recorded.minimum_release_age_exclude != live.minimum_release_age_exclude,
+    );
+    return_drift_if!(
         "minimumReleaseAgeIgnoreMissingTime",
         recorded.minimum_release_age_ignore_missing_time
             != live.minimum_release_age_ignore_missing_time,
+    );
+    return_drift_if!(
+        "minimumReleaseAgeStrict",
+        recorded.minimum_release_age_strict != live.minimum_release_age_strict,
     );
     return_drift_if!("nodeLinker", recorded.node_linker != live.node_linker);
     return_drift_if!("optional", recorded.optional != live.optional);
@@ -168,6 +176,15 @@ pub(crate) fn first_setting_drift(
         "supportedArchitectures",
         recorded.supported_architectures != live.supported_architectures,
     );
+    return_drift_if!("trustPolicy", recorded.trust_policy != live.trust_policy);
+    return_drift_if!(
+        "trustPolicyExclude",
+        recorded.trust_policy_exclude != live.trust_policy_exclude,
+    );
+    return_drift_if!(
+        "trustPolicyIgnoreAfter",
+        recorded.trust_policy_ignore_after != live.trust_policy_ignore_after,
+    );
 
     None
     // Deliberately *not* compared in this generic settings loop:
@@ -176,13 +193,7 @@ pub(crate) fn first_setting_drift(
     // `pnpm-workspace.yaml` or an `updateConfig` hook can invalidate
     // the cache.
     //
-    // The remaining omitted keys are left out because pnpm leaves them
-    // `undefined` by default, so omitting them here still matches pnpm's
-    // all-key freshness check (`undefined == undefined`):
-    //   minimumReleaseAgeStrict     (pnpm sets it only when the user
-    //                                explicitly sets minimumReleaseAge)
-    //   minimumReleaseAgeExclude
-    //   trustPolicy*                (all `undefined` until configured)
+    // The remaining omitted key:
     //   workspacePackagePatterns    (concrete for a multi-package
     //                                workspace, but lives in the
     //                                workspace manifest, not `Config`;
@@ -223,7 +234,7 @@ pub(crate) fn allow_builds_match(
 /// `packageExtensions` are compared as opaque `serde_json::Value`
 /// trees so the workspace-state file written by either implementation
 /// round-trips through the other. Empty maps are equivalent to absent
-/// — pacquet's [`pacquet_config::WorkspaceSettings::apply_to`] already collapses
+/// — pacquet's [`pnpm_config::WorkspaceSettings::apply_to`] already collapses
 /// `packageExtensions: {}` to `None`, but pnpm may write `Some({})`
 /// directly, and the workspace-state file is shared across the two.
 pub(crate) fn package_extensions_match(
@@ -279,9 +290,15 @@ pub(crate) fn current_settings(
             config.link_workspace_packages,
         )),
         minimum_release_age: config.minimum_release_age,
+        minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
         minimum_release_age_ignore_missing_time: Some(
             config.minimum_release_age_ignore_missing_time,
         ),
+        // The resolved form pnpm records — see
+        // `WorkspaceStateSettings::minimum_release_age_strict`.
+        minimum_release_age_strict: config
+            .minimum_release_age_strict
+            .or_else(|| config.explicit_settings.contains_key("minimumReleaseAge").then_some(true)),
         node_linker: Some(map_node_linker(node_linker)),
         optional: Some(included.optional_dependencies),
         overrides: config
@@ -304,6 +321,16 @@ pub(crate) fn current_settings(
         // channel re-evaluates the skipped optionals on the next run.
         supported_architectures: supported_architectures
             .and_then(|value| serde_json::to_value(value).ok()),
+        // pnpm records the raw config value, which stays `undefined`
+        // until the user configures the setting — `explicit_settings` is
+        // how pacquet tells its resolved default apart from a real
+        // `trustPolicy: off`.
+        trust_policy: config
+            .explicit_settings
+            .contains_key("trustPolicy")
+            .then(|| map_trust_policy(config.trust_policy)),
+        trust_policy_exclude: config.trust_policy_exclude.clone(),
+        trust_policy_ignore_after: config.trust_policy_ignore_after,
         ..Default::default()
     }
 }
@@ -356,5 +383,12 @@ pub(crate) fn map_node_linker(linker: NodeLinker) -> WorkspaceStateNodeLinker {
         NodeLinker::Isolated => WorkspaceStateNodeLinker::Isolated,
         NodeLinker::Hoisted => WorkspaceStateNodeLinker::Hoisted,
         NodeLinker::Pnp => WorkspaceStateNodeLinker::Pnp,
+    }
+}
+
+fn map_trust_policy(policy: TrustPolicy) -> WorkspaceStateTrustPolicy {
+    match policy {
+        TrustPolicy::Off => WorkspaceStateTrustPolicy::Off,
+        TrustPolicy::NoDowngrade => WorkspaceStateTrustPolicy::NoDowngrade,
     }
 }

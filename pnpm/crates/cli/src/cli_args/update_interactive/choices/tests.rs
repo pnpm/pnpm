@@ -10,7 +10,7 @@ use super::{ChoiceGroup, column_widths, pad_row, update_choices};
 use crate::cli_args::outdated::OutdatedPackage;
 use console::measure_text_width;
 use node_semver::Version;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_package_manifest::DependencyGroup;
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")

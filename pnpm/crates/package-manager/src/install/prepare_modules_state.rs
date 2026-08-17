@@ -22,7 +22,7 @@ pub(super) struct PrepareModulesStateInputs<'a, 'install> {
     pub(super) disable_optimistic_repeat_install: bool,
     pub(super) lockfile: Option<&'a Lockfile>,
     pub(super) supported_architectures:
-        Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) rebuild: Option<&'a RebuildOptions>,
     pub(super) resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
     pub(super) derived_lockfile_path: Option<&'a Path>,
@@ -30,13 +30,14 @@ pub(super) struct PrepareModulesStateInputs<'a, 'install> {
         Option<super::LockfileVerificationOverride<'install>>,
     pub(super) lockfile_synthesized_from_current: bool,
     pub(super) lockfile_was_fast_updated: bool,
+    pub(super) save_lockfile: bool,
     pub(super) catalogs: &'a Catalogs,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) prefix: &'a str,
 }
 
 pub(super) struct PreparedModulesState<'install> {
-    pub(super) old_modules: Option<pacquet_modules_yaml::ModulesLayout>,
+    pub(super) old_modules: Option<pnpm_modules_yaml::ModulesLayout>,
     pub(super) previous_modules_metadata: Option<Modules>,
     pub(super) is_inconsistent: bool,
     pub(super) lockfile_verification_override:
@@ -68,6 +69,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         lockfile_verification_override,
         lockfile_synthesized_from_current,
         lockfile_was_fast_updated,
+        save_lockfile,
         catalogs,
         project_manifests,
         prefix,
@@ -75,7 +77,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
     // A no-op still refreshes workspace state so `verifyDepsBeforeRun`
     // does not treat the materialized tree as stale.
     let modules_manifest_res = if !resolve_only || take_frozen_path {
-        pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
+        pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
     } else {
         Ok(None)
     };
@@ -98,7 +100,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
     // does not would otherwise merge against `None` and silently prune
     // those entries, so that case fails instead.
     let previous_modules_metadata = if !resolve_only && !read_failed {
-        match pacquet_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir) {
+        match pnpm_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir) {
             Ok(modules) => modules,
             // A filtered install merges the unselected importers'
             // entries out of this file, so it cannot proceed
@@ -127,7 +129,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
             // Treat existence-check errors conservatively as inconsistent.
             None => config
                 .modules_dir
-                .join(pacquet_modules_yaml::MODULES_FILENAME)
+                .join(pnpm_modules_yaml::MODULES_FILENAME)
                 .try_exists()
                 .unwrap_or(true),
         };
@@ -193,8 +195,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
 
                             if entry.file_type().is_ok_and(|t| t.is_dir()) {
                                 #[cfg(windows)]
-                                let is_removed =
-                                    pacquet_fs::remove_symlink_dir(&entry.path()).is_ok();
+                                let is_removed = pnpm_fs::remove_symlink_dir(&entry.path()).is_ok();
                                 #[cfg(not(windows))]
                                 let is_removed = false;
 
@@ -334,7 +335,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         // name gate before any materialization; the up-to-date
         // early return must not skip it (the resolution-verifier
         // fan-out below is policy-gated and can be empty).
-        pacquet_lockfile_verification::verify_lockfile_dependency_names(wanted_lockfile)
+        pnpm_lockfile_verification::verify_lockfile_dependency_names(wanted_lockfile)
             .map_err(InstallError::LockfileVerification)?;
         // Nothing to materialize means no fetch to overlap; verify
         // eagerly before the up-to-date early return.
@@ -374,7 +375,10 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
             prefix: prefix.to_string(),
             stage: Stage::ImportingDone,
         }));
-        if (lockfile_synthesized_from_current || lockfile_was_fast_updated) && config.lockfile {
+        if (lockfile_synthesized_from_current || lockfile_was_fast_updated)
+            && config.lockfile
+            && save_lockfile
+        {
             wanted_lockfile
                 .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
                 .map_err(InstallError::SaveWantedLockfile)?;
@@ -415,7 +419,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
 /// still says the tree is current.
 fn has_directory_snapshot(lockfile: &Lockfile) -> bool {
     lockfile.packages.iter().flat_map(|packages| packages.values()).any(|metadata| {
-        matches!(metadata.resolution, pacquet_lockfile::LockfileResolution::Directory(_))
+        matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
     })
 }
 

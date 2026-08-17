@@ -52,7 +52,7 @@ pub(crate) fn empty_snapshots() -> &'static HashMap<PackageKey, SnapshotEntry> {
     EMPTY.get_or_init(HashMap::new)
 }
 
-pub(crate) fn importer_roots(importer: &pacquet_lockfile::ProjectSnapshot) -> Vec<(DepKind, Edge)> {
+pub(crate) fn importer_roots(importer: &pnpm_lockfile::ProjectSnapshot) -> Vec<(DepKind, Edge)> {
     let mut roots = Vec::new();
     append_importer_edges(&mut roots, DepKind::Prod, importer.dependencies.as_ref());
     append_importer_edges(&mut roots, DepKind::Dev, importer.dev_dependencies.as_ref());

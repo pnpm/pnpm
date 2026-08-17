@@ -36,8 +36,31 @@ pub fn create_hash_from_file(path: &Path) -> io::Result<String> {
 /// of the directory layout.
 #[must_use]
 pub fn create_hex_hash(input: &str) -> String {
-    let digest = Sha256::digest(input.as_bytes());
+    create_hex_hash_bytes(input.as_bytes())
+}
+
+/// Compute the full sha256 hex digest of arbitrary bytes.
+#[must_use]
+pub fn create_hex_hash_bytes(input: &[u8]) -> String {
+    let digest = Sha256::digest(input);
     format!("{digest:x}")
+}
+
+/// Stream a file into a full sha256 hex digest without retaining its contents.
+pub fn create_hex_hash_from_file(path: &Path) -> io::Result<String> {
+    use std::io::Read as _;
+
+    let mut file = std::fs::File::open(path)?;
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 16 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
 }
 
 /// Compute the sha256 hex digest of `input` and truncate to the first
@@ -65,7 +88,7 @@ pub fn create_short_hash(input: &str) -> String {
 /// start with `file+` are exempt from the case check.
 ///
 /// `max_length` is `Modules.virtual_store_dir_max_length` (default
-/// 120; see `pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
+/// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
 ///
 /// The caller is responsible for pre-escaping the source string (parens
 /// → underscores, scoped-name slashes → `+`, etc) — this helper only

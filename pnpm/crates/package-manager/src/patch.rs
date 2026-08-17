@@ -5,18 +5,18 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_config::{Config, PackageImportMethod, ScriptsPrependNodePath};
-use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
-use pacquet_git_fetcher::{GitFetchOutput, GitFetcherError, GitHostedTarballFetcher};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PackageKey};
-use pacquet_network::ThrottledClient;
-use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_store_dir::{
+use pnpm_config::{Config, PackageImportMethod, ScriptsPrependNodePath};
+use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pnpm_git_fetcher::{GitFetchOutput, GitFetcherError, GitHostedTarballFetcher};
+use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
+use pnpm_network::ThrottledClient;
+use pnpm_reporter::Reporter;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_store_dir::{
     SharedVerifiedFilesCache, StoreIndex, StoreIndexError, StoreIndexWriter,
     git_hosted_store_index_key,
 };
-use pacquet_tarball::{DownloadTarballToStore, MemCache, TarballError};
+use pnpm_tarball::{DownloadTarballToStore, MemCache, TarballError};
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
@@ -263,6 +263,9 @@ impl WritePackageForPatch<'_> {
                     script_shell: None,
                     node_execpath: None,
                     npm_execpath: None,
+                    // Nothing here is allowed to build, so no package
+                    // manager has to be provided to it.
+                    pnpm_execpath: None,
                     store_dir: &config.store_dir,
                     package_id: &package_id,
                     requester: "",

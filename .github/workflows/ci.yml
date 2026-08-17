@@ -81,9 +81,11 @@ jobs:
       with:
         persist-credentials: false
     - name: Install pnpm
-      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
-    - name: Test release publication guard
-      run: .github/scripts/npm-package-publication-state.test.sh
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+    - name: Test release publication scripts
+      run: |
+        .github/scripts/npm-package-publication-state.test.sh
+        .github/scripts/npm-staged-publication.test.sh
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint

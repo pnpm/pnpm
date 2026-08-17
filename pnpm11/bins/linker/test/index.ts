@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { beforeEach, describe, expect, jest, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
+import { cmdShim } from '@zkochan/cmd-shim'
 import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
@@ -42,6 +43,7 @@ const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 
 const testOnWindows = IS_WINDOWS ? test : test.skip
+const testOnPosix = IS_WINDOWS ? test.skip : test
 
 function getExpectedBins (bins: string[]) {
   const expectedBins = [...bins]
@@ -96,6 +98,32 @@ test('linkBins() skips bins that already reference the correct target', async ()
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
   expect(fs.readFileSync(binLocation, 'utf8')).toBe(sentinel)
+})
+
+testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const binSource = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+  fs.chmodSync(binSource, 0o644)
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  expect(fs.statSync(binSource).mode & 0o777).toBe(0o755)
+})
+
+testOnPosix('linkBins() keeps a correctly linked bin whose source file is missing', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const binSource = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+  fs.rmSync(binSource)
+
+  await expect(linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })).resolves.not.toThrow()
 })
 
 test('linkBins() rewrites bins that lack a target marker', async () => {
@@ -824,4 +852,36 @@ test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)
   // npx should come from npm package, not node or other-pkg
   // Use a regex that matches both forward and backslashes for Windows compatibility
   expect(content).toMatch(/npm[/\\]bin[/\\]npx-cli\.js/)
+})
+
+// The shell sets $0 to the invoked symlink, not the shim it points at, so a
+// shim reached through external symlinks must follow the chain before
+// deriving basedir (https://github.com/pnpm/pnpm/issues/13405).
+testOnPosix('generated POSIX shim resolves symlink chains and executes its target', async () => {
+  const projectDir = temporaryDirectory()
+  const binDir = path.join(projectDir, 'node_modules', '.bin')
+  const targetDir = path.join(projectDir, 'node_modules', 'typescript', 'bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  fs.mkdirSync(targetDir, { recursive: true })
+
+  const targetPath = path.join(targetDir, 'tsc')
+  fs.writeFileSync(targetPath, '#!/bin/sh\necho "tsc-output"\n', 'utf8')
+  fs.chmodSync(targetPath, 0o755)
+
+  const shimPath = path.join(binDir, 'tsc')
+  await cmdShim(targetPath, shimPath)
+
+  // hop2's relative target exercises the shim's dirname-composition
+  // branch; hop1's absolute target exercises the other.
+  const hop1 = path.join(projectDir, 'symlink_hop_1')
+  fs.symlinkSync(shimPath, hop1)
+  const hop2Dir = path.join(projectDir, 'local', 'bin')
+  fs.mkdirSync(hop2Dir, { recursive: true })
+  const hop2 = path.join(hop2Dir, 'tsc')
+  fs.symlinkSync(path.join('..', '..', 'symlink_hop_1'), hop2)
+
+  const { status, stdout, stderr } = spawnSync(hop2, { encoding: 'utf8' })
+  expect(stderr).toBe('')
+  expect(status).toBe(0)
+  expect(stdout.trim()).toBe('tsc-output')
 })

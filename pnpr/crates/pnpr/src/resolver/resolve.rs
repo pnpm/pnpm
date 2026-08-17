@@ -12,17 +12,17 @@ use std::{
 };
 
 use dashmap::DashMap;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, NodeLinker};
-use pacquet_lockfile::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{Config, NodeLinker};
+use pnpm_lockfile::{
     Lockfile, LockfileSettingsCheck, PnpmfileChecksumCheck, check_lockfile_settings,
     satisfies_package_manifest,
 };
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_package_manager::{Install, ProjectMutation, ResolutionObserver, ResolvedPackages};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::SilentReporter;
-use pacquet_tarball::MemCache;
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_package_manager::{Install, ProjectMutation, ResolutionObserver, ResolvedPackages};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::SilentReporter;
+use pnpm_tarball::MemCache;
 use tokio::io::AsyncWriteExt;
 
 use super::protocol::ResolveRequest;
@@ -192,7 +192,7 @@ pub async fn resolve(
         config,
         manifest: &manifest,
         emit_initial_manifest: true,
-        lockfile: pacquet_lockfile::MaybeLazyLockfile::Loaded(input_lockfile),
+        lockfile: pnpm_lockfile::MaybeLazyLockfile::Loaded(input_lockfile),
         lockfile_path: input_lockfile.map(|_| lockfile_path.as_path()),
         dependency_groups: vec![
             DependencyGroup::Prod,
@@ -217,7 +217,9 @@ pub async fn resolve(
         node_linker: NodeLinker::Isolated,
         lockfile_only: true,
         dry_run: false,
-        update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+        persist_policy_excludes: false,
+        update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         // Resolve as the caller (forwarded credentials) without baking
         // per-user auth into the interned `&'static Config`.
         auth_override: Some(Arc::clone(auth_headers)),

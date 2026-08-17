@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-deps-restorer"
+name                  = "pnpm-deps-restorer"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,31 +11,31 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-rustc-hash                      = { workspace = true }
-pacquet-cmd-shim                = { workspace = true }
-pacquet-config                  = { workspace = true }
-pacquet-deps-path               = { workspace = true }
-pacquet-directory-fetcher       = { workspace = true }
-pacquet-executor                = { workspace = true }
-pacquet-fs                      = { workspace = true }
-pacquet-git-fetcher             = { workspace = true }
-pacquet-graph-hasher            = { workspace = true }
-pacquet-hooks                   = { workspace = true }
-pacquet-lockfile                = { workspace = true }
-pacquet-lockfile-verification   = { workspace = true }
-pacquet-modules-yaml            = { workspace = true }
-pacquet-network                 = { workspace = true }
-pacquet-package-is-installable  = { workspace = true }
-pacquet-package-manifest        = { workspace = true }
-pacquet-patching                = { workspace = true }
-pacquet-real-hoist              = { workspace = true }
-pacquet-reporter                = { workspace = true }
-pacquet-resolving-npm-resolver  = { workspace = true }
-pacquet-resolving-deps-resolver = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
-pacquet-store-dir               = { workspace = true }
-pacquet-tarball                 = { workspace = true }
-pacquet-workspace               = { workspace = true }
+rustc-hash                   = { workspace = true }
+pnpm-cmd-shim                = { workspace = true }
+pnpm-config                  = { workspace = true }
+pnpm-deps-path               = { workspace = true }
+pnpm-directory-fetcher       = { workspace = true }
+pnpm-executor                = { workspace = true }
+pnpm-fs                      = { workspace = true }
+pnpm-git-fetcher             = { workspace = true }
+pnpm-graph-hasher            = { workspace = true }
+pnpm-hooks                   = { workspace = true }
+pnpm-lockfile                = { workspace = true }
+pnpm-lockfile-verification   = { workspace = true }
+pnpm-modules-yaml            = { workspace = true }
+pnpm-network                 = { workspace = true }
+pnpm-package-is-installable  = { workspace = true }
+pnpm-package-manifest        = { workspace = true }
+pnpm-patching                = { workspace = true }
+pnpm-real-hoist              = { workspace = true }
+pnpm-reporter                = { workspace = true }
+pnpm-resolving-npm-resolver  = { workspace = true }
+pnpm-resolving-deps-resolver = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
+pnpm-store-dir               = { workspace = true }
+pnpm-tarball                 = { workspace = true }
+pnpm-workspace               = { workspace = true }
 
 derive_more  = { workspace = true }
 futures-util = { workspace = true }
@@ -54,7 +54,7 @@ tokio        = { workspace = true }
 tracing      = { workspace = true }
 
 [dev-dependencies]
-pacquet-testing-utils = { workspace = true }
+pnpm-testing-utils = { workspace = true }
 
 async-trait       = { workspace = true }
 dunce             = { workspace = true }
@@ -67,6 +67,9 @@ sha2              = { workspace = true }
 tar               = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir           = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+same-file = { workspace = true }
 
 [lints]
 workspace = true

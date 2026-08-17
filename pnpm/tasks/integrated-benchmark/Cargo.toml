@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-integrated-benchmark"
+name                  = "pnpm-integrated-benchmark"
 version               = "0.0.0"
 publish               = false
 authors.workspace     = true
@@ -15,8 +15,8 @@ name = "integrated-benchmark"
 path = "src/main.rs"
 
 [dependencies]
-pacquet-fs            = { workspace = true }
-pacquet-registry-mock = { workspace = true }
+pnpm-fs            = { workspace = true }
+pnpm-registry-mock = { workspace = true }
 
 clap         = { workspace = true }
 itertools    = { workspace = true }

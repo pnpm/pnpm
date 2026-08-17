@@ -18,12 +18,12 @@ use clap::{Args, Subcommand, ValueEnum};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_config::{
+use pnpm_config::{
     Config, GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME, config_types, naming_cases,
     property_path::{self, Segment},
     protected_settings,
 };
-use pacquet_workspace_manifest_writer::update_manifest_field;
+use pnpm_workspace_manifest_writer::update_manifest_field;
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 
@@ -491,7 +491,7 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
         if let Some(scope) = key.strip_suffix(":registry") {
             // Prefer the merged `registries` map so this reports the same URL
             // resolvers/publish use (pnpm/pnpm#11492).
-            if let Some(merged) = config.registries.get(scope) {
+            if let Some(merged) = config.registries_by_scope.get(scope) {
                 return Some(Value::String(merged.clone()));
             }
         }

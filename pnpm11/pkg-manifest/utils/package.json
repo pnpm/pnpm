@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pkg-manifest.utils",
-  "version": "1100.3.1",
+  "version": "1100.4.0",
   "description": "Utils for dealing with package manifest",
   "keywords": [
     "pnpm",
@@ -36,7 +36,8 @@
     "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "semver": "catalog:"
+    "semver": "catalog:",
+    "semver-utils": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

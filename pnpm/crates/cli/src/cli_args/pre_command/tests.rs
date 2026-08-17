@@ -3,8 +3,8 @@ use super::{
     SwitchSource, pre_command_plan_from_input, switch_target,
 };
 use crate::config_overrides::ConfigOverrides;
-use pacquet_config::{Config, PNPM_VERSION, PmOnFail};
-use pacquet_reporter::{Reporter, SilentReporter};
+use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
+use pnpm_reporter::{Reporter, SilentReporter};
 use std::{
     ffi::OsString,
     fs,
@@ -436,25 +436,31 @@ fn switch_target_accepts_v12_lockfile_without_legacy_wrapper_entry() {
 }
 
 #[test]
-fn switch_target_rejects_package_manager_lockfile_resolution_with_non_integrity_fields() {
+fn switch_target_discards_package_manager_lockfile_resolution_with_non_integrity_fields() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), "9.3.0");
     write_lockfile(root.path(), LOCKED_9_3_0_WITH_TARBALL_RESOLUTION);
 
-    let error = switch_target_error(root.path());
+    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
 
-    assert!(error.to_string().contains("integrity-only resolution"), "unexpected error: {error:?}");
+    let SwitchSource::Resolve { env_root, force_resync: true } = target.source else {
+        panic!("expected a forced re-resolve, got {:?}", target.source);
+    };
+    assert_eq!(env_root, root.path());
 }
 
 #[test]
-fn switch_target_rejects_package_manager_lockfile_dependency_with_non_registry_dep_path() {
+fn switch_target_discards_package_manager_lockfile_dependency_with_non_registry_dep_path() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), "9.3.0");
     write_lockfile(root.path(), LOCKED_9_3_0_WITH_FILE_DEP_PATH);
 
-    let error = switch_target_error(root.path());
+    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
 
-    assert!(error.to_string().contains("registry package path"), "unexpected error: {error:?}");
+    let SwitchSource::Resolve { env_root, force_resync: true } = target.source else {
+        panic!("expected a forced re-resolve, got {:?}", target.source);
+    };
+    assert_eq!(env_root, root.path());
 }
 
 #[test]
@@ -466,7 +472,7 @@ fn switch_target_reresolves_when_locked_version_no_longer_satisfies_range() {
     let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
 
     assert_eq!(target.spec, ">=9.1.2 <9.1.4");
-    let SwitchSource::Resolve { env_root } = target.source else {
+    let SwitchSource::Resolve { env_root, force_resync: false } = target.source else {
         panic!("expected resolve target");
     };
     assert_eq!(env_root, root.path());
@@ -485,7 +491,7 @@ fn switch_target_uses_global_env_for_legacy_package_manager_field() {
     .expect("target")
     .expect("switch");
 
-    let SwitchSource::Resolve { env_root } = target.source else {
+    let SwitchSource::Resolve { env_root, force_resync: false } = target.source else {
         panic!("expected resolve target");
     };
     assert_eq!(target.spec, "9.3.0");
@@ -567,13 +573,6 @@ snapshots:
 ---
 ",
     )
-}
-
-fn switch_target_error(root: &Path) -> miette::Report {
-    match switch_target(&Config::default(), root) {
-        Ok(_) => panic!("expected poisoned lockfile to fail"),
-        Err(error) => error,
-    }
 }
 
 const LOCKED_9_3_0_WITH_PEER_SUFFIX: &str = r"---

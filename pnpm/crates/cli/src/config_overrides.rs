@@ -1,9 +1,9 @@
-use pacquet_config::{
+use pnpm_config::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
     VerifyDepsBeforeRun,
 };
-use pacquet_fs::lexical_normalize;
-use pacquet_store_dir::StoreDir;
+use pnpm_fs::lexical_normalize;
+use pnpm_store_dir::StoreDir;
 use std::{
     collections::BTreeMap,
     ffi::{OsStr, OsString},
@@ -197,7 +197,7 @@ impl ConfigOverrides {
             config.scope = Some(scope.clone());
         }
         for (scope, registry) in &self.registries {
-            config.registries.insert(scope.clone(), registry.clone());
+            config.registries_by_scope.insert(scope.clone(), registry.clone());
             config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
         }
         if let Some(value) = self.deploy_all_files {
@@ -239,7 +239,7 @@ impl ConfigOverrides {
 /// Presence-only, like pnpm's `!= null` check: an empty value still
 /// overrides (it disables the gate on the env-overlay side).
 fn verify_deps_env_is_set() -> bool {
-    ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
+    ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
         .iter()
         .any(|name| std::env::var(name).is_ok())
 }
@@ -296,7 +296,7 @@ fn scoped_registry_key(key: &str) -> Option<&str> {
 pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
     let registry = normalize_registry_url(registry);
     config.registry.clone_from(&registry);
-    config.registries.insert("default".to_string(), registry.clone());
+    config.registries_by_scope.insert("default".to_string(), registry.clone());
     config.package_manager_bootstrap.registry.clone_from(&registry);
     config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
 }

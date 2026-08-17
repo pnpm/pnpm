@@ -4,19 +4,19 @@
 //! `buildDependenciesTree`.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     io,
     path::{Path, PathBuf},
 };
 
 use miette::{Context, IntoDiagnostic};
-use pacquet_fs::lexical_normalize;
-use pacquet_lockfile::{Lockfile, ProjectSnapshot};
-use pacquet_modules_yaml::{
+use pnpm_fs::lexical_normalize;
+use pnpm_lockfile::{Lockfile, ProjectSnapshot, RegistryOptions};
+use pnpm_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, Modules,
     read_modules_manifest,
 };
-use pacquet_package_manifest::parse_manifest_bytes;
+use pnpm_package_manifest::parse_manifest_bytes;
 
 use super::{
     DependencyNode, TreeNodeId,
@@ -26,8 +26,6 @@ use super::{
     pkg_info::PkgInfoEnv,
     search::Searcher,
 };
-
-pub(crate) const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// The lockfiles and modules-manifest state one tree build runs
 /// against. Owns the loaded lockfiles; [`LoadedState::env`] borrows them.
@@ -85,17 +83,14 @@ impl LoadedState {
         &'a self,
         lockfile_dir: &Path,
         virtual_store_dir_max_length: usize,
+        registries_by_scope: &BTreeMap<String, String>,
+        registry_options_by_url: BTreeMap<String, RegistryOptions>,
     ) -> Option<PkgInfoEnv<'a>> {
         let lockfile = self.lockfile_to_use()?;
-        let mut registries = HashMap::new();
-        registries.insert("default".to_string(), DEFAULT_REGISTRY.to_string());
-        if let Some(modules_registries) =
-            self.modules.as_ref().and_then(|modules| modules.registries.as_ref())
-        {
-            for (key, url) in modules_registries {
-                registries.insert(key.clone(), url.clone());
-            }
-        }
+        let registries: HashMap<String, String> = registries_by_scope
+            .iter()
+            .map(|(scope, registry)| (scope.clone(), registry.clone()))
+            .collect();
         let virtual_store_dir = match &self.modules {
             Some(modules) if !modules.virtual_store_dir.is_empty() => {
                 let dir = PathBuf::from(&modules.virtual_store_dir);
@@ -115,6 +110,7 @@ impl LoadedState {
                 },
             ),
             registries,
+            registry_options_by_url,
             skipped: self
                 .modules
                 .as_ref()
@@ -272,7 +268,7 @@ fn field_map(
     include: IncludedDependencies,
 ) -> HashMap<String, DependenciesField> {
     let mut map = HashMap::new();
-    let groups: [(bool, Option<&pacquet_lockfile::ResolvedDependencyMap>, DependenciesField); 3] = [
+    let groups: [(bool, Option<&pnpm_lockfile::ResolvedDependencyMap>, DependenciesField); 3] = [
         (include.dependencies, importer.dependencies.as_ref(), DependenciesField::Dependencies),
         (
             include.dev_dependencies,
@@ -298,15 +294,15 @@ fn field_map(
 
 /// The importer id of `project_dir` relative to the lockfile root.
 pub(crate) fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String {
-    pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir)
+    pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir)
 }
 
 /// The on-disk directory of a lockfile importer key, or `None` for a
 /// key that cannot be safely joined (absolute, drive-prefixed, or
 /// `..`-traversing — a malformed or hostile lockfile).
 pub(crate) fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
-    pacquet_package_manager::validate_importer_id(importer_id).ok()?;
-    Some(pacquet_package_manager::importer_root_dir(lockfile_dir, importer_id))
+    pnpm_package_manager::validate_importer_id(importer_id).ok()?;
+    Some(pnpm_package_manager::importer_root_dir(lockfile_dir, importer_id))
 }
 
 /// Resolve symlinks in the deepest existing ancestor of `path`,

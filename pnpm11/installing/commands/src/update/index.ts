@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { checkbox, Separator } from '@inquirer/prompts'
 import type { CommandHandler, CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
@@ -13,6 +15,7 @@ import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActio
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate } from '@pnpm/global.commands'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
 import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
@@ -25,7 +28,7 @@ import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.j
 import { parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
-import { getUpdateChoices } from './getUpdateChoices.js'
+import { getUpdateChoices, sanitizeUpdateChoiceText } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
@@ -200,9 +203,15 @@ export async function handler (
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
       })
     }
+    const selection = opts.interactive
+      ? await selectGlobalPackageGroups(params, opts)
+      : undefined
+    if (typeof selection === 'string') return selection
+    if (selection?.size === 0) return undefined
     return handleGlobalUpdate({
       ...opts,
       ...createGlobalPolicyCallbacks(opts),
+      selectedPackageHashes: selection,
     }, params, commands ?? {})
   }
   const rebuildHandler = commands?.rebuild
@@ -210,6 +219,66 @@ export async function handler (
     return interactiveUpdate(params, opts, rebuildHandler)
   }
   return update(params, opts, rebuildHandler) as Promise<undefined>
+}
+
+async function selectGlobalPackageGroups (
+  input: string[],
+  opts: UpdateCommandOptions
+): Promise<Set<string> | string> {
+  const globalPackages = scanGlobalPackages(opts.globalPkgDir!)
+  if (globalPackages.length === 0) return 'No global packages found'
+  // A global group is always updated as a whole, so the params select groups
+  // rather than dependencies, the same way `handleGlobalUpdate()` reads them.
+  const matchedPackages = input.length === 0
+    ? globalPackages
+    : globalPackages.filter((pkg) => input.some((param) => Object.hasOwn(pkg.dependencies, param)))
+  if (matchedPackages.length === 0) return 'No matching global packages found'
+  const outdatedPerGroup = await Promise.all(matchedPackages.map(async (pkg) => {
+    const project = {
+      rootDir: pkg.installDir as ProjectRootDir,
+      manifest: await readProjectManifestOnly(pkg.installDir, opts),
+    }
+    const [outdated] = await outdatedDepsOfProjects([project], [], {
+      ...opts,
+      compatible: opts.latest !== true,
+      ignoreDependencies: opts.updateConfig?.ignoreDependencies,
+      include: {
+        dependencies: true,
+        devDependencies: false,
+        optionalDependencies: true,
+      },
+      retry: {
+        factor: opts.fetchRetryFactor,
+        maxTimeout: opts.fetchRetryMaxtimeout,
+        minTimeout: opts.fetchRetryMintimeout,
+        retries: opts.fetchRetries,
+      },
+      timeout: opts.fetchTimeout,
+    })
+    return { pkg, outdated }
+  }))
+  const choices = outdatedPerGroup
+    .filter(({ outdated }) => outdated.length > 0)
+    .map(({ pkg, outdated }) => ({
+      name: outdated
+        .map(({ alias, current, wanted, latestManifest }) =>
+          [alias, current ?? 'missing', '→', opts.latest ? latestManifest?.version ?? wanted : wanted]
+            .map(sanitizeUpdateChoiceText)
+            .join(' ')
+        )
+        .join(', '),
+      value: pkg.hash,
+    }))
+  if (choices.length === 0) {
+    return opts.latest
+      ? 'All of your dependencies are already up to date'
+      : 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
+  }
+  return new Set(await runUpdatePrompt(() => checkbox({
+    choices,
+    message: 'Choose which global package groups to update (space to select, enter to confirm)',
+    pageSize: Math.min(choices.length, interactivePromptPageSize()),
+  })))
 }
 
 async function interactiveUpdate (
@@ -296,36 +365,43 @@ async function interactiveUpdate (
     `(Press ${chalk.cyan('<space>')} to select, ` +
     `${chalk.cyan('<a>')} to toggle all, ` +
     `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`
-  let updatePkgNames: string[]
+  const updatePkgNames = await runUpdatePrompt(() => checkbox({
+    choices: flatChoices,
+    pageSize: interactivePromptPageSize(),
+    message,
+    required: true,
+    validate: (values) => {
+      if (values.length === 0) {
+        return 'You must choose at least one dependency.'
+      }
+      return true
+    },
+    theme: {
+      icon: { checked: '●', unchecked: '○', cursor: '❯' },
+      style: {
+        highlight: (text: string) => text,
+      },
+      keybindings: ['vim'],
+    },
+  }))
+
+  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
+}
+
+/**
+ * Cancelling a prompt with Ctrl-c is how the user declines to update, not an
+ * error: report it and leave with a success status.
+ */
+async function runUpdatePrompt<T> (prompt: () => Promise<T>): Promise<T> {
   try {
-    updatePkgNames = await checkbox({
-      choices: flatChoices,
-      pageSize: interactivePromptPageSize(),
-      message,
-      required: true,
-      validate: (values) => {
-        if (values.length === 0) {
-          return 'You must choose at least one dependency.'
-        }
-        return true
-      },
-      theme: {
-        icon: { checked: '●', unchecked: '○', cursor: '❯' },
-        style: {
-          highlight: (text: string) => text,
-        },
-        keybindings: ['vim'],
-      },
-    })
-  } catch (err) {
-    if (err instanceof Error && err.name === 'ExitPromptError') {
+    return await prompt()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && err.name === 'ExitPromptError') {
       globalInfo('Update canceled')
       process.exit(0)
     }
     throw err
   }
-
-  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
 }
 
 async function update (

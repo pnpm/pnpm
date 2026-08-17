@@ -195,7 +195,7 @@ test('install restores a deleted pnpm-lock.yaml from the current lockfile withou
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     optimisticRepeatInstall: true,
-    registries: { default: 'http://127.0.0.1:9/' },
+    registriesByScope: { default: 'http://127.0.0.1:9/' },
   })
 
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(originalLockfile)

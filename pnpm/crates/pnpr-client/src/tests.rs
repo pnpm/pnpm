@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use pacquet_config::TrustPolicy;
+use pnpm_config::TrustPolicy;
 use serde_json::json;
 
 use super::{
@@ -51,7 +51,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             optional_dependencies: BTreeMap::new(),
         }],
         registry: "https://registry.test/".to_string(),
-        named_registries: BTreeMap::new(),
+        registries: BTreeMap::new(),
         authorization: None,
         overrides: None,
         catalogs: Some(BTreeMap::from([(

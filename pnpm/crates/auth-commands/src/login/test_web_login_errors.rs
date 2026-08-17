@@ -8,8 +8,8 @@ use std::{
     sync::Mutex,
 };
 
-use pacquet_network_web_auth_testing::{SleepBehavior, ok_202, ok_token, web_auth_fake};
 use pipe_trait::Pipe;
+use pnpm_network_web_auth_testing::{SleepBehavior, ok_202, ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 

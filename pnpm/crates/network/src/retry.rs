@@ -122,11 +122,24 @@ pub async fn send_with_retry<'client>(
     http_client: &'client ThrottledClient,
     url: &str,
     retry_opts: RetryOpts,
+    build_request: impl FnMut(&Client) -> RequestBuilder,
+) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
+    send_with_retry_at_priority(http_client, url, crate::UNPRIORITIZED, retry_opts, build_request)
+        .await
+}
+
+/// [`send_with_retry`] queueing at an explicit `priority` — the way a
+/// caller opts its requests into the [`crate::BACKGROUND`] class.
+pub async fn send_with_retry_at_priority<'client>(
+    http_client: &'client ThrottledClient,
+    url: &str,
+    priority: u64,
+    retry_opts: RetryOpts,
     mut build_request: impl FnMut(&Client) -> RequestBuilder,
 ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
     let mut attempt = 0;
     loop {
-        let client = http_client.acquire_for_url(url).await;
+        let client = http_client.acquire_for_url_with_priority(url, priority).await;
         match build_request(&client).send().await {
             Ok(response)
                 if should_retry_status(response.status()) && attempt < retry_opts.retries =>
@@ -136,7 +149,7 @@ pub async fn send_with_retry<'client>(
                 drop(client);
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
-                    target: "pacquet_network::retry",
+                    target: "pnpm_network::retry",
                     url = %redact_url_credentials(url),
                     ?status,
                     attempt = attempt + 1,
@@ -158,7 +171,7 @@ pub async fn send_with_retry<'client>(
                 // error to keep it out of the log.
                 let error = error.without_url();
                 tracing::warn!(
-                    target: "pacquet_network::retry",
+                    target: "pnpm_network::retry",
                     url = %redact_url_credentials(url),
                     error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,
@@ -209,7 +222,7 @@ where
             Err(error) if is_retryable(&error) && attempt < retry_opts.retries => {
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
-                    target: "pacquet_network::retry",
+                    target: "pnpm_network::retry",
                     url = %redact_url_credentials(url),
                     error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,

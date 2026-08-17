@@ -273,7 +273,7 @@ export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
  * carry the megabytes of install-irrelevant data (scripts, exports, readme,
  * custom fields) that a full document contains.
  *
- * Registries that honor the header (e.g. the npm registry) echo the abbreviated
+ * RegistriesByScope that honor the header (e.g. the npm registry) echo the abbreviated
  * `Content-Type`, so this is a no-op for them: no re-serialization, no field
  * stripping — the happy path pays nothing.
  */

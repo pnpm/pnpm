@@ -61,6 +61,7 @@ use super::{
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
     setup::SetupArgs,
+    shim::ShimArgs,
     stage::StageArgs,
     star::StarArgs,
     stars::StarsArgs,
@@ -79,15 +80,15 @@ use super::{
 use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_default_reporter::SummaryScope;
 use pipe_trait::Pipe;
+use pnpm_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
 /// Experimental package manager for node.js written in rust.
 #[derive(Debug, Parser)]
 #[clap(name = "pnpm")]
 #[clap(bin_name = "pnpm")]
-#[clap(version = pacquet_config::PNPM_VERSION)]
+#[clap(version = pnpm_config::PNPM_VERSION)]
 #[clap(disable_version_flag = true)]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {
@@ -288,7 +289,7 @@ impl CliArgs {
     /// lexical fallback, so an unresolvable `--dir` is not fatal.
     ///
     /// The fallback resolves `..` itself rather than leaving the components
-    /// in place. [`pacquet_workspace::find_workspace_dir`] walks ancestors
+    /// in place. [`pnpm_workspace::find_workspace_dir`] walks ancestors
     /// lexically, so a `--dir` that climbs out of the workspace and lands
     /// on a directory that does not exist — `../../elsewhere` — would
     /// otherwise walk right back up through its own `..` components and
@@ -303,8 +304,8 @@ impl CliArgs {
         let dir = dunce::canonicalize(&self.dir)
             .or_else(|_| std::path::absolute(&self.dir))
             .unwrap_or_else(|_| self.dir.clone())
-            .pipe_deref(pacquet_fs::lexical_normalize);
-        let workspace_dir = pacquet_workspace::find_workspace_dir(&dir)
+            .pipe_deref(pnpm_fs::lexical_normalize);
+        let workspace_dir = pnpm_workspace::find_workspace_dir(&dir)
             .map_err(WorkspaceRootError::FindWorkspaceDir)?
             .ok_or(WorkspaceRootError::NotInWorkspace)?;
         self.dir = workspace_dir;
@@ -316,7 +317,7 @@ impl CliArgs {
     pub fn promote_recursive_by_default(&mut self) {
         if !self.recursive
             && self.command.recursive_by_default()
-            && pacquet_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
+            && pnpm_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
         {
             self.recursive = true;
         }
@@ -397,7 +398,7 @@ pub enum WorkspaceRootError {
     NotInWorkspace,
 
     #[diagnostic(transparent)]
-    FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
+    FindWorkspaceDir(#[error(source)] pnpm_workspace::FindWorkspaceDirError),
 }
 
 #[derive(Debug, Subcommand)]
@@ -530,6 +531,9 @@ pub enum CliCommand {
     /// Manage runtimes.
     #[clap(visible_alias = "rt")]
     Runtime(RuntimeArgs),
+    /// Manage context-aware shims for packages that are not installed
+    /// globally, so a project decides which version runs.
+    Shim(ShimArgs),
     /// Print the directory where pnpm will install executables.
     Bin(BinArgs),
     /// Safely remove `node_modules` directories from the current project
@@ -648,7 +652,7 @@ impl CliCommand {
     /// projects it selected. pnpm gates this on two things at once: the
     /// command must be one of the few that report scope, and the run must
     /// be workspace-wide — either asked for with `-r` / `--filter`, or
-    /// because the command is workspace-wide by nature (`install`).
+    /// because the command is workspace-wide by nature (`install`, `prune`).
     pub(crate) fn reports_scope(&self, recursive: bool) -> bool {
         let reports_scope = matches!(
             self,
@@ -662,7 +666,28 @@ impl CliCommand {
                 | CliCommand::Run(_)
                 | CliCommand::Test(_),
         );
-        reports_scope && (recursive || matches!(self, CliCommand::Install(_)))
+        reports_scope
+            && (recursive || matches!(self, CliCommand::Install(_) | CliCommand::Prune(_)))
+    }
+
+    /// Whether reporter output (warnings, progress) goes to stderr so this
+    /// command's stdout stays a clean, machine-readable value — pnpm's
+    /// `COMMANDS_WITH_STDERR_REPORTER`. pnpm's set also lists the top-level
+    /// `set` / `get` commands, which pacquet does not have.
+    pub(crate) fn uses_stderr_reporter(&self) -> bool {
+        matches!(
+            self,
+            CliCommand::Dlx(_)
+                | CliCommand::Create(_)
+                | CliCommand::Config(_)
+                | CliCommand::Sbom(_)
+                | CliCommand::Shim(_)
+                | CliCommand::With(_)
+                | CliCommand::Store(_)
+                | CliCommand::Prefix(_)
+                | CliCommand::Root(_)
+                | CliCommand::Bin(_),
+        )
     }
 
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {

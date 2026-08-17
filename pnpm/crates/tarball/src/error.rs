@@ -2,7 +2,7 @@
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
-use pacquet_store_dir::{StoreIndexError, WriteCasFileError};
+use pnpm_store_dir::{StoreIndexError, WriteCasFileError};
 use std::path::PathBuf;
 use zune_inflate::errors::InflateDecodeErrors;
 
@@ -68,6 +68,20 @@ pub struct VerifyChecksumError {
 pub enum TarballError {
     #[diagnostic(code(ERR_PNPM_TARBALL_FETCH_TARBALL))]
     FetchTarball(NetworkError),
+
+    /// The deployment's route policy refuses this origin. Only a server
+    /// with an [`UpstreamRouteHook`](pnpm_network::UpstreamRouteHook)
+    /// raises it: the CLI fetches as the user and reaches whatever the user
+    /// configured.
+    #[from(ignore)]
+    #[display(
+        "{url} is not allowed by this pnpr server; the operator must declare its registry as a public route or an upstream"
+    )]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_OFF_ALLOWLIST))]
+    OffAllowlist {
+        #[error(not(source))]
+        url: String,
+    },
 
     #[diagnostic(code(ERR_PNPM_TARBALL_HTTP_STATUS))]
     HttpStatus(HttpStatusError),

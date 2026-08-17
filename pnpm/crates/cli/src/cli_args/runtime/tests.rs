@@ -1,6 +1,6 @@
-use pacquet_config::Config;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::SilentReporter;
+use pnpm_config::Config;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::SilentReporter;
 use tempfile::tempdir;
 
 use super::{RuntimeArgs, RuntimeError};

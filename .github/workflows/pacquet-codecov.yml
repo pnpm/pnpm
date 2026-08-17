@@ -65,12 +65,12 @@ jobs:
         uses: ./.github/actions/rustup
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # v2.85.8
+        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
         with:
           tool: cargo-llvm-cov
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # v2.85.8
+        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
         with:
           tool: cargo-nextest
 
@@ -78,7 +78,7 @@ jobs:
         run: rustup component add llvm-tools-preview
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           install: false
 
@@ -93,7 +93,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # v2.85.8
+        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
         with:
           tool: just
 
@@ -107,7 +107,7 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
-          cargo codecov --lcov --output-path lcov.info
+          env PNPM_CONFIG_CI=false cargo codecov --lcov --output-path lcov.info
 
       - name: Report disk usage
         if: always()

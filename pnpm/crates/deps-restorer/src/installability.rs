@@ -1,7 +1,7 @@
 //! Per-install installability pass.
 //!
 //! For each snapshot in a frozen-lockfile install, run
-//! `pacquet-package-is-installable`'s `check_package` against the
+//! `pnpm-package-is-installable`'s `check_package` against the
 //! matching `PackageMetadata` and the host environment, build the
 //! [`SkippedSnapshots`] set, and emit
 //! `pnpm:skipped-optional-dependency` for every optional+incompatible
@@ -18,18 +18,18 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
 };
 
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry,
 };
-use pacquet_package_is_installable::{
+use pnpm_package_is_installable::{
     InstallabilityError, InstallabilityOptions, PackageInstallabilityManifest, SkipReason,
     SupportedArchitectures, WantedEngine, WantedPlatformRef, check_package, inferred_platform,
 };
-use pacquet_reporter::{
+use pnpm_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
-use pacquet_resolving_resolver_base::ResolveResult;
+use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 
 /// The set of snapshot keys skipped on this host.
@@ -276,7 +276,7 @@ impl InstallabilityHost {
     /// Resolve the host context from the running process.
     ///
     /// `node_version` is detected via
-    /// [`pacquet_graph_hasher::detect_node_version`]; when detection
+    /// [`pnpm_graph_hasher::detect_node_version`]; when detection
     /// fails (no `node` on PATH), pacquet falls back to a synthetic
     /// `99999.0.0` so `engines.node` ranges keep accepting packages.
     /// The alternative `0.0.0` would falsely-skip every optional
@@ -288,15 +288,15 @@ impl InstallabilityHost {
     /// (the `nodeVersion` setting) and the engine-strict policy.
     #[must_use]
     pub fn detect() -> Self {
-        let detected = pacquet_graph_hasher::detect_node_version();
+        let detected = pnpm_graph_hasher::detect_node_version();
         let node_detected = detected.is_some();
         let node_version = detected.unwrap_or_else(|| "99999.0.0".to_string());
         Self {
             node_version,
             node_detected,
-            os: pacquet_graph_hasher::host_platform(),
-            cpu: pacquet_graph_hasher::host_arch(),
-            libc: pacquet_graph_hasher::host_libc(),
+            os: pnpm_graph_hasher::host_platform(),
+            cpu: pnpm_graph_hasher::host_arch(),
+            libc: pnpm_graph_hasher::host_libc(),
             supported_architectures: None,
             engine_strict: false,
         }
@@ -319,9 +319,9 @@ impl InstallabilityHost {
             Some(node_version) => Self {
                 node_version,
                 node_detected: true,
-                os: pacquet_graph_hasher::host_platform(),
-                cpu: pacquet_graph_hasher::host_arch(),
-                libc: pacquet_graph_hasher::host_libc(),
+                os: pnpm_graph_hasher::host_platform(),
+                cpu: pnpm_graph_hasher::host_arch(),
+                libc: pnpm_graph_hasher::host_libc(),
                 supported_architectures: None,
                 engine_strict,
             },

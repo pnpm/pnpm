@@ -63,9 +63,9 @@ fn stop_fails_on_missing_script_without_if_present() {
 /// would spawn `current_exe()` — the test harness binary — as the
 /// installer. pnpm's unit tests equally construct their options
 /// without the setting.
-fn test_config() -> pacquet_config::Config {
-    pacquet_config::Config {
-        verify_deps_before_run: pacquet_config::VerifyDepsBeforeRun::False,
-        ..pacquet_config::Config::default()
+fn test_config() -> pnpm_config::Config {
+    pnpm_config::Config {
+        verify_deps_before_run: pnpm_config::VerifyDepsBeforeRun::False,
+        ..pnpm_config::Config::default()
     }
 }

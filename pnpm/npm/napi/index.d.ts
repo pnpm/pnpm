@@ -148,6 +148,12 @@ export interface InstallOptions extends SharedEngineOptions {
   packageExtensions?: Record<string, PackageExtension>
   /** Patch paths keyed by package selector. Relative paths resolve from `dir`. */
   patchedDependencies?: Record<string, string>
+  /**
+   * Warn instead of failing with `ERR_PNPM_UNUSED_PATCH` when a
+   * `patchedDependencies` entry matches no installed package. Lets an embedder
+   * ship a patch keyed to a version range that only some workspaces resolve.
+   */
+  allowUnusedPatches?: boolean
   peersSuffixMaxLength?: number
   dedupePeerDependents?: boolean
   /**

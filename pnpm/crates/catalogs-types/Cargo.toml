@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-catalogs-types"
+name                  = "pnpm-catalogs-types"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true

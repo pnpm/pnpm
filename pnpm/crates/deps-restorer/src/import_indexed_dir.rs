@@ -4,8 +4,8 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::PackageImportMethod;
-use pacquet_reporter::Reporter;
+use pnpm_config::PackageImportMethod;
+use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -92,13 +92,40 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
-    #[display("failed to place completion marker {from:?} at {to:?}: {error}")]
-    PlaceMarker {
+    #[display("failed to place imported file {from:?} at {to:?}: {error}")]
+    PlaceFile {
         from: PathBuf,
         to: PathBuf,
         #[error(source)]
         error: io::Error,
     },
+    #[display("failed to clear {path:?}, which blocks the repair of a partial import: {error}")]
+    ClearBlockingDirEntry {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+}
+
+/// How [`populate_dir`] puts each indexed entry at its final path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Placement {
+    /// Nothing of this import is at the target yet: link straight at the
+    /// final path and adopt a dirent a concurrent importer placed first,
+    /// since the two are importing the same content-addressed file.
+    Fresh,
+    /// The target already holds part of an import: replace whatever does
+    /// not match the store entry, so a file damaged or truncated by an
+    /// interrupted import is healed rather than adopted.
+    Repair,
+}
+
+impl Placement {
+    /// How much an import into an occupied target may assume about what
+    /// is already there, given whether the target is shared.
+    fn for_target(safe_to_skip: bool) -> Self {
+        if safe_to_skip { Placement::Repair } else { Placement::Fresh }
+    }
 }
 
 /// Materialize an indexed package's files into `dir_path`, the way
@@ -112,10 +139,10 @@ pub enum ImportIndexedDirError {
 /// (hardlink → reflink → copy, etc.), and the per-method
 /// `pnpm:package-import-method` log is emitted via `logged_methods`
 /// the first time each tier is used in this install. The pre-flight
-/// `fs::metadata` short-circuit lives on `link_file()`; `populate_dir`
-/// skips it and relies on `import_into_fresh_target`'s EEXIST tolerance,
-/// which is what keeps a marker-repair re-link over a partial directory
-/// correct.
+/// `fs::metadata` short-circuit lives on `link_file()`; an import into a
+/// private target skips it and relies on `import_into_fresh_target`'s
+/// EEXIST tolerance, which is what keeps a marker-repair re-link over a
+/// partial directory correct.
 pub fn import_indexed_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
@@ -141,19 +168,45 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
-        (None, _) => populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
-            .inspect(|()| unquarantine()),
+        // An absent shared target says nothing: another importer can create it
+        // between the stat above and the first file written below, and then two
+        // importers are populating one directory each believing it owns it.
+        // Ownership is settled by an exclusive `mkdir` instead.
+        (None, _) if opts.safe_to_skip => {
+            import_into_shared_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+                .inspect(|()| unquarantine())
+        }
+        (None, _) => populate_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            Placement::Fresh,
+        )
+        .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
         // (pnpm's `pkgExistsAtTargetDir`, which checks `package.json`),
         // not on mere directory existence. A marker-less directory is a
         // partial import; repair it by re-running the non-destructive
         // `populate_dir`. Ported from pnpm/pnpm#12204 (cbfeeef328).
+        //
+        // Whose partial import it is decides how much the repair may
+        // assume: a private target holds this install's own interrupted
+        // work, so an existing dirent is this package's file and is
+        // adopted, while a shared one may hold a file an importer died
+        // halfway through writing, which only a replacement heals.
         (Some(file_type), false) if file_type.is_dir() => {
             if marker_present(dir_path, cas_paths) {
                 Ok(())
             } else {
-                populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
-                    .inspect(|()| unquarantine())
+                populate_dir::<Reporter>(
+                    logged_methods,
+                    import_method,
+                    dir_path,
+                    cas_paths,
+                    Placement::for_target(opts.safe_to_skip),
+                )
+                .inspect(|()| unquarantine())
             }
         }
         // A non-directory dirent is left as-is; only force=true clobbers it.
@@ -165,7 +218,20 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             remove_non_dir_dirent(dir_path, file_type).map_err(|error| {
                 ImportIndexedDirError::ClearNonDirEntry { path: dir_path.to_path_buf(), error }
             })?;
-            populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+            populate_dir::<Reporter>(
+                logged_methods,
+                import_method,
+                dir_path,
+                cas_paths,
+                Placement::Fresh,
+            )
+            .inspect(|()| unquarantine())
+        }
+        // A forced refresh of a shared slot still works in place. Building a
+        // complete stage first would duplicate every write before the rename
+        // inevitably discovers that the shared directory already exists.
+        (Some(file_type), true) if file_type.is_dir() && opts.safe_to_skip => {
+            import_into_shared_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
                 .inspect(|()| unquarantine())
         }
         (Some(_), true) => stage_and_swap::<Reporter>(
@@ -174,24 +240,70 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             opts.keep_modules_dir,
-            opts.safe_to_skip,
         )
         .inspect(|()| unquarantine()),
     }
 }
 
-/// Fresh-target path: make the parent dir set, then run the parallel
-/// `import_into_fresh_target` over `cas_paths`. Mirrors pnpm v11's
-/// `tryImportIndexedDir`: collect the unique relative parent dirs,
-/// sort shortest-first, mkdir each sequentially, then dispatch the
-/// file imports in parallel. Sorting by length means the recursive
-/// mkdir for a deeper dir always finds its ancestor already on disk,
-/// so each call costs one `mkdirat` instead of walking up.
+/// Import into a target whose path is shared with the installs running
+/// in other projects, without ever removing anything from it.
+///
+/// The importer that creates the directory populates it; the others heal
+/// what is there, because a slot that exists is either finished, being
+/// filled right now, or left behind by an importer that died mid-file —
+/// and the three are indistinguishable from the outside.
+fn import_into_shared_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> Result<(), ImportIndexedDirError> {
+    if claim_dir(dir_path)? {
+        return populate_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            Placement::Fresh,
+        );
+    }
+    if all_files_match(dir_path, cas_paths) {
+        return Ok(());
+    }
+    populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths, Placement::Repair)
+}
+
+/// Create `dir_path`, reporting whether this call is the one that created
+/// it. `create_dir_all` cannot answer that — it succeeds either way.
+fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
+    if let Some(parent) = dir_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| ImportIndexedDirError::CreateDir {
+            dirname: parent.to_path_buf(),
+            error,
+        })?;
+    }
+    match fs::create_dir(dir_path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(false),
+        Err(error) => {
+            Err(ImportIndexedDirError::CreateDir { dirname: dir_path.to_path_buf(), error })
+        }
+    }
+}
+
+/// Make the parent dir set, then run the parallel per-entry import over
+/// `cas_paths`. Mirrors pnpm v11's `tryImportIndexedDir`: collect the
+/// unique relative parent dirs, sort shortest-first, mkdir each
+/// sequentially, then dispatch the file imports in parallel. Sorting by
+/// length means the recursive mkdir for a deeper dir always finds its
+/// ancestor already on disk, so each call costs one `mkdirat` instead of
+/// walking up.
 fn populate_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
+    placement: Placement,
 ) -> Result<(), ImportIndexedDirError> {
     let mut rel_dirs: HashSet<&str> = HashSet::new();
     for entry in cas_paths.keys() {
@@ -215,6 +327,9 @@ fn populate_dir<Reporter: self::Reporter>(
     let mut ordered: Vec<&str> = rel_dirs.into_iter().collect();
     ordered.sort_by_key(|s| s.len());
     for rel in ordered {
+        if placement == Placement::Repair {
+            clear_dirent_blocking_dir(dir_path, rel)?;
+        }
         let abs = dir_path.join(rel);
         fs::create_dir_all(&abs)
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
@@ -228,26 +343,109 @@ fn populate_dir<Reporter: self::Reporter>(
         .par_iter()
         .filter(|(cleaned_entry, _)| Some(cleaned_entry.as_str()) != marker)
         .try_for_each(|(cleaned_entry, store_path)| {
-            // No pre-flight stat: `import_into_fresh_target` tolerates an
-            // existing target (the repair branch re-links over a partial
-            // directory), so the stat would be pure overhead — ~170k saved
-            // syscalls on the alotta-files fixture.
-            import_into_fresh_target::<Reporter>(
+            place_entry::<Reporter>(
+                placement,
                 logged_methods,
                 import_method,
                 store_path,
                 &dir_path.join(cleaned_entry),
             )
-        })
-        .map_err(ImportIndexedDirError::LinkFile)?;
+        })?;
 
     if let Some(marker) = marker {
-        import_marker_atomic::<Reporter>(
+        place_marker::<Reporter>(
+            placement,
             logged_methods,
             import_method,
             &cas_paths[marker],
             &dir_path.join(marker),
         )?;
+    }
+    Ok(())
+}
+
+/// Put one indexed entry at `target`.
+///
+/// [`Placement::Fresh`] links straight at the final path with no
+/// pre-flight stat: `import_into_fresh_target` tolerates an existing
+/// target, so the stat would be pure overhead — ~170k saved syscalls on
+/// the alotta-files fixture.
+///
+/// [`Placement::Repair`] instead asks whether what is already there is
+/// this store entry, and swaps a fresh copy in when it is not. A
+/// hardlinked or reflinked entry shares the store inode, so recognising
+/// an intact file costs two stats and no read.
+fn place_entry<Reporter: self::Reporter>(
+    placement: Placement,
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    store_path: &Path,
+    target: &Path,
+) -> Result<(), ImportIndexedDirError> {
+    match placement {
+        Placement::Fresh => {
+            import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, target)
+                .map_err(ImportIndexedDirError::LinkFile)
+        }
+        Placement::Repair => {
+            if file_matches_store_entry(target, store_path) {
+                return Ok(());
+            }
+            clear_dir_blocking_file(target)?;
+            import_atomic::<Reporter>(logged_methods, import_method, store_path, target)
+        }
+    }
+}
+
+/// The completion marker is always placed atomically, in either
+/// placement, so no reader observes it half-written. A repair adds the
+/// clearing pass, since the marker path may hold a directory in a tree
+/// damaged badly enough to need one.
+fn place_marker<Reporter: self::Reporter>(
+    placement: Placement,
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    store_path: &Path,
+    target: &Path,
+) -> Result<(), ImportIndexedDirError> {
+    if placement == Placement::Repair {
+        clear_dir_blocking_file(target)?;
+    }
+    import_atomic::<Reporter>(logged_methods, import_method, store_path, target)
+}
+
+/// Remove a directory sitting where a package file belongs: the rename
+/// in [`import_atomic`] replaces a file but never a directory.
+fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
+    match fs::symlink_metadata(target) {
+        Ok(meta) if meta.is_dir() => fs::remove_dir_all(target).map_err(|error| {
+            ImportIndexedDirError::ClearBlockingDirEntry { path: target.to_path_buf(), error }
+        }),
+        Ok(_) => Ok(()),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => {
+            Err(ImportIndexedDirError::InspectTarget { path: target.to_path_buf(), error })
+        }
+    }
+}
+
+/// Remove any non-directory dirent along `rel`'s ancestry, so that the
+/// `create_dir_all` which follows has somewhere to put the directory.
+/// Walking top-down means a component whose parent is itself a file is
+/// never stat-ed: the parent is cleared first, and everything below a
+/// missing component is missing too.
+fn clear_dirent_blocking_dir(root: &Path, rel: &str) -> Result<(), ImportIndexedDirError> {
+    let mut abs = root.to_path_buf();
+    for component in Path::new(rel).components() {
+        abs.push(component);
+        match fs::symlink_metadata(&abs) {
+            Ok(meta) if meta.is_dir() => {}
+            Ok(meta) => remove_non_dir_dirent(&abs, meta.file_type()).map_err(|error| {
+                ImportIndexedDirError::ClearBlockingDirEntry { path: abs.clone(), error }
+            })?,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => break,
+            Err(error) => return Err(ImportIndexedDirError::InspectTarget { path: abs, error }),
+        }
     }
     Ok(())
 }
@@ -266,24 +464,87 @@ fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     cas_paths.keys().map(String::as_str).filter(|path| *path != crate::NEEDS_BUILD_MARKER).min()
 }
 
-// Supported platforms report an occupied directory with different error kinds.
-fn is_occupied_target(error: &io::Error) -> bool {
-    matches!(
-        error.kind(),
-        io::ErrorKind::DirectoryNotEmpty
-            | io::ErrorKind::AlreadyExists
-            | io::ErrorKind::PermissionDenied,
-    )
-}
-
-// The completion marker is placed last. Verify every package file in case a completed import was
-// later damaged. The needs-build marker is transient and does not identify package contents.
-fn is_complete_import(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
+/// Whether `dir_path` already holds exactly this import, pnpm's
+/// `allFilesMatch`. Existence is not enough: the completion marker goes
+/// down last, but a file truncated by an interrupted copy or damaged
+/// after the import finished still exists, and treating that slot as
+/// done would leave it broken for every later install. The needs-build
+/// marker is transient and does not identify package contents.
+///
+/// The marker is checked first, and `cas_paths` iterates in no
+/// particular order: a slot another importer is still filling is the
+/// common case here, and one `stat` settles it without comparing the
+/// files that did land.
+fn all_files_match(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
     marker_present(dir_path, cas_paths)
         && cas_paths
-            .keys()
-            .filter(|entry| entry.as_str() != crate::NEEDS_BUILD_MARKER)
-            .all(|entry| dir_path.join(entry).exists())
+            .iter()
+            .filter(|(entry, _)| entry.as_str() != crate::NEEDS_BUILD_MARKER)
+            .all(|(entry, store_path)| file_matches_store_entry(&dir_path.join(entry), store_path))
+}
+
+/// Whether `target` already carries `store_path`'s content. Imports that
+/// hardlink or reflink share the store file, which settles it without a
+/// read; the copy tier falls back to comparing size and then bytes, the
+/// way pnpm's `allFilesMatch` does.
+fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool {
+    let (Ok(target_meta), Ok(store_meta)) =
+        (fs::symlink_metadata(target), fs::metadata(store_path))
+    else {
+        return false;
+    };
+    if !target_meta.is_file() {
+        return false;
+    }
+    // Unix carries the file's identity in the stat results already.
+    // Windows keeps it behind an open handle, which `same-file` opens —
+    // worth two handles to spare a hardlinked package a full read on the
+    // platform where hardlinking is the default tier.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if target_meta.ino() == store_meta.ino() && target_meta.dev() == store_meta.dev() {
+            return true;
+        }
+    }
+    #[cfg(windows)]
+    if same_file::is_same_file(target, store_path).unwrap_or(false) {
+        return true;
+    }
+    target_meta.len() == store_meta.len()
+        && files_have_equal_contents(target, store_path).unwrap_or(false)
+}
+
+/// Byte-compare two files without buffering either one.
+///
+/// [`populate_dir`] runs its entries through rayon, so a repair can be
+/// comparing as many packages as there are workers at once. Reading
+/// both sides whole would hold two allocations the size of the file per
+/// worker, and a store entry for a native binary (`@napi-rs/*`,
+/// `esbuild`) runs to tens of megabytes. Streaming holds one 8 KB
+/// buffer per side instead, and stops at the first differing chunk
+/// rather than reading two files that already disagree in byte one.
+/// `pnpm_fs`'s `file_equals_bytes` streams for the same reason.
+fn files_have_equal_contents(left: &Path, right: &Path) -> io::Result<bool> {
+    use std::io::BufRead;
+
+    let mut left = io::BufReader::new(fs::File::open(left)?);
+    let mut right = io::BufReader::new(fs::File::open(right)?);
+    loop {
+        let left_chunk = left.fill_buf()?;
+        let right_chunk = right.fill_buf()?;
+        // One side ending first means the sizes disagree after all —
+        // the caller's size check can only read stale metadata.
+        if left_chunk.is_empty() || right_chunk.is_empty() {
+            return Ok(left_chunk.is_empty() && right_chunk.is_empty());
+        }
+        let len = left_chunk.len().min(right_chunk.len());
+        if left_chunk[..len] != right_chunk[..len] {
+            return Ok(false);
+        }
+        left.consume(len);
+        right.consume(len);
+    }
 }
 
 /// Whether `dir_path` holds the completion marker. An empty map has no
@@ -296,35 +557,36 @@ pub fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> 
     }
 }
 
-/// Place the marker atomically (pnpm's `importFileAtomic`): link it into a
-/// private temp sibling, then rename onto `marker_path` so it is never
-/// observed half-written. pacquet picks its import tier at runtime, so it
-/// always stages rather than predicting whether the import will copy. A
-/// concurrent importer that placed the marker first surfaces as
-/// `AlreadyExists` or is replaced atomically; the content is
-/// content-addressed either way, so we just drop our temp.
-fn import_marker_atomic<Reporter: self::Reporter>(
+/// Place a file atomically (pnpm's `importFileAtomic`): link it into a
+/// private temp sibling, then rename onto `target` so it is never
+/// observed half-written, and so a stale copy is replaced in one step
+/// under a reader. pacquet picks its import tier at runtime, so it
+/// always stages rather than predicting whether the import will copy.
+/// A failed rename is accepted only when the destination now matches the
+/// store entry, which means a concurrent importer won the race with the
+/// same content.
+fn import_atomic<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     store_path: &Path,
-    marker_path: &Path,
+    target: &Path,
 ) -> Result<(), ImportIndexedDirError> {
-    let temp = pick_stage_path(marker_path);
-    import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, &temp)
-        .map_err(ImportIndexedDirError::LinkFile)?;
-    match fs::rename(&temp, marker_path) {
+    let temp = pick_stage_path(target);
+    if let Err(error) =
+        import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, &temp)
+    {
+        let _ = fs::remove_file(&temp);
+        return Err(ImportIndexedDirError::LinkFile(error));
+    }
+    match pnpm_fs::rename_with_retry(&temp, target) {
         Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+        Err(_) if file_matches_store_entry(target, store_path) => {
             let _ = fs::remove_file(&temp);
             Ok(())
         }
         Err(error) => {
             let _ = fs::remove_file(&temp);
-            Err(ImportIndexedDirError::PlaceMarker {
-                from: temp,
-                to: marker_path.to_path_buf(),
-                error,
-            })
+            Err(ImportIndexedDirError::PlaceFile { from: temp, to: target.to_path_buf(), error })
         }
     }
 }
@@ -335,7 +597,6 @@ fn stage_and_swap<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     keep_modules_dir: bool,
-    safe_to_skip: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let stage = pick_stage_path(dir_path);
     let target_modules = dir_path.join("node_modules");
@@ -344,7 +605,9 @@ fn stage_and_swap<Reporter: self::Reporter>(
     // 1. Populate the staging directory with the new contents. On
     //    failure, the staging directory is the only thing on disk we
     //    own — a blanket rimraf is safe.
-    if let Err(error) = populate_dir::<Reporter>(logged_methods, import_method, &stage, cas_paths) {
+    if let Err(error) =
+        populate_dir::<Reporter>(logged_methods, import_method, &stage, cas_paths, Placement::Fresh)
+    {
         let _ = fs::remove_dir_all(&stage);
         return Err(error);
     }
@@ -396,20 +659,6 @@ fn stage_and_swap<Reporter: self::Reporter>(
         Some(_) | None => false,
     };
 
-    // 3b. Keep a complete content-addressed target instead of removing a directory that another
-    //     importer may be populating or reading. When step 3 moved `node_modules/`, continue with
-    //     the swap so that it can be restored.
-    if safe_to_skip && !nm_moved {
-        match fs::rename(&stage, dir_path) {
-            Ok(()) => return Ok(()),
-            Err(error) if is_occupied_target(&error) && is_complete_import(dir_path, cas_paths) => {
-                let _ = fs::remove_dir_all(&stage);
-                return Ok(());
-            }
-            Err(_) => {}
-        }
-    }
-
     // 4. Remove the old contents. If this fails after step 3, the
     //    staged copy of `node_modules/` is the user's only copy —
     //    try to move it back into place before bailing, and leak
@@ -421,9 +670,9 @@ fn stage_and_swap<Reporter: self::Reporter>(
 
     // 5. Move the staged tree into place. There's a brief window
     //    between `remove_dir_all` and `rename` where `dir_path` does
-    //    not exist on disk — acceptable given pacquet runs one
-    //    install per process and the hoisted linker holds the install
-    //    graph's coarse lock. If the rename fails, recreate
+    //    not exist on disk — acceptable for a slot only this install
+    //    can reach; a shared slot never enters this function. If the
+    //    rename fails, recreate
     //    `dir_path` so the rescued `node_modules/` has somewhere to
     //    land.
     if let Err(error) = fs::rename(&stage, dir_path) {

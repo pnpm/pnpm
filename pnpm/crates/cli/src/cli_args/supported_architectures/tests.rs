@@ -1,5 +1,5 @@
 use super::SupportedArchitecturesArgs;
-use pacquet_package_is_installable::SupportedArchitectures;
+use pnpm_package_is_installable::SupportedArchitectures;
 use pretty_assertions::assert_eq;
 
 #[test]

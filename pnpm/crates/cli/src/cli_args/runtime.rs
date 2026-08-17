@@ -5,10 +5,10 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_package_manifest::{DependencyGroup, is_runtime_alias};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
+use pnpm_config::Config;
+use pnpm_package_manifest::{DependencyGroup, is_runtime_alias};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::Reporter;
 use std::path::Path;
 
 /// Manage runtimes.

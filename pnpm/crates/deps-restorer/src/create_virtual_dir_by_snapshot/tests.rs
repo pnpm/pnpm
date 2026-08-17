@@ -1,10 +1,8 @@
 use super::{CreateVirtualDirBySnapshot, optimistic_wire_method, remove_obsolete_child};
-use pacquet_config::PackageImportMethod;
-use pacquet_fs::force_symlink_dir;
-use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
-use pacquet_reporter::{
-    LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter,
-};
+use pnpm_config::PackageImportMethod;
+use pnpm_fs::force_symlink_dir;
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
+use pnpm_reporter::{LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter};
 use std::{
     collections::HashMap,
     path::Path,
@@ -19,6 +17,10 @@ use tempfile::tempdir;
 pub struct LinkConcurrencyProbe {
     current: AtomicUsize,
     max: AtomicUsize,
+    /// Total `enter()` calls over the probe's lifetime — one per
+    /// [`CreateVirtualDirBySnapshot::run`] — for asserting how many
+    /// link tasks executed, which `max_concurrent` cannot.
+    total: AtomicUsize,
     wait_for_overlap: bool,
     wait_started: AtomicBool,
     mutex: Mutex<()>,
@@ -40,7 +42,12 @@ impl LinkConcurrencyProbe {
         self.max.load(Ordering::SeqCst)
     }
 
+    pub(crate) fn total_entered(&self) -> usize {
+        self.total.load(Ordering::SeqCst)
+    }
+
     pub(super) fn enter(&self) -> LinkConcurrencyGuard<'_> {
+        self.total.fetch_add(1, Ordering::SeqCst);
         let current = self.current.fetch_add(1, Ordering::SeqCst) + 1;
         let mut max = self.max.load(Ordering::SeqCst);
         while current > max {
@@ -73,6 +80,7 @@ impl Default for LinkConcurrencyProbe {
         Self {
             current: AtomicUsize::new(0),
             max: AtomicUsize::new(0),
+            total: AtomicUsize::new(0),
             wait_for_overlap: false,
             wait_started: AtomicBool::new(false),
             mutex: Mutex::new(()),
@@ -138,7 +146,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     // the caller's runtime flavor matters.
     let layout = crate::VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let skipped = crate::SkippedSnapshots::default();
     CreateVirtualDirBySnapshot {
@@ -204,7 +212,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
     let package_key: PackageKey = "react@18.0.0".parse().expect("valid snapshot key");
     let layout = crate::VirtualStoreLayout::legacy(
         dir.path().join("virtual-store"),
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let skipped = crate::SkippedSnapshots::default();
 
@@ -225,7 +233,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
         needs_build_marker_source: Some(&marker_source),
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .expect("import package with build marker");
 
     let package_dir = layout.slot_dir(&package_key).join("node_modules/react");
@@ -248,7 +256,7 @@ fn run_rejects_traversal_package_name() {
 
     let layout = crate::VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let skipped = crate::SkippedSnapshots::default();
     let result = CreateVirtualDirBySnapshot {
@@ -268,7 +276,7 @@ fn run_rejects_traversal_package_name() {
         needs_build_marker_source: None,
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>();
+    .run::<pnpm_reporter::SilentReporter>();
 
     assert!(
         matches!(result, Err(crate::CreateVirtualDirError::InvalidAlias(_))),
@@ -281,12 +289,12 @@ fn run_rejects_traversal_package_name() {
 /// children it still depends on in place.
 #[tokio::test]
 async fn run_removes_obsolete_child_links() {
-    use pacquet_reporter::SilentReporter;
+    use pnpm_reporter::SilentReporter;
 
     let dir = tempdir().expect("tempdir");
     let layout = crate::VirtualStoreLayout::legacy(
         dir.path().to_path_buf(),
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let package_key: PackageKey = "react@18.0.0".parse().expect("valid snapshot key");
     let node_modules = layout.slot_dir(&package_key).join("node_modules");

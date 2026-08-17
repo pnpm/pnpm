@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import url from 'node:url'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import pLimit from 'p-limit'
@@ -79,7 +79,7 @@ export async function verifySignatures (
     missing: [],
     verified: 0,
   }
-  // Registries without signing keys are not counted as audited: there is no
+  // RegistriesByScope without signing keys are not counted as audited: there is no
   // registry trust root to verify against.
   const packumentCache = new Map<string, Promise<Packument | undefined>>()
   const limit = pLimit(opts.networkConcurrency ?? 16)
@@ -412,12 +412,22 @@ export interface InstalledPackageToVerify {
  * - `unreachable`: the trust root could not be consulted (registry advertised no
  *   signing keys, or the network request failed) — typically transient/offline,
  *   not evidence of tampering.
+ * - `uncovered`: the installed integrity is not a sha512 hash (e.g. a sha1 pin
+ *   from a registry that only publishes `shasum`), so no npm registry signature
+ *   can ever validate over it — verification is impossible by construction,
+ *   not evidence of tampering.
  */
-export type SignatureFailureCategory = 'invalid' | 'absent' | 'unreachable'
+export type SignatureFailureCategory = 'invalid' | 'absent' | 'unreachable' | 'uncovered'
 
 export interface InstalledSignatureFailure {
   name: string
   version: string
+  /**
+   * The registry the package was installed from (see
+   * {@link InstalledPackageToVerify.registry}), with inline `user:pass@`
+   * credentials and control characters stripped so the failure is safe to print or log.
+   */
+  registry: string
   reason: string
   category: SignatureFailureCategory
 }
@@ -445,20 +455,38 @@ export interface InstalledSignatureVerificationResult {
  * A package counts as a failure when the package is unsigned/unpublished, or
  * when a signature is present but does not validate over the installed bytes.
  */
+export interface VerifyInstalledSignaturesOptions extends VerifySignaturesOptions {
+  /**
+   * A registry to consult for signature metadata when a package's own registry
+   * cannot provide a verifiable signature (its packument omits `dist.signatures`,
+   * as private mirrors commonly do, or carries only a stale/broken one).
+   * Signatures are verified against the caller's trusted keys over the installed
+   * integrity, so where the signature bytes come from does not affect what they
+   * prove — a package passes only when some genuine signature validates over the
+   * bytes actually installed. See https://github.com/pnpm/pnpm/issues/13147.
+   */
+  fallbackRegistry?: string
+}
+
 export async function verifyInstalledPackageSignatures (
   packages: InstalledPackageToVerify[],
   trustedKeys: RegistryKey[],
   getAuthHeader: GetAuthHeader,
-  opts: VerifySignaturesOptions
+  opts: VerifyInstalledSignaturesOptions
 ): Promise<InstalledSignatureVerificationResult> {
-  const packumentCache = new Map<string, Promise<Packument | undefined>>()
+  const ctx: SignatureVerificationContext = {
+    trustedKeys,
+    getAuthHeader,
+    opts,
+    packumentCache: new Map(),
+  }
   const limit = pLimit(opts.networkConcurrency ?? 16)
 
   const failures: InstalledSignatureFailure[] = []
   await Promise.all(packages.map((pkg) => limit(async () => {
-    const failure = await findSignatureFailure(pkg, trustedKeys, getAuthHeader, opts, packumentCache)
+    const failure = await findSignatureFailure(pkg, ctx)
     if (failure != null) {
-      failures.push({ name: pkg.name, version: pkg.version, ...failure })
+      failures.push({ name: pkg.name, version: pkg.version, registry: redactAndSanitize(pkg.registry), ...failure })
     }
   })))
 
@@ -466,23 +494,79 @@ export async function verifyInstalledPackageSignatures (
   return { verified: failures.length === 0, failures }
 }
 
+/** State shared by every verification of one installed-package batch. */
+interface SignatureVerificationContext {
+  trustedKeys: RegistryKey[]
+  getAuthHeader: GetAuthHeader
+  opts: VerifyInstalledSignaturesOptions
+  packumentCache: Map<string, Promise<Packument | undefined>>
+}
+
 async function findSignatureFailure (
   pkg: InstalledPackageToVerify,
-  trustedKeys: RegistryKey[],
-  getAuthHeader: GetAuthHeader,
-  opts: VerifySignaturesOptions,
-  packumentCache: Map<string, Promise<Packument | undefined>>
+  ctx: SignatureVerificationContext
 ): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
+  // npm registry signatures sign `name@version:integrity` with the sha512
+  // integrity the registry published. An installed integrity in any other form
+  // (a sha1 pin converted from `shasum` by a registry that publishes no
+  // `integrity`) can never validate against a genuine signature, so verifying
+  // it would misreport an authentic release as tampered with.
+  if (!pkg.integrity.startsWith('sha512-')) {
+    return {
+      reason: `${pkg.name}@${pkg.version} is pinned by a non-sha512 integrity, which npm registry signatures cannot cover`,
+      category: 'uncovered',
+    }
+  }
+
+  const primary = await attemptSignatureVerification(pkg, pkg.registry, ctx)
+  if (primary == null) return undefined
+
+  const { fallbackRegistry } = ctx.opts
+  if (fallbackRegistry == null || equalRegistries(pkg.registry, fallbackRegistry)) return primary
+
+  const secondary = await attemptSignatureVerification(pkg, fallbackRegistry, ctx)
+  // A genuine signature validating over the installed integrity proves the
+  // installed bytes regardless of which registry the primary attempt hit or
+  // what it answered (e.g. a mirror serving stale signatures from a rotated
+  // key), so a fallback pass is a pass.
+  if (secondary == null) return undefined
+
+  // A well-formed signature that fails to validate is a tamper signal from
+  // either source; surface it over the softer categories.
+  if (primary.category === 'invalid') return primary
+  if (secondary.category !== 'unreachable') return secondary
+  // The primary registry had no usable signature (a mirror commonly serves
+  // none) and the fallback could not be consulted — nothing suspicious was
+  // observed, the signature was simply unobtainable.
+  return {
+    reason: `${primary.reason}; the fallback registry (${redactAndSanitize(fallbackRegistry)}) could not be consulted either: ${secondary.reason}`,
+    category: 'unreachable',
+  }
+}
+
+/**
+ * Verifies `pkg`'s installed integrity against the signatures the packument on
+ * `registry` carries. Returns `undefined` on success, otherwise the failure.
+ */
+async function attemptSignatureVerification (
+  pkg: InstalledPackageToVerify,
+  registry: string,
+  ctx: SignatureVerificationContext
+): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
+  // Registry URLs may carry inline `user:pass@` credentials, and the reasons
+  // built here end up in error messages and warnings.
+  const displayRegistry = redactAndSanitize(registry)
   let packument: Packument | undefined
   try {
-    packument = await getPackument(pkg, getAuthHeader, opts, packumentCache)
+    packument = await getPackument({ ...pkg, registry }, ctx.getAuthHeader, ctx.opts, ctx.packumentCache)
   } catch (err: unknown) {
-    return { reason: util.types.isNativeError(err) ? err.message : String(err), category: 'unreachable' }
+    // The fetch error may echo the request URL, credentials included.
+    return { reason: redactAndSanitize(util.types.isNativeError(err) ? err.message : String(err)), category: 'unreachable' }
   }
-  if (!packument) return { reason: `${pkg.name} is not published on ${pkg.registry}`, category: 'absent' }
+  if (!packument) return { reason: `${pkg.name} is not published on ${displayRegistry}`, category: 'absent' }
 
   const version = packument.versions?.[pkg.version]
-  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${pkg.registry}`, category: 'absent' }
+  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${displayRegistry}`, category: 'absent' }
 
   const rawSignatures = version.dist?.signatures
   if (rawSignatures != null && !Array.isArray(rawSignatures)) {
@@ -493,14 +577,38 @@ async function findSignatureFailure (
     return { reason: `malformed registry signatures metadata for ${pkg.name}@${pkg.version}`, category: 'absent' }
   }
   if (signatures.length === 0) {
-    return { reason: `${pkg.name}@${pkg.version} has no registry signature`, category: 'absent' }
+    return { reason: `${pkg.name}@${pkg.version} has no registry signature on ${displayRegistry}`, category: 'absent' }
   }
 
   // The message is built from the installed integrity, so a signature only
   // validates when the installed bytes match what the registry signed.
   const issue = verifyPackageSignatures(
     { ...pkg, integrity: pkg.integrity, publishedAt: packument.time?.[pkg.version], signatures },
-    trustedKeys
+    ctx.trustedKeys
   )
   return issue == null ? undefined : { reason: issue.reason ?? 'invalid registry signature', category: 'invalid' }
+}
+
+/**
+ * Whether two registry URLs address the same registry. URL-equivalent forms
+ * must compare equal — hosts are case-insensitive and default ports are
+ * implied — or a canonical registry written as e.g.
+ * `https://Registry.NPMJS.org:443/` would be misclassified as a different,
+ * non-canonical one, weakening fail-closed decisions keyed on whether the
+ * registry is the canonical one. Inline `user:pass@` credentials are auth
+ * material, not identity, so they are stripped before comparing for the same
+ * reason.
+ */
+export function equalRegistries (a: string, b: string): boolean {
+  return normalizeRegistryUrl(a) === normalizeRegistryUrl(b)
+}
+
+function normalizeRegistryUrl (registry: string): string {
+  const withSlash = redactAndSanitize(registry.endsWith('/') ? registry : `${registry}/`)
+  try {
+    // URL normalization lowercases the host and drops a default port.
+    return new url.URL(withSlash).toString().toLowerCase()
+  } catch {
+    return withSlash.toLowerCase()
+  }
 }

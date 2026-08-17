@@ -3,7 +3,7 @@
 //!
 //! Caches the *result* of verifying an entire input lockfile. Like the
 //! local `lockfile-verified.jsonl` cache
-//! ([`pacquet_lockfile_verification::CacheRecord`]), a row is keyed by
+//! ([`pnpm_lockfile_verification::CacheRecord`]), a row is keyed by
 //! the lockfile content hash and stores the merged policy snapshot; a
 //! lookup is a hit only when every active verifier's
 //! [`ResolutionVerifier::can_trust_past_check`] accepts that stored
@@ -24,7 +24,7 @@
 //! already covered by the warm packument cache, so per-entry keying would
 //! cost O(N) lookups per install for a negligible recompute saving.
 //!
-//! [`ResolutionVerifier::can_trust_past_check`]: pacquet_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
+//! [`ResolutionVerifier::can_trust_past_check`]: pnpm_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
 
 use std::{
     path::Path,

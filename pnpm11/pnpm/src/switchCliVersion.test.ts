@@ -132,7 +132,7 @@ test('switchCliVersion uses trusted package-manager registries instead of projec
     noProxy: 'project.internal',
     packageManagerRegistries,
     packageManagerNetworkConfig,
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
     strictSsl: false,
     virtualStoreDirMaxLength: 120,
   } as unknown as Config
@@ -153,15 +153,15 @@ test('switchCliVersion uses trusted package-manager registries instead of projec
     httpProxy: packageManagerNetworkConfig.httpProxy,
     httpsProxy: packageManagerNetworkConfig.httpsProxy,
     noProxy: packageManagerNetworkConfig.noProxy,
-    registries: packageManagerRegistries,
+    registriesByScope: packageManagerRegistries,
     strictSsl: packageManagerNetworkConfig.strictSsl,
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(installPnpmToStore).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
-    registries: packageManagerRegistries,
+    registriesByScope: packageManagerRegistries,
   }))
   expect(installPnpmToStore).not.toHaveBeenCalledWith('9.3.0', expect.objectContaining({
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
   }))
 
   exit.mockRestore()
@@ -183,7 +183,7 @@ test('switchCliVersion defaults package-manager registries to npmjs instead of p
     httpProxy: 'http://project-http-proxy.example.com:8080',
     httpsProxy: 'http://project-https-proxy.example.com:8080',
     noProxy: 'project.internal',
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
     strictSsl: false,
     virtualStoreDirMaxLength: 120,
   } as unknown as Config
@@ -204,15 +204,15 @@ test('switchCliVersion defaults package-manager registries to npmjs instead of p
     httpProxy: undefined,
     httpsProxy: undefined,
     noProxy: undefined,
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     strictSsl: undefined,
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(installPnpmToStore).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   }))
   expect(installPnpmToStore).not.toHaveBeenCalledWith('9.3.0', expect.objectContaining({
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
   }))
 
   exit.mockRestore()
@@ -224,7 +224,7 @@ test('switchCliVersion installs from a registry-only package-manager lockfile wi
   }) as typeof process.exit)
 
   await expect(switchCliVersion({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     virtualStoreDirMaxLength: 120,
   } as unknown as Config, {
     rootProjectManifestDir: '/repo',
@@ -283,7 +283,7 @@ test('switchCliVersion accepts registry-only package-manager lockfiles with peer
   readEnvLockfile.mockResolvedValueOnce(peerLockfile)
 
   await expect(switchCliVersion({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     virtualStoreDirMaxLength: 120,
   } as unknown as Config, {
     rootProjectManifestDir: '/repo',
@@ -303,24 +303,112 @@ test('switchCliVersion accepts registry-only package-manager lockfiles with peer
   exit.mockRestore()
 })
 
-test('switchCliVersion rejects package-manager lockfile resolutions with non-integrity fields', async () => {
-  const poisonedLockfile: EnvLockfile = {
-    ...envLockfile,
-    packages: {
-      ...envLockfile.packages,
-      '@pnpm/linux-x64@9.3.0': {
-        resolution: {
-          integrity: 'sha512-poisoned',
-          tarball: 'https://evil.example.com/pnpm-linux-x64.tgz',
-        },
-      },
+test('switchCliVersion discards package-manager lockfile resolutions with non-integrity fields and re-resolves them', async () => {
+  // Deep clone: the discard mutates the lockfile it heals, and the shared
+  // fixture must stay intact for the other tests.
+  const poisonedLockfile = envLockfileFor('9.3.0')
+  poisonedLockfile.packages['@pnpm/linux-x64@9.3.0' as keyof typeof poisonedLockfile.packages] = {
+    resolution: {
+      integrity: 'sha512-poisoned',
+      tarball: 'https://evil.example.com/pnpm-linux-x64.tgz',
     },
   }
 
   readEnvLockfile.mockResolvedValueOnce(poisonedLockfile)
 
+  const exit = jest.spyOn(process, 'exit').mockImplementation(((code?: string | number | null | undefined) => {
+    throw new Error(`exit ${code ?? 0}`)
+  }) as typeof process.exit)
+  try {
+    await expect(switchCliVersion({
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      virtualStoreDirMaxLength: 120,
+    } as unknown as Config, {
+      rootProjectManifestDir: '/repo',
+      wantedPackageManager: {
+        fromDevEngines: true,
+        name: 'pnpm',
+        onFail: 'download',
+        version: '9.3.0',
+      },
+    } as unknown as ConfigContext)).rejects.toThrow('exit 0')
+  } finally {
+    exit.mockRestore()
+  }
+
+  // The discarded entries must not survive into the re-resolution input.
+  expect(poisonedLockfile.importers['.'].packageManagerDependencies).toBeUndefined()
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
+    envLockfile: poisonedLockfile,
+  }))
+  // The install runs from the freshly resolved lockfile, not the poisoned one.
+  expect(installPnpmToStore).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
+    envLockfile,
+  }))
+})
+
+test('switchCliVersion discards package-manager lockfile dependencies with non-registry dep paths and re-resolves them', async () => {
+  const poisonedLockfile = envLockfileFor('9.3.0')
+  Object.assign(poisonedLockfile.packages, {
+    'payload@file:../payload.tgz': {
+      resolution: {
+        integrity: 'sha512-payload',
+      },
+    },
+  })
+  Object.assign(poisonedLockfile.snapshots, {
+    'pnpm@9.3.0': {
+      dependencies: {
+        payload: 'file:../payload.tgz',
+      },
+    },
+    'payload@file:../payload.tgz': {},
+  })
+
+  readEnvLockfile.mockResolvedValueOnce(poisonedLockfile)
+
+  const exit = jest.spyOn(process, 'exit').mockImplementation(((code?: string | number | null | undefined) => {
+    throw new Error(`exit ${code ?? 0}`)
+  }) as typeof process.exit)
+  try {
+    await expect(switchCliVersion({
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      virtualStoreDirMaxLength: 120,
+    } as unknown as Config, {
+      rootProjectManifestDir: '/repo',
+      wantedPackageManager: {
+        fromDevEngines: true,
+        name: 'pnpm',
+        onFail: 'download',
+        version: '9.3.0',
+      },
+    } as unknown as ConfigContext)).rejects.toThrow('exit 0')
+  } finally {
+    exit.mockRestore()
+  }
+
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith('9.3.0', expect.anything())
+  expect(installPnpmToStore).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
+    envLockfile,
+  }))
+})
+
+test('switchCliVersion rejects a package-manager lockfile that is still invalid after re-resolving', async () => {
+  const poisonLinuxX64 = (lockfile: EnvLockfile) => {
+    lockfile.packages['@pnpm/linux-x64@9.3.0' as keyof typeof lockfile.packages] = {
+      resolution: {
+        integrity: 'sha512-poisoned',
+        tarball: 'https://evil.example.com/pnpm-linux-x64.tgz',
+      },
+    }
+    return lockfile
+  }
+
+  readEnvLockfile.mockResolvedValueOnce(poisonLinuxX64(envLockfileFor('9.3.0')))
+  resolvePackageManagerIntegrities.mockResolvedValueOnce(poisonLinuxX64(envLockfileFor('9.3.0')))
+
   await expect(switchCliVersion({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     virtualStoreDirMaxLength: 120,
   } as unknown as Config, {
     rootProjectManifestDir: '/repo',
@@ -332,51 +420,6 @@ test('switchCliVersion rejects package-manager lockfile resolutions with non-int
     },
   } as unknown as ConfigContext)).rejects.toThrow('integrity-only resolution')
 
-  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
-  expect(createStoreController).not.toHaveBeenCalled()
-  expect(installPnpmToStore).not.toHaveBeenCalled()
-  expect(spawnSync).not.toHaveBeenCalled()
-})
-
-test('switchCliVersion rejects package-manager lockfile dependencies with non-registry dep paths', async () => {
-  const poisonedLockfile: EnvLockfile = {
-    ...envLockfile,
-    packages: {
-      ...envLockfile.packages,
-      'payload@file:../payload.tgz': {
-        resolution: {
-          integrity: 'sha512-payload',
-        },
-      },
-    },
-    snapshots: {
-      ...envLockfile.snapshots,
-      'pnpm@9.3.0': {
-        dependencies: {
-          payload: 'file:../payload.tgz',
-        },
-      },
-      'payload@file:../payload.tgz': {},
-    },
-  }
-
-  readEnvLockfile.mockResolvedValueOnce(poisonedLockfile)
-
-  await expect(switchCliVersion({
-    registries: { default: 'https://registry.npmjs.org/' },
-    virtualStoreDirMaxLength: 120,
-  } as unknown as Config, {
-    rootProjectManifestDir: '/repo',
-    wantedPackageManager: {
-      fromDevEngines: true,
-      name: 'pnpm',
-      onFail: 'download',
-      version: '9.3.0',
-    },
-  } as unknown as ConfigContext)).rejects.toThrow('registry package path')
-
-  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
-  expect(createStoreController).not.toHaveBeenCalled()
   expect(installPnpmToStore).not.toHaveBeenCalled()
   expect(spawnSync).not.toHaveBeenCalled()
 })

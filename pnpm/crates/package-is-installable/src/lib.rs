@@ -8,6 +8,9 @@
 //!   [`SupportedArchitectures`] override).
 //! - [`platform_is_supported()`] — the allocation-light boolean form of
 //!   the same platform check.
+//! - [`platform_is_supported_with_inference()`] — the same boolean form
+//!   for a lockfile row, whose omitted axes are filled from the package
+//!   name.
 //! - [`package_is_installable()`] — composes the two and produces a
 //!   tri-state verdict: compatible, skip-as-optional, or
 //!   proceed-with-warning. Caller handles emitting `pnpm:install-check`
@@ -32,4 +35,5 @@ pub use infer_platform_from_package_name::{infer_platform_from_package_name, inf
 pub use package_is_installable::{
     InstallabilityError, InstallabilityOptions, InstallabilityVerdict,
     PackageInstallabilityManifest, SkipReason, check_package, package_is_installable,
+    platform_is_supported_with_inference,
 };

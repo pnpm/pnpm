@@ -9,7 +9,7 @@ use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
 };
-use pacquet_reporter::SilentReporter;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -401,7 +401,7 @@ async fn generate_provenance_surfaces_a_signer_failure() {
 }
 
 /// A zero-delay policy so the retry tests don't sleep.
-const INSTANT_RETRIES: pacquet_network::RetryOpts = pacquet_network::RetryOpts {
+const INSTANT_RETRIES: pnpm_network::RetryOpts = pnpm_network::RetryOpts {
     retries: 2,
     factor: 2,
     min_timeout: Duration::ZERO,

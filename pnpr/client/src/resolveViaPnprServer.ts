@@ -6,7 +6,7 @@ import { gunzip } from 'node:zlib'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
-import type { TrustPolicy } from '@pnpm/types'
+import type { RegistryDeclaration, TrustPolicy } from '@pnpm/types'
 
 import type { ResponseMetadata } from './protocol.js'
 
@@ -37,11 +37,15 @@ export interface ResolveViaPnprServerOptions {
   projects?: PnprProject[]
   /**
    * The client's default registry. The server resolves against this
-   * (and `namedRegistries`) rather than its own configuration.
+   * (and the prefix-addressed registries) rather than its own configuration.
    */
   registry?: string
-  /** The client's named-registry aliases (`namedRegistries`). */
-  namedRegistries?: Record<string, string>
+  /**
+   * The registries the client declares, keyed by URL, in the shape of the
+   * `registries` setting. The default registry is not among them: it travels
+   * as {@link ResolveViaPnprServerOptions.registry}.
+   */
+  registries?: Record<string, RegistryDeclaration>
   /**
    * `Authorization` for the pnpr server's own URL (`undefined` if none):
    * identifies the caller to pnpr's gate. The client never forwards its
@@ -141,7 +145,7 @@ export async function resolveViaPnprServer (
   const requestBody = JSON.stringify({
     projects,
     registry: opts.registry,
-    namedRegistries: opts.namedRegistries,
+    registries: opts.registries,
     overrides: opts.overrides,
     catalogs: opts.catalogs,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),

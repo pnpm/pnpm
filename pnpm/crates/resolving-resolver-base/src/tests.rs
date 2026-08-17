@@ -1,4 +1,4 @@
-use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, RegistryResolution};
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, RegistryResolution};
 use ssri::Integrity;
 
 use crate::{
@@ -38,7 +38,7 @@ fn resolution_verification_err_round_trip() {
 
 /// [`ResolutionPolicyViolation`] is the data shape the runner
 /// aggregates and sorts by `name@version`. Constructing one with a
-/// real [`PkgName`] proves the type composes with `pacquet_lockfile`.
+/// real [`PkgName`] proves the type composes with `pnpm_lockfile`.
 #[test]
 fn resolution_policy_violation_carries_pkg_name_and_resolution() {
     let violation = ResolutionPolicyViolation {

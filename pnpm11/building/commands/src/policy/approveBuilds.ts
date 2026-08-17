@@ -5,7 +5,7 @@ import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
-import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { type Modules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import chalk from 'chalk'
@@ -206,7 +206,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     } else {
       delete modulesManifest.ignoredBuilds
     }
-    await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
+    await writeModulesManifest(modulesDir, modulesManifest as Modules)
   }
   if (buildPackages.length) {
     if (opts.enableGlobalVirtualStore) {

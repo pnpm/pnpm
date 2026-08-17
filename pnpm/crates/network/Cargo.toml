@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-network"
+name                 = "pnpm-network"
 description          = "Network utility functions used by pacquet"
 version              = "0.0.1"
 publish              = false
@@ -20,10 +20,10 @@ tracing           = { workspace = true }
 webpki-root-certs = { workspace = true }
 
 [dev-dependencies]
-mockito               = { workspace = true }
-pacquet-testing-utils = { workspace = true }
-pretty_assertions     = { workspace = true }
-tokio                 = { workspace = true, features = ["macros", "rt-multi-thread"] }
+mockito            = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+pretty_assertions  = { workspace = true }
+tokio              = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

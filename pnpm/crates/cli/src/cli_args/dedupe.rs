@@ -18,19 +18,20 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
-use pacquet_modules_yaml::{Host, read_modules_manifest};
-use pacquet_package_manager::{
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_modules_yaml::{Host, read_modules_manifest};
+use pnpm_package_manager::{
     ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, ProjectMutation,
     ResolutionObserver, ResolvedPackageHint, SnapshotDiff, diff_lockfiles,
     package_metadata_is_installable,
 };
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::{
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::{
     DedupeCheckLog, GlobalLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage,
     Reporter,
 };
-use pacquet_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
+use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 use serde_json::{Map, Value, json};
 use tempfile::NamedTempFile;
 
@@ -38,9 +39,18 @@ use tempfile::NamedTempFile;
 pub struct DedupeArgs {
     #[clap(long)]
     pub check: bool,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
 }
 
 impl DedupeArgs {
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+    }
+
     /// Run the deduplication install pipeline. In `--check` mode the method
     /// receives a pre-computed snapshot (`existing`) and drop guard created by
     /// the caller *before* config-dependency steps, so the gate covers any
@@ -86,7 +96,7 @@ impl DedupeArgs {
             config,
             manifest,
             emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(lockfile_path),
             dependency_groups: [
                 DependencyGroup::Prod,
@@ -107,7 +117,12 @@ impl DedupeArgs {
             node_linker: config.node_linker,
             lockfile_only: true,
             dry_run: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
+            // `--check` must leave the working tree untouched: the lockfile
+            // guard restores `pnpm-lock.yaml`, and this gate keeps loose
+            // minimumReleaseAge picks out of `pnpm-workspace.yaml`.
+            persist_policy_excludes: !self.check,
+            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter> {
                 requester: lockfile_path
@@ -211,7 +226,7 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
 
 fn reusable_skipped_package_id(
     package_key: &PkgNameVerPeer,
-    metadata: &pacquet_lockfile::PackageMetadata,
+    metadata: &pnpm_lockfile::PackageMetadata,
     installability_host: &InstallabilityHost,
     ignored_optional_dependencies: Option<&[String]>,
 ) -> miette::Result<Option<String>> {

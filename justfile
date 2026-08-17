@@ -51,7 +51,8 @@ check:
 
 # Run all the tests.
 test:
-  cargo nextest run
+  # Tests opt into CI-sensitive pnpm defaults explicitly.
+  env PNPM_CONFIG_CI=false cargo nextest run
 
 # A test process that is killed cannot run `TempDir`'s cleanup, so a
 # fail-fast or interrupted run abandons whole fixture trees — each holding a
@@ -67,7 +68,8 @@ sweep-test-temp:
 
 # Run pacquet package tests only.
 test-pacquet:
-  cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
+  # GitHub Actions sets CI=true; keep lockfile-mutating tests deterministic.
+  env PNPM_CONFIG_CI=false cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
 
 # Run pnpr package tests only.
 test-pnpr:
@@ -109,7 +111,7 @@ micro-benchmark:
 # running binary, failing with `os error 5` on Windows MSVC.
 registry-mock +args:
   cargo nextest run --no-run
-  cargo run --bin=pacquet-registry-mock -- {{args}}
+  cargo run --bin=pnpm-registry-mock -- {{args}}
 
 # The benchmark may auto-spawn the registry mock (via
 # `AutoMockInstance::load_or_init()`), so make sure `pnpr`

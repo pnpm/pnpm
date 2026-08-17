@@ -3,14 +3,14 @@
 //! Two surfaces:
 //!
 //! - **Resolver.** [`NpmResolver`] implements the
-//!   [`Resolver`](pacquet_resolving_resolver_base::Resolver) trait:
-//!   takes a [`WantedDependency`](pacquet_resolving_resolver_base::WantedDependency),
+//!   [`Resolver`](pnpm_resolving_resolver_base::Resolver) trait:
+//!   takes a [`WantedDependency`](pnpm_resolving_resolver_base::WantedDependency),
 //!   runs [`parse_bare_specifier()`], picks a version through
 //!   [`pick_package()`], and returns the
-//!   [`ResolveResult`](pacquet_resolving_resolver_base::ResolveResult)
+//!   [`ResolveResult`](pnpm_resolving_resolver_base::ResolveResult)
 //!   the install layer consumes.
 //! - **Verifier.** [`create_npm_resolution_verifier()`] is the
-//!   [`ResolutionVerifier`](pacquet_resolving_resolver_base::ResolutionVerifier)
+//!   [`ResolutionVerifier`](pnpm_resolving_resolver_base::ResolutionVerifier)
 //!   the lockfile-verification gate uses. Re-applies
 //!   `minimumReleaseAge` and `trustPolicy='no-downgrade'` to every
 //!   npm-resolved lockfile entry the install loads.
@@ -53,12 +53,11 @@ pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_
 pub use infer_range_spec_style::infer_range_spec_style;
 pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
-    BUILTIN_NAMED_REGISTRIES, MergeNamedRegistriesError, merge_named_registries,
+    BUILTIN_REGISTRIES_BY_PREFIX, MergeNamedRegistriesError, merge_named_registries,
     named_registry_tarball_prefixes, pick_registry_for_version,
 };
 pub use named_registry_resolver::NamedRegistryResolver;
 pub use npm_resolver::NpmResolver;
-pub use pacquet_lockfile::pick_registry_for_package;
 pub use parse_bare_specifier::{
     JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
     parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
@@ -75,6 +74,7 @@ pub use pick_package_from_meta::{
     RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
     pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
 };
+pub use pnpm_lockfile::pick_registry_for_package;
 pub use registry_url::to_registry_url;
 pub use resolve_from_workspace::{
     ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, pick_matching_local_version_or_null,

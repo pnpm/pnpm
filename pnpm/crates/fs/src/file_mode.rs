@@ -16,7 +16,7 @@ pub fn is_executable(mode: u32) -> bool {
 }
 
 /// Whether a CAS file path encodes "executable" via the `-exec` suffix
-/// pnpm's CAFS layout uses (see `pacquet_store_dir::StoreDir::cas_file_path`).
+/// pnpm's CAFS layout uses (see `pnpm_store_dir::StoreDir::cas_file_path`).
 /// Reading the suffix is cheaper than a `stat` and is the only reliable
 /// signal once a blob has been copied out of the store, where the on-disk
 /// mode may have lost its exec bit on a copy / reflink fallback.

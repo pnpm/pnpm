@@ -1,4 +1,4 @@
-use pacquet_config::Config;
+use pnpm_config::Config;
 use serde_json::json;
 
 use super::{OwnerArgs, OwnerError};

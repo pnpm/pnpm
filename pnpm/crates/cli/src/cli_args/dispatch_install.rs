@@ -30,8 +30,8 @@ use super::{
     update::UpdateArgs,
 };
 use miette::Context;
-use pacquet_default_reporter::DefaultReporter;
-use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use pnpm_default_reporter::DefaultReporter;
+use pnpm_reporter::{NdjsonReporter, SilentReporter};
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
@@ -85,6 +85,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
 pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
         let config = (ctx.global_config)()?;
+        args.apply_cli_config(config);
         return Ok(match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_global::<DefaultReporter>(config))
@@ -100,6 +101,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
@@ -321,6 +323,7 @@ pub(super) fn dedupe<'a>(ctx: &RunCtx<'a>, args: DedupeArgs) -> miette::Result<C
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
@@ -418,6 +421,7 @@ pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<C
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        args.apply_cli_config(cfg);
         // Strip the matching `link:` overrides; stop early when there is
         // nothing to unlink.
         if !args.strip_link_overrides(cfg, manifest_path)? {

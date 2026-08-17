@@ -2,11 +2,11 @@
 //! [`crate::ThrottledClient::for_installs`].
 //!
 //! [`TlsConfig`] holds the resolved `(ca, client_identity_pem, strict_ssl,
-//! local_address)` quadruple. Built by `pacquet-config` from the
+//! local_address)` quadruple. Built by `pnpm-config` from the
 //! `.npmrc` keys `ca`, `cafile`, `cert`, `key`, `strict-ssl`, and
-//! `local-address`. Lives in `pacquet-network` for the same reason
-//! [`crate::ProxyConfig`] does — `pacquet-config` depends on
-//! `pacquet-network` for `AuthHeaders`, so the inverse direction
+//! `local-address`. Lives in `pnpm-network` for the same reason
+//! [`crate::ProxyConfig`] does — `pnpm-config` depends on
+//! `pnpm-network` for `AuthHeaders`, so the inverse direction
 //! would form a cycle.
 //!
 //! Parity policy: pnpm performs no PEM parsing in user-space (PEM
@@ -138,7 +138,7 @@ pub struct PerRegistryTls {
 
 /// `(ca, cert, key)` triple for a single registry override. Each field
 /// is post-`\n`-expansion / post-file-read PEM string — the parser in
-/// `pacquet-config::npmrc_auth` normalizes both shapes (`:ca=` inline
+/// `pnpm-config::npmrc_auth` normalizes both shapes (`:ca=` inline
 /// and `:cafile=<path>` file-read) into the same `Option<String>` slot
 /// so the network layer sees one form.
 ///

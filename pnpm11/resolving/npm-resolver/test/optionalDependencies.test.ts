@@ -2,14 +2,14 @@
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const registries = {
+const registriesByScope = {
   default: 'https://registry.npmjs.org/',
-} satisfies Registries
+} satisfies RegistriesByScope
 
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
@@ -46,14 +46,14 @@ describe('optional dependencies', () => {
     }
 
     // Mock the full metadata request for optional dependency
-    getMockAgent().get(registries.default.replace(/\/$/, ''))
+    getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
       .intercept({ path: '/platform-pkg', method: 'GET' })
       .reply(200, packageMeta)
 
     const { resolveFromNpm } = createResolveFromNpm({
       storeDir: temporaryDirectory(),
       cacheDir: temporaryDirectory(),
-      registries,
+      registriesByScope,
     })
 
     const result = await resolveFromNpm(
@@ -104,7 +104,7 @@ describe('optional dependencies', () => {
       },
     }
 
-    const mockPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
+    const mockPool = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     // First request: abbreviated metadata for regular dependency (accept header prefers abbreviated)
     mockPool.intercept({
       path: '/cache-test',
@@ -123,7 +123,7 @@ describe('optional dependencies', () => {
     const { resolveFromNpm } = createResolveFromNpm({
       storeDir: temporaryDirectory(),
       cacheDir,
-      registries,
+      registriesByScope,
     })
 
     // Resolve as regular dependency - should get abbreviated metadata

@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
 use std::{
     env,
     fs::{self, OpenOptions},
@@ -205,7 +205,7 @@ fn carry_mode_across(_file: &fs::File, _target: &Path) -> io::Result<()> {
 /// truncate a file an attacker (or a crashed prior install) pre-seeded
 /// at our predicted temp path. On `AlreadyExists` we advance the
 /// counter and try again, up to `MAX_TEMP_ATTEMPTS` times — matching
-/// the hardening already in `pacquet_fs::ensure_file::write_atomic`
+/// the hardening already in `pnpm_fs::ensure_file::write_atomic`
 /// (per-call review on [#442](https://github.com/pnpm/pacquet/pull/442)).
 fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> {
     /// Sixteen fresh counter values is plenty — under benign

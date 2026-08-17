@@ -5,13 +5,14 @@ use crate::{
         FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
-        generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, is_shim_pointing_at,
-        search_script_runtime,
+        ShimStyle, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
+        generate_virtual_cmd_shim, generate_virtual_pwsh_shim, generate_virtual_sh_shim,
+        is_context_aware_shim, is_shim_pointing_at, search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_package_manifest::parse_manifest_bytes;
+use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{
@@ -351,6 +352,46 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
+    link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, extra_node_paths, ShimStyle::Direct)
+}
+
+/// Like [`link_bins_of_packages_with_excludes`] but writes
+/// [`ShimStyle::ContextAware`] shims — the global bin dir's format (see
+/// [`ShimStyle`]). Global shims never carry `NODE_PATH`, so there is no
+/// `extra_node_paths` parameter.
+pub fn link_bins_of_packages_context_aware<Sys>(
+    packages: &[PackageBinSource],
+    bins_dir: &Path,
+    exclude_bins: &std::collections::HashSet<String>,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
+    link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, &[], ShimStyle::ContextAware)
+}
+
+fn link_bins_impl<Sys>(
+    packages: &[PackageBinSource],
+    bins_dir: &Path,
+    exclude_bins: &std::collections::HashSet<String>,
+    extra_node_paths: &[String],
+    style: ShimStyle,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
     let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
 
     for pkg in packages {
@@ -395,7 +436,7 @@ where
     // file I/O serialised across the whole `chosen` map.
     chosen.par_iter().try_for_each(|(bin_name, (command, pkg))| {
         let node_path = shim_node_path(pkg, extra_node_paths);
-        write_shim::<Sys>(&command.path, &bins_dir.join(bin_name), &node_path)
+        write_shim::<Sys>(&command.path, &bins_dir.join(bin_name), &node_path, style)
     })?;
 
     Ok(())
@@ -470,6 +511,7 @@ fn write_shim<Sys>(
     target_path: &Path,
     shim_path: &Path,
     node_path: &[String],
+    style: ShimStyle,
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
@@ -493,7 +535,19 @@ where
     //    (`$basedir/../node/bin/../node/bin/node` — the `node` segment
     //    appears twice). A direct symlink / hardlink bypasses the
     //    parser entirely.
-    if is_node_bin_name(shim_path) && link_node_bin(target_path, shim_path)? {
+    //
+    // A context-aware `node` is the exception on Unix: the whole point of
+    // the global bin dir's shims is that bare `node` can defer to a
+    // project-local version, which a symlink cannot do, so the global
+    // `node` gets a dispatch shim like every other bin. This low-level linker
+    // keeps the Windows hardlink because replacing `node.exe` with a script
+    // would break tools that spawn it without a shell; the global CLI linker
+    // subsequently replaces it with the native dispatcher after recording
+    // the original executable as its fallback target.
+    if is_node_bin_name(shim_path)
+        && (style == ShimStyle::Direct || cfg!(windows))
+        && link_node_bin(target_path, shim_path)?
+    {
         return Ok(());
     }
 
@@ -501,7 +555,7 @@ where
         LinkBinsError::ProbeShimSource { path: target_path.to_path_buf(), error }
     })?;
 
-    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
+    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path, style);
     // Windows siblings are off on Unix to match pnpm. The bodies
     // themselves still get computed inside the `cfg!(windows)` branch
     // below — moving the `generate_*` calls there keeps Unix builds
@@ -509,8 +563,10 @@ where
     let windows_shims = cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(shim_path, "cmd");
         let ps1_path = with_extension_appended(shim_path, "ps1");
-        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path);
-        let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path);
+        let cmd_body =
+            generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path, style);
+        let ps1_body =
+            generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path, style);
         (cmd_path, cmd_body, ps1_path, ps1_body)
     });
 
@@ -535,7 +591,9 @@ where
     let sh_marker_ok = match Sys::read_to_string(shim_path) {
         Ok(existing) if !node_path.is_empty() => existing == sh_body,
         Ok(existing) => {
-            is_shim_pointing_at(&existing, target_path) && !existing.contains("export NODE_PATH=")
+            is_shim_pointing_at(&existing, target_path)
+                && !existing.contains("export NODE_PATH=")
+                && is_context_aware_shim(&existing) == (style == ShimStyle::ContextAware)
         }
         Err(_) => false,
     };
@@ -787,6 +845,47 @@ fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
     result.push(".");
     result.push(ext);
     result.into()
+}
+
+/// Write the target-less shims for `package`'s `bins` into `bins_dir`.
+///
+/// Unlike [`link_bins_of_packages_context_aware`], nothing is installed
+/// behind these: the package is not in the global bin dir, and only the
+/// project a shim runs in can say what to execute. Returns the shim paths
+/// that now exist, in the order they were written.
+pub fn link_virtual_shims<Sys>(
+    package: &str,
+    bins: &[&str],
+    bins_dir: &Path,
+) -> Result<Vec<PathBuf>, LinkBinsError>
+where
+    Sys: FsCreateDirAll + FsWrite + FsSetExecutable,
+{
+    Sys::create_dir_all(bins_dir)
+        .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
+    let mut written = Vec::new();
+    for bin in bins {
+        let shim_path = bins_dir.join(bin);
+        let mut flavors = vec![(shim_path.clone(), generate_virtual_sh_shim(package, &shim_path))];
+        if cfg!(windows) {
+            let cmd_path = with_extension_appended(&shim_path, "cmd");
+            let ps1_path = with_extension_appended(&shim_path, "ps1");
+            flavors.push((cmd_path.clone(), generate_virtual_cmd_shim(package, &cmd_path)));
+            flavors.push((ps1_path.clone(), generate_virtual_pwsh_shim(package, &ps1_path)));
+        }
+        for (path, body) in flavors {
+            // Unlink first for the same reason [`write_shim`] does: a
+            // symlink planted at the bin path would otherwise redirect
+            // the write.
+            remove_stale_bin(&path)?;
+            Sys::write(&path, body.as_bytes())
+                .map_err(|error| LinkBinsError::WriteShim { path: path.clone(), error })?;
+            written.push(path);
+        }
+        Sys::set_executable(&shim_path)
+            .map_err(|error| LinkBinsError::Chmod { path: shim_path.clone(), error })?;
+    }
+    Ok(written)
 }
 
 /// Remove a bin shim previously written by [`link_bins_of_packages`].

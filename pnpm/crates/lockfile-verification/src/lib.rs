@@ -11,6 +11,7 @@
 //! JSONL stat-and-skip cache.
 //!
 //! Public surface today: [`verify_lockfile_resolutions()`],
+//! [`lockfile_verification_is_cached()`],
 //! [`verify_lockfile_dependency_names()`],
 //! [`collect_resolution_policy_violations()`], [`hash_lockfile()`],
 //! [`VerifyError`], and [`RenderedViolation`] — the last lets a caller
@@ -18,7 +19,7 @@
 //! reconstructing them from the server's response) rebuild the same
 //! [`VerifyError`] via [`VerifyError::from_rendered`].
 //!
-//! [`ResolutionVerifier`]: pacquet_resolving_resolver_base::ResolutionVerifier
+//! [`ResolutionVerifier`]: pnpm_resolving_resolver_base::ResolutionVerifier
 
 mod cache;
 mod errors;
@@ -36,6 +37,6 @@ pub use hash_lockfile::hash_lockfile;
 pub use record_lockfile_verified::record_lockfile_verified;
 pub use verify_lockfile_resolutions::{
     RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, VerifyLockfileResolutionsOptions,
-    collect_resolution_policy_violations, verify_lockfile_dependency_names,
-    verify_lockfile_resolutions,
+    collect_resolution_policy_violations, lockfile_verification_is_cached,
+    verify_lockfile_dependency_names, verify_lockfile_resolutions,
 };

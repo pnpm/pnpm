@@ -189,11 +189,22 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
   integration tests under each crate's `tests/`. Shared pacquet fixtures live
   under `crates/testing-utils/src/fixtures/`; registry package fixtures live
   under `../pnpr/.fixtures/packages/`.
+- `pnpm-cli`'s end-to-end tests are a single Cargo target: each file under
+  `crates/cli/tests/suite/` is a module of `tests/suite/main.rs`. Put a new
+  test file there and declare it in `main.rs`. A file added directly under
+  `crates/cli/tests/` becomes its own binary instead, and every such binary
+  statically links the whole dependency graph — `pnpr` included — so it costs
+  another ~240 MB to link on each change to the crate. `cargo nextest` runs
+  every test in its own process regardless of how many binaries there are.
+  Paths in file-relative macros (`include_str!`, `include_bytes!`) resolve
+  against the containing file, so one written for `tests/` needs an extra
+  `../` under `tests/suite/`. Watch for this when porting a test from a
+  branch that predates the layout.
 - Snapshot tests use `insta`. When an intentional change alters a snapshot,
   review the diff carefully, then accept with `cargo insta review`. Never
   accept snapshot changes blindly.
 - Tests that need the mocked registry start `pnpr` through
-  `pacquet-testing-utils`; `cargo test` / `cargo nextest run` should not
+  `pnpm-testing-utils`; `cargo test` / `cargo nextest run` should not
   require a separate `just registry-mock launch` step.
 - When a behavior change spans both stacks, keep their tests in sync — give
   pacquet a Rust test for the same scenario the TypeScript stack covers (and
@@ -203,7 +214,7 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
   [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It enumerates the
   upstream TypeScript tests scheduled to be ported (with file paths and line
   numbers) and the conventions expected of the ports — `known_failures`
-  modules, `pacquet_testing_utils::allow_known_failure!` at the
+  modules, `pnpm_testing_utils::allow_known_failure!` at the
   not-yet-implemented boundary, and the practice of temporarily breaking the
   subject under test to verify the ported test actually catches the
   regression. Consult it before adding ported tests, and update its
@@ -268,13 +279,17 @@ on:
 
 ```sh
 # One crate
-cargo nextest run -p pacquet-lockfile
+cargo nextest run -p pnpm-lockfile
 
 # One test by name substring
-cargo nextest run -p pacquet-lockfile <name_substring>
+cargo nextest run -p pnpm-lockfile <name_substring>
 
 # One integration test file
-cargo nextest run -p pacquet-lockfile --test <file_stem>
+cargo nextest run -p pnpm-lockfile --test <file_stem>
+
+# One module of pnpm-cli's suite (the suite is a single target, so the
+# former per-file `--test <file_stem>` is a module filter here)
+cargo nextest run -p pnpm-cli -E 'test(/^<file_stem>::/)'
 ```
 
 Run `just ready` (full suite) before handing the PR off.
@@ -378,7 +393,7 @@ Pacquet-specific notes:
 
 ## Errors and diagnostics
 
-User-facing errors go through `miette` via the `pacquet-diagnostics` crate.
+User-facing errors go through `miette` via the `pnpm-diagnostics` crate.
 Match pnpm's error codes and messages where pnpm defines them — error codes
 are part of the public contract, not implementation detail. See
 <https://pnpm.io/errors> for the canonical list.

@@ -43,7 +43,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, [])
     }).rejects.toThrow('A subcommand is required')
   })
@@ -56,7 +56,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['get', 'status', '@pnpm/test'])
 
     expect(result).toContain('package: @pnpm/test')
@@ -67,7 +67,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['get', 'status'])
     }).rejects.toThrow('Package name is required')
   })
@@ -81,7 +81,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['get', 'status', 'nonexistent-pkg-test'])
     }).rejects.toThrow('not found')
   })
@@ -95,7 +95,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['set', 'status=public', '@pnpm/test'])
 
     expect(result).toBe('@pnpm/test: public')
@@ -110,7 +110,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['set', 'status=private', '@pnpm/test'])
 
     expect(result).toBe('@pnpm/test: restricted')
@@ -120,7 +120,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['set'])
     }).rejects.toThrow('A value is required')
   })
@@ -129,7 +129,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['set', 'status=invalid', '@pnpm/test'])
     }).rejects.toThrow('Invalid access value')
   })
@@ -138,7 +138,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['set', 'status=public', 'unscoped-pkg'])
     }).rejects.toThrow('Unscoped packages are always public')
   })
@@ -147,7 +147,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['set', 'status=public'])
     }).rejects.toThrow('Package name is required')
   })
@@ -161,7 +161,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['set', 'status=public', '@pnpm/test'])
     }).rejects.toThrow('logged in')
   })
@@ -175,7 +175,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['set', 'status=public', '@pnpm/test'])
     }).rejects.toThrow('permission')
   })
@@ -189,7 +189,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['set', 'mfa=automation', '@pnpm/test'])
 
     expect(result).toBe('@pnpm/test: mfa=automation')
@@ -204,7 +204,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['set', 'mfa=none', '@pnpm/test'])
 
     expect(result).toBe('@pnpm/test: mfa=none')
@@ -214,7 +214,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['set', 'mfa=invalid', '@pnpm/test'])
     }).rejects.toThrow('Invalid MFA value')
   })
@@ -228,7 +228,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['grant', 'read-only', 'myscope:developers', '@myscope/pkg'])
 
     expect(result).toBe('+myscope:developers (read-only): @myscope/pkg')
@@ -243,7 +243,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['grant', 'read-write', 'myscope:developers', '@myscope/pkg'])
 
     expect(result).toBe('+myscope:developers (read-write): @myscope/pkg')
@@ -253,7 +253,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['grant'])
     }).rejects.toThrow('Permissions and scope:team are required')
   })
@@ -262,7 +262,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['grant', 'invalid', 'myscope:developers', '@myscope/pkg'])
     }).rejects.toThrow('Invalid permissions')
   })
@@ -271,7 +271,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['grant', 'read-only', 'invalidteam', '@myscope/pkg'])
     }).rejects.toThrow('Invalid team')
   })
@@ -285,7 +285,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['revoke', 'myscope:developers', '@myscope/pkg'])
 
     expect(result).toBe('-myscope:developers: @myscope/pkg')
@@ -295,7 +295,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['revoke'])
     }).rejects.toThrow('scope:team and package name are required')
   })
@@ -304,7 +304,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['revoke', 'invalidteam', '@myscope/pkg'])
     }).rejects.toThrow('Invalid team')
   })
@@ -317,7 +317,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['list', 'packages', 'alice'])
 
     expect(result).toContain('@alice/pkg: read-write')
@@ -332,7 +332,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['list', 'packages', '@myscope'])
 
     expect(result).toContain('@myscope/pkg: read-write')
@@ -346,7 +346,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['list', 'packages', 'myscope:developers'])
 
     expect(result).toContain('@myscope/pkg: read-write')
@@ -363,7 +363,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['list', 'collaborators', '@pnpm/test'])
 
     expect(result).toContain('alice')
@@ -376,7 +376,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['list', 'collaborators'])
     }).rejects.toThrow('Package name is required')
   })
@@ -391,7 +391,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['list', 'collaborators', '@pnpm/test', 'alice'])
 
     expect(result).toContain('alice')
@@ -406,7 +406,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['public', '@pnpm/test'])
 
     expect(result).toBe('@pnpm/test: public')
@@ -421,7 +421,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: {},
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['restricted', '@pnpm/test'])
 
     expect(result).toBe('@pnpm/test: restricted')
@@ -435,7 +435,7 @@ describe('access command', () => {
 
     const result = await access.handler({
       cliOptions: { json: true },
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['list', 'packages', 'alice'])
 
     const parsed = JSON.parse(result)
@@ -446,7 +446,7 @@ describe('access command', () => {
     await expect(async () => {
       await access.handler({
         cliOptions: {},
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['unknown'])
     }).rejects.toThrow('Unknown subcommand')
   })

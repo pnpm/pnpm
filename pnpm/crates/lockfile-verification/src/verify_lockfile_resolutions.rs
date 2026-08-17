@@ -16,12 +16,12 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
-use pacquet_reporter::{
+use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use pnpm_reporter::{
     LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
 };
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_resolving_resolver_base::{
     ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
 use tokio::sync::Semaphore;
@@ -54,6 +54,38 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// (under the same or stricter policy). Omitting either field
     /// disables the cache (every call rehashes + reruns the gate).
     pub cache_dir: Option<&'a Path>,
+}
+
+/// Whether a recorded verification already covers `lockfile` as it sits
+/// at `lockfile_path` under the policy `verifiers` currently demand —
+/// i.e. whether a [`verify_lockfile_resolutions`] call would
+/// short-circuit on the cache without running the fan-out. The offline
+/// structural dependency-name gate runs here too (it is cheap and the
+/// cache never covers a lockfile that fails it), so a `true` return
+/// carries the same guarantee as the runner's cache hit.
+///
+/// Lets the pnpr client decide locally whether the server-side
+/// `verify_lockfile` round trip can be skipped
+/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+pub fn lockfile_verification_is_cached(
+    cache_dir: &Path,
+    lockfile_path: &Path,
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> bool {
+    if verify_lockfile_dependency_names(lockfile).is_err() {
+        return false;
+    }
+    if lockfile.packages.is_none() {
+        return true;
+    }
+    try_lockfile_verification_cache(
+        cache_dir,
+        lockfile_path,
+        &with_offline_check_cache_identities(verifiers),
+        || hash_lockfile(lockfile),
+    )
+    .hit
 }
 
 /// Run every active [`ResolutionVerifier`] against every entry in
@@ -430,11 +462,11 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
         // that key shape, which is only sound while this invariant
         // holds. The check is offline, so it applies even when no
         // policy verifiers are active.
-        if key.suffix.prefix() == pacquet_lockfile::Prefix::None
+        if key.suffix.prefix() == pnpm_lockfile::Prefix::None
             && matches!(
                 key.suffix.version(),
-                pacquet_lockfile::VersionPart::Semver(_)
-                    | pacquet_lockfile::VersionPart::RegistryQualified { .. },
+                pnpm_lockfile::VersionPart::Semver(_)
+                    | pnpm_lockfile::VersionPart::RegistryQualified { .. },
             )
             && !is_registry_shaped_resolution(&metadata.resolution)
         {

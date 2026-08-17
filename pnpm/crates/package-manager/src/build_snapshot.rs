@@ -1,10 +1,10 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, ParsePkgVerPeerError, PkgName, PkgNameVerPeer,
     PkgVerPeer, RegistryResolution, SnapshotDepRef, SnapshotEntry,
 };
-use pacquet_registry::PackageVersion;
+use pnpm_registry::PackageVersion;
 use std::collections::HashMap;
 
 /// Result of converting a resolved [`PackageVersion`] into the v9 lockfile
@@ -31,7 +31,7 @@ pub enum BuildSnapshotError {
     ParseName {
         name: String,
         #[error(source)]
-        source: pacquet_lockfile::ParsePkgNameError,
+        source: pnpm_lockfile::ParsePkgNameError,
     },
 
     #[display(

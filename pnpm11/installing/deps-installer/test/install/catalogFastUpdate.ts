@@ -5,10 +5,12 @@ import { prepareEmpty } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
+import { tryComposeFastUpdates } from '../../src/install/tryComposeFastUpdates.js'
 import { tryFastUpdateCatalogs } from '../../src/install/tryFastUpdateCatalogs.js'
-import { tryFastUpdateImporters } from '../../src/install/tryFastUpdateImporters.js'
+import type { Project } from '../../src/install/tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from '../../src/install/tryFastUpdateLockfile.js'
 import { testDefaults } from '../utils/index.js'
+
 
 test('a compatible package range update retains the locked peer snapshot without resolution', async () => {
   const project = prepareEmpty()
@@ -41,7 +43,7 @@ test('a compatible package range update retains the locked peer snapshot without
   })
 })
 
-test('an incompatible package range update falls back without mutating the lockfile', () => {
+test('an incompatible package range update falls back without mutating the lockfile', async () => {
   const lockfile = {
     importers: {
       '.': {
@@ -58,15 +60,18 @@ test('an incompatible package range update falls back without mutating the lockf
     lockfileVersion: '9.0',
   } as LockfileObject
 
-  expect(tryFastUpdateImporters(lockfile, [{
-    id: '.' as ProjectId,
-    manifest: {
-      dependencies: {
-        foo: '>=1.0.0 <2',
-        bar: '^2.0.0',
+  expect(await tryFastUpdateLockfile(lockfile, {
+    update: async (candidate) => tryFastUpdateImporters(candidate, [{
+      id: '.' as ProjectId,
+      manifest: {
+        dependencies: {
+          foo: '>=1.0.0 <2',
+          bar: '^2.0.0',
+        },
       },
-    },
-  }])).toBe(false)
+    }]),
+    isLockfileUpToDate: async () => true,
+  })).toBe(false)
   expect(lockfile.importers['.' as ProjectId].specifiers).toStrictEqual({
     bar: '^1.0.0',
     foo: '^1.0.0',
@@ -151,8 +156,8 @@ test('an incompatible catalog range update falls back to resolution', async () =
   expect(requestedPackages).toContain('@pnpm.e2e/foobarqar')
 })
 
-test('simultaneous catalog and override changes fall back to resolution', async () => {
-  prepareEmpty()
+test('simultaneous catalog and override changes are absorbed in one pass', async () => {
+  const project = prepareEmpty()
   const manifest: ProjectManifest = {
     dependencies: {
       '@pnpm.e2e/parent-of-pkg-with-1-dep': 'catalog:',
@@ -191,7 +196,65 @@ test('simultaneous catalog and override changes fall back to resolution', async 
     rootDir: process.cwd() as ProjectRootDir,
   }, options)
 
-  expect(requestedPackages.length).toBeGreaterThan(0)
+  // Only the version the override names is resolved; the catalog entry moves
+  // through the range-only rewrite on the same candidate.
+  expect(requestedPackages).toStrictEqual(['@pnpm.e2e/pkg-with-1-dep'])
+  const written = project.readLockfile()
+  expect(written.catalogs.default['@pnpm.e2e/parent-of-pkg-with-1-dep'].specifier).toBe('>=1 <2')
+  expect(written.snapshots['@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0'].dependencies?.['@pnpm.e2e/pkg-with-1-dep'])
+    .toBe('100.1.0')
+})
+
+test('a catalog edit and a removal override are absorbed in one pass', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': 'catalog:',
+    },
+  }
+  const options = testDefaults({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+      },
+    },
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  options.catalogs = {
+    default: {
+      '@pnpm.e2e/pkg-with-good-optional': '>=1.0.0 <2',
+    },
+  }
+  options.overrides = {
+    'is-positive': '-',
+  }
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  // A removal names no new version, so the composed pass introduces nothing
+  // the registry has to answer for.
+  expect(requestedPackages).toStrictEqual([])
+  const written = project.readLockfile()
+  expect(written.catalogs.default['@pnpm.e2e/pkg-with-good-optional']).toStrictEqual({
+    specifier: '>=1.0.0 <2',
+    version: '1.0.0',
+  })
+  expect(written.snapshots['@pnpm.e2e/pkg-with-good-optional@1.0.0'].optionalDependencies)
+    .toBeUndefined()
+  for (const section of [written.snapshots, written.packages]) {
+    expect(Object.keys(section).some((depPath) => depPath.startsWith('is-positive@'))).toBe(false)
+  }
 })
 
 test.each(['catalog:', 'catalog:default'])('a default catalog snapshot referenced as %s is not removed', (specifier) => {
@@ -349,4 +412,8 @@ function trackRequestedPackages (storeController: StoreController): string[] {
     return requestPackage(wantedDependency, requestOptions)
   }
   return requestedPackages
+}
+/** The composed pipeline restricted to manifest drift. */
+async function tryFastUpdateImporters (lockfile: LockfileObject, projects: Project[]): Promise<boolean> {
+  return tryComposeFastUpdates(lockfile, { drift: { importers: true }, projects, workspacePackages: new Map(), resolutionPicksLowest: false })
 }

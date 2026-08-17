@@ -121,7 +121,7 @@ pub(crate) fn modified_manifests_match_lockfile(
             // pnpmfile list and contents are what the install that wrote
             // this lockfile saw. Computing the checksum instead would cost
             // a Node worker on the path that exists to avoid starting one.
-            pnpmfile_checksum: pacquet_lockfile::PnpmfileChecksumCheck::Skip,
+            pnpmfile_checksum: pnpm_lockfile::PnpmfileChecksumCheck::Skip,
             dedupe_peers,
         },
     ) {
@@ -130,12 +130,12 @@ pub(crate) fn modified_manifests_match_lockfile(
     }
 
     let linked_ctx = LinkedPackagesContext::new(config, project_manifests);
-    let ignored_optional_matcher = pacquet_config::matcher::create_matcher(
+    let ignored_optional_matcher = pnpm_config::matcher::create_matcher(
         config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
     for project in to_check {
         let importer_id =
-            pacquet_workspace::importer_id_from_root_dir(workspace_root, project.root_dir);
+            pnpm_workspace::importer_id_from_root_dir(workspace_root, project.root_dir);
         if let Err(error) = crate::install::check_importer_satisfies(
             wanted,
             project.manifest,

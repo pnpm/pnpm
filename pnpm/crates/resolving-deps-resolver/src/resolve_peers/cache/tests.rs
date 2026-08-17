@@ -10,7 +10,7 @@ use crate::{
     },
     resolved_tree::ResolvedTree,
 };
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -21,7 +21,7 @@ fn materialized_nodes_referenced_by_peer_outputs_are_retained() {
     let output = NodeOutput {
         dep_path: DepPath::from("consumer@1.0.0"),
         external_resolved_peers: Arc::new(HashMap::from_iter([(
-            "peer".to_string(),
+            "peer".into(),
             referenced.clone(),
         )])),
         auto_install_resolved_peers: HashMap::default(),
@@ -52,10 +52,7 @@ fn previously_resolved_children_prefers_closest_same_package_ancestor() {
 
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from_iter([(
-            "loop@1.0.0".to_string(),
-            package("loop", "1.0.0", &[], false),
-        )]),
+        packages: HashMap::from_iter([("loop@1.0.0".into(), package("loop", "1.0.0", &[], false))]),
         dependencies_tree: HashMap::from_iter([
             (far_parent.clone(), tree_node("loop@1.0.0", far_children, 0)),
             (close_parent.clone(), tree_node("loop@1.0.0", close_children, 2)),

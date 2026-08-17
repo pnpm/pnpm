@@ -4,16 +4,16 @@ use super::{
     node_extras_filter, render_variant_targets, runtime_platform_selector,
     synthesize_runtime_manifest_bytes, tarball_url_and_integrity, unverified_fetch_is_allowed,
 };
-use pacquet_config::Config;
-use pacquet_directory_fetcher::DirectoryFetcherError;
-use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
-use pacquet_lockfile::{
+use pnpm_config::Config;
+use pnpm_directory_fetcher::DirectoryFetcherError;
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
     TarballResolution,
 };
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
 use pretty_assertions::assert_eq;
 use std::{borrow::Cow, sync::Mutex};
 
@@ -51,7 +51,9 @@ fn emits_resolved_with_supplied_identifiers() {
 fn registry_resolution_uses_scoped_registry_tarball_base() {
     let mut config = Config::new();
     config.registry = "https://default.example/npm/".to_string();
-    config.registries.insert("@private".to_string(), "https://private.example/npm/".to_string());
+    config
+        .registries_by_scope
+        .insert("@private".to_string(), "https://private.example/npm/".to_string());
 
     let integrity = DUMMY_SHA512.parse().expect("parse integrity");
     let resolution = LockfileResolution::Registry(RegistryResolution { integrity });
@@ -147,7 +149,7 @@ fn empty_integrity_is_refused_like_a_missing_one() {
             format!("pkg-from-tarball@{tarball}"),
         ),
         (
-            LockfileResolution::Registry(pacquet_lockfile::RegistryResolution { integrity: empty }),
+            LockfileResolution::Registry(pnpm_lockfile::RegistryResolution { integrity: empty }),
             "acme@1.0.0".to_string(),
         ),
     ];
@@ -169,7 +171,7 @@ fn local_file_tarball_install_url_resolves_relative_specs_against_workspace_root
     let workspace_root = tmp.path().join("deploy");
     let actual =
         local_file_tarball_install_url(Cow::Borrowed("file:../vendor/pkg.tgz"), &workspace_root);
-    let expected = pacquet_fs::lexical_normalize(&workspace_root.join("../vendor/pkg.tgz"));
+    let expected = pnpm_fs::lexical_normalize(&workspace_root.join("../vendor/pkg.tgz"));
 
     assert_eq!(actual.as_ref(), format!("file:{}", expected.display()));
 }
@@ -251,7 +253,7 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
             // Inner resolution is unused by the renderer; pick any
             // shape that round-trips through serde (Directory keeps
             // the fixture light).
-            resolution: LockfileResolution::Directory(pacquet_lockfile::DirectoryResolution {
+            resolution: LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
                 directory: "fixture".into(),
             }),
             targets: vec![
@@ -264,7 +266,7 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
             ],
         },
         PlatformAssetResolution {
-            resolution: LockfileResolution::Directory(pacquet_lockfile::DirectoryResolution {
+            resolution: LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
                 directory: "fixture".into(),
             }),
             targets: vec![PlatformAssetTarget {
@@ -436,9 +438,9 @@ fn synthesize_runtime_manifest_preserves_scoped_name() {
 /// irrelevant — it only has to satisfy [`ssri::Integrity`]'s parser.
 const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
-fn registry_metadata() -> pacquet_lockfile::PackageMetadata {
-    pacquet_lockfile::PackageMetadata {
-        resolution: LockfileResolution::Registry(pacquet_lockfile::RegistryResolution {
+fn registry_metadata() -> pnpm_lockfile::PackageMetadata {
+    pnpm_lockfile::PackageMetadata {
+        resolution: LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
             integrity: DUMMY_SHA512.parse().expect("parse integrity"),
         }),
         version: None,
@@ -458,8 +460,8 @@ fn registry_metadata() -> pacquet_lockfile::PackageMetadata {
 fn leaked_offline_config(
     registry: &str,
     store_dir: &std::path::Path,
-) -> &'static pacquet_config::Config {
-    let mut config = pacquet_config::Config::new();
+) -> &'static pnpm_config::Config {
+    let mut config = pnpm_config::Config::new();
     config.registry = registry.to_string();
     config.store_dir = store_dir.to_path_buf().into();
     // Force the no-mem-cache download path to fail fast instead of
@@ -482,7 +484,7 @@ fn leaked_offline_config(
 /// which makes any fall-through to the download path error out.
 #[tokio::test]
 async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
-    use pacquet_tarball::{CacheValue, MemCache};
+    use pnpm_tarball::{CacheValue, MemCache};
     use std::{
         collections::HashMap,
         path::PathBuf,
@@ -513,12 +515,12 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
-    let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
+    let verified_files_cache = pnpm_store_dir::SharedVerifiedFilesCache::default();
     let metadata = registry_metadata();
-    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+    let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let cas_paths = super::InstallPackageBySnapshot {
-        http_client: &pacquet_network::ThrottledClient::default(),
+        http_client: &pnpm_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -540,12 +542,12 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         // Hoisted skips slot materialization, so the test exercises
         // only the download-coordination branch and gets the CAS map
         // back directly.
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("cold batch must reuse the prefetched download instead of fetching");
 
@@ -563,7 +565,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
 #[tokio::test]
 async fn without_mem_cache_skips_coordination_and_downloads() {
     use crate::InstallPackageBySnapshotError;
-    use pacquet_tarball::{CacheValue, MemCache, TarballError};
+    use pnpm_tarball::{CacheValue, MemCache, TarballError};
     use std::{
         collections::HashMap,
         path::PathBuf,
@@ -592,12 +594,12 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
     );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
-    let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
+    let verified_files_cache = pnpm_store_dir::SharedVerifiedFilesCache::default();
     let metadata = registry_metadata();
-    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+    let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let err = super::InstallPackageBySnapshot {
-        http_client: &pacquet_network::ThrottledClient::default(),
+        http_client: &pnpm_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -616,12 +618,12 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect_err("None path must skip the mem cache and hit the offline-gated download");
 
@@ -646,7 +648,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
 #[tokio::test]
 async fn cold_batch_falls_back_when_prefetch_failed() {
     use crate::InstallPackageBySnapshotError;
-    use pacquet_tarball::{CacheValue, MemCache, TarballError};
+    use pnpm_tarball::{CacheValue, MemCache, TarballError};
     use std::sync::{Arc, atomic::AtomicU8};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -668,12 +670,12 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
-    let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
+    let verified_files_cache = pnpm_store_dir::SharedVerifiedFilesCache::default();
     let metadata = registry_metadata();
-    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+    let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let err = super::InstallPackageBySnapshot {
-        http_client: &pacquet_network::ThrottledClient::default(),
+        http_client: &pnpm_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -692,12 +694,12 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect_err("a failed prefetch must fall back to a real download, here offline-gated");
 
@@ -718,16 +720,16 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
 /// [`super::InstallPackageBySnapshot::run`].
 struct ScriptedCustomFetcher {
     claims: bool,
-    response: Result<serde_json::Value, pacquet_hooks::HookError>,
+    response: Result<serde_json::Value, pnpm_hooks::HookError>,
 }
 
 #[async_trait::async_trait]
-impl pacquet_hooks::CustomFetcher for ScriptedCustomFetcher {
+impl pnpm_hooks::CustomFetcher for ScriptedCustomFetcher {
     async fn can_fetch(
         &self,
         _pkg_id: &str,
         _resolution: serde_json::Value,
-    ) -> Result<bool, pacquet_hooks::HookError> {
+    ) -> Result<bool, pnpm_hooks::HookError> {
         Ok(self.claims)
     }
 
@@ -736,16 +738,16 @@ impl pacquet_hooks::CustomFetcher for ScriptedCustomFetcher {
         _pkg_id: &str,
         _resolution: serde_json::Value,
         _opts: serde_json::Value,
-    ) -> Result<serde_json::Value, pacquet_hooks::HookError> {
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
         self.response.clone()
     }
 }
 
 fn scripted_picker(
     claims: bool,
-    response: Result<serde_json::Value, pacquet_hooks::HookError>,
-) -> std::sync::Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker> {
-    std::sync::Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(vec![
+    response: Result<serde_json::Value, pnpm_hooks::HookError>,
+) -> std::sync::Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker> {
+    std::sync::Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(vec![
         std::sync::Arc::new(ScriptedCustomFetcher { claims, response }),
     ]))
 }
@@ -756,9 +758,9 @@ fn scripted_picker(
 /// above.
 async fn run_snapshot_install_with_picker(
     config: &'static Config,
-    metadata: &pacquet_lockfile::PackageMetadata,
-    picker: &std::sync::Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>,
-    tarball_mem_cache: Option<&std::sync::Arc<pacquet_tarball::MemCache>>,
+    metadata: &pnpm_lockfile::PackageMetadata,
+    picker: &std::sync::Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>,
+    tarball_mem_cache: Option<&std::sync::Arc<pnpm_tarball::MemCache>>,
     workspace_root: &std::path::Path,
 ) -> Result<super::InstalledPackage, InstallPackageBySnapshotError> {
     let package_key: PackageKey = "foo@1.0.0".parse().expect("parse key");
@@ -770,11 +772,11 @@ async fn run_snapshot_install_with_picker(
     );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = std::sync::atomic::AtomicU8::new(0);
-    let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
-    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+    let verified_files_cache = pnpm_store_dir::SharedVerifiedFilesCache::default();
+    let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     super::InstallPackageBySnapshot {
-        http_client: &pacquet_network::ThrottledClient::default(),
+        http_client: &pnpm_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -793,12 +795,12 @@ async fn run_snapshot_install_with_picker(
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
         workspace_root,
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_picker: Some(picker),
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
 }
 
@@ -810,14 +812,14 @@ async fn run_snapshot_install_with_picker(
 /// original URL was never seeded).
 #[tokio::test]
 async fn custom_fetcher_delegate_rewrites_the_resolution() {
-    use pacquet_tarball::{CacheValue, MemCache};
+    use pnpm_tarball::{CacheValue, MemCache};
     use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
 
     let mut metadata = registry_metadata();
-    metadata.resolution = LockfileResolution::Tarball(pacquet_lockfile::TarballResolution {
+    metadata.resolution = LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
         tarball: "https://original.test/foo-1.0.0.tgz".to_string(),
         integrity: Some(DUMMY_SHA512.parse().expect("parse integrity")),
         git_hosted: None,
@@ -856,7 +858,7 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
 /// `fetch` ran (`can_fetch = false` must short-circuit it).
 #[tokio::test]
 async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
-    use pacquet_tarball::{CacheValue, MemCache};
+    use pnpm_tarball::{CacheValue, MemCache};
     use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -873,7 +875,7 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
 
     let picker = scripted_picker(
         false,
-        Err(pacquet_hooks::HookError::Execution {
+        Err(pnpm_hooks::HookError::Execution {
             pnpmfile: ".pnpmfile.cjs".to_string(),
             message: "fetch must not run for a declined package".to_string(),
         }),
@@ -989,7 +991,7 @@ async fn custom_fetcher_hook_error_propagates() {
 
     let picker = scripted_picker(
         true,
-        Err(pacquet_hooks::HookError::Execution {
+        Err(pnpm_hooks::HookError::Execution {
             pnpmfile: ".pnpmfile.cjs".to_string(),
             message: "fetch crashed".to_string(),
         }),
@@ -1047,9 +1049,7 @@ fn build_runtime_tarball_fixture() -> Vec<u8> {
 /// `getBinName` with `dlx_read_manifest`.
 #[tokio::test]
 async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row() {
-    use pacquet_store_dir::{
-        SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key,
-    };
+    use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
     use std::sync::atomic::AtomicU8;
 
     let archive_tmp = tempfile::tempdir().expect("tempdir");
@@ -1068,7 +1068,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     let (writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
 
     let package_key: PackageKey = "node@runtime:22.0.0".parse().expect("parse runtime key");
-    let metadata = pacquet_lockfile::PackageMetadata {
+    let metadata = pnpm_lockfile::PackageMetadata {
         resolution: LockfileResolution::Binary(BinaryResolution {
             url: format!("file:{}", tarball_path.display()),
             integrity: integrity.clone(),
@@ -1091,7 +1091,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         peer_dependencies: None,
         peer_dependencies_meta: None,
     };
-    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+    let snapshot = pnpm_lockfile::SnapshotEntry::default();
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
     let allow_build_policy = crate::AllowBuildPolicy::new(
         std::collections::HashSet::default(),
@@ -1104,7 +1104,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
     // Cold install: fetch the fixture, synthesize the manifest, queue the row.
     let cold_cas_paths = super::InstallPackageBySnapshot {
-        http_client: &pacquet_network::ThrottledClient::default(),
+        http_client: &pnpm_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -1123,12 +1123,12 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("cold runtime install");
     assert!(
@@ -1167,7 +1167,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     let warm_verified = SharedVerifiedFilesCache::default();
     let warm_logged = AtomicU8::new(0);
     let warm_cas_paths = super::InstallPackageBySnapshot {
-        http_client: &pacquet_network::ThrottledClient::default(),
+        http_client: &pnpm_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: warm_index.as_ref(),
@@ -1186,12 +1186,12 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
-        node_linker: pacquet_config::NodeLinker::Hoisted,
+        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("warm runtime reinstall reads the store, not the network");
     assert!(
@@ -1202,14 +1202,14 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     drop((store_tmp, archive_tmp));
 }
 
-fn custom_resolution_metadata(resolution_type: &str) -> pacquet_lockfile::PackageMetadata {
+fn custom_resolution_metadata(resolution_type: &str) -> pnpm_lockfile::PackageMetadata {
     let mut extra = serde_json::Map::new();
     extra.insert(
         "url".to_string(),
         serde_json::Value::String("https://example.test/foo-1.0.0.tgz".to_string()),
     );
     let mut metadata = registry_metadata();
-    metadata.resolution = LockfileResolution::Custom(pacquet_lockfile::CustomResolution {
+    metadata.resolution = LockfileResolution::Custom(pnpm_lockfile::CustomResolution {
         resolution_type: resolution_type.to_string().try_into().expect("custom type tag"),
         extra,
     });
@@ -1223,7 +1223,7 @@ fn custom_resolution_metadata(resolution_type: &str) -> pacquet_lockfile::Packag
 /// the custom `type` tag exactly as the lockfile spells it.
 #[tokio::test]
 async fn custom_typed_resolution_installs_via_delegating_fetcher() {
-    use pacquet_tarball::{CacheValue, MemCache};
+    use pnpm_tarball::{CacheValue, MemCache};
     use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");

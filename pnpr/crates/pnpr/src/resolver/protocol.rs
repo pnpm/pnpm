@@ -3,8 +3,9 @@
 
 use std::collections::BTreeMap;
 
-use pacquet_catalogs_types::Catalogs;
-use pacquet_network::AuthHeadersByScope;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::RegistryDeclaration;
+use pnpm_network::AuthHeadersByScope;
 use serde::Deserialize;
 
 pub type DepMap = BTreeMap<String, String>;
@@ -53,10 +54,17 @@ pub struct ResolveRequest {
     /// The client's default registry. Falls back to npmjs when absent.
     #[serde(default)]
     pub registry: Option<String>,
-    /// The client's named-registry aliases (`pnpm-workspace.yaml`
-    /// `namedRegistries`).
+    /// The registries the client declares, keyed by URL, in the shape of
+    /// its `registries` setting: the scopes routed to each, the
+    /// bare-specifier prefix each answers to, and each one's tarball
+    /// layout. The default registry is not among them — it arrives as
+    /// [`Self::registry`].
+    ///
+    /// Declarations only, never the setting's older `<scope>: <url>` shape:
+    /// a key is always a URL, which is what lets the boundary checks read one
+    /// as a fetch target. A request in the older shape fails to parse.
     #[serde(default)]
-    pub named_registries: BTreeMap<String, String>,
+    pub registries: BTreeMap<String, RegistryDeclaration>,
     /// The caller's forwarded upstream credentials so the server resolves
     /// and fetches private content as the caller. Keyed as
     /// `auth_headers[registry_uri][scope]`; the `@` scope stores
@@ -82,7 +90,7 @@ pub struct ResolveRequest {
     /// client's policy before resolving) and as the resolution-reuse
     /// seed. Absent on a true first install (nothing to verify).
     #[serde(default)]
-    pub lockfile: Option<pacquet_lockfile::Lockfile>,
+    pub lockfile: Option<pnpm_lockfile::Lockfile>,
     /// Governs *resolution behavior* only — frozen (use the lockfile
     /// as-is) vs reuse-and-update. Does not affect whether the input
     /// lockfile is verified.
@@ -118,7 +126,7 @@ pub struct ResolveRequest {
     pub minimum_release_age_ignore_missing_time: Option<bool>,
     /// The client's supply-chain trust policy. Defaults to `off`.
     #[serde(default)]
-    pub trust_policy: pacquet_config::TrustPolicy,
+    pub trust_policy: pnpm_config::TrustPolicy,
     /// Glob patterns opting packages out of the `trustPolicy` check.
     #[serde(default)]
     pub trust_policy_exclude: Option<Vec<String>>,

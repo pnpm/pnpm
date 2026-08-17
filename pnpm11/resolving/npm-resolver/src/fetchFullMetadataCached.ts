@@ -1,4 +1,5 @@
 import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
+import { PnpmError } from '@pnpm/error'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 
 import {
@@ -18,6 +19,10 @@ export interface FetchMetadataCachedOptions {
    * back. Omit to disable caching — every call re-fetches.
    */
   cacheDir?: string
+  /**
+   * Use only pnpm's on-disk metadata mirror and never reach the registry.
+   */
+  offline?: boolean
 }
 
 export type FetchFullMetadataCachedOptions = FetchMetadataCachedOptions
@@ -63,6 +68,14 @@ async function fetchMetadataCached (
   const pkgMirror = opts.cacheDir != null
     ? getPkgMirrorPath(opts.cacheDir, opts.metaDir, opts.registry, pkgName)
     : null
+
+  if (opts.offline === true) {
+    if (pkgMirror != null) {
+      const cached = await loadMeta(pkgMirror)
+      if (cached != null) return cached
+    }
+    throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${pkgName} in package mirror ${pkgMirror ?? ''}`)
+  }
 
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
   const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {

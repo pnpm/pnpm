@@ -52,7 +52,7 @@ function sanitizeDlxCacheComponent (cacheName: string): string {
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
   packages,
-  registries: DEFAULT_OPTS.registries,
+  registriesByScope: DEFAULT_OPTS.registriesByScope,
   supportedArchitectures: DEFAULT_OPTS.supportedArchitectures,
 })
 
@@ -397,7 +397,7 @@ test('dlx builds the packages passed via --allow-build', async () => {
   const dlxCacheDir = path.resolve('cache', 'dlx', dlx.createCacheKey({
     packages: ['@pnpm.e2e/has-bin-and-needs-build@1.0.0'],
     allowBuild,
-    registries: DEFAULT_OPTS.registries,
+    registriesByScope: DEFAULT_OPTS.registriesByScope,
     supportedArchitectures: DEFAULT_OPTS.supportedArchitectures,
   }), 'pkg')
   const builtPkg1Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
@@ -485,7 +485,7 @@ test('dlx should fail when the requested package does not meet the minimum age r
       dir: path.resolve('project'),
       minimumReleaseAge: 60 * 24 * 10000,
       minimumReleaseAgeStrict: true,
-      registries: {
+      registriesByScope: {
         // We must use the public registry instead of verdaccio here
         // because verdaccio has the "times" field in the abbreviated metadata too.
         default: 'https://registry.npmjs.org/',
@@ -504,7 +504,7 @@ test('dlx should respect minimumReleaseAgeExclude', async () => {
     cacheDir: path.resolve('cache'),
     minimumReleaseAge: 60 * 24 * 10000,
     minimumReleaseAgeExclude: ['*'],
-    registries: {
+    registriesByScope: {
       // We must use the public registry instead of verdaccio here
       // because verdaccio has the "times" field in the abbreviated metadata too.
       default: 'https://registry.npmjs.org/',

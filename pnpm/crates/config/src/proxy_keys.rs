@@ -9,10 +9,10 @@
 //!
 //! [`ProxyKeys`] is that merged view: layers overwrite the keys they set,
 //! and [`ProxyKeys::resolve`] turns it into the
-//! [`pacquet_network::ProxyConfig`] the network layer consumes.
+//! [`pnpm_network::ProxyConfig`] the network layer consumes.
 
 use crate::npmrc_auth::parse_no_proxy;
-use pacquet_network::ProxyConfig;
+use pnpm_network::ProxyConfig;
 
 /// One proxy key's merged value.
 ///

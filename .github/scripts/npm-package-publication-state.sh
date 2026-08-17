@@ -3,8 +3,9 @@
 set -u
 
 package_spec=$1
+registry=https://registry.npmjs.org/
 
-if output=$(cd "${RUNNER_TEMP:-/tmp}" && npm view "$package_spec" version 2>&1); then
+if output=$(cd "${RUNNER_TEMP:-/tmp}" && npm view "$package_spec" version --registry "$registry" 2>&1); then
   echo published
 elif grep -Eq '^npm (ERR!|error) code E404$' <<< "$output"; then
   echo missing

@@ -418,8 +418,8 @@ test('allowBuilds does not run lifecycle scripts for direct tarball identities',
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
     fastUnpack: false,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
-    registries,
-  }, { registries }))
+    registriesByScope: registries,
+  }, { registriesByScope: registries }))
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(false)
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(false)
@@ -429,8 +429,8 @@ test('allowBuilds does not run lifecycle scripts for direct tarball identities',
   await install(manifest, testDefaults({
     fastUnpack: false,
     allowBuilds: { [depPath]: true },
-    registries,
-  }, { registries }))
+    registriesByScope: registries,
+  }, { registriesByScope: registries }))
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(true)
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
@@ -450,8 +450,8 @@ test('surfaces a tarball artifact as an ignored build when its depPath approval 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
     fastUnpack: false,
     allowBuilds: { [depPath]: true },
-    registries,
-  }, { registries }))
+    registriesByScope: registries,
+  }, { registriesByScope: registries }))
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
 
   // Reinstalling with the approval removed must surface the artifact as an
@@ -461,8 +461,8 @@ test('surfaces a tarball artifact as an ignored build when its depPath approval 
     fastUnpack: false,
     frozenLockfile: true,
     allowBuilds: {},
-    registries,
-  }, { registries }))
+    registriesByScope: registries,
+  }, { registriesByScope: registries }))
 
   expect(Array.from(ignoredBuilds ?? [])).toContain(depPath)
 })

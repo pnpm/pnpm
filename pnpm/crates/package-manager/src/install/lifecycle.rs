@@ -18,14 +18,13 @@ use rayon::prelude::*;
 /// from disk exactly once.
 pub(super) fn load_workspace_projects(
     workspace_root: &std::path::Path,
-    workspace_manifest: Option<&pacquet_workspace::WorkspaceManifest>,
-) -> Result<Option<Vec<pacquet_workspace::Project>>, pacquet_workspace::FindWorkspaceProjectsError>
-{
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
-    let opts = pacquet_workspace::FindWorkspaceProjectsOpts {
-        patterns: Some(pacquet_workspace::workspace_package_patterns(manifest)),
+    let opts = pnpm_workspace::FindWorkspaceProjectsOpts {
+        patterns: Some(pnpm_workspace::workspace_package_patterns(manifest)),
     };
-    pacquet_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
+    pnpm_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }
 
 pub(super) fn order_project_lifecycle_groups<'a>(
@@ -36,13 +35,13 @@ pub(super) fn order_project_lifecycle_groups<'a>(
 ) -> Result<Vec<Vec<(PathBuf, &'a PackageManifest)>>, InstallError> {
     let normalized_project_dirs = projects
         .iter()
-        .map(|(project_dir, _)| pacquet_fs::lexical_normalize(project_dir))
+        .map(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir))
         .collect::<Vec<_>>();
     let grouped_dirs = ordered_groups.map(|groups| {
         groups
             .iter()
             .flatten()
-            .map(|project_dir| pacquet_fs::lexical_normalize(project_dir))
+            .map(|project_dir| pnpm_fs::lexical_normalize(project_dir))
             .collect::<HashSet<_>>()
     });
     let explicit_groups_cover_projects = grouped_dirs.as_ref().is_some_and(|grouped_dirs| {
@@ -60,7 +59,7 @@ pub(super) fn order_project_lifecycle_groups<'a>(
             .zip(&normalized_project_dirs)
             .map(|((project_dir, _), normalized_project_dir)| {
                 let importer_id =
-                    pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir);
+                    pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
                 let dependencies = lockfile
                     .importers
                     .get(&importer_id)
@@ -72,8 +71,8 @@ pub(super) fn order_project_lifecycle_groups<'a>(
                             .flat_map(|dependencies| dependencies.values())
                     })
                     .filter_map(|dependency| match &dependency.version {
-                        pacquet_lockfile::ImporterDepVersion::Link(target) => {
-                            Some(pacquet_fs::lexical_normalize(&project_dir.join(target)))
+                        pnpm_lockfile::ImporterDepVersion::Link(target) => {
+                            Some(pnpm_fs::lexical_normalize(&project_dir.join(target)))
                         }
                         _ => None,
                     })
@@ -108,7 +107,7 @@ pub(super) fn order_project_lifecycle_groups<'a>(
     };
     let projects_by_dir = projects
         .iter()
-        .map(|project| (pacquet_fs::lexical_normalize(&project.0), project))
+        .map(|project| (pnpm_fs::lexical_normalize(&project.0), project))
         .collect::<HashMap<_, _>>();
     let mut included = HashSet::with_capacity(projects.len());
     let groups = ordered_groups
@@ -117,7 +116,7 @@ pub(super) fn order_project_lifecycle_groups<'a>(
             let group = dirs
                 .iter()
                 .filter_map(|dir| {
-                    projects_by_dir.get(&pacquet_fs::lexical_normalize(dir)).map(|project| {
+                    projects_by_dir.get(&pnpm_fs::lexical_normalize(dir)).map(|project| {
                         included.insert(project.0.clone());
                         (*project).clone()
                     })
@@ -153,35 +152,25 @@ pub(super) fn modules_dir_basename(config: &Config) -> &std::ffi::OsStr {
 }
 
 /// Same tri-state mapping the dependency-build path applies; see the doc
-/// on [`pacquet_config::ScriptsPrependNodePath`].
+/// on [`pnpm_config::ScriptsPrependNodePath`].
 pub(super) fn exec_scripts_prepend_node_path(config: &Config) -> ExecScriptsPrependNodePath {
     match config.scripts_prepend_node_path {
-        pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
-        pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
-        pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
+        pnpm_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
+        pnpm_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
+        pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
     }
 }
 
-/// The environment any install-time lifecycle script receives on top of
-/// the parent process's: the configured `extraEnv` and `nodeOptions`.
-pub(super) fn lifecycle_extra_env(config: &Config) -> HashMap<String, String> {
-    let mut extra_env = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
-        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-    }
-    extra_env
-}
-
-/// [`lifecycle_extra_env`] plus the `NODE_OPTIONS` entry pointing Node at
+/// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry pointing Node at
 /// `node_modules/.package-map.json` when the user opted into the
 /// experimental package map. pnpm adds it only once it links and builds,
 /// which is why `pnpm:devPreinstall` — running before the file exists —
-/// takes the plain [`lifecycle_extra_env`].
+/// takes the plain [`Config::extra_env_with_node_options`].
 pub(super) fn project_lifecycle_extra_env(
     config: &Config,
     node_linker: NodeLinker,
 ) -> HashMap<String, String> {
-    let mut extra_env = lifecycle_extra_env(config);
+    let mut extra_env = config.extra_env_with_node_options();
     if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
         let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
@@ -203,7 +192,7 @@ pub(super) fn project_lifecycle_extra_env(
 /// drops it — so a nested `pnpm install` started from a lifecycle script
 /// still runs its own hook.
 ///
-/// [`build_env`]: pacquet_executor::build_env
+/// [`build_env`]: pnpm_executor::build_env
 pub(super) fn dev_preinstall_already_ran() -> bool {
     std::env::var(DEV_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
 }
@@ -219,7 +208,7 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
     let root_modules_dir = workspace_root.join(modules_dir_basename(config));
-    let extra_env = lifecycle_extra_env(config);
+    let extra_env = config.extra_env_with_node_options();
     let dep_path = workspace_root.to_string_lossy();
     run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
         dep_path: &dep_path,
@@ -233,7 +222,7 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
         node_gyp_path: None,
         user_agent: Some(&config.user_agent),
         unsafe_perm: config.unsafe_perm,
-        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
+        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
         script_shell: config.script_shell.as_deref().map(Path::new),
         optional: false,
@@ -287,7 +276,7 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
                 node_gyp_path: None,
                 user_agent: Some(&config.user_agent),
                 unsafe_perm: config.unsafe_perm,
-                node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
+                node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
                 scripts_prepend_node_path,
                 script_shell: config.script_shell.as_deref().map(Path::new),
                 optional: false,

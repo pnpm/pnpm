@@ -8,6 +8,7 @@ import { familySync } from 'detect-libc'
 const { exePlatformPkgDirName, exePlatformPkgDirNameNext, verifyPnpmEngineIdentity } = await import('@pnpm/engine.pm.commands')
 
 const REGISTRY = 'https://registry.example.test/'
+const CANONICAL_REGISTRY = 'https://registry.npmjs.org/'
 const PNPM_INTEGRITY = 'sha512-pnpm-integrity'
 const EXE_INTEGRITY = 'sha512-exe-integrity'
 const PLATFORM_INTEGRITY = 'sha512-platform-integrity'
@@ -50,22 +51,87 @@ describe('verifyPnpmEngineIdentity', () => {
     await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', optsTrusting(createSigningKey()))).rejects.toThrow(/Refusing to run pnpm/)
   })
 
-  test('throws when the engine version is absent from the registry', async () => {
-    getMockAgent().get(REGISTRY.replace(/\/$/, ''))
-      .intercept({ path: '/pnpm', method: 'GET' }).reply(404, {})
-    getMockAgent().get(REGISTRY.replace(/\/$/, ''))
-      .intercept({ path: '/@pnpm%2Fexe', method: 'GET' }).reply(404, {}) // cspell:disable-line
+  test('throws when the engine version is absent from both the registry and the canonical registry', async () => {
+    for (const registry of [REGISTRY, CANONICAL_REGISTRY]) {
+      getMockAgent().get(registry.replace(/\/$/, ''))
+        .intercept({ path: '/pnpm', method: 'GET' }).reply(404, {})
+      getMockAgent().get(registry.replace(/\/$/, ''))
+        .intercept({ path: '/@pnpm%2Fexe', method: 'GET' }).reply(404, {}) // cspell:disable-line
+    }
 
     await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', optsTrusting(createSigningKey()))).rejects.toThrow(/Refusing to run pnpm/)
   })
 
-  test('throws (fails closed) when the registry is unreachable', async () => {
+  test('throws (fails closed) when the canonical registry is the configured registry and is unreachable', async () => {
     // No intercept registered and net connect disabled, so the packument fetch fails.
-    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', optsTrusting(createSigningKey()))).rejects.toThrow(/Refusing to run pnpm/)
+    const opts = { ...optsTrusting(createSigningKey()), registriesByScope: { default: CANONICAL_REGISTRY } }
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
+  })
+
+  test('recognizes URL-equivalent spellings of the canonical registry and still fails closed', async () => {
+    // Case, an explicit default port, and inline credentials are all
+    // URL-equivalent to the canonical registry and must not unlock the
+    // warn-and-proceed path.
+    await Promise.all(['https://Registry.NPMJS.org:443/', 'https://user:pass@registry.npmjs.org/'].map(async (canonical) => {
+      const opts = { ...optsTrusting(createSigningKey()), registriesByScope: { default: canonical } }
+      await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
+    }))
+  })
+
+  test('warns and proceeds when a user-configured registry is unreachable and no signature is obtainable', async () => {
+    // No intercept registered and net connect disabled: neither the configured
+    // registry nor the canonical fallback can provide a signature. The
+    // configured registry comes from trusted (non-project) configuration, so
+    // the switch proceeds on the lockfile integrity pin alone.
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', optsTrusting(createSigningKey()))).resolves.toBeUndefined()
+  })
+
+  test('verifies via the canonical registry when the configured registry serves no signatures', async () => {
+    const key = createSigningKey()
+    mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [] })
+    mockPackument({ name: '@pnpm/exe', integrity: EXE_INTEGRITY, signatures: [] })
+    mockPackument({ name: PLATFORM_PKG_NAME, integrity: PLATFORM_INTEGRITY, signatures: [] })
+    mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }], registry: CANONICAL_REGISTRY })
+    mockPackument({ name: '@pnpm/exe', integrity: EXE_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', EXE_INTEGRITY) }], registry: CANONICAL_REGISTRY })
+    mockPackument({ name: PLATFORM_PKG_NAME, integrity: PLATFORM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@9.1.0`, PLATFORM_INTEGRITY) }], registry: CANONICAL_REGISTRY })
+
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', optsTrusting(key))).resolves.toBeUndefined()
+  })
+
+  test('a canonical-registry signature still catches a tampered integrity when the configured registry serves no signatures', async () => {
+    const key = createSigningKey()
+    mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [] })
+    mockPackument({ name: '@pnpm/exe', integrity: EXE_INTEGRITY, signatures: [] })
+    mockPackument({ name: PLATFORM_PKG_NAME, integrity: PLATFORM_INTEGRITY, signatures: [] })
+    // The canonical registry signed different bytes than the lockfile pins.
+    mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', 'sha512-genuine-pnpm') }], registry: CANONICAL_REGISTRY })
+    mockPackument({ name: '@pnpm/exe', integrity: EXE_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', 'sha512-genuine-exe') }], registry: CANONICAL_REGISTRY })
+    mockPackument({ name: PLATFORM_PKG_NAME, integrity: PLATFORM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@9.1.0`, 'sha512-genuine-platform') }], registry: CANONICAL_REGISTRY })
+
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
+  })
+
+  test('warns and proceeds when a user-configured registry pins a non-sha512 integrity no signature can cover', async () => {
+    // A registry that publishes only `shasum` yields sha1 pins; no npm
+    // signature can ever validate over them, so no packument is even fetched.
+    const lockfile = envLockfile()
+    ;(lockfile.packages as Record<string, { resolution: { integrity: string } }>)['pnpm@9.1.0'] = { resolution: { integrity: 'sha1-8bee00286a17c00a13c7e6e6dd9a9b389220ee7f' } }
+    ;(lockfile.packages as Record<string, { resolution: { integrity: string } }>)['@pnpm/exe@9.1.0'] = { resolution: { integrity: 'sha1-9bee00286a17c00a13c7e6e6dd9a9b389220ee7f' } }
+    ;(lockfile.packages as Record<string, { resolution: { integrity: string } }>)[`${PLATFORM_PKG_NAME}@9.1.0`] = { resolution: { integrity: 'sha1-abee00286a17c00a13c7e6e6dd9a9b389220ee7f' } }
+
+    await expect(verifyPnpmEngineIdentity(lockfile, '9.1.0', optsTrusting(createSigningKey()))).resolves.toBeUndefined()
+  })
+
+  test('throws for a non-sha512 integrity pin when the engine resolves from the canonical registry', async () => {
+    const lockfile = envLockfile()
+    ;(lockfile.packages as Record<string, { resolution: { integrity: string } }>)['pnpm@9.1.0'] = { resolution: { integrity: 'sha1-8bee00286a17c00a13c7e6e6dd9a9b389220ee7f' } }
+
+    const opts = { ...optsTrusting(createSigningKey()), registriesByScope: { default: CANONICAL_REGISTRY } }
+    await expect(verifyPnpmEngineIdentity(lockfile, '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
   })
 
   test('skips (no throw) when no trusted keys are provided', async () => {
-    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', { registries: { default: REGISTRY }, trustedKeys: [] })).resolves.toBeUndefined()
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', { registriesByScope: { default: REGISTRY }, trustedKeys: [] })).resolves.toBeUndefined()
   })
 
   test('throws when an engine component in the lockfile has no integrity metadata', async () => {
@@ -152,7 +218,7 @@ function envLockfileV12 (): EnvLockfile {
 
 function optsTrusting (key: ReturnType<typeof createSigningKey>) {
   return {
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     trustedKeys: [{ expires: null, key: key.publicKey, keyid: key.keyid, keytype: 'ecdsa-sha2-nistp256', scheme: 'ecdsa-sha2-nistp256' }],
   }
 }
@@ -181,9 +247,9 @@ function envLockfile (): EnvLockfile {
   } as unknown as EnvLockfile
 }
 
-function mockPackument ({ name, integrity, signatures, version = '9.1.0' }: { name: string, integrity: string, signatures: unknown, version?: string }): void {
+function mockPackument ({ name, integrity, signatures, version = '9.1.0', registry = REGISTRY }: { name: string, integrity: string, signatures: unknown, version?: string, registry?: string }): void {
   const encodedPath = name[0] === '@' ? `/${name.replace(/\//g, '%2F')}` : `/${name}`
-  getMockAgent().get(REGISTRY.replace(/\/$/, ''))
+  getMockAgent().get(registry.replace(/\/$/, ''))
     .intercept({ path: encodedPath, method: 'GET' })
     .reply(200, {
       name,

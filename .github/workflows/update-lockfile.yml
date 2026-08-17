@@ -39,7 +39,7 @@ jobs:
     # pnpm/update runs the install itself, so the action's auto-install would
     # be wasted work.
     - name: Install pnpm
-      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
       with:
         install: false
 

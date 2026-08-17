@@ -326,13 +326,13 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.89"
+version = "0.1.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
+checksum = "ae36dc4177970ef04fde5178d3e2429882def40e57a451f919c098f72baa6cec"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.117",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -875,9 +875,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.1"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ddb117e43bbf7dacf0a4190fef4d345b9bad68dfc649cb349e7d17d28428e51"
+checksum = "473c7e07f409a8d772161724aa8db6a765a2532a70f9667eeb7b49d3d02fbdca"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -885,9 +885,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.6.0"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "714a53001bf66416adb0e2ef5ac857140e7dc3a0c48fb28b2f10762fc4b5069f"
+checksum = "7b48fea5a88e9ae728a2dcbedbfc0e730f7d60da42e1cb049a83c9fb8b789889"
 dependencies = [
  "anstream",
  "anstyle",
@@ -897,14 +897,14 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.6.1"
+version = "4.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2ce8604710f6733aa641a2b3731eaa1e8b3d9973d5e3565da11800813f997a9"
+checksum = "d012d2b9d65aca7f18f4d9878a045bc17899bba951561ba5ec3c2ba1eed9a061"
 dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.117",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -1794,7 +1794,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2821,7 +2821,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3066,9 +3066,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.186"
+version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
+checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
 name = "libloading"
@@ -3852,9 +3852,9 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "open"
-version = "5.3.6"
+version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd8d3b65c44123a56e0133d2cd06ce4361bd3ca99d41198b2f25e3c3db9b8b4a"
+checksum = "f9cfef937e9c486488c7e3d949ae31c0f1d06bdacd75b99c086cb35356e30408"
 dependencies = [
  "is-wsl",
  "libc",
@@ -3921,1457 +3921,6 @@ dependencies = [
  "primeorder",
  "rand_core 0.6.4",
  "sha2",
-]
-
-[[package]]
-name = "pacquet-auth-commands"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "dialoguer",
- "miette 7.6.0",
- "mockito",
- "pacquet-fs",
- "pacquet-network",
- "pacquet-network-web-auth",
- "pacquet-network-web-auth-testing",
- "pacquet-reporter",
- "pipe-trait",
- "pretty_assertions",
- "reqwest",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
-]
-
-[[package]]
-name = "pacquet-catalogs-config"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "pacquet-catalogs-types",
- "pacquet-workspace",
-]
-
-[[package]]
-name = "pacquet-catalogs-protocol-parser"
-version = "0.0.1"
-dependencies = [
- "pacquet-catalogs-types",
-]
-
-[[package]]
-name = "pacquet-catalogs-resolver"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "pacquet-catalogs-protocol-parser",
- "pacquet-catalogs-types",
-]
-
-[[package]]
-name = "pacquet-catalogs-types"
-version = "0.0.1"
-
-[[package]]
-name = "pacquet-cli"
-version = "0.0.1"
-dependencies = [
- "assert_cmd",
- "base64 0.22.1",
- "chrono",
- "clap",
- "command-extra",
- "console",
- "derive_more",
- "dialoguer",
- "dunce",
- "flate2",
- "futures-util",
- "getrandom 0.4.3",
- "home",
- "indexmap 2.14.0",
- "insta",
- "is_ci",
- "libc",
- "miette 7.6.0",
- "mockito",
- "node-semver",
- "owo-colors",
- "p256",
- "pacquet-auth-commands",
- "pacquet-catalogs-config",
- "pacquet-catalogs-protocol-parser",
- "pacquet-catalogs-types",
- "pacquet-cmd-shim",
- "pacquet-config",
- "pacquet-config-parse-overrides",
- "pacquet-crypto-hash",
- "pacquet-default-reporter",
- "pacquet-deps-path",
- "pacquet-detect-libc",
- "pacquet-diagnostics",
- "pacquet-directory-fetcher",
- "pacquet-engine-runtime-node-resolver",
- "pacquet-env-installer",
- "pacquet-executor",
- "pacquet-fs",
- "pacquet-global",
- "pacquet-graph-hasher",
- "pacquet-hooks",
- "pacquet-lockfile",
- "pacquet-modules-yaml",
- "pacquet-network",
- "pacquet-network-web-auth",
- "pacquet-network-web-auth-testing",
- "pacquet-pack",
- "pacquet-package-is-installable",
- "pacquet-package-manager",
- "pacquet-package-manifest",
- "pacquet-patching",
- "pacquet-pnpr-client",
- "pacquet-publish",
- "pacquet-registry",
- "pacquet-reporter",
- "pacquet-resolving-git-resolver",
- "pacquet-resolving-npm-resolver",
- "pacquet-resolving-parse-wanted-dependency",
- "pacquet-resolving-resolver-base",
- "pacquet-store-dir",
- "pacquet-tarball",
- "pacquet-testing-utils",
- "pacquet-versioning",
- "pacquet-workspace",
- "pacquet-workspace-manifest-writer",
- "pacquet-workspace-projects-filter",
- "pacquet-workspace-projects-graph",
- "pacquet-workspace-state",
- "pathdiff",
- "pipe-trait",
- "pnpr",
- "pretty_assertions",
- "rayon",
- "reflink-copy",
- "regex",
- "reqwest",
- "rmp-serde",
- "same-file",
- "serde",
- "serde-saphyr",
- "serde_json",
- "sha2",
- "ssri",
- "tabled",
- "tar",
- "tempfile",
- "text-block-macros",
- "tokio",
- "tracing",
- "url",
- "walkdir",
- "wax",
- "which 8.0.4",
- "windows-sys 0.61.2",
- "yaml_serde",
- "yamlpath",
- "zip",
-]
-
-[[package]]
-name = "pacquet-cmd-shim"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "dunce",
- "miette 7.6.0",
- "pacquet-fs",
- "pacquet-package-manifest",
- "pipe-trait",
- "rayon",
- "same-file",
- "serde_json",
- "tempfile",
- "walkdir",
-]
-
-[[package]]
-name = "pacquet-config"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "home",
- "indexmap 2.14.0",
- "libc",
- "miette 7.6.0",
- "node-semver",
- "pacquet-catalogs-types",
- "pacquet-config-dir",
- "pacquet-detect-libc",
- "pacquet-env-replace",
- "pacquet-network",
- "pacquet-package-is-installable",
- "pacquet-package-manifest",
- "pacquet-patching",
- "pacquet-store-dir",
- "pacquet-testing-utils",
- "pacquet-versioning",
- "pacquet-workspace-state",
- "pipe-trait",
- "pretty_assertions",
- "serde",
- "serde-saphyr",
- "serde_json",
- "smart-default",
- "tempfile",
- "tracing",
- "tracing-subscriber",
- "url",
-]
-
-[[package]]
-name = "pacquet-config-dir"
-version = "0.0.1"
-
-[[package]]
-name = "pacquet-config-parse-overrides"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "node-semver",
- "pacquet-catalogs-resolver",
- "pacquet-catalogs-types",
- "pacquet-resolving-parse-wanted-dependency",
-]
-
-[[package]]
-name = "pacquet-crypto-hash"
-version = "0.0.1"
-dependencies = [
- "base64 0.22.1",
- "sha2",
- "tempfile",
-]
-
-[[package]]
-name = "pacquet-crypto-shasums-file"
-version = "0.0.1"
-dependencies = [
- "base64 0.22.1",
- "derive_more",
- "miette 7.6.0",
- "mockito",
- "pacquet-network",
- "pgp",
- "pretty_assertions",
- "reqwest",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-default-reporter"
-version = "0.0.1"
-dependencies = [
- "chrono",
- "insta",
- "libc",
- "node-semver",
- "owo-colors",
- "pacquet-reporter",
- "pretty_assertions",
- "serde_json",
-]
-
-[[package]]
-name = "pacquet-deps-path"
-version = "0.0.1"
-dependencies = [
- "node-semver",
- "pacquet-crypto-hash",
-]
-
-[[package]]
-name = "pacquet-deps-restorer"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "derive_more",
- "dunce",
- "flate2",
- "futures-util",
- "indexmap 2.14.0",
- "insta",
- "miette 7.6.0",
- "mockito",
- "node-semver",
- "pacquet-cmd-shim",
- "pacquet-config",
- "pacquet-deps-path",
- "pacquet-directory-fetcher",
- "pacquet-executor",
- "pacquet-fs",
- "pacquet-git-fetcher",
- "pacquet-graph-hasher",
- "pacquet-hooks",
- "pacquet-lockfile",
- "pacquet-lockfile-verification",
- "pacquet-modules-yaml",
- "pacquet-network",
- "pacquet-package-is-installable",
- "pacquet-package-manifest",
- "pacquet-patching",
- "pacquet-real-hoist",
- "pacquet-reporter",
- "pacquet-resolving-deps-resolver",
- "pacquet-resolving-npm-resolver",
- "pacquet-resolving-resolver-base",
- "pacquet-store-dir",
- "pacquet-tarball",
- "pacquet-testing-utils",
- "pacquet-workspace",
- "pathdiff",
- "pipe-trait",
- "pretty_assertions",
- "rayon",
- "reflink-copy",
- "rustc-hash 2.1.2",
- "serde",
- "serde-saphyr",
- "serde_json",
- "sha2",
- "ssri",
- "tar",
- "tempfile",
- "text-block-macros",
- "tokio",
- "tracing",
- "walkdir",
-]
-
-[[package]]
-name = "pacquet-detect-libc"
-version = "0.0.1"
-dependencies = [
- "pretty_assertions",
-]
-
-[[package]]
-name = "pacquet-diagnostics"
-version = "0.0.1"
-dependencies = [
- "miette 7.6.0",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "pacquet-directory-fetcher"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "junction",
- "miette 7.6.0",
- "pacquet-diagnostics",
- "pacquet-fs",
- "pacquet-git-fetcher",
- "pacquet-package-manifest",
- "pacquet-store-dir",
- "pacquet-testing-utils",
- "pretty_assertions",
- "serde_json",
- "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-ecosystem-e2e"
-version = "0.0.0"
-dependencies = [
- "clap",
- "serde_json",
- "which 8.0.4",
-]
-
-[[package]]
-name = "pacquet-engine-runtime-bun-resolver"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "pacquet-crypto-shasums-file",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-resolving-npm-resolver",
- "pacquet-resolving-resolver-base",
- "pretty_assertions",
- "reqwest",
- "serde",
- "serde_json",
- "ssri",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-engine-runtime-deno-resolver"
-version = "0.0.1"
-dependencies = [
- "base64 0.22.1",
- "derive_more",
- "miette 7.6.0",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-resolving-npm-resolver",
- "pacquet-resolving-resolver-base",
- "pretty_assertions",
- "reqwest",
- "serde",
- "serde_json",
- "ssri",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-engine-runtime-node-resolver"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "mockito",
- "node-semver",
- "pacquet-crypto-shasums-file",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-resolving-resolver-base",
- "pretty_assertions",
- "reqwest",
- "serde",
- "serde_json",
- "ssri",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-env-installer"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "futures-util",
- "miette 7.6.0",
- "node-semver",
- "pacquet-config",
- "pacquet-diagnostics",
- "pacquet-fs",
- "pacquet-graph-hasher",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-package-is-installable",
- "pacquet-package-manager",
- "pacquet-registry",
- "pacquet-reporter",
- "pacquet-resolving-npm-resolver",
- "pacquet-resolving-parse-wanted-dependency",
- "pacquet-resolving-resolver-base",
- "pacquet-store-dir",
- "pacquet-tarball",
- "pacquet-testing-utils",
- "pacquet-workspace-state",
- "pretty_assertions",
- "serde_json",
- "ssri",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-env-replace"
-version = "0.0.1"
-dependencies = [
- "pretty_assertions",
-]
-
-[[package]]
-name = "pacquet-executor"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "pacquet-package-manifest",
- "pacquet-reporter",
- "pretty_assertions",
- "serde_json",
- "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-exportable-manifest"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "libc",
- "miette 7.6.0",
- "pacquet-catalogs-resolver",
- "pacquet-catalogs-types",
- "pacquet-package-manifest",
- "pacquet-resolving-jsr-specifier-parser",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "pacquet-fs"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "dunce",
- "junction",
- "miette 7.6.0",
- "pathdiff",
- "sha2",
- "tempfile",
-]
-
-[[package]]
-name = "pacquet-fs-packlist"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "ignore",
- "pacquet-diagnostics",
- "pacquet-package-manifest",
- "serde_json",
- "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-git-fetcher"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "pacquet-diagnostics",
- "pacquet-executor",
- "pacquet-fs",
- "pacquet-fs-packlist",
- "pacquet-package-manifest",
- "pacquet-reporter",
- "pacquet-store-dir",
- "pacquet-testing-utils",
- "pipe-trait",
- "pretty_assertions",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-global"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "owo-colors",
- "pacquet-cmd-shim",
- "pacquet-crypto-hash",
- "pacquet-fs",
- "pacquet-package-manifest",
- "pacquet-resolving-deps-resolver",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "pacquet-graph-hasher"
-version = "0.0.1"
-dependencies = [
- "base64 0.22.1",
- "indexmap 2.14.0",
- "pacquet-detect-libc",
- "pretty_assertions",
- "serde_json",
- "sha2",
-]
-
-[[package]]
-name = "pacquet-hooks"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "derive_more",
- "pacquet-crypto-hash",
- "pacquet-lockfile",
- "pacquet-resolving-resolver-base",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-integrated-benchmark"
-version = "0.0.0"
-dependencies = [
- "clap",
- "itertools 0.15.0",
- "os_display",
- "pacquet-fs",
- "pacquet-registry-mock",
- "pipe-trait",
- "reqwest",
- "serde",
- "serde-saphyr",
- "serde_json",
- "tokio",
- "which 8.0.4",
-]
-
-[[package]]
-name = "pacquet-lockfile"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "indexmap 2.14.0",
- "libc",
- "node-semver",
- "pacquet-catalogs-types",
- "pacquet-crypto-hash",
- "pacquet-deps-path",
- "pacquet-diagnostics",
- "pacquet-fs",
- "pacquet-package-manifest",
- "pacquet-resolving-parse-wanted-dependency",
- "pipe-trait",
- "pretty_assertions",
- "serde",
- "serde-saphyr",
- "serde_json",
- "split-first-char",
- "ssri",
- "tempfile",
- "text-block-macros",
-]
-
-[[package]]
-name = "pacquet-lockfile-preferred-versions"
-version = "0.0.1"
-dependencies = [
- "node-semver",
- "pacquet-lockfile",
- "pacquet-package-manifest",
- "pacquet-resolving-resolver-base",
- "pretty_assertions",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "pacquet-lockfile-verification"
-version = "0.0.1"
-dependencies = [
- "chrono",
- "derive_more",
- "futures-util",
- "insta",
- "miette 7.6.0",
- "pacquet-diagnostics",
- "pacquet-lockfile",
- "pacquet-reporter",
- "pacquet-resolving-parse-wanted-dependency",
- "pacquet-resolving-resolver-base",
- "pretty_assertions",
- "serde",
- "serde-saphyr",
- "serde_json",
- "sha2",
- "ssri",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-micro-benchmark"
-version = "0.0.0"
-dependencies = [
- "clap",
- "criterion",
- "flate2",
- "futures-util",
- "mockito",
- "node-semver",
- "pacquet-catalogs-types",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-package-manifest",
- "pacquet-registry",
- "pacquet-reporter",
- "pacquet-resolving-deps-resolver",
- "pacquet-resolving-resolver-base",
- "pacquet-store-dir",
- "pacquet-tarball",
- "pipe-trait",
- "project-root",
- "serde_json",
- "ssri",
- "tar",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-modules-yaml"
-version = "0.0.1"
-dependencies = [
- "chrono",
- "derive_more",
- "httpdate",
- "indexmap 2.14.0",
- "pacquet-diagnostics",
- "pacquet-fs",
- "pacquet-testing-utils",
- "pathdiff",
- "pipe-trait",
- "pretty_assertions",
- "serde",
- "serde-saphyr",
- "serde_json",
- "tempfile",
- "text-block-macros",
-]
-
-[[package]]
-name = "pacquet-napi"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "dashmap",
- "indexmap 2.14.0",
- "miette 7.6.0",
- "mockito",
- "napi",
- "napi-build",
- "napi-derive",
- "node-semver",
- "pacquet-catalogs-types",
- "pacquet-config",
- "pacquet-diagnostics",
- "pacquet-engine-runtime-bun-resolver",
- "pacquet-engine-runtime-deno-resolver",
- "pacquet-engine-runtime-node-resolver",
- "pacquet-hooks",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-pack",
- "pacquet-package-manager",
- "pacquet-package-manifest",
- "pacquet-reporter",
- "pacquet-resolving-default-resolver",
- "pacquet-resolving-deps-resolver",
- "pacquet-resolving-git-resolver",
- "pacquet-resolving-local-resolver",
- "pacquet-resolving-npm-resolver",
- "pacquet-resolving-parse-wanted-dependency",
- "pacquet-resolving-resolver-base",
- "pacquet-resolving-tarball-resolver",
- "pacquet-store-dir",
- "pacquet-tarball",
- "pacquet-testing-utils",
- "pacquet-workspace",
- "pretty_assertions",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-network"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "mockito",
- "pacquet-testing-utils",
- "pipe-trait",
- "pretty_assertions",
- "reqwest",
- "tokio",
- "tracing",
- "webpki-root-certs",
-]
-
-[[package]]
-name = "pacquet-network-web-auth"
-version = "0.0.1"
-dependencies = [
- "crossterm",
- "derive_more",
- "dialoguer",
- "mockito",
- "open",
- "pacquet-diagnostics",
- "pacquet-network",
- "pacquet-network-web-auth-testing",
- "pacquet-reporter",
- "pipe-trait",
- "pretty_assertions",
- "qrcode",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "url",
-]
-
-[[package]]
-name = "pacquet-network-web-auth-testing"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "pacquet-diagnostics",
- "pacquet-network-web-auth",
- "pacquet-reporter",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-pack"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "flate2",
- "indexmap 2.14.0",
- "miette 7.6.0",
- "pacquet-catalogs-types",
- "pacquet-cmd-shim",
- "pacquet-config",
- "pacquet-executor",
- "pacquet-exportable-manifest",
- "pacquet-fs-packlist",
- "pacquet-hooks",
- "pacquet-package-manifest",
- "pacquet-reporter",
- "pacquet-resolving-parse-wanted-dependency",
- "pathdiff",
- "serde",
- "serde_json",
- "tar",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-package-is-installable"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "node-semver",
- "pacquet-testing-utils",
- "pretty_assertions",
- "serde",
-]
-
-[[package]]
-name = "pacquet-package-manager"
-version = "0.0.1"
-dependencies = [
- "async-recursion",
- "async-trait",
- "chrono",
- "dashmap",
- "derive_more",
- "dialoguer",
- "dunce",
- "flate2",
- "futures-util",
- "httpdate",
- "indexmap 2.14.0",
- "insta",
- "is_ci",
- "miette 7.6.0",
- "mockito",
- "node-semver",
- "pacquet-catalogs-config",
- "pacquet-catalogs-protocol-parser",
- "pacquet-catalogs-resolver",
- "pacquet-catalogs-types",
- "pacquet-cmd-shim",
- "pacquet-config",
- "pacquet-config-parse-overrides",
- "pacquet-crypto-hash",
- "pacquet-deps-path",
- "pacquet-deps-restorer",
- "pacquet-directory-fetcher",
- "pacquet-engine-runtime-bun-resolver",
- "pacquet-engine-runtime-deno-resolver",
- "pacquet-engine-runtime-node-resolver",
- "pacquet-executor",
- "pacquet-fs",
- "pacquet-git-fetcher",
- "pacquet-graph-hasher",
- "pacquet-hooks",
- "pacquet-lockfile",
- "pacquet-lockfile-preferred-versions",
- "pacquet-lockfile-verification",
- "pacquet-modules-yaml",
- "pacquet-network",
- "pacquet-package-is-installable",
- "pacquet-package-manifest",
- "pacquet-patching",
- "pacquet-real-hoist",
- "pacquet-registry",
- "pacquet-reporter",
- "pacquet-resolving-default-resolver",
- "pacquet-resolving-deps-resolver",
- "pacquet-resolving-git-resolver",
- "pacquet-resolving-local-resolver",
- "pacquet-resolving-npm-resolver",
- "pacquet-resolving-parse-wanted-dependency",
- "pacquet-resolving-resolver-base",
- "pacquet-resolving-tarball-resolver",
- "pacquet-store-dir",
- "pacquet-tarball",
- "pacquet-testing-utils",
- "pacquet-workspace",
- "pacquet-workspace-manifest-writer",
- "pacquet-workspace-range-resolver",
- "pacquet-workspace-spec",
- "pacquet-workspace-state",
- "pathdiff",
- "pipe-trait",
- "pretty_assertions",
- "rayon",
- "reflink-copy",
- "rustc-hash 2.1.2",
- "serde",
- "serde-saphyr",
- "serde_json",
- "sha2",
- "ssri",
- "tar",
- "tempfile",
- "text-block-macros",
- "tokio",
- "tracing",
- "walkdir",
-]
-
-[[package]]
-name = "pacquet-package-manifest"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "insta",
- "miette 7.6.0",
- "node-semver",
- "pipe-trait",
- "pretty_assertions",
- "serde",
- "serde_json",
- "strum",
- "tempfile",
-]
-
-[[package]]
-name = "pacquet-patching"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "diffy",
- "indexmap 2.14.0",
- "miette 7.6.0",
- "node-semver",
- "pacquet-git-fetcher",
- "pacquet-package-manifest",
- "pretty_assertions",
- "serde_json",
- "sha2",
- "tempfile",
- "text-block-macros",
-]
-
-[[package]]
-name = "pacquet-pnpr-client"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "futures-util",
- "mockito",
- "pacquet-catalogs-types",
- "pacquet-config",
- "pacquet-lockfile",
- "pacquet-lockfile-verification",
- "pacquet-network",
- "pacquet-testing-utils",
- "pnpr",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-publish"
-version = "0.0.1"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "derive_more",
- "dialoguer",
- "flate2",
- "miette 7.6.0",
- "mockito",
- "node-semver",
- "pacquet-diagnostics",
- "pacquet-executor",
- "pacquet-network",
- "pacquet-network-web-auth",
- "pacquet-network-web-auth-testing",
- "pacquet-pack",
- "pacquet-package-manifest",
- "pacquet-reporter",
- "pacquet-resolving-parse-wanted-dependency",
- "pipe-trait",
- "pretty_assertions",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "sigstore-sign",
- "ssri",
- "tar",
- "tempfile",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "pacquet-real-hoist"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "indexmap 2.14.0",
- "miette 7.6.0",
- "pacquet-lockfile",
- "pretty_assertions",
-]
-
-[[package]]
-name = "pacquet-registry"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "mockito",
- "node-semver",
- "pacquet-diagnostics",
- "pacquet-network",
- "pipe-trait",
- "pretty_assertions",
- "reqwest",
- "serde",
- "serde_json",
- "ssri",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-registry-mock"
-version = "0.0.0"
-dependencies = [
- "assert_cmd",
- "clap",
- "home",
- "pipe-trait",
- "pnpr-fixtures",
- "reqwest",
- "serde",
- "serde_json",
- "sysinfo",
- "tokio",
- "walkdir",
-]
-
-[[package]]
-name = "pacquet-reporter"
-version = "0.0.1"
-dependencies = [
- "gethostname",
- "insta",
- "pipe-trait",
- "pretty_assertions",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "pacquet-resolving-default-resolver"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "pacquet-lockfile",
- "pacquet-resolving-resolver-base",
- "ssri",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-resolving-deps-resolver"
-version = "0.0.1"
-dependencies = [
- "async-recursion",
- "async-trait",
- "chrono",
- "derive_more",
- "futures-util",
- "miette 7.6.0",
- "node-semver",
- "pacquet-catalogs-resolver",
- "pacquet-catalogs-types",
- "pacquet-deps-path",
- "pacquet-fs",
- "pacquet-hooks",
- "pacquet-lockfile",
- "pacquet-package-manifest",
- "pacquet-patching",
- "pacquet-resolving-jsr-specifier-parser",
- "pacquet-resolving-parse-wanted-dependency",
- "pacquet-resolving-resolver-base",
- "pathdiff",
- "pipe-trait",
- "pretty_assertions",
- "rustc-hash 2.1.2",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-resolving-git-resolver"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "node-semver",
- "pacquet-git-fetcher",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-reporter",
- "pacquet-resolving-resolver-base",
- "pacquet-store-dir",
- "pacquet-tarball",
- "pretty_assertions",
- "reqwest",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-resolving-jsr-specifier-parser"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "pacquet-resolving-parse-wanted-dependency",
-]
-
-[[package]]
-name = "pacquet-resolving-local-resolver"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "home",
- "miette 7.6.0",
- "pacquet-lockfile",
- "pacquet-package-manifest",
- "pacquet-resolving-default-resolver",
- "pacquet-resolving-parse-wanted-dependency",
- "pacquet-resolving-resolver-base",
- "pacquet-tarball",
- "pacquet-testing-utils",
- "pathdiff",
- "pretty_assertions",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-resolving-npm-resolver"
-version = "0.0.1"
-dependencies = [
- "chrono",
- "dashmap",
- "derive_more",
- "futures-util",
- "httpdate",
- "indexmap 2.14.0",
- "miette 7.6.0",
- "mockito",
- "node-semver",
- "pacquet-config",
- "pacquet-deps-path",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-registry",
- "pacquet-resolving-default-resolver",
- "pacquet-resolving-jsr-specifier-parser",
- "pacquet-resolving-local-resolver",
- "pacquet-resolving-parse-wanted-dependency",
- "pacquet-resolving-resolver-base",
- "pacquet-workspace-range-resolver",
- "pacquet-workspace-spec",
- "pipe-trait",
- "pretty_assertions",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "ssri",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "pacquet-resolving-parse-wanted-dependency"
-version = "0.0.1"
-
-[[package]]
-name = "pacquet-resolving-resolver-base"
-version = "0.0.1"
-dependencies = [
- "chrono",
- "derive_more",
- "miette 7.6.0",
- "node-semver",
- "pacquet-config",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-registry",
- "serde",
- "serde_json",
- "ssri",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-resolving-tarball-resolver"
-version = "0.0.1"
-dependencies = [
- "mockito",
- "pacquet-lockfile",
- "pacquet-network",
- "pacquet-reporter",
- "pacquet-resolving-resolver-base",
- "pacquet-store-dir",
- "pacquet-tarball",
- "pretty_assertions",
- "reqwest",
- "serde_json",
- "ssri",
- "tokio",
-]
-
-[[package]]
-name = "pacquet-store-dir"
-version = "0.0.1"
-dependencies = [
- "dashmap",
- "derive_more",
- "dunce",
- "miette 7.6.0",
- "pacquet-crypto-hash",
- "pacquet-fs",
- "pipe-trait",
- "pretty_assertions",
- "rmp-serde",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "smart-default",
- "ssri",
- "tempfile",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "pacquet-tarball"
-version = "0.0.1"
-dependencies = [
- "dashmap",
- "derive_more",
- "flate2",
- "futures-util",
- "miette 7.6.0",
- "mockito",
- "num_cpus",
- "pacquet-diagnostics",
- "pacquet-fs",
- "pacquet-network",
- "pacquet-package-manifest",
- "pacquet-reporter",
- "pacquet-store-dir",
- "pipe-trait",
- "pretty_assertions",
- "rayon",
- "reqwest",
- "serde",
- "serde_json",
- "ssri",
- "tar",
- "tempfile",
- "tokio",
- "tracing",
- "url",
- "zip",
- "zune-inflate",
-]
-
-[[package]]
-name = "pacquet-testing-utils"
-version = "0.0.0"
-dependencies = [
- "assert_cmd",
- "command-extra",
- "dunce",
- "flate2",
- "pacquet-fs",
- "pacquet-workspace-state",
- "pnpr",
- "pnpr-fixtures",
- "serde_json",
- "ssri",
- "tar",
- "tempfile",
- "text-block-macros",
- "tokio",
- "url",
- "walkdir",
-]
-
-[[package]]
-name = "pacquet-versioning"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "getrandom 0.4.3",
- "indexmap 2.14.0",
- "miette 7.6.0",
- "node-semver",
- "pacquet-package-manifest",
- "pathdiff",
- "pretty_assertions",
- "serde",
- "serde-saphyr",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "pacquet-workspace"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "miette 7.6.0",
- "pacquet-catalogs-types",
- "pacquet-package-manifest",
- "pathdiff",
- "pretty_assertions",
- "serde",
- "serde-saphyr",
- "tempfile",
- "wax",
-]
-
-[[package]]
-name = "pacquet-workspace-manifest-writer"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "indexmap 2.14.0",
- "insta",
- "miette 7.6.0",
- "pacquet-catalogs-types",
- "pacquet-config-parse-overrides",
- "pacquet-package-manifest",
- "serde",
- "serde-saphyr",
- "serde_json",
- "tempfile",
- "yaml_serde",
- "yamlpatch",
- "yamlpath",
-]
-
-[[package]]
-name = "pacquet-workspace-projects-filter"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "indexmap 2.14.0",
- "miette 7.6.0",
- "pacquet-config",
- "pacquet-testing-utils",
- "pacquet-workspace-projects-graph",
- "pathdiff",
- "tempfile",
- "wax",
-]
-
-[[package]]
-name = "pacquet-workspace-projects-graph"
-version = "0.0.1"
-dependencies = [
- "indexmap 2.14.0",
- "node-semver",
- "pacquet-fs",
- "pacquet-workspace-range-resolver",
- "pacquet-workspace-spec",
-]
-
-[[package]]
-name = "pacquet-workspace-range-resolver"
-version = "0.0.1"
-dependencies = [
- "node-semver",
-]
-
-[[package]]
-name = "pacquet-workspace-spec"
-version = "0.0.1"
-
-[[package]]
-name = "pacquet-workspace-state"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "indexmap 2.14.0",
- "pacquet-diagnostics",
- "pretty_assertions",
- "serde",
- "serde_json",
- "tempfile",
 ]
 
 [[package]]
@@ -5676,8 +4225,1518 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-auth-commands"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "dialoguer",
+ "miette 7.6.0",
+ "mockito",
+ "pipe-trait",
+ "pnpm-fs",
+ "pnpm-network",
+ "pnpm-network-web-auth",
+ "pnpm-network-web-auth-testing",
+ "pnpm-reporter",
+ "pretty_assertions",
+ "reqwest",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
+name = "pnpm-catalogs-config"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pnpm-catalogs-types",
+ "pnpm-workspace",
+]
+
+[[package]]
+name = "pnpm-catalogs-protocol-parser"
+version = "0.0.1"
+dependencies = [
+ "pnpm-catalogs-types",
+]
+
+[[package]]
+name = "pnpm-catalogs-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pnpm-catalogs-protocol-parser",
+ "pnpm-catalogs-types",
+]
+
+[[package]]
+name = "pnpm-catalogs-types"
+version = "0.0.1"
+
+[[package]]
+name = "pnpm-cli"
+version = "0.0.1"
+dependencies = [
+ "assert_cmd",
+ "base64 0.22.1",
+ "chrono",
+ "clap",
+ "command-extra",
+ "console",
+ "derive_more",
+ "dialoguer",
+ "dunce",
+ "flate2",
+ "futures-util",
+ "getrandom 0.4.3",
+ "home",
+ "indexmap 2.14.0",
+ "insta",
+ "is_ci",
+ "libc",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "owo-colors",
+ "p256",
+ "pathdiff",
+ "pipe-trait",
+ "pnpm-auth-commands",
+ "pnpm-catalogs-config",
+ "pnpm-catalogs-protocol-parser",
+ "pnpm-catalogs-types",
+ "pnpm-cmd-shim",
+ "pnpm-config",
+ "pnpm-config-parse-overrides",
+ "pnpm-crypto-hash",
+ "pnpm-default-reporter",
+ "pnpm-deps-path",
+ "pnpm-detect-libc",
+ "pnpm-diagnostics",
+ "pnpm-directory-fetcher",
+ "pnpm-engine-pm-yarn-resolver",
+ "pnpm-engine-runtime-node-resolver",
+ "pnpm-env-installer",
+ "pnpm-executor",
+ "pnpm-fs",
+ "pnpm-global",
+ "pnpm-graph-hasher",
+ "pnpm-hooks",
+ "pnpm-injected-deps-syncer",
+ "pnpm-lockfile",
+ "pnpm-lockfile-verification",
+ "pnpm-modules-yaml",
+ "pnpm-network",
+ "pnpm-network-web-auth",
+ "pnpm-network-web-auth-testing",
+ "pnpm-pack",
+ "pnpm-package-is-installable",
+ "pnpm-package-manager",
+ "pnpm-package-manifest",
+ "pnpm-patching",
+ "pnpm-pnpr-client",
+ "pnpm-publish",
+ "pnpm-registry",
+ "pnpm-reporter",
+ "pnpm-resolving-git-resolver",
+ "pnpm-resolving-npm-resolver",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-resolving-resolver-base",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "pnpm-testing-utils",
+ "pnpm-versioning",
+ "pnpm-workspace",
+ "pnpm-workspace-manifest-writer",
+ "pnpm-workspace-projects-filter",
+ "pnpm-workspace-projects-graph",
+ "pnpm-workspace-state",
+ "pnpr",
+ "pretty_assertions",
+ "rayon",
+ "reflink-copy",
+ "regex",
+ "reqwest",
+ "rmp-serde",
+ "same-file",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tabled",
+ "tar",
+ "tempfile",
+ "text-block-macros",
+ "tokio",
+ "tracing",
+ "url",
+ "walkdir",
+ "wax",
+ "which 8.0.4",
+ "windows-sys 0.61.2",
+ "yaml_serde",
+ "yamlpath",
+ "zip",
+]
+
+[[package]]
+name = "pnpm-cmd-shim"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "dunce",
+ "miette 7.6.0",
+ "pipe-trait",
+ "pnpm-fs",
+ "pnpm-package-manifest",
+ "rayon",
+ "same-file",
+ "serde_json",
+ "tempfile",
+ "walkdir",
+]
+
+[[package]]
+name = "pnpm-config"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "home",
+ "indexmap 2.14.0",
+ "is_ci",
+ "libc",
+ "miette 7.6.0",
+ "node-semver",
+ "pipe-trait",
+ "pnpm-catalogs-types",
+ "pnpm-config-dir",
+ "pnpm-detect-libc",
+ "pnpm-env-replace",
+ "pnpm-fs",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-package-is-installable",
+ "pnpm-package-manifest",
+ "pnpm-patching",
+ "pnpm-store-dir",
+ "pnpm-testing-utils",
+ "pnpm-versioning",
+ "pnpm-workspace-state",
+ "pretty_assertions",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "smart-default",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
+name = "pnpm-config-dir"
+version = "0.0.1"
+
+[[package]]
+name = "pnpm-config-parse-overrides"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-catalogs-resolver",
+ "pnpm-catalogs-types",
+ "pnpm-resolving-parse-wanted-dependency",
+]
+
+[[package]]
+name = "pnpm-crypto-hash"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "pnpm-crypto-shasums-file"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "libc",
+ "miette 7.6.0",
+ "mockito",
+ "pgp",
+ "pnpm-network",
+ "pretty_assertions",
+ "reqwest",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-default-reporter"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "insta",
+ "libc",
+ "node-semver",
+ "owo-colors",
+ "pnpm-reporter",
+ "pretty_assertions",
+ "serde_json",
+]
+
+[[package]]
+name = "pnpm-deps-path"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "node-semver",
+ "pnpm-crypto-hash",
+]
+
+[[package]]
+name = "pnpm-deps-restorer"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "derive_more",
+ "dunce",
+ "flate2",
+ "futures-util",
+ "indexmap 2.14.0",
+ "insta",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pathdiff",
+ "pipe-trait",
+ "pnpm-cmd-shim",
+ "pnpm-config",
+ "pnpm-deps-path",
+ "pnpm-directory-fetcher",
+ "pnpm-executor",
+ "pnpm-fs",
+ "pnpm-git-fetcher",
+ "pnpm-graph-hasher",
+ "pnpm-hooks",
+ "pnpm-lockfile",
+ "pnpm-lockfile-verification",
+ "pnpm-modules-yaml",
+ "pnpm-network",
+ "pnpm-package-is-installable",
+ "pnpm-package-manifest",
+ "pnpm-patching",
+ "pnpm-real-hoist",
+ "pnpm-reporter",
+ "pnpm-resolving-deps-resolver",
+ "pnpm-resolving-npm-resolver",
+ "pnpm-resolving-resolver-base",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "pnpm-testing-utils",
+ "pnpm-workspace",
+ "pretty_assertions",
+ "rayon",
+ "reflink-copy",
+ "rustc-hash 2.1.2",
+ "same-file",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tar",
+ "tempfile",
+ "text-block-macros",
+ "tokio",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
+name = "pnpm-detect-libc"
+version = "0.0.1"
+dependencies = [
+ "pretty_assertions",
+]
+
+[[package]]
+name = "pnpm-diagnostics"
+version = "0.0.1"
+dependencies = [
+ "miette 7.6.0",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "pnpm-directory-fetcher"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "junction",
+ "miette 7.6.0",
+ "pnpm-diagnostics",
+ "pnpm-fs",
+ "pnpm-git-fetcher",
+ "pnpm-package-manifest",
+ "pnpm-store-dir",
+ "pnpm-testing-utils",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "pnpm-ecosystem-e2e"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "serde_json",
+ "which 8.0.4",
+]
+
+[[package]]
+name = "pnpm-engine-pm-yarn-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-crypto-shasums-file",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-engine-runtime-bun-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pnpm-crypto-shasums-file",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-resolving-npm-resolver",
+ "pnpm-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-engine-runtime-deno-resolver"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "miette 7.6.0",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-resolving-npm-resolver",
+ "pnpm-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-engine-runtime-node-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pnpm-crypto-shasums-file",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-env-installer"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "futures-util",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-config",
+ "pnpm-diagnostics",
+ "pnpm-fs",
+ "pnpm-graph-hasher",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-package-is-installable",
+ "pnpm-package-manager",
+ "pnpm-registry",
+ "pnpm-reporter",
+ "pnpm-resolving-npm-resolver",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-resolving-resolver-base",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "pnpm-testing-utils",
+ "pnpm-workspace-state",
+ "pretty_assertions",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pnpm-env-replace"
+version = "0.0.1"
+dependencies = [
+ "pretty_assertions",
+]
+
+[[package]]
+name = "pnpm-executor"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pnpm-package-manifest",
+ "pnpm-reporter",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "pnpm-exportable-manifest"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "libc",
+ "miette 7.6.0",
+ "pnpm-catalogs-resolver",
+ "pnpm-catalogs-types",
+ "pnpm-package-manifest",
+ "pnpm-resolving-jsr-specifier-parser",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "pnpm-fs"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "dunce",
+ "junction",
+ "miette 7.6.0",
+ "pathdiff",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "pnpm-fs-packlist"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "ignore",
+ "pnpm-diagnostics",
+ "pnpm-package-manifest",
+ "serde_json",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "pnpm-git-fetcher"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pipe-trait",
+ "pnpm-cmd-shim",
+ "pnpm-diagnostics",
+ "pnpm-executor",
+ "pnpm-fs",
+ "pnpm-fs-packlist",
+ "pnpm-network",
+ "pnpm-package-manifest",
+ "pnpm-reporter",
+ "pnpm-store-dir",
+ "pnpm-testing-utils",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "which 8.0.4",
+]
+
+[[package]]
+name = "pnpm-global"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "owo-colors",
+ "pnpm-cmd-shim",
+ "pnpm-crypto-hash",
+ "pnpm-fs",
+ "pnpm-package-manifest",
+ "pnpm-resolving-deps-resolver",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "pnpm-graph-hasher"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "indexmap 2.14.0",
+ "pnpm-detect-libc",
+ "pretty_assertions",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "pnpm-hooks"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "derive_more",
+ "pnpm-crypto-hash",
+ "pnpm-lockfile",
+ "pnpm-resolving-resolver-base",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-injected-deps-syncer"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pnpm-cmd-shim",
+ "pnpm-directory-fetcher",
+ "pnpm-fs",
+ "pnpm-modules-yaml",
+ "pnpm-package-manifest",
+ "pnpm-testing-utils",
+ "pnpm-workspace",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-integrated-benchmark"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "itertools 0.15.0",
+ "os_display",
+ "pipe-trait",
+ "pnpm-fs",
+ "pnpm-registry-mock",
+ "reqwest",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "tokio",
+ "which 8.0.4",
+]
+
+[[package]]
+name = "pnpm-lockfile"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap 2.14.0",
+ "libc",
+ "node-semver",
+ "pipe-trait",
+ "pnpm-catalogs-types",
+ "pnpm-crypto-hash",
+ "pnpm-deps-path",
+ "pnpm-diagnostics",
+ "pnpm-fs",
+ "pnpm-package-manifest",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pretty_assertions",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "split-first-char",
+ "ssri",
+ "tempfile",
+ "text-block-macros",
+]
+
+[[package]]
+name = "pnpm-lockfile-preferred-versions"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+ "pnpm-lockfile",
+ "pnpm-package-manifest",
+ "pnpm-resolving-resolver-base",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "pnpm-lockfile-verification"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "futures-util",
+ "insta",
+ "miette 7.6.0",
+ "pnpm-diagnostics",
+ "pnpm-lockfile",
+ "pnpm-reporter",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-resolving-resolver-base",
+ "pretty_assertions",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-micro-benchmark"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "criterion",
+ "flate2",
+ "futures-util",
+ "mockito",
+ "node-semver",
+ "pipe-trait",
+ "pnpm-catalogs-types",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-package-manifest",
+ "pnpm-registry",
+ "pnpm-reporter",
+ "pnpm-resolving-deps-resolver",
+ "pnpm-resolving-resolver-base",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "project-root",
+ "serde_json",
+ "ssri",
+ "tar",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-modules-yaml"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "httpdate",
+ "indexmap 2.14.0",
+ "pathdiff",
+ "pipe-trait",
+ "pnpm-diagnostics",
+ "pnpm-fs",
+ "pnpm-testing-utils",
+ "pretty_assertions",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "tempfile",
+ "text-block-macros",
+]
+
+[[package]]
+name = "pnpm-napi"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "dashmap",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "mockito",
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "node-semver",
+ "pnpm-catalogs-types",
+ "pnpm-config",
+ "pnpm-diagnostics",
+ "pnpm-engine-pm-yarn-resolver",
+ "pnpm-engine-runtime-bun-resolver",
+ "pnpm-engine-runtime-deno-resolver",
+ "pnpm-engine-runtime-node-resolver",
+ "pnpm-hooks",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-pack",
+ "pnpm-package-manager",
+ "pnpm-package-manifest",
+ "pnpm-reporter",
+ "pnpm-resolving-default-resolver",
+ "pnpm-resolving-deps-resolver",
+ "pnpm-resolving-git-resolver",
+ "pnpm-resolving-local-resolver",
+ "pnpm-resolving-npm-resolver",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-resolving-resolver-base",
+ "pnpm-resolving-tarball-resolver",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "pnpm-testing-utils",
+ "pnpm-workspace",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-network"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "mockito",
+ "pipe-trait",
+ "pnpm-testing-utils",
+ "pretty_assertions",
+ "reqwest",
+ "tokio",
+ "tracing",
+ "webpki-root-certs",
+]
+
+[[package]]
+name = "pnpm-network-web-auth"
+version = "0.0.1"
+dependencies = [
+ "crossterm",
+ "derive_more",
+ "dialoguer",
+ "mockito",
+ "open",
+ "pipe-trait",
+ "pnpm-diagnostics",
+ "pnpm-network",
+ "pnpm-network-web-auth-testing",
+ "pnpm-reporter",
+ "pretty_assertions",
+ "qrcode",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "pnpm-network-web-auth-testing"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pnpm-diagnostics",
+ "pnpm-network-web-auth",
+ "pnpm-reporter",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-pack"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "flate2",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "pathdiff",
+ "pnpm-catalogs-types",
+ "pnpm-cmd-shim",
+ "pnpm-config",
+ "pnpm-executor",
+ "pnpm-exportable-manifest",
+ "pnpm-fs-packlist",
+ "pnpm-hooks",
+ "pnpm-package-manifest",
+ "pnpm-reporter",
+ "pnpm-resolving-parse-wanted-dependency",
+ "serde",
+ "serde_json",
+ "tar",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-package-is-installable"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-testing-utils",
+ "pretty_assertions",
+ "serde",
+]
+
+[[package]]
+name = "pnpm-package-manager"
+version = "0.0.1"
+dependencies = [
+ "async-recursion",
+ "async-trait",
+ "chrono",
+ "dashmap",
+ "derive_more",
+ "dialoguer",
+ "dunce",
+ "flate2",
+ "futures-util",
+ "httpdate",
+ "indexmap 2.14.0",
+ "insta",
+ "is_ci",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pathdiff",
+ "pipe-trait",
+ "pnpm-catalogs-config",
+ "pnpm-catalogs-protocol-parser",
+ "pnpm-catalogs-resolver",
+ "pnpm-catalogs-types",
+ "pnpm-cmd-shim",
+ "pnpm-config",
+ "pnpm-config-parse-overrides",
+ "pnpm-crypto-hash",
+ "pnpm-deps-path",
+ "pnpm-deps-restorer",
+ "pnpm-directory-fetcher",
+ "pnpm-engine-pm-yarn-resolver",
+ "pnpm-engine-runtime-bun-resolver",
+ "pnpm-engine-runtime-deno-resolver",
+ "pnpm-engine-runtime-node-resolver",
+ "pnpm-executor",
+ "pnpm-fs",
+ "pnpm-git-fetcher",
+ "pnpm-graph-hasher",
+ "pnpm-hooks",
+ "pnpm-lockfile",
+ "pnpm-lockfile-preferred-versions",
+ "pnpm-lockfile-verification",
+ "pnpm-modules-yaml",
+ "pnpm-network",
+ "pnpm-package-is-installable",
+ "pnpm-package-manifest",
+ "pnpm-patching",
+ "pnpm-real-hoist",
+ "pnpm-registry",
+ "pnpm-reporter",
+ "pnpm-resolving-default-resolver",
+ "pnpm-resolving-deps-resolver",
+ "pnpm-resolving-git-resolver",
+ "pnpm-resolving-local-resolver",
+ "pnpm-resolving-npm-resolver",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-resolving-resolver-base",
+ "pnpm-resolving-tarball-resolver",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "pnpm-testing-utils",
+ "pnpm-workspace",
+ "pnpm-workspace-manifest-writer",
+ "pnpm-workspace-range-resolver",
+ "pnpm-workspace-spec",
+ "pnpm-workspace-state",
+ "pretty_assertions",
+ "rayon",
+ "reflink-copy",
+ "rustc-hash 2.1.2",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tar",
+ "tempfile",
+ "text-block-macros",
+ "tokio",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
+name = "pnpm-package-manifest"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "insta",
+ "miette 7.6.0",
+ "node-semver",
+ "pipe-trait",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "strum",
+ "tempfile",
+]
+
+[[package]]
+name = "pnpm-patching"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "diffy",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-git-fetcher",
+ "pnpm-package-manifest",
+ "pretty_assertions",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "text-block-macros",
+]
+
+[[package]]
+name = "pnpm-pnpr-client"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "futures-util",
+ "mockito",
+ "pnpm-catalogs-types",
+ "pnpm-config",
+ "pnpm-lockfile",
+ "pnpm-lockfile-verification",
+ "pnpm-network",
+ "pnpm-testing-utils",
+ "pnpr",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pnpm-publish"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "derive_more",
+ "dialoguer",
+ "flate2",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pipe-trait",
+ "pnpm-diagnostics",
+ "pnpm-executor",
+ "pnpm-network",
+ "pnpm-network-web-auth",
+ "pnpm-network-web-auth-testing",
+ "pnpm-pack",
+ "pnpm-package-manifest",
+ "pnpm-reporter",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sigstore-sign",
+ "ssri",
+ "tar",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "pnpm-real-hoist"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "pnpm-lockfile",
+ "pretty_assertions",
+]
+
+[[package]]
+name = "pnpm-registry"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pipe-trait",
+ "pnpm-diagnostics",
+ "pnpm-network",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pnpm-registry-mock"
+version = "0.0.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "home",
+ "pipe-trait",
+ "pnpr-fixtures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tokio",
+ "walkdir",
+]
+
+[[package]]
+name = "pnpm-reporter"
+version = "0.0.1"
+dependencies = [
+ "gethostname",
+ "insta",
+ "pipe-trait",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "pnpm-resolving-default-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pnpm-lockfile",
+ "pnpm-resolving-resolver-base",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-resolving-deps-resolver"
+version = "0.0.1"
+dependencies = [
+ "async-recursion",
+ "async-trait",
+ "chrono",
+ "derive_more",
+ "futures-util",
+ "miette 7.6.0",
+ "node-semver",
+ "pathdiff",
+ "pipe-trait",
+ "pnpm-catalogs-resolver",
+ "pnpm-catalogs-types",
+ "pnpm-deps-path",
+ "pnpm-fs",
+ "pnpm-hooks",
+ "pnpm-lockfile",
+ "pnpm-package-manifest",
+ "pnpm-patching",
+ "pnpm-resolving-jsr-specifier-parser",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-resolving-resolver-base",
+ "pretty_assertions",
+ "rustc-hash 2.1.2",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-resolving-git-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pnpm-git-fetcher",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-reporter",
+ "pnpm-resolving-resolver-base",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "pretty_assertions",
+ "reqwest",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pnpm-resolving-jsr-specifier-parser"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pnpm-resolving-parse-wanted-dependency",
+]
+
+[[package]]
+name = "pnpm-resolving-local-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "home",
+ "miette 7.6.0",
+ "pathdiff",
+ "pnpm-lockfile",
+ "pnpm-package-manifest",
+ "pnpm-resolving-default-resolver",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-resolving-resolver-base",
+ "pnpm-tarball",
+ "pnpm-testing-utils",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pnpm-resolving-npm-resolver"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "dashmap",
+ "derive_more",
+ "futures-util",
+ "httpdate",
+ "indexmap 2.14.0",
+ "libc",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pipe-trait",
+ "pnpm-config",
+ "pnpm-deps-path",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-registry",
+ "pnpm-resolving-default-resolver",
+ "pnpm-resolving-jsr-specifier-parser",
+ "pnpm-resolving-local-resolver",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-resolving-resolver-base",
+ "pnpm-workspace-range-resolver",
+ "pnpm-workspace-spec",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pnpm-resolving-parse-wanted-dependency"
+version = "0.0.1"
+
+[[package]]
+name = "pnpm-resolving-resolver-base"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-config",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-registry",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-resolving-tarball-resolver"
+version = "0.0.1"
+dependencies = [
+ "mockito",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-reporter",
+ "pnpm-resolving-resolver-base",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "pretty_assertions",
+ "reqwest",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pnpm-store-dir"
+version = "0.0.1"
+dependencies = [
+ "dashmap",
+ "derive_more",
+ "dunce",
+ "miette 7.6.0",
+ "pipe-trait",
+ "pnpm-crypto-hash",
+ "pnpm-fs",
+ "pretty_assertions",
+ "rmp-serde",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "smart-default",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "pnpm-tarball"
+version = "0.0.1"
+dependencies = [
+ "dashmap",
+ "derive_more",
+ "flate2",
+ "futures-util",
+ "miette 7.6.0",
+ "mockito",
+ "num_cpus",
+ "pipe-trait",
+ "pnpm-diagnostics",
+ "pnpm-fs",
+ "pnpm-network",
+ "pnpm-package-manifest",
+ "pnpm-reporter",
+ "pnpm-store-dir",
+ "pretty_assertions",
+ "rayon",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tar",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "url",
+ "zip",
+ "zune-inflate",
+]
+
+[[package]]
+name = "pnpm-testing-utils"
+version = "0.0.0"
+dependencies = [
+ "assert_cmd",
+ "command-extra",
+ "dunce",
+ "flate2",
+ "pnpm-fs",
+ "pnpm-workspace-state",
+ "pnpr",
+ "pnpr-fixtures",
+ "serde_json",
+ "ssri",
+ "tar",
+ "tempfile",
+ "text-block-macros",
+ "tokio",
+ "url",
+ "walkdir",
+]
+
+[[package]]
+name = "pnpm-versioning"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "getrandom 0.4.3",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "node-semver",
+ "pathdiff",
+ "pnpm-package-manifest",
+ "pretty_assertions",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "pnpm-workspace"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pathdiff",
+ "pnpm-catalogs-types",
+ "pnpm-package-manifest",
+ "pretty_assertions",
+ "serde",
+ "serde-saphyr",
+ "tempfile",
+ "wax",
+]
+
+[[package]]
+name = "pnpm-workspace-manifest-writer"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap 2.14.0",
+ "insta",
+ "miette 7.6.0",
+ "pnpm-catalogs-types",
+ "pnpm-config",
+ "pnpm-config-parse-overrides",
+ "pnpm-package-manifest",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "tempfile",
+ "yaml_serde",
+ "yamlpatch",
+ "yamlpath",
+]
+
+[[package]]
+name = "pnpm-workspace-projects-filter"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "pathdiff",
+ "pnpm-config",
+ "pnpm-testing-utils",
+ "pnpm-workspace-projects-graph",
+ "tempfile",
+ "wax",
+]
+
+[[package]]
+name = "pnpm-workspace-projects-graph"
+version = "0.0.1"
+dependencies = [
+ "indexmap 2.14.0",
+ "node-semver",
+ "pnpm-fs",
+ "pnpm-workspace-range-resolver",
+ "pnpm-workspace-spec",
+]
+
+[[package]]
+name = "pnpm-workspace-range-resolver"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+]
+
+[[package]]
+name = "pnpm-workspace-spec"
+version = "0.0.1"
+
+[[package]]
+name = "pnpm-workspace-state"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap 2.14.0",
+ "pnpm-diagnostics",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "pnpr"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
@@ -5698,21 +5757,21 @@ dependencies = [
  "mockito",
  "node-semver",
  "object_store",
- "pacquet-catalogs-types",
- "pacquet-config",
- "pacquet-config-dir",
- "pacquet-env-replace",
- "pacquet-lockfile",
- "pacquet-lockfile-verification",
- "pacquet-network",
- "pacquet-package-manager",
- "pacquet-package-manifest",
- "pacquet-reporter",
- "pacquet-resolving-npm-resolver",
- "pacquet-resolving-resolver-base",
- "pacquet-store-dir",
- "pacquet-tarball",
  "pipe-trait",
+ "pnpm-catalogs-types",
+ "pnpm-config",
+ "pnpm-config-dir",
+ "pnpm-env-replace",
+ "pnpm-lockfile",
+ "pnpm-lockfile-verification",
+ "pnpm-network",
+ "pnpm-package-manager",
+ "pnpm-package-manifest",
+ "pnpm-reporter",
+ "pnpm-resolving-npm-resolver",
+ "pnpm-resolving-resolver-base",
+ "pnpm-store-dir",
+ "pnpm-tarball",
  "reqwest",
  "rusqlite",
  "serde",
@@ -6385,7 +6444,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6443,7 +6502,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7373,9 +7432,9 @@ dependencies = [
 
 [[package]]
 name = "subfeature"
-version = "1.27.0"
+version = "1.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bae27fccb1615a3b3ae930cf93c0c4d32b7daffb57477ca0406f07fc0e68ea57"
+checksum = "8789ac6b95c93b04102b7d30c297d7cb71b140139daaa4dc190cf5d1de0213b8"
 dependencies = [
  "memchr",
  "regex",
@@ -7562,7 +7621,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7720,9 +7779,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.52.3"
+version = "1.53.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe"
+checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
 dependencies = [
  "bytes",
  "libc",
@@ -8039,9 +8098,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-iter"
-version = "1.27.0"
+version = "1.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cbef0ee83b87916292355e78f4fdee268d719ececa729be8914882428ca86b0"
+checksum = "1d3bd5c9821bacab907511ede9a21837b2a2be02ee8143ba145780f8d2a638bc"
 dependencies = [
  "tree-sitter",
 ]
@@ -8855,9 +8914,9 @@ dependencies = [
 
 [[package]]
 name = "yamlpatch"
-version = "1.26.1"
+version = "1.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "919764173d845c2b685a44ca9a028534ef1127bcf713edc6b69787430f18b030"
+checksum = "45ee9380e1d493eeb5ceb2cc026f595fc99901f7763edad124134b0446adbcaa"
 dependencies = [
  "indexmap 2.14.0",
  "line-index",
@@ -8870,9 +8929,9 @@ dependencies = [
 
 [[package]]
 name = "yamlpath"
-version = "1.27.0"
+version = "1.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1362068e6e34bf985c39ee42ee8d410fcc398fedbd5f9303602616db26f542b5"
+checksum = "df6cc1b09a8b90e81e3bdd695ffd6583269fd3f9897c863342167aafd448b6f0"
 dependencies = [
  "line-index",
  "self_cell",

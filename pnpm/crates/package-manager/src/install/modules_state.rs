@@ -5,7 +5,7 @@ use super::{
 };
 
 /// Translate pacquet's [`Config::node_linker`] into the
-/// [`pacquet_modules_yaml::NodeLinker`] enum used on disk. The two
+/// [`pnpm_modules_yaml::NodeLinker`] enum used on disk. The two
 /// enums share the same variant set (`isolated`, `hoisted`, `pnp`),
 /// the values of the `nodeLinker` string.
 pub(super) fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
@@ -26,7 +26,7 @@ pub(super) fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
 /// share one parse across the consistency, newly-allowed, and
 /// unapproved-ignored checks.
 pub(super) fn modules_consistent_with(
-    modules: &pacquet_modules_yaml::ModulesLayout,
+    modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
@@ -69,7 +69,7 @@ pub(super) fn modules_consistent_with(
 /// virtual-store slots; both probe only the importer links.
 pub(super) fn frozen_tree_intact(
     wanted: &Lockfile,
-    modules: &pacquet_modules_yaml::ModulesLayout,
+    modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
     workspace_root: &Path,
     node_linker: NodeLinker,
@@ -236,7 +236,7 @@ pub(super) fn gvs_build_marker_present(
 /// does not cover (store dir, node linker, layout version) still takes
 /// the recreate path.
 pub(super) fn check_modules_settings_diff(
-    modules: &pacquet_modules_yaml::ModulesLayout,
+    modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> Result<(), InstallError> {
     if modules.virtual_store_dir_max_length != config.virtual_store_dir_max_length {
@@ -262,7 +262,7 @@ pub(super) fn normalized_pattern(pattern: Option<&[String]>) -> &[String] {
 }
 
 pub(super) fn modules_layout_consistent_with(
-    modules: &pacquet_modules_yaml::ModulesLayout,
+    modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
     node_linker: NodeLinker,
 ) -> bool {
@@ -304,7 +304,7 @@ pub(super) fn modules_layout_consistent_with(
 /// rebuilds the now-allowed package (already built deps are skipped by
 /// the side-effects-cache `is_built` gate).
 pub(super) fn has_newly_allowed_ignored_builds(
-    modules: &pacquet_modules_yaml::ModulesLayout,
+    modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> bool {
     let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
@@ -331,13 +331,13 @@ pub(super) fn has_newly_allowed_ignored_builds(
 /// an explicit `false` is silently skipped rather than reported, so it
 /// leaves the fast path intact — matching `BuildModules`.
 pub(super) fn has_revoked_allowed_builds(
-    modules: &pacquet_modules_yaml::ModulesLayout,
+    modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> bool {
     let Some(recorded) = modules.allow_builds.as_ref() else { return false };
     recorded
         .iter()
-        .filter(|(_, value)| matches!(value, pacquet_modules_yaml::AllowBuildValue::Bool(true)))
+        .filter(|(_, value)| matches!(value, pnpm_modules_yaml::AllowBuildValue::Bool(true)))
         .any(|(spec, _)| !config.allow_builds.contains_key(spec))
 }
 
@@ -359,9 +359,9 @@ pub(super) fn has_revoked_allowed_builds(
 /// fast-path callers fall through to the full install on `Err`, which
 /// re-evaluates the policy and reports the real error.
 pub(super) fn unapproved_recorded_ignored_builds(
-    modules: &pacquet_modules_yaml::ModulesLayout,
+    modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
-) -> Result<Option<Vec<String>>, pacquet_config::version_policy::VersionPolicyError> {
+) -> Result<Option<Vec<String>>, pnpm_config::version_policy::VersionPolicyError> {
     let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
         return Ok(None);
     };
@@ -403,8 +403,8 @@ pub(super) fn unapproved_recorded_ignored_builds(
 /// handled by [`write_modules_manifest`]'s sort-on-write. An empty set
 /// produces an empty list — matching the fresh-install case.
 ///
-/// [`PackageKey`]: pacquet_lockfile::PackageKey
-/// [`write_modules_manifest`]: pacquet_modules_yaml::write_modules_manifest
+/// [`PackageKey`]: pnpm_lockfile::PackageKey
+/// [`write_modules_manifest`]: pnpm_modules_yaml::write_modules_manifest
 #[expect(
     clippy::too_many_arguments,
     reason = "assembles every field of the .modules.yaml manifest from the install's resolved state"
@@ -427,7 +427,7 @@ pub(super) fn build_modules_manifest(
         // allows (see [`has_newly_allowed_ignored_builds`]). `None` when
         // empty, matching pnpm's omit-when-empty encoding.
         ignored_builds: (!ignored_builds.is_empty()).then(|| {
-            ignored_builds.iter().cloned().map(pacquet_modules_yaml::DepPath::from).collect()
+            ignored_builds.iter().cloned().map(pnpm_modules_yaml::DepPath::from).collect()
         }),
         hoist_pattern: config.hoist_pattern.clone(),
         hoisted_dependencies,
@@ -454,7 +454,6 @@ pub(super) fn build_modules_manifest(
         // this is a fresh timestamp (a prune ran or first install) or the
         // preserved prior value.
         pruned_at,
-        registries: Some(config.resolved_registries()),
         // `iter_installability` excludes fetch-failure entries so they
         // don't get persisted across installs — optional fetch failures
         // are silently swallowed.
@@ -471,7 +470,7 @@ pub(super) fn build_modules_manifest(
                 .allow_builds
                 .iter()
                 .map(|(spec, allowed)| {
-                    (spec.clone(), pacquet_modules_yaml::AllowBuildValue::Bool(*allowed))
+                    (spec.clone(), pnpm_modules_yaml::AllowBuildValue::Bool(*allowed))
                 })
                 .collect(),
         ),
@@ -492,15 +491,15 @@ pub(super) fn drain_settled_projects<Sys>(
     settled: &[String],
 ) -> Result<(), InstallError>
 where
-    Sys: pacquet_modules_yaml::FsReadToString
-        + pacquet_modules_yaml::Clock
-        + pacquet_modules_yaml::FsCreateDirAll
-        + pacquet_modules_yaml::FsWrite,
+    Sys: pnpm_modules_yaml::FsReadToString
+        + pnpm_modules_yaml::Clock
+        + pnpm_modules_yaml::FsCreateDirAll
+        + pnpm_modules_yaml::FsWrite,
 {
     if settled.is_empty() {
         return Ok(());
     }
-    let Some(mut modules) = pacquet_modules_yaml::read_modules_manifest::<Sys>(modules_dir)
+    let Some(mut modules) = pnpm_modules_yaml::read_modules_manifest::<Sys>(modules_dir)
         .map_err(InstallError::ReadModules)?
     else {
         return Ok(());
@@ -519,7 +518,7 @@ pub(super) fn project_requires_lifecycle_scripts(
     project_dir: &Path,
     manifest: &PackageManifest,
 ) -> bool {
-    let has_lifecycle_script = pacquet_executor::PROJECT_LIFECYCLE_STAGES
+    let has_lifecycle_script = pnpm_executor::PROJECT_LIFECYCLE_STAGES
         .iter()
         .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))));
     has_lifecycle_script
@@ -559,7 +558,7 @@ where
         let (Some(rebuild), Some(policy)) = (rebuild, rebuild_build_policy) else { return false };
         !current.is_some_and(|current| current.importers.contains_key(entry))
             && rebuild.settles_dependency(entry)
-            && policy.check(pacquet_deps_path::remove_suffix(entry)) == Some(true)
+            && policy.check(pnpm_deps_path::remove_suffix(entry)) == Some(true)
     };
     let retained = previous.iter().filter(|entry| {
         current.is_some_and(|current| current_contains_dep_path(current, entry)) && !settled(entry)
@@ -681,7 +680,7 @@ pub(super) fn current_contains_dep_path(current: &Lockfile, dep_path: &str) -> b
     if current.importers.contains_key(dep_path) {
         return true;
     }
-    let Ok(key) = dep_path.parse::<pacquet_lockfile::PackageKey>() else { return false };
+    let Ok(key) = dep_path.parse::<pnpm_lockfile::PackageKey>() else { return false };
     current.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(&key))
         || current
             .packages

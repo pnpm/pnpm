@@ -21,11 +21,14 @@ use std::collections::{BTreeMap, HashSet};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::TrustPolicy;
-use pacquet_lockfile::Lockfile;
-use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{RegistryDeclaration, TrustPolicy};
+use pnpm_lockfile::Lockfile;
+use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
+
+/// The `registries` a request declares, keyed by registry URL.
+pub type RegistryDeclarations = BTreeMap<String, RegistryDeclaration>;
 use serde::{Deserialize, Serialize};
 
 /// Dependency map (`name` -> `version range`).
@@ -45,10 +48,14 @@ pub struct ResolveOptions {
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
     /// The client's default registry. The server resolves against this
-    /// (and `named_registries`) rather than its own configuration.
+    /// (and the registries declared alongside it) rather than its own
+    /// configuration.
     pub registry: String,
     /// The client's named-registry aliases.
-    pub named_registries: DepMap,
+    /// The registries the client declares, keyed by URL, in the shape
+    /// of the `registries` setting. The default registry is not among
+    /// them: it travels as `registry`.
+    pub registries: RegistryDeclarations,
     /// `Authorization` for the pnpr server's own URL (`None` if it needs
     /// none): identifies the caller to pnpr. The client never forwards its
     /// own registry credentials — pnpr selects upstream credentials from
@@ -110,7 +117,10 @@ pub struct ResolveProject {
 pub struct ResolveProjectsOptions {
     pub projects: Vec<ResolveProject>,
     pub registry: String,
-    pub named_registries: DepMap,
+    /// The registries the client declares, keyed by URL, in the shape
+    /// of the `registries` setting. The default registry is not among
+    /// them: it travels as `registry`.
+    pub registries: RegistryDeclarations,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub catalogs: Option<Catalogs>,
@@ -139,7 +149,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
                 optional_dependencies: opts.optional_dependencies,
             }],
             registry: opts.registry,
-            named_registries: opts.named_registries,
+            registries: opts.registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
             catalogs: opts.catalogs,
@@ -163,7 +173,10 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
 #[derive(Clone)]
 pub struct VerifyLockfileOptions {
     pub registry: String,
-    pub named_registries: DepMap,
+    /// The registries the client declares, keyed by URL, in the shape
+    /// of the `registries` setting. The default registry is not among
+    /// them: it travels as `registry`.
+    pub registries: RegistryDeclarations,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub lockfile: Lockfile,
@@ -190,7 +203,7 @@ impl VerifyLockfileOptions {
     fn from_owned_resolve_projects_options(opts: ResolveProjectsOptions) -> Option<Self> {
         Some(Self {
             registry: opts.registry,
-            named_registries: opts.named_registries,
+            registries: opts.registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
             lockfile: opts.lockfile?,
@@ -342,7 +355,7 @@ impl PnprClient {
     ) -> Result<(), PnprClientError> {
         let request = serde_json::json!({
             "registry": opts.registry,
-            "namedRegistries": opts.named_registries,
+            "registries": opts.registries,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "trustLockfile": opts.trust_lockfile,
@@ -435,7 +448,7 @@ impl PnprClient {
         let request = serde_json::json!({
             "projects": opts.projects,
             "registry": opts.registry,
-            "namedRegistries": opts.named_registries,
+            "registries": opts.registries,
             "overrides": opts.overrides,
             "catalogs": opts.catalogs,
             "lockfile": opts.lockfile,
@@ -602,7 +615,7 @@ fn build_verify_error(mut violations: Vec<WireViolation>) -> VerifyError {
 
 /// Map a wire violation code back to the `&'static str` constant
 /// [`VerifyError::from_rendered`] matches on. Values are byte-identical
-/// to `pacquet_resolving_npm_resolver`'s violation codes; an unknown
+/// to `pnpm_resolving_npm_resolver`'s violation codes; an unknown
 /// code falls back to the generic envelope rather than fabricating a
 /// variant. Kept inline (rather than depending on the npm resolver)
 /// for the same reason the verification crate aliases them.

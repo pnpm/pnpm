@@ -4,15 +4,15 @@ use dialoguer::{Input, MultiSelect};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use node_semver::Version;
-use pacquet_config::Config;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_versioning::{
+use pnpm_config::Config;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_versioning::{
     AssembleReleasePlanOptions, IntentBumpType, ManifestDependency, ReleasePlan,
     VersioningSettings, WorkspaceProject, assemble_release_plan, index_project_refs,
     read_change_intents, read_ledger, to_project_dir, write_change_intent,
 };
-use pacquet_workspace::Project;
-use pacquet_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
+use pnpm_workspace::Project;
+use pnpm_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -408,12 +408,9 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
             let manifest = project.manifest.value();
             let mut prod_dependencies = Vec::new();
             for (group, field) in [
-                (DependencyGroup::Prod, pacquet_versioning::DependencyField::Dependencies),
-                (
-                    DependencyGroup::Optional,
-                    pacquet_versioning::DependencyField::OptionalDependencies,
-                ),
-                (DependencyGroup::Peer, pacquet_versioning::DependencyField::PeerDependencies),
+                (DependencyGroup::Prod, pnpm_versioning::DependencyField::Dependencies),
+                (DependencyGroup::Optional, pnpm_versioning::DependencyField::OptionalDependencies),
+                (DependencyGroup::Peer, pnpm_versioning::DependencyField::PeerDependencies),
             ] {
                 for (alias, spec) in project.manifest.dependencies([group]) {
                     prod_dependencies.push(ManifestDependency {

@@ -5,20 +5,22 @@
 //! plain `https://host/repo.git[#ref]` shape some hosts (Gitea, ...)
 //! serve.
 //!
+//! Specs of known hosts are identities, not transport choices —
+//! `parse_bare_specifier`'s module doc states the rule.
+//!
 //! Three pieces:
 //!
 //! - [`create_git_hosted_pkg_id()`] — pure ID builder for git resolutions.
-//! - [`parse_bare_specifier()`] — recognise + normalise the input string,
-//!   resolve hosted-vs-private (HTTP HEAD probe + `git ls-remote --exit-code`
-//!   reachability check), pick a `fetchSpec`.
-//! - [`GitResolver`] — the [`Resolver`](pacquet_resolving_resolver_base::Resolver)
-//!   impl that drives the two above, runs `git ls-remote` to pin a
-//!   commit, and emits either a `Tarball{gitHosted: true}` or `Git`
-//!   resolution. Given a [`GitFetchContext`], it also reads the
-//!   package's name from its `package.json` — out of the host archive,
-//!   or out of a checkout for a repo that serves no archive — plus the
-//!   archive's integrity. See that type for why resolution is where
-//!   that has to happen.
+//! - [`parse_bare_specifier()`] — recognise + normalise the input
+//!   string, pick a `fetchSpec`. Pure — no network.
+//! - [`GitResolver`] — the [`Resolver`](pnpm_resolving_resolver_base::Resolver)
+//!   impl that runs `git ls-remote` to pin a commit and emits either a
+//!   `Tarball{gitHosted: true}` or `Git` resolution, decided by the
+//!   [`GitProbe`] archive check. Given a [`GitFetchContext`], it also
+//!   reads the package's name from its `package.json` — out of the
+//!   host archive, or out of a checkout for a repo that serves no
+//!   archive — plus the archive's integrity. See that type for why
+//!   resolution is where that has to happen.
 //!
 //! Out of scope:
 //!
@@ -27,7 +29,7 @@
 //!   yet — the resolver always re-runs `ls-remote`. Restore the fast
 //!   path when `currentPkg` lands on `ResolveOptions`.
 //! - Proxy / TLS plumbing on the HTTP HEAD probe — the probe uses the
-//!   default [`pacquet_network::ThrottledClient`], same as the rest of
+//!   default [`pnpm_network::ThrottledClient`], same as the rest of
 //!   the install path.
 
 mod create_git_hosted_pkg_id;
@@ -38,11 +40,9 @@ mod resolve_ref;
 mod runners;
 
 pub use create_git_hosted_pkg_id::create_git_hosted_pkg_id;
-pub use git_resolver::{GitFetchContext, GitResolver};
+pub use git_resolver::{GitFetchContext, GitProbe, GitResolver, ProbeFuture};
 pub use hosted_git::{HostedGit, HostedGitType, HostedOpts};
-pub use parse_bare_specifier::{
-    GitProbe, HostedPackageSpec, PartialSpec, ProbeFuture, parse_bare_specifier,
-};
+pub use parse_bare_specifier::{HostedPackageSpec, PartialSpec, parse_bare_specifier};
 pub use resolve_ref::{
     GitCommandRunner, GitResolveRefError, GitRunError, get_repo_refs, resolve_ref,
 };

@@ -10,8 +10,8 @@ use std::{
     sync::Mutex,
 };
 
-use pacquet_network::nerf_dart;
-use pacquet_network_web_auth_testing::{ok_token, web_auth_fake};
+use pnpm_network::nerf_dart;
+use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 

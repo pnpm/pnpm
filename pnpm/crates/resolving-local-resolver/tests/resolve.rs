@@ -1,12 +1,12 @@
 //! Resolution tests for the local-filesystem resolver, one
 //! `#[tokio::test]` per scenario.
 
-use pacquet_lockfile::{LockfileResolution, TarballResolution};
-use pacquet_resolving_local_resolver::{
+use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_resolving_local_resolver::{
     LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, ResolveLocalError,
     WantedLocalDependency, resolve_from_local_path, resolve_from_local_scheme,
 };
-use pacquet_resolving_resolver_base::PkgResolutionId;
+use pnpm_resolving_resolver_base::PkgResolutionId;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -206,9 +206,9 @@ async fn resolve_directory_specified_using_the_link_protocol() {
 /// Build a tarball for `pnpm-local-resolver@0.1.1` at `path` and return
 /// its sha512 SSRI string.
 fn write_tarball(path: &Path) -> String {
-    let bytes = pacquet_testing_utils::fixtures::minimal_tarball("pnpm-local-resolver", "0.1.1");
+    let bytes = pnpm_testing_utils::fixtures::minimal_tarball("pnpm-local-resolver", "0.1.1");
     fs::write(path, &bytes).expect("write tarball");
-    pacquet_testing_utils::fixtures::sha512_integrity(&bytes)
+    pnpm_testing_utils::fixtures::sha512_integrity(&bytes)
 }
 
 /// pnpm refuses a `file:` tarball whose bundled `package.json` names no
@@ -229,7 +229,7 @@ async fn fail_when_a_tarball_manifest_names_no_package() {
         fs::create_dir_all(&test_dir).expect("create tgz dir");
         fs::write(
             test_dir.join("nameless-1.0.0.tgz"),
-            pacquet_testing_utils::fixtures::tarball_with_manifest(&manifest),
+            pnpm_testing_utils::fixtures::tarball_with_manifest(&manifest),
         )
         .expect("write tarball");
 
@@ -262,7 +262,7 @@ async fn fail_when_a_tarball_manifest_name_is_not_a_valid_npm_name() {
         fs::create_dir_all(&test_dir).expect("create tgz dir");
         fs::write(
             test_dir.join("bad-1.0.0.tgz"),
-            pacquet_testing_utils::fixtures::tarball_with_manifest(
+            pnpm_testing_utils::fixtures::tarball_with_manifest(
                 &serde_json::json!({ "name": name, "version": "1.0.0" }),
             ),
         )
@@ -295,7 +295,7 @@ async fn resolve_tarball_without_a_bundled_manifest() {
     fs::create_dir_all(&test_dir).expect("create tgz dir");
     fs::write(
         test_dir.join("no-manifest-1.0.0.tgz"),
-        pacquet_testing_utils::fixtures::tarball_without_manifest(),
+        pnpm_testing_utils::fixtures::tarball_without_manifest(),
     )
     .expect("write tarball");
 
@@ -416,7 +416,7 @@ async fn resolve_file_with_different_integrity_force_fetch() {
     let true_integrity = write_tarball(&tarball_path);
 
     let mut options = opts(&test_dir);
-    options.current_pkg = Some(pacquet_resolving_local_resolver::LocalCurrentPkg {
+    options.current_pkg = Some(pnpm_resolving_local_resolver::LocalCurrentPkg {
         id: PkgResolutionId::from("file:pnpm-local-resolver-0.1.1.tgz"),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "file:pnpm-local-resolver-0.1.1.tgz".to_string(),
@@ -542,7 +542,7 @@ async fn throw_error_when_the_path_protocol_is_used() {
         .expect_err("expected PATH_IS_UNSUPPORTED_PROTOCOL");
     match err {
         ResolveLocalError::Spec(
-            pacquet_resolving_local_resolver::LocalSpecError::PathProtocolNotSupported(inner),
+            pnpm_resolving_local_resolver::LocalSpecError::PathProtocolNotSupported(inner),
         ) => {
             assert_eq!(inner.bare_specifier, "path:..");
             assert_eq!(inner.protocol, "path:");

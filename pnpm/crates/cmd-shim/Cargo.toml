@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-cmd-shim"
+name                 = "pnpm-cmd-shim"
 description          = "Bin field parsing and command-shim generation for pacquet, mirroring pnpm's @pnpm/bins.resolver, @pnpm/bins.linker, and @zkochan/cmd-shim"
 version              = "0.0.1"
 publish              = false
@@ -11,8 +11,8 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-fs               = { workspace = true }
-pacquet-package-manifest = { workspace = true }
+pnpm-fs               = { workspace = true }
+pnpm-package-manifest = { workspace = true }
 
 derive_more = { workspace = true }
 dunce       = { workspace = true }

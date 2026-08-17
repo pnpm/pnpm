@@ -379,8 +379,8 @@ test('errors on fake registry', async () => {
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
     configByUri: {},
-    registries: {
-      ...DEFAULT_OPTS.registries,
+    registriesByScope: {
+      ...DEFAULT_OPTS.registriesByScope,
       default: fakeRegistry,
     },
     dir: process.cwd(),

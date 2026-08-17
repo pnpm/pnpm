@@ -7,7 +7,7 @@ const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const SEARCH_OPTS = {
   ...DEFAULT_OPTS,
-  registries: { default: `${REGISTRY_URL}/` },
+  registriesByScope: { default: `${REGISTRY_URL}/` },
 }
 
 test('search: missing query throws error', async () => {
@@ -43,7 +43,7 @@ test('search: non-OK registry response throws SEARCH_FAILED', async () => {
   await expect(
     search.handler({
       ...SEARCH_OPTS,
-      registries: { default: `${REGISTRY_URL}/nonexistent-registry-path/` },
+      registriesByScope: { default: `${REGISTRY_URL}/nonexistent-registry-path/` },
     }, ['create-touch-file-one-bin'])
   ).rejects.toMatchObject({ code: 'ERR_PNPM_SEARCH_FAILED' })
 })

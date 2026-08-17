@@ -9,7 +9,7 @@ import type {
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
-import { rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { calcVersionRange, inferRangeSpecStyle, rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -36,7 +36,7 @@ import type {
   DependencyManifest,
   PackageVersionPolicy,
   RangeSpecStyle,
-  Registries,
+  RegistriesByScope,
   TrustPolicy,
 } from '@pnpm/types'
 import {
@@ -52,11 +52,10 @@ import versionSelectorType from 'version-selector-type'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
-import { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
-  BUILTIN_NAMED_REGISTRIES,
+  BUILTIN_REGISTRIES_BY_PREFIX,
   parseBareSpecifier,
   parseJsrSpecifierToRegistryPackageSpec,
   parseNamedRegistrySpecifierToRegistryPackageSpec,
@@ -67,7 +66,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { applyPublishedByPolicy, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -118,7 +117,7 @@ export function formatTimeAgo (date: Date): string | null {
 }
 
 export {
-  BUILTIN_NAMED_REGISTRIES,
+  BUILTIN_REGISTRIES_BY_PREFIX,
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
   type PackageMeta,
@@ -131,7 +130,6 @@ export {
   workspacePrefToNpm,
 }
 export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
-export { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 export {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
@@ -147,8 +145,8 @@ export interface ResolverFactoryOptions {
   preferOffline?: boolean
   retry?: RetryTimeoutOptions
   timeout?: number
-  registries: Registries
-  namedRegistries?: Record<string, string>
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
   ignoreMissingTimeField?: boolean
@@ -261,8 +259,8 @@ export function createNpmResolver (
       return request
     }
   }
-  const namedRegistries = mergeNamedRegistries(opts.namedRegistries)
-  const namedRegistryNames: ReadonlySet<string> = new Set(Object.keys(namedRegistries))
+  const registriesByPrefix = mergeNamedRegistries(opts.registriesByPrefix)
+  const namedRegistryNames: ReadonlySet<string> = new Set(Object.keys(registriesByPrefix))
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
@@ -275,8 +273,8 @@ export function createNpmResolver (
       cacheDir: opts.cacheDir,
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
     }),
-    registries: opts.registries,
-    namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix,
     namedRegistryNames,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     peekManifestFromStore,
@@ -285,7 +283,7 @@ export function createNpmResolver (
   const boundResolveFromNpm = resolveNpm.bind(null, ctx)
   const boundResolveFromJsr = resolveJsr.bind(null, ctx)
   const boundResolveFromNamedRegistry = resolveFromNamedRegistry.bind(null, ctx)
-  const defaultRegistry = opts.registries.default
+  const defaultRegistry = opts.registriesByScope.default
   return {
     resolveFromNpm: boundResolveFromNpm,
     resolveFromJsr: boundResolveFromJsr,
@@ -362,7 +360,10 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  * The baseline for "held back" is the pick with only the non-pin selectors
  * applied — `range`/`tag` selectors such as the `pnpm audit --fix`
  * vulnerability penalties steer the baseline too, so the warning never
- * recommends a version those selectors avoid.
+ * recommends a version those selectors avoid. The baseline also honors the
+ * `publishedBy` maturity cutoff the actual pick applied: a version blocked
+ * by `minimumReleaseAge` is not an update the manifests held back, and
+ * recommending an override for it would defeat the age gate.
  *
  * The recommended override is scoped to the declared range being resolved
  * (`name@<range>`), so applying it can never violate any consumer's range:
@@ -371,7 +372,7 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  */
 function warnOnceOnHeldBackUpdate (
   ctx: Pick<ResolveFromNpmContext, 'warnedHeldBackUpdates'>,
-  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions'>,
+  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions' | 'publishedBy' | 'publishedByExclude'>,
   spec: RegistryPackageSpec,
   meta: PackageMeta,
   pickedVersion: string
@@ -386,8 +387,14 @@ function warnOnceOnHeldBackUpdate (
     nonPinSelectors ??= Object.create(null) as VersionSelectors
     nonPinSelectors[selector] = value
   }
+  // `needsFullMetadata` is not this caller's problem: the pick already
+  // succeeded on this metadata, which for an abbreviated packument means
+  // every version cleared the cutoff, so `meta` is the filtered view.
+  const baselineMeta = opts.publishedBy != null
+    ? applyPublishedByPolicy(meta, opts.publishedBy, opts.publishedByExclude).meta
+    : meta
   const preferred = pickVersionByVersionRange({
-    meta,
+    meta: baselineMeta,
     versionRange: spec.fetchSpec,
     preferredVersionSelectors: nonPinSelectors,
   })
@@ -465,8 +472,8 @@ function createResolveLatest (
 export interface ResolveFromNpmContext {
   pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
   getAuthHeaderValueByURI: GetAuthHeader
-  registries: Registries
-  namedRegistries: Record<string, string>
+  registriesByScope: RegistriesByScope
+  registriesByPrefix: Record<string, string>
   namedRegistryNames: ReadonlySet<string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   peekManifestFromStore?: (opts: {
@@ -521,8 +528,8 @@ async function resolveNpm (
 ): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
-    ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.bareSpecifier)
-    : ctx.registries.default
+    ? pickRegistryForPackage(ctx.registriesByScope, wantedDependency.alias, wantedDependency.bareSpecifier)
+    : ctx.registriesByScope.default
   if (wantedDependency.bareSpecifier?.startsWith('workspace:')) {
     if (wantedDependency.bareSpecifier.startsWith('workspace:.')) return null
     const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
@@ -747,7 +754,7 @@ async function resolveJsr (
   const spec = parseJsrSpecifierToRegistryPackageSpec(wantedDependency.bareSpecifier, wantedDependency.alias, opts.defaultTag ?? 'latest')
   if (spec == null) return null
 
-  const picked = await pickFromSimpleRegistry(ctx, wantedDependency, opts, spec, ctx.registries['@jsr']!) // '@jsr' is always defined
+  const picked = await pickFromSimpleRegistry(ctx, wantedDependency, opts, spec, ctx.registriesByScope['@jsr']!) // '@jsr' is always defined
   return {
     ...picked,
     normalizedBareSpecifier: opts.calcSpecifier
@@ -767,7 +774,7 @@ async function resolveJsr (
 // another specifier scheme (e.g. `git`, `github`, `jsr`) is silently shadowed
 // by that scheme's dedicated resolver — no cross-resolver knowledge needed.
 function mergeNamedRegistries (userDefined?: Record<string, string>): Record<string, string> {
-  const merged: Record<string, string> = { ...BUILTIN_NAMED_REGISTRIES }
+  const merged: Record<string, string> = { ...BUILTIN_REGISTRIES_BY_PREFIX }
   if (!userDefined) return merged
   for (const [alias, url] of Object.entries(userDefined)) {
     if (RESERVED_VERSION_PREFIXES.has(alias) || !isWellFormedRegistryName(alias)) {
@@ -776,7 +783,7 @@ function mergeNamedRegistries (userDefined?: Record<string, string>): Record<str
         RESERVED_VERSION_PREFIXES.has(alias)
           ? `'${alias}' cannot be used as a named registry alias: it is a reserved dependency specifier prefix.`
           : `'${alias}' cannot be used as a named registry alias: aliases must start with a letter and contain only letters, digits, ".", "_", and "-".`,
-        { hint: 'Rename the entry in the namedRegistries setting.' }
+        { hint: 'Rename the entry in the registriesByPrefix setting.' }
       )
     }
     if (typeof url !== 'string' || !isValidHttpUrl(url)) {
@@ -803,7 +810,7 @@ function isValidHttpUrl (url: string): boolean {
 // Resolves a `<alias>:` specifier from one of the configured named registries.
 // The `gh:` alias ships as a built-in default pointing at the GitHub Packages
 // npm registry; additional aliases come from pnpm-workspace.yaml's
-// `namedRegistries` field. Auth tokens are looked up by the resolved registry
+// `registriesByPrefix` field. Auth tokens are looked up by the resolved registry
 // URL, so a `//npm.pkg.github.com/:_authToken=...` entry in `.npmrc` is
 // picked up automatically for `gh:` specifiers (and analogously for any user-
 // configured alias).
@@ -822,7 +829,7 @@ async function resolveFromNamedRegistry (
   )
   if (spec == null) return null
 
-  const registry = ctx.namedRegistries[spec.registryName]
+  const registry = ctx.registriesByPrefix[spec.registryName]
   if (!registry) return null // defensive: should never trigger because parse checks the alias set
 
   const picked = await pickFromSimpleRegistry(ctx, wantedDependency, opts, spec, registry)
@@ -936,14 +943,13 @@ function calcSpecifier ({
   return `npm:${spec.name}@${range}`
 }
 
+/** The manifest range `version` is saved as; see {@link calcVersionRange}. */
 function calcRange (version: string, wantedDependency: WantedDependency, defaultRangeSpecStyle?: RangeSpecStyle): string {
-  if (semver.parse(version)?.prerelease.length) {
-    return version
-  }
-  const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ??
-    (wantedDependency.bareSpecifier ? inferRangeSpecStyle(wantedDependency.bareSpecifier) : undefined) ??
-    defaultRangeSpecStyle
-  return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
+  return calcVersionRange(version, {
+    prevSpecifier: wantedDependency.prevSpecifier,
+    bareSpecifier: wantedDependency.bareSpecifier,
+    defaultRangeSpecStyle,
+  })
 }
 
 function tryResolveFromWorkspace (

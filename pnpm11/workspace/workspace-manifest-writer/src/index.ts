@@ -4,7 +4,7 @@ import util from 'node:util'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
-import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
+import { mergePackageVersionSpecs, parseVersionPolicyRule } from '@pnpm/config.version-policy'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -49,8 +49,15 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   updatedOverrides?: Record<string, string>
   addedMinimumReleaseAgeExcludes?: string[]
   fileName?: FileName
-  cleanupUnusedCatalogs?: boolean
+  catalogPrune?: boolean
   allProjects?: Project[]
+  /**
+   * Package name → the versions the freshly resolved lockfile records.
+   * Present only under `minimumReleaseAgeExcludePrune`, and only when the
+   * lockfile covers every project `minimumReleaseAgeExclude` governs;
+   * absent, the cleanup pass does not run.
+   */
+  resolvedPackageVersions?: ReadonlyMap<string, ReadonlySet<string>>
 }): Promise<void> {
   const fileName = opts.fileName ?? DEFAULT_FILENAME
 
@@ -67,21 +74,25 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   const originalKeyOrder = captureKeyOrder(manifest)
 
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
-  if (opts.cleanupUnusedCatalogs) {
+  if (opts.catalogPrune) {
     shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
   }
 
   const updatedFields = { ...opts.updatedFields }
 
   for (const [key, value] of Object.entries(updatedFields)) {
-    if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
+    if (value == null) {
+      // Clearing a field the manifest never had changes nothing. Counting it as
+      // an update would take the empty-manifest branch below and try to remove a
+      // file that may not exist.
+      if (!Object.hasOwn(manifest, key)) continue
       shouldBeUpdated = true
-      if (value == null) {
-        delete manifest[key as keyof WorkspaceManifest]
-      } else {
-        manifest[key as keyof WorkspaceManifest] = value
-      }
+      delete manifest[key as keyof WorkspaceManifest]
+      continue
     }
+    if (equals(manifest[key as keyof WorkspaceManifest], value)) continue
+    shouldBeUpdated = true
+    manifest[key as keyof WorkspaceManifest] = value
   }
   if (opts.updatedOverrides) {
     manifest.overrides ??= {}
@@ -92,6 +103,11 @@ export async function updateWorkspaceManifest (dir: string, opts: {
       }
     }
   }
+  if (opts.resolvedPackageVersions != null) {
+    shouldBeUpdated = pruneMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+  }
+  // Merged after the cleanup pass so entries approved during this install
+  // are never pruned by it in the same write.
   if (opts.addedMinimumReleaseAgeExcludes?.length) {
     const existing = manifest.minimumReleaseAgeExclude ?? []
     const merged = mergePackageVersionSpecs([...existing, ...opts.addedMinimumReleaseAgeExcludes])
@@ -253,6 +269,64 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
     packageReferences[pkgName] = new Set()
   }
   packageReferences[pkgName].add(version)
+}
+
+// The `minimumReleaseAgeExcludePrune` pass. An entry is dropped when the
+// freshly resolved lockfile no longer contains what it names: exact versions
+// that were not resolved are dropped (the entry goes away once none remain),
+// and a bare-name entry goes away when the package is absent entirely. Glob
+// patterns always stay — they are forward-looking and can't be proven stale.
+// Entries that fail to parse stay untouched so cleanup never breaks an
+// install.
+function pruneMinimumReleaseAgeExcludes (
+  manifest: Partial<WorkspaceManifest> & { minimumReleaseAgeExclude?: string[] },
+  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
+): boolean {
+  const excludes = manifest.minimumReleaseAgeExclude
+  if (excludes == null || excludes.length === 0) {
+    return false
+  }
+  const survivingSpecs: string[] = []
+  let changed = false
+  for (const entry of excludes) {
+    let packageName: string
+    let exactVersions: string[]
+    try {
+      const rule = parseVersionPolicyRule(entry)
+      packageName = rule.packageName
+      exactVersions = rule.exactVersions
+    } catch {
+      survivingSpecs.push(entry)
+      continue
+    }
+    if (exactVersions.length === 0) {
+      if (packageName.includes('*') || resolvedPackageVersions.has(packageName)) {
+        survivingSpecs.push(entry)
+      } else {
+        changed = true
+      }
+      continue
+    }
+    const resolved = resolvedPackageVersions.get(packageName)
+    const survivingVersions = exactVersions.filter((version) => resolved?.has(version))
+    if (survivingVersions.length === exactVersions.length) {
+      survivingSpecs.push(entry)
+    } else if (survivingVersions.length > 0) {
+      survivingSpecs.push(...mergePackageVersionSpecs([`${packageName}@${survivingVersions.join(' || ')}`]))
+      changed = true
+    } else {
+      changed = true
+    }
+  }
+  if (!changed) {
+    return false
+  }
+  if (survivingSpecs.length === 0) {
+    delete manifest.minimumReleaseAgeExclude
+  } else {
+    manifest.minimumReleaseAgeExclude = survivingSpecs
+  }
+  return true
 }
 
 interface KeyOrderNode {

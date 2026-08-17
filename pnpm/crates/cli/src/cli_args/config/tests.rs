@@ -5,7 +5,7 @@
 
 use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
 use indexmap::IndexMap;
-use pacquet_config::Config;
+use pnpm_config::Config;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -141,19 +141,19 @@ fn set_registries_and_named_registries_global_writes_config_yaml() {
     )
     .unwrap();
 
-    let named_registries = json!({ "work": "https://work.example.com/" });
+    let registries_by_prefix = json!({ "work": "https://work.example.com/" });
     config_set(
         &config,
         tmp.path(),
         flags(true, None, true),
         "named-registries",
-        Some(named_registries.to_string()),
+        Some(registries_by_prefix.to_string()),
     )
     .unwrap();
 
     assert_eq!(
         read_yaml(&config_dir.join("config.yaml")).unwrap(),
-        json!({ "registries": registries, "namedRegistries": named_registries }),
+        json!({ "registries": registries, "namedRegistries": registries_by_prefix }),
     );
 }
 
@@ -517,7 +517,7 @@ fn get_scoped_registry_from_auth_and_merged() {
     // merged `registries` block wins over the raw .npmrc value (pnpm/pnpm#11492)
     let mut merged = config_for_get(&[], &[("@scope:registry", "https://from-npmrc.example.com/")]);
     merged
-        .registries
+        .registries_by_scope
         .insert("@scope".to_string(), "https://from-workspace-yaml.example.com/".to_string());
     assert_eq!(
         config_get(&merged, flags(false, None, false), "@scope:registry").unwrap(),

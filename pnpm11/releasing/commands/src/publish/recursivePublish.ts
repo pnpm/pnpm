@@ -5,7 +5,7 @@ import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { createResolver } from '@pnpm/installing.client'
 import { logger } from '@pnpm/logger'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
-import type { ProjectRootDir, Registries } from '@pnpm/types'
+import type { ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import pFilter from 'p-filter'
 import { pick } from 'ramda'
@@ -22,7 +22,7 @@ export type PublishRecursiveOpts = Required<Pick<Config,
 | 'dir'
 | 'pnpmHomeDir'
 | 'configByUri'
-| 'registries'
+| 'registriesByScope'
 | 'workspaceDir'
 >> &
 Required<Pick<ConfigContext,
@@ -93,7 +93,7 @@ export async function recursivePublish (
     return !(await isAlreadyPublished({
       dir: pkg.rootDir,
       lockfileDir: opts.lockfileDir ?? pkg.rootDir,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       resolve,
     }, publishedName(pkg.manifest)!, pkg.manifest.version))
   })
@@ -138,7 +138,7 @@ export async function recursivePublish (
           const pkg = opts.selectedProjectsGraph[pkgDir].package
           // The registry is picked by scope, so a `publishConfig.name` that
           // moves the package to another scope has to route by the new one.
-          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, publishedName(pkg.manifest)!)
+          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registriesByScope, publishedName(pkg.manifest)!)
           // eslint-disable-next-line no-await-in-loop
           const publishResult = await publish({
             ...opts,
@@ -182,7 +182,7 @@ async function isAlreadyPublished (
   opts: {
     dir: string
     lockfileDir: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     resolve: ResolveFunction
   },
   pkgName: string,

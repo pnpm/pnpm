@@ -9,12 +9,12 @@ use super::{
     allocate_tarball_buffer, decompress_gzip, extract_tarball_entries, local_file_tarball_path,
     open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
 };
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, UNPRIORITIZED};
-use pacquet_reporter::{
+use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient};
+use pnpm_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryError, RequestRetryLog,
 };
-use pacquet_store_dir::{
+use pnpm_store_dir::{
     PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
     StoreIndexWriter, store_index_key,
 };
@@ -105,7 +105,7 @@ pub struct DownloadTarballToStore<'a> {
     /// Install root the fetch belongs to. Threaded into the
     /// `pnpm:progress` `requester` field on `fetched` /
     /// `found_in_store` events. Same value as the
-    /// [`pacquet_reporter::StageLog::prefix`] computed in
+    /// [`pnpm_reporter::StageLog::prefix`] computed in
     /// `Install::run`.
     pub requester: &'a str,
     /// Pre-fetched cache lookups built once at install start
@@ -198,6 +198,9 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
         TarballError::FetchTarball(_) => {
             out.code = Some("ERR_PNPM_FETCH".to_string());
         }
+        TarballError::OffAllowlist { .. } => {
+            out.code = Some("ERR_PNPM_REGISTRY_OFF_ALLOWLIST".to_string());
+        }
         TarballError::Checksum(_) => {
             out.code = Some("ERR_PNPM_TARBALL_INTEGRITY".to_string());
         }
@@ -257,6 +260,8 @@ pub(crate) fn is_transient_error(err: &TarballError) -> bool {
     match err {
         TarballError::HttpStatus(http) => !matches!(http.status, 401 | 403 | 404),
         TarballError::ReadLocalTarball { .. } => false,
+        // A route policy does not change between attempts.
+        TarballError::OffAllowlist { .. } => false,
         _ => true,
     }
 }
@@ -384,6 +389,13 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // URL. When the pool is saturated, the package with the most
     // estimated pipeline work claims the next freed slot, so the
     // longest download+extract jobs never start last.
+    // The route policy decides whether this origin may be reached at all,
+    // at the fetch rather than when the request that named it was read.
+    if !auth_headers.allows_fetch(package_url) {
+        return Err(TarballError::OffAllowlist {
+            url: pnpm_network::redact_url_credentials(package_url),
+        });
+    }
     let client = http_client.acquire_for_url_with_priority(package_url, download_priority).await;
     let mut request = client.get(package_url);
     // Resolve the per-URL auth header and attach it. Tarball hosts that
@@ -590,10 +602,10 @@ pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>
     let size = unpacked_size.map_or(0, |size| size as u64);
     let per_file =
         file_count.map_or(0, |count| (count as u64).saturating_mul(PRIORITY_BYTES_PER_FILE));
-    // `UNPRIORITIZED` (`u64::MAX`) is the latency-class sentinel; a
-    // hostile registry publishing absurd `dist` stats must not be able
-    // to saturate a download's priority into that class.
-    size.saturating_add(per_file).min(UNPRIORITIZED - 1)
+    // `UNPRIORITIZED` and `BACKGROUND` are class sentinels; a hostile
+    // registry publishing absurd `dist` stats must not be able to
+    // saturate a download's priority into either class.
+    size.saturating_add(per_file).min(MAX_THROUGHPUT_PRIORITY)
 }
 
 /// Run [`fetch_and_extract_once`] under pnpm's retry policy. Permanent

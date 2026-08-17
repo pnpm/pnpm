@@ -47,6 +47,28 @@ fn online_scenario_writes_no_prewarm_script() {
     assert!(!has_prewarm);
 }
 
+/// The whys live on the `cleanup()` arm and the
+/// `prewarms_node_modules` predicate this test pins.
+#[test]
+fn repeat_install_scenarios_keep_node_modules_populated() {
+    for scenario in [
+        BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore,
+        BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore,
+    ] {
+        let cleanup = scenario.cleanup();
+        assert!(
+            !cleanup.remove.contains(&"node_modules"),
+            "{scenario:?} must not wipe node_modules between iterations",
+        );
+        assert!(
+            cleanup.restore.is_empty(),
+            "{scenario:?} must not restore files a repeat install never mutates",
+        );
+        assert!(scenario.prewarms_node_modules(), "{scenario:?} must pre-warm node_modules");
+        assert!(scenario.seeds_lockfile(), "{scenario:?} needs the seeded lockfile");
+    }
+}
+
 #[test]
 fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let dir = std::env::temp_dir()
@@ -426,7 +448,7 @@ fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
     fs::create_dir_all(&manifest_dir).expect("create current-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),
-        "[package]\nname       = \"pacquet-cli\"\n\n[[bin]]\nname = \"pnpm\"\n",
+        "[package]\nname       = \"pnpm-cli\"\n\n[[bin]]\nname = \"pnpm\"\n",
     )
     .expect("write current-layout manifest");
     assert_eq!(WorkEnv::cli_bin_name(&current), "pnpm");
@@ -437,7 +459,7 @@ fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
     fs::create_dir_all(&manifest_dir).expect("create old-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),
-        "[package]\nname = \"pacquet-cli\"\n\n[[bin]]\nname = \"pacquet\"\n",
+        "[package]\nname = \"pnpm-cli\"\n\n[[bin]]\nname = \"pacquet\"\n",
     )
     .expect("write old-layout manifest");
     assert_eq!(WorkEnv::cli_bin_name(&old), "pacquet");

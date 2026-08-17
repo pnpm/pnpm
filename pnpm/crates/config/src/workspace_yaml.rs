@@ -9,11 +9,13 @@ use crate::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_env_replace::env_replace_lossy;
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_store_dir::StoreDir;
-use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
+use pnpm_env_replace::env_replace_lossy;
+use pnpm_network::redact_and_sanitize;
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_store_dir::StoreDir;
+use pnpm_workspace_state::ConfigDependency;
+use registries::RegistryEntry;
 use serde::{Deserialize, Deserializer};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -35,6 +37,62 @@ where
     De: Deserializer<'de>,
 {
     Option::<Value>::deserialize(deserializer).map(Some)
+}
+
+/// Whether the authority of `url` carries a `user:pass@` prefix. The authority
+/// ends at the first `/`, `?`, or `#`, so a later `@` in the path is not one.
+///
+/// Both the full form and the scheme-less `//host/` form count. The latter is
+/// the shape `.npmrc` scopes settings with, so it is the one a user is most
+/// likely to reach for here.
+fn registry_url_has_userinfo(url: &str) -> bool {
+    userinfo_end(url).is_some()
+}
+
+/// The offset just past the `user:pass@` of `url`, or [`None`] when its
+/// authority carries none. Splitting it out keeps the detection and the
+/// redaction below agreeing on what the authority is.
+fn userinfo_end(url: &str) -> Option<usize> {
+    let authority_start = authority_start_of(url)?;
+    let authority = &url[authority_start..];
+    let authority_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
+    authority[..authority_end].rfind('@').map(|at| authority_start + at + 1)
+}
+
+/// Where the authority of `url` begins, or [`None`] if it has none.
+///
+/// The scheme is anchored at the start rather than found by searching for the
+/// first `://`: a `://` inside the path (`//host/a://b`) would otherwise be
+/// taken for the separator, and the real authority — credentials and all —
+/// would go unexamined.
+fn authority_start_of(url: &str) -> Option<usize> {
+    if let Some(scheme_end) = url.find("://") {
+        let scheme = &url[..scheme_end];
+        let mut chars = scheme.chars();
+        let starts_with_letter = chars.next().is_some_and(|first| first.is_ascii_alphabetic());
+        let rest_is_scheme = chars.all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '+' | '.' | '-')
+        });
+        if starts_with_letter && rest_is_scheme {
+            return Some(scheme_end + "://".len());
+        }
+    }
+    url.starts_with("//").then_some("//".len())
+}
+
+/// `url` with any `user:pass@` removed, safe to put in a message.
+///
+/// [`redact_and_sanitize`] only recognizes an authority after a `://`, and
+/// deliberately so: it runs over arbitrary prose, where a bare `//` is more
+/// often a comment or a path than a URL. Here the string is known to be a
+/// registry URL, so the scheme-less `//host/` form can be handled too.
+fn redact_registry_url(url: &str) -> String {
+    match (authority_start_of(url), userinfo_end(url)) {
+        (Some(authority_start), Some(userinfo_end)) => {
+            redact_and_sanitize(&format!("{}{}", &url[..authority_start], &url[userinfo_end..]))
+        }
+        _ => redact_and_sanitize(url),
+    }
 }
 
 /// The value of an `allowBuilds` entry.
@@ -96,6 +154,7 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
+    pub ci: Option<bool>,
     pub hoist: Option<bool>,
 
     /// Tri-state `hoistPattern` — see `deserialize_double_option`.
@@ -114,16 +173,17 @@ pub struct WorkspaceSettings {
     pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,
-    /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. Default
-    /// applied in [`Config`] is `false` — matches pnpm v11's
-    /// effective default for non-`--global` installs (the `true`
-    /// default applies only to `pnpm install --global`, and pacquet
-    /// has no `--global` flow). See
-    /// [`Config::enable_global_virtual_store`].
+    /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. See
+    /// [`Config::enable_global_virtual_store`] for the default.
     pub enable_global_virtual_store: Option<bool>,
     /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
     /// [`Config::virtual_store_only`].
     pub virtual_store_only: Option<bool>,
+    /// `globalShims` from `pnpm-workspace.yaml` or the global
+    /// `config.yaml`. One layer of the record; merged key-wise into
+    /// [`Config::global_shims`] rather than assigned
+    /// wholesale. See [`crate::GlobalShims`].
+    pub global_shims: Option<crate::GlobalShimsSetting>,
     /// `enableModulesDir` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_modules_dir`].
     pub enable_modules_dir: Option<bool>,
@@ -149,7 +209,10 @@ pub struct WorkspaceSettings {
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
     pub scope: Option<String>,
-    pub registries: Option<BTreeMap<String, String>>,
+    /// The registries the project declares. Keyed by registry URL, with the
+    /// routes to each registry inside its entry; a map of plain strings is the
+    /// older `<scope>: <url>` shape and is read as one.
+    pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
@@ -161,6 +224,10 @@ pub struct WorkspaceSettings {
     /// name (`gh`, `work`, ...); inner string is the registry URL the
     /// alias resolves against. Merged on top of pnpm's built-in
     /// defaults at resolver construction.
+    ///
+    /// Deprecated in favor of the `prefix` field of a
+    /// [`crate::RegistryDeclaration`],
+    /// and only read for the prefixes `registries` does not declare.
     pub named_registries: Option<BTreeMap<String, String>>,
 
     /// Structured registry auth (`_auth`). Honored **only** from the global
@@ -242,7 +309,7 @@ pub struct WorkspaceSettings {
     /// Map of `name[@version]` → patch-file path (relative to the
     /// workspace dir or absolute). Read verbatim; relative-path
     /// resolution, file hashing, and grouping are deferred to
-    /// [`pacquet_patching::resolve_and_group`] so the yaml layer
+    /// [`pnpm_patching::resolve_and_group`] so the yaml layer
     /// stays pure data.
     ///
     /// [`IndexMap`] (not [`BTreeMap`]) — pnpm's JS-object iteration
@@ -382,6 +449,10 @@ pub struct WorkspaceSettings {
     /// [`Config::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Option<Vec<String>>,
 
+    /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` — see
+    /// [`Config::sync_injected_deps_after_scripts`].
+    pub sync_injected_deps_after_scripts: Option<Vec<String>>,
+
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Drives the
     /// optional-dependency platform check at install time: a
     /// `name: ['darwin'], cpu: ['arm64']` setting tells pacquet to
@@ -389,7 +460,7 @@ pub struct WorkspaceSettings {
     /// on a non-matching host. Per-axis CLI flags (`--cpu`, `--libc`,
     /// `--os`) override individual axes.
     /// Read from yaml verbatim (no `current` substitution here — that
-    /// happens at the [`pacquet_package_is_installable::check_platform`]
+    /// happens at the [`pnpm_package_is_installable::check_platform`]
     /// call site where the host triple is in scope).
     pub supported_architectures: Option<SupportedArchitectures>,
 
@@ -406,7 +477,7 @@ pub struct WorkspaceSettings {
     /// during install (both direct manifests and transitive
     /// packuments). Outer key encodes the override scope (bare name,
     /// `name@range`, or `parent>child` forms — see
-    /// `pacquet_config_parse_overrides`); value is the replacement
+    /// `pnpm_config_parse_overrides`); value is the replacement
     /// spec, or `-` to delete the dep entirely.
     ///
     /// Values are validated as strings at load time
@@ -421,7 +492,7 @@ pub struct WorkspaceSettings {
     ///
     /// Lockfile drift: the raw map is recorded in `pnpm-lock.yaml`'s
     /// `overrides:` field. On a subsequent install,
-    /// `pacquet_lockfile::check_lockfile_settings` compares this
+    /// `pnpm_lockfile::check_lockfile_settings` compares this
     /// against `lockfile.overrides` and raises `OverridesChanged`
     /// on mismatch.
     pub overrides: Option<IndexMap<String, String>>,
@@ -442,6 +513,11 @@ pub struct WorkspaceSettings {
 
     /// `minimumReleaseAgeExclude` from `pnpm-workspace.yaml`.
     pub minimum_release_age_exclude: Option<Vec<String>>,
+
+    /// `minimumReleaseAgeExcludePrune` from `pnpm-workspace.yaml`.
+    /// See [`Config::minimum_release_age_exclude_prune`]. Default
+    /// `false`.
+    pub minimum_release_age_exclude_prune: Option<bool>,
 
     /// `minimumReleaseAgeIgnoreMissingTime` from `pnpm-workspace.yaml`.
     pub minimum_release_age_ignore_missing_time: Option<bool>,
@@ -488,7 +564,7 @@ pub struct WorkspaceSettings {
     /// `versioning` from `pnpm-workspace.yaml`: native workspace release
     /// management (fixed groups, ignore list, maxBump cap, per-package
     /// prerelease lines, changelog settings).
-    pub versioning: Option<pacquet_versioning::VersioningSettings>,
+    pub versioning: Option<pnpm_versioning::VersioningSettings>,
 
     /// `trustPolicyExclude` from `pnpm-workspace.yaml`.
     pub trust_policy_exclude: Option<Vec<String>>,
@@ -514,8 +590,12 @@ pub struct WorkspaceSettings {
     /// `catalogMode` from `pnpm-workspace.yaml`. See [`CatalogMode`].
     pub catalog_mode: Option<CatalogMode>,
 
-    /// `cleanupUnusedCatalogs` from `pnpm-workspace.yaml`. See
-    /// [`Config::cleanup_unused_catalogs`]. Default `false`.
+    /// `catalogPrune` from `pnpm-workspace.yaml`. See
+    /// [`Config::catalog_prune`]. Default `false`.
+    pub catalog_prune: Option<bool>,
+
+    /// `catalogPrune`'s former name, still accepted. [`Self::catalog_prune`]
+    /// wins when a file carries both.
     pub cleanup_unused_catalogs: Option<bool>,
 
     /// `saveCatalogName` from `pnpm-workspace.yaml`. See
@@ -679,7 +759,7 @@ pub struct PeerDependencyRules {
 ///
 /// Read directly from yaml — no validation here beyond serde's shape
 /// check. The hook
-/// (`pacquet_package_manager::PackageExtender`) merges these onto
+/// (`pnpm_package_manager::PackageExtender`) merges these onto
 /// manifests, with the manifest's own fields taking precedence on
 /// conflict so the extension never overwrites a value the package
 /// already declared.
@@ -730,6 +810,60 @@ pub enum LoadWorkspaceYamlError {
         #[error(source)]
         source: Box<serde_saphyr::Error>,
     },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display("The \"registries\" key {registry} embeds credentials")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help("Put them in an .npmrc file instead, so they are not committed.")
+    )]
+    CredentialsInRegistryKey { registry: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(
+        r#"The "registries[{registry:?}].{field}" setting is not allowed in pnpm-workspace.yaml"#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help("Set it in an .npmrc file instead, so it is not committed.")
+    )]
+    SecretInRegistryDeclaration { registry: String, field: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(r#"The "registries[{registry:?}].{field}" setting is not a known registry setting"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"A registry declares "serverType", "scopes", and "prefix"."#)
+    )]
+    UnknownRegistryDeclarationField { registry: String, field: String },
+    #[display(r#"The "registries" setting mixes registry declarations with "<scope>: <url>" entries ({scopes})"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(
+            r#"Key every entry by registry URL and list the scopes routed to it under "scopes"."#
+        )
+    )]
+    MixedRegistriesShapes { scopes: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(r#"The "registries[{registry:?}]" entry is a string"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(
+            r#"A registry URL keys a declaration, e.g. {{ serverType: "artifactory" }}. A string value routes a scope, and a URL is not a scope."#
+        )
+    )]
+    StringValuedRegistryDeclaration { registry: String },
+    /// The registry URL is redacted before it reaches this variant.
+    #[display(r#"The "registries[{registry:?}].scopes" setting should list "@"-prefixed scopes, but got {scope:?}"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"A bare "@" is the scope-less default registry."#)
+    )]
+    RegistryScopeWithoutAtSign { registry: String, scope: String },
+    /// The registry URLs are redacted before they reach this variant.
+    #[display("The scope {scope:?} is routed to two registries: {registries}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    ScopeRoutedTwice { scope: String, registries: String },
+    #[display("The prefix {prefix:?} is declared by two registries")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    PrefixDeclaredTwice { prefix: String },
     #[display("Invalid `_auth` setting: {source}")]
     InvalidJsonAuth {
         #[error(source)]
@@ -763,7 +897,7 @@ pub enum LoadWorkspaceYamlError {
     #[display("Failed to read the root package.json: {source}")]
     ReadRootManifest {
         #[error(source)]
-        source: Box<pacquet_package_manifest::PackageManifestError>,
+        source: Box<pnpm_package_manifest::PackageManifestError>,
     },
     /// An `overrides` value used the `$dep-name` self-reference syntax,
     /// but the root manifest declares no such direct dependency.
@@ -795,8 +929,21 @@ impl WorkspaceSettings {
         let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+        settings.validate_registries()?;
         settings.clear_workspace_only_fields();
         Ok(Some(settings))
+    }
+
+    /// Reject a `registries` map pnpm would read as something other than what
+    /// it says. See [`registries::validate`] for the rules.
+    ///
+    /// Checked after parsing rather than in a `Deserialize` impl on purpose:
+    /// `serde_saphyr` renders the offending source line verbatim under its
+    /// errors, so rejecting at parse time would print the very credential
+    /// being rejected into the terminal and any CI log.
+    fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(entries) = self.registries.as_ref() else { return Ok(()) };
+        registries::validate(entries)
     }
 
     /// Zero out the release-age and trust policies for `self-update`.
@@ -834,6 +981,16 @@ impl WorkspaceSettings {
     /// hoisted` in `~/.config/pnpm/config.yaml` and pacquet would
     /// honor it while pnpm wouldn't — anti-parity.
     pub fn clear_workspace_only_fields(&mut self) {
+        // Only the layout half of a registry declaration is workspace-only: it
+        // decides which tarball URLs are omitted from the lockfile, so a
+        // machine-local setting would make one developer write a lockfile
+        // their collaborators read back with a different layout. The routes to
+        // the registry are a legitimate global preference.
+        for entry in self.registries.iter_mut().flat_map(BTreeMap::values_mut) {
+            if let RegistryEntry::Declaration(declaration) = entry {
+                declaration.server_type = None;
+            }
+        }
         self.versioning = None;
         self.hoist = None;
         self.hoist_pattern = None;
@@ -876,44 +1033,43 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.sync_injected_deps_after_scripts = None;
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
         self.save_peer = None;
     }
 
+    /// Read `<dir>/pnpm-workspace.yaml` without walking ancestors.
+    /// Returns `Ok(None)` only when nothing exists at that exact path;
+    /// every other error (including `EISDIR` for a directory named
+    /// `pnpm-workspace.yaml`, or permission denied) propagates, matching
+    /// pnpm where `ENOENT` is the only silent case.
+    pub fn load_at(dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
+        let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
+        };
+        let settings: WorkspaceSettings = text
+            .pipe_as_ref(serde_saphyr::from_str)
+            .map_err(Box::new)
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+        settings.validate_registries()?;
+        Ok(Some(settings))
+    }
+
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
-    /// Returns `Ok(None)` if no ancestor has one. Read or parse failures
-    /// other than `ENOENT` propagate, matching pnpm.
+    /// Returns `Ok(None)` if no ancestor has one. Per-level semantics are
+    /// [`Self::load_at`]'s.
     pub fn find_and_load(
         start_dir: &Path,
     ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
         for dir in start_dir.ancestors() {
-            let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-            let read_result = fs::read_to_string(&path);
-
-            // Walk up only when the read failed because nothing exists at
-            // this level. Every other error (including `EISDIR` for a
-            // directory named `pnpm-workspace.yaml`, or permission denied)
-            // propagates, matching pnpm where `ENOENT` is the only silent
-            // case.
-            if let Err(error) = &read_result
-                && error.kind() == ErrorKind::NotFound
-            {
-                continue;
+            if let Some(settings) = Self::load_at(dir)? {
+                return Ok(Some((dir.join(WORKSPACE_MANIFEST_FILENAME), settings)));
             }
-
-            let settings: WorkspaceSettings = read_result
-                .map_err(|source| LoadWorkspaceYamlError::ReadFile { path: path.clone(), source })?
-                .pipe_as_ref(serde_saphyr::from_str)
-                .map_err(Box::new)
-                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                    path: path.clone(),
-                    source,
-                })?;
-
-            return Ok(Some((path, settings)));
         }
-
         Ok(None)
     }
 
@@ -930,7 +1086,7 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.proxy);
         substitute_json_string::<Sys>(&mut self.no_proxy);
         substitute_json_string::<Sys>(&mut self.noproxy);
-        substitute_optional_string_map::<Sys>(&mut self.registries);
+        substitute_registry_entries::<Sys>(&mut self.registries);
         substitute_optional_string_map::<Sys>(&mut self.named_registries);
     }
 
@@ -950,11 +1106,12 @@ impl WorkspaceSettings {
             self.registry = None;
         }
         if let Some(registries) = self.registries.as_mut() {
-            registries.retain(|_, value| !has_env_placeholder(value));
+            registries::retain_without_env_placeholders(registries, has_env_placeholder);
         }
         if let Some(named_registries) = self.named_registries.as_mut() {
             named_registries.retain(|_, value| !has_env_placeholder(value));
         }
+
         if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
             self.pnpr_server = None;
         }
@@ -1002,6 +1159,12 @@ impl WorkspaceSettings {
         let audit_level_in_yaml = self.audit_level.is_some();
         let audit_config_in_yaml = self.audit_config.is_some();
 
+        // `catalogPrune`'s former name, applied before the macro so the
+        // canonical key wins when a file carries both.
+        if let Some(v) = self.cleanup_unused_catalogs {
+            config.catalog_prune = v;
+        }
+
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
                 if let Some(v) = self.$field {
@@ -1011,7 +1174,7 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            hoist, shamefully_hoist,
+            ci, hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
@@ -1044,11 +1207,19 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
-            resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer, save_exact,
+            sync_injected_deps_after_scripts,
+            resolution_mode, catalog_mode, catalog_prune,
+            minimum_release_age_exclude_prune, save_peer, save_exact,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
             allow_unused_patches,
+        }
+
+        // `globalShims` merges key-wise instead of replacing,
+        // so a layer can flip one package without restating the defaults.
+        if let Some(global_shims) = self.global_shims {
+            config.global_shims.apply(&global_shims);
         }
 
         // The `update` section supersedes the deprecated `updateConfig`.
@@ -1107,15 +1278,16 @@ impl WorkspaceSettings {
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
-        if let Some(registries) = self.registries {
-            for (scope, registry) in registries {
-                let registry = normalize_registry_url(&registry);
-                if scope == "default" {
-                    config.registry = registry;
-                } else {
-                    config.registries.insert(scope, registry);
-                }
+        let mut declared_prefixes = false;
+        if let Some(entries) = self.registries {
+            let lookups = registries::into_lookups(entries);
+            declared_prefixes = !lookups.registries_by_prefix.is_empty();
+            if let Some(registry) = lookups.default_registry {
+                config.registry = registry;
             }
+            config.registries_by_scope.extend(lookups.registries_by_scope);
+            config.registries_by_prefix.extend(lookups.registries_by_prefix);
+            config.registry_options_by_url.extend(lookups.registry_options_by_url);
         }
         if let Some(v) = self.registry {
             config.registry = normalize_registry_url(&v);
@@ -1127,7 +1299,17 @@ impl WorkspaceSettings {
             config.pnpr_server = Some(v);
         }
         if let Some(v) = self.named_registries {
-            config.named_registries = v;
+            if declared_prefixes {
+                tracing::warn!(
+                    target: "pacquet::config",
+                    r#"Both the "registries" and "namedRegistries" settings declare registry prefixes. The deprecated "namedRegistries" setting is only read for prefixes "registries" does not declare."#,
+                );
+            }
+            // A prefix a `registries` entry declares wins: this is the
+            // deprecated spelling of the same thing.
+            for (name, registry) in v {
+                config.registries_by_prefix.entry(name).or_insert(registry);
+            }
         }
 
         // Anchor patch-file path resolution against the workspace dir
@@ -1280,7 +1462,7 @@ impl WorkspaceSettings {
     /// see the [`crate::proxy_keys`] module docs.
     pub(crate) fn apply_proxy_to(
         &self,
-        proxy_config: &mut pacquet_network::ProxyConfig,
+        proxy_config: &mut pnpm_network::ProxyConfig,
         keys: &mut ProxyKeys,
     ) {
         for (key, raw) in [
@@ -1347,6 +1529,26 @@ fn substitute_optional_string_map<Sys: EnvVar>(value: &mut Option<BTreeMap<Strin
     }
 }
 
+/// Expands `${VAR}` in the half of each `registries` entry that carries the
+/// request destination: the value of a scope route, the key of a declaration.
+fn substitute_registry_entries<Sys: EnvVar>(value: &mut Option<BTreeMap<String, RegistryEntry>>) {
+    let Some(map) = value.take() else { return };
+    *value = Some(
+        map.into_iter()
+            .map(|(key, entry)| match entry {
+                RegistryEntry::ScopeRoute(url) => {
+                    let (substituted, _) = env_replace_lossy::<Sys>(&url);
+                    (key, RegistryEntry::ScopeRoute(substituted))
+                }
+                RegistryEntry::Declaration(declaration) => {
+                    let (substituted, _) = env_replace_lossy::<Sys>(&key);
+                    (substituted, RegistryEntry::Declaration(declaration))
+                }
+            })
+            .collect(),
+    );
+}
+
 fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<String>>) {
     if let Some(Some(value)) = value {
         let (substituted, _) = env_replace_lossy::<Sys>(value);
@@ -1385,6 +1587,8 @@ pub fn workspace_root_or(start: &Path) -> PathBuf {
         .and_then(|path| path.parent().map(Path::to_path_buf))
         .unwrap_or_else(|| start.to_path_buf())
 }
+
+pub mod registries;
 
 #[cfg(test)]
 mod tests;

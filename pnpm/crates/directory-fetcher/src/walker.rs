@@ -6,11 +6,11 @@
 //! - [`walk_all_files`]: recursive walk, exclude `node_modules`, drop
 //!   broken symlinks, optionally resolve symlinks via a real-path stat.
 //! - [`walk_package_files`]: delegate to
-//!   [`pacquet_git_fetcher::packlist`] for the npm-packlist filtered
+//!   [`pnpm_git_fetcher::packlist`] for the npm-packlist filtered
 //!   set.
 
 use crate::error::DirectoryFetcherError;
-use pacquet_package_manifest::safe_read_package_json_from_dir;
+use pnpm_package_manifest::safe_read_package_json_from_dir;
 use std::{
     collections::{HashMap, HashSet},
     fs::{self, Metadata},
@@ -89,7 +89,7 @@ fn walk_all_inner(
     // ENAMETOOLONG. Stack overflow is also reachable on platforms
     // where the path-too-long error has a higher ceiling than the
     // default Rust stack. Skip-on-revisit instead, matching the
-    // pattern `pacquet_git_fetcher::packlist` already uses for
+    // pattern `pnpm_git_fetcher::packlist` already uses for
     // `bundleDependencies` cycles. The check is keyed off
     // `fs::canonicalize` so an unresolved symlink and its target
     // share one entry; canonicalisation failure (permission denied,
@@ -270,7 +270,7 @@ fn canonicalize_path(path: &Path) -> Result<PathBuf, DirectoryFetcherError> {
 }
 
 /// Read the manifest for packlist filtering, run
-/// [`pacquet_git_fetcher::packlist`], and absolutise each entry against
+/// [`pnpm_git_fetcher::packlist`], and absolutise each entry against
 /// `dir`.
 pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetcherError> {
     // packlist requires *some* manifest; pass the JSON just read from
@@ -282,7 +282,7 @@ pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetche
         .map_err(DirectoryFetcherError::ReadManifest)?
         .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
     let files =
-        pacquet_git_fetcher::packlist(dir, &manifest).map_err(DirectoryFetcherError::Packlist)?;
+        pnpm_git_fetcher::packlist(dir, &manifest).map_err(DirectoryFetcherError::Packlist)?;
     let mut out = FilesMap::with_capacity(files.len());
     for rel in files {
         let abs = dir.join(&rel);

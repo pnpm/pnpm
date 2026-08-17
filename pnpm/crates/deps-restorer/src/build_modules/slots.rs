@@ -171,7 +171,7 @@ pub(crate) fn pkg_roots_for_key(
 
 /// Re-import a snapshot's package directory from the side-effects cache
 /// overlay (the `base - deleted + added` file set already resolved to
-/// CAS paths by [`pacquet_store_dir::build_file_maps_from_index`]).
+/// CAS paths by [`pnpm_store_dir::build_file_maps_from_index`]).
 ///
 /// The warm-link phase materializes only the pristine tarball files, so
 /// a cached build whose `is_built` gate fires would otherwise leave the

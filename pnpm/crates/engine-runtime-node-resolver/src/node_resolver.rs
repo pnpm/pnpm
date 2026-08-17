@@ -8,22 +8,23 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pacquet_crypto_shasums_file::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file,
-    fetch_verified_node_shasums_file,
+use pnpm_crypto_shasums_file::{
+    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file_cached,
+    fetch_verified_node_shasums_file_cached,
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget, VariationsResolution,
 };
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_resolver_base::{
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
@@ -34,7 +35,7 @@ use crate::{
     get_node_mirror::{
         DEFAULT_NODE_MIRROR_BASE_URL, UNOFFICIAL_NODE_MIRROR_BASE_URL, get_node_mirror,
     },
-    parse_node_specifier::{ParseNodeSpecifierError, parse_node_specifier},
+    parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier},
     resolve_node_version::{ResolveNodeVersionError, resolve_node_version},
 };
 
@@ -94,12 +95,16 @@ pub struct NodeResolver {
     pub http_client: Arc<ThrottledClient>,
     pub node_download_mirrors: HashMap<String, String>,
     pub offline: bool,
+    /// The pnpm cache directory backing the per-version SHASUMS disk
+    /// cache. `None` disables the cache and every resolve fetches the
+    /// asset lists from the mirror.
+    pub cache_dir: Option<PathBuf>,
 }
 
 impl NodeResolver {
     #[must_use]
     pub fn new(http_client: Arc<ThrottledClient>) -> Self {
-        Self { http_client, node_download_mirrors: HashMap::new(), offline: false }
+        Self { http_client, node_download_mirrors: HashMap::new(), offline: false, cache_dir: None }
     }
 }
 
@@ -138,11 +143,39 @@ impl NodeResolver {
         // resolve re-fetches the asset list. Add the fast path once the
         // seam carries it.
 
-        let PickedNodeVersion { version, mirror, release_channel } = self
+        let picked = self
             .pick_node_version(version_spec)
             .await
             .map_err(|err| Box::new(err) as ResolveError)?;
-        let variants = self.read_node_assets(&mirror, &version, &release_channel).await?;
+        let variants = match self
+            .read_node_assets(&picked.mirror, &picked.version, &picked.release_channel)
+            .await
+        {
+            Ok(variants) => variants,
+            // An exact-specifier pick skipped the release index, so a
+            // failed asset read is ambiguous: the version may simply not
+            // exist. Consult the index now, purely to raise the same
+            // `ERR_PNPM_NODEJS_VERSION_NOT_FOUND` the index-first path
+            // raises for a nonexistent version; any other outcome
+            // re-raises the asset error unchanged.
+            Err(error) if picked.resolved_without_index => {
+                let error = match resolve_node_version(
+                    &self.http_client,
+                    &picked.version,
+                    Some(&picked.mirror),
+                )
+                .await
+                {
+                    Ok(None) => {
+                        NodeResolverError::VersionNotFound { spec: version_spec.to_string() }
+                    }
+                    _ => error,
+                };
+                return Err(Box::new(error));
+            }
+            Err(error) => return Err(Box::new(error)),
+        };
+        let PickedNodeVersion { version, .. } = picked;
         let range = normalize_node_runtime_version_specifier(
             version_spec,
             &version,
@@ -170,6 +203,12 @@ impl NodeResolver {
 
     /// Parse a `runtime:` version spec, pick the mirror for its release
     /// channel, and resolve the spec to a concrete version.
+    ///
+    /// An exact stable-release specifier is its own resolution, so the
+    /// release-index fetch is skipped for it and existence is proven by
+    /// the asset-list fetch that follows —
+    /// [`resolve_impl`](Self::resolve_impl) maps that fetch's failure
+    /// back to the canonical not-found error.
     async fn pick_node_version(
         &self,
         version_spec: &str,
@@ -180,6 +219,14 @@ impl NodeResolver {
         let parsed =
             parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
         let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
+        if let Some(version) = exact_release_version(&parsed) {
+            return Ok(PickedNodeVersion {
+                version,
+                mirror,
+                release_channel: parsed.release_channel,
+                resolved_without_index: true,
+            });
+        }
         let version =
             resolve_node_version(&self.http_client, &parsed.version_specifier, Some(&mirror))
                 .await
@@ -187,7 +234,12 @@ impl NodeResolver {
                 .ok_or_else(|| NodeResolverError::VersionNotFound {
                     spec: version_spec.to_string(),
                 })?;
-        Ok(PickedNodeVersion { version, mirror, release_channel: parsed.release_channel })
+        Ok(PickedNodeVersion {
+            version,
+            mirror,
+            release_channel: parsed.release_channel,
+            resolved_without_index: false,
+        })
     }
 
     /// The specifier an `add node@runtime:<spec>` request saves to the
@@ -201,6 +253,16 @@ impl NodeResolver {
         version_spec: &str,
         prev_specifier: Option<&str>,
     ) -> Result<String, NodeResolverError> {
+        // An exact stable-release specifier normalizes to itself
+        // (`normalize_node_runtime_version_specifier` returns the
+        // resolved version verbatim when it equals the spec), so no
+        // version pick is needed. Whether the version exists is settled
+        // by the resolve that follows the save.
+        let parsed =
+            parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
+        if let Some(version) = exact_release_version(&parsed) {
+            return Ok(format!("{BARE_SPEC_PREFIX}{version}"));
+        }
         let picked = self.pick_node_version(version_spec).await?;
         let range =
             normalize_node_runtime_version_specifier(version_spec, &picked.version, prev_specifier);
@@ -256,13 +318,14 @@ impl NodeResolver {
         mirror: &str,
         version: &str,
         release_channel: &str,
-    ) -> Result<Vec<PlatformAssetResolution>, ResolveError> {
+    ) -> Result<Vec<PlatformAssetResolution>, NodeResolverError> {
         let mut assets = read_node_assets_from_mirror(
             &self.http_client,
             mirror,
             version,
             /* musl_only */ false,
             /* verify_signature */ release_channel == "release",
+            self.cache_dir.as_deref(),
         )
         .await?;
         if mirror == DEFAULT_NODE_MIRROR_BASE_URL
@@ -272,6 +335,7 @@ impl NodeResolver {
                 version,
                 /* musl_only */ true,
                 /* verify_signature */ false,
+                self.cache_dir.as_deref(),
             )
             .await
         {
@@ -281,12 +345,33 @@ impl NodeResolver {
     }
 }
 
+/// The concrete version an exact stable-release specifier names, when
+/// the specifier is already in canonical `X.Y.Z` form. Such a specifier
+/// needs no release-index lookup: the index would resolve it to itself.
+/// Prereleases are excluded — on the `release` channel they never
+/// exist, so routing them through the index keeps the canonical
+/// not-found error path.
+fn exact_release_version(parsed: &NodeSpecifier) -> Option<String> {
+    if parsed.release_channel != "release" {
+        return None;
+    }
+    Version::parse(&parsed.version_specifier)
+        .ok()
+        .filter(|version| version.pre_release.is_empty() && version.build.is_empty())
+        .map(|version| version.to_string())
+        .filter(|version| *version == parsed.version_specifier)
+}
+
 /// A concrete Node.js version picked for a `runtime:` version spec, plus
 /// the mirror and release channel it was picked from.
 struct PickedNodeVersion {
     version: String,
     mirror: String,
     release_channel: String,
+    /// `true` when the pick came from
+    /// [`exact_release_version`] — the release index was never
+    /// consulted, so the version's existence is still unproven.
+    resolved_without_index: bool,
 }
 
 /// Strip `runtime:` from a `(alias, bareSpecifier)` pair when both
@@ -338,16 +423,19 @@ async fn read_node_assets_from_mirror(
     version: &str,
     musl_only: bool,
     verify_signature: bool,
-) -> Result<Vec<PlatformAssetResolution>, ResolveError> {
+    cache_dir: Option<&Path>,
+) -> Result<Vec<PlatformAssetResolution>, NodeResolverError> {
+    // The URL is pinned to one released version, which is what makes it
+    // eligible for the SHASUMS disk cache.
     let integrities_url = format!("{node_mirror_base_url}v{version}/SHASUMS256.txt");
     let items = if verify_signature {
-        fetch_verified_node_shasums_file(http_client, &integrities_url).await.map_err(|err| {
-            Box::new(NodeResolverError::FetchVerifiedNodeShasums(err)) as ResolveError
-        })?
-    } else {
-        fetch_shasums_file(http_client, &integrities_url)
+        fetch_verified_node_shasums_file_cached(http_client, &integrities_url, cache_dir)
             .await
-            .map_err(|err| Box::new(NodeResolverError::FetchShasumsFile(err)) as ResolveError)?
+            .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
+    } else {
+        fetch_shasums_file_cached(http_client, &integrities_url, cache_dir)
+            .await
+            .map_err(NodeResolverError::FetchShasumsFile)?
     };
     let mut assets = Vec::new();
     for item in items {
@@ -371,13 +459,12 @@ async fn read_node_assets_from_mirror(
         let url = format!("{}/{}{}", address.dirname, address.basename, address.extname);
         let archive =
             if address.extname == ".zip" { BinaryArchive::Zip } else { BinaryArchive::Tarball };
-        let integrity: Integrity = item.integrity.parse().map_err(|error| {
-            Box::new(NodeResolverError::ParseIntegrity {
+        let integrity: Integrity =
+            item.integrity.parse().map_err(|error| NodeResolverError::ParseIntegrity {
                 integrity: item.integrity.clone(),
                 file_name: item.file_name.clone(),
                 error: Arc::new(error),
-            }) as ResolveError
-        })?;
+            })?;
         let prefix = matches!(archive, BinaryArchive::Zip).then(|| address.basename.clone());
         let binary = BinaryResolution {
             url,

@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
+use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
 
 /// What a real install would change, derived from two lockfiles.
 ///

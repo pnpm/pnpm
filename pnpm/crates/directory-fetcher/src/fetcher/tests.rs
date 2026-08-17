@@ -41,7 +41,7 @@ fn confined_package_files_fetcher_rejects_linked_root() {
     fs::write(outside.join("package.json"), r#"{ "name": "x", "version": "0.0.0" }"#).unwrap();
     fs::write(outside.join("index.js"), "content").unwrap();
     let root_link = dir.path().join("root-link");
-    pacquet_fs::symlink_dir(&outside, &root_link).unwrap();
+    pnpm_fs::symlink_dir(&outside, &root_link).unwrap();
 
     let Err(err) = (DirectoryFetcher {
         directory: root_link,
