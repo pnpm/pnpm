@@ -27,7 +27,7 @@ use pnpm_lockfile_verification::{
     verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{
-    Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
+    Clock, Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
     ReadModulesError, WriteModulesError, write_modules_manifest,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient};

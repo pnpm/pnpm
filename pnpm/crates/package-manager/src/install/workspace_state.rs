@@ -1,8 +1,8 @@
 use super::{
-    BTreeMap, Catalogs, Config, DependencyGroup, HashSet, Host, IncludedDependencies, LazyLockfile,
-    MaybeLazyLockfile, NodeLinker, OptimisticRepeatInstallCheck, OptimisticRepeatInstallDecision,
-    PackageManifest, Path, PathBuf, ProjectEntry, ProjectMutation, WorkspaceState,
-    check_optimistic_repeat_install, get_catalogs_from_workspace_manifest,
+    BTreeMap, Catalogs, Clock, Config, DependencyGroup, HashSet, Host, IncludedDependencies,
+    LazyLockfile, MaybeLazyLockfile, NodeLinker, OptimisticRepeatInstallCheck,
+    OptimisticRepeatInstallDecision, PackageManifest, Path, PathBuf, ProjectEntry, ProjectMutation,
+    WorkspaceState, check_optimistic_repeat_install, get_catalogs_from_workspace_manifest,
     gvs_build_marker_present, gvs_build_markers_may_require_recovery, load_workspace_projects,
     manifest_string_field, unapproved_recorded_ignored_builds,
 };
@@ -552,7 +552,7 @@ pub(super) fn build_projects_map(
     clippy::too_many_arguments,
     reason = "the workspace-state writer records the install run's resolved inputs"
 )]
-pub(crate) fn build_workspace_state<Sys: pnpm_modules_yaml::Clock>(
+pub(crate) fn build_workspace_state<Sys: Clock>(
     workspace_root: &Path,
     config: &Config,
     node_linker: NodeLinker,
