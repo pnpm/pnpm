@@ -281,7 +281,7 @@ fn stable_cached_range_returns_dominant_lockfile_version() {
 
     assert_eq!(
         pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
-        Some("1.0.0")
+        Some("1.0.0"),
     );
 }
 
@@ -362,7 +362,7 @@ fn stable_cached_range_accounts_for_movable_tag_weight() {
 
     assert_eq!(
         pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
-        Some("1.0.0")
+        Some("1.0.0"),
     );
 }
 
