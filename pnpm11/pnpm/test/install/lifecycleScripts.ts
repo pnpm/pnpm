@@ -190,8 +190,8 @@ test('--allow-build flag keeps the packages already listed in allowBuilds', asyn
   })
   execPnpmSync(['add', '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], { expectSuccess: true })
 
-  const modulesManifest = await readWorkspaceManifest(project.dir())
-  expect(modulesManifest?.allowBuilds).toStrictEqual({
+  const workspaceManifest = await readWorkspaceManifest(project.dir())
+  expect(workspaceManifest?.allowBuilds).toStrictEqual({
     '@pnpm.e2e/install-script-example': true,
     '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
   })
