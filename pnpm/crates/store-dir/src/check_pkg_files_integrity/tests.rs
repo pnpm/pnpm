@@ -301,7 +301,7 @@ fn the_tally_covers_hashing_only() {
         vec![("unknown-algo", info(&digest, content.len() as u64, 0o644, Some(0)))],
     );
     assert!(
-        !check_pkg_files_integrity(&store_dir, unknown_algo, &VerifiedFilesCache::new()).passed
+        !check_pkg_files_integrity(&store_dir, unknown_algo, &VerifiedFilesCache::new()).passed,
     );
 
     let missing =
