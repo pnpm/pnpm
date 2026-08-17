@@ -3,6 +3,7 @@ import { type AuditAdvisory, satisfiesSafe } from '@pnpm/deps.compliance.audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
+import semver from 'semver'
 
 import type { AuditOptions } from './audit.js'
 import { createAuditNetworkOptions } from './auditContext.js'
@@ -24,11 +25,11 @@ export interface PackumentPublishInfo {
 export type PublishTimesFetcher = (pkgName: string) => Promise<PackumentPublishInfo | undefined>
 
 /**
- * Returns a memoized lookup of each package's publish-time map (the `time`
- * field of its packument), so callers can tell whether a version is young
- * enough that `minimumReleaseAge` would block it. `undefined` means the
- * publish times are unknown — the request failed or the packument carries no
- * `time` field; callers must treat that as "no information", not as "old".
+ * Returns a memoized lookup of each package's {@link PackumentPublishInfo}, so
+ * callers can tell which versions exist and whether one is young enough that
+ * `minimumReleaseAge` would block it. `undefined` means the packument is
+ * unknown — the request failed or it carries no `time` field; callers must
+ * treat that as "no information", not as "old".
  */
 export function createPublishTimesFetcher (opts: AuditOptions): PublishTimesFetcher {
   const networkOptions = createAuditNetworkOptions(opts)
@@ -89,36 +90,39 @@ export function createPublishTimesFetcher (opts: AuditOptions): PublishTimesFetc
   }
 }
 
-/**
- * Returns the lowest non-deprecated published version satisfying `range`, or
- * `undefined` when no published version satisfies it (whether it was never
- * published, skipped, yanked, or deprecated). A failed packument lookup
- * (`undefined` publish info) also returns `undefined`.
- */
-export function lowestNonDeprecatedVersion (
-  publishInfo: PackumentPublishInfo | undefined,
-  range: string
-): string | undefined {
-  if (publishInfo == null) return undefined
-  const versions = Object.keys(publishInfo.time)
-    .filter((key) => key !== 'created' && key !== 'modified' && !publishInfo.deprecated.has(key))
-  let lowest: string | undefined
-  for (const version of versions) {
-    if (satisfiesSafe(version, range) && (lowest == null || compareVersions(version, lowest) < 0)) {
-      lowest = version
-    }
-  }
-  return lowest
+export interface PublishedVersion {
+  /**
+   * The `time` key the version was found under. The registry may spell it in
+   * a non-normalized form (e.g. `v1.2.3`) that the parsed version drops, so
+   * the key is what a publish-time lookup must use.
+   */
+  key: string
+  /**
+   * The normalized version.
+   */
+  version: string
 }
 
-function compareVersions (a: string, b: string): number {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    const diff = (pa[i] || 0) - (pb[i] || 0)
-    if (diff !== 0) return diff
+/**
+ * Returns the lowest non-deprecated published version satisfying `range` — the
+ * version an inferred patched range actually resolves to — or `undefined` when
+ * no published version satisfies it, whether it was never published, skipped,
+ * yanked, or deprecated.
+ */
+export function lowestNonDeprecatedVersion (
+  publishInfo: PackumentPublishInfo,
+  range: string
+): PublishedVersion | undefined {
+  let lowest: { key: string, parsed: semver.SemVer } | undefined
+  for (const key of Object.keys(publishInfo.time)) {
+    if (key === 'created' || key === 'modified' || publishInfo.deprecated.has(key)) continue
+    const parsed = semver.parse(key, { loose: true })
+    if (parsed == null || !satisfiesSafe(parsed.version, range)) continue
+    if (lowest == null || semver.compare(parsed, lowest.parsed) < 0) {
+      lowest = { key, parsed }
+    }
   }
-  return 0
+  return lowest && { key: lowest.key, version: lowest.parsed.version }
 }
 
 /**
@@ -130,7 +134,7 @@ function compareVersions (a: string, b: string): number {
  * (e.g. `>=4.17.24` becomes `>=4.18.1` when 4.17.24 does not exist and
  * 4.18.0 is deprecated). When no published version satisfies it, the range
  * is dropped entirely. A failed packument lookup leaves the range untouched
- * (fail open). Ports pnpm's `correctInferredPatchedVersions`.
+ * (fail open).
  */
 export async function correctInferredPatchedVersions (
   advisories: Record<string, AuditAdvisory>,
@@ -146,7 +150,7 @@ export async function correctInferredPatchedVersions (
       advisory.patched_versions = null
       advisory.patched_versions_unpublished = true
     } else {
-      advisory.patched_versions = `>=${lowest}`
+      advisory.patched_versions = `>=${lowest.version}`
     }
   }))
 }

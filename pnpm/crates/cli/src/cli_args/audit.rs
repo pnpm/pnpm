@@ -497,7 +497,7 @@ fn retry_opts_from_config(config: &Config) -> RetryOpts {
 async fn correct_inferred_patched_versions(
     report: &mut AuditReport,
     config: &Config,
-    http_client: &pacquet_network::ThrottledClient,
+    http_client: &pnpm_network::ThrottledClient,
 ) -> HashMap<String, Option<PackumentPublishInfo>> {
     let names: HashSet<&str> = report
         .advisories
@@ -509,30 +509,24 @@ async fn correct_inferred_patched_versions(
         return HashMap::new();
     }
     let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
-    let mut publish_infos: HashMap<String, Option<PackumentPublishInfo>> = HashMap::new();
-    for name in names {
+    let fetches = names.into_iter().map(|name| {
         let registry = pick_registry_for_package(&registries, name, None);
-        let info = fetch_publish_times(name, &registry, config, http_client).await;
-        publish_infos.insert(name.to_string(), info);
-    }
+        async move {
+            (name.to_string(), fetch_publish_times(name, &registry, config, http_client).await)
+        }
+    });
+    let publish_infos: HashMap<String, Option<PackumentPublishInfo>> =
+        futures_util::future::join_all(fetches).await.into_iter().collect();
     for advisory in report.advisories.values_mut() {
         let Some(patched) = advisory.patched_versions.as_deref() else { continue };
         let Some(Some(info)) = publish_infos.get(advisory.module_name.trim()) else { continue };
         let Ok(range) = patched.parse::<Range>() else { continue };
-        let lowest = info
-            .time
-            .keys()
-            .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
-            .filter(|key| !info.deprecated.contains(key.as_str()))
-            .filter_map(|version| version.parse::<Version>().ok())
-            .filter(|version| satisfies_including_prerelease(version, &range))
-            .min();
-        match lowest {
+        match info.lowest_non_deprecated_version(&range) {
             None => {
                 advisory.patched_versions = None;
                 advisory.patched_versions_unpublished = Some(true);
             }
-            Some(lowest) => {
+            Some((_, lowest)) => {
                 advisory.patched_versions = Some(format!(">={lowest}"));
             }
         }

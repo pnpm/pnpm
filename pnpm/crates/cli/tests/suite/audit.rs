@@ -422,6 +422,71 @@ fn audit_level_info_includes_info_advisories() {
 }
 
 #[test]
+fn audit_reports_the_lowest_non_deprecated_published_patch() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    // 2.0.0 is deprecated, so the inferred >=2.0.0 patch resolves to 2.0.1.
+    let packument_mock = registry
+        .mock("GET", "/vulnerable")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"time":{"2.0.0":"2020-01-01T00:00:00.000Z","2.0.1":"2020-02-01T00:00:00.000Z"},"versions":{"2.0.0":{"deprecated":"do not use"},"2.0.1":{}}}"#,
+        )
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "");
+
+    let output = pacquet.arg("audit").output().expect("run pacquet audit");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = stdout(&output);
+    assert!(
+        stdout.contains(">=2.0.1"),
+        "the report should name the lowest non-deprecated published patch:\n{stdout}",
+    );
+    mock.assert();
+    packument_mock.assert();
+}
+
+#[test]
+fn audit_reports_no_patched_version_when_none_was_published() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    let packument_mock = registry
+        .mock("GET", "/vulnerable")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"time":{"1.0.0":"2020-01-01T00:00:00.000Z"}}"#)
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "");
+
+    let output = pacquet.arg("audit").output().expect("run pacquet audit");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = stdout(&output);
+    assert!(
+        stdout.contains("Patched versions") && stdout.contains("None"),
+        "an unpublished patch renders as None:\n{stdout}",
+    );
+    assert!(
+        !stdout.contains("(unknown)"),
+        "unpublished must not render as the inference-failed fallback:\n{stdout}",
+    );
+    mock.assert();
+    packument_mock.assert();
+}
+
+#[test]
 fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();

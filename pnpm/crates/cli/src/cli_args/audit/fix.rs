@@ -80,8 +80,7 @@ pub(crate) async fn fix_override(
     );
     if let Some(minimum_release_age) = config.resolved_minimum_release_age() {
         let added =
-            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)
-                .await?;
+            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
         if !added.is_empty() {
             write_age_excludes(settings_dir, config, &added)?;
             let note = format!(
@@ -96,8 +95,7 @@ pub(crate) async fn fix_override(
 }
 
 /// The packument publish info of one package: the `time` map plus the set of
-/// deprecated versions, or `None` when the packument could not be fetched or
-/// carries no usable `time` field. Ports pnpm's publish-info structure.
+/// deprecated versions.
 #[derive(Debug, Clone)]
 pub(crate) struct PackumentPublishInfo {
     /// The packument `time` map: version → raw publish timestamp. Includes
@@ -107,6 +105,24 @@ pub(crate) struct PackumentPublishInfo {
     /// excluded from patched-version validation — a deprecated release is
     /// not a viable fix even though it exists on the registry.
     pub(crate) deprecated: HashSet<String>,
+}
+
+impl PackumentPublishInfo {
+    /// The lowest non-deprecated published version satisfying `range` — the
+    /// version an inferred patched range actually resolves to — paired with
+    /// its `time` key, which the registry may spell in a non-normalized form
+    /// (e.g. `v1.2.3`) that the parsed version drops. `None` when no published
+    /// version satisfies the range, whether it was never published, skipped,
+    /// yanked, or deprecated.
+    pub(crate) fn lowest_non_deprecated_version(&self, range: &Range) -> Option<(&str, Version)> {
+        self.time
+            .keys()
+            .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
+            .filter(|key| !self.deprecated.contains(key.as_str()))
+            .filter_map(|key| Some((key.as_str(), key.parse::<Version>().ok()?)))
+            .filter(|(_, version)| satisfies_including_prerelease(version, range))
+            .min_by(|(_, a), (_, b)| a.cmp(b))
+    }
 }
 
 /// The packument publish info of one package, or `None` when the packument
@@ -167,7 +183,7 @@ pub(crate) async fn fetch_publish_times(
 /// maps the report validation already fetched, so a patched version published
 /// long before the cutoff gets no pointless `minimumReleaseAgeExclude` entry.
 /// Ports the publish-time lookup of pnpm's `createMinimumReleaseAgeExcludes`.
-async fn resolve_minimum_release_age_excludes(
+fn resolve_minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
     publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
     minimum_release_age: u64,
@@ -185,17 +201,13 @@ async fn resolve_minimum_release_age_excludes(
 }
 
 /// The `minimumReleaseAgeExclude` entries needed to keep the age gate from
-/// blocking the patched versions: one `name@minVersion` spec per fixable
-/// advisory whose minimum non-deprecated published version satisfying the
-/// patched range is younger than `cutoff`. The theoretical range minimum may
-/// not exist on the registry (a skipped, yanked, or deprecated release), so
-/// the lowest non-deprecated published version that satisfies the range is
-/// used instead — that is the version the override actually resolves to. A
-/// version published at or before the cutoff doesn't need a bypass, and a
-/// version whose publish time is unknown keeps its entry so a genuinely fresh
-/// fix stays installable. A version absent from a successfully fetched
-/// packument is not available — whether it was never published, skipped,
-/// yanked, or deprecated — so it gets no entry. Ports pnpm's
+/// blocking the patched versions: one `name@version` spec per fixable
+/// advisory whose fix — the version
+/// [`PackumentPublishInfo::lowest_non_deprecated_version`] resolves the
+/// patched range to — is younger than `cutoff`. A version published at or
+/// before the cutoff doesn't need a bypass, and a version whose publish time
+/// is unknown keeps its entry so a genuinely fresh fix stays installable. An
+/// advisory the packument offers no fix for gets no entry. Ports pnpm's
 /// `createMinimumReleaseAgeExcludes`.
 pub(crate) fn minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
@@ -213,26 +225,13 @@ pub(crate) fn minimum_release_age_excludes(
             let Some(info) = publish_infos.get(name).and_then(Option::as_ref) else {
                 return Some(format!("{name}@{min}"));
             };
-            // The theoretical range minimum may not exist on the registry;
-            // use the lowest non-deprecated published version that satisfies
-            // the range, which is what the override actually resolves to. The
-            // original key is retained because the registry may use a
-            // non-normalized form (e.g. `v1.2.3`) that the parsed Version drops.
             let range = patched.parse::<Range>().ok()?;
-            let lowest = info
-                .time
-                .keys()
-                .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
-                .filter(|key| !info.deprecated.contains(key.as_str()))
-                .filter_map(|key| key.parse::<Version>().ok().map(|parsed| (key, parsed)))
-                .filter(|(_, parsed)| satisfies_including_prerelease(parsed, &range))
-                .min_by(|(_, a), (_, b)| a.cmp(b))?;
-            let raw = info.time.get(lowest.0)?;
-            match parse_packument_timestamp(raw) {
+            let (key, lowest) = info.lowest_non_deprecated_version(&range)?;
+            match info.time.get(key).and_then(|raw| parse_packument_timestamp(raw)) {
                 Some(published_at) if published_at <= cutoff => None,
                 // A present-but-unparsable timestamp fails open like unknown
                 // publish times.
-                _ => Some(format!("{name}@{}", lowest.1)),
+                _ => Some(format!("{name}@{lowest}")),
             }
         })
         .collect();
@@ -458,8 +457,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
         state.config.resolved_minimum_release_age()
     {
         let added =
-            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)
-                .await?;
+            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
         if !added.is_empty() {
             write_age_excludes(settings_dir, state.config, &added)?;
         }
