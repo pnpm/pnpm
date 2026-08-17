@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
+import type { VerifiedFileIntegrity } from '@pnpm/store.cafs'
 import type { FilesMap, PackageFilesResponse } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest } from '@pnpm/types'
@@ -21,6 +22,35 @@ import type {
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
+
+/**
+ * Store verification runs in the workers, so each one tallies the files
+ * it re-hashed and the time that took, and hands its share back with
+ * every response (see `takeVerifiedFileIntegrity` in `@pnpm/store.cafs`).
+ * This is the sum across all of them for the lifetime of the process.
+ *
+ * An install reports its own share by taking a snapshot when it starts
+ * and diffing at the end — several installs run in one process during a
+ * recursive workspace command.
+ */
+const verifiedFileIntegrity: VerifiedFileIntegrity = { files: 0, ms: 0 }
+
+export function verifiedFileIntegritySnapshot (): VerifiedFileIntegrity {
+  return { ...verifiedFileIntegrity }
+}
+
+export function verifiedFileIntegritySince (baseline: VerifiedFileIntegrity): VerifiedFileIntegrity {
+  return {
+    files: verifiedFileIntegrity.files - baseline.files,
+    ms: verifiedFileIntegrity.ms - baseline.ms,
+  }
+}
+
+function addVerifiedFileIntegrity (reported: VerifiedFileIntegrity | undefined): void {
+  if (reported == null) return
+  verifiedFileIntegrity.files += reported.files
+  verifiedFileIntegrity.ms += reported.ms
+}
 
 export async function restartWorkerPool (): Promise<void> {
   await finishWorkers()
@@ -241,8 +271,9 @@ export async function readPkgFromCafs (
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value, warnings }) => {
+    localWorker.once('message', ({ status, error, value, warnings, verifiedFileIntegrity }) => {
       workerPool!.checkinWorker(localWorker)
+      addVerifiedFileIntegrity(verifiedFileIntegrity)
       if (status === 'error') {
         reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string, { hint: error.hint }))
         return

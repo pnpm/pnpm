@@ -15,12 +15,34 @@ export interface Integrity {
   algorithm: string
 }
 
-// We track how many files were checked during installation.
-// It should be rare that a files content should be checked.
-// If it happens too frequently, something is wrong.
-// Checking a file's integrity is an expensive operation!
-// @ts-expect-error
-global['verifiedFileIntegrity'] = 0
+export interface VerifiedFileIntegrity {
+  files: number
+  ms: number
+}
+
+/**
+ * How many store files had to be re-hashed to verify them, and how long
+ * that took. It should be rare for a file's content to be checked — the
+ * recorded `checkedAt` usually says the file is untouched — and hashing
+ * is expensive, so an install that spends a noticeable amount of time
+ * here reports it.
+ *
+ * Verification runs in worker threads, so this is a per-worker tally.
+ * Each worker hands its share back with the response it is answering
+ * (see `@pnpm/worker`), and the main thread sums them up.
+ */
+let verifiedFileIntegrity: VerifiedFileIntegrity = { files: 0, ms: 0 }
+
+/**
+ * The tally accumulated since the last call, resetting it. The worker
+ * calls this once per response so every re-hash is reported to the main
+ * thread exactly once.
+ */
+export function takeVerifiedFileIntegrity (): VerifiedFileIntegrity {
+  const taken = verifiedFileIntegrity
+  verifiedFileIntegrity = { files: 0, ms: 0 }
+  return taken
+}
 
 export interface VerifyResult {
   passed: boolean
@@ -162,7 +184,7 @@ function verifyFile (
       rimrafSync(filename)
       return false
     }
-    const passed = verifyFileIntegrity(filename, { digest: fstat.digest, algorithm })
+    const passed = tallyVerifyFileIntegrity(filename, { digest: fstat.digest, algorithm })
     if (!passed) {
       gfs.unlinkSync(filename)
     }
@@ -174,12 +196,29 @@ function verifyFile (
   return true
 }
 
+/**
+ * `verifyFileIntegrity` with the work recorded in the tally the install
+ * reports at the end. Only store verification goes through here; the
+ * CAFS writer's own integrity check is not the store-wide problem the
+ * report is about, and pacquet's writer doesn't hash at all.
+ */
+function tallyVerifyFileIntegrity (
+  filename: string,
+  integrity: Integrity
+): boolean {
+  const startedAt = performance.now()
+  try {
+    return verifyFileIntegrity(filename, integrity)
+  } finally {
+    verifiedFileIntegrity.files++
+    verifiedFileIntegrity.ms += performance.now() - startedAt
+  }
+}
+
 export function verifyFileIntegrity (
   filename: string,
   integrity: Integrity
 ): boolean {
-  // @ts-expect-error
-  global['verifiedFileIntegrity']++
   let data: Buffer
   try {
     data = gfs.readFileSync(filename)

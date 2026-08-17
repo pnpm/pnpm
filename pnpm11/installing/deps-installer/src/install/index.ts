@@ -73,7 +73,7 @@ import {
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
-import { globalInfo, logger, streamParser } from '@pnpm/logger'
+import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
@@ -95,6 +95,7 @@ import type {
   ProjectRootDir,
   ReadPackageHook,
 } from '@pnpm/types'
+import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
@@ -112,6 +113,7 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
 import { type AddedManifests, tryAddLockedVersions } from './tryAddLockedVersions.js'
 import { tryComposeFastUpdates } from './tryComposeFastUpdates.js'
 import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
@@ -354,6 +356,11 @@ export async function mutateModules (
 
   const opts = extendOptions(maybeOpts)
 
+  // Taken before any fetching so the store-verification figures this
+  // install reports are its own: a recursive workspace command runs one
+  // `mutateModules` per project in the same process.
+  const verifiedFileIntegrityBaseline = verifiedFileIntegritySnapshot()
+
   // When a pnpr server is configured, use server-side resolution. The pnpr server
   // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
   // (pnpm remove). Mutations that need full client-side resolution (update
@@ -539,11 +546,7 @@ export async function mutateModules (
 
   const result = await settleInstall(_install(), verifyLockfilePromise)
 
-  // @ts-expect-error
-  if (global['verifiedFileIntegrity'] > 1000) {
-    // @ts-expect-error
-    globalInfo(`The integrity of ${global['verifiedFileIntegrity']} files was checked. This might have caused installation to take longer.`)
-  }
+  reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
   if (opts.mergeGitBranchLockfiles) {
     await cleanGitBranchLockfiles(ctx.lockfileDir)

@@ -18,6 +18,7 @@ use super::{
 };
 use pnpm_config::Config;
 use pnpm_executor::DEV_PREINSTALL_STAGE;
+use pnpm_store_dir::VerifiedFileIntegrity;
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
@@ -74,6 +75,11 @@ where
         let can_prompt = prompt_eligibility_override
             .unwrap_or_else(|| !is_ci::cached() && std::io::stdin().is_terminal());
         let peer_issues_sink_is_none = peer_issues_sink.is_none();
+        // Taken before any fetching so the store-verification figures
+        // this install reports are its own — a recursive workspace run
+        // and a long-lived embedder (the NAPI addon) both drive several
+        // installs through the same process-global tally.
+        let verified_file_integrity_baseline = VerifiedFileIntegrity::snapshot();
 
         // `--lockfile-only` with `lockfile: false` (pnpm's
         // `useLockfile: false`) is a config conflict: the only output the
@@ -1038,6 +1044,7 @@ where
             selection,
             supported_architectures,
             catalogs,
+            verified_file_integrity_baseline,
         })
         .await
     }

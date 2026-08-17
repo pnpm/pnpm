@@ -16,32 +16,83 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
-    time::UNIX_EPOCH,
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
-/// Process-wide tally of CAFS files that had to be re-hashed by
-/// [`verify_file_integrity`]. Content hashing is the expensive half of
-/// store verification — the common case never reaches it, because the
-/// recorded `checked_at` says the file is untouched. A high tally means
-/// something keeps invalidating the store (a mtime-rewriting backup
-/// tool, an antivirus scanner, a shared store on a filesystem with
-/// coarse timestamps), so the install reports it.
+/// Process-wide tally of the CAFS files [`verify_file_integrity`] had
+/// to re-hash, and the time that hashing took. Content hashing is the
+/// expensive half of store verification — the common case never reaches
+/// it, because the recorded `checked_at` says the file is untouched. A
+/// high tally means something keeps invalidating the store (a
+/// mtime-rewriting backup tool, an antivirus scanner, a shared store on
+/// a filesystem with coarse timestamps), so the install reports it.
 ///
-/// Process-global to match pnpm, which counts the same event on
-/// `global.verifiedFileIntegrity`: the verifiers run deep inside the
-/// fetch/import fan-out while the report is emitted at the end of the
-/// install, and every hop between the two is on the hot path.
-static VERIFIED_FILE_INTEGRITY: AtomicU64 = AtomicU64::new(0);
+/// Process-global for the same reason pnpm keeps its counter on
+/// `global`: the verifiers run deep inside the fetch/import fan-out
+/// while the report is emitted at the end of the install, and every hop
+/// between the two is on the hot path. Callers that want the figures
+/// for one install take a [`VerifiedFileIntegrity`] snapshot when it
+/// starts and diff against it — see [`VerifiedFileIntegrity::since`].
+static VERIFIED_FILE_INTEGRITY: VerifiedFileIntegrityTally =
+    VerifiedFileIntegrityTally { files: AtomicU64::new(0), nanos: AtomicU64::new(0) };
 
-/// How many CAFS files this process has content-hashed so far.
+struct VerifiedFileIntegrityTally {
+    files: AtomicU64,
+    nanos: AtomicU64,
+}
+
+impl VerifiedFileIntegrityTally {
+    fn record(&self, elapsed: Duration) {
+        self.files.fetch_add(1, Ordering::Relaxed);
+        // Saturating so a pathological duration can't wrap the tally
+        // into a small number and silence the report. 2^64 ns is ~584
+        // years, so this never fires in practice.
+        self.nanos
+            .fetch_add(elapsed.as_nanos().min(u128::from(u64::MAX)) as u64, Ordering::Relaxed);
+    }
+
+    fn snapshot(&self) -> VerifiedFileIntegrity {
+        VerifiedFileIntegrity {
+            files: self.files.load(Ordering::Relaxed),
+            duration: Duration::from_nanos(self.nanos.load(Ordering::Relaxed)),
+        }
+    }
+}
+
+/// How many CAFS files have been content-hashed, and how long that
+/// hashing took.
 ///
 /// Only the careful path ([`check_pkg_files_integrity`]) hashes, and
 /// only for a file whose `mtime` moved past its recorded `checked_at` —
-/// so a warm store on an install that nothing has disturbed leaves this
-/// at zero. An install reports the number once it is high enough to
-/// explain how long the install took.
-pub fn verified_file_integrity_count() -> u64 {
-    VERIFIED_FILE_INTEGRITY.load(Ordering::Relaxed)
+/// so a warm store on an install that nothing has disturbed leaves both
+/// figures at zero. `duration` is summed across the threads doing the
+/// hashing, so it is the work spent, which can exceed the install's
+/// wall-clock time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VerifiedFileIntegrity {
+    pub files: u64,
+    pub duration: Duration,
+}
+
+impl VerifiedFileIntegrity {
+    /// What this process has hashed so far. Snapshot it when an install
+    /// starts and [`Self::since`] the result at the end to get that
+    /// install's own figures.
+    #[must_use]
+    pub fn snapshot() -> Self {
+        VERIFIED_FILE_INTEGRITY.snapshot()
+    }
+
+    /// This snapshot minus an earlier one. Saturating, so a caller that
+    /// diffs snapshots in the wrong order gets zeroes rather than an
+    /// enormous bogus figure.
+    #[must_use]
+    pub fn since(self, baseline: Self) -> Self {
+        VerifiedFileIntegrity {
+            files: self.files.saturating_sub(baseline.files),
+            duration: self.duration.saturating_sub(baseline.duration),
+        }
+    }
 }
 
 /// Set of CAFS paths whose on-disk integrity has already been verified
@@ -431,13 +482,25 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
 /// `false` so the caller re-fetches rather than deciding on a partial
 /// hash.
 fn verify_file_integrity(path: &Path, digest: &str, algo: &str) -> bool {
-    VERIFIED_FILE_INTEGRITY.fetch_add(1, Ordering::Relaxed);
     if algo != "sha512" {
         return false;
     }
     let Ok(file) = fs::File::open(path) else {
         return false;
     };
+    // Timed from here, where the bytes actually start moving: the two
+    // guards above cost nothing worth attributing to the store, and a
+    // count that included them would inflate on a corrupt index rather
+    // than on slow hashing.
+    let started = Instant::now();
+    let matches = hash_matches(file, digest);
+    VERIFIED_FILE_INTEGRITY.record(started.elapsed());
+    matches
+}
+
+/// Streams `file` through the hasher and compares the result against
+/// the stored hex `digest`.
+fn hash_matches(file: fs::File, digest: &str) -> bool {
     let mut reader = BufReader::with_capacity(64 * 1024, file);
     let mut hasher = Sha512::new();
     let mut buf = vec![0u8; 64 * 1024];

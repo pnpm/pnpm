@@ -26,7 +26,7 @@ use pnpm_reporter::{
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage,
     Reporter, ScopeLog, SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
-use pnpm_store_dir::STORE_VERSION;
+use pnpm_store_dir::{STORE_VERSION, VerifiedFileIntegrity};
 use pnpm_testing_utils::{
     fs::{get_all_folders, is_symlink_or_junction},
     registry::TestRegistry,
@@ -34,7 +34,7 @@ use pnpm_testing_utils::{
 use pnpm_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
-use std::{fs, sync::Mutex};
+use std::{fs, sync::Mutex, time::Duration};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -10693,10 +10693,12 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
 }
 
 /// The report is what tells a user why an otherwise warm install took
-/// so long, so it has to name the count and stay silent for a store
-/// that verified a normal number of files.
+/// so long, so it has to name the time and the file count — and stay
+/// silent for a store whose verification cost nothing worth mentioning.
+/// The message string is a cross-stack contract: pnpm renders the same
+/// one from the same figures.
 #[test]
-fn many_verified_files_are_reported_once_past_the_threshold() {
+fn slow_store_verification_is_reported_once_past_the_threshold() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
     // Reset in case nextest reuses the process for a retry of this test.
     EVENTS.lock().unwrap().clear();
@@ -10708,10 +10710,18 @@ fn many_verified_files_are_reported_once_past_the_threshold() {
         }
     }
 
-    report_verified_file_integrity::<RecordingReporter>(1000);
-    assert!(EVENTS.lock().unwrap().is_empty(), "1000 verified files is still quiet");
+    // A whole second of hashing is the boundary itself, and a huge file
+    // count under it stays quiet — the time is what the message claims.
+    report_verified_file_integrity::<RecordingReporter>(VerifiedFileIntegrity {
+        files: 100_000,
+        duration: Duration::from_secs(1),
+    });
+    assert!(EVENTS.lock().unwrap().is_empty(), "one second of hashing is still quiet");
 
-    report_verified_file_integrity::<RecordingReporter>(1001);
+    report_verified_file_integrity::<RecordingReporter>(VerifiedFileIntegrity {
+        files: 1234,
+        duration: Duration::from_millis(2450),
+    });
     let events = EVENTS.lock().unwrap();
     let [LogEvent::Global(log)] = events.as_slice() else {
         panic!("expected exactly one global log, got {events:?}");
@@ -10719,6 +10729,20 @@ fn many_verified_files_are_reported_once_past_the_threshold() {
     assert_eq!(log.level, LogLevel::Info);
     assert_eq!(
         log.message,
-        "The integrity of 1001 files was checked. This might have caused installation to take longer.",
+        "The integrity of 1234 files was checked in 2.5s. This might have caused installation to take longer.",
     );
+}
+
+/// Each install reports its own verification, so a second install in
+/// the same process (a recursive workspace run, or an embedder driving
+/// several) doesn't re-report the first one's work.
+#[test]
+fn verified_file_integrity_is_scoped_to_one_install() {
+    let baseline = VerifiedFileIntegrity { files: 400, duration: Duration::from_secs(9) };
+    let after = VerifiedFileIntegrity { files: 401, duration: Duration::from_millis(9_100) };
+
+    let this_install = after.since(baseline);
+    dbg!(this_install);
+    assert_eq!(this_install.files, 1);
+    assert_eq!(this_install.duration, Duration::from_millis(100));
 }

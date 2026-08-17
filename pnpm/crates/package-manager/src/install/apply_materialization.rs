@@ -9,7 +9,8 @@ use super::{
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
-use pnpm_store_dir::verified_file_integrity_count;
+use pnpm_store_dir::VerifiedFileIntegrity;
+use std::time::Duration;
 
 struct ResolveOnlyCompletionInputs<'a> {
     resolve_only: bool,
@@ -547,6 +548,7 @@ struct ReportInstallCompletionInputs<'a> {
     workspace_manifest_dir: &'a Path,
     prefix: String,
     ignored_builds: Vec<String>,
+    verified_file_integrity_baseline: VerifiedFileIntegrity,
 }
 
 fn report_install_completion<Reporter: self::Reporter>(
@@ -558,13 +560,16 @@ fn report_install_completion<Reporter: self::Reporter>(
         workspace_manifest_dir,
         prefix,
         ignored_builds,
+        verified_file_integrity_baseline,
     } = inputs;
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must
     // come after `importing_done`.
     Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
 
-    report_verified_file_integrity::<Reporter>(verified_file_integrity_count());
+    report_verified_file_integrity::<Reporter>(
+        VerifiedFileIntegrity::snapshot().since(verified_file_integrity_baseline),
+    );
 
     // A global install is exempt from the scaffold below: its root is a
     // throwaway per-group directory, and the approval prompt that
@@ -602,22 +607,37 @@ fn report_install_completion<Reporter: self::Reporter>(
     Ok(())
 }
 
-/// Re-hashing this many CAFS files is well past what a healthy store
-/// needs, so the install owns up to the time it spent there.
-const VERIFIED_FILE_INTEGRITY_REPORT_THRESHOLD: u64 = 1000;
+/// Spending this long re-hashing store files is well past what a
+/// healthy store needs, so the install owns up to the time.
+///
+/// A time threshold rather than a file count: a thousand small files
+/// can hash in a blink, while a handful of multi-megabyte blobs can
+/// stall an install for seconds. The time is what the message claims,
+/// so the time is what gates it.
+const VERIFIED_FILE_INTEGRITY_REPORT_THRESHOLD: Duration = Duration::from_secs(1);
 
-/// Tell the user when store verification re-hashed an unusual number of
-/// files, so a slow install has a visible cause. See
-/// [`pnpm_store_dir::verified_file_integrity_count`] for what gets
-/// counted.
-pub(super) fn report_verified_file_integrity<Reporter: self::Reporter>(count: u64) {
-    if count <= VERIFIED_FILE_INTEGRITY_REPORT_THRESHOLD {
+/// Tell the user when store verification spent a noticeable amount of
+/// time re-hashing files, so a slow install has a visible cause.
+///
+/// `verified` covers this install alone, and its `duration` is summed
+/// across the threads that did the hashing — see
+/// [`pnpm_store_dir::VerifiedFileIntegrity`].
+///
+/// The seconds are formatted with one decimal rather than through a
+/// pretty-printer because pnpm renders the same message from the same
+/// figures, and the two have to agree character for character.
+pub(super) fn report_verified_file_integrity<Reporter: self::Reporter>(
+    verified: VerifiedFileIntegrity,
+) {
+    if verified.duration <= VERIFIED_FILE_INTEGRITY_REPORT_THRESHOLD {
         return;
     }
+    let files = verified.files;
+    let seconds = verified.duration.as_secs_f64();
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Info,
         message: format!(
-            "The integrity of {count} files was checked. This might have caused installation to take longer.",
+            "The integrity of {files} files was checked in {seconds:.1}s. This might have caused installation to take longer.",
         ),
     }));
 }
@@ -659,6 +679,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) selection: Option<WorkspaceInstallSelection<'selection>>,
     pub(super) supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) catalogs: Catalogs,
+    pub(super) verified_file_integrity_baseline: VerifiedFileIntegrity,
 }
 
 pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'static>(
@@ -701,6 +722,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         selection,
         supported_architectures,
         catalogs,
+        verified_file_integrity_baseline,
     } = inputs;
     let modules_manifest = modules_manifest.as_ref();
     tracing::info!(target: "pacquet::install", "Complete all");
@@ -813,5 +835,6 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         workspace_manifest_dir: &workspace_manifest_dir,
         prefix,
         ignored_builds,
+        verified_file_integrity_baseline,
     })
 }

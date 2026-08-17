@@ -18,6 +18,7 @@ import {
   HASH_ALGORITHM,
   normalizeBundledManifest,
   type PackageFilesIndex,
+  takeVerifiedFileIntegrity,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
@@ -148,6 +149,10 @@ async function handleMessage (
         parentPort!.postMessage({
           status: 'success',
           warnings,
+          // Store verification happens here, in the worker, but the
+          // install reports it from the main thread. Hand this worker's
+          // share back with the answer it belongs to.
+          verifiedFileIntegrity: takeVerifiedFileIntegrity(),
           value: {
             verified: verifyResult.passed,
             bundledManifest,
