@@ -509,6 +509,7 @@ overrides:
   validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
   http-proxy-middleware@>=0.16.0 <3.0.6: ^3.0.6
+  deepmerge-ts@<8.0.0: ^8.0.0
 
 packageExtensions:
   '@babel/parser':
