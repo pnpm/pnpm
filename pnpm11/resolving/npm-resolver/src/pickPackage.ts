@@ -105,6 +105,19 @@ interface PickerOptions extends PickPackageFromMetaOptions {
   ignoreMissingTimeField?: boolean
 }
 
+function canReuseStableCachedRange (
+  spec: RegistryPackageSpec,
+  opts: PickPackageOptions
+): boolean {
+  return (
+    spec.type === 'range' &&
+    !opts.includeLatestTag &&
+    !opts.updateChecksums &&
+    opts.publishedBy == null &&
+    opts.trustPolicy !== 'no-downgrade'
+  )
+}
+
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
 // alongside the requested spec, and the higher-versioned pick wins.
 function runPicker (
@@ -307,11 +320,7 @@ export async function pickPackage (
     const unverified = unverifiedDiskPackuments.has(metaForCache)
     const stableCachedRangeVersion =
       unverified &&
-      spec.type === 'range' &&
-      !opts.includeLatestTag &&
-      !opts.updateChecksums &&
-      opts.publishedBy == null &&
-      opts.trustPolicy !== 'no-downgrade'
+      canReuseStableCachedRange(spec, opts)
         ? getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
         : null
     const unverifiedPickIsSafe =
@@ -419,13 +428,7 @@ export async function pickPackage (
         }
       }
     }
-    const canReuseStableCachedRange =
-      spec.type === 'range' &&
-      !opts.includeLatestTag &&
-      !opts.updateChecksums &&
-      opts.publishedBy == null &&
-      opts.trustPolicy !== 'no-downgrade'
-    const dominantLockfileVersion = canReuseStableCachedRange
+    const dominantLockfileVersion = canReuseStableCachedRange(spec, opts)
       ? getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
       : null
     if (dominantLockfileVersion != null) {

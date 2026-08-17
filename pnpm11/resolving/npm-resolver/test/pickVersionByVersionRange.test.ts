@@ -167,7 +167,7 @@ test('a movable dist-tag cannot outweigh a dominant lockfile pin', () => {
     meta,
     preferredVersionSelectors: {
       '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
-      next: { selectorType: 'tag', weight: 1000 },
+      next: { selectorType: 'tag', weight: EXISTING_VERSION_SELECTOR_WEIGHT - 1 },
     },
     versionRange: '^1.0.0',
   })

@@ -73,7 +73,7 @@ use crate::{
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, filter_pkg_metadata_versions,
+        RegistryPackageSpecType, dominant_lockfile_version, filter_pkg_metadata_versions,
         pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_stable_cached_range_version, pick_version_by_version_range,
     },
@@ -550,7 +550,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         }
     }
 
-    if matches!(spec.spec_type, RegistryPackageSpecType::Range)
+    let dominant_lockfile_version = if matches!(spec.spec_type, RegistryPackageSpecType::Range)
         && !ctx.offline
         && !ctx.prefer_offline
         && !opts.pick_lowest_version
@@ -560,6 +560,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
         && opts.blocked_versions.is_none()
     {
+        dominant_lockfile_version(&spec.fetch_spec, opts.preferred_version_selectors)
+    } else {
+        None
+    };
+    if dominant_lockfile_version.is_some() {
         if meta_cached_in_store.is_none() {
             meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
         }

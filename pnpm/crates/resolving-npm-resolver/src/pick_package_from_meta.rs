@@ -381,7 +381,7 @@ pub fn pick_stable_cached_range_version(
     (picked == dominant).then_some(dominant)
 }
 
-fn dominant_lockfile_version(
+pub(crate) fn dominant_lockfile_version(
     version_range: &str,
     preferred_version_selectors: Option<&VersionSelectors>,
 ) -> Option<String> {
@@ -407,6 +407,10 @@ fn dominant_lockfile_version(
     }
     let lockfile_version = lockfile_version?;
 
+    // Every range and movable tag may apply to an unseen version, while an
+    // out-of-range high-weight exact selector is discarded by max/min
+    // satisfying. Zero cannot participate because the prioritizer uses it as
+    // its replaceable seed sentinel rather than an accumulated weight.
     let mut guaranteed_lockfile_weight: u64 = 0;
     let mut maximum_other_version_weight: u64 = 0;
     for (selector, entry) in selectors {
@@ -693,12 +697,7 @@ fn prioritize_preferred_versions(
             if preferred_selector == version_range {
                 continue;
             }
-            let (selector_type, weight) = match entry {
-                VersionSelectorEntry::Plain(selector_type) => (*selector_type, 1),
-                VersionSelectorEntry::Weighted(weighted) => {
-                    (weighted.selector_type, weighted.weight)
-                }
-            };
+            let (selector_type, weight) = selector_info(entry);
             match selector_type {
                 VersionSelectorType::Tag => {
                     if let Some(version) = meta.dist_tag(preferred_selector) {

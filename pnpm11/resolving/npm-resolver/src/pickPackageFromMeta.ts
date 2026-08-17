@@ -3,7 +3,11 @@ import util from 'node:util'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
-import { EXISTING_VERSION_SELECTOR_WEIGHT, type VersionSelectors } from '@pnpm/resolving.resolver-base'
+import {
+  EXISTING_VERSION_SELECTOR_WEIGHT,
+  type VersionSelectors,
+  type VersionSelectorType,
+} from '@pnpm/resolving.resolver-base'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
@@ -294,7 +298,7 @@ export function getDominantLockfileVersion (
 
 function preferredSelectorInfo (
   value: VersionSelectors[string]
-): { selectorType: string, weight: number } {
+): { selectorType: VersionSelectorType, weight: number } {
   return typeof value === 'string'
     ? { selectorType: value, weight: 1 }
     : value
@@ -317,9 +321,7 @@ function prioritizePreferredVersions (
 
   // Then apply weights from preferred selectors
   for (const [preferredSelector, preferredSelectorType] of preferredVerSelectorsArr) {
-    const { selectorType, weight } = typeof preferredSelectorType === 'string'
-      ? { selectorType: preferredSelectorType, weight: 1 }
-      : preferredSelectorType
+    const { selectorType, weight } = preferredSelectorInfo(preferredSelectorType)
     if (preferredSelector === versionRange) continue
     switch (selectorType) {
       case 'tag': {

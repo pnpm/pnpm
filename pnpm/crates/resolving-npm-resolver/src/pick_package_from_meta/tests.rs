@@ -367,7 +367,7 @@ fn stable_cached_range_accounts_for_movable_tag_weight() {
 }
 
 #[test]
-fn stable_cached_range_uses_canonical_packument_name() {
+fn preferred_selector_pick_uses_canonical_packument_name() {
     let mut pkg = make_package("@acme/private", &[("1.0.0", None)], &[]);
     pkg.versions =
         std::iter::once(("1.0.0".to_string(), make_pkg_version("private", "1.0.0", None)))
