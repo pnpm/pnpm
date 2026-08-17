@@ -1,5 +1,4 @@
 // cspell:ignore checkin
-import { AsyncLocalStorage } from 'node:async_hooks'
 import { execSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
@@ -28,51 +27,40 @@ let workerPool: WorkerPool | undefined
  * Store verification runs in the workers, so each one tallies the files
  * it re-hashed and the time that took, and hands its share back with
  * every response (see `takeVerifiedFileIntegrity` in `@pnpm/store.cafs`).
+ * This is the sum across all of them for the lifetime of the process.
  *
- * The tally is per install rather than per process. A recursive command
- * with dedicated lockfiles installs several projects at once
- * (`workspaceConcurrency`), and each of them reports its own figures, so
- * a process-wide sum would let one project claim its siblings' hashing.
- * Async context is what separates them: a worker's reply is handled in
- * the context that made the request, so the tally lands in the install
- * that asked for the package.
+ * An install reports its own share by snapshotting this when it starts
+ * and diffing at the end. That is exact for one install at a time,
+ * which is every install except the per-project loop a recursive
+ * command with dedicated lockfiles runs at `workspaceConcurrency`:
+ * there, overlapping projects can pick up each other's hashing.
+ *
+ * Scoping the tally per install with `AsyncLocalStorage` was tried and
+ * reverted. Constructing one costs the whole process ~5x on
+ * promise-heavy work under Node's pre-`AsyncContextFrame`
+ * implementation (measured: 44ms -> 245ms over 2M awaits, and paid
+ * whether or not the scope is ever entered), which pnpm's supported
+ * Node 22 and 23 still use. An install-wide slowdown is too high a
+ * price for attributing a diagnostic more precisely in one non-default
+ * configuration.
  */
-const verifiedFileIntegrityScope = new AsyncLocalStorage<VerifiedFileIntegrity>()
+const verifiedFileIntegrity: VerifiedFileIntegrity = { files: 0, ms: 0 }
 
-/**
- * Run `install` with a tally of its own, which
- * {@link currentVerifiedFileIntegrity} reads from anywhere inside it.
- */
-export async function trackVerifiedFileIntegrity<T> (install: () => Promise<T>): Promise<T> {
-  return verifiedFileIntegrityScope.run({ files: 0, ms: 0 }, install)
+export function verifiedFileIntegritySnapshot (): VerifiedFileIntegrity {
+  return { ...verifiedFileIntegrity }
 }
 
-/**
- * What the surrounding {@link trackVerifiedFileIntegrity} call has
- * verified so far, or zeroes when nothing is tracking — a caller
- * reaching the store outside an install has no figures to report.
- */
-export function currentVerifiedFileIntegrity (): VerifiedFileIntegrity {
-  return { ...(verifiedFileIntegrityScope.getStore() ?? { files: 0, ms: 0 }) }
+export function verifiedFileIntegritySince (baseline: VerifiedFileIntegrity): VerifiedFileIntegrity {
+  return {
+    files: verifiedFileIntegrity.files - baseline.files,
+    ms: verifiedFileIntegrity.ms - baseline.ms,
+  }
 }
 
-/**
- * The tally to charge a store read to, captured when the request is
- * made. A plain listener does not run in the async context that added
- * it — the worker's `message` event is emitted from the pool's own
- * context — so the reply cannot look the scope up for itself.
- */
-function verifiedFileIntegrityRecipient (): VerifiedFileIntegrity | undefined {
-  return verifiedFileIntegrityScope.getStore()
-}
-
-function addVerifiedFileIntegrity (
-  tally: VerifiedFileIntegrity | undefined,
-  reported: VerifiedFileIntegrity | undefined
-): void {
-  if (tally == null || reported == null) return
-  tally.files += reported.files
-  tally.ms += reported.ms
+function addVerifiedFileIntegrity (reported: VerifiedFileIntegrity | undefined): void {
+  if (reported == null) return
+  verifiedFileIntegrity.files += reported.files
+  verifiedFileIntegrity.ms += reported.ms
 }
 
 export async function restartWorkerPool (): Promise<void> {
@@ -292,12 +280,11 @@ export async function readPkgFromCafs (
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
-  const tally = verifiedFileIntegrityRecipient()
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise((resolve, reject) => {
     localWorker.once('message', ({ status, error, value, warnings, verifiedFileIntegrity }) => {
       workerPool!.checkinWorker(localWorker)
-      addVerifiedFileIntegrity(tally, verifiedFileIntegrity)
+      addVerifiedFileIntegrity(verifiedFileIntegrity)
       if (status === 'error') {
         reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string, { hint: error.hint }))
         return
