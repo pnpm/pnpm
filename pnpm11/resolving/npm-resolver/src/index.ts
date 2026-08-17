@@ -658,6 +658,7 @@ async function resolveNpm (
       includeLatestTag: opts.update === 'latest',
       updateChecksums: opts.updateChecksums,
       optional: wantedDependency.optional,
+      trustPolicy: opts.trustPolicy,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
@@ -920,6 +921,7 @@ async function pickFromSimpleRegistry (
     includeLatestTag: opts.update === 'latest',
     updateChecksums: opts.updateChecksums,
     optional: wantedDependency.optional,
+    trustPolicy: opts.trustPolicy,
   })
   if (pickedPackage == null) {
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
