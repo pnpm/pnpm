@@ -294,16 +294,20 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
         super::overrides_match(lockfile.overrides.as_ref(), resolved_overrides);
 
     let rewrite_manifest_hook = super::compose_manifest_hooks(manifest_hook, overrides_hook);
-    // An override whose value is a `catalog:` reference is only meaningful
-    // once the catalog rewrite has settled, which the range-only rewrite
-    // refuses to do under one. Neither rewrite composes with that.
-    let can_rewrite = fast_override_eligible && !overrides_use_catalogs;
+    // A catalog move can change the effective value of an override whose
+    // configured value is a `catalog:` reference — an effect no catalog
+    // rewrite can express — so catalog drift under such an override goes to
+    // the resolver. The override rewrite itself is safe under one: it runs
+    // only once the catalogs are settled, and override values are compared
+    // catalog-resolved, so a settled `catalog:` override shows no drift and
+    // only the genuinely changed entries are rewritten.
+    let can_rewrite_catalogs = fast_override_eligible && !overrides_use_catalogs;
 
     let catalog_rewrite = if catalogs_match {
         None
     } else if let Some(seed) = fast_catalog_seed {
         Some(seed)
-    } else if can_rewrite {
+    } else if can_rewrite_catalogs {
         // A catalog entry that now names a version the locked one cannot
         // satisfy left `catalogs_match` false with no seed above. Replacing
         // the package is the same rewrite an exact override performs.
@@ -329,7 +333,7 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
     if override_settings_match {
         return Some(Arc::new(catalog_rewrite.unwrap_or_else(|| lockfile.clone())));
     }
-    if !can_rewrite {
+    if !fast_override_eligible {
         return None;
     }
     let seed = try_fast_update_overrides(FastOverrideOptions {
