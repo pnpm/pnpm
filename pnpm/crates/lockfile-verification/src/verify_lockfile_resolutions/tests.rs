@@ -375,8 +375,13 @@ async fn failed_path_emits_failed_terminator() {
     assert_eq!(captured.len(), 2, "expected Started + Failed, got: {captured:?}");
     match &captured[1] {
         LogEvent::LockfileVerification(log) => assert!(
-            matches!(log.message, LockfileVerificationMessage::Failed { .. }),
-            "expected Failed, got: {:?}",
+            matches!(
+                log.message,
+                // The fan-out ran to completion before collecting the
+                // violation, so the failure reports the full count.
+                LockfileVerificationMessage::Failed { entries: 1, checked: 1, .. }
+            ),
+            "expected Failed with checked == entries, got: {:?}",
             log.message,
         ),
         other => panic!("expected LockfileVerification, got {other:?}"),
