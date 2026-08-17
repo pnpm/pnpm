@@ -265,7 +265,9 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
 
   describe('dry run', () => {
     it('should report the bump without writing the manifest', async () => {
-      fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: '1.0.0' }))
+      const manifestPath = path.join(tempDir, 'package.json')
+      fs.writeFileSync(manifestPath, JSON.stringify({ name: 'test-pkg', version: '1.0.0' }))
+      const manifestBefore = fs.readFileSync(manifestPath, 'utf-8')
 
       const result = await handler({
         dir: tempDir,
@@ -276,7 +278,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
       } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
 
       expect(result).toContain('1.0.0 → 1.0.1')
-      expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8')).version).toBe('1.0.0')
+      expect(fs.readFileSync(manifestPath, 'utf-8')).toBe(manifestBefore)
     })
 
     it('should not write any workspace manifest in recursive mode', async () => {
@@ -289,6 +291,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
       fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
       fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.0.0' }))
       fs.writeFileSync(path.join(pkgBDir, 'package.json'), JSON.stringify({ name: 'pkg-b', version: '2.0.0' }))
+      const manifestsBefore = [tempDir, pkgADir, pkgBDir].map(dir => fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'))
 
       const result = await handler({
         dir: tempDir,
@@ -306,8 +309,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
       const resultStr = result as string
       expect(resultStr).toContain('pkg-a: 1.0.0 → 1.0.1')
       expect(resultStr).toContain('pkg-b: 2.0.0 → 2.0.1')
-      expect(JSON.parse(fs.readFileSync(path.join(pkgADir, 'package.json'), 'utf-8')).version).toBe('1.0.0')
-      expect(JSON.parse(fs.readFileSync(path.join(pkgBDir, 'package.json'), 'utf-8')).version).toBe('2.0.0')
+      expect([tempDir, pkgADir, pkgBDir].map(dir => fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'))).toEqual(manifestsBefore)
     })
 
     it('should not run version lifecycle scripts', async () => {

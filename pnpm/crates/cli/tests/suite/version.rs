@@ -118,6 +118,10 @@ fn write_manifest(dir: &Path, json: &str) {
     fs::write(dir.join("package.json"), json).expect("write package.json");
 }
 
+fn manifest_text(dir: &Path) -> String {
+    fs::read_to_string(dir.join("package.json")).expect("read manifest")
+}
+
 fn manifest_version(dir: &Path) -> String {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(dir.join("package.json")).expect("read manifest"))
@@ -643,13 +647,14 @@ fn recursive_mode_skips_the_commit_and_tag() {
 fn dry_run_reports_the_bump_without_writing_the_manifest() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    let manifest_before = manifest_text(&workspace);
 
     let output = pacquet_version(&workspace, &["patch", "--dry-run"]);
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("1.0.0 → 1.0.1"), "{stdout}");
-    assert_eq!(manifest_version(&workspace), "1.0.0");
+    assert_eq!(manifest_text(&workspace), manifest_before);
     drop(root);
 }
 
@@ -657,6 +662,7 @@ fn dry_run_reports_the_bump_without_writing_the_manifest() {
 fn dry_run_leaves_every_workspace_manifest_untouched() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let (pkg_a, pkg_b) = write_two_package_workspace(&workspace);
+    let manifests_before = [&workspace, &pkg_a, &pkg_b].map(|dir| manifest_text(dir));
 
     let output = pacquet_recursive_version(&workspace, &["-r", "version", "patch", "--dry-run"]);
 
@@ -664,8 +670,7 @@ fn dry_run_leaves_every_workspace_manifest_untouched() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("pkg-a: 1.0.0 → 1.0.1"), "{stdout}");
     assert!(stdout.contains("pkg-b: 2.3.0 → 2.3.1"), "{stdout}");
-    assert_eq!(manifest_version(&pkg_a), "1.0.0");
-    assert_eq!(manifest_version(&pkg_b), "2.3.0");
+    assert_eq!([&workspace, &pkg_a, &pkg_b].map(|dir| manifest_text(dir)), manifests_before);
     drop(root);
 }
 
