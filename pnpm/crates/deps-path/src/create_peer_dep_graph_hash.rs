@@ -1,4 +1,4 @@
-use pacquet_crypto_hash::create_short_hash;
+use pnpm_crypto_hash::create_short_hash;
 
 use crate::peer_id::PeerId;
 

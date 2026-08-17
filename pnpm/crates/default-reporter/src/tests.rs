@@ -1,4 +1,4 @@
-use pacquet_reporter::{
+use pnpm_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogLevel, ProgressLog, ProgressMessage,
     PromptAction, StatsLog, StatsMessage,
 };

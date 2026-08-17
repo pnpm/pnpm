@@ -138,7 +138,7 @@ pub(crate) enum PathExtenderError {
     Io(std::io::Error),
 
     #[display("{_0}")]
-    EnsureFile(pacquet_fs::EnsureFileError),
+    EnsureFile(pnpm_fs::EnsureFileError),
 }
 
 impl From<std::io::Error> for PathExtenderError {
@@ -147,8 +147,8 @@ impl From<std::io::Error> for PathExtenderError {
     }
 }
 
-impl From<pacquet_fs::EnsureFileError> for PathExtenderError {
-    fn from(err: pacquet_fs::EnsureFileError) -> Self {
+impl From<pnpm_fs::EnsureFileError> for PathExtenderError {
+    fn from(err: pnpm_fs::EnsureFileError) -> Self {
         PathExtenderError::EnsureFile(err)
     }
 }

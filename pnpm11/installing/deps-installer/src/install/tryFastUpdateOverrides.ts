@@ -1,3 +1,4 @@
+import { getRegistryServerType } from '@pnpm/config.normalize-registries'
 import type { VersionOverride } from '@pnpm/config.parse-overrides'
 import * as dp from '@pnpm/deps.path'
 import type {
@@ -5,6 +6,7 @@ import type {
   PackageSnapshot,
   ResolvedDependencies,
 } from '@pnpm/lockfile.types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { RequestPackageFunction } from '@pnpm/store.controller-types'
 import type {
@@ -12,13 +14,15 @@ import type {
   PackageManifest,
   PackageVersionPolicy,
   ReadPackageHook,
-  Registries,
+  RegistriesByScope,
+  RegistryOptions,
+  RegistryServerType,
   TrustPolicy,
 } from '@pnpm/types'
 import { clone, equals } from 'ramda'
 import semver from 'semver'
 
-interface FastOverride {
+export interface FastOverride {
   name: string
   newVersion?: string
   oldVersion?: string
@@ -33,6 +37,8 @@ interface RewriteContext {
   peerNames: Set<string>
   removals: FastOverride[]
   replacements: Map<DepPath, DepPath>
+  /** The replacing overrides, needed to scope a `parent>child` selector. */
+  moves: FastOverride[]
 }
 
 interface ResolverPolicyOptions {
@@ -43,24 +49,63 @@ interface ResolverPolicyOptions {
   trustPolicyIgnoreAfter?: number
 }
 
+export type FastRewriteOptions = ResolverPolicyOptions & {
+  lockfileDir: string
+  lockfileIncludeTarballUrl?: boolean
+  isLockfileUpToDate: (lockfile: LockfileObject) => Promise<boolean>
+  readPackageHook?: ReadPackageHook
+  registriesByScope: RegistriesByScope
+  registryOptionsByUrl?: Record<string, RegistryOptions>
+  requestPackage: RequestPackageFunction
+  verifyLockfile?: (lockfile: LockfileObject) => Promise<void>
+}
+
 export async function tryFastUpdateOverrides (
   lockfile: LockfileObject,
-  opts: ResolverPolicyOptions & {
-    lockfileDir: string
-    lockfileIncludeTarballUrl?: boolean
+  opts: FastRewriteOptions & {
     overrides: Record<string, string>
     parsedOverrides: VersionOverride[]
-    isLockfileUpToDate: (lockfile: LockfileObject) => Promise<boolean>
-    readPackageHook?: ReadPackageHook
-    registries: Registries
-    requestPackage: RequestPackageFunction
-    verifyLockfile?: (lockfile: LockfileObject) => Promise<void>
   }
 ): Promise<boolean> {
-  const fastOverrides = getFastOverrides(lockfile.overrides ?? {}, opts.overrides, opts.parsedOverrides)
+  const fastOverrides = getFastOverrides(lockfile, lockfile.overrides ?? {}, opts.overrides, opts.parsedOverrides)
   if (fastOverrides == null) return false
+  if (movesACatalogedPackage(lockfile, fastOverrides)) return false
+  return applyFastRewrite(lockfile, fastOverrides, opts, { overrides: opts.overrides })
+}
 
+/**
+ * Whether any of `fastOverrides` moves a package a catalog entry records the
+ * version of. The entry would have to move with it — which is the catalog
+ * rewrite's job, not this one's — so the move goes to the resolver instead.
+ *
+ * A `parent>child` selector names no importer edge, and only importer edges
+ * are what a catalog entry resolves.
+ */
+function movesACatalogedPackage (lockfile: LockfileObject, fastOverrides: FastOverride[]): boolean {
+  const catalogedAliases = new Set(
+    Object.values(lockfile.catalogs ?? {}).flatMap((catalog) => Object.keys(catalog))
+  )
+  return fastOverrides.some(({ name, parent }) => parent == null && catalogedAliases.has(name))
+}
+
+/**
+ * Move every package named by `fastOverrides` to its new version, rebuilding
+ * the affected package entries from the new version's manifest and redirecting
+ * everything that referenced the old key. `settings` is the setting block that
+ * drove the rewrite, recorded alongside it.
+ *
+ * Returns `false` whenever the move cannot be proven safe from the lockfile
+ * plus the resolved manifests — a locked child the new manifest no longer
+ * admits, or a candidate the freshness check rejects.
+ */
+export async function applyFastRewrite (
+  lockfile: LockfileObject,
+  fastOverrides: FastOverride[],
+  opts: FastRewriteOptions,
+  settings: Partial<LockfileObject>
+): Promise<boolean> {
   const removals = fastOverrides.filter(({ newVersion }) => newVersion == null)
+  const moves = fastOverrides.filter(({ newVersion }) => newVersion != null)
   const peerNames = getPeerNames(lockfile)
   if (removals.some(({ name }) => peerNames.has(name))) return false
 
@@ -72,14 +117,15 @@ export async function tryFastUpdateOverrides (
       .filter(({ newVersion }) => newVersion != null)
       .map(({ name }) => name)
   )
-  const rewriteContext = { changedNames, peerNames, removals, replacements }
+  const rewriteContext = { changedNames, peerNames, removals, replacements, moves }
   const manifests = await resolveNewManifests(fastOverrides, replacements, opts)
   if (manifests == null) return false
 
   const packages = rewritePackages(lockfile.packages ?? {}, {
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
     manifests,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
+    registryOptionsByUrl: opts.registryOptionsByUrl,
     rewriteContext,
   })
   if (packages == null) return false
@@ -100,17 +146,18 @@ export async function tryFastUpdateOverrides (
     ...lockfile,
     importers,
     packages: pruneUnreachablePackages(importers, packages),
-    overrides: opts.overrides,
+    ...settings,
   }
   if (!await opts.isLockfileUpToDate(updatedLockfile)) return false
   await opts.verifyLockfile?.(updatedLockfile)
   lockfile.importers = updatedLockfile.importers
   lockfile.packages = updatedLockfile.packages
-  lockfile.overrides = updatedLockfile.overrides
+  Object.assign(lockfile, settings)
   return true
 }
 
 function getFastOverrides (
+  lockfile: LockfileObject,
   oldOverrides: Record<string, string>,
   newOverrides: Record<string, string>,
   parsedOverrides: VersionOverride[]
@@ -134,8 +181,7 @@ function getFastOverrides (
       override.targetPkg.bareSpecifier != null ||
       override.converge === true ||
       !removesDependency && (
-        override.parentPkg != null ||
-        semver.valid(newValue) == null ||
+        overriddenVersion(lockfile, override.targetPkg.name, newValue) == null ||
         oldVersion != null && semver.valid(oldVersion) == null
       ) ||
       changedNames.has(override.targetPkg.name) ||
@@ -157,10 +203,41 @@ function getFastOverrides (
             bareSpecifier: override.parentPkg.bareSpecifier,
           },
         },
-      ...removesDependency ? {} : { newVersion: newValue, oldVersion },
+      ...removesDependency
+        ? {}
+        : {
+          newVersion: overriddenVersion(lockfile, override.targetPkg.name, newValue)!,
+          oldVersion,
+        },
     })
   }
   return result
+}
+
+/**
+ * The version an override moves its target to.
+ *
+ * A range names the highest already-locked version satisfying it, because
+ * `preferredVersions` makes the resolver reuse a version the graph already
+ * holds rather than the highest published.
+ */
+function overriddenVersion (
+  lockfile: LockfileObject,
+  name: string,
+  value: string
+): string | null {
+  if (semver.valid(value) != null) return value
+  if (semver.validRange(value) == null) return null
+  const versions: string[] = []
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
+    const parsed = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (parsed.name !== name || parsed.nonSemverVersion != null) continue
+    if (parsed.registryName != null || dp.parseDepPath(depPath).peerDepGraphHash !== '') return null
+    if (semver.valid(parsed.version) != null && semver.satisfies(parsed.version, value)) {
+      versions.push(parsed.version)
+    }
+  }
+  return versions.sort(semver.rcompare)[0] ?? null
 }
 
 function collectReplacements (
@@ -240,7 +317,6 @@ async function resolveNewManifests (
   replacements: Map<DepPath, DepPath>,
   opts: ResolverPolicyOptions & {
     lockfileDir: string
-    parsedOverrides: VersionOverride[]
     readPackageHook?: ReadPackageHook
     requestPackage: RequestPackageFunction
   }
@@ -300,7 +376,18 @@ async function resolveNewManifests (
     const manifest = opts.readPackageHook == null
       ? rawManifest
       : await opts.readPackageHook(clone(rawManifest))
-    if (hasPeerDependencies(manifest)) return undefined
+    // pacquet validates after its manifest hook, so a hook that introduces
+    // any of these must send both stacks down the same fallback.
+    if (
+      manifest.name !== name ||
+      manifest.version !== newVersion ||
+      manifest.deprecated != null ||
+      hasInvalidManifestMaps(manifest) ||
+      hasPeerDependencies(manifest) ||
+      manifest.engines?.runtime != null ||
+      manifest.bundledDependencies != null ||
+      manifest.bundleDependencies != null
+    ) return undefined
     return {
       name,
       manifest,
@@ -339,7 +426,8 @@ function rewritePackages (
       manifest: PackageManifest
       resolution: Awaited<ReturnType<RequestPackageFunction>>['body']['resolution']
     }>
-    registries: Registries
+    registriesByScope: RegistriesByScope
+    registryOptionsByUrl?: Record<string, RegistryOptions>
     rewriteContext: RewriteContext
   }
 ): Record<DepPath, PackageSnapshot> | null {
@@ -376,12 +464,14 @@ function rewritePackages (
     })
     if (dependencies === null || optionalDependencies === null) return null
 
+    const registry = dp.getRegistryByPackageName(opts.registriesByScope, name)
     const newSnapshot = createPackageSnapshot(oldSnapshot, {
       dependencies,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
       manifest: resolved.manifest,
       optionalDependencies,
-      registry: dp.getRegistryByPackageName(opts.registries, name),
+      registry,
+      serverType: getRegistryServerType(opts, registry),
       resolution: resolved.resolution,
     })
     const existingSnapshot = packages[newDepPath]
@@ -422,7 +512,7 @@ function validateAndRewriteDependencies (opts: {
     const lockedReference = lockedDependencies?.[name]
     const reference = lockedReference == null
       ? findReusableReference({ name, packages, range, rewriteContext })
-      : rewriteReference(name, lockedReference, rewriteContext)
+      : rewriteReference(name, lockedReference, rewriteContext, parentDepPath)
     if (reference == null) return null
     const depPath = dp.refToRelative(reference, name)
     const version = depPath == null ? null : dp.parse(depPath).version
@@ -478,6 +568,7 @@ function createPackageSnapshot (
     manifest: PackageManifest
     optionalDependencies?: ResolvedDependencies
     registry: string
+    serverType?: RegistryServerType
     resolution: Awaited<ReturnType<RequestPackageFunction>>['body']['resolution']
   }
 ): PackageSnapshot {
@@ -485,7 +576,11 @@ function createPackageSnapshot (
     resolution: toLockfileResolution({
       name: opts.manifest.name,
       version: opts.manifest.version,
-    }, opts.resolution, opts.registry, opts.lockfileIncludeTarballUrl),
+    }, opts.resolution, {
+      registry: opts.registry,
+      serverType: opts.serverType,
+      lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+    }),
   }
   if (opts.dependencies != null) snapshot.dependencies = opts.dependencies
   if (opts.optionalDependencies != null) snapshot.optionalDependencies = opts.optionalDependencies
@@ -520,7 +615,7 @@ function rewriteResolvedDependencies (
       .filter(([alias]) => !shouldRemoveDependency(alias, parentDepPath, rewriteContext.removals))
       .map(([alias, reference]) => [
         alias,
-        rewriteReference(alias, reference, rewriteContext),
+        rewriteReference(alias, reference, rewriteContext, parentDepPath),
       ])
   )
   return Object.keys(rewritten).length === 0 ? undefined : rewritten
@@ -531,16 +626,30 @@ function shouldRemoveDependency (
   parentDepPath: DepPath | undefined,
   removals: FastOverride[]
 ): boolean {
-  return removals.some((removal) => {
-    if (removal.name !== alias) return false
-    if (removal.parent == null) return true
+  return overrideApplies(alias, parentDepPath, removals)
+}
+
+/**
+ * Whether any of `overrides` names an edge on `alias` owned by
+ * `parentDepPath`. A selector without a parent names every edge; one with a
+ * parent names only edges out of a package it matches, which an importer
+ * never is.
+ */
+function overrideApplies (
+  alias: string,
+  parentDepPath: DepPath | undefined,
+  overrides: FastOverride[]
+): boolean {
+  return overrides.some((override) => {
+    if (override.name !== alias) return false
+    if (override.parent == null) return true
     if (parentDepPath == null) return false
     const parent = dp.parse(parentDepPath)
-    return parent.name === removal.parent.name &&
+    return parent.name === override.parent.name &&
       parent.version != null &&
       (
-        removal.parent.bareSpecifier == null ||
-        semver.satisfies(parent.version, removal.parent.bareSpecifier)
+        override.parent.bareSpecifier == null ||
+        semver.satisfies(parent.version, override.parent.bareSpecifier)
       )
   })
 }
@@ -548,9 +657,13 @@ function shouldRemoveDependency (
 function rewriteReference (
   alias: string,
   reference: string,
-  { changedNames, replacements }: RewriteContext
+  { changedNames, replacements, moves }: RewriteContext,
+  parentDepPath?: DepPath
 ): string {
   if (!changedNames.has(alias)) return reference
+  // A `parent>child` selector names only the edges out of that parent, so
+  // the other dependents keep the version they have.
+  if (!overrideApplies(alias, parentDepPath, moves)) return reference
   const oldDepPath = dp.refToRelative(reference, alias)
   if (oldDepPath == null) return reference
   const newDepPath = replacements.get(oldDepPath)

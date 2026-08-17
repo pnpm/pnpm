@@ -264,20 +264,26 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // This avoids redundant I/O on warm installs and EACCES on read-only stores.
   // We verify the target path — not just existence — so that conflict resolution
   // changes or provider swaps still get the bin rewritten.
+  let isCorrectlyLinked = false
   try {
     const stat = await fs.lstat(externalBinPath)
     if (stat.isSymbolicLink()) {
       const target = await fs.readlink(externalBinPath)
-      if (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) {
-        return
-      }
+      isCorrectlyLinked = target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
-      if (isShimPointingAt(content, cmd.path)) {
-        return
-      }
+      isCorrectlyLinked = isShimPointingAt(content, cmd.path)
     }
   } catch {}
+  if (isCorrectlyLinked) {
+    // If a previous install failed, we may have re-copied the bin script from
+    // the store, but we won't necessarily have reapplied the executable bit -
+    // so apply it here.
+    if (EXECUTABLE_SHEBANG_SUPPORTED) {
+      await ensureExecutableIfNeeded(cmd.path, 0o755)
+    }
+    return
+  }
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
     // node.exe is the only bin pnpm links directly as a real executable rather
@@ -451,6 +457,17 @@ async function ensureExecutable (file: string, mode: number): Promise<void> {
       if (stat != null && (stat.mode & 0o111) !== 0 && !(await hasWindowsShebang(file))) return
     }
     throw err
+  }
+}
+
+// A missing or unreadable source is skipped rather than failing the install:
+// the existing bin was accepted as correctly linked, and before this repair
+// step the skip path returned without touching the source at all.
+async function ensureExecutableIfNeeded (file: string, mode: number): Promise<void> {
+  const stat = await fs.stat(file).catch(() => undefined)
+  if (stat == null) return
+  if ((stat.mode & 0o111) === 0 || await hasWindowsShebang(file)) {
+    await ensureExecutable(file, mode)
   }
 }
 

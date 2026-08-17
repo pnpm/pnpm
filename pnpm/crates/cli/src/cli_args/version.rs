@@ -2,11 +2,11 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use node_semver::{Identifier, Version};
-use pacquet_config::Config;
-use pacquet_executor::{RunPostinstallHooks, run_lifecycle_hook};
-use pacquet_package_manifest::PackageManifest;
-use pacquet_publish::{Host, RunCommand, is_git_repo, is_working_tree_clean};
-use pacquet_versioning::{
+use pnpm_config::Config;
+use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_publish::{Host, RunCommand, is_git_repo, is_working_tree_clean};
+use pnpm_versioning::{
     AssembleReleasePlanOptions, apply_release_plan, assemble_release_plan, read_change_intents,
     read_ledger,
 };
@@ -130,7 +130,7 @@ enum VersionError {
 }
 
 impl VersionArgs {
-    pub async fn run<Reporter: pacquet_reporter::Reporter>(
+    pub async fn run<Reporter: pnpm_reporter::Reporter>(
         self,
         config: &Config,
         dir: &Path,
@@ -148,7 +148,7 @@ impl VersionArgs {
     /// `recursive`. Mirrors the TypeScript handler: git-tree check, per-
     /// package bump with `preversion`/`version` hooks, a commit and tag for
     /// the single-package form, then `postversion` hooks and the report.
-    fn npm_style_bump<Reporter: pacquet_reporter::Reporter>(
+    fn npm_style_bump<Reporter: pnpm_reporter::Reporter>(
         &self,
         config: &Config,
         dir: &Path,
@@ -236,7 +236,7 @@ impl VersionArgs {
     /// Bump one package's manifest, running its `preversion` and `version`
     /// lifecycle hooks around the write. Returns `None` — bumping nothing —
     /// when the manifest has no name or no version.
-    fn bump_package_version<Reporter: pacquet_reporter::Reporter>(
+    fn bump_package_version<Reporter: pnpm_reporter::Reporter>(
         &self,
         pkg_dir: &Path,
         bump: &Bump,
@@ -411,7 +411,11 @@ impl VersionArgs {
                     &confirmed,
                 )?;
             }
-            println!(r#"No pending changes. Record one with "pnpm change"."#);
+            if self.json {
+                println!("[]");
+            } else {
+                println!(r#"No pending changes. Record one with "pnpm change"."#);
+            }
             return Ok(());
         }
         if self.dry_run {
@@ -429,6 +433,14 @@ impl VersionArgs {
             Some(&config.versioning),
             &confirmed,
         )?;
+
+        if self.json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&applied).expect("serialize applied releases"),
+            );
+            return Ok(());
+        }
 
         use std::fmt::Write as _;
         let mut output = String::from("Versions applied:\n");
@@ -449,7 +461,7 @@ impl VersionArgs {
 /// package, when the manifest declares it and scripts are not ignored.
 /// The manifest is re-read so the `version` and `postversion` hooks see
 /// the bumped version.
-fn run_version_lifecycle_hook<Reporter: pacquet_reporter::Reporter>(
+fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     stage: &str,
     change: &VersionChange,
     config: &Config,
@@ -485,7 +497,7 @@ fn run_version_lifecycle_hook<Reporter: pacquet_reporter::Reporter>(
         node_gyp_path: None,
         user_agent: Some(&config.user_agent),
         unsafe_perm: config.unsafe_perm,
-        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
+        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: super::run::exec_scripts_prepend_node_path(
             config.scripts_prepend_node_path,
         ),
@@ -734,7 +746,7 @@ fn run_git(cwd: &Path, args: &[&str]) -> miette::Result<()> {
 /// The projects the active `--filter` selectors pick, in graph order, as
 /// `(name, workspace-relative dir)` pairs.
 pub(crate) fn selected_projects(
-    projects: &[pacquet_workspace::Project],
+    projects: &[pnpm_workspace::Project],
     config: &Config,
     workspace_dir: &Path,
 ) -> miette::Result<Vec<(Option<String>, String)>> {
@@ -752,7 +764,7 @@ pub(crate) fn selected_projects(
                 .get("name")
                 .and_then(|name| name.as_str())
                 .map(ToString::to_string);
-            (name, pacquet_versioning::to_project_dir(workspace_dir, root_dir))
+            (name, pnpm_versioning::to_project_dir(workspace_dir, root_dir))
         })
         .collect())
 }

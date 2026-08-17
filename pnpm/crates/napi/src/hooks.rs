@@ -27,7 +27,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use napi::{Status, bindgen_prelude::FnArgs, threadsafe_function::ThreadsafeFunction};
-use pacquet_hooks::{
+use pnpm_hooks::{
     HookContext, HookError, PnpmfileHooks, PreResolutionHookContext, PreResolutionHookLogger,
     ReadPackageResult,
 };

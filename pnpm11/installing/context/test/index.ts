@@ -19,7 +19,7 @@ const DEFAULT_OPTIONS: GetContextOptions = {
   lockfileDir: path.join(import.meta.dirname, 'lockfile'),
   nodeLinker: 'isolated',
   hoistPattern: ['*'],
-  registries: { default: '' },
+  registriesByScope: { default: '' },
   useLockfile: false,
   include: {
     dependencies: true,

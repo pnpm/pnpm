@@ -17,7 +17,7 @@
 use crate::project_manifest::{ReadProjectManifestError, read_exact_project_manifest};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use std::{
     collections::BTreeSet,
     io::ErrorKind,
@@ -32,7 +32,7 @@ use wax::{
 ///
 /// Pacquet keeps this shape narrower than pnpm's project type (which
 /// also carries `rootDirRealPath`, `modulesDir`, etc.). The fields here
-/// are what `pacquet-package-manager` actually needs at install time;
+/// are what `pnpm-package-manager` actually needs at install time;
 /// anything else is read on demand from the manifest. If a caller
 /// needs more, extend here rather than reaching back into the
 /// `package.json` value directly.

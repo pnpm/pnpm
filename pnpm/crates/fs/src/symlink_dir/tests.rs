@@ -325,6 +325,18 @@ fn windows_error_directory_falls_back_to_junctions() {
     assert!(!super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(123)));
 }
 
+/// `ERROR_PRIVILEGE_NOT_HELD` (1314) — symlink creation without
+/// Developer Mode or elevation — maps to `Uncategorized`, not
+/// `PermissionDenied`, so the fallback must match the raw os error
+/// ([pnpm/pnpm#13694](https://github.com/pnpm/pnpm/issues/13694)).
+#[cfg(windows)]
+#[test]
+fn windows_privilege_not_held_falls_back_to_junctions() {
+    let error = std::io::Error::from_raw_os_error(1314);
+    assert_ne!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    assert!(super::windows::should_fallback_to_junction(&error));
+}
+
 #[test]
 fn force_symlink_dir_links_a_scoped_alias() {
     let root = tempdir().expect("create temp dir");

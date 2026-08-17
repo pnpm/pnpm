@@ -1,7 +1,7 @@
 use crate::safe_join_modules_dir::InvalidDependencyAliasError;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::{ForceSymlinkOutcome, force_symlink_dir};
+use pnpm_fs::{ForceSymlinkOutcome, force_symlink_dir};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -35,7 +35,7 @@ pub enum SymlinkPackageError {
 
 /// Create a `node_modules/<name>` symlink for a direct dependency.
 ///
-/// Wraps [`pacquet_fs::force_symlink_dir`] so the call site mirrors
+/// Wraps [`pnpm_fs::force_symlink_dir`] so the call site mirrors
 /// pnpm's `symlinkDependency` (which calls `symlinkDir(target, link)`
 /// with the library's default `{ overwrite: true }`). That means:
 ///

@@ -55,7 +55,7 @@ pub type FilesMap = HashMap<String, PathBuf>;
 /// the base `files_map` with the entry's `added` overlay applied on
 /// top of it and `deleted` entries dropped. The importer looks up the
 /// entry by the dep-state cache key (`<engine>` or
-/// `<engine>;deps=…;patch=…`, produced by `pacquet-graph-hasher`'s
+/// `<engine>;deps=…;patch=…`, produced by `pnpm-graph-hasher`'s
 /// `calc_dep_state`) to decide whether the package is already built.
 #[derive(Debug)]
 pub struct VerifyResult {
@@ -242,9 +242,9 @@ fn is_safe_overlay_path(filename: &str) -> bool {
 /// considers a delete, so it cannot race with an in-flight writer.
 /// The slow path (where verification could lead to a
 /// [`remove_stale_cafs_entry`] call) acquires
-/// [`pacquet_fs::cas_write_lock`] for `path` before re-stating the
+/// [`pnpm_fs::cas_write_lock`] for `path` before re-stating the
 /// file. This is the same per-path mutex
-/// [`pacquet_fs::ensure_file`] holds across `O_CREAT|O_EXCL` +
+/// [`pnpm_fs::ensure_file`] holds across `O_CREAT|O_EXCL` +
 /// `write_all`, so a concurrent writer's full sequence completes
 /// before the verifier evaluates the file. Without this gate, the
 /// verifier observes the writer's intermediate (partial) state,
@@ -274,7 +274,7 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
     // common case (unmodified file from a prior install) never gets
     // here — the lock cost only applies to files actually being
     // re-verified, which is rare.
-    let lock = pacquet_fs::cas_write_lock(path);
+    let lock = pnpm_fs::cas_write_lock(path);
     let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
     // Re-stat under the lock. The writer (if any) has finished by

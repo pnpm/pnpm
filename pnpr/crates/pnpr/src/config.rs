@@ -6,7 +6,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use object_store::ObjectStore;
-use pacquet_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
+use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 use std::{
@@ -1633,11 +1633,11 @@ impl Config {
     /// [`Self::from_default_yaml`] for the bundled config.
     ///
     /// The directory follows pnpm's own global-config-dir rules (via
-    /// the shared [`pacquet_config_dir::config_dir`]) under a `pnpr`
+    /// the shared [`pnpm_config_dir::config_dir`]) under a `pnpr`
     /// leaf, so an operator who knows where `pnpm config` looks knows
     /// where pnpr looks too.
     pub fn auto_config_path() -> Option<PathBuf> {
-        let dir = pacquet_config_dir::config_dir(
+        let dir = pnpm_config_dir::config_dir(
             "pnpr",
             std::env::consts::OS,
             std::env::var("XDG_CONFIG_HOME").ok().as_deref(),

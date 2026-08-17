@@ -466,7 +466,7 @@ const RENAME_RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 /// (`link_file` → `fs::hard_link` / `reflink_copy`) don't keep file
 /// handles on the target, so there's no "parallel reader sees a gap"
 /// concern that would motivate swap-rename.
-fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
+pub fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
     let mut backoff = Duration::ZERO;
     let start = Instant::now();
 

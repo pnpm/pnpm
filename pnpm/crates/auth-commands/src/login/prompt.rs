@@ -1,6 +1,6 @@
 use std::io;
 
-use pacquet_network_web_auth::PromptError;
+use pnpm_network_web_auth::PromptError;
 
 /// Read a visible credential line — the `dialoguer::Input` builder chain (the
 /// username and email prompts). This is the blocking terminal read behind the

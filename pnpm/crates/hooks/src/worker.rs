@@ -28,11 +28,21 @@ use std::{
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, Command},
-    sync::{Mutex, oneshot},
+    sync::{Mutex, Semaphore, oneshot},
     time::{Duration, timeout},
 };
 
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How many requests may be in flight to one worker at a time.
+///
+/// Callers fan out far wider: the resolver runs `readPackage` once per
+/// resolved package, all at once, which on a large install is thousands
+/// of requests. One worker is one Node process, so writing them all at
+/// once buys no throughput — it only makes each request queue behind the
+/// rest while its [`HOOK_TIMEOUT`] runs, until a batch of fast hooks
+/// fails the install on a timeout none of them caused.
+const MAX_IN_FLIGHT_REQUESTS: usize = 16;
 
 /// Callback invoked for each `context.log(...)` a hook emits while it runs.
 pub type LogFn = Arc<dyn Fn(String) + Send + Sync>;
@@ -89,6 +99,10 @@ pub struct NodeWorker {
     stdin: Mutex<ChildStdin>,
     pending: PendingMap,
     next_id: AtomicU64,
+    in_flight: Semaphore,
+    /// How long a request may take from the moment it is written to the
+    /// worker. [`HOOK_TIMEOUT`] outside tests.
+    request_timeout: Duration,
     /// Kept so the child is killed when the worker is dropped (`kill_on_drop`).
     _child: Child,
 }
@@ -96,6 +110,13 @@ pub struct NodeWorker {
 impl NodeWorker {
     /// Spawn the worker for `file` and start reading its responses.
     pub async fn spawn(file: &Path) -> Result<Arc<NodeWorker>, HookError> {
+        NodeWorker::spawn_with_request_timeout(file, HOOK_TIMEOUT).await
+    }
+
+    async fn spawn_with_request_timeout(
+        file: &Path,
+        request_timeout: Duration,
+    ) -> Result<Arc<NodeWorker>, HookError> {
         let pnpmfile = file.to_string_lossy().into_owned();
         let exec_err =
             |message: String| HookError::Execution { pnpmfile: pnpmfile.clone(), message };
@@ -141,6 +162,8 @@ impl NodeWorker {
             stdin: Mutex::new(stdin),
             pending,
             next_id: AtomicU64::new(0),
+            in_flight: Semaphore::new(MAX_IN_FLIGHT_REQUESTS),
+            request_timeout,
             _child: child,
         }))
     }
@@ -271,7 +294,13 @@ impl NodeWorker {
     /// await its reply, stamping in the request id and routing any
     /// `context.log(...)` lines to `log`. `label` names the request in a
     /// timeout error.
+    ///
+    /// Waits for one of the worker's [`MAX_IN_FLIGHT_REQUESTS`] slots
+    /// first, so a request's timeout window covers only the time the
+    /// worker had it, not the time its caller's fan-out spent queued.
     async fn request(&self, label: &str, mut body: Value, log: LogFn) -> Result<Value, HookError> {
+        let _in_flight = self.in_flight.acquire().await.expect("the semaphore is never closed");
+
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
         self.pending.lock().unwrap().insert(id, Pending { log, done });
@@ -287,11 +316,11 @@ impl NodeWorker {
             stdin.flush().await.map_err(|err| self.exec_err(err.to_string()))?;
         }
 
-        match timeout(HOOK_TIMEOUT, rx).await {
+        match timeout(self.request_timeout, rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
             Ok(Ok(Err(message))) => Err(self.exec_err(message)),
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
-            Err(_) => Err(HookError::Timeout(label.to_string(), HOOK_TIMEOUT.as_secs())),
+            Err(_) => Err(HookError::Timeout(label.to_string(), self.request_timeout.as_secs())),
         }
     }
 }

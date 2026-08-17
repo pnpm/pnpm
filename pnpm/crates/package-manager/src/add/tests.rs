@@ -3,13 +3,13 @@ use super::{
     persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
     workspace_save_specifier,
 };
-use crate::ResolvedPackages;
-use pacquet_config::{Config, LinkWorkspacePackages};
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
-use pacquet_workspace::Project;
+use crate::{ResolvedPackages, tests::project_local_config};
+use pnpm_config::LinkWorkspacePackages;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_workspace::Project;
 use serde_json::json;
 use std::{
     collections::HashSet,
@@ -22,7 +22,7 @@ const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 #[test]
 fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.link_workspace_packages = LinkWorkspacePackages::DirectOnly;
 
     assert_eq!(
@@ -83,12 +83,12 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         .create_async()
         .await;
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
-    config.registries.insert("@private".to_string(), scoped_registry_url);
+    config.registries_by_scope.insert("@private".to_string(), scoped_registry_url);
     config.minimum_release_age = None;
     let config = config.leak();
 
@@ -163,11 +163,11 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
 
     let request_state = Arc::new((Mutex::new(RequestState::default()), Condvar::new()));
     let packages = [("one", "a", 200), ("two", "b", 100), ("three", "c", 0)];
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
-    config.catalog_mode = pacquet_config::CatalogMode::Prefer;
+    config.catalog_mode = pnpm_config::CatalogMode::Prefer;
     config.minimum_release_age = None;
     let mut servers = Vec::new();
     let mut mocks = Vec::new();
@@ -177,7 +177,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         let package_name = format!("@{scope}/{name}");
         let mut server = mockito::Server::new_async().await;
         let registry_url = format!("{}/", server.url());
-        config.registries.insert(format!("@{scope}"), registry_url.clone());
+        config.registries_by_scope.insert(format!("@{scope}"), registry_url.clone());
 
         let response_body = version_body(&package_name, &registry_url);
         let state = Arc::clone(&request_state);
@@ -338,7 +338,7 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
         .create_async()
         .await;
 
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
@@ -397,7 +397,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
         .expect("create manifest");
 
     let packages = [("first", "a", 200), ("second", "b", 0)];
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -409,7 +409,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
     for (scope, name, response_delay_ms) in packages {
         let package_name = format!("@{scope}/{name}");
         let mut server = mockito::Server::new_async().await;
-        config.registries.insert(format!("@{scope}"), format!("{}/", server.url()));
+        config.registries_by_scope.insert(format!("@{scope}"), format!("{}/", server.url()));
         let latest_path = format!("/@{scope}%2F{name}/latest");
         let latest = server
             .mock("GET", latest_path.as_str())
@@ -475,7 +475,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     // peer is still sleeping, with enough slack that a loaded machine
     // cannot push the fast path past the deadline.
     let packages = [("first", "a", 100), ("second", "b", 20_000)];
-    let mut config = Config::new();
+    let mut config = project_local_config();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -487,7 +487,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     for (scope, name, response_delay_ms) in packages {
         let package_name = format!("@{scope}/{name}");
         let mut server = mockito::Server::new_async().await;
-        config.registries.insert(format!("@{scope}"), format!("{}/", server.url()));
+        config.registries_by_scope.insert(format!("@{scope}"), format!("{}/", server.url()));
         let latest_path = format!("/@{scope}%2F{name}/latest");
         let latest = server
             .mock("GET", latest_path.as_str())
@@ -643,7 +643,7 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
-    let config = Box::leak(Box::new(Config::new()));
+    let config = Box::leak(Box::new(project_local_config()));
     let http_client = ThrottledClient::default();
     let http_client_arc = Arc::new(ThrottledClient::default());
 
@@ -690,7 +690,7 @@ async fn selected_add_merges_catalog_updates_in_command_order() {
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
-    let config = Box::leak(Box::new(Config::new()));
+    let config = Box::leak(Box::new(project_local_config()));
     let http_client = ThrottledClient::default();
     let http_client_arc = Arc::new(ThrottledClient::default());
 

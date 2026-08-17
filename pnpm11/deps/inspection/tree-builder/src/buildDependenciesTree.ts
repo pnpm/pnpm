@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
@@ -14,7 +14,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { StoreIndex } from '@pnpm/store.index'
-import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type Registries } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type RegistriesByScope } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
@@ -41,8 +41,8 @@ export async function buildDependenciesTree (
     depth: number
     excludePeerDependencies?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
-    registries?: Registries
-    namedRegistries?: Record<string, string>
+    registriesByScope?: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
     onlyProjects?: boolean
     search?: Finder
     showDedupedSearchMatches?: boolean
@@ -57,10 +57,7 @@ export async function buildDependenciesTree (
   }
   const modulesDir = await realpathMissing(pathAbsolute(maybeOpts.modulesDir ?? 'node_modules', maybeOpts.lockfileDir))
   const modules = await readModulesManifest(modulesDir)
-  const registries = normalizeRegistries({
-    ...maybeOpts?.registries,
-    ...modules?.registries,
-  })
+  const registriesByScope = normalizeRegistriesByScope(maybeOpts?.registriesByScope)
   const internalPnpmDir = path.join(modulesDir, '.pnpm')
   const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
@@ -93,8 +90,8 @@ export async function buildDependenciesTree (
     lockfileDir: maybeOpts.lockfileDir,
     checkWantedLockfileOnly: maybeOpts.checkWantedLockfileOnly,
     onlyProjects: maybeOpts.onlyProjects,
-    registries,
-    namedRegistries: maybeOpts.namedRegistries,
+    registriesByScope,
+    registriesByPrefix: maybeOpts.registriesByPrefix,
     search: maybeOpts.search,
     showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches ?? (maybeOpts.search != null),
     skipped: new Set(modules?.skipped ?? []),

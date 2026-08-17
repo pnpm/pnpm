@@ -93,7 +93,7 @@ function batchPublishOpts () {
     dir: process.cwd(),
     gitChecks: false,
     recursive: true,
-    registries: { default: registry.url },
+    registriesByScope: { default: registry.url },
     registry: registry.url,
   }
 }

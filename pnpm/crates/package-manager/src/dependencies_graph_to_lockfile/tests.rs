@@ -4,20 +4,24 @@ use super::{
     read_string_or_list,
 };
 use indexmap::IndexMap;
-use pacquet_deps_path::DepPath;
-use pacquet_lockfile::{
+use pnpm_deps_path::DepPath;
+use pnpm_lockfile::{
     DirectoryResolution, GitResolution, ImporterDepVersion, LockfileResolution, PackageKey,
-    PkgName, PkgNameVer, ProjectSnapshot, RegistryResolution, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, TarballResolution, VariationsResolution,
+    PackageMetadata, PkgName, PkgNameVer, ProjectSnapshot, RegistryResolution,
+    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, TarballResolution,
+    VariationsResolution,
 };
-use pacquet_package_manifest::PackageManifest;
-use pacquet_resolving_deps_resolver::{
+use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_deps_resolver::{
     ChildEdge, DependenciesGraph, DependenciesGraphNode, DependenciesTreeNode, DirectDep, NodeId,
     PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedTree, TreeChildren, UpdateReuseScope,
     resolve_peers,
 };
-use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+
+static EMPTY_REGISTRY_OPTIONS: std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions> =
+    std::collections::BTreeMap::new();
 
 static EMPTY_NAMED_REGISTRIES: std::sync::LazyLock<std::collections::HashMap<String, String>> =
     std::sync::LazyLock::new(std::collections::HashMap::new);
@@ -40,12 +44,12 @@ fn recognizes_bin_directories_in_package_manifests() {
     assert_eq!(manifest_has_bin(Some(&json!({ "directories": { "bin": "" } }))), None);
 }
 
-fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pacquet_lockfile::Lockfile {
+fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pnpm_lockfile::Lockfile {
     try_dependencies_graph_to_lockfile(opts).expect("convert dependency graph to lockfile")
 }
 
 /// Shared empty catalogs for the catalog-free fixtures in this module.
-static EMPTY_CATALOGS: pacquet_catalogs_types::Catalogs = BTreeMap::new();
+static EMPTY_CATALOGS: pnpm_catalogs_types::Catalogs = BTreeMap::new();
 
 /// Build a single-importer [`GraphToLockfileOptions`] under the root key
 /// (`"."`). Every existing test exercises the single-importer shape;
@@ -65,7 +69,8 @@ fn single_importer_opts<'a>(
         ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },
     );
     GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph,
         auto_install_peers,
@@ -82,8 +87,10 @@ fn single_importer_opts<'a>(
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     }
 }
 
@@ -168,6 +175,56 @@ fn write_manifest(deps_value: serde_json::Value) -> (TempDir, PackageManifest) {
         .expect("write manifest");
     let manifest = PackageManifest::from_path(manifest_path).expect("read manifest");
     (tmp, manifest)
+}
+
+#[test]
+fn recorded_publish_dates_reach_the_lockfiles_time_section() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let node = make_node(
+        "react",
+        "17.0.2",
+        json!({ "name": "react", "version": "17.0.2" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+    let direct = BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
+
+    let time =
+        BTreeMap::from([("react@17.0.2".to_string(), "2021-03-22T14:00:00.000Z".to_string())]);
+    let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+    opts.time = time.clone();
+
+    assert_eq!(dependencies_graph_to_lockfile(opts).time, Some(time));
+}
+
+/// An install that resolved no publish dates leaves the section out
+/// rather than writing an empty map.
+#[test]
+fn no_recorded_publish_dates_leave_out_the_time_section() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let graph = DependenciesGraph::default();
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        BTreeMap::new(),
+        true,
+        false,
+        None,
+        None,
+    ));
+
+    assert_eq!(lockfile.time, None);
 }
 
 #[test]
@@ -409,7 +466,8 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct.clone() },
     );
     let on = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -426,8 +484,10 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
     let on_settings = on.settings.as_ref().expect("settings written");
     assert_eq!(on_settings.dedupe_peers, Some(true));
@@ -440,7 +500,8 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
     );
     let off = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -457,8 +518,10 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
     let off_settings = off.settings.as_ref().expect("settings written");
     assert_eq!(off_settings.dedupe_peers, None);
@@ -491,7 +554,7 @@ fn overrides_flow_into_lockfile_verbatim_including_convergence_selectors() {
 
     let yaml = serde_saphyr::to_string(&lockfile).unwrap();
     eprintln!("YAML:\n{yaml}\n");
-    let reparsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&yaml).unwrap();
+    let reparsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&yaml).unwrap();
     assert_eq!(reparsed.overrides, Some(overrides));
 }
 
@@ -525,7 +588,8 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             },
         );
         dependencies_graph_to_lockfile(GraphToLockfileOptions {
-            named_registries: &EMPTY_NAMED_REGISTRIES,
+            registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+            registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
             importers,
             graph: &graph,
             auto_install_peers: false,
@@ -542,8 +606,10 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             registry: "https://registry.npmjs.org",
             lockfile_include_tarball_url: false,
             previous_importers: None,
+            previous_packages: None,
             update_reuse_scope: UpdateReuseScope::All,
             update_reuse_scopes_by_importer: BTreeMap::new(),
+            time: BTreeMap::new(),
         })
     };
 
@@ -671,7 +737,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
     let mut direct = BTreeMap::new();
     direct.insert("js-yaml".to_string(), DepPath::from("@zkochan/js-yaml@0.0.11".to_string()));
 
-    let mut catalogs: pacquet_catalogs_types::Catalogs = BTreeMap::new();
+    let mut catalogs: pnpm_catalogs_types::Catalogs = BTreeMap::new();
     catalogs
         .entry("default".to_string())
         .or_default()
@@ -683,7 +749,8 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
     );
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -700,8 +767,10 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let snapshots = lockfile.catalogs.as_ref().expect("catalogs snapshot present");
@@ -934,6 +1003,7 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
         resolution: LockfileResolution::Git(GitResolution {
             repo: "ssh://git@example.com/org/is-negative.git".to_string(),
             commit: "0123456789012345678901234567890123456789".to_string(),
+            integrity: None,
             path: None,
         }),
         resolved_via: "git-repository".to_string(),
@@ -1186,21 +1256,21 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         "dependencies": { "outer": "^1.0.0" },
     }));
 
-    let outer_id = "outer@1.0.0".to_string();
-    let inner_id = "inner@1.0.0".to_string();
+    let outer_id: Arc<str> = "outer@1.0.0".into();
+    let inner_id: Arc<str> = "inner@1.0.0".into();
     let outer_node_id = NodeId::next();
 
     let mut tree = ResolvedTree {
         direct: vec![DirectDep {
             alias: "outer".to_string(),
             node_id: outer_node_id.clone(),
-            id: outer_id.clone(),
+            id: outer_id.to_string(),
         }],
         packages: HashMap::from_iter([
             (
-                outer_id.clone(),
+                Arc::<str>::clone(&outer_id),
                 ResolvedPackage {
-                    id: outer_id.clone(),
+                    id: Arc::<str>::clone(&outer_id),
                     result: Arc::new(make_resolve_result(
                         "outer",
                         "1.0.0",
@@ -1212,9 +1282,9 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
                 },
             ),
             (
-                inner_id.clone(),
+                Arc::<str>::clone(&inner_id),
                 ResolvedPackage {
-                    id: inner_id.clone(),
+                    id: Arc::<str>::clone(&inner_id),
                     result: Arc::new(make_resolve_result(
                         "inner",
                         "1.0.0",
@@ -1229,7 +1299,7 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         dependencies_tree: HashMap::from_iter([(
             outer_node_id,
             DependenciesTreeNode::new(
-                outer_id.clone(),
+                Arc::<str>::clone(&outer_id),
                 TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
                 0,
                 true,
@@ -1740,7 +1810,8 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -1757,8 +1828,10 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
@@ -1831,7 +1904,8 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -1848,8 +1922,10 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -1940,7 +2016,8 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -1957,8 +2034,10 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -2075,7 +2154,8 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -2092,8 +2172,10 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        time: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -2208,7 +2290,7 @@ fn workspace_link_direct_dep_kept_when_exclude_links_from_lockfile_true() {
 /// self-aliased ref would double-prefix that key.
 #[test]
 fn same_name_injected_dep_serializes_as_plain_file_ref() {
-    use pacquet_lockfile::ImporterDepVersion;
+    use pnpm_lockfile::ImporterDepVersion;
 
     let node = DependenciesGraphNode {
         dep_path: DepPath::from("@scope/comp1@file:comp1(react@16.0.0)".to_string()),
@@ -2222,7 +2304,7 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
             manifest: Some(std::sync::Arc::new(
                 serde_json::json!({ "name": "@scope/comp1", "version": "1.0.0" }),
             )),
-            resolution: pacquet_lockfile::DirectoryResolution { directory: "comp1".to_string() }
+            resolution: pnpm_lockfile::DirectoryResolution { directory: "comp1".to_string() }
                 .into(),
             resolved_via: "local-filesystem".to_string(),
             normalized_bare_specifier: None,
@@ -2382,7 +2464,8 @@ fn injected_workspace_dep_keeps_prior_link_on_untargeted_install() {
     let previous = previous_importers_with_link("n", "workspace:*", "../n");
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2407,8 +2490,10 @@ fn injected_workspace_dep_renders_file_without_prior_link() {
     let (_tmp, manifest, graph, direct) = injected_link_fixture();
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: None,
+        previous_packages: None,
         update_reuse_scope: UpdateReuseScope::All,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
     });
@@ -2435,7 +2520,8 @@ fn injected_workspace_dep_flips_to_file_when_update_targets_it() {
     let previous = previous_importers_with_link("n", "workspace:*", "../n");
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::Except(HashSet::from_iter(["n".to_string()])),
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2464,7 +2550,8 @@ fn injected_workspace_dep_flips_to_file_when_specifier_changed() {
     let previous = previous_importers_with_link("n", "workspace:^1.0.0", "../n");
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2499,7 +2586,8 @@ fn injected_workspace_dep_flips_to_file_when_recursive_update_targets_it_per_imp
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: scopes_by_importer,
@@ -2536,7 +2624,8 @@ fn injected_workspace_dep_keeps_link_when_recursive_update_targets_other_pkg() {
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: scopes_by_importer,
@@ -2564,7 +2653,8 @@ fn injected_workspace_dep_flips_to_file_on_scope_wide_update() {
     let previous = previous_importers_with_link("n", "workspace:*", "../n");
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        named_registries: &EMPTY_NAMED_REGISTRIES,
+        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::None,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2675,9 +2765,9 @@ fn named_registry_package_keeps_the_format_and_drops_a_canonical_tarball() {
     let mut direct = BTreeMap::new();
     direct.insert("foo".to_string(), DepPath::from("foo@work:1.0.0".to_string()));
 
-    let named_registries = named_registries_with("work", "https://npm.enterprise.example.com/");
+    let registries_by_prefix = named_registries_with("work", "https://npm.enterprise.example.com/");
     let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
-    opts.named_registries = &named_registries;
+    opts.registries_by_prefix = &registries_by_prefix;
 
     let lockfile = dependencies_graph_to_lockfile(opts);
 
@@ -2762,4 +2852,66 @@ fn an_unresolvable_alias_keeps_the_tarball_url() {
         LockfileResolution::Tarball(resolution) => assert_eq!(resolution.tarball, tarball),
         other => panic!("an unresolvable alias must keep its tarball URL, got {other:?}"),
     }
+}
+
+/// pnpm/pnpm#13846: registries serve `deprecated` inconsistently for
+/// the same published version.
+#[test]
+fn unchanged_resolutions_keep_their_previous_package_metadata() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let build = |previous: Option<&std::collections::HashMap<PackageKey, PackageMetadata>>| {
+        let node = make_node(
+            "react",
+            "17.0.2",
+            json!({ "name": "react", "version": "17.0.2" }),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::default(),
+        );
+        let mut graph = DependenciesGraph::default();
+        graph.insert(node.dep_path.clone(), node);
+        let direct =
+            BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
+        let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+        opts.previous_packages = previous;
+        let lockfile = dependencies_graph_to_lockfile(opts);
+        let key: PackageKey = "react@17.0.2".parse().unwrap();
+        lockfile.packages.expect("packages map")[&key].clone()
+    };
+
+    let fresh = build(None);
+    assert_eq!(fresh.deprecated, None, "the freshly served metadata carries no deprecation");
+
+    let mut previous_entry = fresh;
+    previous_entry.deprecated = Some("No longer maintained".to_string());
+    let previous = std::collections::HashMap::from([(
+        "react@17.0.2".parse::<PackageKey>().unwrap(),
+        previous_entry.clone(),
+    )]);
+    assert_eq!(
+        build(Some(&previous)),
+        previous_entry,
+        "an unchanged resolution keeps its recorded deprecation",
+    );
+
+    let mut republished = previous_entry;
+    republished.resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: Integrity::from_str(
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        )
+        .expect("parse fake integrity"),
+    });
+    let previous = std::collections::HashMap::from([(
+        "react@17.0.2".parse::<PackageKey>().unwrap(),
+        republished,
+    )]);
+    assert_eq!(
+        build(Some(&previous)).deprecated,
+        None,
+        "a changed resolution takes the freshly served metadata",
+    );
 }

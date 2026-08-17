@@ -10,7 +10,7 @@ use crate::cli_args::{
 };
 use console::measure_text_width;
 use node_semver::Version;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_package_manifest::DependencyGroup;
 use std::collections::HashMap;
 
 /// One line of a [`ChoiceGroup`].

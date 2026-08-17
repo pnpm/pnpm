@@ -1,7 +1,7 @@
 use crate::{Lockfile, extract_main_document};
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::{self, Diagnostic};
 use pipe_trait::Pipe;
+use pnpm_diagnostics::miette::{self, Diagnostic};
 use serde_saphyr::MessageFormatter;
 use std::{
     env, fs,

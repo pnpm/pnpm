@@ -1,10 +1,10 @@
 use super::build_sequence;
 use crate::SkippedSnapshots;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     PackageKey, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
-use pacquet_patching::ExtendedPatchInfo;
+use pnpm_patching::ExtendedPatchInfo;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 

@@ -1,8 +1,8 @@
 use super::{Host, PackError, PackOptions, PackResult, format_pack_output, to_pack_result_json};
 use crate::capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile};
 use flate2::read::GzDecoder;
-use pacquet_config::NodeLinker;
-use pacquet_reporter::{LogEvent, Reporter, SilentReporter};
+use pnpm_config::NodeLinker;
+use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -50,7 +50,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
 /// is enough.
 fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
 where
-    Reporter: pacquet_reporter::Reporter,
+    Reporter: pnpm_reporter::Reporter,
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite,
 {
     tokio::runtime::Builder::new_current_thread()

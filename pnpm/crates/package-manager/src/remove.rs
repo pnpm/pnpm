@@ -2,19 +2,20 @@ use crate::{
     DIRECT_GROUPS, Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
     WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
     emit_initial_package_manifest, package_manifest_prefix, selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_tarball::MemCache;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_tarball::MemCache;
 use std::{collections::HashSet, fmt::Write as _, sync::Arc};
 
 #[must_use]
@@ -35,7 +36,7 @@ pub struct Remove<'a> {
     pub save_type: Option<DependencyGroup>,
     /// CLI-merged `supportedArchitectures` forwarded to the follow-up
     /// `Install` run. See [`Install::supported_architectures`].
-    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     /// `--lockfile-only`: rewrite `pnpm-lock.yaml` (and the manifest) but
     /// skip materializing `node_modules`. Forwarded to the follow-up
     /// `Install` run. See [`Install::lockfile_only`].
@@ -73,7 +74,7 @@ pub enum RemoveError {
     #[display("Failed to save the manifest file: {_0}")]
     SaveManifest(#[error(source)] PackageManifestError),
 
-    /// The `cleanupUnusedCatalogs` pass on `pnpm-workspace.yaml` failed.
+    /// The `catalogPrune` pass on `pnpm-workspace.yaml` failed.
     #[diagnostic(transparent)]
     WriteWorkspaceManifest(#[error(source)] WriteWorkspaceCatalogsError),
 
@@ -115,11 +116,12 @@ impl Remove<'_> {
             // re-resolve walks all three.
             dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
-            // `pacquet remove` mutates the manifest, so the lockfile is
-            // necessarily stale — short-circuit the prefer-frozen fast
-            // path so the install always re-resolves. See the parallel
-            // comment in `add.rs`.
-            prefer_frozen_lockfile: Some(false),
+            // The manifest was just edited, but the drift is exactly the
+            // deleted importer edges, which the removal handler of the
+            // lockfile fast path absorbs without resolving. When it
+            // declines, the freshness check fails and the install
+            // re-resolves as it always did.
+            prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
@@ -128,17 +130,19 @@ impl Remove<'_> {
             // `uninstallSome` mutation), so the root project's own
             // lifecycle scripts must not run — they fire only on a full
             // install.
-            mutation: ProjectMutation::NoInstall,
+            mutation: ProjectMutation::UninstallSome,
             installs_only: false,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
+            persist_policy_excludes: false,
             // Removing a dependency must not bump the survivors: keep
             // every remaining lockfile pin in the preferred-versions
             // seed, same as `install` / `add`.
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,
@@ -157,12 +161,15 @@ impl Remove<'_> {
         write_workspace_catalogs(config, None, &Catalogs::new(), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
+        prune_minimum_release_age_excludes(config, None, manifest)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
+
         Ok(())
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
-        projects: &mut [pacquet_workspace::Project],
+        projects: &mut [pnpm_workspace::Project],
         ordered_groups: &[Vec<std::path::PathBuf>],
         ordered_dirs: &[std::path::PathBuf],
         selected_dirs: &HashSet<std::path::PathBuf>,
@@ -209,19 +216,21 @@ impl Remove<'_> {
             lockfile_path,
             dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
+            prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            mutation: ProjectMutation::NoInstall,
+            mutation: ProjectMutation::UninstallSome,
             installs_only: false,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
+            persist_policy_excludes: false,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,
@@ -245,6 +254,9 @@ impl Remove<'_> {
 
         write_workspace_catalogs_selected(config, &workspace_root, &Catalogs::new(), projects)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
+
+        prune_minimum_release_age_excludes(config, Some(&workspace_root), manifest)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
         Ok(())
     }
 }
@@ -257,7 +269,7 @@ fn validate_selected_remove(package_names: &[String]) -> Result<(), RemoveValida
 }
 
 fn prepare_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
     package_names: &[String],
     save_type: Option<DependencyGroup>,
@@ -277,7 +289,7 @@ fn prepare_manifest<Reporter: self::Reporter>(
 }
 
 fn persist_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
 ) -> Result<(), RemoveError> {
     for &index in selected_indices {

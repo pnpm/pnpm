@@ -348,7 +348,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'preferFrozenLockfile'
 | 'preferWorkspacePackages'
 | 'production'
-| 'registries'
+| 'registriesByScope'
 | 'save'
 | 'saveDev'
 | 'saveExact'

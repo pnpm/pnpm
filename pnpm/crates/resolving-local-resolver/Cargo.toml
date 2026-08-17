@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-resolving-local-resolver"
+name                  = "pnpm-resolving-local-resolver"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,11 +11,11 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-lockfile                          = { workspace = true }
-pacquet-package-manifest                  = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
-pacquet-resolving-resolver-base           = { workspace = true }
-pacquet-tarball                           = { workspace = true }
+pnpm-lockfile                          = { workspace = true }
+pnpm-package-manifest                  = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-resolving-resolver-base           = { workspace = true }
+pnpm-tarball                           = { workspace = true }
 
 derive_more = { workspace = true }
 home        = { workspace = true }
@@ -25,8 +25,8 @@ serde_json  = { workspace = true }
 tracing     = { workspace = true }
 
 [dev-dependencies]
-pacquet-resolving-default-resolver = { workspace = true }
-pacquet-testing-utils              = { workspace = true }
+pnpm-resolving-default-resolver = { workspace = true }
+pnpm-testing-utils              = { workspace = true }
 
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }

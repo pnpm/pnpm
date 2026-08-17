@@ -14,8 +14,8 @@
 //! `saveWorkspaceProtocol` is off and the user didn't ask for
 //! `workspace:` themselves.
 
-use pacquet_config::SaveWorkspaceProtocol;
-use pacquet_registry::{RangeSpecGranularity, RangeSpecStyle};
+use pnpm_config::SaveWorkspaceProtocol;
+use pnpm_registry::{RangeSpecGranularity, RangeSpecStyle};
 
 use crate::infer_range_spec_style::infer_range_spec_style;
 

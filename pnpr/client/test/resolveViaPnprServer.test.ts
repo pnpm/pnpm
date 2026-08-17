@@ -8,6 +8,8 @@ interface CapturedResolveRequest {
   projects: Array<Record<string, unknown>>
 }
 
+const resolverSettingNames = ['autoInstallPeers', 'dedupePeers', 'excludeLinksFromLockfile'] as const
+
 test('serializes name and version for the single-project compatibility options', async () => {
   const options = {
     name: 'app',
@@ -46,11 +48,24 @@ test('serializes name and version for every explicit project', async () => {
   expect(request.projects).toEqual(projects)
 })
 
-test('omits absent identity fields instead of serializing null', async () => {
+test('omits absent identity fields and current lockfile resolution settings', async () => {
   const request = await captureResolveRequest({ dependencies: {} })
 
   expect(Object.hasOwn(request.projects[0], 'name')).toBe(false)
   expect(Object.hasOwn(request.projects[0], 'version')).toBe(false)
+  for (const setting of resolverSettingNames) {
+    expect(Object.hasOwn(request, setting)).toBe(false)
+  }
+})
+
+test.each(resolverSettingNames)('serializes %s independently', async (setting) => {
+  await Promise.all([true, false].map(async value => {
+    const request = await captureResolveRequest({ dependencies: {}, [setting]: value })
+    expect(request).toMatchObject({ [setting]: value })
+    for (const key of resolverSettingNames) {
+      expect(Object.hasOwn(request, key)).toBe(key === setting)
+    }
+  }))
 })
 
 async function captureResolveRequest (

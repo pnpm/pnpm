@@ -423,7 +423,7 @@ function stageOpts (registry: string): Parameters<typeof stage.handler>[0] {
     configByUri: {},
     dir: process.cwd(),
     gitChecks: false,
-    registries: { default: registry },
+    registriesByScope: { default: registry },
     registry,
   } as Parameters<typeof stage.handler>[0]
 }

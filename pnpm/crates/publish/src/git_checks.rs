@@ -3,7 +3,7 @@
 
 use std::{fs, path::Path};
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
 
 use crate::capabilities::{ConfirmPrompt, RunCommand};
 

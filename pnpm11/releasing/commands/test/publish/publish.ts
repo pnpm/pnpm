@@ -318,7 +318,7 @@ test('publish: package with publishConfig.registry overrides the default registr
     argv: { original: ['publish'] },
     configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
-    registries: { default: 'https://__fake_npm_registry__.com' },
+    registriesByScope: { default: 'https://__fake_npm_registry__.com' },
   }, [])
 
   await checkPkgExists(pkgName, '1.0.0')

@@ -183,6 +183,7 @@ export function createDeployFiles ({
   return result
 }
 
+/** Takes ownership of `packages`: the retained snapshots are edited in place. */
 function filterDeployPackageSnapshots (
   importer: ProjectSnapshot,
   packages: PackageSnapshots,
@@ -214,7 +215,12 @@ function filterDeployPackageSnapshots (
   }
 
   return Object.fromEntries(
-    Array.from(reachable, (depPath) => [depPath, packages[depPath]])
+    Array.from(reachable, (depPath) => {
+      const snapshot = packages[depPath]
+      // A retained snapshot's optional edges point at packages this filter just dropped.
+      if (!include.optionalDependencies) snapshot.optionalDependencies = undefined
+      return [depPath, snapshot]
+    })
   ) as PackageSnapshots
 }
 

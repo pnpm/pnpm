@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-reporter"
+name                  = "pnpm-reporter"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true

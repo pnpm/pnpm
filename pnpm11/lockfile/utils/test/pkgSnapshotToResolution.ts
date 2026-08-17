@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
@@ -13,7 +13,7 @@ test('pkgSnapshotToResolution() fails closed on a non-string tarball', () => {
       integrity: 'sha512-AAAA',
       tarball: ['https://attacker.example/foo.tgz'],
     },
-  } as never, { registries: { default: 'https://registry.npmjs.org/' } })).toThrow(
+  } as never, { registriesByScope: { default: 'https://registry.npmjs.org/' } })).toThrow(
     expect.objectContaining({ code: 'ERR_PNPM_INVALID_TARBALL_RESOLUTION' })
   )
 })
@@ -23,7 +23,7 @@ test('pkgSnapshotToResolution()', () => {
     resolution: {
       integrity: 'AAAA',
     },
-  }, { registries: { default: 'https://registry.npmjs.org/' } })).toEqual({
+  }, { registriesByScope: { default: 'https://registry.npmjs.org/' } })).toEqual({
     integrity: 'AAAA',
     tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
   })
@@ -33,7 +33,7 @@ test('pkgSnapshotToResolution()', () => {
       integrity: 'AAAA',
       tarball: '@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
     },
-  }, { registries: { default: 'https://registry.npmjs.org/', '@mycompany': 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/' } })).toEqual({
+  }, { registriesByScope: { default: 'https://registry.npmjs.org/', '@mycompany': 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/' } })).toEqual({
     integrity: 'AAAA',
     tarball: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
   })
@@ -43,7 +43,7 @@ test('pkgSnapshotToResolution()', () => {
       integrity: 'AAAA',
       tarball: '@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
     },
-  }, { registries: { default: 'https://registry.npmjs.org/', '@mycompany': 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local' } })).toEqual({
+  }, { registriesByScope: { default: 'https://registry.npmjs.org/', '@mycompany': 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local' } })).toEqual({
     integrity: 'AAAA',
     tarball: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
   })
@@ -53,7 +53,7 @@ test('pkgSnapshotToResolution()', () => {
       integrity: 'sha512-CCCC',
       tarball: 'https://cdn.sheetjs.com/xlsx-0.18.9/xlsx-0.18.9.tgz',
     },
-  }, { registries: { default: 'https://registry.npmjs.org/' } })).toEqual({
+  }, { registriesByScope: { default: 'https://registry.npmjs.org/' } })).toEqual({
     integrity: 'sha512-CCCC',
     tarball: 'https://cdn.sheetjs.com/xlsx-0.18.9/xlsx-0.18.9.tgz',
   })
@@ -65,7 +65,7 @@ test('pkgSnapshotToResolution()', () => {
       integrity: 'sha512-AAAA',
     },
     version: '1.0.0',
-  }, { registries: { default: 'https://registry.npmjs.org/' } })).toEqual({
+  }, { registriesByScope: { default: 'https://registry.npmjs.org/' } })).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'file:test-package-1.0.0.tgz',
   })
@@ -80,7 +80,7 @@ test('pkgSnapshotToResolution() converts git-hosted and file: tarball snapshots'
       tarball: GIT_TARBALL,
       gitHosted: true,
     },
-  }, { registries: { default: 'https://registry.npmjs.org/' } })).toEqual({
+  }, { registriesByScope: { default: 'https://registry.npmjs.org/' } })).toEqual({
     tarball: GIT_TARBALL,
     gitHosted: true,
   })
@@ -89,7 +89,7 @@ test('pkgSnapshotToResolution() converts git-hosted and file: tarball snapshots'
     resolution: {
       tarball: LEGACY_GIT_TARBALL,
     },
-  }, { registries: { default: 'https://registry.npmjs.org/' } })).toEqual({
+  }, { registriesByScope: { default: 'https://registry.npmjs.org/' } })).toEqual({
     tarball: LEGACY_GIT_TARBALL,
   })
 
@@ -100,7 +100,7 @@ test('pkgSnapshotToResolution() converts git-hosted and file: tarball snapshots'
       tarball: 'file:local-pkg-1.0.0.tgz',
     },
     version: '1.0.0',
-  }, { registries: { default: 'https://registry.npmjs.org/' } })).toEqual({
+  }, { registriesByScope: { default: 'https://registry.npmjs.org/' } })).toEqual({
     tarball: 'file:local-pkg-1.0.0.tgz',
   })
 })
@@ -111,8 +111,8 @@ test('pkgSnapshotToResolution() reconstructs the tarball of a registry-qualified
       integrity: 'sha512-AAAA',
     },
   }, {
-    registries: { default: 'https://registry.npmjs.org/' },
-    namedRegistries: normalizeNamedRegistries({ work: 'https://npm.enterprise.example.com/' }),
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    registriesByPrefix: normalizeRegistriesByPrefix({ work: 'https://npm.enterprise.example.com/' }),
   })).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'https://npm.enterprise.example.com/foo/-/foo-1.0.0.tgz',
@@ -125,7 +125,7 @@ test('pkgSnapshotToResolution() reconstructs the tarball of a registry-qualified
       tarball: 'https://npm.pkg.github.com/download/@acme/private/2.1.0/abcdef',
     },
   }, {
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'https://npm.pkg.github.com/download/@acme/private/2.1.0/abcdef',
@@ -138,7 +138,7 @@ test('pkgSnapshotToResolution() fails when a registry-qualified snapshot names a
       integrity: 'sha512-AAAA',
     },
   }, {
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })).toThrow(
     expect.objectContaining({ code: 'ERR_PNPM_MISSING_NAMED_REGISTRY' })
   )
@@ -154,7 +154,7 @@ test('pkgSnapshotToResolution() rejects an alias that only exists on Object.prot
         integrity: 'sha512-AAAA',
       },
     }, {
-      registries: { default: 'https://registry.npmjs.org/' },
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
     })).toThrow(
       expect.objectContaining({ code: 'ERR_PNPM_MISSING_NAMED_REGISTRY' })
     )

@@ -1,9 +1,9 @@
 use crate::State;
 use clap::Args;
 use miette::Context;
-use pacquet_package_manager::{Install, ProjectMutation};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
 
 #[derive(Debug, Args)]
 pub struct PruneArgs {
@@ -47,7 +47,7 @@ impl PruneArgs {
             config,
             manifest,
             emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(&lockfile_path),
             dependency_groups,
             frozen_lockfile: false,
@@ -63,7 +63,9 @@ impl PruneArgs {
             node_linker: config.node_linker,
             lockfile_only: false,
             dry_run: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+            persist_policy_excludes: false,
+            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,

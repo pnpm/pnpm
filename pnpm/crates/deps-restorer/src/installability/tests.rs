@@ -4,12 +4,12 @@ use crate::installability::{
     InstallabilityHost, SkippedSnapshots, any_installability_constraint,
     any_optional_installability_constraint, compute_skipped_snapshots,
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     ImporterDepVersion, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer,
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
     TarballResolution,
 };
-use pacquet_reporter::{LogEvent, Reporter, SkippedOptionalPackage, SkippedOptionalReason};
+use pnpm_reporter::{LogEvent, Reporter, SkippedOptionalPackage, SkippedOptionalReason};
 use pretty_assertions::assert_eq;
 use std::{collections::HashMap, sync::Mutex};
 
@@ -446,7 +446,7 @@ fn supported_architectures_widens_accept_set_so_optional_stays() {
     packages.insert(key, synthetic_metadata(None, None, Some(&["darwin"]), None));
 
     let mut host = host("20.10.0", "linux", "x64");
-    host.supported_architectures = Some(pacquet_package_is_installable::SupportedArchitectures {
+    host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures {
         os: Some(vec!["darwin".to_string()]),
         cpu: None,
         libc: None,
@@ -481,7 +481,7 @@ fn supported_architectures_does_not_implicitly_include_host() {
     packages.insert(key.clone(), synthetic_metadata(None, None, Some(&["darwin"]), None));
 
     let mut host = host("20.10.0", "linux", "x64");
-    host.supported_architectures = Some(pacquet_package_is_installable::SupportedArchitectures {
+    host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures {
         os: Some(vec!["linux".to_string()]),
         cpu: None,
         libc: None,
@@ -761,7 +761,7 @@ fn missing_libc_is_inferred_from_name() {
 
     let mut host = host("20.10.0", "linux", "x64");
     host.libc = "glibc";
-    host.supported_architectures = Some(pacquet_package_is_installable::SupportedArchitectures {
+    host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures {
         os: Some(vec!["linux".to_string()]),
         cpu: Some(vec!["x64".to_string()]),
         libc: Some(vec!["glibc".to_string()]),

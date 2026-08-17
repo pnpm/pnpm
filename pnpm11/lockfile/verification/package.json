@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.verification",
-  "version": "1100.0.31",
+  "version": "1100.1.0",
   "description": "Checks a lockfile",
   "keywords": [
     "pnpm",
@@ -32,7 +32,9 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.matcher": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/installing.context": "workspace:*",

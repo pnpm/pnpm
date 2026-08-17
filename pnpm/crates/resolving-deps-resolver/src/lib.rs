@@ -13,7 +13,7 @@
 //!
 //! 1. **Tree pass** ([`fn@resolve_dependency_tree`]). Walks a project
 //!    manifest's direct dependencies through a
-//!    [`Resolver`](pacquet_resolving_resolver_base::Resolver) chain
+//!    [`Resolver`](pnpm_resolving_resolver_base::Resolver) chain
 //!    and recurses on every resolved package's own manifest
 //!    dependencies. Produces:
 //!
@@ -62,7 +62,7 @@
 //!   resolver is fed each child's manifest range verbatim. Lockfile-
 //!   seeded preferred versions arrive via the orchestrator's
 //!   `all_preferred_versions` option — callers pre-seed with the
-//!   `pacquet-lockfile-preferred-versions` crate.
+//!   `pnpm-lockfile-preferred-versions` crate.
 
 mod dedupe_injected_deps;
 mod dedupe_peer_dependents;
@@ -81,16 +81,16 @@ mod resolved_tree;
 mod validate_dependency_alias;
 
 pub use dependencies_graph::{
-    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef, PeerDependencyIssue,
-    PeerDependencyIssues,
+    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
+    PeerDependencyIssue, PeerDependencyIssues,
 };
 pub use hoist_peers::{
     DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
     get_hoistable_optional_peers, hoist_peers,
 };
 pub use node_id::NodeId;
-pub use pacquet_deps_path::DepPath;
 pub use parent_pkg_aliases::ParentPkgAliases;
+pub use pnpm_deps_path::DepPath;
 pub use resolve_dependency_tree::{
     Deprecation, DeprecationLogFn, ManifestHook, ResolveDependencyTreeError,
     ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,

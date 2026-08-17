@@ -1,6 +1,6 @@
 use crate::{PackageSpecObject, is_workspace_local_path_specifier, update_project_manifest_object};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::RangeSpecStyle;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_registry::RangeSpecStyle;
 
 /// Catalog metadata for a direct dependency requested through the `catalog:`
 /// protocol.

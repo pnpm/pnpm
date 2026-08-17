@@ -3,12 +3,12 @@ use clap::Args;
 use derive_more::{Display, Error};
 use futures_util::StreamExt as _;
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
-use pacquet_config::Config;
-use pacquet_network::{
+use pnpm_config::Config;
+use pnpm_network::{
     NetworkSettings, RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component,
     redact_url_credentials, send_with_retry,
 };
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
+use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -274,7 +274,7 @@ impl TeamArgs {
         // `npm-otp`, so the request proceeds without credentials and fails
         // at the target; here it fails at the redirect hop instead. reqwest
         // redirect policies cannot strip custom headers per hop, so matching
-        // pnpm exactly needs a manual redirect loop in pacquet-network — a
+        // pnpm exactly needs a manual redirect loop in pnpm-network — a
         // follow-up that would cover `access` too.
         let redirect_guard = self.otp.as_ref().map(|_| {
             let origins: Vec<(String, String, Option<u16>)> = registries

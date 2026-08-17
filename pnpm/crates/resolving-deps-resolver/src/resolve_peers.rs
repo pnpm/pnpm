@@ -43,12 +43,11 @@ use crate::{
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
 };
-use context::{
-    ChainSuffixMemo, CurrentProviderSource, SharedChain, importer_relative_link_dep_path,
-};
+pub(crate) use context::SharedChain;
+use context::{ChainSuffixMemo, CurrentProviderSource, importer_relative_link_dep_path};
 use discovery::PeerDiscoveryCaches;
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
@@ -356,13 +355,23 @@ pub fn resolve_peers_workspace(
         false,
     );
 
+    // Walk importers in id order. Occurrence realization and the shared
+    // verdict caches are first-writer-wins, so a stable walk order makes
+    // the graph a function of the importer set rather than of the
+    // caller's listing order (pnpm/pnpm#13846).
+    let importers: Vec<&ImporterPeerInput> = {
+        let mut sorted: Vec<&ImporterPeerInput> = importers.iter().collect();
+        sorted.sort_by(|left, right| left.id.cmp(&right.id));
+        sorted
+    };
+
     let mut direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>> =
         BTreeMap::new();
     let mut peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues> =
         BTreeMap::new();
     let mut importer_root_dirs: BTreeMap<String, PathBuf> = BTreeMap::new();
     let root_importer = resolve_peers_from_workspace_root
-        .then(|| importers.iter().find(|importer| importer.id == "."))
+        .then(|| importers.iter().copied().find(|importer| importer.id == "."))
         .flatten();
     let root_parents = root_importer.map(|importer| {
         let previous_dirs = (walker.opts.project_dir.clone(), walker.opts.modules_dir.clone());
@@ -372,7 +381,7 @@ pub fn resolve_peers_workspace(
         (walker.opts.project_dir, walker.opts.modules_dir) = previous_dirs;
         parents
     });
-    for importer in importers {
+    for importer in &importers {
         importer_root_dirs.insert(importer.id.clone(), importer.root_dir.clone());
         // Swap the per-importer `project_dir` / `modules_dir` in before
         // the walk so the `excludeLinksFromLockfile` link-remap inside
@@ -440,6 +449,7 @@ pub fn resolve_peers_workspace(
                 &parent_pkg_ids_chain,
             );
         }
+        walker.drain_pending_canonical_nodes(&importer_parents, &importer_parent_dep_paths);
         let issues = std::mem::take(&mut walker.issues);
         if !issues.bad.is_empty() || !issues.missing.is_empty() {
             peer_dependency_issues_by_importer.insert(importer.id.clone(), issues);
@@ -450,7 +460,7 @@ pub fn resolve_peers_workspace(
     // importer is walked, then rebuild the graph and re-key each
     // importer's direct deps.
     let final_dep_paths = walker.build_final_dep_paths();
-    for importer in importers {
+    for importer in &importers {
         let direct_by_alias: BTreeMap<String, DepPath> = importer
             .direct
             .iter()
@@ -531,7 +541,7 @@ fn build_node_ids_by_previous_dep_path(
     let mut node_ids: Vec<&NodeId> = tree.dependencies_tree.keys().collect();
     node_ids.sort();
     for node_id in node_ids {
-        if let Some(previous) = tree.dependencies_tree[node_id].previous_dep_path.as_ref()
+        if let Some(previous) = tree.dependencies_tree[node_id].previous_dep_path()
             && !map.contains_key(previous)
         {
             map.insert(previous.clone(), node_id.clone());

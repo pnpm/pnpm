@@ -15,7 +15,7 @@
 //! * unscoped names can be private (a corporate default registry).
 //!
 //! [`RouteContext::classify`] maps one fetch to a [`RouteClass`]. The [`RouteHook`]
-//! installed on the resolve's [`AuthHeaders`](pacquet_network::AuthHeaders)
+//! installed on the resolve's [`AuthHeaders`](pnpm_network::AuthHeaders)
 //! runs that classification at the real auth-selection point, selects the
 //! pnpr-managed credential (never a client-forwarded one), and records the
 //! route into a [`Footprint`]. The footprint's [`Footprint::digest`] is
@@ -28,7 +28,7 @@ use std::{
 };
 
 use indexmap::IndexMap;
-use pacquet_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
+use pnpm_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
 use reqwest::header::{AUTHORIZATION, HeaderMap};
 use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
@@ -702,7 +702,7 @@ impl ResolvedAlias {
 }
 
 /// The [`UpstreamRouteHook`] pnpr installs on a resolve's
-/// [`AuthHeaders`](pacquet_network::AuthHeaders). Every metadata/tarball
+/// [`AuthHeaders`](pnpm_network::AuthHeaders). Every metadata/tarball
 /// fetch routes through [`UpstreamRouteHook::authorize`], which classifies
 /// the route, records it into the shared [`Footprint`], and returns the
 /// pnpr-managed credential (never a client-forwarded one).
@@ -767,6 +767,10 @@ impl UpstreamRouteHook for RouteHook {
         }
     }
 
+    fn allows_fetch(&self, url: &str) -> bool {
+        self.context.allows_registry(url)
+    }
+
     fn metadata_scope(&self, url: &str, package: Option<&str>) -> MetadataCacheScope {
         // Read-only classification — this must not record into the
         // footprint (`authorize` already does, at the real fetch point).
@@ -797,18 +801,24 @@ impl RouteHook {
 /// `user:pass@host` (or `user@host`) credentials. Such URLs must be
 /// rejected before any fetch: pnpr must not turn a client-embedded
 /// credential into upstream Basic auth, treat it as a cache identity, or
-/// store it in a shared cache. Specs without a `scheme://` (a semver
+/// store it in a shared cache. An ssh remote's bare username
+/// (`git+ssh://git@host/...`) is transport addressing with no secret — the
+/// same login the scp form `git@host:path` spells — so on ssh schemes only
+/// a `user:pass@` userinfo counts. Specs without a `scheme://` (a semver
 /// range, a scoped name, `npm:`/`workspace:` aliases) never match.
 #[must_use]
 pub fn url_has_inline_credentials(spec: &str) -> bool {
-    let Some((_, after_scheme)) = spec.split_once("://") else {
+    let Some((scheme, after_scheme)) = spec.split_once("://") else {
         return false;
     };
     let authority = after_scheme.split(['/', '?', '#']).next().unwrap_or(after_scheme);
-    match authority.rsplit_once('@') {
-        Some((userinfo, _)) => !userinfo.is_empty(),
-        None => false,
+    let Some((userinfo, _)) = authority.rsplit_once('@') else {
+        return false;
+    };
+    if scheme.eq_ignore_ascii_case("ssh") || scheme.eq_ignore_ascii_case("git+ssh") {
+        return userinfo.contains(':');
     }
+    !userinfo.is_empty()
 }
 
 /// Strip an inline `user:pass@`/`user@` userinfo from a `scheme://` URL,

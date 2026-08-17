@@ -19,7 +19,7 @@ impl RestartArgs {
     pub fn run(
         self,
         dir: &std::path::Path,
-        config: &pacquet_config::Config,
+        config: &pnpm_config::Config,
         silent: bool,
     ) -> miette::Result<()> {
         let RestartArgs { args, if_present } = self;

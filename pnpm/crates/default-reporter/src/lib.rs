@@ -1,6 +1,6 @@
 //! pnpm-identical visual reporter for pacquet.
 //!
-//! [`DefaultReporter`] is a [`pacquet_reporter::Reporter`] sink that renders
+//! [`DefaultReporter`] is a [`pnpm_reporter::Reporter`] sink that renders
 //! the same terminal output `@pnpm/cli.default-reporter` produces for
 //! `install` / `add` / `update` / `remove`: a live progress line, a
 //! packages-diff summary, lifecycle script output, and a `Done in ...` footer.
@@ -25,7 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use pacquet_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
+use pnpm_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
 
 use crate::{
     colors::Colors,
@@ -33,6 +33,7 @@ use crate::{
 };
 
 static CWD: OnceLock<String> = OnceLock::new();
+static USE_STDERR: OnceLock<bool> = OnceLock::new();
 static PACKAGE_VERSION: OnceLock<String> = OnceLock::new();
 static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
 static SUMMARY_SCOPE: OnceLock<SummaryScope> = OnceLock::new();
@@ -71,6 +72,19 @@ pub fn force_append_only() {
     let _ = FORCE_APPEND_ONLY.set(true);
 }
 
+/// Route all reporter output (warnings, progress, the summary) to stderr
+/// instead of stdout — pnpm's `useStderr`, set for the commands in its
+/// `COMMANDS_WITH_STDERR_REPORTER` whose stdout is a machine-readable
+/// value. TTY detection and terminal width follow the selected stream.
+/// Call once before the first event.
+pub fn use_stderr() {
+    let _ = USE_STDERR.set(true);
+}
+
+fn is_stderr_output() -> bool {
+    USE_STDERR.get().copied().unwrap_or(false)
+}
+
 /// Configure which prefixes contribute to the packages-diff summary.
 pub fn set_summary_scope(scope: SummaryScope) {
     let _ = SUMMARY_SCOPE.set(scope);
@@ -105,7 +119,8 @@ fn cwd() -> String {
     })
 }
 
-/// `--reporter=default`: renders pnpm-style visual output to stdout.
+/// `--reporter=default`: renders pnpm-style visual output to stdout, or to
+/// stderr when [`use_stderr`] was configured.
 pub struct DefaultReporter;
 
 impl Reporter for DefaultReporter {
@@ -151,7 +166,11 @@ struct Sink {
 
 impl Sink {
     fn new() -> Self {
-        let is_tty = std::io::stdout().is_terminal();
+        let is_tty = if is_stderr_output() {
+            std::io::stderr().is_terminal()
+        } else {
+            std::io::stdout().is_terminal()
+        };
         let append_only = !is_tty || FORCE_APPEND_ONLY.get().copied().unwrap_or(false);
         let columns = if is_tty { terminal_columns().unwrap_or(80) } else { 80 };
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
@@ -186,8 +205,13 @@ impl Sink {
     }
 
     fn on_prompt(&mut self, action: PromptAction) {
-        let mut out = std::io::stdout().lock();
-        self.on_prompt_to(action, &mut out);
+        if is_stderr_output() {
+            let mut out = std::io::stderr().lock();
+            self.on_prompt_to(action, &mut out);
+        } else {
+            let mut out = std::io::stdout().lock();
+            self.on_prompt_to(action, &mut out);
+        }
     }
 
     fn on_prompt_to(&mut self, action: PromptAction, out: &mut impl Write) {
@@ -217,8 +241,13 @@ impl Sink {
     }
 
     fn write(&mut self, output: Output, coalesceable: bool) {
-        let mut out = std::io::stdout().lock();
-        self.write_to(output, coalesceable, &mut out);
+        if is_stderr_output() {
+            let mut out = std::io::stderr().lock();
+            self.write_to(output, coalesceable, &mut out);
+        } else {
+            let mut out = std::io::stdout().lock();
+            self.write_to(output, coalesceable, &mut out);
+        }
     }
 
     fn write_to(&mut self, output: Output, coalesceable: bool, out: &mut impl Write) {
@@ -279,11 +308,12 @@ impl Sink {
 
 #[cfg(unix)]
 fn terminal_columns() -> Option<usize> {
+    let fd = if is_stderr_output() { libc::STDERR_FILENO } else { libc::STDOUT_FILENO };
     // SAFETY: `winsize` is plain-old-data; `ioctl` only writes into it and we
     // check the return code before reading.
     unsafe {
         let mut ws: libc::winsize = std::mem::zeroed();
-        (libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
+        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
             .then_some(ws.ws_col as usize)
     }
 }

@@ -17,7 +17,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 
 use crate::SkippedSnapshots;
 
@@ -216,15 +216,9 @@ fn read_virtual_store_dir(virtual_store_dir: &Path) -> Option<Vec<String>> {
 /// accurate (it must not count an entry a swallowed error left behind).
 ///
 /// Surplus entries are normally package directories, but a stray file or
-/// symlink could appear; any of them is removed. `symlink_metadata` keeps
-/// the file/symlink branch from following a link into a real directory.
+/// symlink could appear; any of them is removed.
 fn try_remove_pkg(path: &Path) -> bool {
-    let result = match fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.is_dir() => fs::remove_dir_all(path),
-        Ok(_) => fs::remove_file(path),
-        Err(error) => Err(error),
-    };
-    match result {
+    match pnpm_fs::remove_dirent(path) {
         Ok(()) => true,
         Err(error) if error.kind() == io::ErrorKind::NotFound => true,
         Err(error) => {

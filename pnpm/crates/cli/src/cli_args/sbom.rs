@@ -6,11 +6,14 @@
 use crate::{State, cli_args::recursive::RecursiveSharedLockfileUnsupported};
 use clap::Args;
 use indexmap::IndexMap;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
-use pacquet_package_manager::{importer_root_dir, validate_importer_id};
-use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
+use pnpm_package_is_installable::{
+    InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
+};
+use pnpm_package_manager::{importer_root_dir, validate_importer_id};
+use pnpm_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
     collections::{HashMap, HashSet},
     io::Write,
@@ -129,6 +132,7 @@ struct WalkContext<'a> {
     virtual_store_dir: Option<PathBuf>,
     virtual_store_dir_max_length: usize,
     include_optional_transitive: bool,
+    installability: InstallabilityOptions<'a>,
 }
 
 struct SbomRelationship {
@@ -250,10 +254,16 @@ fn classify_license(license: &str) -> serde_json::Value {
     }
 }
 
+/// The resolution's integrity, but only where pnpm checks the downloaded
+/// bytes against it — so an SBOM never publishes a checksum as an assurance
+/// pnpm did not make. A git resolution's recorded hash is not one: nothing
+/// verifies a checkout against it (see
+/// [`pnpm_lockfile::GitResolution::integrity`]).
 fn integrity_string(resolution: &LockfileResolution) -> Option<String> {
     match resolution {
         LockfileResolution::Registry(r) => Some(r.integrity.to_string()),
         LockfileResolution::Tarball(r) => r.integrity.as_ref().map(ToString::to_string),
+        LockfileResolution::Binary(r) => Some(r.integrity.to_string()),
         _ => None,
     }
 }
@@ -281,7 +291,7 @@ fn peer_names_from_manifest(manifest: &serde_json::Value) -> HashSet<String> {
 }
 
 fn detect_dep_types(
-    lockfile: &pacquet_lockfile::Lockfile,
+    lockfile: &pnpm_lockfile::Lockfile,
     include_optional_transitive: bool,
 ) -> HashMap<PackageKey, DepType> {
     let snapshots = lockfile.snapshots.as_ref();
@@ -442,6 +452,13 @@ fn collect_components(
         virtual_store_dir,
         virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
         include_optional_transitive: include.optional_dependencies,
+        installability: InstallabilityOptions {
+            supported_architectures: state.config.supported_architectures.as_ref(),
+            current_os: pnpm_detect_libc::host_platform(),
+            current_cpu: pnpm_detect_libc::host_arch(),
+            current_libc: pnpm_graph_hasher::host_libc(),
+            ..Default::default()
+        },
     };
 
     let mut components_map: IndexMap<String, SbomComponent> = IndexMap::new();
@@ -637,6 +654,33 @@ fn read_pkg_metadata_from_store(
     }
 }
 
+/// Whether `package` is an optional dependency that pnpm would not install on
+/// this host, matching the `pnpm licenses` filter. Such a package is recorded
+/// in the lockfile but never fetched, so no metadata can be read for it from
+/// the virtual store.
+fn platform_incompatible_optional(
+    name: &str,
+    snapshot_optional: bool,
+    package: Option<&PackageMetadata>,
+    installability: &InstallabilityOptions<'_>,
+) -> bool {
+    if !snapshot_optional {
+        return false;
+    }
+    let Some(package) = package else {
+        return false;
+    };
+    !platform_is_supported_with_inference(
+        name,
+        WantedPlatformRef {
+            os: package.os.as_deref(),
+            cpu: package.cpu.as_deref(),
+            libc: package.libc.as_deref(),
+        },
+        installability,
+    )
+}
+
 fn walk_snapshot(
     initial_key: &PkgNameVerPeer,
     initial_parent_purl: &str,
@@ -650,11 +694,25 @@ fn walk_snapshot(
 
     while let Some((key, parent_purl)) = queue.pop() {
         let name = key.name.to_string();
-        let version = ctx
-            .packages
-            .and_then(|pkgs| pkgs.get(&key.without_peer()))
+        let pkg_meta = ctx.packages.and_then(|pkgs| pkgs.get(&key.without_peer()));
+        let version = pkg_meta
             .and_then(|meta| meta.version.clone())
             .unwrap_or_else(|| key.suffix.version().to_string());
+
+        // `virtual_store_dir` is `None` under --lockfile-only, which describes
+        // the whole lockfile graph, platform-independently.
+        if ctx.virtual_store_dir.is_some()
+            && platform_incompatible_optional(
+                &key.name.bare,
+                ctx.snapshots.is_some_and(|snapshots| {
+                    snapshots.get(&key).is_some_and(|snapshot| snapshot.optional)
+                }),
+                pkg_meta,
+                &ctx.installability,
+            )
+        {
+            continue;
+        }
 
         let purl = build_purl(&name, &version);
 
@@ -665,7 +723,6 @@ fn walk_snapshot(
         }
 
         if !components_map.contains_key(&purl) {
-            let pkg_meta = ctx.packages.and_then(|pkgs| pkgs.get(&key.without_peer()));
             let integrity = pkg_meta.and_then(|meta| integrity_string(&meta.resolution));
             let tarball_url = pkg_meta.and_then(|meta| {
                 tarball_url_for_component(&meta.resolution, &name, &version, ctx.default_registry)
@@ -1064,7 +1121,7 @@ fn serialize_cyclonedx(opts: &CycloneDxOpts<'_>) -> String {
         "tools": { "components": [{
             "type": "application",
             "name": "pnpm",
-            "version": pacquet_config::PNPM_VERSION,
+            "version": pnpm_config::PNPM_VERSION,
         }] },
         "component": root_component,
     });

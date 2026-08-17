@@ -19,4 +19,4 @@ pub use create_projects_graph::{
     CreateProjectsGraphOptions, CreateProjectsGraphResult, Unmatched, create_projects_graph,
 };
 pub use graph::{ProjectGraph, ProjectGraphNode};
-pub use pacquet_fs::lexical_normalize;
+pub use pnpm_fs::lexical_normalize;

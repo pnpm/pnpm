@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_lockfile::{LockfileResolution, VariationsResolution};
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{LockfileResolution, VariationsResolution};
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, UpdateBehavior, WantedDependency,
 };

@@ -43,7 +43,7 @@ fn common_layer(
     if let Ok(default_level) = Level::from_str(trace_var) {
         Some(
             tracing_subscriber::filter::Targets::new()
-                .with_target("pacquet_tarball", default_level)
+                .with_target("pnpm_tarball", default_level)
                 .boxed(),
         )
     } else {

@@ -1,6 +1,6 @@
 //! Fetcher for `TarballResolution { gitHosted: true }` snapshots.
 //!
-//! By the time control reaches this fetcher, `pacquet-tarball` has
+//! By the time control reaches this fetcher, `pnpm-tarball` has
 //! already downloaded the tarball, verified its integrity, and
 //! imported its file set into the CAS — the dispatcher hands us the
 //! resulting `HashMap<String, PathBuf>` mapping relative paths to CAS
@@ -17,7 +17,7 @@
 //!   (no `fs::read`, no re-hash). When fast-path triggers and
 //!   `should_be_built` is false, the synthesized row lands at the
 //!   final key. The skipped re-import is the perf win; the orphan raw
-//!   row (if pacquet-tarball ever starts writing one) is a separate
+//!   row (if pnpm-tarball ever starts writing one) is a separate
 //!   cleanup follow-up.
 //! - **Warnings route through `tracing::warn!`.** When `ignore_scripts`
 //!   suppresses a needed build, pacquet logs a warning through
@@ -30,11 +30,11 @@ use crate::{
     fetcher::GitFetchOutput,
     prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
 };
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_fs_packlist::packlist;
-use pacquet_package_manifest::safe_read_package_json_from_dir;
-use pacquet_reporter::Reporter;
-use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_fs_packlist::packlist;
+use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_reporter::Reporter;
+use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -43,7 +43,7 @@ use std::{
 
 /// One-shot fetcher for a single git-hosted tarball resolution.
 ///
-/// The dispatcher constructs this *after* `pacquet-tarball` has
+/// The dispatcher constructs this *after* `pnpm-tarball` has
 /// downloaded and CAS-imported the tarball, handing us the
 /// `cas_paths` map. The shape lines up with [`crate::GitFetcher`] so
 /// both `LockfileResolution::Git` and `LockfileResolution::Tarball {
@@ -67,6 +67,8 @@ pub struct GitHostedTarballFetcher<'a> {
     pub script_shell: Option<&'a Path>,
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,
+    /// See the matching field on [`crate::GitFetcher`].
+    pub pnpm_execpath: Option<&'a Path>,
     pub store_dir: &'a StoreDir,
     /// Used in log lines; see the matching field on
     /// [`crate::GitFetcher`] for its other role.
@@ -113,6 +115,7 @@ impl GitHostedTarballFetcher<'_> {
             script_shell: self.script_shell,
             node_execpath: self.node_execpath,
             npm_execpath: self.npm_execpath,
+            pnpm_execpath: self.pnpm_execpath,
             extra_bin_paths: &[],
             extra_env: &empty_env,
         };

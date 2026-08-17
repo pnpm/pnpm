@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use pacquet_network::{MetadataCacheScope, UpstreamRouteHook};
+use pnpm_network::{MetadataCacheScope, UpstreamRouteHook};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
@@ -42,6 +42,25 @@ fn strip_url_credentials_removes_inline_userinfo() {
         "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz",
     );
     assert_eq!(strip_url_credentials("^1.0.0"), "^1.0.0");
+}
+
+#[test]
+fn url_has_inline_credentials_allows_bare_ssh_usernames() {
+    use super::url_has_inline_credentials;
+    // An ssh login username is transport addressing, not a credential.
+    assert!(!url_has_inline_credentials("git+ssh://git@github.com/org/repo.git"));
+    assert!(!url_has_inline_credentials("ssh://git@github.com/org/repo.git"));
+    // Schemes match case-insensitively, and a password still counts.
+    assert!(!url_has_inline_credentials("GIT+SSH://git@github.com/org/repo.git"));
+    assert!(url_has_inline_credentials("SSH://user:pass@github.com/org/repo.git"));
+    // A password is a credential on every scheme, ssh included.
+    assert!(url_has_inline_credentials("git+ssh://user:pass@github.com/org/repo.git"));
+    assert!(url_has_inline_credentials("ssh://user:pass@github.com/org/repo.git"));
+    // On non-ssh schemes even a bare username is rejected.
+    assert!(url_has_inline_credentials("https://token@cdn.example/x.tgz"));
+    assert!(url_has_inline_credentials("https://user:pass@cdn.example/x.tgz"));
+    assert!(!url_has_inline_credentials("https://cdn.example/x.tgz"));
+    assert!(!url_has_inline_credentials("^1.0.0"));
 }
 
 #[test]

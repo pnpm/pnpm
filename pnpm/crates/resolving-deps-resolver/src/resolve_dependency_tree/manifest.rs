@@ -2,8 +2,8 @@
 //! `pkgIdWithPatchHash`, its child specs, its peer dependencies, its
 //! leaf classification, and its deprecation notice.
 
-use pacquet_package_manifest::engines_runtime_dependencies;
-use pacquet_patching::get_patch_info;
+use pnpm_package_manifest::engines_runtime_dependencies;
+use pnpm_patching::get_patch_info;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -28,7 +28,7 @@ use super::{
 ///    key on `ctx.applied_patches` so the post-walk
 ///    `ERR_PNPM_UNUSED_PATCH` check sees the hit.
 ///
-/// Packages whose resolver didn't supply [`pacquet_resolving_resolver_base::ResolveResult::name_ver`]
+/// Packages whose resolver didn't supply [`pnpm_resolving_resolver_base::ResolveResult::name_ver`]
 /// (git / tarball / local — they learn the name from the manifest at
 /// fetch time) skip the patch lookup. That matches the surface
 /// `patchedDependencies` covers today: keys are `name[@version]`, so a
@@ -36,15 +36,15 @@ use super::{
 /// anyway. The lookup is also skipped when no patches are configured.
 pub(super) async fn build_pkg_id_with_patch_hash(
     ctx: &TreeCtx,
-    result: &pacquet_resolving_resolver_base::ResolveResult,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Result<String, ResolveDependencyTreeError> {
     let raw_id = result.id.as_str();
     if let Some(target) = raw_id.strip_prefix("link:") {
         let target = std::path::Path::new(target);
         let absolute_target = if target.is_absolute() {
-            pacquet_fs::lexical_normalize(target)
+            pnpm_fs::lexical_normalize(target)
         } else {
-            pacquet_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
+            pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
         };
         let relative_target =
             pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir).unwrap_or(absolute_target);
@@ -120,7 +120,7 @@ pub(super) async fn build_pkg_id_with_patch_hash(
 /// [`ResolvedPackage::peer_dependencies`]: crate::ResolvedPackage::peer_dependencies
 /// [`ResolvedPackage::optional`]: crate::ResolvedPackage::optional
 pub(super) fn extract_children(
-    result: &pacquet_resolving_resolver_base::ResolveResult,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
     let Some(manifest) = result.manifest.as_ref() else { return Ok(Vec::new()) };
     let parent = render_parent(result);
@@ -193,7 +193,7 @@ fn collect_deps(
     Ok(())
 }
 
-fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> String {
+fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String {
     if let Some(name_ver) = result.name_ver.as_ref() {
         format!(r#"Package "{}@{}""#, name_ver.name, name_ver.suffix)
     } else {
@@ -215,7 +215,7 @@ fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> Str
 ///
 /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
 pub(super) fn extract_peer_dependencies(
-    result: &pacquet_resolving_resolver_base::ResolveResult,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
 ) -> BTreeMap<String, PeerDep> {
     let Some(manifest) = result.manifest.as_ref() else { return BTreeMap::new() };
@@ -272,7 +272,7 @@ pub(super) fn extract_peer_dependencies(
 /// collapsing onto a leaf `NodeId` would claim knowledge of children
 /// there is none of. Resolutions reaching here always carry one, real
 /// or synthesized by `walk::fallback_manifest`.
-pub(super) fn pkg_is_leaf(result: &pacquet_resolving_resolver_base::ResolveResult) -> bool {
+pub(super) fn pkg_is_leaf(result: &pnpm_resolving_resolver_base::ResolveResult) -> bool {
     let Some(manifest) = result.manifest.as_ref() else { return false };
     is_empty_or_absent(manifest.get("dependencies"))
         && is_empty_or_absent(manifest.get("optionalDependencies"))
@@ -288,7 +288,7 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
 /// a non-empty `deprecated` field not covered by `allowedDeprecatedVersions`.
 pub(super) fn emit_deprecation_if_needed(
     ctx: &TreeCtx,
-    result: &pacquet_resolving_resolver_base::ResolveResult,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
     id: &str,
     depth: i32,
 ) {
@@ -329,9 +329,9 @@ fn extract_deprecated_from_manifest(manifest: Option<&Value>) -> Option<String> 
 /// resolutions (see the `name_ver` field doc). `None`, suppressing the
 /// warning, when neither carries both fields.
 ///
-/// [`ResolveResult::name_ver`]: pacquet_resolving_resolver_base::ResolveResult::name_ver
+/// [`ResolveResult::name_ver`]: pnpm_resolving_resolver_base::ResolveResult::name_ver
 fn deprecated_pkg_name_ver(
-    result: &pacquet_resolving_resolver_base::ResolveResult,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Option<(String, String)> {
     if let Some(nv) = result.name_ver.as_ref() {
         return Some((nv.name.to_string(), nv.suffix.to_string()));

@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pretty_assertions::assert_eq;
 use tokio::{sync::oneshot, task::LocalSet};
 

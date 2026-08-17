@@ -3,7 +3,7 @@
 //!
 //! The walker [`lockfile_to_hoisted_dep_graph`] takes a wanted
 //! lockfile plus an optional *current* lockfile and runs
-//! `pacquet_real_hoist::hoist` to get the directory shape, then
+//! `pnpm_real_hoist::hoist` to get the directory shape, then
 //! assembles a [`LockfileToDepGraphResult`] keyed by the computed
 //! absolute directory of every node. Store I/O (`fetching` /
 //! `files_index_file`) is still deferred — those fields are
@@ -22,17 +22,17 @@ use crate::safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_module
 use derive_more::{Display, Error, From};
 use indexmap::IndexSet;
 use miette::Diagnostic;
-use pacquet_deps_path::get_pkg_id_with_patch_hash;
-use pacquet_lockfile::{
+use pnpm_deps_path::get_pkg_id_with_patch_hash;
+use pnpm_lockfile::{
     Lockfile, LockfileResolution, PackageKey, ParsePkgNameVerPeerError, PkgIdWithPatchHash,
 };
-use pacquet_modules_yaml::DepPath;
-use pacquet_package_is_installable::{
+use pnpm_modules_yaml::DepPath;
+use pnpm_package_is_installable::{
     InstallabilityError, InstallabilityOptions, InstallabilityVerdict,
     PackageInstallabilityManifest, SupportedArchitectures, WantedEngine, package_is_installable,
 };
-use pacquet_patching::PatchInfo;
-use pacquet_real_hoist::{HoistError, HoistOpts, HoisterResult, RcByPtr, hoist};
+use pnpm_patching::PatchInfo;
+use pnpm_real_hoist::{HoistError, HoistOpts, HoisterResult, RcByPtr, hoist};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
@@ -58,7 +58,7 @@ pub struct DependenciesGraphNode {
     pub dep_path: DepPath,
     /// `pkgIdWithPatchHash`: the patch-aware ident key
     /// the side-effects cache uses. Modelled by
-    /// [`pacquet_lockfile::PkgIdWithPatchHash`] — a non-validating
+    /// [`pnpm_lockfile::PkgIdWithPatchHash`] — a non-validating
     /// branded newtype around `String`.
     pub pkg_id_with_patch_hash: PkgIdWithPatchHash,
     /// Absolute path of the package's directory on disk. The
@@ -124,14 +124,14 @@ pub struct LockfileToDepGraphResult {
     pub hierarchy: BTreeMap<PathBuf, DepHierarchy>,
     /// Per-depPath list of lockfile-relative directory paths
     /// where the package landed. Round-trips through
-    /// [`pacquet_modules_yaml::Modules::hoisted_locations`].
+    /// [`pnpm_modules_yaml::Modules::hoisted_locations`].
     ///
     /// The values are typed as raw `String` lists (not `DepPath`
     /// lists), even though the strings are populated from depPaths
     /// internally, to keep the on-disk shape identical. The
     /// same choice was made for the `Modules` schema field this
     /// round-trips through (see its doc-comment in
-    /// `pacquet-modules-yaml`).
+    /// `pnpm-modules-yaml`).
     pub hoisted_locations: BTreeMap<String, Vec<String>>,
     pub symlinked_direct_dependencies_by_importer_id: DirectDependenciesByImporterId,
     /// Diffed against `graph` by the linker's orphan-removal pass
@@ -202,7 +202,7 @@ pub struct LockfileToHoistedDepGraphOptions {
     /// `node_modules` for a Windows / macOS target. `None` means use
     /// only the current-host axes.
     pub supported_architectures: Option<SupportedArchitectures>,
-    /// Mirrors [`pacquet_real_hoist::HoistOpts::hoist_workspace_packages`].
+    /// Mirrors [`pnpm_real_hoist::HoistOpts::hoist_workspace_packages`].
     /// When `true` (the default), every non-root workspace importer
     /// becomes a `Workspace`-kind child of the virtual `.` root in
     /// the hoist tree, and the walker emits per-importer subtrees
@@ -210,20 +210,20 @@ pub struct LockfileToHoistedDepGraphOptions {
     /// `false`, only the root importer's subtree is emitted (the
     /// hoister also skips adding the workspace children to its
     /// shared tree). Pacquet's `Config::hoist_workspace_packages`
-    /// (in `pacquet-config`) drives this from the install pipeline.
+    /// (in `pnpm-config`) drives this from the install pipeline.
     pub hoist_workspace_packages: bool,
 
     /// Per-importer block-list passed straight through to
-    /// [`pacquet_real_hoist::HoistOpts::hoisting_limits`]. See the
+    /// [`pnpm_real_hoist::HoistOpts::hoisting_limits`]. See the
     /// hoister's doc-comment for the locator-keyed shape and
-    /// `Config::hoisting_limits` in `pacquet-config` for how the
+    /// `Config::hoisting_limits` in `pnpm-config` for how the
     /// install pipeline derives this from `pnpm-workspace.yaml`.
-    pub hoisting_limits: pacquet_real_hoist::HoistingLimits,
+    pub hoisting_limits: pnpm_real_hoist::HoistingLimits,
 
     /// Reserved-name list passed straight through to
-    /// [`pacquet_real_hoist::HoistOpts::external_dependencies`].
+    /// [`pnpm_real_hoist::HoistOpts::external_dependencies`].
     /// See the hoister's doc-comment for the strip semantics and
-    /// `Config::external_dependencies` in `pacquet-config` for how
+    /// `Config::external_dependencies` in `pnpm-config` for how
     /// the install pipeline derives this from
     /// `pnpm-workspace.yaml`.
     pub external_dependencies: BTreeSet<String>,
@@ -246,7 +246,7 @@ impl Default for LockfileToHoistedDepGraphOptions {
             // `..Default::default()`-style construction at the call
             // site doesn't silently disable workspace hoisting.
             hoist_workspace_packages: true,
-            hoisting_limits: pacquet_real_hoist::HoistingLimits::new(),
+            hoisting_limits: pnpm_real_hoist::HoistingLimits::new(),
             external_dependencies: BTreeSet::new(),
         }
     }
@@ -306,7 +306,7 @@ pub enum HoistedDepGraphError {
 /// store fetches when it has a real consumer for the handles.
 ///
 /// Multi-importer (workspace) lockfiles are supported: the hoister
-/// ([`pacquet_real_hoist::hoist`]) attaches each non-root importer as
+/// ([`pnpm_real_hoist::hoist`]) attaches each non-root importer as
 /// a workspace child of the virtual `.` root when
 /// `hoist_workspace_packages` is enabled. Per-importer hoisting roots
 /// (a multi-level output shape) are not modelled yet.
@@ -695,7 +695,7 @@ fn walk_deps(
 fn lookup_package_metadata<'a>(
     lockfile: &'a Lockfile,
     key: &PackageKey,
-) -> Option<&'a pacquet_lockfile::PackageMetadata> {
+) -> Option<&'a pnpm_lockfile::PackageMetadata> {
     let packages = lockfile.packages.as_ref()?;
     // `packages:` keys are peer-stripped (`react-dom@19.2.7`), while a
     // hoister reference carries the full peer suffix
@@ -718,7 +718,7 @@ fn lookup_package_metadata<'a>(
 /// helper so the walker body stays small.
 fn manifest_for_installability(
     pkg_key: &PackageKey,
-    metadata: &pacquet_lockfile::PackageMetadata,
+    metadata: &pnpm_lockfile::PackageMetadata,
 ) -> PackageInstallabilityManifest {
     let engines = metadata.engines.as_ref().map(|engines| WantedEngine {
         node: engines.get("node").cloned(),
@@ -755,7 +755,7 @@ fn path_relative_to_lockfile_dir(dir: &Path, lockfile_dir: &Path) -> String {
 /// `SnapshotDepRef::resolve`, and take the first recorded
 /// location.
 fn compute_children(
-    snapshot: Option<&pacquet_lockfile::SnapshotEntry>,
+    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
     pkg_locations: &BTreeMap<String, Vec<PathBuf>>,
 ) -> BTreeMap<String, PathBuf> {
     let mut children: BTreeMap<String, PathBuf> = BTreeMap::new();

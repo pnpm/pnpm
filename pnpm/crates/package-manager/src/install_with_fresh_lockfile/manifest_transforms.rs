@@ -11,10 +11,10 @@ use super::{
 };
 use crate::VersionsOverrider;
 use indexmap::IndexMap;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_package_manifest::PackageManifest;
-use pacquet_resolving_deps_resolver::{DependencyOverrider, ManifestHook};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_deps_resolver::{DependencyOverrider, ManifestHook};
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 /// pnpm's built-in read-package hook chain for the manifests fresh
@@ -26,7 +26,7 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 /// packageExtensions → readPackage → overrides — so a hook that replaces
 /// the manifest cannot erase the overrides.
 pub(super) struct ManifestTransforms {
-    pub parsed_overrides: Option<Vec<pacquet_config_parse_overrides::VersionOverride>>,
+    pub parsed_overrides: Option<Vec<pnpm_config_parse_overrides::VersionOverride>>,
     pub resolved_overrides: Option<IndexMap<String, String>>,
     pub package_extensions_checksum: Option<String>,
     pub versions_overrider: Option<Arc<VersionsOverrider>>,

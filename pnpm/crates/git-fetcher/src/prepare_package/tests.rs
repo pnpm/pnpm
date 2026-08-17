@@ -3,8 +3,8 @@ use super::{
     safe_join_path,
 };
 use crate::error::PreparePackageError;
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_reporter::SilentReporter;
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_reporter::SilentReporter;
 use serde_json::json;
 use std::{collections::HashMap, fs, path::Path, sync::LazyLock};
 use tempfile::tempdir;
@@ -32,6 +32,7 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }
@@ -49,6 +50,7 @@ fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }
@@ -69,6 +71,7 @@ fn opts_allow_dep_path<'a>(
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }

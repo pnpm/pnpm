@@ -59,6 +59,7 @@ import pLimit from 'p-limit'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
+import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -74,12 +75,13 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'
+| 'lockfile'
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
 | 'pnprServer'
 | 'allowBuilds'
-| 'registries'
+| 'registriesByScope'
 | 'runtime'
 | 'save'
 | 'saveCatalogName'
@@ -94,7 +96,8 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'trustLockfile'
-| 'cleanupUnusedCatalogs'
+| 'catalogPrune'
+| 'minimumReleaseAgeExcludePrune'
 | 'packageConfigs'
 | 'updateConfig'
 > & Pick<ConfigContext,
@@ -341,6 +344,7 @@ export async function recursive (
       updatedCatalogs,
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
+      newLockfile,
       resolutionPolicyViolations,
       dryRunResult,
     } = await mutateModules(mutatedImporters, {
@@ -359,7 +363,8 @@ export async function recursive (
       })
       promises.push(updateWorkspaceManifest(opts.workspaceDir, {
         updatedCatalogs,
-        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+        catalogPrune: opts.catalogPrune,
+        resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
         allProjects,
         ...policyUpdates,
       }))
@@ -528,7 +533,7 @@ export async function recursive (
     // branch + installDeps already apply.
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
-      cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+      catalogPrune: opts.catalogPrune,
       allProjects,
       ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
     })

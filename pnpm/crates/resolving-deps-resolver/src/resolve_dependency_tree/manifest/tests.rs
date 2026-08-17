@@ -1,5 +1,5 @@
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 
 use super::{super::test_support::manifest_result, extract_children};
 

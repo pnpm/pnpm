@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-package-manager"
+name                  = "pnpm-package-manager"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,52 +11,53 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-rustc-hash                                = { workspace = true }
-pacquet-catalogs-config                   = { workspace = true }
-pacquet-catalogs-protocol-parser          = { workspace = true }
-pacquet-catalogs-resolver                 = { workspace = true }
-pacquet-catalogs-types                    = { workspace = true }
-pacquet-cmd-shim                          = { workspace = true }
-pacquet-crypto-hash                       = { workspace = true }
-pacquet-deps-path                         = { workspace = true }
-pacquet-deps-restorer                     = { workspace = true }
-pacquet-directory-fetcher                 = { workspace = true }
-pacquet-engine-runtime-bun-resolver       = { workspace = true }
-pacquet-engine-runtime-deno-resolver      = { workspace = true }
-pacquet-engine-runtime-node-resolver      = { workspace = true }
-pacquet-executor                          = { workspace = true }
-pacquet-fs                                = { workspace = true }
-pacquet-git-fetcher                       = { workspace = true }
-pacquet-lockfile                          = { workspace = true }
-pacquet-lockfile-preferred-versions       = { workspace = true }
-pacquet-lockfile-verification             = { workspace = true }
-pacquet-modules-yaml                      = { workspace = true }
-pacquet-network                           = { workspace = true }
-pacquet-config                            = { workspace = true }
-pacquet-config-parse-overrides            = { workspace = true }
-pacquet-graph-hasher                      = { workspace = true }
-pacquet-hooks                             = { workspace = true }
-pacquet-package-manifest                  = { workspace = true }
-pacquet-package-is-installable            = { workspace = true }
-pacquet-patching                          = { workspace = true }
-pacquet-real-hoist                        = { workspace = true }
-pacquet-registry                          = { workspace = true }
-pacquet-reporter                          = { workspace = true }
-pacquet-resolving-default-resolver        = { workspace = true }
-pacquet-resolving-deps-resolver           = { workspace = true }
-pacquet-resolving-git-resolver            = { workspace = true }
-pacquet-resolving-local-resolver          = { workspace = true }
-pacquet-resolving-npm-resolver            = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
-pacquet-resolving-resolver-base           = { workspace = true }
-pacquet-resolving-tarball-resolver        = { workspace = true }
-pacquet-store-dir                         = { workspace = true }
-pacquet-tarball                           = { workspace = true }
-pacquet-workspace                         = { workspace = true }
-pacquet-workspace-manifest-writer         = { workspace = true }
-pacquet-workspace-range-resolver          = { workspace = true }
-pacquet-workspace-spec                    = { workspace = true }
-pacquet-workspace-state                   = { workspace = true }
+rustc-hash                             = { workspace = true }
+pnpm-catalogs-config                   = { workspace = true }
+pnpm-catalogs-protocol-parser          = { workspace = true }
+pnpm-catalogs-resolver                 = { workspace = true }
+pnpm-catalogs-types                    = { workspace = true }
+pnpm-cmd-shim                          = { workspace = true }
+pnpm-crypto-hash                       = { workspace = true }
+pnpm-deps-path                         = { workspace = true }
+pnpm-deps-restorer                     = { workspace = true }
+pnpm-directory-fetcher                 = { workspace = true }
+pnpm-engine-pm-yarn-resolver           = { workspace = true }
+pnpm-engine-runtime-bun-resolver       = { workspace = true }
+pnpm-engine-runtime-deno-resolver      = { workspace = true }
+pnpm-engine-runtime-node-resolver      = { workspace = true }
+pnpm-executor                          = { workspace = true }
+pnpm-fs                                = { workspace = true }
+pnpm-git-fetcher                       = { workspace = true }
+pnpm-lockfile                          = { workspace = true }
+pnpm-lockfile-preferred-versions       = { workspace = true }
+pnpm-lockfile-verification             = { workspace = true }
+pnpm-modules-yaml                      = { workspace = true }
+pnpm-network                           = { workspace = true }
+pnpm-config                            = { workspace = true }
+pnpm-config-parse-overrides            = { workspace = true }
+pnpm-graph-hasher                      = { workspace = true }
+pnpm-hooks                             = { workspace = true }
+pnpm-package-manifest                  = { workspace = true }
+pnpm-package-is-installable            = { workspace = true }
+pnpm-patching                          = { workspace = true }
+pnpm-real-hoist                        = { workspace = true }
+pnpm-registry                          = { workspace = true }
+pnpm-reporter                          = { workspace = true }
+pnpm-resolving-default-resolver        = { workspace = true }
+pnpm-resolving-deps-resolver           = { workspace = true }
+pnpm-resolving-git-resolver            = { workspace = true }
+pnpm-resolving-local-resolver          = { workspace = true }
+pnpm-resolving-npm-resolver            = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-resolving-resolver-base           = { workspace = true }
+pnpm-resolving-tarball-resolver        = { workspace = true }
+pnpm-store-dir                         = { workspace = true }
+pnpm-tarball                           = { workspace = true }
+pnpm-workspace                         = { workspace = true }
+pnpm-workspace-manifest-writer         = { workspace = true }
+pnpm-workspace-range-resolver          = { workspace = true }
+pnpm-workspace-spec                    = { workspace = true }
+pnpm-workspace-state                   = { workspace = true }
 
 async-recursion = { workspace = true }
 chrono          = { workspace = true }
@@ -81,7 +82,7 @@ tracing         = { workspace = true }
 miette          = { workspace = true }
 
 [dev-dependencies]
-pacquet-testing-utils = { workspace = true }
+pnpm-testing-utils = { workspace = true }
 
 async-trait       = { workspace = true }
 dunce             = { workspace = true }

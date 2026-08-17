@@ -1,8 +1,8 @@
 use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{RetryOpts, ThrottledClient, send_with_retry};
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient, send_with_retry};
 use serde::Deserialize;
 use std::time::Duration;
 

@@ -13,14 +13,14 @@ use crate::{
     publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
     registry_config_keys::parse_supported_registry_url,
 };
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_network_web_auth::{
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network_web_auth::{
     Host as WebAuthHost, OtpChallenge, OtpError, WebAuthFetchOptions, WithOtpError,
 };
-use pacquet_network_web_auth_testing::{
+use pnpm_network_web_auth_testing::{
     InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake,
 };
-use pacquet_reporter::SilentReporter;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 

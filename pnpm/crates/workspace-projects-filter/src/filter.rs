@@ -6,8 +6,8 @@ use crate::{
 use derive_more::{Display, Error};
 use indexmap::IndexSet;
 use miette::Diagnostic;
-use pacquet_config::matcher::create_matcher;
-use pacquet_workspace_projects_graph::{
+use pnpm_config::matcher::create_matcher;
+use pnpm_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
 };
 use std::{

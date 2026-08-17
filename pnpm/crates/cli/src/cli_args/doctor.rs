@@ -9,7 +9,7 @@
 
 use crate::cli_args::ping::PingArgs;
 use clap::Args;
-use pacquet_config::Config;
+use pnpm_config::Config;
 use serde::Serialize;
 use std::{
     fmt::Write as _,

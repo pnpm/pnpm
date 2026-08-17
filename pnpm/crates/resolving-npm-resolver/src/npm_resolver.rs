@@ -27,11 +27,11 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pacquet_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
-use pacquet_resolving_resolver_base::{
+use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
+use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId,
     RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
     ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
@@ -86,11 +86,11 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub registries: HashMap<String, String>,
     /// User-supplied named-registry aliases (e.g. `gh:` →
     /// `https://npm.pkg.github.com/`). Merged with
-    /// [`crate::BUILTIN_NAMED_REGISTRIES`] at construction. Today
+    /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`] at construction. Today
     /// only consulted by the named-registry resolver (out of scope
     /// for this port); kept here so the install layer can build one
     /// resolver instance with the full registry view.
-    pub named_registries: HashMap<String, String>,
+    pub registries_by_prefix: HashMap<String, String>,
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub meta_cache: Arc<Cache>,
@@ -216,6 +216,30 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             .always_try_workspace_packages
             .then_some(opts.workspace_packages.as_ref())
             .flatten();
+
+        // A store-manifest peek, once pacquet grows one, has to run before
+        // this fast path — the TypeScript counterpart
+        // (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
+        if opts.prefer_workspace_packages
+            && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+            && !opts.update_checksums
+            && !opts.inject_workspace_packages
+            && !wanted_dependency.injected.unwrap_or(false)
+            && let Some(workspace_packages) = workspace_packages_active
+            && let Some(matching_name) = workspace_packages.get(spec.name.as_str())
+            && matching_name.len() == 1
+            && let Some(local_version) = pick_matching_local_version_or_null(matching_name, &spec)
+            && let Some(local_package) = matching_name.get(&local_version)
+        {
+            return Ok(Some(resolve_from_local_package(
+                local_package,
+                wanted_dependency,
+                false,
+                opts.project_dir.as_path(),
+                opts.lockfile_dir.as_path(),
+                saved_specifier_options(opts),
+            )));
+        }
 
         let pick_result = self.pick_from_registry(&registry, &spec, opts, optional).await;
         let picked = match pick_result {
@@ -609,7 +633,7 @@ pub(crate) enum RegistryPick {
 pub(crate) struct PickFromRegistryOptions<'a> {
     pub registry: &'a str,
     pub spec: &'a RegistryPackageSpec,
-    pub preferred_version_selectors: Option<&'a pacquet_resolving_resolver_base::VersionSelectors>,
+    pub preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub pick_lowest_version: bool,
@@ -618,7 +642,7 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub optional: bool,
     pub update_checksums: bool,
     pub package_version_guard:
-        Option<&'a Arc<dyn pacquet_resolving_resolver_base::PackageVersionGuard>>,
+        Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
 }
 
 /// Upper bound on guard rejections for one package before the resolver
@@ -676,7 +700,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             }
             PackageVersionGuardDecision::Reject { reason } => {
                 tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver",
+                    target: "pnpm_resolving_npm_resolver",
                     name = %opts.spec.name,
                     version = %version_str,
                     reason = %reason,
@@ -949,7 +973,7 @@ fn latest_allowed_by_policy<'a>(
     let latest = meta.dist_tag("latest")?;
     let Some(cutoff) = published_by else { return Some(latest) };
     if let Some(policy) = published_by_exclude {
-        use pacquet_config::version_policy::PolicyMatch;
+        use pnpm_config::version_policy::PolicyMatch;
         match policy.matches(&meta.name) {
             PolicyMatch::AnyVersion => return Some(latest),
             PolicyMatch::ExactVersions(versions)
@@ -980,7 +1004,7 @@ fn detect_min_release_age_violation(
     let cutoff = published_by?;
     let timestamp = published_at?;
     if let Some(policy) = published_by_exclude {
-        use pacquet_config::version_policy::PolicyMatch;
+        use pnpm_config::version_policy::PolicyMatch;
         match policy.matches(&name.to_string()) {
             PolicyMatch::AnyVersion => return None,
             PolicyMatch::ExactVersions(versions)

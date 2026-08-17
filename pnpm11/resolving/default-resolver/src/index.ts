@@ -120,7 +120,7 @@ export function createResolver (
   const localCtx = { preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths }
   const _resolveFromLocalScheme = resolveFromLocalScheme.bind(null, localCtx)
   const _resolveFromLocalPath = resolveFromLocalPath.bind(null, localCtx)
-  const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
+  const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors, cacheDir: pnpmOpts.cacheDir })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
   const _resolveLatestNodeRuntime = resolveLatestNodeRuntime.bind(null, { fetchFromRegistry, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
@@ -178,7 +178,7 @@ export function createResolver (
 }
 
 export type ResolutionVerifierFactoryOptions =
-  & Pick<ResolverFactoryOptions, 'cacheDir' | 'registries' | 'namedRegistries' | 'retry' | 'timeout' | 'fetchWarnTimeoutMs'>
+  & Pick<ResolverFactoryOptions, 'cacheDir' | 'registriesByScope' | 'registriesByPrefix' | 'offline' | 'retry' | 'timeout' | 'fetchWarnTimeoutMs'>
   & Pick<CreateNpmResolutionVerifierOptions,
   | 'minimumReleaseAge'
   | 'minimumReleaseAgeStrict'
@@ -225,11 +225,12 @@ export function createResolutionVerifiers (
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     fetchOpts,
     getAuthHeaderValueByURI,
     cacheDir: opts.cacheDir,
+    offline: opts.offline,
     metaCache: opts.metaCache,
     now: opts.now,
   })

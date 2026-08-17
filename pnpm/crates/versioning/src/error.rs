@@ -130,5 +130,5 @@ pub enum VersioningError {
 
     #[display("{_0}")]
     #[diagnostic(transparent)]
-    Manifest(pacquet_package_manifest::PackageManifestError),
+    Manifest(pnpm_package_manifest::PackageManifestError),
 }

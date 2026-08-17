@@ -2,10 +2,10 @@ use clap::Args;
 use derive_more::{Display, Error};
 use dialoguer::{Confirm, MultiSelect};
 use miette::{Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_modules_yaml::{Host, write_modules_manifest};
-use pacquet_package_manager::allow_build_key_from_ignored_build;
-use pacquet_workspace_manifest_writer::set_allow_builds;
+use pnpm_config::Config;
+use pnpm_modules_yaml::{Host, write_modules_manifest};
+use pnpm_package_manager::allow_build_key_from_ignored_build;
+use pnpm_workspace_manifest_writer::set_allow_builds;
 use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
@@ -226,7 +226,7 @@ fn confirm_builds(build_packages: &[String]) -> miette::Result<bool> {
 /// arguments only the decided (approved + denied) packages are removed,
 /// preserving the still-pending ones; otherwise every entry is cleared.
 fn clear_decided_ignored_builds(
-    modules_manifest: Option<pacquet_modules_yaml::Modules>,
+    modules_manifest: Option<pnpm_modules_yaml::Modules>,
     modules_dir: &Path,
     params: &[String],
     approved: &[String],

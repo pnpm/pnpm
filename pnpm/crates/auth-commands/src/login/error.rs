@@ -2,7 +2,7 @@ use std::{io, path::PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network_web_auth::{WebAuthTimeoutError, WithOtpError};
+use pnpm_network_web_auth::{WebAuthTimeoutError, WithOtpError};
 
 use super::classic_login::ClassicLoginOpError;
 

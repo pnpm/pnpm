@@ -10,12 +10,12 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
-use pacquet_config::Config;
-use pacquet_package_manager::{Update, build_workspace_packages_map};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
-use std::path::Path;
+use pnpm_config::Config;
+use pnpm_package_manager::{Update, build_workspace_packages_map};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::Reporter;
+use std::{collections::HashSet, path::Path};
 
 /// The `--prod`, `--dev`, and `--no-optional` flags that select which
 /// dependency groups to update.
@@ -127,6 +127,11 @@ pub struct UpdateArgs {
     /// changeset generation by default.
     #[clap(long = "no-changeset", overrides_with = "changeset")]
     pub no_changeset: bool,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
 }
 
 /// The option combinations `--workspace` rejects, checked before any
@@ -144,6 +149,10 @@ enum WorkspaceUpdateError {
 }
 
 impl UpdateArgs {
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
@@ -381,11 +390,20 @@ impl UpdateArgs {
         config: &'static Config,
     ) -> miette::Result<()> {
         self.check_workspace_option(None)?;
-        if self.interactive {
-            return Err(miette::miette!(
-                "`pnpm update --global --interactive` is not supported yet."
-            ));
-        }
+        let selected_hashes: Option<HashSet<String>> = if self.interactive {
+            match crate::cli_args::update_interactive::select_global_package_groups(
+                config,
+                &self.packages,
+                self.latest,
+            )
+            .await?
+            {
+                Some(selected) => Some(selected),
+                None => return Ok(()),
+            }
+        } else {
+            None
+        };
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let range_spec_style = RangeSpecStyle::from_save_options(
@@ -395,6 +413,7 @@ impl UpdateArgs {
         Box::pin(crate::cli_args::global::handle_global_update::<Reporter>(
             config,
             &self.packages,
+            selected_hashes.as_ref(),
             self.latest,
             range_spec_style,
             supported_architectures,
@@ -432,7 +451,7 @@ impl UpdateArgs {
     }
 }
 
-fn manifest_root(manifest: &pacquet_package_manifest::PackageManifest) -> std::path::PathBuf {
+fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path::PathBuf {
     manifest.path().parent().expect("manifest path always has a parent directory").to_path_buf()
 }
 

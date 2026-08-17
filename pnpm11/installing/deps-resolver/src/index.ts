@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
@@ -304,6 +305,7 @@ export async function resolveDependencies (
     })
     : initiallyResolvedPeers
 
+  const preserveDedupedWorkspaceLinks = Boolean(opts.dedupeInjectedDeps)
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   await Promise.all(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
@@ -396,7 +398,7 @@ export async function resolveDependencies (
       const previousRef = previousDirectRefs[alias]
       const targetedByUpdate = updateTargetedAliases.has(alias) ||
         (updateMatching?.(depNode.name) ?? false)
-      if (!targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
+      if (preserveDedupedWorkspaceLinks && !targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
         ref = previousRef
       }
       if (projectSnapshot.dependencies?.[alias]) {
@@ -447,8 +449,7 @@ export async function resolveDependencies (
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
     prefix: opts.virtualStoreDir,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    ...pickRegistryContext(opts),
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
   })
   if (time) {

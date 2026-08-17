@@ -1,11 +1,11 @@
-use pacquet_config::HoistingLimits;
-use pacquet_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap};
-use pacquet_real_hoist::percent_encode_path;
+use pnpm_config::HoistingLimits;
+use pnpm_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_real_hoist::percent_encode_path;
 use std::collections::{BTreeSet, HashMap};
 
 /// Translate the user-facing [`HoistingLimits`] mode into the
 /// `@yarnpkg/nm` hoister's per-locator border map (the shape
-/// [`pacquet_real_hoist::HoistOpts::hoisting_limits`] consumes). A
+/// [`pnpm_real_hoist::HoistOpts::hoisting_limits`] consumes). A
 /// name in a locator's set is a hoisting border: that node's
 /// dependencies are not hoisted above it.
 ///
@@ -17,8 +17,8 @@ use std::collections::{BTreeSet, HashMap};
 pub fn get_hoisting_limits(
     importers: &HashMap<String, ProjectSnapshot>,
     mode: HoistingLimits,
-) -> pacquet_real_hoist::HoistingLimits {
-    let mut limits = pacquet_real_hoist::HoistingLimits::new();
+) -> pnpm_real_hoist::HoistingLimits {
+    let mut limits = pnpm_real_hoist::HoistingLimits::new();
     if matches!(mode, HoistingLimits::None) {
         return limits;
     }

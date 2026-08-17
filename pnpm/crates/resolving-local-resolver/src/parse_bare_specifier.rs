@@ -8,7 +8,7 @@ use std::path::{Component, Path, PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_resolving_resolver_base::PkgResolutionId;
+use pnpm_resolving_resolver_base::PkgResolutionId;
 
 /// The wanted-dependency slice the local resolver consumes.
 #[derive(Debug, Default, Clone)]

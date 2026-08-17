@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use pacquet_config::Config;
-use pacquet_network::{AuthHeaders, AuthHeadersByScope, NoProxySetting};
+use pnpm_config::Config;
+use pnpm_network::{AuthHeaders, AuthHeadersByScope, NoProxySetting};
 use pretty_assertions::assert_eq;
 
 use super::{import_method_name, project_config};
@@ -9,7 +9,7 @@ use super::{import_method_name, project_config};
 fn config_with_auth(by_scope: AuthHeadersByScope) -> Config {
     Config {
         registry: "https://reg.example/npm/".to_string(),
-        registries: BTreeMap::from([(
+        registries_by_scope: BTreeMap::from([(
             "@scope".to_string(),
             "https://reg.example/scoped/".to_string(),
         )]),
@@ -114,7 +114,7 @@ fn empty_ca_projects_as_absent() {
 /// into `install` without silently losing the configured behavior.
 #[test]
 fn import_method_names_round_trip_through_the_install_parser() {
-    use pacquet_config::PackageImportMethod;
+    use pnpm_config::PackageImportMethod;
     for (method, name) in [
         (PackageImportMethod::Auto, "auto"),
         (PackageImportMethod::Hardlink, "hardlink"),

@@ -20,26 +20,31 @@ use super::{
     reporter::reporter_emit,
     sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
-    with::{
-        PackageManagerCheck,
-        install_pnpm_to_store::{install_pnpm_from_env, install_pnpm_to_store},
-        spawn_pnpm,
-    },
+    with::{PackageManagerCheck, spawn_pnpm},
 };
-use crate::{config_deps, config_overrides::ConfigOverrides, flag_relocation::ArgTable};
+use crate::{
+    config_deps,
+    config_overrides::ConfigOverrides,
+    engine_pm::{
+        channel::PackageManager,
+        install::{install_engine_from_env, install_engine_to_store},
+    },
+    flag_relocation::ArgTable,
+};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};
-use pacquet_default_reporter::DefaultReporter;
-use pacquet_env_installer::is_package_manager_resolved;
-use pacquet_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
-use pacquet_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_config::{Config, Host, PNPM_VERSION, PmOnFail};
+use pnpm_default_reporter::DefaultReporter;
+use pnpm_env_installer::is_package_manager_resolved;
+use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
+use pnpm_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
 use serde_json::Value;
 use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
+    slice,
 };
 use system_runtime_version::system_runtime_version;
 
@@ -105,6 +110,7 @@ pub(crate) async fn execute_plan(
                 &package_manager.specifier,
                 &package_manager.version,
                 false,
+                false,
             )
             .await?;
             Ok(false)
@@ -123,31 +129,53 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 return Ok(false);
             }
             assert_release_is_installable(&version)?;
-            let bin_dir =
-                Box::pin(install_pnpm_from_env::<SilentReporter>(config, &env, &version)).await?;
+            let bin_dir = Box::pin(install_engine_from_env::<SilentReporter>(
+                config,
+                PackageManager::Pnpm,
+                &env,
+                &version,
+            ))
+            .await?;
             (version, bin_dir)
         }
-        SwitchSource::Resolve { env_root } => {
-            let resolved = config_deps::resolve_pnpm_version(config, &spec)
+        SwitchSource::Resolve { env_root, force_resync } => {
+            let resolved = config_deps::resolve_engine_version(config, "pnpm", &spec)
                 .await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
             if resolved.version == PNPM_VERSION {
+                if force_resync {
+                    // No switch to perform, but the recorded entries are
+                    // invalid — heal them now or every later invocation
+                    // re-resolves over the network.
+                    config_deps::sync_package_manager_dependencies(
+                        config,
+                        &env_root,
+                        &spec,
+                        &resolved.version,
+                        false,
+                        true,
+                    )
+                    .await?;
+                }
                 return Ok(false);
             }
             assert_release_is_installable(&resolved.version)?;
-            let bin_dir = Box::pin(install_pnpm_to_store::<SilentReporter>(
+            let bin_dir = Box::pin(install_engine_to_store::<SilentReporter>(
                 config,
+                PackageManager::Pnpm,
                 &env_root,
                 &spec,
                 &resolved.version,
+                force_resync,
             ))
             .await?;
             (resolved.version, bin_dir)
         }
     };
 
-    let status = spawn_pnpm(&bin_dir, child_argv.iter(), PackageManagerCheck::Enabled)
-        .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
+    let status =
+        spawn_pnpm(slice::from_ref(&bin_dir), child_argv.iter(), PackageManagerCheck::Enabled)
+            .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));
     }
@@ -283,9 +311,9 @@ fn env_lockfile_sync(
 }
 
 /// Whether the caller already holds the parsed env lockfile. The download
-/// path reads it to look for a version to switch to, and `pnpm-lock.yaml`
-/// is read whole, so reading it a second time to answer the same question
-/// would double the cost of every command in a pinned project.
+/// path reads it to look for a version to switch to, so reading and parsing
+/// it a second time to answer the same question would repeat that work on
+/// every command in a pinned project.
 #[derive(Clone, Copy)]
 enum ReadEnvLockfile<'a> {
     Already(&'a EnvLockfile),
@@ -316,7 +344,8 @@ fn check_package_manager(
     if pm.name != "pnpm" {
         let name = sanitize_inline(&pm.name).into_owned();
         if should_error {
-            return Err(PreCommandError::OtherPmExpected { name }.into());
+            let hint = other_pm_hint(&name);
+            return Err(PreCommandError::OtherPmExpected { name, hint }.into());
         }
         global_warn(emit, &format!("This project is configured to use {name}"));
         return Ok(());
@@ -461,13 +490,27 @@ const COREPACK_NOTE: &str = "\nCorepack invoked pnpm with this version, and pnpm
 
 const COREPACK_PM_HINT_PREFIX: &str = r#"Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically."#;
 
+/// What to do about a project that another package manager installs.
+///
+/// pnpm does not become that package manager just because a project asks
+/// for one — typing `pnpm` would then silently run something else — but it
+/// can provide it, so the way out is worth naming.
+fn other_pm_hint(name: &str) -> String {
+    if PackageManager::parse(name).is_none() {
+        return format!("pnpm cannot provide {name}. Install it to work on this project.");
+    }
+    format!(
+        r#"Run a one-off command with "pnpm dlx {name} <command>", or link a {name} command that follows this project's pin with "pnpm shim add {name}"."#,
+    )
+}
+
 const RUNTIME_ON_FAIL_HINT: &str = r#"If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore""#;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum PreCommandError {
     #[display("This project is configured to use {name}")]
-    #[diagnostic(code(ERR_PNPM_OTHER_PM_EXPECTED))]
-    OtherPmExpected { name: String },
+    #[diagnostic(code(ERR_PNPM_OTHER_PM_EXPECTED), help("{hint}"))]
+    OtherPmExpected { name: String, hint: String },
 
     #[display(
         "This project is configured to use {wanted} of pnpm. Your current pnpm is v{PNPM_VERSION}{note}"
@@ -560,7 +603,21 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
         && let Some(env) = read_env_lockfile(root_dir)?
         && let Some(version) = locked_package_manager_version(&env, &spec)?
     {
-        return Ok(Some(SwitchTarget { spec, source: SwitchSource::LockedEnv { env, version } }));
+        if assert_package_manager_lockfile_uses_registry_resolutions(&env).is_ok() {
+            return Ok(Some(SwitchTarget {
+                spec,
+                source: SwitchSource::LockedEnv { env, version },
+            }));
+        }
+        // Entries that don't satisfy the bootstrap rules — e.g. resolutions
+        // carrying tarball URLs written by an earlier pnpm — are not an
+        // error: they are discarded and re-resolved afresh through the
+        // trusted bootstrap registries, which yields entries in the accepted
+        // shape.
+        return Ok(Some(SwitchTarget {
+            spec,
+            source: SwitchSource::Resolve { env_root: root_dir.to_path_buf(), force_resync: true },
+        }));
     }
 
     let env_root = if persist_lockfile {
@@ -572,7 +629,7 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
             )
         })?
     };
-    Ok(Some(SwitchTarget { spec, source: SwitchSource::Resolve { env_root } }))
+    Ok(Some(SwitchTarget { spec, source: SwitchSource::Resolve { env_root, force_resync: false } }))
 }
 
 fn locked_package_manager_version(
@@ -594,7 +651,6 @@ fn locked_package_manager_version(
     if !package_manager_dependencies_are_resolved(env, &version) {
         return Ok(None);
     }
-    assert_package_manager_lockfile_uses_registry_resolutions(env)?;
     Ok(Some(version))
 }
 
@@ -668,7 +724,7 @@ fn assert_registry_package_path(
     key: &PackageKey,
     package_info: &PackageMetadata,
 ) -> miette::Result<()> {
-    if key.suffix.prefix() != pacquet_lockfile::Prefix::None
+    if key.suffix.prefix() != pnpm_lockfile::Prefix::None
         || !matches!(key.suffix.version(), VersionPart::Semver(_))
     {
         return Err(invalid_package_manager_lockfile(key));
@@ -723,6 +779,19 @@ fn effective_on_fail(config: &Config, pm: &WantedPackageManager) -> PmOnFail {
 /// (`store`, `doctor`, and so on), or run something that is not the project
 /// (`dlx`).
 fn should_skip_command(command: &CliCommand) -> bool {
+    // Declaring which package manager a project uses is not that package
+    // manager's work, so a project pinned to another one can still be
+    // told to use a different one — or to use this one. Adding anything
+    // else stays its manager's job and still fails the check.
+    if let CliCommand::Add(args) = command
+        && !args.package_names.is_empty()
+        && args
+            .package_names
+            .iter()
+            .all(|request| crate::engine_pm::pin::declared_package_manager(request).is_some())
+    {
+        return true;
+    }
     matches!(
         command,
         CliCommand::CatFile(_)
@@ -735,6 +804,7 @@ fn should_skip_command(command: &CliCommand) -> bool {
             | CliCommand::Runtime(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
+            | CliCommand::Shim(_)
             | CliCommand::Store(_)
             | CliCommand::With(_),
     )
@@ -755,6 +825,7 @@ fn should_skip_command_name(command: &str) -> bool {
             | "rt"
             | "self-update"
             | "setup"
+            | "shim"
             | "store"
             | "with",
     )
@@ -813,8 +884,18 @@ pub(crate) struct EnvLockfileSync {
 
 #[derive(Debug)]
 enum SwitchSource {
-    LockedEnv { env: EnvLockfile, version: String },
-    Resolve { env_root: PathBuf },
+    LockedEnv {
+        env: EnvLockfile,
+        version: String,
+    },
+    Resolve {
+        env_root: PathBuf,
+        /// Discard the recorded `packageManagerDependencies` and re-resolve
+        /// them even when they look up to date — set when the recorded
+        /// entries failed the bootstrap validation, so the resync heals the
+        /// env lockfile instead of no-op'ing on the invalid entries.
+        force_resync: bool,
+    },
 }
 
 struct SwitchInput {
@@ -937,6 +1018,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Restart(_) => "restart",
         CliCommand::FindHash(_) => "find-hash",
         CliCommand::Runtime(_) => "runtime",
+        CliCommand::Shim(_) => "shim",
         CliCommand::Bin(_) => "bin",
         CliCommand::Clean(_) => "clean",
         CliCommand::Purge(_) => "purge",

@@ -33,7 +33,6 @@ export async function finishWorkers (): Promise<void> {
   // @ts-expect-error
   global.finishWorkers = undefined
   await finish?.()
-  workerPool = undefined
 }
 
 function createTarballWorkerPool (): WorkerPool {

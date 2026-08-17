@@ -50,7 +50,7 @@ function makeContext (rootDir: string, overrides: Partial<ConfigContext> = {}): 
   } as ConfigContext
 }
 
-const baseConfig = { registries: { default: 'https://registry.npmjs.org/' } } as unknown as Config
+const baseConfig = { registriesByScope: { default: 'https://registry.npmjs.org/' } } as unknown as Config
 
 test('no-op when wantedPackageManager is undefined', async () => {
   const dir = tempDir()
@@ -164,7 +164,7 @@ test('uses trusted package-manager registries instead of project registries', as
     noProxy: 'project.internal',
     packageManagerRegistries,
     packageManagerNetworkConfig,
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
     strictSsl: false,
   } as unknown as Config, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
@@ -175,14 +175,14 @@ test('uses trusted package-manager registries instead of project registries', as
     httpProxy: packageManagerNetworkConfig.httpProxy,
     httpsProxy: packageManagerNetworkConfig.httpsProxy,
     noProxy: packageManagerNetworkConfig.noProxy,
-    registries: packageManagerRegistries,
+    registriesByScope: packageManagerRegistries,
     strictSsl: packageManagerNetworkConfig.strictSsl,
   }))
   expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
-    registries: packageManagerRegistries,
+    registriesByScope: packageManagerRegistries,
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
   }))
 })
 
@@ -200,7 +200,7 @@ test('defaults package-manager registries to npmjs instead of project registries
     httpProxy: 'http://project-http-proxy.example.com:8080',
     httpsProxy: 'http://project-https-proxy.example.com:8080',
     noProxy: 'project.internal',
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
     strictSsl: false,
   } as unknown as Config, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
@@ -211,14 +211,14 @@ test('defaults package-manager registries to npmjs instead of project registries
     httpProxy: undefined,
     httpsProxy: undefined,
     noProxy: undefined,
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     strictSsl: undefined,
   }))
   expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
   }))
 })
 

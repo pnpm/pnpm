@@ -1,9 +1,9 @@
 use crate::State;
 use clap::Args;
 use miette::Context;
-use pacquet_package_manager::{Install, ProjectMutation};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
 
 #[derive(Debug, Args)]
 pub struct FetchArgs {
@@ -11,12 +11,18 @@ pub struct FetchArgs {
     prod: bool,
     #[clap(short = 'D', long)]
     dev: bool,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    ignore_pnpmfile: bool,
 }
 
 impl FetchArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
         let mut fetch_config = (*state.config).clone();
+        fetch_config.ignore_pnpmfile = self.ignore_pnpmfile || fetch_config.ignore_pnpmfile;
         fetch_config.virtual_store_only = true;
         fetch_config.enable_modules_dir = true;
         fetch_config.apply_virtual_store_only_derivation();
@@ -30,7 +36,8 @@ impl FetchArgs {
             resolved_packages,
         } = &state;
 
-        let &FetchArgs { prod, dev } = &self;
+        // `ignore_pnpmfile` is already folded into `fetch_config` above.
+        let &FetchArgs { prod, dev, ignore_pnpmfile: _ } = &self;
         let has_both = prod == dev;
         let include_prod = has_both || prod;
         let include_dev = has_both || dev;
@@ -42,7 +49,7 @@ impl FetchArgs {
             config: fetch_config,
             manifest,
             emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(&lockfile_path),
             // Optional dependencies follow production, so `--dev` (which
             // excludes production) excludes optional deps too.
@@ -66,7 +73,9 @@ impl FetchArgs {
             node_linker: fetch_config.node_linker,
             lockfile_only: false,
             dry_run: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+            persist_policy_excludes: false,
+            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,

@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-store-dir"
+name                 = "pnpm-store-dir"
 description          = "Abstraction over store-dir paths"
 version              = "0.0.1"
 publish              = false
@@ -11,8 +11,8 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-crypto-hash = { workspace = true }
-pacquet-fs          = { workspace = true }
+pnpm-crypto-hash = { workspace = true }
+pnpm-fs          = { workspace = true }
 
 dashmap       = { workspace = true }
 derive_more   = { workspace = true }

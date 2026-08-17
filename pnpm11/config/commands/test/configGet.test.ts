@@ -248,7 +248,7 @@ test('config get with scoped registry returns the merged value from pnpm-workspa
     authConfig: {
       '@scope:registry': 'https://from-npmrc.example.com/',
     },
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
       '@scope': 'https://from-workspace-yaml.example.com/',
     },

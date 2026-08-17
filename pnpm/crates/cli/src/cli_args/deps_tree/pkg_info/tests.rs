@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pacquet_lockfile::Lockfile;
+use pnpm_lockfile::Lockfile;
 use pretty_assertions::assert_eq;
 
 use super::{EdgeContext, PkgInfoEnv, get_pkg_info};
@@ -32,6 +32,7 @@ fn get_pkg_info_handles_missing_pkg_snapshot_without_crashing() {
         modules_dir: PathBuf::new(),
         virtual_store_dir: PathBuf::from(".pnpm"),
         virtual_store_dir_max_length: 120,
+        registry_options_by_url: std::collections::BTreeMap::new(),
         registries: HashMap::from([(
             "default".to_string(),
             "https://registry.npmjs.org/".to_string(),
@@ -98,6 +99,7 @@ fn resolve_package_path_rejects_traversal_in_lockfile_derived_names() {
         modules_dir: dir.path().join("node_modules"),
         virtual_store_dir: virtual_store_dir.clone(),
         virtual_store_dir_max_length: 120,
+        registry_options_by_url: std::collections::BTreeMap::new(),
         registries: HashMap::from([(
             "default".to_string(),
             "https://registry.npmjs.org/".to_string(),

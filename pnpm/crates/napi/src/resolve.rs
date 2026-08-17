@@ -5,12 +5,14 @@
 //! `resolveRemoteVersion`).
 //!
 //! Mirrors the install path's [`DefaultResolver`] chain (see
-//! `pacquet_package_manager::install_with_fresh_lockfile`) so a single
+//! `pnpm_package_manager::install_with_fresh_lockfile`) so a single
 //! resolve claims every protocol the install claims: npm registry
 //! (`name@version` / `range` / `tag`, incl. the `foo@npm:bar` alias
 //! form), git URLs, `http(s)` tarball URLs, `file:` / `link:` /
 //! `workspace:` and bare filesystem paths, the node / deno / bun
-//! runtime specs, and `<alias>:` named-registry specs. A specifier no
+//! runtime specs — including the `yarn@runtime:` line that ships as
+//! release archives rather than as an npm package — and `<alias>:`
+//! named-registry specs. A specifier no
 //! resolver in the chain claims surfaces as
 //! `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 //!
@@ -29,21 +31,20 @@ use std::{
 };
 
 use napi_derive::napi;
-use pacquet_engine_runtime_bun_resolver::BunResolver;
-use pacquet_engine_runtime_deno_resolver::DenoResolver;
-use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_resolving_default_resolver::DefaultResolver;
-use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
-use pacquet_resolving_local_resolver::{
-    LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
-};
-use pacquet_resolving_npm_resolver::{
+use pnpm_engine_pm_yarn_resolver::YarnResolver;
+use pnpm_engine_runtime_bun_resolver::BunResolver;
+use pnpm_engine_runtime_deno_resolver::DenoResolver;
+use pnpm_engine_runtime_node_resolver::NodeResolver;
+use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_resolving_default_resolver::DefaultResolver;
+use pnpm_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
+use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
+use pnpm_resolving_npm_resolver::{
     NamedRegistryResolver, NpmResolver, merge_named_registries, shared_in_memory_cache,
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pacquet_resolving_tarball_resolver::TarballResolver;
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_tarball_resolver::TarballResolver;
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
@@ -134,6 +135,13 @@ fn run_resolve_blocking(
     );
 
     let full_metadata = options.full_metadata.unwrap_or(false);
+    // `filter_metadata` stays off even under `full_metadata`, unlike the
+    // install path: a caller asking this API for full metadata wants the
+    // version object's non-abbreviated fields (Bit reads `componentId`),
+    // and `clear_meta` would drop exactly those. Matches pnpm's
+    // `createClient({ fullMetadata: true })` with no `filterMetadata`,
+    // which is what this API replaces.
+    let filter_metadata = false;
     let retry_opts = RetryOpts {
         retries: config.fetch_retries,
         factor: config.fetch_retry_factor,
@@ -150,7 +158,7 @@ fn run_resolve_blocking(
         // `config.registries` alone omits it, which would leave the picker with a
         // host-less `/pkg` URL.
         registries: config.resolved_registries().into_iter().collect(),
-        named_registries: config.named_registries.clone().into_iter().collect(),
+        registries_by_prefix: config.registries_by_prefix.clone().into_iter().collect(),
         http_client: Arc::clone(&http_client),
         auth_headers: Arc::clone(&config.auth_headers),
         meta_cache: shared_in_memory_cache(),
@@ -161,7 +169,7 @@ fn run_resolve_blocking(
         prefer_offline: config.prefer_offline,
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata,
-        filter_metadata: full_metadata,
+        filter_metadata,
         retry_opts,
     });
 
@@ -188,21 +196,24 @@ fn run_resolve_blocking(
 
     let mut node_resolver = NodeResolver::new(Arc::clone(&http_client));
     node_resolver.offline = config.offline;
+    node_resolver.cache_dir = Some(config.cache_dir.clone());
     let deno_resolver = DenoResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
     let bun_resolver = BunResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
+    let yarn_resolver = YarnResolver::new(Arc::clone(&http_client));
 
     // User-supplied named-registry aliases from
     // `pnpm-workspace.yaml#namedRegistries`, merged with pacquet's
     // built-ins (today: `gh:` → GitHub Packages). A malformed URL here
     // fails fast with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`, matching the
     // install path.
-    let user_named_registries: HashMap<String, String> =
-        config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
-    let merged_named_registries =
-        merge_named_registries(&user_named_registries).map_err(|error| to_napi_error(&error))?;
-    let named_registry_aliases: HashSet<String> = merged_named_registries.keys().cloned().collect();
+    let user_registries_by_prefix: HashMap<String, String> =
+        config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
+    let merged_registries_by_prefix = merge_named_registries(&user_registries_by_prefix)
+        .map_err(|error| to_napi_error(&error))?;
+    let named_registry_aliases: HashSet<String> =
+        merged_registries_by_prefix.keys().cloned().collect();
     let named_registry_resolver = NamedRegistryResolver {
-        named_registries: merged_named_registries,
+        registries_by_prefix: merged_registries_by_prefix,
         registry_names: named_registry_aliases,
         http_client: Arc::clone(&http_client),
         auth_headers: Arc::clone(&config.auth_headers),
@@ -214,7 +225,7 @@ fn run_resolve_blocking(
         prefer_offline: config.prefer_offline,
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata,
-        filter_metadata: full_metadata,
+        filter_metadata,
         retry_opts,
     };
 
@@ -233,6 +244,7 @@ fn run_resolve_blocking(
         Box::new(node_resolver),
         Box::new(deno_resolver),
         Box::new(bun_resolver),
+        Box::new(yarn_resolver),
         Box::new(named_registry_resolver),
         Box::new(local_path_resolver),
     ];

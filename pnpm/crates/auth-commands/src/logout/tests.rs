@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io, path::Path, sync::Mutex, time::Duration};
 
-use pacquet_network::{RetryOpts, ThrottledClient, nerf_dart};
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
+use pnpm_network::{RetryOpts, ThrottledClient, nerf_dart};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
 use tempfile::TempDir;
 
 use super::{

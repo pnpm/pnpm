@@ -3,9 +3,9 @@ use crate::{
     error::{GitFetcherError, PreparePackageError},
     prepare_package::AllowBuildRef,
 };
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_reporter::SilentReporter;
-use pacquet_store_dir::{StoreDir, StoreIndex, StoreIndexWriter};
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::{StoreDir, StoreIndex, StoreIndexWriter};
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 use tempfile::tempdir;
 
@@ -57,6 +57,7 @@ async fn passes_through_package_without_scripts() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
         requester: "/test",
@@ -106,6 +107,7 @@ async fn filters_files_outside_files_field() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
         requester: "/test",
@@ -151,6 +153,7 @@ async fn rejects_build_when_not_allowed() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "naughty@2.0.0",
         requester: "/test",
@@ -194,6 +197,7 @@ async fn surfaces_prepare_script_failure() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "prepare-script-fails@1.0.0",
         requester: "/test",
@@ -250,6 +254,7 @@ async fn path_field_packs_only_subdirectory() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "sub@1.0.0",
         requester: "/test",
@@ -303,6 +308,7 @@ async fn materialized_temp_dir_does_not_corrupt_cas() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
         requester: "/test",
@@ -350,6 +356,7 @@ async fn writes_index_row_when_writer_provided() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
         requester: "/test",
@@ -432,6 +439,7 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
         requester: "/test",
@@ -485,6 +493,7 @@ async fn fast_path_queues_synthesized_index_row() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
         requester: "/test",
@@ -562,6 +571,7 @@ async fn sub_path_never_takes_fast_path() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "sub@1.0.0",
         requester: "/test",
@@ -640,6 +650,7 @@ async fn fast_path_ignore_scripts_returns_input_without_queueing_row() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
         requester: "/test",
@@ -685,6 +696,7 @@ async fn tarball_path_traversal_attack_is_rejected() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
         requester: "/test",
@@ -733,6 +745,7 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         store_dir: &store_dir,
         package_id: "x@1.0.0",
         requester: "/test",

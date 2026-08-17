@@ -1,33 +1,4 @@
-use std::sync::Mutex;
-
-use super::{
-    GitProbe, PartialSpec, ProbeFuture, correct_url, parse_bare_specifier, parse_git_params,
-};
-
-struct Fake {
-    head_ok: bool,
-    ls_ok: bool,
-    calls: Mutex<Vec<String>>,
-}
-
-impl GitProbe for Fake {
-    fn https_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a> {
-        Box::pin(async move {
-            self.calls.lock().unwrap().push(format!("head {url}"));
-            self.head_ok
-        })
-    }
-    fn ls_remote_exit_code<'a>(&'a self, repo: &'a str) -> ProbeFuture<'a> {
-        Box::pin(async move {
-            self.calls.lock().unwrap().push(format!("ls {repo}"));
-            self.ls_ok
-        })
-    }
-}
-
-fn fake() -> Fake {
-    Fake { head_ok: true, ls_ok: true, calls: Mutex::new(Vec::new()) }
-}
+use super::{PartialSpec, correct_url, parse_bare_specifier, parse_git_params};
 
 #[test]
 fn rejects_non_git_url() {
@@ -89,38 +60,71 @@ fn correct_url_keeps_numeric_port() {
     );
 }
 
-#[tokio::test]
-async fn finalize_direct_returns_spec_unchanged() {
-    let kind = parse_bare_specifier("git+https://example.com/repo.git#abc").expect("direct");
-    let probe = fake();
-    let spec = kind.finalize(&probe).await;
-    assert_eq!(spec.fetch_spec, "https://example.com/repo.git");
-    assert_eq!(spec.git_committish.as_deref(), Some("abc"));
-    assert!(probe.calls.lock().unwrap().is_empty());
+#[test]
+fn correct_url_keeps_bracketed_ipv6_host() {
+    assert_eq!(correct_url("ssh://[::1]/repo.git"), "ssh://[::1]/repo.git");
+    assert_eq!(
+        correct_url("ssh://[2001:db8::1]/team/repo.git"),
+        "ssh://[2001:db8::1]/team/repo.git",
+    );
+    assert_eq!(correct_url("ssh://[::1]:2222/repo.git"), "ssh://[::1]:2222/repo.git");
+    assert_eq!(correct_url("ssh://[::1]:team/repo.git"), "ssh://[::1]/team/repo.git");
+    assert_eq!(correct_url("ssh://git@[::1]/repo.git"), "ssh://git@[::1]/repo.git");
+    assert_eq!(correct_url("ssh://git@[::1]:team/repo.git"), "ssh://git@[::1]/team/repo.git");
 }
 
-#[tokio::test]
-async fn finalize_hosted_prefers_https_when_public() {
+#[test]
+fn finalize_direct_returns_spec_unchanged() {
+    let kind = parse_bare_specifier("git+https://example.com/repo.git#abc").expect("direct");
+    let spec = kind.finalize();
+    assert_eq!(spec.fetch_spec, "https://example.com/repo.git");
+    assert_eq!(spec.git_committish.as_deref(), Some("abc"));
+}
+
+#[test]
+fn finalize_hosted_uses_canonical_https() {
     let kind = parse_bare_specifier("zkochan/is-negative").expect("hosted");
-    let probe = fake();
-    let spec = kind.finalize(&probe).await;
+    let spec = kind.finalize();
     assert_eq!(spec.fetch_spec, "https://github.com/zkochan/is-negative.git");
+    assert_eq!(spec.normalized_bare_specifier, "github:zkochan/is-negative");
     assert!(spec.hosted.is_some());
 }
 
-#[tokio::test]
-async fn finalize_hosted_falls_back_to_ssh_when_private() {
-    let kind = parse_bare_specifier("foo/private-repo").expect("hosted");
-    let probe = Fake { head_ok: false, ls_ok: false, calls: Mutex::new(Vec::new()) };
-    let spec = kind.finalize(&probe).await;
-    assert_eq!(spec.fetch_spec, "git+ssh://git@github.com/foo/private-repo.git");
+#[test]
+fn finalize_hosted_ssh_input_becomes_the_same_https_identity() {
+    let kind = parse_bare_specifier("git+ssh://git@github.com/foo/bar.git").expect("hosted");
+    let spec = kind.finalize();
+    assert_eq!(spec.fetch_spec, "https://github.com/foo/bar.git");
+    assert_eq!(spec.normalized_bare_specifier, "github:foo/bar");
+    assert!(spec.hosted.is_some());
+}
+
+#[test]
+fn finalize_hosted_scp_style_input_becomes_the_same_https_identity() {
+    let kind = parse_bare_specifier("git@github.com:foo/bar.git#v1.0.0").expect("hosted");
+    let spec = kind.finalize();
+    assert_eq!(spec.fetch_spec, "https://github.com/foo/bar.git");
+    assert_eq!(spec.normalized_bare_specifier, "github:foo/bar#v1.0.0");
+    assert_eq!(spec.git_committish.as_deref(), Some("v1.0.0"));
+}
+
+#[test]
+fn finalize_hosted_auth_url_kept_verbatim_without_archive_eligibility() {
+    let kind = parse_bare_specifier("git+https://token:x-oauth-basic@github.com/foo/bar.git")
+        .expect("hosted");
+    let spec = kind.finalize();
+    assert_eq!(spec.fetch_spec, "https://token:x-oauth-basic@github.com/foo/bar.git");
+    assert_eq!(
+        spec.normalized_bare_specifier,
+        "git+https://token:x-oauth-basic@github.com/foo/bar.git",
+    );
+    assert!(spec.hosted.is_none(), "credentialed URL must never resolve to a host archive");
 }
 
 // Ported `parsePref.test.ts` SCP-style URL repair cases. Each row
 // is `(input, expected_fetch_spec)`.
-#[tokio::test]
-async fn fetch_spec_for_scp_style_inputs() {
-    let probe = fake();
+#[test]
+fn fetch_spec_for_scp_style_inputs() {
     let cases: &[(&str, &str)] = &[
         (
             "ssh://username:password@example.com:repo.git",
@@ -174,7 +178,7 @@ async fn fetch_spec_for_scp_style_inputs() {
     ];
     for (input, expected) in cases {
         let kind = parse_bare_specifier(input).expect("parse claims input");
-        let spec = kind.finalize(&probe).await;
+        let spec = kind.finalize();
         assert_eq!(
             spec.fetch_spec,
             *expected,
@@ -184,10 +188,42 @@ async fn fetch_spec_for_scp_style_inputs() {
     }
 }
 
-// Ported `parsePref.test.ts` path-extraction cases.
-#[tokio::test]
-async fn path_extracted_from_scp_style_inputs() {
-    let probe = fake();
+#[test]
+fn fetch_spec_for_inputs_without_user_info() {
+    let cases: &[(&str, &str)] = &[
+        ("ssh://git.example.com/team/repo.git", "ssh://git.example.com/team/repo.git"),
+        ("ssh://git.example.com:2222/team/repo.git", "ssh://git.example.com:2222/team/repo.git"),
+        ("ssh://git.example.com:team/repo.git", "ssh://git.example.com/team/repo.git"),
+        ("ssh://git.example.com:repo.git", "ssh://git.example.com/repo.git"),
+        ("git+ssh://git.example.com/team/repo.git", "ssh://git.example.com/team/repo.git"),
+        ("git+ssh://git.example.com:team/repo.git", "ssh://git.example.com/team/repo.git"),
+    ];
+    for (input, expected) in cases {
+        let kind = parse_bare_specifier(input).expect("parse claims input");
+        let spec = kind.finalize();
+        assert_eq!(spec.fetch_spec, *expected, "input {input}");
+    }
+}
+
+#[test]
+fn fetch_spec_for_bracketed_ipv6_hosts() {
+    let cases: &[(&str, &str)] = &[
+        ("ssh://[::1]/repo.git", "ssh://[::1]/repo.git"),
+        ("ssh://[2001:db8::1]/team/repo.git", "ssh://[2001:db8::1]/team/repo.git"),
+        ("ssh://[::1]:2222/repo.git", "ssh://[::1]:2222/repo.git"),
+        ("ssh://[::1]:team/repo.git", "ssh://[::1]/team/repo.git"),
+        ("ssh://git@[::1]/repo.git", "ssh://git@[::1]/repo.git"),
+        ("ssh://git@[::1]:team/repo.git", "ssh://git@[::1]/team/repo.git"),
+    ];
+    for (input, expected) in cases {
+        let kind = parse_bare_specifier(input).expect("parse claims input");
+        let spec = kind.finalize();
+        assert_eq!(spec.fetch_spec, *expected, "input {input}");
+    }
+}
+
+#[test]
+fn path_extracted_from_scp_style_inputs() {
     let cases: &[(&str, Option<&str>)] = &[
         ("ssh://username:password@example.com:repo.git#path:/a/@b", Some("/a/@b")),
         ("ssh://username:password@example.com:repo/@foo.git#path:/a/@b", Some("/a/@b")),
@@ -205,15 +241,14 @@ async fn path_extracted_from_scp_style_inputs() {
     ];
     for (input, expected_path) in cases {
         let kind = parse_bare_specifier(input).expect("parse claims input");
-        let spec = kind.finalize(&probe).await;
+        let spec = kind.finalize();
         assert_eq!(spec.path.as_deref(), *expected_path, "input {input}: path mismatch");
     }
 }
 
 // Ported "plain http/https URLs ending in .git should be recognized" suite.
-#[tokio::test]
-async fn plain_http_dot_git_recognized() {
-    let probe = fake();
+#[test]
+fn plain_http_dot_git_recognized() {
     let cases: &[(&str, &str)] = &[
         (
             "https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git",
@@ -228,7 +263,7 @@ async fn plain_http_dot_git_recognized() {
     ];
     for (input, expected) in cases {
         let kind = parse_bare_specifier(input).expect("claim");
-        let spec = kind.finalize(&probe).await;
+        let spec = kind.finalize();
         assert_eq!(spec.fetch_spec, *expected, "input {input}");
     }
 }

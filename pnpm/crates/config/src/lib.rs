@@ -2,6 +2,7 @@ mod api;
 pub mod config_types;
 mod defaults;
 mod env_overlay;
+pub mod esm_node_path_loader;
 mod global_bin_check;
 pub mod matcher;
 pub mod naming_cases;
@@ -21,13 +22,14 @@ pub use crate::{
 
 use crate::npmrc_auth::NpmrcAuth;
 use indexmap::IndexMap;
-use pacquet_patching::{
+use pipe_trait::Pipe;
+use pnpm_lockfile::RegistryOptions;
+use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
     resolve_and_group,
 };
-use pacquet_store_dir::StoreDir;
-use pacquet_workspace_state::ConfigDependency;
-use pipe_trait::Pipe;
+use pnpm_store_dir::StoreDir;
+use pnpm_workspace_state::ConfigDependency;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::{
@@ -37,23 +39,37 @@ use std::{
 };
 
 pub use crate::defaults::{
-    GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_config_dir,
-    default_git_shallow_hosts, default_peers_suffix_max_length, default_pnpm_home_dir,
-    default_registry, default_unsafe_perm, default_virtual_store_dir_max_length,
-    default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
+    GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_cache_dir,
+    default_config_dir, default_git_shallow_hosts, default_peers_suffix_max_length,
+    default_pnpm_home_dir, default_registry, default_state_dir, default_unsafe_perm,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, is_unsafe_perm_posix,
+    resolve_child_concurrency,
 };
 use crate::defaults::{
-    default_cache_dir, default_child_concurrency, default_enable_global_virtual_store,
-    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
-    default_fetch_retry_mintimeout, default_fetch_timeout, default_hoist_pattern,
-    default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
-    default_store_dir, default_user_agent, default_virtual_store_dir,
+    default_child_concurrency, default_enable_global_virtual_store, default_fetch_retries,
+    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
+    default_fetch_timeout, default_hoist_pattern, default_modules_cache_max_age,
+    default_modules_dir, default_public_hoist_pattern, default_store_dir, default_user_agent,
+    default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
     PackageExtension, PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds, workspace_root_or,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds,
+    registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
+    workspace_root_or,
 };
+
+fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
+    let ci = Sys::var("CI");
+    if ci.as_deref() == Some("false") {
+        return false;
+    }
+
+    matches!(ci.as_deref(), Some("true" | "1" | "woodpecker"))
+        || Sys::var("GITHUB_ACTIONS").is_some()
+        || detect_ci()
+}
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -94,7 +110,7 @@ pub enum NodePackageMapType {
 ///
 /// No effect under `nodeLinker: isolated`. The user-facing mode is
 /// translated into the per-locator border map the hoister consumes
-/// by `crate::get_hoisting_limits` in `pacquet-package-manager`.
+/// by `crate::get_hoisting_limits` in `pnpm-package-manager`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HoistingLimits {
@@ -107,7 +123,7 @@ pub enum HoistingLimits {
 /// Supply-chain trust policy applied to lockfile entries.
 ///
 /// The setting is `'no-downgrade' | 'off'` and drives the
-/// `pacquet-resolving-npm-resolver` verifier: under
+/// `pnpm-resolving-npm-resolver` verifier: under
 /// [`TrustPolicy::NoDowngrade`] the verifier rejects any version
 /// whose trust evidence (`_npmUser.trustedPublisher` or
 /// `dist.attestations.provenance`) is weaker than an earlier-published
@@ -119,6 +135,158 @@ pub enum TrustPolicy {
     #[default]
     Off,
     NoDowngrade,
+}
+
+/// The resolved per-package policy in `globalShims`.
+///
+/// `Auto` (the record value `"auto"`, or its shorthand `true`) defers
+/// to artifact authentication:
+/// publisher-signature-verified candidates run without prompting, all
+/// others go through the candidate-bound trust prompt. `Prompt` always
+/// asks, even for authenticated candidates. `Always` always switches
+/// without asking — the user pre-answered the prompt in machine-local
+/// configuration, which a project cannot write to. `Off` (the record
+/// value `false`) disables the package's context-aware shim entirely.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum ShimPolicy {
+    #[default]
+    Off,
+    Auto,
+    Prompt,
+    Always,
+}
+
+/// One value of the `globalShims` record: a named policy (`"auto"`,
+/// `"prompt"`, `"always"`) or the boolean shorthands (`true` ≡
+/// `"auto"`, `false` ≡ disabled). See [`ShimPolicy`] for the semantics
+/// each maps to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ShimPolicyValue {
+    Toggle(bool),
+    Named(NamedShimPolicy),
+}
+
+impl ShimPolicy {
+    /// The `globalShims` value this policy is written as.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ShimPolicy::Off => "off",
+            ShimPolicy::Auto => "auto",
+            ShimPolicy::Prompt => "prompt",
+            ShimPolicy::Always => "always",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NamedShimPolicy {
+    Auto,
+    Prompt,
+    Always,
+}
+
+impl ShimPolicyValue {
+    /// Whether a package recorded with this value dispatches at all.
+    ///
+    /// A recorded value that does not is the user switching a shim off —
+    /// including one of the built-in defaults, which is the only way to
+    /// switch those off. Clearing such an entry turns the shim back on.
+    #[must_use]
+    pub fn dispatches(self) -> bool {
+        self.resolve() != ShimPolicy::Off
+    }
+
+    fn resolve(self) -> ShimPolicy {
+        match self {
+            ShimPolicyValue::Toggle(false) => ShimPolicy::Off,
+            ShimPolicyValue::Toggle(true) | ShimPolicyValue::Named(NamedShimPolicy::Auto) => {
+                ShimPolicy::Auto
+            }
+            ShimPolicyValue::Named(NamedShimPolicy::Prompt) => ShimPolicy::Prompt,
+            ShimPolicyValue::Named(NamedShimPolicy::Always) => ShimPolicy::Always,
+        }
+    }
+}
+
+/// One configuration layer of the `globalShims` setting:
+/// either a record of package names to policy values, or a scalar
+/// shorthand. Layers fold into the resolved [`GlobalShims`]
+/// via [`GlobalShims::apply`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GlobalShimsSetting {
+    /// `globalShims: false` disables every context-aware
+    /// shim; `true` resets to the built-in defaults.
+    Toggle(bool),
+    /// `globalShims: { <package>: <policy> }` merges
+    /// key-wise over the defaults and lower layers, so one `bun: false`
+    /// entry disables a single default without restating the rest.
+    Entries(std::collections::HashMap<String, ShimPolicyValue>),
+}
+
+/// The resolved `globalShims` setting: which globally
+/// installed packages get context-aware shims and under which trust
+/// policy, keyed by the providing package's manifest name (so an entry
+/// for `typescript` covers its `tsc` bin).
+///
+/// The built-in default enables the managed runtimes — `node`, `deno`,
+/// and `bun` — with the [`ShimPolicy::Auto`] policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalShims {
+    entries: std::collections::HashMap<String, ShimPolicy>,
+}
+
+impl Default for GlobalShims {
+    fn default() -> Self {
+        Self {
+            entries: ["node", "deno", "bun"]
+                .into_iter()
+                .map(|name| (name.to_string(), ShimPolicy::Auto))
+                .collect(),
+        }
+    }
+}
+
+impl GlobalShims {
+    /// Fold one configuration layer into the resolved setting. Records
+    /// merge key-wise; the scalar shorthands replace the accumulated
+    /// state (`false` → nothing dispatches, `true` → the defaults).
+    pub fn apply(&mut self, layer: &GlobalShimsSetting) {
+        match layer {
+            GlobalShimsSetting::Toggle(false) => self.entries.clear(),
+            GlobalShimsSetting::Toggle(true) => *self = Self::default(),
+            GlobalShimsSetting::Entries(entries) => {
+                for (name, value) in entries {
+                    self.entries.insert(name.clone(), value.resolve());
+                }
+            }
+        }
+    }
+
+    /// Every package with an entry, and the policy it resolved to.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, ShimPolicy)> {
+        self.entries.iter().map(|(name, policy)| (name.as_str(), *policy))
+    }
+
+    #[must_use]
+    pub fn policy(&self, package_name: &str) -> ShimPolicy {
+        self.entries.get(package_name).copied().unwrap_or(ShimPolicy::Off)
+    }
+
+    #[must_use]
+    pub fn is_enabled(&self, package_name: &str) -> bool {
+        self.policy(package_name) != ShimPolicy::Off
+    }
+
+    /// Whether no package is eligible at all — the dispatcher's cheap
+    /// early exit.
+    #[must_use]
+    pub fn dispatches_nothing(&self) -> bool {
+        self.entries.values().all(|policy| *policy == ShimPolicy::Off)
+    }
 }
 
 /// What to do when the project's `packageManager` /
@@ -296,7 +464,7 @@ pub struct AuditConfig {
     pub ignore_ghsas: Vec<String>,
 }
 
-/// Tri-state mirror of `pacquet_executor::ScriptsPrependNodePath`
+/// Tri-state mirror of `pnpm_executor::ScriptsPrependNodePath`
 /// with serde wiring. The executor crate keeps its own enum free of
 /// serde so config concerns don't leak into the spawn-path. Converted
 /// at the `BuildModules` call site (see `install_frozen_lockfile.rs`)
@@ -610,6 +778,12 @@ pub enum PackageImportMethod {
 /// (project-structural settings).
 #[derive(Debug, Clone, SmartDefault)]
 pub struct Config {
+    /// Whether pnpm is running in a continuous-integration environment.
+    /// Defaults to automatic CI detection and may be overridden through
+    /// configuration.
+    #[default(_code = "default_ci::<Host>(is_ci::cached)")]
+    pub ci: bool,
+
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
     /// This makes unlisted dependencies accessible to all packages inside `node_modules`.
     #[default = true]
@@ -711,13 +885,9 @@ pub struct Config {
     /// project keeps its own virtual store at
     /// `<project>/node_modules/.pnpm`.
     ///
-    /// Default `false` — the effective default for non-`--global`
-    /// installs. The `true` assignment applies only inside the
-    /// `if (cliOptions['global'])` block (see
-    /// `default_enable_global_virtual_store` in
-    /// `crates/config/src/defaults.rs` for the full reasoning).
-    /// Pacquet has no `--global` flow, so the only applicable
-    /// default is `false`.
+    /// Defaults to `true`, in every environment. The TypeScript CLI
+    /// defaults it off — see `default_enable_global_virtual_store` in
+    /// `crates/config/src/defaults.rs` for why the two majors differ.
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
 
@@ -731,11 +901,13 @@ pub struct Config {
     /// `SmartDefault` value is overwritten there with the path derived
     /// from the resolved `store_dir` / `virtual_store_dir`. The default
     /// here is only meaningful when `Config::new()` is used in isolation
-    /// (mostly tests).
+    /// (mostly tests), and matches the derivation's own fallback so
+    /// such a config never points the shared store at the working
+    /// directory.
     ///
     /// [`enable_global_virtual_store`]: Self::enable_global_virtual_store
     /// [`virtual_store_dir`]: Self::virtual_store_dir
-    #[default(_code = "default_virtual_store_dir()")]
+    #[default(_code = "default_store_dir::<Host>().links()")]
     pub global_virtual_store_dir: PathBuf,
 
     /// `virtualStoreOnly`: populate the virtual store but perform no
@@ -747,7 +919,7 @@ pub struct Config {
     /// patterns when this is set. Combining it with
     /// `enable_modules_dir: false` while the global virtual store is
     /// off is a config conflict, rejected by
-    /// `pacquet_package_manager::Install::run`.
+    /// `pnpm_package_manager::Install::run`.
     pub virtual_store_only: bool,
 
     /// `enableModulesDir`: pnpm's setting for suppressing the
@@ -756,7 +928,7 @@ pub struct Config {
     /// A `false` value (with the global virtual store off) makes the
     /// install "resolve and write the lockfile, materialize nothing" —
     /// it rides the `--lockfile-only` pipeline in
-    /// `pacquet_package_manager::Install::run`. With the global virtual
+    /// `pnpm_package_manager::Install::run`. With the global virtual
     /// store on, materialization proceeds into the store (pnpm's
     /// `enableModulesDir !== false || enableGlobalVirtualStore` gate).
     /// It also gates the [`virtual_store_only`] config conflict (a
@@ -787,6 +959,14 @@ pub struct Config {
     /// Populated by [`Config::current`]; global add/remove/update require it
     /// (pnpm's `NO_GLOBAL_BIN_DIR` when absent).
     pub global_bin: Option<PathBuf>,
+
+    /// `globalShims`, resolved: which globally installed
+    /// packages get context-aware shims and under which trust policy,
+    /// keyed by package name and merged key-wise across the
+    /// configuration layers over the built-in
+    /// `{ node: true, deno: true, bun: true }`. See
+    /// [`GlobalShims`].
+    pub global_shims: GlobalShims,
 
     /// Controls the way packages are imported from the store (if you want to disable symlinks
     /// inside `node_modules`, then you need to change the node-linker setting, not this one).
@@ -820,7 +1000,7 @@ pub struct Config {
 
     /// Cap on the rendered peer-suffix length before the suffix is
     /// replaced with a short hash. Threaded into
-    /// `pacquet_deps_path::create_peer_dep_graph_hash` — when the
+    /// `pnpm_deps_path::create_peer_dep_graph_hash` — when the
     /// flattened `(peer@ver)(peer@ver)…` string exceeds this many
     /// bytes, pacquet swaps it for a 32-char sha256 hash so
     /// virtual-store paths stay under the OS component-name limit.
@@ -965,9 +1145,9 @@ pub struct Config {
     pub scope: Option<String>,
 
     /// Scoped registry routes keyed by `@scope`, populated from
-    /// `.npmrc` `@scope:registry=...` and
-    /// `pnpm-workspace.yaml#registries`.
-    pub registries: BTreeMap<String, String>,
+    /// `.npmrc` `@scope:registry=...` and the scopes a
+    /// `pnpm-workspace.yaml#registries` entry declares.
+    pub registries_by_scope: BTreeMap<String, String>,
 
     /// User-defined named-registry aliases from
     /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
@@ -977,17 +1157,27 @@ pub struct Config {
     /// GitHub Packages) and rejects malformed URLs at construction
     /// time with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
     ///
-    /// The `namedRegistries` setting.
-    pub named_registries: BTreeMap<String, String>,
+    /// The `prefix` a `registries` entry declares, or the deprecated
+    /// `namedRegistries` setting.
+    pub registries_by_prefix: BTreeMap<String, String>,
+
+    /// Non-secret per-registry settings from
+    /// `pnpm-workspace.yaml#registries`, keyed by registry URL with a
+    /// trailing slash. Deliberately separate from the auth config: that one
+    /// carries credentials, and the install and lockfile layers that need a
+    /// registry's tarball layout must not be handed its secrets.
+    ///
+    /// The `registries` setting.
+    pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
 
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),
     /// all from `.npmrc` and the process environment. The type lives
-    /// in `pacquet-network` (where it is consumed by
-    /// `ThrottledClient::for_installs`) because `pacquet-config`
-    /// already depends on `pacquet-network` for auth-headers plumbing.
+    /// in `pnpm-network` (where it is consumed by
+    /// `ThrottledClient::for_installs`) because `pnpm-config`
+    /// already depends on `pnpm-network` for auth-headers plumbing.
     /// Default is empty (`None` for every field) — i.e. no proxy.
-    pub proxy: pacquet_network::ProxyConfig,
+    pub proxy: pnpm_network::ProxyConfig,
 
     /// Every proxy key as written, merged across config layers.
     /// [`Self::proxy`] is its resolution — see [`crate::proxy_keys`].
@@ -995,11 +1185,11 @@ pub struct Config {
 
     /// Resolved TLS + `local-address` configuration — `ca`, `cafile`,
     /// `cert`, `key`, `strict-ssl`, `local-address` from `.npmrc`. The
-    /// type lives in `pacquet-network` for the same reason as
+    /// type lives in `pnpm-network` for the same reason as
     /// [`Self::proxy`]. `strict_ssl: None` here means "unset"; the
     /// `true` default is applied at client-build time by
     /// `ThrottledClient::for_installs` (`strictSsl ?? true`).
-    pub tls: pacquet_network::TlsConfig,
+    pub tls: pnpm_network::TlsConfig,
 
     /// Per-registry TLS overrides — `//host[:port]/path/:ca`,
     /// `:cafile`, `:cert`, `:certfile`, `:key`, `:keyfile` from
@@ -1008,7 +1198,7 @@ pub struct Config {
     /// recursive no-port retry). Per-registry fields override
     /// [`Self::tls`] field-by-field at request time (a
     /// `{ ...opts, ...sslConfig }` spread).
-    pub tls_by_uri: pacquet_network::PerRegistryTls,
+    pub tls_by_uri: pnpm_network::PerRegistryTls,
 
     /// When true, any missing non-optional peer dependencies are automatically installed.
     #[default = true]
@@ -1051,7 +1241,7 @@ pub struct Config {
     /// `dependencies` semantics. Default [`HoistingLimits::None`]
     /// (hoist as far as possible). Translated into the hoister's
     /// per-locator border map by `crate::get_hoisting_limits` in
-    /// `pacquet-package-manager`. No effect under
+    /// `pnpm-package-manager`. No effect under
     /// `nodeLinker: isolated`.
     pub hoisting_limits: HoistingLimits,
 
@@ -1230,7 +1420,7 @@ pub struct Config {
     /// The value is the count of *retries*, so total attempts =
     /// `fetch_retries + 1`.
     ///
-    /// Today this only gates the `pacquet-tarball` download path;
+    /// Today this only gates the `pnpm-tarball` download path;
     /// `crates/registry`'s metadata fetches still issue a single request.
     /// Threading the same retry policy through the registry client is a
     /// follow-up.
@@ -1261,11 +1451,11 @@ pub struct Config {
     pub fetch_retry_maxtimeout: u64,
 
     /// Maximum number of concurrent network requests pacquet keeps
-    /// in flight during install — the size of the [`pacquet_network`]
+    /// in flight during install — the size of the [`pnpm_network`]
     /// semaphore. The `networkConcurrency` setting; the default is the
     /// `Math.min(96, Math.max(calcMaxWorkers() * 3, 64))` formula,
-    /// implemented by [`pacquet_network::default_network_concurrency`].
-    #[default(_code = "pacquet_network::default_network_concurrency()")]
+    /// implemented by [`pnpm_network::default_network_concurrency`].
+    #[default(_code = "pnpm_network::default_network_concurrency()")]
     pub network_concurrency: usize,
 
     /// Maximum number of concurrent connections (sockets) to a single
@@ -1278,7 +1468,7 @@ pub struct Config {
 
     /// Per-request network timeout in milliseconds. The `fetchTimeout`
     /// setting (default `60000` — 60 s, see
-    /// [`pacquet_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
+    /// [`pnpm_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
     /// the response and connect deadline of the reqwest client.
     #[default(_code = "default_fetch_timeout()")]
     pub fetch_timeout: u64,
@@ -1356,7 +1546,7 @@ pub struct Config {
     /// (or `name@version` keys) that are allowed to run lifecycle
     /// scripts. pnpm 11 denies scripts by default; the allow-list is
     /// the opt-in mechanism. Consumed by `AllowBuildPolicy::from_config`
-    /// in `pacquet-package-manager`.
+    /// in `pnpm-package-manager`.
     ///
     /// Default empty.
     pub allow_builds: HashMap<String, bool>,
@@ -1381,6 +1571,16 @@ pub struct Config {
     /// The during-install build loop skips its allow-build gate entirely
     /// when set, leaving `ignoredBuilds` empty. Default `false`.
     pub ignore_scripts: bool,
+
+    /// `--ignore-pnpmfile`. When `true`, no pnpmfile hooks run: neither
+    /// the workspace-root `.pnpmfile.{cjs,mjs}` nor the pnpmfiles of
+    /// config-dependency plugins are loaded, so `readPackage`,
+    /// `updateConfig`, `afterAllResolved`, custom resolvers and custom
+    /// fetchers are all skipped. A CLI-only boolean: pnpm excludes
+    /// `ignore-pnpmfile` from its config-file keys, so the yaml / env
+    /// overlay never populates it — the CLI layer sets it from the flag.
+    /// Default `false`.
+    pub ignore_pnpmfile: bool,
 
     /// `gitChecks` (`--no-git-checks`). When `true` (the default),
     /// `pnpm publish` verifies the git working tree is clean, on the
@@ -1407,9 +1607,9 @@ pub struct Config {
     ///
     /// Kept as the raw string because pnpm assigns a configured `access`
     /// unchecked and sends whatever it finds to the registry — see
-    /// `pacquet_publish::resolve_access`, which forwards this value verbatim
+    /// `pnpm_publish::resolve_access`, which forwards this value verbatim
     /// and validates only the manifest's `publishConfig.access` against the
-    /// closed set in `pacquet_publish::Access`.
+    /// closed set in `pnpm_publish::Access`.
     ///
     /// One layer is an exception: `PNPM_CONFIG_ACCESS` is constrained to that
     /// set in the env overlay, mirroring pnpm's typed env pass.
@@ -1436,7 +1636,7 @@ pub struct Config {
     ///
     /// `PNPM_CONFIG_OTP` reaches this field through the ordinary env overlay,
     /// so it is normally already resolved by the time
-    /// `pacquet_publish::resolve_otp_from_env` runs. That second read is kept
+    /// `pnpm_publish::resolve_otp_from_env` runs. That second read is kept
     /// because pnpm applies the same one in `optionsWithOtpEnv`, and it is not
     /// dead: both treat an empty value as unset, so an env var holding only an
     /// unset `${VAR}` collapses to `""` here and the raw, unexpanded variable
@@ -1476,7 +1676,7 @@ pub struct Config {
     /// scripts and spawned child processes of a command. Empty by
     /// default. Not a `pnpm-workspace.yaml` key — the only way to
     /// populate it is an `updateConfig` pnpmfile hook that returns an
-    /// `extraEnv` object, wired up in `pacquet_cli`'s
+    /// `extraEnv` object, wired up in `pnpm_cli`'s
     /// `run_update_config_hooks`. That hook runs only for the
     /// install-family commands (install, deploy, dedupe, prune), so this
     /// is non-empty only under those; other commands' spawn sites read it
@@ -1487,7 +1687,7 @@ pub struct Config {
     /// lifecycle scripts run under a TMPDIR isolated to
     /// `node_modules/.tmp` and uid/gid drops to a non-root user.
     /// Pacquet honors the TMPDIR side (see
-    /// `pacquet_executor::make_env`); the uid/gid drop is a no-op in
+    /// `pnpm_executor::make_env`); the uid/gid drop is a no-op in
     /// practice because the npm-lifecycle fork never populates
     /// `opts.user` / `opts.group`, so it just re-applies the current
     /// process's uid/gid.
@@ -1547,7 +1747,7 @@ pub struct Config {
 
     /// `--filter` selectors, one raw selector string per entry
     /// (`@scope/*`, `./pkg`, `foo...`, `!bar`, ...), parsed by
-    /// `pacquet-workspace-projects-filter`. A CLI-only array: not a
+    /// `pnpm-workspace-projects-filter`. A CLI-only array: not a
     /// `.npmrc` / `pnpm-workspace.yaml` key, so only the CLI layer
     /// populates it.
     pub filter: Vec<String>,
@@ -1568,6 +1768,12 @@ pub struct Config {
     /// all match, the project is selected without its dependents.
     pub test_pattern: Vec<String>,
 
+    /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` /
+    /// `PNPM_CONFIG_SYNC_INJECTED_DEPS_AFTER_SCRIPTS`. Names the scripts
+    /// after which every injected copy of the package that ran them is
+    /// re-synced from its source.
+    pub sync_injected_deps_after_scripts: Vec<String>,
+
     /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_CHANGED_FILES_IGNORE_PATTERN`, overridable by the
     /// `--changed-files-ignore-pattern` CLI flag. Glob patterns of
@@ -1587,14 +1793,14 @@ pub struct Config {
 
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Threaded
     /// into the installability check at install time (via
-    /// `pacquet-package-manager`'s `InstallabilityHost`, downstream of
+    /// `pnpm-package-manager`'s `InstallabilityHost`, downstream of
     /// this crate) so optional platform-tagged dependencies for the
     /// listed `os` / `cpu` / `libc` values are kept even when they
     /// don't match the host triple. Per-axis CLI flags (`--cpu`,
     /// `--libc`, `--os`) override individual axes.
     /// Default `None` so the host triple is the sole accept set
     /// when neither yaml nor CLI sets a value.
-    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
 
     /// `ignoredOptionalDependencies` from `pnpm-workspace.yaml`. A
     /// list of dep-name patterns the user wants entirely excluded
@@ -1672,6 +1878,14 @@ pub struct Config {
     /// [`minimum_release_age`]: Self::minimum_release_age
     pub minimum_release_age_exclude: Option<Vec<String>>,
 
+    /// When `true`, `add` / `remove` / `update` prune
+    /// [`Self::minimum_release_age_exclude`] entries in
+    /// `pnpm-workspace.yaml` whose versions the freshly resolved
+    /// lockfile no longer records, once the install has written that
+    /// lockfile. The `minimumReleaseAgeExcludePrune` setting;
+    /// default `false`, matching pnpm.
+    pub minimum_release_age_exclude_prune: bool,
+
     /// When the registry's metadata lacks the per-version `time`
     /// field (some self-hosted registries strip it), the verifier
     /// cannot enforce the maturity cutoff. With this flag set,
@@ -1740,7 +1954,7 @@ pub struct Config {
 
     /// `versioning` from `pnpm-workspace.yaml`: native workspace release
     /// management, consumed by `pnpm change` and the bare `pnpm version -r`.
-    pub versioning: pacquet_versioning::VersioningSettings,
+    pub versioning: pnpm_versioning::VersioningSettings,
 
     /// Glob-style `name[@version]` patterns that opt specific packages
     /// out of the [`trust_policy`] check. The `trustPolicyExclude`
@@ -1768,10 +1982,11 @@ pub struct Config {
     pub catalog_mode: CatalogMode,
 
     /// When `true`, commands that persist the workspace manifest
-    /// (`add`, `remove`, `update`) also drop catalog entries that no
-    /// workspace project references. The `cleanupUnusedCatalogs`
-    /// setting; default `false`, matching pnpm.
-    pub cleanup_unused_catalogs: bool,
+    /// (`add`, `remove`, `update`) also drop entries of the `catalog:`
+    /// and `catalogs:` blocks that no workspace project references. The
+    /// `catalogPrune` setting (formerly `cleanupUnusedCatalogs`, still
+    /// accepted); default `false`, matching pnpm.
+    pub catalog_prune: bool,
 
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
@@ -1781,7 +1996,7 @@ pub struct Config {
     /// hook produced (existing + injected), so the install uses it as-is
     /// — the counterpart to pnpm's `config.catalogs` after the
     /// `updateConfig` pass.
-    pub catalogs: Option<pacquet_catalogs_types::Catalogs>,
+    pub catalogs: Option<pnpm_catalogs_types::Catalogs>,
 
     /// Name of the catalog `pnpm add` saves a new dependency into,
     /// set by `--save-catalog-name=<name>` (with `--save-catalog` a
@@ -1851,9 +2066,9 @@ pub struct Config {
     /// Per-registry `Authorization` header lookup, populated from
     /// `.npmrc` auth keys (`_auth`, `_authToken`, `username`/`_password`,
     /// scoped variants). Threaded through the network and tarball
-    /// fetchers via [`pacquet_network::AuthHeaders::for_url`]. Empty
+    /// fetchers via [`pnpm_network::AuthHeaders::for_url`]. Empty
     /// when no `.npmrc` was found or no auth keys were set.
-    pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
+    pub auth_headers: std::sync::Arc<pnpm_network::AuthHeaders>,
 
     /// Raw `_authToken` values keyed by the nerf-darted registry URI
     /// (`//host[:port]/path/`), for the default (registry-wide) scope.
@@ -1905,13 +2120,13 @@ pub struct PackageManagerBootstrap {
     pub registry: String,
     /// Scoped registry routes (keyed by `@scope`), excluding `default`.
     pub registries: BTreeMap<String, String>,
-    pub proxy: pacquet_network::ProxyConfig,
+    pub proxy: pnpm_network::ProxyConfig,
     /// The trusted layers' merged proxy keys, of which [`Self::proxy`]
     /// is the resolution — see [`crate::proxy_keys`].
     pub proxy_keys: crate::proxy_keys::ProxyKeys,
-    pub tls: pacquet_network::TlsConfig,
-    pub tls_by_uri: pacquet_network::PerRegistryTls,
-    pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
+    pub tls: pnpm_network::TlsConfig,
+    pub tls_by_uri: pnpm_network::PerRegistryTls,
+    pub auth_headers: std::sync::Arc<pnpm_network::AuthHeaders>,
 }
 
 impl PackageManagerBootstrap {
@@ -1929,6 +2144,21 @@ impl Config {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The registries this config declares, in the shape the `registries`
+    /// setting is written in — what a pnpr server is told about them.
+    ///
+    /// The default registry is not among them: it travels as the request's
+    /// own `registry` field.
+    #[must_use]
+    pub fn registry_declarations(&self) -> BTreeMap<String, RegistryDeclaration> {
+        registries::to_declarations(&RegistryLookups {
+            registries_by_scope: self.registries_by_scope.clone(),
+            default_registry: None,
+            registries_by_prefix: self.registries_by_prefix.clone(),
+            registry_options_by_url: self.registry_options_by_url.clone(),
+        })
     }
 
     /// Overlay the CLI's proxy flags onto the merged keys and re-resolve.
@@ -2022,7 +2252,7 @@ impl Config {
     /// configured scoped routes keyed by `@scope`.
     #[must_use]
     pub fn resolved_registries(&self) -> BTreeMap<String, String> {
-        let mut registries = self.registries.clone();
+        let mut registries = self.registries_by_scope.clone();
         registries.insert("default".to_string(), self.registry.clone());
         registries
     }
@@ -2079,7 +2309,7 @@ impl Config {
     ///   yaml-pinned path) and writes the GVS path into the separate
     ///   `global_virtual_store_dir` field. The install layer picks the
     ///   right field through [`crate::Config::enable_global_virtual_store`]
-    ///   (or, in practice, through `pacquet_package_manager::VirtualStoreLayout`).
+    ///   (or, in practice, through `pnpm_package_manager::VirtualStoreLayout`).
     ///
     /// The reason: pacquet still has a non-frozen
     /// `InstallWithFreshLockfile` path that pnpm doesn't have.
@@ -2115,6 +2345,21 @@ impl Config {
             } else {
                 self.store_dir.links()
             };
+    }
+
+    /// [`Config::extra_env`] with the `nodeOptions` setting applied as
+    /// `NODE_OPTIONS`, preserving the ESM `NODE_PATH` loader flag the
+    /// `extra_env` carries under a global virtual store.
+    pub fn extra_env_with_node_options(&self) -> HashMap<String, String> {
+        let mut extra_env = self.extra_env.clone();
+        if let Some(node_options) = &self.node_options {
+            let node_options = esm_node_path_loader::keep_esm_node_path_loader_option(
+                node_options,
+                self.extra_env.get("NODE_OPTIONS").map(String::as_str),
+            );
+            extra_env.insert("NODE_OPTIONS".to_string(), node_options);
+        }
+        extra_env
     }
 
     /// Clear both hoist patterns when [`virtual_store_only`] is set.
@@ -2602,6 +2847,10 @@ impl Config {
             // writes it) never runs.
             self.workspace_dir = Some(base_dir.clone());
             if let Some(mut settings) = settings {
+                // CI detection is process state. A repository-controlled
+                // manifest must not be able to turn it off; trusted global
+                // config and PNPM_CONFIG_CI are applied in their own layers.
+                settings.ci = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
@@ -2664,7 +2913,7 @@ impl Config {
         if let Some(registry) = env_registry_override {
             let normalized =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };
-            self.registries.insert("default".to_string(), normalized.clone());
+            self.registries_by_scope.insert("default".to_string(), normalized.clone());
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
         }
@@ -2736,6 +2985,42 @@ impl Config {
             .map(|dir| vec![dir.join("node_modules").join(".bin")])
             .unwrap_or_default();
 
+        // With a global virtual store, package directories live outside the
+        // project, so Node's upward node_modules walk from their real paths
+        // never reaches the project's hoisted node_modules or root
+        // node_modules. Expose both through NODE_PATH for every child
+        // process pnpm spawns, and register the ESM loader that restores
+        // NODE_PATH lookups for ESM imports. Mirrors the pnpm config
+        // reader (`pnpm11/config/reader/src/index.ts`).
+        if self.enable_global_virtual_store
+            && self.extend_node_path
+            && self.node_linker == NodeLinker::Isolated
+        {
+            let path_delimiter = if cfg!(windows) { ';' } else { ':' };
+            let mut node_paths: Vec<String> = self
+                .extra_env
+                .get("NODE_PATH")
+                .map(|value| value.split(path_delimiter).map(str::to_string).collect())
+                .unwrap_or_default();
+            for dir in [self.virtual_store_dir.join("node_modules"), self.modules_dir.clone()] {
+                // `virtual_store_dir` is built by joining a multi-segment
+                // literal, which keeps `/` separators on Windows; normalize
+                // so NODE_PATH carries native separators like the shims do.
+                let dir = pnpm_fs::lexical_normalize(&dir).display().to_string();
+                if !node_paths.contains(&dir) {
+                    node_paths.push(dir);
+                }
+            }
+            let node_paths = node_paths.join(&path_delimiter.to_string());
+            self.extra_env.insert("NODE_PATH".to_string(), node_paths);
+            self.extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                esm_node_path_loader::add_esm_node_path_loader_option(
+                    Sys::var("NODE_OPTIONS").as_deref(),
+                ),
+            );
+        }
+
         Ok(self)
     }
 
@@ -2786,7 +3071,7 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     trusted_auth.build_auth_headers(&mut config)?;
     Ok(PackageManagerBootstrap {
         registry: config.registry,
-        registries: config.registries,
+        registries: config.registries_by_scope,
         proxy: config.proxy,
         proxy_keys: config.proxy_keys,
         tls: config.tls,

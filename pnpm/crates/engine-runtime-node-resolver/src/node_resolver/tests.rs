@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
 
 use super::{
-    NodeResolver, NodeResolverError, bin_spec_for_platform,
-    normalize_node_runtime_version_specifier, parse_node_file_name, read_node_assets_from_mirror,
+    NodeResolver, NodeResolverError, bin_spec_for_platform, exact_release_version,
+    normalize_node_runtime_version_specifier, parse_node_file_name, parse_node_specifier,
+    read_node_assets_from_mirror,
 };
 
 fn resolver() -> NodeResolver {
@@ -81,7 +82,7 @@ fn parses_node_file_names() {
 
 #[test]
 fn bin_spec_is_a_named_map() {
-    use pacquet_lockfile::BinarySpec;
+    use pnpm_lockfile::BinarySpec;
     use std::collections::BTreeMap;
 
     assert_eq!(
@@ -197,10 +198,10 @@ async fn release_asset_reader_requires_signature_when_requested() {
         "22.11.0",
         false,
         true,
+        None,
     )
     .await
     .expect_err("stable release assets must require a SHASUMS signature");
-    let err = err.downcast_ref::<NodeResolverError>().expect("NodeResolverError");
 
     assert!(matches!(err, NodeResolverError::FetchVerifiedNodeShasums(_)));
 }
@@ -220,11 +221,153 @@ async fn prerelease_asset_reader_does_not_require_signature() {
         "22.11.0",
         false,
         false,
+        None,
     )
     .await
     .expect("unsigned channels use the raw SHASUMS file");
 
     assert_eq!(assets.len(), 1);
+}
+
+#[test]
+fn exact_release_versions_are_their_own_resolution() {
+    let exact = |specifier: &str| {
+        exact_release_version(&parse_node_specifier(specifier).expect("valid specifier"))
+    };
+    assert_eq!(exact("22.11.0").as_deref(), Some("22.11.0"));
+    assert_eq!(exact("release/22.11.0").as_deref(), Some("22.11.0"));
+    assert_eq!(exact("^22.11.0"), None);
+    assert_eq!(exact("22.11"), None);
+    assert_eq!(exact("v22.11.0"), None);
+    assert_eq!(exact("22.11.0-rc.1"), None);
+    assert_eq!(exact("rc/22.11.0"), None);
+    assert_eq!(exact("latest"), None);
+    assert_eq!(exact("lts"), None);
+}
+
+/// An exact stable version is saved verbatim without consulting the
+/// release index: the mirror here is unroutable, so any network access
+/// would fail the call.
+#[tokio::test]
+async fn resolve_save_specifier_saves_an_exact_version_without_network() {
+    let mut resolver = resolver();
+    resolver
+        .node_download_mirrors
+        .insert("release".to_string(), "http://127.0.0.1:9/download/release/".to_string());
+
+    assert_eq!(resolver.resolve_save_specifier("22.11.0", None).await.unwrap(), "runtime:22.11.0");
+}
+
+/// An exact-version resolve skips the release index, so a nonexistent
+/// version first fails its asset fetch; the resolver must then consult
+/// the index and raise the canonical not-found error rather than the
+/// raw fetch failure.
+#[tokio::test]
+async fn exact_resolve_of_a_nonexistent_version_raises_version_not_found() {
+    let mut server = mockito::Server::new_async().await;
+    let _shasums = server
+        .mock("GET", "/download/release/v22.99.0/SHASUMS256.txt")
+        .with_status(404)
+        .create_async()
+        .await;
+    let index = server
+        .mock("GET", "/download/release/index.json")
+        .with_status(200)
+        .with_body(r#"[{"version": "v22.11.0", "lts": false}]"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let mut resolver = resolver();
+    resolver
+        .node_download_mirrors
+        .insert("release".to_string(), format!("{}/download/release/", server.url()));
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("runtime:22.99.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let err = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    let code: &dyn miette::Diagnostic =
+        err.downcast_ref::<NodeResolverError>().expect("error is a NodeResolverError");
+    assert_eq!(
+        code.code().map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_NODEJS_VERSION_NOT_FOUND"),
+    );
+    index.assert_async().await;
+}
+
+/// When the index confirms the exact version exists, the asset-fetch
+/// failure is the real error and must surface unchanged.
+#[tokio::test]
+async fn exact_resolve_keeps_the_asset_error_when_the_version_exists() {
+    let mut server = mockito::Server::new_async().await;
+    let _shasums = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
+        .with_status(500)
+        .create_async()
+        .await;
+    let _index = server
+        .mock("GET", "/download/release/index.json")
+        .with_status(200)
+        .with_body(r#"[{"version": "v22.11.0", "lts": false}]"#)
+        .create_async()
+        .await;
+    let mut resolver = resolver();
+    resolver
+        .node_download_mirrors
+        .insert("release".to_string(), format!("{}/download/release/", server.url()));
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("runtime:22.11.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let err = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    let err = err.downcast_ref::<NodeResolverError>().expect("error is a NodeResolverError");
+    assert!(matches!(err, NodeResolverError::FetchVerifiedNodeShasums(_)));
+}
+
+/// A SHASUMS body cached by an earlier resolve serves the next one
+/// without any network access: the mock expects exactly one hit.
+#[tokio::test]
+async fn asset_reader_serves_repeat_reads_from_the_cache() {
+    let mut server = mockito::Server::new_async().await;
+    let shasums = server
+        .mock("GET", "/download/rc/v22.11.0/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(SHASUMS_WITH_ONE_NODE_ASSET)
+        .expect(1)
+        .create_async()
+        .await;
+    let cache_dir = tempfile::tempdir().expect("create temp cache dir");
+    let client = ThrottledClient::new_for_installs();
+    let mirror = format!("{}/download/rc/", server.url());
+
+    let fetched = read_node_assets_from_mirror(
+        &client,
+        &mirror,
+        "22.11.0",
+        false,
+        false,
+        Some(cache_dir.path()),
+    )
+    .await
+    .expect("fetch the asset list");
+    let cached = read_node_assets_from_mirror(
+        &client,
+        &mirror,
+        "22.11.0",
+        false,
+        false,
+        Some(cache_dir.path()),
+    )
+    .await
+    .expect("serve the asset list from the cache");
+
+    assert_eq!(fetched.len(), 1);
+    assert_eq!(cached.len(), 1);
+    shasums.assert_async().await;
 }
 
 const SHASUMS_WITH_ONE_NODE_ASSET: &str = "\

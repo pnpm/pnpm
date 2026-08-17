@@ -1,8 +1,8 @@
 //! retrieve an OIDC id-token from the CI
 //! environment.
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_reporter::Reporter;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_reporter::Reporter;
 use url::Url;
 
 use crate::{

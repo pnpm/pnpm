@@ -1,5 +1,5 @@
 use clap::Args;
-use pacquet_config::{Config, check_global_bin_dir};
+use pnpm_config::{Config, check_global_bin_dir};
 use std::path::Path;
 
 use super::global::GlobalError;
@@ -18,7 +18,7 @@ impl BinArgs {
             let bin = config.global_bin.clone().ok_or(GlobalError::NoGlobalBinDir)?;
             // Mirror pnpm's config reader: create then validate the global bin
             // dir for every `--global` command. `should_allow_write` is true for
-            // all but `root`, so `bin` checks writability too.
+            // all but `root` and `prefix`, so `bin` checks writability too.
             std::fs::create_dir_all(&bin).map_err(|error| {
                 let bin_dir = bin.display();
                 miette::miette!("failed to create the global bin directory {bin_dir}: {error}")

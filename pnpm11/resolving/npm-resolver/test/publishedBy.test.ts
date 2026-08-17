@@ -6,7 +6,7 @@ import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import semver from 'semver'
 import { temporaryDirectory } from 'tempy'
@@ -15,7 +15,7 @@ import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } fr
 
 const f = fixtures(import.meta.dirname)
 
-const registries: Registries = {
+const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
@@ -38,7 +38,7 @@ beforeEach(async () => {
 })
 
 test('fall back to a newer version if there is no version published by the given date', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/bad-dates', method: 'GET' })
     .reply(200, badDatesMeta)
 
@@ -48,7 +48,7 @@ test('fall back to a newer version if there is no version published by the given
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'bad-dates', bareSpecifier: '^1.0.0' }, {
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
@@ -72,7 +72,7 @@ test('request metadata when the one in cache does not have a version satisfying 
     'utf8'
   )
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/bad-dates', method: 'GET' })
     .reply(200, badDatesMeta)
 
@@ -81,7 +81,7 @@ test('request metadata when the one in cache does not have a version satisfying 
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'bad-dates', bareSpecifier: '^1.0.0' }, {
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
@@ -117,7 +117,7 @@ test('reports an immature pick via policyViolation even when loaded from cache a
     'utf8'
   )
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/foo', method: 'GET' })
     .reply(200, fooMeta)
 
@@ -129,7 +129,7 @@ test('reports an immature pick via policyViolation even when loaded from cache a
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const result = await resolveFromNpm({ alias: 'foo', bareSpecifier: '1.0.0' }, {
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
@@ -149,7 +149,7 @@ test('should skip time field validation for excluded packages', async () => {
   fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
   fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/is-positive.jsonl`), JSON.stringify(metaWithoutTime), 'utf8')
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, metaWithoutTime)
 
@@ -158,7 +158,7 @@ test('should skip time field validation for excluded packages', async () => {
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
 
   const publishedByExclude = (pkgName: string) => pkgName === 'is-positive'
@@ -175,7 +175,7 @@ test('should skip time field validation for excluded packages', async () => {
 test('use abbreviated metadata when modified date is older than publishedBy', async () => {
   // is-positive abbreviated has modified: "2017-08-17T19:26:00.508Z"
   // publishedBy is set to 2018, so modified < publishedBy → all versions are old enough
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveAbbreviatedMeta)
 
@@ -183,7 +183,7 @@ test('use abbreviated metadata when modified date is older than publishedBy', as
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     publishedBy: new Date('2018-01-01T00:00:00.000Z'),
@@ -199,7 +199,7 @@ test('use abbreviated metadata when modified date equals publishedBy (boundary c
   // shortcut, not throw MISSING_TIME or re-fetch full metadata: `modified`
   // is an upper bound on every version's publish time, so the boundary
   // case is mature under the per-version `<=` filter.
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveAbbreviatedMeta)
 
@@ -207,7 +207,7 @@ test('use abbreviated metadata when modified date equals publishedBy (boundary c
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     publishedBy: new Date('2017-08-17T19:26:00.508Z'),
@@ -224,7 +224,7 @@ test('re-fetch full metadata when abbreviated modified date is recent', async ()
     modified: '2015-06-10T00:00:00.000Z',
   }
 
-  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   // First request: abbreviated
   agent.intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, recentAbbreviated)
@@ -236,7 +236,7 @@ test('re-fetch full metadata when abbreviated modified date is recent', async ()
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
   // publishedBy is 2015-06-05, modified is 2015-06-10 → modified >= publishedBy → needs full
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
@@ -251,7 +251,7 @@ test('re-fetch full metadata when abbreviated modified date is recent', async ()
 test('ignoreMissingTimeField=true skips maturity check when full metadata has no time field', async () => {
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, metaWithoutTime)
 
@@ -261,7 +261,7 @@ test('ignoreMissingTimeField=true skips maturity check when full metadata has no
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
     ignoreMissingTimeField: true,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
@@ -285,7 +285,7 @@ test('ignoreMissingTimeField=true still upgrades abbreviated→full when time is
     modified: '2015-06-10T00:00:00.000Z',
   }
 
-  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   agent.intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, recentAbbreviated)
   agent.intercept({ path: '/is-positive', method: 'GET' })
@@ -295,7 +295,7 @@ test('ignoreMissingTimeField=true still upgrades abbreviated→full when time is
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
     ignoreMissingTimeField: true,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
@@ -309,7 +309,7 @@ test('ignoreMissingTimeField=true still upgrades abbreviated→full when time is
 test('ignoreMissingTimeField=false throws when full metadata has no time field', async () => {
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, metaWithoutTime)
 
@@ -319,7 +319,7 @@ test('ignoreMissingTimeField=false throws when full metadata has no time field',
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
     ignoreMissingTimeField: false,
   })
   await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
@@ -346,7 +346,7 @@ test('ignoreMissingTimeField=true skips maturity check from disk-cached metadata
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
     ignoreMissingTimeField: true,
     offline: true,
   })
@@ -393,14 +393,14 @@ test('falls through to the registry fetch when cached abbreviated meta lacks tim
 
   // Mock the network fetch (the path the fix lets us fall through to). Returns
   // full metadata with the `time` field present.
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
     ignoreMissingTimeField: true,
   })
 
@@ -434,14 +434,14 @@ test('falls through to the registry fetch even with default ignoreMissingTimeFie
     'utf8'
   )
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
 
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.0.0' }, {
@@ -482,7 +482,7 @@ test('upgrades cached abbreviated metadata to full when 304 Not Modified and pub
 
   // First fetch: conditional request with the cached etag → 304 Not Modified.
   // Second fetch: upgrade request with `fullMetadata: true` → 200 with time-bearing full metadata.
-  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   agent.intercept({
     path: '/is-positive',
     method: 'GET',
@@ -494,7 +494,7 @@ test('upgrades cached abbreviated metadata to full when 304 Not Modified and pub
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
   // publishedBy is 2015-06-05, cached meta `modified` is 2015-06-10 → upgrade triggers.
   // is-positive@1.0.0 (2015-06-02) is mature; @3.1.0 (2015-08-21) is not.
@@ -529,7 +529,7 @@ test('use cached metadata based on file mtime when publishedBy is set', async ()
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
   // publishedBy in the past relative to file mtime (file was just written = now)
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
@@ -567,14 +567,14 @@ test('excluded packages bypass the mtime cache shortcut and refresh stale metada
   fs.utimesSync(cachePath, forcedMtime, forcedMtime)
 
   // Network has fresh metadata with 3.1.0 as latest.
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveAbbreviatedMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     // Mirror mtime is explicitly set after this cutoff to guarantee the
@@ -595,7 +595,7 @@ test('latest is suppressed when publishedBy holds back the registry latest', asy
   // 2015-10-01 leaves 3.1.0 immature, so the '(X is available)' hint must not
   // fire: latest only ever names the actual latest tag, and here the policy
   // itself would refuse to install it.
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -605,7 +605,7 @@ test('latest is suppressed when publishedBy holds back the registry latest', asy
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     publishedBy: new Date('2015-10-01T00:00:00.000Z'),
@@ -616,7 +616,7 @@ test('latest is suppressed when publishedBy holds back the registry latest', asy
 })
 
 test('latest is the raw registry tag when it satisfies publishedBy', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -626,7 +626,7 @@ test('latest is the raw registry tag when it satisfies publishedBy', async () =>
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.0.0' }, {
     publishedBy: new Date('2016-02-01T00:00:00.000Z'),
@@ -637,7 +637,7 @@ test('latest is the raw registry tag when it satisfies publishedBy', async () =>
 })
 
 test('latest is the raw registry tag when publishedBy is not set', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -647,7 +647,7 @@ test('latest is the raw registry tag when publishedBy is not set', async () => {
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {})
 
@@ -659,7 +659,7 @@ test('latest is the raw registry tag when publishedByExclude fully excludes the 
   // The exclude policy returns true for is-positive, so the maturity policy
   // does not apply to it at all: neither the pick nor the latest hint may be
   // affected by the cutoff.
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -669,7 +669,7 @@ test('latest is the raw registry tag when publishedByExclude fully excludes the 
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     publishedBy: new Date('2015-10-01T00:00:00.000Z'),
@@ -681,7 +681,7 @@ test('latest is the raw registry tag when publishedByExclude fully excludes the 
 })
 
 test('latest is the raw registry tag when publishedByExclude trusts that exact version', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -691,7 +691,7 @@ test('latest is the raw registry tag when publishedByExclude trusts that exact v
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     publishedBy: new Date('2015-10-01T00:00:00.000Z'),
@@ -706,7 +706,7 @@ test('latest is suppressed when all versions are immature (fallback case)', asyn
   // publishedBy 2015-06-01 is before every is-positive version → the pick
   // falls back to the lowest version; latest stays undefined because the raw
   // tag (3.1.0) is immature too.
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -716,7 +716,7 @@ test('latest is suppressed when all versions are immature (fallback case)', asyn
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
     publishedBy: new Date('2015-06-01T00:00:00.000Z'),

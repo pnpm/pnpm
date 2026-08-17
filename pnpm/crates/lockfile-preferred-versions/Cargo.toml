@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-lockfile-preferred-versions"
+name                  = "pnpm-lockfile-preferred-versions"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,9 +11,9 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-lockfile                = { workspace = true }
-pacquet-package-manifest        = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
+pnpm-lockfile                = { workspace = true }
+pnpm-package-manifest        = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
 
 node-semver = { workspace = true }
 

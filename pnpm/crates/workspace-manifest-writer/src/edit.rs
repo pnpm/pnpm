@@ -9,7 +9,7 @@
 use std::fmt::Write as _;
 
 use indexmap::IndexMap;
-use pacquet_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use yamlpatch::{Op, Patch};
 use yamlpath::{Component, Document, Route};
 
@@ -203,7 +203,7 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
 pub(crate) type CatalogReferences =
     std::collections::BTreeMap<String, std::collections::BTreeSet<String>>;
 
-/// The `cleanupUnusedCatalogs` pass: drop catalog entries that no
+/// The `catalogPrune` pass: drop catalog entries that no
 /// collected reference names. A default-catalog entry survives only via
 /// a bare `catalog:` reference; a named-catalog entry survives via
 /// `catalog:<name>` or bare `catalog:`. Emptied blocks are dropped
@@ -380,7 +380,7 @@ pub(crate) fn set_audit_ignore_ghsas(
 /// Set the top-level `minimumReleaseAgeExclude:` block to `items` (the
 /// complete desired list), creating or replacing it, and removing it when
 /// `items` is empty. The caller is responsible for merging with the existing
-/// entries (via `pacquet_config::version_policy::merge_package_version_specs`)
+/// entries (via `pnpm_config::version_policy::merge_package_version_specs`)
 /// before calling. Returns whether anything changed.
 pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &[String]) -> bool {
     const BLOCK: &str = "minimumReleaseAgeExclude";
@@ -419,6 +419,25 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
     }
     manifest.minimum_release_age_exclude = Some(items.to_vec());
     true
+}
+
+/// The `minimumReleaseAgeExcludePrune` pass: prune
+/// `minimumReleaseAgeExclude:` entries against the versions the freshly
+/// resolved lockfile records. The per-entry decision lives in
+/// [`pnpm_config::version_policy::drop_unresolved_package_version_specs`];
+/// the text edit is [`set_minimum_release_age_excludes`]'s block replace,
+/// so a pruned-to-empty list drops the block and an unchanged list is a
+/// no-op. Returns whether anything changed.
+pub(crate) fn prune_minimum_release_age_excludes(
+    manifest: &mut Manifest,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    let Some(current) = manifest.minimum_release_age_exclude.as_deref() else {
+        return false;
+    };
+    let pruned =
+        pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
+    set_minimum_release_age_excludes(manifest, &pruned)
 }
 
 /// Render a top-level block whose value is a block sequence (`key:` then

@@ -3,10 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pacquet_config::Config;
-use pacquet_network::nerf_dart;
-use pacquet_network_web_auth_testing::{ok_token, web_auth_fake};
-use pacquet_reporter::SilentReporter;
+use pnpm_config::Config;
+use pnpm_network::nerf_dart;
+use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
+use pnpm_reporter::SilentReporter;
 
 use super::LoginArgs;
 
@@ -20,22 +20,22 @@ macro_rules! login_host_fake {
             static INI_WRITES: RefCell<Vec<(PathBuf, String)>> = const { RefCell::new(Vec::new()) };
         }
 
-        impl pacquet_auth_commands::login::PromptInput for $fake {
+        impl pnpm_auth_commands::login::PromptInput for $fake {
             fn prompt_input(_message: &str) -> Result<String, dialoguer::Error> {
                 unreachable!("the web-login path does not prompt for credentials")
             }
         }
-        impl pacquet_auth_commands::login::PromptPassword for $fake {
+        impl pnpm_auth_commands::login::PromptPassword for $fake {
             fn prompt_password(_message: &str) -> Result<String, dialoguer::Error> {
                 unreachable!("the web-login path does not prompt for credentials")
             }
         }
-        impl pacquet_auth_commands::logout::FsReadToString for $fake {
+        impl pnpm_auth_commands::logout::FsReadToString for $fake {
             fn read_to_string(_path: &Path) -> std::io::Result<String> {
                 Ok(String::new())
             }
         }
-        impl pacquet_auth_commands::logout::FsWrite for $fake {
+        impl pnpm_auth_commands::logout::FsWrite for $fake {
             fn write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
                 let text = String::from_utf8(bytes.to_vec()).expect("auth.ini is UTF-8");
                 INI_WRITES.with(|writes| writes.borrow_mut().push((path.to_path_buf(), text)));
@@ -160,7 +160,7 @@ fn last_auth_ini(writes: &[(PathBuf, String)]) -> (&Path, &str) {
 }
 
 /// Pins the composition the option-level tests above and the write-path tests
-/// in `pacquet-auth-commands` each cover only half of: [`Config::scope`] —
+/// in `pnpm-auth-commands` each cover only half of: [`Config::scope`] —
 /// wherever it came from — reaching `auth.ini` through the adapter.
 #[tokio::test]
 async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {

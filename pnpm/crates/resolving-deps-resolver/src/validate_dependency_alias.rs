@@ -4,7 +4,7 @@
 //! through the same `validate-npm-package-name` `validForOldPackages`
 //! check that `parse_wanted_dependency` applies to CLI-given names.
 
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 
 /// `true` when `alias` is a valid npm package name that pnpm can safely
 /// use as a `node_modules/<alias>` directory.

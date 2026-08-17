@@ -1,9 +1,9 @@
 use crate::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_package_manager::{Install, ProjectMutation};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
 
 #[derive(Debug, Args)]
 pub struct ImportArgs {
@@ -26,7 +26,7 @@ impl ImportArgs {
                 .into_diagnostic()
                 .wrap_err("backing up existing pnpm-lock.yaml")?;
         }
-        let import_lockfile = pacquet_lockfile::LazyLockfile::preloaded(None);
+        let import_lockfile = pnpm_lockfile::LazyLockfile::preloaded(None);
 
         let install_result = if let Some(pnpr_server) =
             self.pnpr_server.as_deref().or(config.pnpr_server.as_deref())
@@ -62,7 +62,7 @@ impl ImportArgs {
                 config,
                 manifest,
                 emit_initial_manifest: true,
-                lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile),
+                lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile),
                 lockfile_path: Some(lockfile_path.as_path()),
                 dependency_groups: [
                     DependencyGroup::Prod,
@@ -83,7 +83,9 @@ impl ImportArgs {
                 node_linker: config.node_linker,
                 lockfile_only: true,
                 dry_run: false,
-                update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::drop_all(),
+                persist_policy_excludes: false,
+                update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::drop_all(),
+                preferred_versions_override: None,
                 auth_override: None,
                 resolution_observer: None,
                 peer_issues_sink: None,

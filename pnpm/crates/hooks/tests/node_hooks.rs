@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tempfile::TempDir;
 
-use pacquet_hooks::{PnpmfileHooks, finder};
+use pnpm_hooks::{PnpmfileHooks, finder};
 
 #[test]
 fn test_find_pnpmfile_uses_mjs() {
@@ -33,10 +33,10 @@ async fn calculate_pnpmfile_checksum_hashes_normalized_contents_when_hooks_expor
     let src = "module.exports = { hooks: { readPackage: (pkg) => pkg } }\n";
     std::fs::write(&pnpmfile_path, src).expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
     let checksum = hooks.calculate_pnpmfile_checksum().await;
 
-    assert_eq!(checksum, Some(pacquet_crypto_hash::create_hash(src)));
+    assert_eq!(checksum, Some(pnpm_crypto_hash::create_hash(src)));
 }
 
 #[tokio::test]
@@ -45,7 +45,7 @@ async fn calculate_pnpmfile_checksum_is_none_when_no_hooks_exported() {
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(&pnpmfile_path, "module.exports = {}\n").expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     assert_eq!(hooks.calculate_pnpmfile_checksum().await, None);
 }
@@ -54,7 +54,7 @@ async fn calculate_pnpmfile_checksum_is_none_when_no_hooks_exported() {
 /// drift — the removal itself is what the gate must see.
 #[tokio::test]
 async fn current_pnpmfile_checksum_is_none_without_a_pnpmfile() {
-    assert_eq!(pacquet_hooks::current_pnpmfile_checksum(None, Some("sha256-abc")).await, None);
+    assert_eq!(pnpm_hooks::current_pnpmfile_checksum(None, Some("sha256-abc")).await, None);
 }
 
 #[tokio::test]
@@ -65,8 +65,8 @@ async fn current_pnpmfile_checksum_hashes_the_pnpmfile_that_exports_hooks() {
 
     let hooks = finder::load_pnpmfile(tmp.path());
     assert_eq!(
-        pacquet_hooks::current_pnpmfile_checksum(hooks.as_ref(), None).await,
-        Some(pacquet_crypto_hash::create_hash(src)),
+        pnpm_hooks::current_pnpmfile_checksum(hooks.as_ref(), None).await,
+        Some(pnpm_crypto_hash::create_hash(src)),
     );
 }
 
@@ -80,7 +80,7 @@ async fn current_pnpmfile_checksum_is_none_when_the_pnpmfile_exports_no_hooks() 
         .expect("write pnpmfile");
 
     let hooks = finder::load_pnpmfile(tmp.path());
-    assert_eq!(pacquet_hooks::current_pnpmfile_checksum(hooks.as_ref(), None).await, None);
+    assert_eq!(pnpm_hooks::current_pnpmfile_checksum(hooks.as_ref(), None).await, None);
 }
 
 /// A lockfile that already records a checksum settles the comparison
@@ -94,9 +94,9 @@ async fn current_pnpmfile_checksum_trusts_the_hash_when_the_lockfile_records_one
     std::fs::write(tmp.path().join(".pnpmfile.cjs"), src).expect("write pnpmfile");
 
     let hooks = finder::load_pnpmfile(tmp.path());
-    let recorded = pacquet_crypto_hash::create_hash(src);
+    let recorded = pnpm_crypto_hash::create_hash(src);
     assert_eq!(
-        pacquet_hooks::current_pnpmfile_checksum(hooks.as_ref(), Some(&recorded)).await,
+        pnpm_hooks::current_pnpmfile_checksum(hooks.as_ref(), Some(&recorded)).await,
         Some(recorded),
     );
 }
@@ -131,7 +131,7 @@ function readPackage(pkg) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let manifest = serde_json::json!({
         "name": "foo",
@@ -141,7 +141,7 @@ function readPackage(pkg) {
     let result = hooks
         .read_package(
             manifest.clone(),
-            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+            pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
         )
         .await;
 
@@ -167,7 +167,7 @@ function readPackage(pkg) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let manifest = serde_json::json!({
         "name": "baz",
@@ -177,7 +177,7 @@ function readPackage(pkg) {
     let result = hooks
         .read_package(
             manifest.clone(),
-            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+            pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
         )
         .await;
 
@@ -203,7 +203,7 @@ function filterLog(log) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let debug_log = serde_json::json!({
         "level": "debug",
@@ -212,7 +212,7 @@ function filterLog(log) {
 
     assert!(
         hooks
-            .filter_log(debug_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+            .filter_log(debug_log, pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
             .await,
     );
 
@@ -223,7 +223,7 @@ function filterLog(log) {
 
     assert!(
         !hooks
-            .filter_log(warn_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+            .filter_log(warn_log, pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
             .await,
     );
 }
@@ -251,7 +251,7 @@ function readPackage(pkg) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path.clone());
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path.clone());
 
     let manifest = serde_json::json!({
         "name": "foo",
@@ -261,7 +261,7 @@ function readPackage(pkg) {
     let result = hooks
         .read_package(
             manifest.clone(),
-            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+            pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
         )
         .await;
 
@@ -296,9 +296,9 @@ function preResolution(ctx, logger) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
-    let ctx = pacquet_hooks::PreResolutionHookContext {
+    let ctx = pnpm_hooks::PreResolutionHookContext {
         wanted_lockfile: serde_json::json!({}),
         current_lockfile: serde_json::json!({}),
         exists_current_lockfile: false,
@@ -311,10 +311,7 @@ function preResolution(ctx, logger) {
     hooks
         .pre_resolution(
             ctx,
-            pacquet_hooks::PreResolutionHookLogger {
-                info: Arc::new(|_| {}),
-                warn: Arc::new(|_| {}),
-            },
+            pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) },
         )
         .await;
 }
@@ -339,9 +336,9 @@ function preResolution(ctx, logger) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
-    let ctx = pacquet_hooks::PreResolutionHookContext {
+    let ctx = pnpm_hooks::PreResolutionHookContext {
         wanted_lockfile: serde_json::json!({}),
         current_lockfile: serde_json::json!({}),
         exists_current_lockfile: false,
@@ -354,21 +351,18 @@ function preResolution(ctx, logger) {
     hooks
         .pre_resolution(
             ctx,
-            pacquet_hooks::PreResolutionHookLogger {
-                info: Arc::new(|_| {}),
-                warn: Arc::new(|_| {}),
-            },
+            pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) },
         )
         .await;
 }
 
 /// Helper: write `source` to a `.pnpmfile.cjs` in a fresh temp dir and return
 /// the hooks bridge plus the dir (kept alive for the file's lifetime).
-fn cjs_hooks(source: &str) -> (pacquet_hooks::node_runtime::NodeJsHooks, TempDir) {
+fn cjs_hooks(source: &str) -> (pnpm_hooks::node_runtime::NodeJsHooks, TempDir) {
     let tmp = TempDir::new().expect("temp dir");
     let path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(&path, source).expect("write pnpmfile");
-    (pacquet_hooks::node_runtime::NodeJsHooks::new(path), tmp)
+    (pnpm_hooks::node_runtime::NodeJsHooks::new(path), tmp)
 }
 
 async fn read_package_err(source: &str) -> String {
@@ -376,7 +370,7 @@ async fn read_package_err(source: &str) -> String {
     hooks
         .read_package(
             serde_json::json!({ "name": "foo", "version": "1.0.0" }),
-            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+            pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
         )
         .await
         .expect_err("readPackage should fail")
@@ -438,7 +432,7 @@ async fn read_package_normalizes_missing_dependency_fields() {
     let updated = hooks
         .read_package(
             serde_json::json!({ "name": "x", "version": "1.0.0" }),
-            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+            pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
         )
         .await
         .expect("readPackage should succeed after normalization");
@@ -481,7 +475,7 @@ async fn worker_multiplexes_concurrent_read_package_calls() {
             let updated = hooks
                 .read_package(
                     serde_json::json!({ "name": name, "version": "1.0.0" }),
-                    pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+                    pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
                 )
                 .await
                 .expect("readPackage should succeed");
@@ -511,7 +505,7 @@ async fn worker_forwards_read_package_context_log() {
     hooks
         .read_package(
             serde_json::json!({ "name": "foo", "version": "1.0.0" }),
-            pacquet_hooks::HookContext {
+            pnpm_hooks::HookContext {
                 log: Arc::new(move |message| sink.lock().unwrap().push(message)),
                 dir: None,
             },
@@ -522,8 +516,8 @@ async fn worker_forwards_read_package_context_log() {
     assert_eq!(logs.lock().unwrap().as_slice(), &["hello from foo".to_string()]);
 }
 
-fn noop_context() -> pacquet_hooks::HookContext {
-    pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None }
+fn noop_context() -> pnpm_hooks::HookContext {
+    pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None }
 }
 
 #[test]
@@ -581,7 +575,7 @@ async fn update_config_applies_hook_result() {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
     let updated = hooks
         .update_config(serde_json::json!({ "registry": "https://r/" }), noop_context())
         .await
@@ -597,7 +591,7 @@ async fn update_config_without_hook_returns_config_unchanged() {
     let pnpmfile_path = tmp.path().join("pnpmfile.cjs");
     std::fs::write(&pnpmfile_path, "module.exports = { hooks: {} }").expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
     let config = serde_json::json!({ "registry": "https://r/" });
     let updated = hooks.update_config(config.clone(), noop_context()).await.expect("ok");
 
@@ -644,7 +638,7 @@ module.exports = {
 async fn get_custom_resolvers_reports_per_resolver_capabilities() {
     let tmp = TempDir::new().expect("temp dir");
     let hooks =
-        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
+        pnpm_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
 
     let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
 
@@ -662,7 +656,7 @@ async fn get_custom_resolvers_is_empty_without_resolvers_export() {
     let tmp = TempDir::new().expect("temp dir");
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(&pnpmfile_path, "module.exports = { hooks: {} }").expect("write pnpmfile");
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
 
@@ -673,7 +667,7 @@ async fn get_custom_resolvers_is_empty_without_resolvers_export() {
 async fn custom_resolver_round_trips_can_resolve_and_resolve() {
     let tmp = TempDir::new().expect("temp dir");
     let hooks =
-        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
+        pnpm_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
     let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
     let wanted = serde_json::json!({ "alias": "foo", "bareSpecifier": "custom:foo" });
 
@@ -700,13 +694,12 @@ async fn custom_resolver_round_trips_can_resolve_and_resolve() {
 async fn custom_resolver_should_refresh_resolution_receives_dep_path_and_snapshot() {
     let tmp = TempDir::new().expect("temp dir");
     let hooks =
-        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
+        pnpm_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
     let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
     let snapshot = serde_json::json!({ "resolution": { "integrity": "sha512-x" } });
 
-    let matching: pacquet_lockfile::PackageKey =
-        "refresh-me@1.0.0".parse().expect("valid dep path");
-    let other: pacquet_lockfile::PackageKey = "other@1.0.0".parse().expect("valid dep path");
+    let matching: pnpm_lockfile::PackageKey = "refresh-me@1.0.0".parse().expect("valid dep path");
+    let other: pnpm_lockfile::PackageKey = "other@1.0.0".parse().expect("valid dep path");
 
     assert!(
         resolvers[0]
@@ -726,9 +719,9 @@ async fn custom_resolver_should_refresh_resolution_receives_dep_path_and_snapsho
 async fn custom_resolver_errors_propagate() {
     let tmp = TempDir::new().expect("temp dir");
     let hooks =
-        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
+        pnpm_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
     let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
-    let dep_path: pacquet_lockfile::PackageKey = "any@1.0.0".parse().expect("valid dep path");
+    let dep_path: pnpm_lockfile::PackageKey = "any@1.0.0".parse().expect("valid dep path");
 
     let err = resolvers[1]
         .should_refresh_resolution(&dep_path, serde_json::json!({}))
@@ -785,7 +778,7 @@ module.exports = {
 async fn get_custom_fetchers_reports_per_fetcher_capabilities() {
     let tmp = TempDir::new().expect("temp dir");
     let hooks =
-        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_fetchers_pnpmfile(tmp.path()));
+        pnpm_hooks::node_runtime::NodeJsHooks::new(write_custom_fetchers_pnpmfile(tmp.path()));
 
     let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
 
@@ -801,7 +794,7 @@ async fn get_custom_fetchers_is_empty_without_fetchers_export() {
     let tmp = TempDir::new().expect("temp dir");
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(&pnpmfile_path, "module.exports = { hooks: {} }").expect("write pnpmfile");
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
 
@@ -812,7 +805,7 @@ async fn get_custom_fetchers_is_empty_without_fetchers_export() {
 async fn custom_fetcher_round_trips_can_fetch_and_fetch() {
     let tmp = TempDir::new().expect("temp dir");
     let hooks =
-        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_fetchers_pnpmfile(tmp.path()));
+        pnpm_hooks::node_runtime::NodeJsHooks::new(write_custom_fetchers_pnpmfile(tmp.path()));
     let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
     let resolution =
         serde_json::json!({ "type": "@custom/local", "url": "https://example.com/pkg" });
@@ -852,7 +845,7 @@ module.exports = {
 ",
     )
     .expect("write pnpmfile");
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
     let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
 
     let err = fetchers[0]
@@ -885,7 +878,7 @@ export const fetchers = [{
 ",
     )
     .expect("write pnpmfile");
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
     let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
 
     assert_eq!(fetchers.len(), 1);
@@ -920,7 +913,7 @@ module.exports = {
 "#,
     )
     .expect("write pnpmfile");
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
     let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
 
     let resolution = serde_json::json!({
@@ -950,7 +943,7 @@ module.exports = {
 ",
     )
     .expect("write pnpmfile");
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
     let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
 
     assert_eq!(fetchers.len(), 3);
@@ -980,7 +973,7 @@ module.exports = {
 "#,
     )
     .expect("write pnpmfile");
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
     let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
     let empty_resolution = serde_json::json!({});
 

@@ -47,13 +47,14 @@ fi
 
 # Scenario list: `slug:Display label`. The slug matches the
 # orchestrator's `--scenario` value (the clap-derived kebab-case name
-# from `BenchmarkScenario`). Every scenario starts with `node_modules`
-# wiped — "Fresh" names that target state (for fresh-resolve it also
-# keeps the up-to-date short-circuit from skipping the measured
-# resolution). "Isolated linker" names the `nodeLinker` mode;
-# alternatives (`hoisted`, `pnp`) and populated-node_modules
-# counterparts are reserved for future scenarios.
+# from `BenchmarkScenario`). A "fresh" scenario starts with
+# `node_modules` wiped (for fresh-resolve that also keeps the
+# up-to-date short-circuit from skipping the measured resolution);
+# "repeat install" starts with it populated and up to date and measures
+# that short-circuit. "Isolated linker" names the `nodeLinker` mode;
+# alternatives (`hoisted`, `pnp`) are reserved for future scenarios.
 SCENARIOS=(
+  "isolated-linker.repeat-install.hot-cache.hot-store:Isolated linker: repeat install, hot cache + hot store"
   "isolated-linker.fresh-restore.hot-cache.hot-store:Isolated linker: fresh restore, hot cache + hot store"
   "isolated-linker.fresh-add-dep.hot-cache.hot-store:Isolated linker: fresh add new dep, hot cache + hot store"
   "isolated-linker.fresh-install.hot-cache.hot-store:Isolated linker: fresh install, hot cache + hot store"

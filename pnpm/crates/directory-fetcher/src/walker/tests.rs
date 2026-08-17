@@ -201,7 +201,7 @@ fn walk_all_files_rejects_nested_junction_escape_when_confined() {
     junction::create(&outside, &link).unwrap();
 
     let err = walk_all_files(&root, false, false).expect_err("outside junction should fail");
-    pacquet_fs::remove_symlink_dir(&link).unwrap();
+    pnpm_fs::remove_symlink_dir(&link).unwrap();
     assert!(
         err.to_string().contains("resolves outside source directory"),
         "unexpected error: {err}",
@@ -216,7 +216,7 @@ fn walk_all_files_rejects_linked_root_when_confined() {
     fs::create_dir_all(&outside).unwrap();
     touch(&outside, "secret.txt");
     let root_link = dir.path().join("root-link");
-    pacquet_fs::symlink_dir(&outside, &root_link).unwrap();
+    pnpm_fs::symlink_dir(&outside, &root_link).unwrap();
 
     let err = walk_all_files(&root_link, false, false).expect_err("linked root should fail");
     assert!(

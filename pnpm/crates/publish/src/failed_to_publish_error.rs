@@ -3,7 +3,7 @@
 
 use std::fmt::Write;
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
 
 /// The registry returned a non-OK response for a publish
 /// (`ERR_PNPM_FAILED_TO_PUBLISH`).

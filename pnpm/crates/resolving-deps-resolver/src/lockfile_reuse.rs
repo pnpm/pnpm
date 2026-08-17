@@ -4,13 +4,13 @@
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
 use node_semver::{Range, Version};
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencySpec, SnapshotEntry, TarballResolution, npm_tarball_url,
-    pick_registry_for_package,
+    RegistryContext, ResolvedDependencySpec, SnapshotEntry, TarballResolution, TarballUrlOptions,
+    npm_tarball_url, pick_registry_for_package, registry_server_type,
 };
-use pacquet_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
-use pacquet_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
+use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
+use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
 use serde_json::{Map, Value};
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
@@ -18,8 +18,7 @@ use serde_json::{Map, Value};
 pub(crate) fn current_pkg_from_lockfile(
     lockfile: &Lockfile,
     key: &PkgNameVerPeer,
-    registries: &std::collections::HashMap<String, String>,
-    named_registries: &std::collections::HashMap<String, String>,
+    registry_context: &RegistryContext,
 ) -> Option<CurrentPkg> {
     let metadata_key = key.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
@@ -37,11 +36,12 @@ pub(crate) fn current_pkg_from_lockfile(
             // unknown alias (or an unthreaded registry map) withholds
             // `currentPkg` so the dep re-resolves normally.
             let (registry, tarball_version) = match registry_qualified {
-                Some((registry_name, version)) => {
-                    (named_registries.get(registry_name)?.clone(), version.to_string())
-                }
+                Some((registry_name, version)) => (
+                    registry_context.registries_by_prefix.get(registry_name)?.clone(),
+                    version.to_string(),
+                ),
                 None => (
-                    pick_registry_for_package(registries, &name, None),
+                    pick_registry_for_package(&registry_context.registries, &name, None),
                     metadata_key.suffix.version().to_string(),
                 ),
             };
@@ -49,7 +49,17 @@ pub(crate) fn current_pkg_from_lockfile(
                 return None;
             }
             LockfileResolution::Tarball(TarballResolution {
-                tarball: npm_tarball_url(&name, &tarball_version, &registry),
+                tarball: npm_tarball_url(
+                    &name,
+                    &tarball_version,
+                    TarballUrlOptions {
+                        registry: &registry,
+                        server_type: registry_server_type(
+                            &registry_context.registry_options_by_url,
+                            &registry,
+                        ),
+                    },
+                ),
                 integrity: Some(registry_resolution.integrity.clone()),
                 git_hosted: None,
                 path: None,
@@ -216,7 +226,7 @@ fn satisfies_with_prereleases(range: &Range, version: &Version) -> bool {
 ///
 /// * Registry `id` / `name_ver` use the peer-stripped `name@version`; git
 ///   results retain their URL-shaped lockfile key and have no `name_ver`.
-/// * `resolution` is cloned from [`pacquet_lockfile::PackageMetadata`]
+/// * `resolution` is cloned from [`pnpm_lockfile::PackageMetadata`]
 ///   so the recorded integrity carries forward.
 /// * `manifest` is reconstructed from the metadata's
 ///   `peerDependencies` / `peerDependenciesMeta` / `engines` / `cpu` /
@@ -284,7 +294,7 @@ pub(crate) fn synthesize_reused_result(
 fn synthesize_manifest(
     name: &PkgName,
     version: Option<&str>,
-    metadata: &pacquet_lockfile::PackageMetadata,
+    metadata: &pnpm_lockfile::PackageMetadata,
 ) -> Value {
     let mut manifest = Map::new();
     manifest.insert("name".to_string(), Value::String(name.to_string()));

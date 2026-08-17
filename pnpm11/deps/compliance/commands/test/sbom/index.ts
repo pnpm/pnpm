@@ -8,6 +8,7 @@ import { sbom } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { REGISTRY_URL } from '@pnpm/testing.command-defaults'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -988,4 +989,53 @@ test('pnpm sbom --split --out without %s throws', async () => {
       lockfileOnly: true,
     })
   ).rejects.toThrow('must contain %s')
+})
+
+test('pnpm sbom excludes platform-incompatible optional packages instead of emitting them without licenses', async () => {
+  const workspaceDir = tempDir()
+  f.copy('platform-optional', workspaceDir)
+
+  // Pinning the architecture keeps the expected component the same on every
+  // host the test runs on. `@pnpm.e2e/only-win32-x64` is the only one of the
+  // eight bindings that matches it.
+  const supportedArchitectures = { os: ['win32'], cpu: ['x64'] }
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    registriesByScope: { default: REGISTRY_URL },
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    supportedArchitectures,
+  })
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    registriesByScope: { default: REGISTRY_URL },
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    supportedArchitectures,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  expect(parsed.bomFormat).toBe('CycloneDX')
+
+  // `@pnpm.e2e/support-different-architectures` declares eight platform
+  // bindings as optionalDependencies. Only the supported one is fetched; the
+  // others are in the lockfile but have no metadata to describe.
+  // Component names drop the scope, so match on the purl, which keeps the full
+  // package name.
+  const onlyBindings = parsed.components.filter(
+    (c: { name?: string, purl?: string }) => c.purl?.startsWith('pkg:npm/%40pnpm.e2e/only-') === true
+  )
+  expect(onlyBindings).toHaveLength(1)
+  expect(onlyBindings[0].name).toBe('only-win32-x64')
+  // The installed binding carries a resolvable license from its manifest.
+  expect(onlyBindings[0].licenses).toEqual([{ license: { id: 'MIT' } }])
 })

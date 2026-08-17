@@ -13,18 +13,18 @@ use std::{collections::HashMap, path::Path, time::Duration};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{
+use pnpm_config::Config;
+use pnpm_network::{
     RetryOpts, ThrottledClient, read_limited_body, redact_url_credentials, send_with_retry,
 };
-use pacquet_network_web_auth::{
+use pnpm_network_web_auth::{
     Host as WebAuthHost, OtpChallenge, OtpError, OtpErrorBody, WebAuthFetchOptions,
     WebAuthRetryOptions, WithOtpError, with_otp_handling,
 };
-use pacquet_publish::{Host, PublishSummary, resolve_otp_from_env};
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_publish::{Host, PublishSummary, resolve_otp_from_env};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_resolving_npm_resolver::pick_registry_for_package;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -557,7 +557,7 @@ async fn stage_send<'client>(
     method: reqwest::Method,
     url: &str,
     otp: Option<&str>,
-) -> Result<(pacquet_network::ThrottledClientGuard<'client>, reqwest::Response), reqwest::Error> {
+) -> Result<(pnpm_network::ThrottledClientGuard<'client>, reqwest::Response), reqwest::Error> {
     send_with_retry(&context.http_client, url, context.retry_opts, |client| {
         let mut builder = client
             .request(method.clone(), url)

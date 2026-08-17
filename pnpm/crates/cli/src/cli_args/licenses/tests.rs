@@ -3,7 +3,8 @@ use super::{
     collect_dependencies, compare_package_names, extract_license_author, extract_license_homepage,
     render_package_name, select_newer_version,
 };
-use pacquet_lockfile::Lockfile;
+use pnpm_lockfile::Lockfile;
+use pnpm_package_is_installable::InstallabilityOptions;
 use serde_json::json;
 use tempfile::TempDir;
 
@@ -97,6 +98,10 @@ importers:
       required-darwin:
         specifier: 1.0.0
         version: 1.0.0
+    optionalDependencies:
+      linux-only:
+        specifier: 1.0.0
+        version: 1.0.0
 packages:
   '@esbuild/darwin-arm64@1.0.0':
     resolution: {integrity: sha512-inferred-darwin}
@@ -107,6 +112,9 @@ packages:
     os: [darwin]
   hidden-child@1.0.0:
     resolution: {integrity: sha512-hidden}
+  linux-only@1.0.0:
+    resolution: {integrity: sha512-linux}
+    os: [linux]
   prod-only@1.0.0:
     resolution: {integrity: sha512-prod}
   required-child@1.0.0:
@@ -125,6 +133,8 @@ snapshots:
     dependencies:
       hidden-child: 1.0.0
   hidden-child@1.0.0: {}
+  linux-only@1.0.0:
+    optional: true
   prod-only@1.0.0:
     dependencies:
       visible-child: 1.0.0
@@ -143,14 +153,19 @@ snapshots:
         &lockfile,
         lockfile.importers.keys(),
         include,
-        None,
-        "linux",
-        "x64",
-        "glibc",
+        &InstallabilityOptions {
+            current_os: "linux",
+            current_cpu: "x64",
+            current_libc: "glibc",
+            ..Default::default()
+        },
     );
 
-    assert_eq!(dependencies.len(), 5);
+    assert_eq!(dependencies.len(), 6);
     assert_eq!(dependencies[&"dev-only@1.0.0".parse().unwrap()], BelongsTo::Dev);
+    // An optional dependency the host does support is kept, classified by
+    // `detect_dep_types` like any other reachable package.
+    assert_eq!(dependencies[&"linux-only@1.0.0".parse().unwrap()], BelongsTo::Prod);
     assert_eq!(dependencies[&"prod-only@1.0.0".parse().unwrap()], BelongsTo::Prod);
     assert_eq!(dependencies[&"required-child@1.0.0".parse().unwrap()], BelongsTo::Prod);
     assert_eq!(dependencies[&"required-darwin@1.0.0".parse().unwrap()], BelongsTo::Prod);

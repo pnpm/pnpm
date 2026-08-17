@@ -8,7 +8,7 @@
 //! dropped are not pulled back in.
 
 use super::{sequence_graph, sort_filtered_projects, sort_projects};
-use pacquet_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
+use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
 use pretty_assertions::assert_eq;
 use std::{collections::HashSet, path::PathBuf};
 

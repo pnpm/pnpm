@@ -13,6 +13,7 @@ mod pkg_name_ver;
 mod pkg_name_ver_peer;
 mod pkg_ver_peer;
 mod project_snapshot;
+mod prune_time;
 mod resolution;
 mod resolved_dependency;
 mod save_lockfile;
@@ -37,6 +38,7 @@ pub use pkg_name_ver::*;
 pub use pkg_name_ver_peer::*;
 pub use pkg_ver_peer::*;
 pub use project_snapshot::*;
+pub use prune_time::*;
 pub use resolution::*;
 pub use resolved_dependency::*;
 pub use save_lockfile::*;
@@ -174,6 +176,17 @@ pub struct Lockfile {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub snapshots: Option<HashMap<PackageKey, SnapshotEntry>>,
+
+    /// `time:` — the publish date of every direct dependency, recorded
+    /// by a `resolutionMode: time-based` install. It is the fallback
+    /// source of a package's publish date when the registry's
+    /// abbreviated metadata carries none, so the cutoff a later
+    /// time-based resolution derives stays the one this lockfile was
+    /// written under. Sorted by key and pruned to the importers' direct
+    /// dependencies on save (see [`crate::prune_time()`]), so it does not
+    /// grow an entry per transitive package.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<BTreeMap<String, String>>,
 }
 
 impl Lockfile {

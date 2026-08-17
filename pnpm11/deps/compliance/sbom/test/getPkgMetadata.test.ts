@@ -10,7 +10,7 @@ import type { DepPath } from '@pnpm/types'
 import { bugsUrlFromField, getPkgMetadata } from '../lib/getPkgMetadata.js'
 
 const DEFAULT_REGISTRY_OPTS = {
-  registries: {
+  registriesByScope: {
     default: 'https://registry.npmjs.org/',
     '@jsr': 'https://npm.jsr.io/',
   },

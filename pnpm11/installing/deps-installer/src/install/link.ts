@@ -30,7 +30,7 @@ import type {
   DepPath,
   HoistedDependencies,
   ProjectId,
-  Registries,
+  RegistriesByScope,
   SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
@@ -64,7 +64,7 @@ export interface LinkPackagesOptions {
   outdatedDependencies: Record<string, string>
   pruneStore: boolean
   pruneVirtualStore: boolean
-  registries: Registries
+  registriesByScope: RegistriesByScope
   rootModulesDir: string
   sideEffectsCacheRead: boolean
   symlink: boolean
@@ -137,7 +137,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   const projectIds = projects.map(({ id }) => id)
   const filterOpts = {
     include: opts.include,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     skipped: opts.skipped,
     skipRuntimes: opts.skipRuntimes,
   }

@@ -1,9 +1,9 @@
 use std::{cell::Cell, rc::Rc};
 
-use pacquet_network_web_auth::{
+use pnpm_network_web_auth::{
     OtpError, OtpErrorBody, SyntheticOtpError, WebAuthFetchOptions, WithOtpError, with_otp_handling,
 };
-use pacquet_network_web_auth_testing::{
+use pnpm_network_web_auth_testing::{
     FakeOtpError, InputResponse, SleepBehavior, ok_202, ok_token, ok_truncated, web_auth_body,
     web_auth_fake,
 };

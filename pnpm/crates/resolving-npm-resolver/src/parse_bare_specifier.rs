@@ -16,8 +16,11 @@ use std::collections::HashSet;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_resolving_resolver_base::{
+    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
+};
 use reqwest::Url;
 
 use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
@@ -49,7 +52,7 @@ pub fn parse_bare_specifier(
         let alias_str = alias;
         if let Some(a) = alias_str
             && !a.is_empty()
-            && Range::parse(&bare).is_ok()
+            && is_valid_semver_range(&bare)
         {
             name = Some(a.to_string());
         } else {
@@ -109,7 +112,7 @@ pub struct JsrRegistryPackageSpec {
 /// [`JsrRegistryPackageSpec`].
 ///
 /// Defers the `jsr:` syntax to the
-/// [`pacquet_resolving_jsr_specifier_parser`] crate, then runs the
+/// [`pnpm_resolving_jsr_specifier_parser`] crate, then runs the
 /// version-selector classifier on the parsed selector (falling back
 /// to `default_tag` when the specifier omits one). Returns
 /// `Ok(None)` for any non-`jsr:` specifier so the caller can fall
@@ -207,7 +210,7 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
     let pkg_name: String;
     let version_selector: Option<String>;
 
-    if Range::parse(body).is_ok() {
+    if is_valid_semver_range(body) {
         let Some(alias) = package_alias.filter(|alias| !alias.is_empty()) else {
             return Ok(None);
         };
@@ -275,6 +278,12 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
 /// selector contains characters that `encodeURIComponent` would escape
 /// (i.e. not a valid npm tag).
 pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
+    if is_any_version_range(selector) {
+        return Some(VersionSelectorMatch {
+            spec_type: RegistryPackageSpecType::Range,
+            normalized: ANY_VERSION_RANGE.to_string(),
+        });
+    }
     if let Ok(version) = Version::parse(selector) {
         return Some(VersionSelectorMatch {
             spec_type: RegistryPackageSpecType::Version,
@@ -354,7 +363,7 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
 /// Percent-decode a URL path segment. Matches JS's `decodeURIComponent`
 /// for the byte ranges that show up in npm tarball URLs (the only
 /// caller). Invalid escapes pass through unchanged, mirroring the
-/// [`percent_decode_str`] helper in `pacquet-network`'s proxy module.
+/// [`percent_decode_str`] helper in `pnpm-network`'s proxy module.
 fn percent_decode_str(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());

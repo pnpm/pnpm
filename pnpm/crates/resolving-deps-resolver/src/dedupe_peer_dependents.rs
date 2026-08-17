@@ -21,7 +21,7 @@
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::collections::BTreeMap;
 
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},

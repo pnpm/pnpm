@@ -1,10 +1,76 @@
 use super::{
     PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
     exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
-    package_dir, pnpm_package_to_install, reuse_cached_engine,
+    package_dir, pnpm_package_to_install, reuse_cached_engine, run_install,
 };
-use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_config::Config;
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::StoreDir;
+use pnpm_testing_utils::registry::TestRegistry;
 use std::fs;
+
+/// The engine install must stay anchored to its install dir even when an
+/// ancestor carries a `pnpm-workspace.yaml` — the global packages dir
+/// legitimately holds one of global settings once a global `allowBuilds`
+/// decision has been persisted. Left unanchored, the install pipeline
+/// walked up, adopted that file as the workspace root, and the wrapper
+/// package never landed in `node_modules/` of the install dir
+/// (pnpm/pnpm#13697). Driven with a stand-in package from the mock
+/// registry: `run_install` lays out whatever package it is given, so the
+/// anchoring is observable without a real pnpm release.
+#[tokio::test]
+async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir() {
+    let registry = TestRegistry::start();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let global_pkg_dir = temp.path().join("global").join("v11");
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages dir");
+    fs::write(global_pkg_dir.join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: true\n")
+        .expect("write ambient workspace manifest");
+    // The leftovers an unanchored install strands in the global packages
+    // dir: a stray `node_modules` and a lockfile at the adopted workspace
+    // root. A later self-update must succeed with them in place (each
+    // update installs into a fresh slot) and must not touch that lockfile
+    // — it is the env lockfile's home.
+    fs::create_dir_all(global_pkg_dir.join("node_modules").join(".pnpm"))
+        .expect("create leftover node_modules");
+    let leftover_lockfile = "lockfileVersion: '9.0'\n";
+    fs::write(global_pkg_dir.join("pnpm-lock.yaml"), leftover_lockfile)
+        .expect("write leftover lockfile");
+    let install_dir = global_pkg_dir.join("engine-slot");
+    fs::create_dir_all(&install_dir).expect("create install dir");
+
+    let mut cfg = Config {
+        store_dir: StoreDir::new(temp.path().join("store")),
+        cache_dir: temp.path().join("cache"),
+        ..Config::default()
+    };
+    cfg.package_manager_bootstrap.registry = registry.url();
+    let config = Config::leak(cfg);
+
+    run_install::<SilentReporter>(
+        config,
+        &install_dir,
+        "@pnpm.e2e/hello-world-js-bin",
+        "1.0.0",
+        None,
+        None,
+    )
+    .await
+    .expect("install the stand-in engine package");
+
+    let manifest = package_dir(&install_dir, "@pnpm.e2e/hello-world-js-bin").join("package.json");
+    assert!(
+        manifest.exists(),
+        "the installed package must land in the install dir, not in an ambient workspace root",
+    );
+    let ambient_lockfile = fs::read_to_string(global_pkg_dir.join("pnpm-lock.yaml"))
+        .expect("read back the global-dir lockfile");
+    assert_eq!(
+        ambient_lockfile, leftover_lockfile,
+        "the install must write its lockfile into the install dir, not over the global dir's",
+    );
+}
 
 #[test]
 fn legacy_platform_dir_names() {

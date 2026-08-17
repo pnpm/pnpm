@@ -4,7 +4,7 @@
 //! that only ever holds top-level `//host/path/:_authToken=<token>`
 //! lines (no sections, no arrays). Upstream pnpm round-trips it through
 //! `read-ini-file` / `write-ini-file`; pacquet has no INI crate, and the
-//! `.npmrc` parser in `pacquet-config` is likewise hand-rolled. This is
+//! `.npmrc` parser in `pnpm-config` is likewise hand-rolled. This is
 //! the matching minimal reader/writer for the auth-command file.
 //!
 //! Entries keep their on-disk order so removing one token rewrites the

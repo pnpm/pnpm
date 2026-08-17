@@ -5,18 +5,18 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_config::{Config, PackageImportMethod, ScriptsPrependNodePath};
-use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
-use pacquet_git_fetcher::{GitFetchOutput, GitFetcherError, GitHostedTarballFetcher};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PackageKey};
-use pacquet_network::ThrottledClient;
-use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexError,
-    StoreIndexWriter, git_hosted_store_index_key,
+use pnpm_config::{Config, PackageImportMethod, ScriptsPrependNodePath};
+use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pnpm_git_fetcher::{GitFetchOutput, GitFetcherError, GitHostedTarballFetcher};
+use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
+use pnpm_network::ThrottledClient;
+use pnpm_reporter::Reporter;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache, StoreIndex, StoreIndexError, StoreIndexWriter,
+    git_hosted_store_index_key,
 };
-use pacquet_tarball::{DownloadTarballToStore, MemCache, TarballError};
+use pnpm_tarball::{DownloadTarballToStore, MemCache, TarballError};
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
@@ -213,12 +213,9 @@ impl WritePackageForPatch<'_> {
 
         validate_patch_destination(dest)?;
 
-        let store_index = open_store_index_for_patch(config).await;
-        let (store_index_writer, writer_task) = if config.frozen_store {
-            StoreIndexWriter::spawn_disabled()
-        } else {
-            StoreIndexWriter::spawn(&config.store_dir)
-        };
+        let store_index = StoreIndex::open_shared(&config.store_dir, config.frozen_store).await;
+        let (store_index_writer, writer_task) =
+            StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
         let verified_files_cache = SharedVerifiedFilesCache::default();
 
         let result = async {
@@ -266,6 +263,9 @@ impl WritePackageForPatch<'_> {
                     script_shell: None,
                     node_execpath: None,
                     npm_execpath: None,
+                    // Nothing here is allowed to build, so no package
+                    // manager has to be provided to it.
+                    pnpm_execpath: None,
                     store_dir: &config.store_dir,
                     package_id: &package_id,
                     requester: "",
@@ -285,7 +285,7 @@ impl WritePackageForPatch<'_> {
                 PackageImportMethod::CloneOrCopy,
                 dest,
                 &cas_paths,
-                ImportIndexedDirOpts { force: true, keep_modules_dir: false },
+                ImportIndexedDirOpts { force: true, ..ImportIndexedDirOpts::default() },
             )
             .map_err(WritePackageForPatchError::ImportIndexedDir)
         }
@@ -313,44 +313,12 @@ fn validate_patch_destination(dest: &Path) -> Result<(), WritePackageForPatchErr
     }
 }
 
-async fn open_store_index_for_patch(config: &'static Config) -> Option<SharedReadonlyStoreIndex> {
-    let open_store_index = if config.frozen_store {
-        StoreIndex::shared_immutable_in
-    } else {
-        StoreIndex::shared_readonly_in
-    };
-    let store_dir: &'static _ = &config.store_dir;
-    match tokio::task::spawn_blocking(move || open_store_index(store_dir)).await {
-        Ok(store_index) => store_index,
-        Err(error) => {
-            tracing::warn!(
-                target: "pacquet::patch",
-                ?error,
-                "store-index open task failed; continuing without a shared cache index",
-            );
-            None
-        }
-    }
-}
-
 async fn shutdown_store_index_writer_for_patch(
     store_index_writer: Arc<StoreIndexWriter>,
     writer_task: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
 ) {
     drop(store_index_writer);
-    match writer_task.await {
-        Ok(Ok(())) => {}
-        Ok(Err(error)) => tracing::warn!(
-            target: "pacquet::patch",
-            ?error,
-            "store-index writer task returned an error; some rows may not be persisted",
-        ),
-        Err(error) => tracing::warn!(
-            target: "pacquet::patch",
-            ?error,
-            "store-index writer task panicked; some rows may not be persisted",
-        ),
-    }
+    StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
 }
 
 fn git_tarball_url(resolution: &LockfileResolution) -> Option<String> {

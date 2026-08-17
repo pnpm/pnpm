@@ -8,7 +8,7 @@ use crate::{
     node_id::NodeId,
     resolve_peers::{ResolvePeersOptions, test_support::linked_package},
 };
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::path::{Path, PathBuf};
 

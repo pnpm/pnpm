@@ -8,7 +8,7 @@ use crate::{
     oidc::OidcHttpOptions,
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use pacquet_reporter::SilentReporter;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::collections::BTreeMap;

@@ -63,7 +63,7 @@ pub enum LogEvent {
     /// `clone-or-copy` config values, the wire value reflects the
     /// post-fallback method rather than the optimistic configured
     /// one. Up to three events per install (one per resolved method)
-    /// gated by an install-scoped atomic in `pacquet-package-manager`.
+    /// gated by an install-scoped atomic in `pnpm-package-manager`.
     #[serde(rename = "pnpm:package-import-method")]
     PackageImportMethod(PackageImportMethodLog),
 
@@ -178,7 +178,7 @@ pub enum LogEvent {
     /// Global-logger message (`name: "pnpm:global"`). Written to a
     /// `bole('pnpm:global')` logger with just a message string — no
     /// `prefix`, unlike [`LogEvent::Pnpm`]. The interactive
-    /// web-authentication flow (`pacquet-network-web-auth`) emits on this
+    /// web-authentication flow (`pnpm-network-web-auth`) emits on this
     /// channel to surface the auth URL / QR code and the browser-open
     /// prompts. `@pnpm/cli.default-reporter` routes these into the "other"
     /// log stream.
@@ -281,7 +281,7 @@ pub struct PackageImportMethodLog {
 }
 
 /// Wire-format import method. pnpm only knows three values; pacquet's
-/// config enum (`pacquet_config::PackageImportMethod`) carries `Auto`
+/// config enum (`pnpm_config::PackageImportMethod`) carries `Auto`
 /// and `CloneOrCopy` on top of those, but those are dispatched-on by
 /// the auto-importer's fallback chain, not emitted. The wire value is
 /// the resolved method `link_file` actually used — `Clone` /
@@ -492,13 +492,13 @@ pub struct RequestRetryLog {
 /// JS-shaped error object the default-reporter dispatches on:
 /// `error.httpStatusCode ?? error.status ?? error.errno ?? error.code`
 /// is what gets rendered as the reason. pacquet populates whichever
-/// field its `pacquet_tarball::TarballError` variant maps to (HTTP
+/// field its `pnpm_tarball::TarballError` variant maps to (HTTP
 /// status → `http_status_code`, decode / IO failures → `code`) and
 /// always carries the rendered `message` so consumers that read
 /// `err.message` directly still work.
 ///
-/// Plain backticks (not an intra-doc link) because `pacquet-reporter`
-/// cannot depend on `pacquet-tarball` — the dependency runs the
+/// Plain backticks (not an intra-doc link) because `pnpm-reporter`
+/// cannot depend on `pnpm-tarball` — the dependency runs the
 /// other way.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -605,7 +605,7 @@ pub struct IgnoredScriptsLog {
 /// The pairing is not type-enforced against `reason` (a
 /// `BuildFailure` reason with a `ResolutionFailure` package is
 /// constructible in Rust); emit sites live in
-/// `pacquet-package-manager` (`installability.rs` for the
+/// `pnpm-package-manager` (`installability.rs` for the
 /// installability skips, `build_modules.rs` for the build-failure
 /// path) and must keep the pairing correct by hand.
 /// `CreateVirtualStore`'s slice 4 fetch-failure path is silent on
@@ -923,7 +923,13 @@ pub enum LogLevel {
 /// production sinks satisfy this: [`SilentReporter`] is a no-op, and
 /// [`NdjsonReporter`] serializes per-event then writes under
 /// `std::io::stderr().lock()`.
-pub trait Reporter {
+///
+/// The `Send + Sync + 'static` supertraits state the same contract in
+/// the type system, so emitting code can hand `R` to a spawned task
+/// (the concurrent lockfile-verification gate) without re-declaring the
+/// bounds at every generic hop. Implementations are unit structs, which
+/// satisfy them automatically.
+pub trait Reporter: Send + Sync + 'static {
     fn emit(event: &LogEvent);
 }
 

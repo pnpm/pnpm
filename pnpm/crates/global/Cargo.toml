@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-global"
+name                 = "pnpm-global"
 description          = "Global package install support (ports @pnpm/global.packages and @pnpm/global.commands)"
 version              = "0.0.1"
 publish              = false
@@ -11,11 +11,11 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-cmd-shim                = { workspace = true }
-pacquet-crypto-hash             = { workspace = true }
-pacquet-fs                      = { workspace = true }
-pacquet-package-manifest        = { workspace = true }
-pacquet-resolving-deps-resolver = { workspace = true }
+pnpm-cmd-shim                = { workspace = true }
+pnpm-crypto-hash             = { workspace = true }
+pnpm-fs                      = { workspace = true }
+pnpm-package-manifest        = { workspace = true }
+pnpm-resolving-deps-resolver = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

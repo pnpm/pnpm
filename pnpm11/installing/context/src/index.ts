@@ -19,7 +19,7 @@ import type {
   ProjectRootDir,
   ProjectRootDirRealPath,
   ReadPackageHook,
-  Registries,
+  RegistriesByScope,
 } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 import { clone } from 'ramda'
@@ -67,7 +67,7 @@ export interface PnpmContext {
   wantedLockfile: LockfileObject
   wantedLockfileIsModified: boolean
   workspacePackages: WorkspacePackages
-  registries: Registries
+  registriesByScope: RegistriesByScope
 }
 
 export interface ProjectOptions {
@@ -101,7 +101,7 @@ export interface GetContextOptions {
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   readPackageHook?: ReadPackageHook
   include?: IncludedDependencies
-  registries: Registries
+  registriesByScope: RegistriesByScope
   storeDir: string
   useLockfile: boolean
   useGitBranchLockfile?: boolean
@@ -173,7 +173,7 @@ export async function getContext (
     projects: Object.fromEntries(importersContext.projects.map((project) => [project.rootDir, project])),
     publicHoistPattern: opts.publicHoistPattern,
     currentPublicHoistPattern: importersContext.currentPublicHoistPattern,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     rootModulesDir: importersContext.rootModulesDir,
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,
@@ -189,7 +189,7 @@ export async function getContext (
       frozenLockfile: opts.frozenLockfile === true,
       lockfileDir: opts.lockfileDir,
       projects: importersContext.projects,
-      registry: opts.registries.default,
+      registry: opts.registriesByScope.default,
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
@@ -226,7 +226,7 @@ export interface PnpmSingleContext {
   modulesFile: Modules | null
   pendingBuilds: string[]
   publicHoistPattern: string[] | undefined
-  registries: Registries
+  registriesByScope: RegistriesByScope
   rootModulesDir: string
   lockfileDir: string
   virtualStoreDir: string
@@ -256,7 +256,7 @@ export async function getContextForSingleImporter (
     readPackageHook?: ReadPackageHook
     include?: IncludedDependencies
     dir: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     storeDir: string
     useLockfile: boolean
     useGitBranchLockfile?: boolean
@@ -275,7 +275,6 @@ export async function getContextForSingleImporter (
     include,
     modules,
     pendingBuilds,
-    registries,
     skipped,
     rootModulesDir,
   } = await readProjectsContext(
@@ -334,10 +333,7 @@ export async function getContextForSingleImporter (
     pendingBuilds,
     prefix: opts.dir,
     publicHoistPattern: opts.publicHoistPattern,
-    registries: {
-      ...opts.registries,
-      ...registries,
-    },
+    registriesByScope: opts.registriesByScope,
     rootModulesDir,
     skipped,
     storeDir,
@@ -351,7 +347,7 @@ export async function getContextForSingleImporter (
       frozenLockfile: false,
       lockfileDir: opts.lockfileDir,
       projects: [{ id: importerId, rootDir: opts.dir as ProjectRootDir }],
-      registry: opts.registries.default,
+      registry: opts.registriesByScope.default,
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,

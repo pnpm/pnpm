@@ -6,6 +6,7 @@ import { type Config, type ConfigContext, getWorkspaceConcurrency, types } from 
 import { lifecycleLogger, type LifecycleMessage } from '@pnpm/core-loggers'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
+import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { makeNodePackageMapOption, makeNodeRequireOption } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'
@@ -243,7 +244,7 @@ export async function handler (
           const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(prefix))
           const extraEnv: Record<string, string | undefined> = {
             ...opts.extraEnv,
-            ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+            ...(opts.nodeOptions ? { NODE_OPTIONS: keepEsmNodePathLoaderOption(opts.nodeOptions, opts.extraEnv?.NODE_OPTIONS) } : {}),
           }
           if (pnpPath) {
             Object.assign(extraEnv, makeNodeRequireOption(pnpPath, extraEnv))

@@ -1,11 +1,11 @@
 use super::{HOISTING_LIMITS_WORKSPACES, injected_member_key, link_root_component_members};
 use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     ImporterDepVersion, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_testing_utils::fs::is_symlink_or_junction;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::{collections::HashMap, fs, path::Path};
 use tempfile::tempdir;
 
@@ -48,7 +48,7 @@ fn injected_member_key_matches_file_and_file_alias() {
     // A registry version and a real npm alias are not members.
     let registry = ResolvedDependencySpec {
         specifier: "^16".to_string(),
-        version: "16.14.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+        version: "16.14.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
     };
     assert!(injected_member_key(&name, &registry).is_none());
     let npm_alias = ResolvedDependencySpec {
@@ -136,7 +136,7 @@ fn injected_members_link_declared_siblings() {
         "react".parse().unwrap(),
         ResolvedDependencySpec {
             specifier: "16".to_string(),
-            version: "16.14.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "16.14.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
         },
     );
 

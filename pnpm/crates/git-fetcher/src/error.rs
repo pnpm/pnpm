@@ -1,5 +1,5 @@
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
 
 /// Error type of [`crate::prepare_package()`].
 ///
@@ -27,7 +27,7 @@ pub enum PreparePackageError {
     #[diagnostic(code(ERR_PNPM_PREPARE_PACKAGE))]
     LifecycleFailed {
         #[error(source)]
-        source: pacquet_executor::LifecycleScriptError,
+        source: pnpm_executor::LifecycleScriptError,
     },
 
     /// `path` field on the resolution pointed outside the cloned dir
@@ -37,7 +37,17 @@ pub enum PreparePackageError {
     InvalidPath { path: String },
 
     #[diagnostic(transparent)]
-    ReadManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
+    ReadManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
+
+    /// The dependency pins the package manager that prepares it, and pnpm
+    /// could not put that package manager on the build's `PATH`.
+    #[display("Cannot provide {package_manager} to prepare the git-hosted package: {source}")]
+    #[diagnostic(code(ERR_PNPM_GIT_DEP_PACKAGE_MANAGER_UNAVAILABLE))]
+    PackageManagerUnavailable {
+        package_manager: String,
+        #[error(source)]
+        source: std::io::Error,
+    },
 
     #[display("I/O error during preparePackage: {_0}")]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_PREPARE_PACKAGE_IO))]
@@ -60,6 +70,39 @@ pub enum GitFetcherError {
     #[display("`git {operation}` failed ({status}): {stderr}")]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_GIT_EXEC_FAILED))]
     GitExec { operation: &'static str, stderr: String, status: std::process::ExitStatus },
+
+    /// The clone (or shallow fetch) of a git dependency failed. Carries
+    /// the package the resolution belongs to, which [`Self::GitExec`]
+    /// alone cannot name — a bare `git clone` failure leaves the user to
+    /// work out which of their dependencies it came from.
+    #[display("Failed to fetch {package:?} from the git repository {repo:?}: {stderr}")]
+    #[diagnostic(code(ERR_PNPM_GIT_FETCH_FAILED))]
+    Fetch { package: String, repo: String, stderr: String },
+
+    /// [`Self::Fetch`] for a repository the lockfile pins to an SSH
+    /// remote. Split into its own variant purely so the derived
+    /// `Diagnostic` can carry the remediation `help`, which does not
+    /// apply to a transport that needs no key.
+    ///
+    /// A lockfile written before pnpm v11.21 could record an SSH URL for
+    /// a dependency whose specifier never asked for SSH, and resolution
+    /// is skipped while that lockfile stays up to date — so the entry
+    /// survives the upgrade that fixed it and the install keeps failing
+    /// wherever no SSH key is configured.
+    #[display("Failed to fetch {package:?} from the git repository {repo:?}: {stderr}")]
+    #[diagnostic(
+        code(ERR_PNPM_GIT_FETCH_FAILED),
+        help(
+            r#"The lockfile records an SSH remote for this dependency, so fetching it needs an SSH key for {host}.
+
+If its specifier does not ask for SSH (for example "github:owner/repo"), the lockfile entry was written before pnpm v11.21 and can be re-recorded over HTTPS:
+
+    pnpm update {package}
+
+"pnpm install --force" and "pnpm install --resolution-only" do not re-resolve git dependencies, so neither clears it."#,
+        )
+    )]
+    FetchOverSsh { package: String, repo: String, host: String, stderr: String },
 
     /// `git rev-parse HEAD` did not return the pinned commit, rejected
     /// with the `ERR_PNPM_GIT_CHECKOUT_FAILED` code.
@@ -93,14 +136,14 @@ pub enum GitFetcherError {
     Io(#[error(source)] std::io::Error),
 
     #[diagnostic(transparent)]
-    ReadManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
+    ReadManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
 
     #[diagnostic(transparent)]
     Prepare(#[error(source)] PreparePackageError),
 
     #[diagnostic(transparent)]
-    Packlist(#[error(source)] pacquet_fs_packlist::PacklistError),
+    Packlist(#[error(source)] pnpm_fs_packlist::PacklistError),
 
     #[diagnostic(transparent)]
-    AddFilesFromDir(#[error(source)] pacquet_store_dir::AddFilesFromDirError),
+    AddFilesFromDir(#[error(source)] pnpm_store_dir::AddFilesFromDirError),
 }

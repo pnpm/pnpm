@@ -4,7 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
@@ -58,7 +58,7 @@ export interface UnpublishOptions extends CreateFetchFromRegistryOptions {
     otp?: string
   }
   configByUri?: Record<string, RegistryConfig>
-  registries?: Registries
+  registriesByScope?: RegistriesByScope
 }
 
 interface PackumentResponse {
@@ -102,7 +102,7 @@ async function unpublishPackage (
   versionRange: string | undefined,
   opts: UnpublishOptions
 ): Promise<string> {
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = pickRegistryForPackage(opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' }, packageName)
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
 

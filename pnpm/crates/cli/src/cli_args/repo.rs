@@ -3,15 +3,15 @@ use std::{borrow::Cow, collections::HashMap, time::Duration};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_resolving_npm_resolver::{
+use pnpm_config::Config;
+use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
     pick_registry_for_package,
 };
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 /// Opens the URL of the package's repository in a browser.
 #[derive(Debug, Args)]
@@ -151,9 +151,9 @@ async fn get_repo_url_from_registry(
 }
 
 fn select_package_version(
-    package: &pacquet_registry::Package,
+    package: &pnpm_registry::Package,
     range: &str,
-) -> Option<std::sync::Arc<pacquet_registry::PackageVersion>> {
+) -> Option<std::sync::Arc<pnpm_registry::PackageVersion>> {
     if range.is_empty() || range == "latest" {
         return package.latest();
     }

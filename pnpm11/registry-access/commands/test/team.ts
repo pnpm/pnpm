@@ -55,7 +55,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['create', '@myorg:newteam'])
 
       expect(result).toBe('+myorg:newteam')
@@ -65,7 +65,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['create'])
       }).rejects.toThrow('Team scope is required')
     })
@@ -74,7 +74,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['create', '@myorg'])
       }).rejects.toThrow('Team name is required')
     })
@@ -88,7 +88,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: { otp: '123456' },
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['create', '@myorg:newteam'])
 
       expect(result).toBe('+myorg:newteam')
@@ -104,7 +104,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['create', '@myorg:newteam'])
       }).rejects.toThrow('logged in')
     })
@@ -119,7 +119,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['create', '@myorg:newteam'])
       }).rejects.toThrow('permission')
     })
@@ -128,7 +128,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['create', '@myorg:'])
       }).rejects.toThrow('Team spec must start with @scope')
     })
@@ -137,7 +137,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['create', '@'])
       }).rejects.toThrow('Team spec must start with @scope')
     })
@@ -146,7 +146,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['create', '@:newteam'])
       }).rejects.toThrow('Team spec must start with @scope')
     })
@@ -162,7 +162,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['destroy', '@myorg:oldteam'])
 
       expect(result).toBe('-myorg:oldteam')
@@ -172,7 +172,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['destroy'])
       }).rejects.toThrow('Team scope is required')
     })
@@ -181,7 +181,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['destroy', '@myorg'])
       }).rejects.toThrow('Team name is required')
     })
@@ -196,7 +196,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['destroy', '@myorg:oldteam'])
       }).rejects.toThrow('logged in')
     })
@@ -211,7 +211,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['destroy', '@myorg:oldteam'])
       }).rejects.toThrow('permission')
     })
@@ -225,7 +225,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: { otp: '654321' },
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['destroy', '@myorg:oldteam'])
 
       expect(result).toBe('-myorg:oldteam')
@@ -243,7 +243,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['add', '@myorg:team1', 'alice'])
 
       expect(result).toBe('+alice added to @myorg:team1')
@@ -253,7 +253,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['add'])
       }).rejects.toThrow('Team scope and user are required')
     })
@@ -262,7 +262,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['add', '@myorg:team1'])
       }).rejects.toThrow('Team scope and user are required')
     })
@@ -271,7 +271,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['add', '@myorg', 'alice'])
       }).rejects.toThrow('Team name is required')
     })
@@ -286,7 +286,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['add', '@myorg:team1', 'alice'])
       }).rejects.toThrow('logged in')
     })
@@ -301,7 +301,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['add', '@myorg:team1', 'alice'])
       }).rejects.toThrow('permission')
     })
@@ -315,7 +315,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: { otp: '123456' },
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['add', '@myorg:team1', 'alice'])
 
       expect(result).toBe('+alice added to @myorg:team1')
@@ -333,7 +333,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['rm', '@myorg:team1', 'bob'])
 
       expect(result).toBe('-bob removed from @myorg:team1')
@@ -343,7 +343,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['rm'])
       }).rejects.toThrow('Team scope and user are required')
     })
@@ -352,7 +352,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['rm', '@myorg:team1'])
       }).rejects.toThrow('Team scope and user are required')
     })
@@ -367,7 +367,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['rm', '@myorg:team1', 'bob'])
       }).rejects.toThrow('logged in')
     })
@@ -382,7 +382,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['rm', '@myorg:team1', 'bob'])
       }).rejects.toThrow('permission')
     })
@@ -396,7 +396,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: { otp: '123456' },
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['rm', '@myorg:team1', 'bob'])
 
       expect(result).toBe('-bob removed from @myorg:team1')
@@ -416,7 +416,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
       expect(result).toContain('@myorg has the following teams:')
@@ -436,7 +436,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['ls', '@myorg:developers'])
 
       expect(result).toContain('@myorg:developers has the following members:')
@@ -456,7 +456,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: { parseable: true },
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
       expect(result).toBe('developers\nadmins')
@@ -474,7 +474,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: { json: true },
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
       expect(result).toContain('"developers"')
@@ -490,7 +490,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
       expect(result).toBe('@myorg has no teams')
@@ -505,7 +505,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['ls', '@myorg:empty-team'])
 
       expect(result).toBe('@myorg:empty-team has no members')
@@ -521,7 +521,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['ls', '@nonexistent'])
       }).rejects.toThrow('not found')
     })
@@ -536,7 +536,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: CONFIG_BY_URI,
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['ls', '@myorg:nonexistent'])
       }).rejects.toThrow('not found')
     })
@@ -545,7 +545,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['ls'])
       }).rejects.toThrow('Organization scope is required')
     })
@@ -559,7 +559,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['list', '@myorg'])
 
       expect(result).toContain('@myorg:developers')
@@ -576,7 +576,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['@myorg'])
 
       expect(result).toContain('@myorg:developers')
@@ -591,7 +591,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: {},
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['@myorg:developers'])
 
       expect(result).toContain('alice')
@@ -601,7 +601,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['invalid'])
       }).rejects.toThrow('Subcommand is required')
     })
@@ -612,7 +612,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['create', 'invalid'])
       }).rejects.toThrow('Team spec must start with @scope')
     })
@@ -622,7 +622,7 @@ describe('team command', () => {
         await team.handler({
           cliOptions: {},
           configByUri: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['ls', '@myorg'])
         throw new Error('Expected error to be thrown')
       } catch (err: unknown) {
@@ -636,7 +636,7 @@ describe('team command', () => {
       try {
         await team.handler({
           cliOptions: {},
-          registries: { default: REGISTRY_URL },
+          registriesByScope: { default: REGISTRY_URL },
         }, ['ls', '@myorg'])
         throw new Error('Expected error to be thrown')
       } catch (err: unknown) {
@@ -654,7 +654,7 @@ describe('team command', () => {
       const result = await team.handler({
         cliOptions: { parseable: true },
         configByUri: CONFIG_BY_URI,
-        registries: { default: REGISTRY_URL },
+        registriesByScope: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
       expect(result).toBe('developers')

@@ -7,7 +7,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use std::{
     fs, io,
     path::{Path, PathBuf},

@@ -1,8 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { linkBinsOfPackages } from '@pnpm/bins.linker'
-import { removeBin } from '@pnpm/bins.remover'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { summaryLogger } from '@pnpm/core-loggers'
 import {
@@ -11,16 +9,14 @@ import {
   createInstallDir,
   findGlobalPackage,
   getHashLink,
-  getInstalledBinNames,
   type GlobalPackageInfo,
 } from '@pnpm/global.packages'
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
-import { isSubdir } from 'is-subdir'
-import { symlinkDir } from 'symlink-dir'
 
 import { getBinNamesOfOtherGroups } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
@@ -28,7 +24,7 @@ import { readInstalledPackages } from './readInstalledPackages.js'
 export type GlobalAddOptions = CreateStoreControllerOptions & {
   bin?: string
   globalPkgDir?: string
-  registries: Record<string, string>
+  registriesByScope: Record<string, string>
   allowBuild?: string[]
   allowBuilds?: Record<string, string | boolean>
   saveExact?: boolean
@@ -140,8 +136,6 @@ async function installGroup (
   const aliases = Object.keys(pkgJson.dependencies ?? {})
   const replacementAliases = getReplacementAliases(aliases)
 
-  // Check for bin name conflicts with other global packages
-  // (must happen before removeExistingGlobalInstalls so we don't lose existing packages on failure)
   const pkgs = await readInstalledPackages(installDir)
   let binsToSkip: Set<string>
   try {
@@ -156,19 +150,32 @@ async function installGroup (
     throw err
   }
 
-  // Remove any existing global installations of these aliases
-  await removeExistingGlobalInstalls({ globalDir, globalBinDir, aliases, replacementAliases })
+  const { groupsToReplace, protectedBins } = await collectExistingGlobalInstalls({
+    globalDir,
+    aliases,
+    replacementAliases,
+  })
 
-  // Compute cache key and create hash symlink pointing to install dir
   const cacheHash = createGlobalCacheKey({
     aliases,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
   })
   const hashLink = getHashLink(globalDir, cacheHash)
-  await symlinkDir(installDir, hashLink, { overwrite: true })
-
-  // Link bins from installed packages into global bin dir
-  await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
+  const activatedBins = await activateGlobalInstall({
+    installDir,
+    hashLink,
+    globalBinDir,
+    pkgs,
+    binsToSkip,
+  })
+  await cleanupReplacedGlobalInstalls({
+    groups: groupsToReplace,
+    globalDir,
+    globalBinDir,
+    activeHash: cacheHash,
+    activatedBins,
+    protectedBins,
+  })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }
 
@@ -184,8 +191,8 @@ export function shouldReplaceExistingGlobalInstall (
   aliases: string[],
   replacementAliases: string[]
 ): boolean {
-  if (aliases.some((alias) => alias in pkg.dependencies)) return true
-  return isPnpmCliOnlyGroup(pkg) && replacementAliases.some((alias) => alias in pkg.dependencies)
+  if (aliases.some((alias) => Object.hasOwn(pkg.dependencies, alias))) return true
+  return isPnpmCliOnlyGroup(pkg) && replacementAliases.some((alias) => Object.hasOwn(pkg.dependencies, alias))
 }
 
 function isPnpmCliOnlyGroup (pkg: GlobalPackageInfo): boolean {
@@ -244,52 +251,32 @@ function resolveLocalParam (param: string, baseDir: string): string {
   return param
 }
 
-async function removeExistingGlobalInstalls (
+interface ExistingGlobalInstalls {
+  groupsToReplace: GlobalPackageInfo[]
+  protectedBins: Set<string>
+}
+
+async function collectExistingGlobalInstalls (
   opts: {
     globalDir: string
-    globalBinDir: string
     aliases: string[]
     replacementAliases: string[]
   }
-): Promise<void> {
-  const { globalDir, globalBinDir, aliases, replacementAliases } = opts
+): Promise<ExistingGlobalInstalls> {
+  const { globalDir, aliases, replacementAliases } = opts
 
-  // Collect unique groups to remove (dedup by hash)
-  const groupsToRemove = new Map<string, ReturnType<typeof getInstalledBinNames>>()
+  const groupsToReplace = new Map<string, GlobalPackageInfo>()
   for (const alias of replacementAliases) {
     const existing = findGlobalPackage(globalDir, alias)
     if (
       existing &&
       shouldReplaceExistingGlobalInstall(existing, aliases, replacementAliases) &&
-      !groupsToRemove.has(existing.hash)
+      !groupsToReplace.has(existing.hash)
     ) {
-      groupsToRemove.set(existing.hash, getInstalledBinNames(existing))
+      groupsToReplace.set(existing.hash, existing)
     }
   }
 
-  // Bins owned by groups that survive this replacement must not be
-  // unlinked, or we'd delete a different global package's bin.
-  const protectedBins = await getBinNamesOfOtherGroups(globalDir, new Set(groupsToRemove.keys()))
-
-  // Remove all groups in parallel
-  await Promise.all(
-    [...groupsToRemove.entries()].map(async ([hash, binNamesPromise]) => {
-      const binNames = await binNamesPromise
-      await Promise.all(
-        binNames
-          .filter((binName) => !protectedBins.has(binName))
-          .map((binName) => removeBin(path.join(globalBinDir, binName)))
-      )
-      // Remove both the hash symlink and the install dir it points to
-      const hashLink = getHashLink(globalDir, hash)
-      let installDir: string | null = null
-      try {
-        installDir = fs.realpathSync(hashLink)
-      } catch {}
-      await fs.promises.rm(hashLink, { force: true })
-      if (installDir && isSubdir(globalDir, installDir)) {
-        await fs.promises.rm(installDir, { recursive: true, force: true })
-      }
-    })
-  )
+  const protectedBins = await getBinNamesOfOtherGroups(globalDir, new Set(groupsToReplace.keys()))
+  return { groupsToReplace: [...groupsToReplace.values()], protectedBins }
 }

@@ -81,23 +81,82 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
     }
     fs::create_dir_all(storage.parent().expect("registry fixture storage has parent"))
         .expect("create generated registry fixture storage dir");
-    let temp = generated.join(format!(
-        "storage.tmp.{}.{}",
-        std::process::id(),
-        TEMP_COUNTER.fetch_add(1, Ordering::Relaxed),
-    ));
+    let temp = generated.join(scratch_name("storage.tmp"));
     if temp.exists() {
         fs::remove_dir_all(&temp).expect("remove stale temp registry fixture storage");
     }
     build_storage(packages, &temp, &[]);
     fs::write(temp.join(COMPLETE_FILE), "").expect("write registry fixture completion marker");
-    match fs::rename(&temp, storage) {
-        Ok(()) => {}
-        Err(_) if storage.join(COMPLETE_FILE).exists() => {
-            fs::remove_dir_all(&temp).expect("remove redundant registry fixture storage");
-        }
-        Err(err) => panic!("publish generated registry fixture storage: {err}"),
+    publish_storage(generated, &temp, storage);
+}
+
+/// Move a freshly built `temp` tree into place at `storage`.
+///
+/// Publishers race: the loser's rename fails because the winner's tree is
+/// already there, which is harmless — the completion marker proves the
+/// content arrived. A tree *without* the marker is a different matter. It
+/// is a half-finished publish, or a build cache restored without the
+/// marker, and no reader may touch it; left alone it wedges every later
+/// run with `Directory not empty`.
+fn publish_storage(generated: &Path, temp: &Path, storage: &Path) {
+    if try_publish_storage(temp, storage).is_ok() {
+        return;
     }
+    discard_unusable_storage(generated, storage);
+    try_publish_storage(temp, storage).expect("publish generated registry fixture storage");
+}
+
+/// Clear an unusable tree out of `storage` so a publish can land there.
+///
+/// Claiming the tree with a rename is what makes this safe against other
+/// publishers: exactly one of them can move a given directory, so the
+/// others find the path already free (or already republished) rather than
+/// deleting each other's work.
+///
+/// The claim is taken before the marker can be inspected, though, and a
+/// competing publisher may have completed the tree in between. Deleting it
+/// then would pull content out from under every reader holding the path,
+/// so the marker is re-checked *after* the claim and a completed tree is
+/// put straight back.
+fn discard_unusable_storage(generated: &Path, storage: &Path) {
+    let claimed = generated.join(scratch_name("storage.stale"));
+    if fs::rename(storage, &claimed).is_err() {
+        return;
+    }
+    if claimed.join(COMPLETE_FILE).exists() {
+        restore_claimed_storage(&claimed, storage);
+        return;
+    }
+    fs::remove_dir_all(&claimed).expect("remove unusable registry fixture storage");
+}
+
+/// Put a claimed tree back after it turned out to be complete.
+///
+/// The claim leaves `storage` free, so a publisher can land its own tree
+/// there before the restore runs. Its content is the same — the path is
+/// addressed by a fingerprint of the fixtures — so a claim that can no
+/// longer go back is redundant rather than lost, and gets dropped.
+fn restore_claimed_storage(claimed: &Path, storage: &Path) {
+    if fs::rename(claimed, storage).is_err() {
+        fs::remove_dir_all(claimed).expect("remove redundant registry fixture storage");
+    }
+}
+
+fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {
+    match fs::rename(temp, storage) {
+        Ok(()) => Ok(()),
+        Err(_) if storage.join(COMPLETE_FILE).exists() => {
+            fs::remove_dir_all(temp).expect("remove redundant registry fixture storage");
+            Ok(())
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// A scratch directory name no other publisher — in this process or any
+/// concurrent one — can collide with.
+fn scratch_name(prefix: &str) -> String {
+    format!("{prefix}.{}.{}", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 fn fixture_fingerprint(root: &Path) -> String {

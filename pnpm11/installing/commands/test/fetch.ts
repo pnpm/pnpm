@@ -33,7 +33,7 @@ const DEFAULT_OPTIONS = {
   pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   configByUri: {},
-  registries: {
+  registriesByScope: {
     default: REGISTRY_URL,
   },
   rootProjectManifestDir: '',

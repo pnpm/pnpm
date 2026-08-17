@@ -159,7 +159,7 @@ test('skip optional dependencies whose names declare unsupported platforms when 
         '@pnpm.e2e/has-many-optional-deps': '1.0.0',
       },
     }, testDefaults({
-      registries: { default: registryProxy },
+      registriesByScope: { default: registryProxy },
       supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
     }))
   } finally {
@@ -259,7 +259,7 @@ test('fail on an optional dependency that cannot be resolved when the lockfile h
     // stale packuments even though the lockfile already pins the versions.
     await expect(install(manifest, testDefaults({
       dedupe: true,
-      registries: { default: registryProxy },
+      registriesByScope: { default: registryProxy },
     }))).rejects.toMatchObject({
       code: expect.stringMatching(/^ERR_PNPM_NO_(MATCHING_VERSION|VERSIONS)$/),
       hint: expect.stringContaining('the lockfile contains a resolution for it'),

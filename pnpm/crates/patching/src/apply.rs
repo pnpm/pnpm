@@ -72,7 +72,7 @@ pub enum PatchApplyError {
 ///
 /// `Modify` writes the patched content via a sibling temp file +
 /// `rename` (the same pattern
-/// [`pacquet_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs)
+/// [`pnpm_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs)
 /// uses for the lockfile), which both makes the rewrite crash-safe
 /// — a failed write leaves the original on disk instead of an empty
 /// dirent — and breaks any hardlink (or reflink) back to the
@@ -297,7 +297,7 @@ fn apply_one_file(
 /// `permissions` applied before the rename so the final file has the
 /// right mode atomically), then `rename` over `target`. Mirrors the
 /// pattern in
-/// [`pacquet_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs):
+/// [`pnpm_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs):
 /// `create_new(true)` rather than `create + truncate` so we never
 /// follow a symlink or truncate a file an attacker (or a crashed prior
 /// install) pre-seeded at our predicted temp path; on `AlreadyExists`
@@ -326,7 +326,7 @@ fn write_atomic_with_mode(
     /// conditions we never collide; under shared-store-across-
     /// containers the chance of 16 consecutive same-pid same-counter
     /// collisions is negligible. Matches the constant in
-    /// `pacquet_lockfile::save_lockfile::write_atomic`.
+    /// `pnpm_lockfile::save_lockfile::write_atomic`.
     const MAX_TEMP_ATTEMPTS: usize = 16;
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);

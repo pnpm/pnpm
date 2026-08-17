@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DepType {
@@ -23,8 +23,8 @@ pub(crate) fn detect_dep_types(lockfile: &Lockfile) -> DepTypes {
     };
 
     let group_dep_paths = |group: fn(
-        &pacquet_lockfile::ProjectSnapshot,
-    ) -> Option<&pacquet_lockfile::ResolvedDependencyMap>| {
+        &pnpm_lockfile::ProjectSnapshot,
+    ) -> Option<&pnpm_lockfile::ResolvedDependencyMap>| {
         lockfile
             .importers
             .values()

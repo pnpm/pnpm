@@ -4,13 +4,13 @@ use super::{
     make_node_package_map_option, to_relative_url,
 };
 use crate::{DependenciesGraphNode, LockfileToDepGraphResult, VirtualStoreLayout};
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     ComVer, Lockfile, LockfileResolution, LockfileVersion, PackageKey, PkgIdWithPatchHash, PkgName,
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
     TarballResolution,
 };
-use pacquet_modules_yaml::DepPath;
-use pacquet_package_manifest::PackageManifest;
+use pnpm_modules_yaml::DepPath;
+use pnpm_package_manifest::PackageManifest;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
@@ -71,7 +71,7 @@ fn builds_package_map_from_lockfile() {
         &PackageMapOptions {
             lockfile_dir: &cwd,
             modules_dir: &cwd.join("node_modules"),
-            package_map_type: pacquet_config::NodePackageMapType::Standard,
+            package_map_type: pnpm_config::NodePackageMapType::Standard,
             layout: &layout,
             project_manifests: &project_manifests,
         },
@@ -134,7 +134,7 @@ fn builds_package_map_from_lockfile() {
 #[test]
 fn lockfile_package_map_uses_global_virtual_store_layout() {
     let cwd = std::env::current_dir().expect("current dir");
-    let mut config = pacquet_config::Config::new();
+    let mut config = pnpm_config::Config::new();
     config.enable_global_virtual_store = true;
     config.global_virtual_store_dir = cwd.join("store/links");
     config.virtual_store_dir = cwd.join("node_modules/.pnpm");
@@ -162,7 +162,7 @@ fn lockfile_package_map_uses_global_virtual_store_layout() {
         &PackageMapOptions {
             lockfile_dir: &cwd,
             modules_dir: &cwd.join("node_modules"),
-            package_map_type: pacquet_config::NodePackageMapType::Standard,
+            package_map_type: pnpm_config::NodePackageMapType::Standard,
             layout: &layout,
             project_manifests: &project_manifests,
         },
@@ -207,7 +207,7 @@ fn lockfile_package_map_loose_mode_includes_physical_ancestor_dependencies() {
         &PackageMapOptions {
             lockfile_dir: &cwd,
             modules_dir: &cwd.join("node_modules"),
-            package_map_type: pacquet_config::NodePackageMapType::Standard,
+            package_map_type: pnpm_config::NodePackageMapType::Standard,
             layout: &layout,
             project_manifests: &project_manifests,
         },
@@ -217,7 +217,7 @@ fn lockfile_package_map_loose_mode_includes_physical_ancestor_dependencies() {
         &PackageMapOptions {
             lockfile_dir: &cwd,
             modules_dir: &cwd.join("node_modules"),
-            package_map_type: pacquet_config::NodePackageMapType::Loose,
+            package_map_type: pnpm_config::NodePackageMapType::Loose,
             layout: &layout,
             project_manifests: &project_manifests,
         },
@@ -266,7 +266,7 @@ fn hoisted_package_map_loose_mode_includes_physical_ancestor_dependencies() {
         &HoistedPackageMapOptions {
             lockfile_dir: &cwd,
             modules_dir: &root_modules_dir,
-            package_map_type: pacquet_config::NodePackageMapType::Loose,
+            package_map_type: pnpm_config::NodePackageMapType::Loose,
             project_manifests: &project_manifests,
         },
     );
@@ -312,7 +312,7 @@ fn hoisted_package_map_standard_mode_uses_declared_importer_dependencies_only() 
         &HoistedPackageMapOptions {
             lockfile_dir: &cwd,
             modules_dir: &root_modules_dir,
-            package_map_type: pacquet_config::NodePackageMapType::Standard,
+            package_map_type: pnpm_config::NodePackageMapType::Standard,
             project_manifests: &project_manifests,
         },
     );
@@ -322,7 +322,7 @@ fn hoisted_package_map_standard_mode_uses_declared_importer_dependencies_only() 
         &HoistedPackageMapOptions {
             lockfile_dir: &cwd,
             modules_dir: &root_modules_dir,
-            package_map_type: pacquet_config::NodePackageMapType::Loose,
+            package_map_type: pnpm_config::NodePackageMapType::Loose,
             project_manifests: &project_manifests,
         },
     );
@@ -460,6 +460,7 @@ fn empty_lockfile() -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     }
 }
 

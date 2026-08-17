@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageKey, PkgName, PkgVerPeer,
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
@@ -90,6 +90,7 @@ fn lockfile(root: ProjectSnapshot, snapshots: &[(&str, SnapshotEntry)]) -> Lockf
         importers: HashMap::from([(".".to_string(), root)]),
         packages: None,
         snapshots: Some(snapshots.iter().map(|(id, entry)| (key(id), entry.clone())).collect()),
+        time: None,
     }
 }
 

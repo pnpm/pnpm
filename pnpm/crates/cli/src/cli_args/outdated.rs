@@ -27,16 +27,16 @@ use clap::{Args, ValueEnum};
 use miette::IntoDiagnostic;
 use node_semver::Version;
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::{
+use pnpm_config::{
     Config,
     matcher::{Matcher, create_matcher},
 };
-use pacquet_lockfile::Lockfile;
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_registry::{Package, PackageVersion, RegistryError};
-use pacquet_reporter::Reporter;
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
+use pnpm_lockfile::Lockfile;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_registry::{Package, PackageVersion, RegistryError};
+use pnpm_reporter::Reporter;
+use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use std::{
     collections::HashMap,
     io::Write,
@@ -229,7 +229,7 @@ async fn collect_outdated_for_importer_with_cache(
             )
             .await
             .map_err(|error| {
-                let reason = pacquet_network::redact_url_credentials(&error.to_string());
+                let reason = pnpm_network::redact_url_credentials(&error.to_string());
                 miette::miette!(
                     code = "ERR_PNPM_OUTDATED_REGISTRY_ERROR",
                     r#"Failed to fetch metadata for "{package_name}": {reason}"#,
@@ -269,7 +269,7 @@ async fn fetch_package_cached(
     package_name: &str,
     http_client: &ThrottledClient,
     registry: &str,
-    auth_headers: &pacquet_network::AuthHeaders,
+    auth_headers: &pnpm_network::AuthHeaders,
 ) -> Result<Arc<Package>, RegistryError> {
     let key = (registry.to_string(), package_name.to_string());
     let entry = {
@@ -594,7 +594,7 @@ impl OutdatedArgs {
                 let (lockfile, importer_id) = if config.shared_workspace_lockfile {
                     (
                         shared_lockfile,
-                        pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
+                        pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
                     )
                 } else {
                     (project_lockfile.as_ref(), Lockfile::ROOT_IMPORTER_KEY.to_string())
@@ -698,6 +698,11 @@ impl OutdatedArgs {
         let mut isolated_config = config.clone();
         isolated_config.workspace_dir = None;
         isolated_config.shared_workspace_lockfile = false;
+        // A group's lockfile is written unconditionally (`run_group_install`
+        // forces it) because it is where the installed versions are recorded,
+        // so reading it back must not depend on the caller's `lockfile`
+        // setting.
+        isolated_config.lockfile = true;
         let config = Config::leak(isolated_config);
 
         let include = self.dependency_options.include();
@@ -712,7 +717,7 @@ impl OutdatedArgs {
         };
 
         let mut outdated = Vec::new();
-        let global_packages = pacquet_global::scan_global_packages(&global_pkg_dir)
+        let global_packages = pnpm_global::scan_global_packages(&global_pkg_dir)
             .map_err(|err| miette::miette!("failed to scan global packages: {err}"))?;
         for pkg in global_packages {
             let manifest_path = pkg.install_dir.join("package.json");

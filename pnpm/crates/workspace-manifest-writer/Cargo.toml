@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-workspace-manifest-writer"
+name                  = "pnpm-workspace-manifest-writer"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,9 +11,10 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-types         = { workspace = true }
-pacquet-config-parse-overrides = { workspace = true }
-pacquet-package-manifest       = { workspace = true }
+pnpm-catalogs-types         = { workspace = true }
+pnpm-config                 = { workspace = true }
+pnpm-config-parse-overrides = { workspace = true }
+pnpm-package-manifest       = { workspace = true }
 
 derive_more  = { workspace = true }
 indexmap     = { workspace = true }

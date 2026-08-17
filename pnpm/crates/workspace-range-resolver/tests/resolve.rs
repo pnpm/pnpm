@@ -1,4 +1,4 @@
-use pacquet_workspace_range_resolver::resolve_workspace_range;
+use pnpm_workspace_range_resolver::resolve_workspace_range;
 
 fn versions() -> Vec<String> {
     vec!["1.0.0".to_string(), "2.0.0".to_string(), "3.0.0-beta.1".to_string()]

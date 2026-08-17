@@ -1,6 +1,6 @@
 //! Bridge from pacquet's static-dispatch [`Reporter`] to a JS callback.
 //!
-//! `pacquet_reporter::Reporter` is a compile-time trait with an associated
+//! `pnpm_reporter::Reporter` is a compile-time trait with an associated
 //! `emit(event)` and no `&self`, so an implementation cannot capture a
 //! per-call closure — any state must live in a `static`. [`NodeBridgeReporter`]
 //! therefore forwards each event, serialized to JSON, into a process-global
@@ -21,7 +21,7 @@ use napi::{
     Status,
     threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode, UnknownReturnValue},
 };
-use pacquet_reporter::{LogEvent, Reporter, StatsMessage};
+use pnpm_reporter::{LogEvent, Reporter, StatsMessage};
 
 /// A JS `(event: object) => void` callback. `CalleeHandled = false` so the JS
 /// side is invoked with just the event (no leading error argument); the return
@@ -56,7 +56,7 @@ pub fn clear_global_log_sink() {
 }
 
 /// Install outcome accumulated from the reporter event stream, since
-/// `pacquet_package_manager::Install::run` itself returns `()`. The
+/// `pnpm_package_manager::Install::run` itself returns `()`. The
 /// `pnpm:stats` channel carries added/removed counts and
 /// `pnpm:ignored-scripts` the packages whose build scripts were blocked
 /// (pnpm's `depsRequiringBuild`).

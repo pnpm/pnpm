@@ -8,9 +8,9 @@ use crate::{
     config_overrides::{ConfigOverrides, apply_registry_override, apply_store_dir_override},
 };
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Config, Host, default_pnpm_home_dir};
-use pacquet_network_web_auth::OtpNonInteractiveError;
-use pacquet_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
+use pnpm_config::{Config, Host, default_pnpm_home_dir};
+use pnpm_network_web_auth::OtpNonInteractiveError;
+use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
 
 pub(crate) type CommandFuture<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
@@ -73,6 +73,7 @@ impl CliArgs {
             self.command.reports_scope(self.recursive),
             false,
             self.recursive,
+            self.command.uses_stderr_reporter(),
         );
     }
 
@@ -273,7 +274,7 @@ impl CliArgs {
                 }
                 if let Some(workspace_concurrency) = workspace_concurrency {
                     cfg.workspace_concurrency =
-                        pacquet_config::resolve_child_concurrency(Some(workspace_concurrency));
+                        pnpm_config::resolve_child_concurrency(Some(workspace_concurrency));
                 }
                 Ok(Config::leak(cfg))
             };
@@ -431,6 +432,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Restart(args) => dispatch_script::restart(ctx, args),
         CliCommand::FindHash(args) => dispatch_query::find_hash(ctx, args),
         CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
+        CliCommand::Shim(args) => dispatch_query::shim(ctx, args),
         CliCommand::Bin(args) => dispatch_query::bin(ctx, args),
         CliCommand::Clean(args) => dispatch_query::clean(ctx, args, "clean"),
         CliCommand::Purge(args) => dispatch_query::clean(ctx, args, "purge"),

@@ -1,10 +1,10 @@
 use super::{PublishArgs, PublishFlags, run_publish_scripts};
 use crate::cli_args::{CliArgs, cli_command::CliCommand};
 use clap::Parser;
-use pacquet_config::Config;
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_publish::PublishNetwork;
-use pacquet_reporter::SilentReporter;
+use pnpm_config::Config;
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_publish::PublishNetwork;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -152,7 +152,7 @@ fn no_provenance_flag_outranks_a_configured_true() {
     assert_eq!(args.publish_options(&config, None, false).provenance, Some(false));
 }
 
-/// See [`pacquet_publish::resolve_access`] for why an unrecognized value is
+/// See [`pnpm_publish::resolve_access`] for why an unrecognized value is
 /// not dropped.
 #[test]
 fn an_unrecognized_configured_access_is_kept_verbatim() {

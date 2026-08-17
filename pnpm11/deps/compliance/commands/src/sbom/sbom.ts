@@ -42,11 +42,12 @@ export type SbomCommandOptions = {
   | 'dev'
   | 'dir'
   | 'lockfileDir'
-  | 'registries'
-  | 'namedRegistries'
+  | 'registriesByScope'
+  | 'registriesByPrefix'
   | 'optional'
   | 'production'
   | 'storeDir'
+  | 'supportedArchitectures'
   | 'virtualStoreDir'
   | 'modulesDir'
   | 'pnpmHomeDir'
@@ -490,10 +491,11 @@ async function generateSbomForProject (
     rootBugsUrl,
     sbomType: serialOpts.sbomType,
     include,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     lockfileDir,
     includedImporterIds,
+    supportedArchitectures: opts.supportedArchitectures,
     lockfileOnly: opts.lockfileOnly,
     storeDir: ctx.storeDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,

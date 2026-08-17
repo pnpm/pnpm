@@ -3,10 +3,10 @@
 //! are installed ahead of regular dependencies, into
 //! `node_modules/.pnpm-config/<name>`, and recorded in the env lockfile
 //! (the first YAML document of `pnpm-lock.yaml`, see
-//! [`pacquet_lockfile::EnvLockfile`]).
+//! [`pnpm_lockfile::EnvLockfile`]).
 //!
 //! The install primitive (`import_indexed_dir`) lives in
-//! `pacquet-package-manager`, so this crate depends on it; the
+//! `pnpm-package-manager`, so this crate depends on it; the
 //! config-finalization seam in the CLI drives this crate before the
 //! main install runs.
 
@@ -29,7 +29,7 @@ pub use prune::prune_env_lockfile;
 pub use resolve_and_install_config_deps::resolve_and_install_config_deps;
 pub use resolve_optional_subdeps::resolve_optional_subdeps;
 pub use resolve_package_manager_integrities::{
-    is_package_manager_resolved, resolve_package_manager_integrities,
+    is_package_manager_resolved, pnpm_engine_packages, resolve_package_manager_integrities,
 };
 pub use verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile};
 

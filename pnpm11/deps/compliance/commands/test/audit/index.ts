@@ -137,7 +137,7 @@ describe('plugin-commands-audit', () => {
     const { output, exitCode } = await audit.handler({
       ...AUDIT_REGISTRY_OPTS,
       dir: hasSignaturesDir,
-      registries: { ...AUDIT_REGISTRY_OPTS.registries, '@scope': SCOPED_AUDIT_REGISTRY },
+      registriesByScope: { ...AUDIT_REGISTRY_OPTS.registriesByScope, '@scope': SCOPED_AUDIT_REGISTRY },
       rootProjectManifestDir: hasSignaturesDir,
     }, ['signatures'])
 

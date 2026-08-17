@@ -17,7 +17,7 @@ in-memory transforms stay correct while Rust owns all engine I/O.
 
 ## Deliverables
 
-1. **Rust crate** `pacquet-napi` at `pnpm/crates/napi`
+1. **Rust crate** `pnpm-napi` at `pnpm/crates/napi`
    - `crate-type = ["cdylib"]`, napi-rs v3 (`napi` + `napi-derive`, `tokio_rt` feature).
    - New workspace profile `[profile.napi-release]` (inherits `release`,
      `panic = "unwind"`) — the workspace release profile uses `panic = "abort"`,
@@ -51,7 +51,7 @@ interface NodeApiProject {
 interface InstallOptions {
   dir: string                      // lockfile/workspace root
   projects: NodeApiProject[]       // importers, in-memory manifests
-  // --- engine config (maps onto pacquet_config::Config overlay) ---
+  // --- engine config (maps onto pnpm_config::Config overlay) ---
   storeDir?: string
   cacheDir?: string
   registries?: Record<string, string>     // { default: url, '@scope': url }
@@ -103,7 +103,7 @@ interface InstallResult {
 ```
 
 Implementation notes:
-- Build a `pacquet_config::Config` starting from `Config::current` over `options.dir`,
+- Build a `pnpm_config::Config` starting from `Config::current` over `options.dir`,
   then overlay the explicit option fields. Intern the leaked `&'static Config` in a
   `DashMap<ConfigKey, &'static Config>` keyed by a hash of (dir, overlay) so repeated
   installs in one process don't leak unboundedly (`Config::leak` is one-way).
@@ -120,7 +120,7 @@ Implementation notes:
   side receives `(manifest)` for dependency manifests. Importer-manifest transforms that
   need `workspaceDir` stay on the host side before calling the binding.
 - Run each install on a dedicated tokio runtime thread with a 32 MiB stack (same
-  rationale as `pacquet_cli::main`), and lazily init the global rayon pool exactly like
+  rationale as `pnpm_cli::main`), and lazily init the global rayon pool exactly like
   the CLI (`configure_rayon_pool`).
 - Serialize concurrent installs per `dir` inside the addon (mirror of Bit's
   `installsRunning` map) to protect the lockfile/virtual store.
@@ -148,7 +148,7 @@ the in-process `InMemoryPackageMetaCache`, shared per (registry, cacheDir).
 
 ### `pack(options): Promise<PackResult>`
 
-Wraps `pacquet_pack::api` with `SilentReporter` + `Host` capabilities. Replaces the
+Wraps `pnpm_pack::api` with `SilentReporter` + `Host` capabilities. Replaces the
 `@pnpm/releasing.commands` internal `publish/pack.js` side-load. Sync Rust, exposed
 async. Returns `{ publishedManifest, contents, tarballPath, unpackedSize }`.
 
@@ -210,7 +210,7 @@ Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.cli
     `is-odd@3.0.1` install resolved + fetched its transitive `is-number`, linked
     an isolated `node_modules`, wrote `pnpm-lock.yaml`, returned
     `stats.added == 2`, and a second call was correctly idempotent
-    (`added == 0`). Runs `pacquet_package_manager::Install` on a dedicated
+    (`added == 0`). Runs `pnpm_package_manager::Install` on a dedicated
     32 MiB-stack worker thread with its own multi-thread tokio runtime; the napi
     async fn awaits the outcome over a oneshot channel so pacquet's borrowed
     `State` never crosses the FFI boundary. `install` calls are serialized by a
@@ -235,7 +235,7 @@ Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.cli
   Rust hook to handle the dependency-manifest transforms (strip legacy/harmony).
 
 - **Multiple importers — DONE and verified.** `Install` gained
-  `workspace_projects_override: Option<Vec<pacquet_workspace::Project>>`;
+  `workspace_projects_override: Option<Vec<pnpm_workspace::Project>>`;
   `run_inner` uses it instead of `load_workspace_projects` (disk
   `pnpm-workspace.yaml` discovery) when set. The root importer stays
   `Install.manifest`; every importer (root included) feeds the `workspace:`-spec
@@ -270,7 +270,7 @@ Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.cli
     highest-in-range); `prefer_frozen_lockfile` / frozen fast paths are forced
     off so the re-resolution runs. `depth` is accepted but, without package
     selectors, is a no-op toggle.
-  - `engineStrict` / `nodeVersion` → two new `pacquet_config::Config` fields
+  - `engineStrict` / `nodeVersion` → two new `pnpm_config::Config` fields
     (also parsed from `pnpm-workspace.yaml` / `PNPM_CONFIG_*`), threaded into
     `InstallabilityHost` (fresh + frozen paths) via `detect_with`. An explicit
     `nodeVersion` is authoritative (no `node --version` probe).

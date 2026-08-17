@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
 use serde_json::Value;
 
 /// Error returned when the lookup against the dependency's installed

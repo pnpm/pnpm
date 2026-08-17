@@ -10,37 +10,20 @@
 // relinked); on Windows the native binary is hardlinked onto each and
 // self-detects its launch name to inject `dlx` (see `argv_with_alias_subcommand`
 // in the cli crate).
+//
+// Corepack runs no lifecycle scripts, so it never gets here; it enters through
+// `bin/pnpm.mjs` instead.
 import console from 'node:console'
 import fs from 'node:fs'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
-
-const require = createRequire(import.meta.url)
-const ownDir = path.dirname(fileURLToPath(import.meta.url))
-const { platform, arch } = process
-
-const PLATFORMS = {
-  win32: {
-    x64: '@pnpm/exe.win32-x64/pnpm.exe',
-    arm64: '@pnpm/exe.win32-arm64/pnpm.exe',
-  },
-  darwin: {
-    x64: '@pnpm/exe.darwin-x64/pnpm',
-    arm64: '@pnpm/exe.darwin-arm64/pnpm',
-  },
-  linux: {
-    x64: {
-      glibc: '@pnpm/exe.linux-x64/pnpm',
-      musl: '@pnpm/exe.linux-x64-musl/pnpm',
-    },
-    arm64: {
-      glibc: '@pnpm/exe.linux-arm64/pnpm',
-      musl: '@pnpm/exe.linux-arm64-musl/pnpm',
-    },
-  },
-}
+import {
+  getBinCandidates,
+  readWrapperManifest,
+  resolveInstalledBinary,
+  splitBinSpecifier,
+  wrapperDir,
+} from './native-binary.mjs'
 
 const BIN_NAMES = ['pnpm', 'pn', 'pnpx', 'pnx']
 
@@ -50,45 +33,37 @@ function setup () {
   // The committed manifest has no `optionalDependencies`; generate-packages.mjs
   // adds them at release time. Without them this is the monorepo checkout, where
   // the wrapper is a workspace package and there is no native binary to link.
-  if (readOwnManifest().optionalDependencies == null) {
+  if (readWrapperManifest().optionalDependencies == null) {
     return
   }
 
   const candidates = getBinCandidates()
   if (candidates.length === 0) {
-    fail(`pnpm does not ship a prebuilt binary for ${platform}-${arch}.`)
+    fail(`pnpm does not ship a prebuilt binary for ${process.platform}-${process.arch}.`)
   }
 
-  // Use whichever platform package the package manager installed: it already
-  // filtered by `os`/`cpu`/`libc`, more reliable than re-deriving the host.
-  let nativeBinary
-  for (const target of candidates) {
-    try {
-      nativeBinary = require.resolve(target)
-      break
-    } catch {}
-  }
+  const nativeBinary = resolveInstalledBinary()
   if (nativeBinary == null) {
-    const pkgName = candidates[0].split('/').slice(0, 2).join('/')
+    const { packageName } = splitBinSpecifier(candidates[0])
     fail(
-      `The "${pkgName}" package is not installed, so pnpm has no native binary to run.\n` +
+      `The "${packageName}" package is not installed, so pnpm has no native binary to run.\n` +
       'If your package manager skipped optional dependencies or blocked build scripts, ' +
       'enable them and reinstall.'
     )
   }
 
-  if (platform === 'win32') {
+  if (process.platform === 'win32') {
     const newBin = {}
     for (const name of BIN_NAMES) {
       // The existing shim points at the no-ext file, so it must become the
       // binary; the `.exe` twin + bin rewrite are for shims generated later.
-      placeBinary(nativeBinary, path.join(ownDir, `${name}.exe`))
-      placeBinary(nativeBinary, path.join(ownDir, name))
+      placeBinary(nativeBinary, path.join(wrapperDir, `${name}.exe`))
+      placeBinary(nativeBinary, path.join(wrapperDir, name))
       newBin[name] = `${name}.exe`
     }
     rewriteBin(newBin)
   } else {
-    placeBinary(nativeBinary, path.join(ownDir, 'pnpm'), 0o755)
+    placeBinary(nativeBinary, path.join(wrapperDir, 'pnpm'), 0o755)
   }
 }
 
@@ -126,7 +101,7 @@ function placeBinary (nativeBinary, destPath, mode) {
 }
 
 function rewriteBin (binMap) {
-  const pkgJsonPath = path.join(ownDir, 'package.json')
+  const pkgJsonPath = path.join(wrapperDir, 'package.json')
   // Temp file + rename, not in-place: package.json is hard-linked from the store.
   const tempPath = `${pkgJsonPath}.pnpm-tmp`
   try {
@@ -144,56 +119,4 @@ function rewriteBin (binMap) {
 function fail (message) {
   console.error(message)
   process.exit(1)
-}
-
-// A successful read with no optionalDependencies is the dev checkout (setup
-// no-ops there); a read/parse failure is a corrupt published package and must
-// not be silently swallowed into that same no-op path.
-function readOwnManifest () {
-  const manifestPath = path.join(ownDir, 'package.json')
-  let manifest
-  try {
-    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-  } catch (err) {
-    throw new Error(`Failed to read ${manifestPath}: ${err.message}`)
-  }
-  if (typeof manifest !== 'object' || manifest == null || Array.isArray(manifest)) {
-    throw new Error(`Expected ${manifestPath} to contain a JSON object`)
-  }
-  return manifest
-}
-
-/**
- * Native binary specifiers to try, most-preferred first; empty when the host is
- * unsupported. The linux glibc/musl pair is ordered by detected libc, which
- * only decides the winner when both are installed (e.g. `npm install --force`).
- *
- * @returns {string[]}
- */
-function getBinCandidates () {
-  const platformEntry = PLATFORMS?.[platform]?.[arch]
-
-  if (platformEntry == null) {
-    return []
-  }
-  if (typeof platformEntry === 'string') {
-    return [platformEntry]
-  }
-
-  const order = detectLinuxLibc() === 'musl' ? ['musl', 'glibc'] : ['glibc', 'musl']
-  return order.map((libc) => platformEntry[libc])
-}
-
-function detectLinuxLibc () {
-  if (platform !== 'linux') {
-    return null
-  }
-
-  // glibc builds set `glibcVersionRuntime`; musl leaves it unset. Guarded —
-  // `process.report` may be unavailable, leaving ordering to the default.
-  try {
-    return process.report?.getReport().header.glibcVersionRuntime ? 'glibc' : 'musl'
-  } catch {
-    return null
-  }
 }

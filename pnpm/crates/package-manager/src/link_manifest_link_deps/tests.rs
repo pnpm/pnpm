@@ -1,7 +1,7 @@
 use super::link_manifest_link_deps;
-use pacquet_package_manifest::PackageManifest;
-use pacquet_reporter::SilentReporter;
-use pacquet_testing_utils::fs::is_symlink_or_junction;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_reporter::SilentReporter;
+use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::fs;
 use tempfile::tempdir;
 
@@ -115,7 +115,7 @@ fn relink_replaces_stale_symlink() {
 /// is not undone by the manifest pass.
 #[test]
 fn lockfile_tracked_alias_is_skipped() {
-    use pacquet_lockfile::{ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
+    use pnpm_lockfile::{ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
 
     let dir = tempdir().unwrap();
     let project_dir = dir.path().join("packages/sibling");
@@ -136,7 +136,7 @@ fn lockfile_tracked_alias_is_skipped() {
         "shared".parse().unwrap(),
         ResolvedDependencySpec {
             specifier: "link:../shared".to_string(),
-            version: pacquet_lockfile::ImporterDepVersion::Link("../shared".to_string()),
+            version: pnpm_lockfile::ImporterDepVersion::Link("../shared".to_string()),
         },
     );
     let mut importers = std::collections::HashMap::new();

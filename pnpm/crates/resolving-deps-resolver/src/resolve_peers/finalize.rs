@@ -16,8 +16,8 @@ use crate::{
     },
     resolved_tree::ResolvedPackage,
 };
-use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
-use pacquet_resolving_resolver_base::ResolveResult;
+use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
+use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -164,7 +164,33 @@ impl Walker<'_> {
         // suffix. A peer a descendant resolved (e.g. `debug`'s optional
         // `supports-color`) is symlinked at the descendant that declares
         // it, so it must not appear in this node's dependencies.
+        // A back-edge child whose occurrence node the walk skipped would
+        // render as its bare package id — a snapshot no variant of the
+        // target has. Remap it to the target's shared canonical
+        // occurrence, which the drivers walk at importer context.
+        let canonical_scc = self.canonical_scc();
+        let mut remapped_backedges: Vec<(String, NodeId)> = Vec::new();
+        for (alias, child_node_id) in children {
+            if self.node_dep_paths.contains_key(child_node_id) {
+                continue;
+            }
+            let Some(child_pkg_id) = self
+                .tree
+                .dependencies_tree
+                .get(child_node_id)
+                .map(|child| Arc::clone(&child.resolved_package_id))
+            else {
+                continue;
+            };
+            if Self::cuts_cycle_edge(&canonical_scc, &pkg.id, &child_pkg_id) {
+                remapped_backedges
+                    .push((alias.clone(), self.canonical_backedge_node(&child_pkg_id, depth + 1)));
+            }
+        }
         record_edges.extend(children.clone());
+        for (alias, node_id) in remapped_backedges {
+            record_edges.insert(alias, node_id);
+        }
         for (peer_alias, peer_node_id) in own_resolved_peers {
             record_edges.insert(peer_alias.clone(), peer_node_id.clone());
         }
@@ -196,7 +222,7 @@ impl Walker<'_> {
             })
             .or_insert(DependenciesGraphNode {
                 dep_path: dep_path.clone(),
-                resolved_package_id: pkg.id.clone(),
+                resolved_package_id: std::sync::Arc::<str>::clone(&pkg.id).to_string(),
                 resolve_result: Arc::clone(&pkg.result),
                 children: graph_children,
                 optional_children: optional_child_aliases,
@@ -220,6 +246,9 @@ impl Walker<'_> {
     /// and the absence already surfaced via
     /// [`crate::PeerDependencyIssues::missing`].
     pub(super) fn patch_pending_peer_edges(&mut self) {
+        // Cleared with the buffer: a triple pushed after this drain must be
+        // applied again, since the graph it patches has moved on.
+        self.pending_peer_edge_keys.clear();
         for edge in std::mem::take(&mut self.pending_peer_edges) {
             let Some(child_dep_path) = self.node_dep_paths.get(&edge.child_node_id).cloned() else {
                 continue;
@@ -393,7 +422,7 @@ impl Walker<'_> {
             if peers.is_empty() {
                 continue;
             }
-            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.as_str();
+            let pkg_id = &*self.tree.dependencies_tree[node_id].resolved_package_id;
             let edges = edges_of_pkg.entry(pkg_id).or_default();
             for peer_alias in peers.keys() {
                 edges.insert(peer_alias.as_str());
@@ -625,7 +654,9 @@ impl Walker<'_> {
         for (node_id, record) in &self.node_records {
             let dep_path = record_dep_paths[node_id].clone();
             let depth = min_depth.get(&dep_path).copied().unwrap_or(record.depth);
-            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.clone();
+            let pkg_id = std::sync::Arc::<str>::clone(
+                &self.tree.dependencies_tree[node_id].resolved_package_id,
+            );
             let pkg = &self.tree.packages[&pkg_id];
             let mut children: BTreeMap<String, DepPath> = BTreeMap::new();
             for (alias, edge_node_id) in &record.edges {
@@ -639,7 +670,7 @@ impl Walker<'_> {
                 .unwrap_or_default();
             let mut candidate = DependenciesGraphNode {
                 dep_path: dep_path.clone(),
-                resolved_package_id: pkg_id.clone(),
+                resolved_package_id: std::sync::Arc::<str>::clone(&pkg_id).to_string(),
                 resolve_result: Arc::clone(&pkg.result),
                 children,
                 optional_children: record.optional_child_aliases.clone(),
@@ -710,11 +741,22 @@ impl Walker<'_> {
             // edge can use it verbatim.
             graph_children.insert(alias, link_dep_path);
         } else {
-            self.pending_peer_edges.push(PendingPeerEdge {
-                parent_dep_path: parent_dep_path.clone(),
-                child_alias: alias,
-                child_node_id: node_id,
-            });
+            // Exact duplicates are no-ops: `patch_pending_peer_edges`
+            // resolves the same `child_node_id` to the same `DepPath` and
+            // then `or_insert`s the same `(parent, alias)` slot. A parent
+            // reached through many occurrences pushes the same triple over
+            // and over, so drop repeats instead of buffering millions.
+            if self.pending_peer_edge_keys.insert((
+                parent_dep_path.clone(),
+                alias.clone(),
+                node_id.clone(),
+            )) {
+                self.pending_peer_edges.push(PendingPeerEdge {
+                    parent_dep_path: parent_dep_path.clone(),
+                    child_alias: alias,
+                    child_node_id: node_id,
+                });
+            }
         }
     }
 }
