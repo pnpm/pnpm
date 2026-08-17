@@ -14,7 +14,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { logger } from '@pnpm/logger'
-import { DEPENDENCIES_FIELDS, type ProjectId, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import { clone, equals } from 'ramda'
 
 export interface PnpmContext {
@@ -151,7 +151,7 @@ export async function readLockfiles (
   // are the only record of what has since been dropped.
   if (opts.mergeGitBranchLockfiles) {
     for (const project of opts.projects) {
-      pruneUndeclaredDependencies(wantedLockfile.importers[project.id], project.manifest)
+      pruneUndeclaredDependencies(wantedLockfile.importers[project.id], project.manifest, opts.autoInstallPeers)
     }
     const pruned = pruneSharedLockfile(wantedLockfile)
     if (pruned.packages == null) {
@@ -172,16 +172,17 @@ export async function readLockfiles (
   }
 }
 
-function pruneUndeclaredDependencies (importer: ProjectSnapshot, manifest: ProjectManifest): void {
-  const declaredDepNames = new Set([
-    ...DEPENDENCIES_FIELDS.flatMap((depField) => Object.keys(manifest[depField] ?? {})),
-    ...Object.keys(manifest.peerDependencies ?? {}),
-  ])
+function pruneUndeclaredDependencies (
+  importer: ProjectSnapshot,
+  manifest: ProjectManifest,
+  autoInstallPeers: boolean
+): void {
+  const declaredDepNames = declaredDepNamesByField(manifest, autoInstallPeers)
   for (const depField of DEPENDENCIES_FIELDS) {
     const deps = importer[depField]
     if (deps == null) continue
     for (const depName of Object.keys(deps)) {
-      if (!declaredDepNames.has(depName)) {
+      if (!declaredDepNames[depField].has(depName)) {
         delete deps[depName]
       }
     }
@@ -190,8 +191,25 @@ function pruneUndeclaredDependencies (importer: ProjectSnapshot, manifest: Proje
     }
   }
   for (const depName of Object.keys(importer.specifiers)) {
-    if (!declaredDepNames.has(depName)) {
+    if (DEPENDENCIES_FIELDS.every((depField) => !declaredDepNames[depField].has(depName))) {
       delete importer.specifiers[depName]
     }
   }
+}
+
+// Mirrors how satisfiesPackageManifest assigns a manifest entry to a lockfile
+// field, so that pruning to the manifest can never leave the frozen-lockfile
+// check with a field it would reject.
+function declaredDepNamesByField (
+  manifest: ProjectManifest,
+  autoInstallPeers: boolean
+): Record<DependenciesField, Set<string>> {
+  const optionalDependencies = new Set(Object.keys(manifest.optionalDependencies ?? {}))
+  const dependencies = new Set([
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...autoInstallPeers ? Object.keys(manifest.peerDependencies ?? {}) : [],
+  ].filter((depName) => !optionalDependencies.has(depName)))
+  const devDependencies = new Set(Object.keys(manifest.devDependencies ?? {})
+    .filter((depName) => !optionalDependencies.has(depName) && !dependencies.has(depName)))
+  return { dependencies, devDependencies, optionalDependencies }
 }
