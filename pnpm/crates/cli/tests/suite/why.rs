@@ -1,3 +1,4 @@
+use crate::_utils::{with_colors, without_colors};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use console::strip_ansi_codes;
@@ -524,17 +525,16 @@ fn why_marks_importer_dep_field_and_prints_summary() {
     );
 }
 
-/// Bolding a label must not mangle the styles it already carries.
 #[test]
 fn why_styles_the_tree_without_corrupting_it() {
     let (_root, workspace, _anchor) = setup();
     write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
-    let plain = pacquet(&workspace, ["why", PKG]).output().expect("run pacquet why");
+    let plain =
+        without_colors(pacquet(&workspace, ["why", PKG])).output().expect("run pacquet why");
     assert!(plain.status.success(), "why should succeed: {plain:?}");
-    let colored = pacquet(&workspace, ["why", PKG])
-        .with_env("FORCE_COLOR", "1")
+    let colored = with_colors(pacquet(&workspace, ["why", PKG]))
         .output()
         .expect("run pacquet why with colors");
     assert!(colored.status.success(), "colored why should succeed: {colored:?}");
