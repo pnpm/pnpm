@@ -149,6 +149,8 @@ pub fn diff_folders(folder_a: &Path, folder_b: &Path) -> Result<String, PatchCom
     let status = Command::new("git")
         .arg("-c")
         .arg("core.safecrlf=false")
+        .arg("-c")
+        .arg("core.quotePath=false")
         .arg("diff")
         .arg("--src-prefix=a/")
         .arg("--dst-prefix=b/")
