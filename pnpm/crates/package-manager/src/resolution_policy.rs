@@ -133,7 +133,7 @@ pub(crate) fn pick_package_context<'a>(
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata: policy.full_metadata,
         needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
-        filter_metadata: policy.full_metadata,
+        filter_metadata: config.requires_filtered_full_metadata(),
         retry_opts: retry_opts_from_config(config),
     }
 }

@@ -2207,6 +2207,22 @@ impl Config {
         self.full_metadata_policy(self.registry_supports_time_field(registry))
     }
 
+    /// Whether a full packument, once fetched, is stored and read in pnpm's
+    /// filtered form rather than verbatim.
+    ///
+    /// Answered for the most demanding registry — one that carries no `time`
+    /// — because [`Self::requires_full_metadata_for_registry`] can ask for a
+    /// full document at a registry
+    /// [`Self::requires_full_metadata_for_resolution`] would have left on
+    /// abbreviated metadata, and both have to agree on which mirror that
+    /// document lands in. It is consulted only when a full document is
+    /// actually fetched, so answering for the demanding case costs the others
+    /// nothing.
+    #[must_use]
+    pub fn requires_filtered_full_metadata(&self) -> bool {
+        self.full_metadata_policy(false)
+    }
+
     /// Whether `registry`'s abbreviated metadata carries the `time` field,
     /// from its own declaration if it has one and from the
     /// `registrySupportsTimeField` setting otherwise.

@@ -88,7 +88,7 @@ export async function createNewStoreController (
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
     fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
     fullMetadata,
-    filterMetadata: fullMetadata,
+    filterMetadata: shouldFilterMetadata(opts),
     needsFullMetadataFor: needsFullMetadataForRegistry(opts),
     httpProxy: opts.httpProxy,
     httpsProxy: opts.httpsProxy,
@@ -197,6 +197,21 @@ function fullMetadataPolicy (opts: FullMetadataPolicyOptions, supportsTimeField:
     opts.trustPolicy === 'no-downgrade' ||
     (opts.resolutionMode === 'time-based' && !supportsTimeField)
   )
+}
+
+/**
+ * Whether a full packument, once fetched, is stored and read in pnpm's
+ * filtered form rather than verbatim.
+ *
+ * Answered for the most demanding registry — one that carries no `time` —
+ * because {@link needsFullMetadataForRegistry} can ask for a full document at
+ * a registry that {@link shouldFetchFullMetadata} would have left on
+ * abbreviated metadata, and both have to agree on which mirror that document
+ * lands in. It is consulted only when a full document is actually fetched, so
+ * answering for the demanding case costs the others nothing.
+ */
+export function shouldFilterMetadata (opts: FullMetadataPolicyOptions): boolean {
+  return fullMetadataPolicy(opts, false)
 }
 
 /**

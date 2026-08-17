@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 
-import { needsFullMetadataForRegistry, shouldFetchFullMetadata } from '../src/createNewStoreController.js'
+import { needsFullMetadataForRegistry, shouldFetchFullMetadata, shouldFilterMetadata } from '../src/createNewStoreController.js'
 
 test('returns false by default', () => {
   expect(shouldFetchFullMetadata({})).toBe(false)
@@ -110,4 +110,24 @@ test('the declaration is matched however either side spelled the trailing slash'
   })
 
   expect(needsFullMetadata('https://time.example.com')).toBe(false)
+})
+
+// The filtered mirror is chosen once for the whole client, so it has to cover
+// the registry that asks for the most: one the setting exempts but a
+// declaration does not.
+test('the filtered mirror is used for a registry that needs full metadata though the setting exempts it', () => {
+  const opts = {
+    resolutionMode: 'time-based',
+    registrySupportsTimeField: true,
+    registryOptionsByUrl: { [TIME_REGISTRY]: { supportsTimeField: false } },
+  } as const
+
+  expect(shouldFetchFullMetadata(opts)).toBe(false)
+  expect(needsFullMetadataForRegistry(opts)(TIME_REGISTRY)).toBe(true)
+  expect(shouldFilterMetadata(opts)).toBe(true)
+})
+
+test('nothing is filtered when no registry can need full metadata', () => {
+  expect(shouldFilterMetadata({ resolutionMode: 'highest' })).toBe(false)
+  expect(shouldFilterMetadata({ resolutionMode: 'time-based', fetchFullMetadata: false })).toBe(false)
 })

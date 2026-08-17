@@ -65,7 +65,7 @@ test('a registry that carries the time field is asked for abbreviated metadata, 
     .intercept({ path: '/pkg', method: 'GET' })
     .reply(capture('public'))
   getMockAgent().get('https://time.example.com')
-    .intercept({ path: `/${TIME_PKG.replace('/', '%2F')}`, method: 'GET' })
+    .intercept({ path: `/@${encodeURIComponent(TIME_PKG.slice(1))}`, method: 'GET' })
     .reply(capture('time'))
 
   const { resolveFromNpm } = createResolveFromNpm({

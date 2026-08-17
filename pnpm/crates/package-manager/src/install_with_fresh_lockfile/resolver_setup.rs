@@ -250,7 +250,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         // upgrades per-call where `published_by` / `optional` demand it.
         full_metadata,
         needs_full_metadata_for: Some(Arc::clone(&needs_full_metadata_for)),
-        filter_metadata: full_metadata,
+        filter_metadata: config.requires_filtered_full_metadata(),
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     });
     // A git dep's specifier names a repo, not a package, so its name —
@@ -323,7 +323,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         // Same rationale as `NpmResolver.full_metadata` above.
         full_metadata,
         needs_full_metadata_for: Some(Arc::clone(&needs_full_metadata_for)),
-        filter_metadata: full_metadata,
+        filter_metadata: config.requires_filtered_full_metadata(),
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     };
 

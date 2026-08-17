@@ -2346,3 +2346,32 @@ registries:
     assert!(!config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
     assert!(config.requires_full_metadata_for_registry("https://old.example.com/"));
 }
+
+/// The filtered mirror is chosen once for the whole resolver, so it has to
+/// cover the registry that asks for the most: one the setting exempts but a
+/// declaration does not.
+#[test]
+fn the_filtered_mirror_covers_a_registry_the_setting_exempts() {
+    let yaml = r"
+resolutionMode: time-based
+registrySupportsTimeField: true
+registries:
+  https://old.example.com/: {supportsTimeField: false}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_resolution());
+    assert!(config.requires_full_metadata_for_registry("https://old.example.com/"));
+    assert!(config.requires_filtered_full_metadata());
+}
+
+/// Nothing is filtered when no registry can need full metadata.
+#[test]
+fn no_filtered_mirror_without_a_reason_for_full_metadata() {
+    let mut config = Config::new();
+    assert!(!config.requires_filtered_full_metadata());
+    config.resolution_mode = ResolutionMode::TimeBased;
+    assert!(config.requires_filtered_full_metadata());
+}
