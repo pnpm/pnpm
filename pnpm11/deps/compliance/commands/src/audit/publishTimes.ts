@@ -17,7 +17,9 @@ export interface PackumentPublishInfo {
   /**
    * Versions the packument marks as deprecated. Deprecated versions are
    * excluded from patched-version validation — a deprecated release is not a
-   * viable fix even though it exists on the registry.
+   * viable fix even though it exists on the registry. Normalized rather than
+   * kept as raw keys, because the `time` and `versions` maps may spell the
+   * same release differently (`v1.2.3` vs `1.2.3`).
    */
   deprecated: ReadonlySet<string>
 }
@@ -77,7 +79,8 @@ export function createPublishTimesFetcher (opts: AuditOptions): PublishTimesFetc
       if (body.versions != null && typeof body.versions === 'object') {
         for (const [version, manifest] of Object.entries(body.versions)) {
           if (manifest != null && typeof manifest === 'object' && typeof manifest.deprecated === 'string') {
-            deprecated.add(version)
+            const parsed = semver.parse(version, { loose: true })
+            if (parsed != null) deprecated.add(parsed.version)
           }
         }
       }
@@ -108,6 +111,10 @@ export interface PublishedVersion {
  * version an inferred patched range actually resolves to — or `undefined` when
  * no published version satisfies it, whether it was never published, skipped,
  * yanked, or deprecated.
+ *
+ * Stable releases outrank prereleases regardless of order, so a
+ * `4.18.0-beta.1` published before `4.18.0` is never advertised as the fix.
+ * A prerelease still wins when nothing else satisfies the range.
  */
 export function lowestNonDeprecatedVersion (
   publishInfo: PackumentPublishInfo,
@@ -115,14 +122,22 @@ export function lowestNonDeprecatedVersion (
 ): PublishedVersion | undefined {
   let lowest: { key: string, parsed: semver.SemVer } | undefined
   for (const key of Object.keys(publishInfo.time)) {
-    if (key === 'created' || key === 'modified' || publishInfo.deprecated.has(key)) continue
+    if (key === 'created' || key === 'modified') continue
     const parsed = semver.parse(key, { loose: true })
-    if (parsed == null || !satisfiesSafe(parsed.version, range)) continue
-    if (lowest == null || semver.compare(parsed, lowest.parsed) < 0) {
+    if (parsed == null || publishInfo.deprecated.has(parsed.version)) continue
+    if (!satisfiesSafe(parsed.version, range)) continue
+    if (lowest == null || compareFixCandidates(parsed, lowest.parsed) < 0) {
       lowest = { key, parsed }
     }
   }
   return lowest && { key: lowest.key, version: lowest.parsed.version }
+}
+
+function compareFixCandidates (a: semver.SemVer, b: semver.SemVer): number {
+  const aIsPrerelease = a.prerelease.length > 0
+  const bIsPrerelease = b.prerelease.length > 0
+  if (aIsPrerelease !== bIsPrerelease) return aIsPrerelease ? 1 : -1
+  return semver.compare(a, b)
 }
 
 /**

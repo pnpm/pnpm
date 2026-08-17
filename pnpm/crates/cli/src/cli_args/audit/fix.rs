@@ -103,8 +103,10 @@ pub(crate) struct PackumentPublishInfo {
     pub(crate) time: HashMap<String, String>,
     /// Versions the packument marks as deprecated. Deprecated versions are
     /// excluded from patched-version validation — a deprecated release is
-    /// not a viable fix even though it exists on the registry.
-    pub(crate) deprecated: HashSet<String>,
+    /// not a viable fix even though it exists on the registry. Parsed rather
+    /// than kept as raw keys, because the `time` and `versions` maps may spell
+    /// the same release differently (`v1.2.3` vs `1.2.3`).
+    pub(crate) deprecated: HashSet<Version>,
 }
 
 impl PackumentPublishInfo {
@@ -114,14 +116,20 @@ impl PackumentPublishInfo {
     /// (e.g. `v1.2.3`) that the parsed version drops. `None` when no published
     /// version satisfies the range, whether it was never published, skipped,
     /// yanked, or deprecated.
+    ///
+    /// Stable releases outrank prereleases regardless of order, so a
+    /// `4.18.0-beta.1` published before `4.18.0` is never advertised as the
+    /// fix. A prerelease still wins when nothing else satisfies the range.
     pub(crate) fn lowest_non_deprecated_version(&self, range: &Range) -> Option<(&str, Version)> {
         self.time
             .keys()
             .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
-            .filter(|key| !self.deprecated.contains(key.as_str()))
             .filter_map(|key| Some((key.as_str(), key.parse::<Version>().ok()?)))
+            .filter(|(_, version)| !self.deprecated.contains(version))
             .filter(|(_, version)| satisfies_including_prerelease(version, range))
-            .min_by(|(_, a), (_, b)| a.cmp(b))
+            .min_by(|(_, a), (_, b)| {
+                a.is_prerelease().cmp(&b.is_prerelease()).then_with(|| a.cmp(b))
+            })
     }
 }
 
@@ -174,7 +182,7 @@ pub(crate) async fn fetch_publish_times(
         .unwrap_or_default()
         .into_iter()
         .filter(|(_, manifest)| manifest.deprecated.is_some())
-        .map(|(version, _)| version)
+        .filter_map(|(version, _)| version.parse::<Version>().ok())
         .collect();
     Some(PackumentPublishInfo { time, deprecated })
 }

@@ -1257,6 +1257,19 @@ fn publish_times(
     )])
 }
 
+fn deprecate(
+    publish_infos: &mut HashMap<String, Option<PackumentPublishInfo>>,
+    package: &str,
+    version: &str,
+) {
+    publish_infos
+        .get_mut(package)
+        .and_then(Option::as_mut)
+        .expect("publish info for the package")
+        .deprecated
+        .insert(version.parse().expect("valid deprecated version"));
+}
+
 #[test]
 fn minimum_release_age_excludes_uses_patched_minimums_and_skips_unfixable() {
     let advisories = report_of(vec![
@@ -1415,7 +1428,7 @@ fn minimum_release_age_excludes_skips_deprecated_versions() {
         "lodash-es",
         &[("4.18.0", "2026-06-01T00:00:00Z"), ("4.18.1", "2026-06-01T01:00:00Z")],
     );
-    info.get_mut("lodash-es").unwrap().as_mut().unwrap().deprecated.insert("4.18.0".to_string());
+    deprecate(&mut info, "lodash-es", "4.18.0");
 
     let excludes =
         minimum_release_age_excludes(&advisories, &info, age_cutoff()).expect("compute excludes");
@@ -1424,6 +1437,63 @@ fn minimum_release_age_excludes_skips_deprecated_versions() {
         excludes,
         vec!["lodash-es@4.18.1".to_string()],
         "the deprecated version is skipped in favor of the next non-deprecated one",
+    );
+}
+
+#[test]
+fn minimum_release_age_excludes_skips_deprecated_versions_spelled_differently() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "lodash-es",
+        "<4.18.0",
+        Some(">=4.18.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    // The `time` map spells 4.18.0 with a leading `v` while `versions` — the
+    // source of the deprecation set — does not.
+    let mut info = publish_times(
+        "lodash-es",
+        &[("v4.18.0", "2026-06-01T00:00:00Z"), ("4.18.1", "2026-06-01T01:00:00Z")],
+    );
+    deprecate(&mut info, "lodash-es", "4.18.0");
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &info, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec!["lodash-es@4.18.1".to_string()],
+        "deprecation is matched on the parsed version, not the raw packument key",
+    );
+}
+
+#[test]
+fn minimum_release_age_excludes_prefers_a_stable_release_over_a_lower_prerelease() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "foo",
+        "<=1.9.9",
+        Some(">=1.9.10"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    // 2.0.0-beta.1 sorts below 2.0.0 but is not a release users should be
+    // pointed at as the fix.
+    let times = publish_times(
+        "foo",
+        &[("2.0.0-beta.1", "2026-06-01T00:00:00Z"), ("2.0.0", "2026-06-01T01:00:00Z")],
+    );
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec!["foo@2.0.0".to_string()],
+        "the stable release outranks the lower-sorting prerelease",
     );
 }
 

@@ -408,6 +408,42 @@ describe('createMinimumReleaseAgeExcludes', () => {
     expect(excludes).toEqual(['lodash-es@4.18.1'])
   })
 
+  test('skips deprecated versions the time map spells differently', async () => {
+    const advisories = [
+      advisory('lodash-es', '<4.18.0', '>=4.18.0'),
+    ]
+    // The `time` map spells 4.18.0 with a leading `v` while `versions` — the
+    // source of the deprecation set — does not.
+    const publishTimes: Record<string, Record<string, string>> = {
+      'lodash-es': { 'v4.18.0': '2026-01-07T23:00:00.000Z', '4.18.1': '2026-01-07T23:30:00.000Z' },
+    }
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async (pkgName) => publishTimes[pkgName]
+        ? publishInfo(publishTimes[pkgName], ['4.18.0'])
+        : undefined,
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual(['lodash-es@4.18.1'])
+  })
+
+  test('prefers a stable release over a lower-sorting prerelease', async () => {
+    const advisories = [
+      advisory('axios', '<=1.9.9', '>=1.9.10'),
+    ]
+    // 2.0.0-beta.1 sorts below 2.0.0 but is not a release users should be
+    // pointed at as the fix.
+    const publishTimes: Record<string, Record<string, string>> = {
+      axios: { '2.0.0-beta.1': '2026-01-07T23:00:00.000Z', '2.0.0': '2026-01-07T23:30:00.000Z' },
+    }
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async (pkgName) => publishTimes[pkgName] ? publishInfo(publishTimes[pkgName]) : undefined,
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual(['axios@2.0.0'])
+  })
+
   test('omits entries for patched versions published exactly at the cutoff', async () => {
     const advisories = [
       advisory('axios', '<=0.18.0', '>=0.18.1'),
