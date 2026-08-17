@@ -391,7 +391,7 @@ pub(crate) fn extract_tarball_entries(
 /// Extracting a package with thousands of files (e.g. `core-js`) on a
 /// single blocking thread pins one core while the rest sit idle — most
 /// costly at the makespan tail, when it's the last extraction still
-/// running. `write_cas_entry` is safe to run concurrently, so large
+/// running. [`write_cas_entry`] is safe to run concurrently, so large
 /// slices fan out across the dedicated [`cas_write_pool`]; small ones
 /// stay serial to skip rayon's per-job dispatch cost when there's
 /// nothing to gain. The dedicated pool keeps this off the global pool
