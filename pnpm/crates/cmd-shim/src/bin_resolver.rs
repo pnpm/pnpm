@@ -42,12 +42,15 @@ pub fn pkg_owns_bin(bin_name: &str, pkg_name: &str) -> bool {
 
 /// Read every bin declared by `manifest` and return them as [`Command`]s
 /// rooted at `pkg_path`.
+///
+/// An empty-string `bin` declares no command, matching the truthiness
+/// check the TypeScript CLI applies to the field.
 pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
     manifest: &Value,
     pkg_path: &Path,
 ) -> Vec<Command> {
     let pkg_name = manifest.get("name").and_then(Value::as_str);
-    if let Some(bin) = manifest.get("bin") {
+    if let Some(bin) = manifest.get("bin").filter(|bin| bin.as_str() != Some("")) {
         return commands_from_bin(bin, pkg_name, pkg_path);
     }
     if let Some(bin_dir_rel) =
