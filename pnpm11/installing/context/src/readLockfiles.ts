@@ -12,6 +12,7 @@ import {
   readWantedLockfile,
   readWantedLockfileAndAutofixConflicts,
 } from '@pnpm/lockfile.fs'
+import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { logger } from '@pnpm/logger'
 import { DEPENDENCIES_FIELDS, type ProjectId, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import { clone, equals } from 'ramda'
@@ -151,6 +152,12 @@ export async function readLockfiles (
   if (opts.mergeGitBranchLockfiles) {
     for (const project of opts.projects) {
       pruneUndeclaredDependencies(wantedLockfile.importers[project.id], project.manifest)
+    }
+    const pruned = pruneSharedLockfile(wantedLockfile)
+    if (pruned.packages == null) {
+      delete wantedLockfile.packages
+    } else {
+      wantedLockfile.packages = pruned.packages
     }
   }
   return {

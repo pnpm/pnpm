@@ -361,5 +361,7 @@ test('install with --merge-git-branch-lockfiles when a branch lockfile has a dep
       version: '5.3.31',
     },
   })
+  expect(wantedLockfileAfterMergeOther.packages).not.toHaveProperty(['is-positive@3.1.0'])
+  expect(wantedLockfileAfterMergeOther.snapshots).not.toHaveProperty(['is-positive@3.1.0'])
   project.hasNot('is-positive')
 })
