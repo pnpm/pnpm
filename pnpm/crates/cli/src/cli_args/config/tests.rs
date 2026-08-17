@@ -461,6 +461,29 @@ fn get_scalar_string_and_camel() {
     assert_eq!(config_get(&config, flags(true, None, false), "storeDir").unwrap(), "~/store");
 }
 
+/// Both spellings of the virtual store's type are `types` keys, so `get`
+/// answers either from the explicit-settings record instead of falling
+/// through to the config record, which carries neither name.
+#[test]
+fn get_virtual_store_type_and_its_boolean_spelling() {
+    let config = config_for_get(
+        &[("virtualStoreType", json!("global")), ("enableGlobalVirtualStore", json!(true))],
+        &[],
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "virtual-store-type").unwrap(),
+        "global",
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "virtualStoreType").unwrap(),
+        "global",
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "enable-global-virtual-store").unwrap(),
+        "true",
+    );
+}
+
 #[test]
 fn get_boolean_and_array_and_object() {
     let config = config_for_get(

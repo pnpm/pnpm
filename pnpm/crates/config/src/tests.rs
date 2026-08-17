@@ -2101,6 +2101,54 @@ pub fn default_config_disables_gvs_and_points_it_at_the_store() {
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
 }
 
+/// Both spellings reach one field, so which of them applies last decides.
+#[test]
+pub fn virtual_store_type_supersedes_the_boolean_spelling() {
+    for (yaml, expected) in [
+        ("virtualStoreType: project\n", false),
+        ("virtualStoreType: global\n", true),
+        ("enableGlobalVirtualStore: false\n", false),
+        ("enableGlobalVirtualStore: true\n", true),
+        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
+        ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+    ] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(config.enable_global_virtual_store, expected, "yaml: {yaml}");
+    }
+}
+
+/// `pnpm config get` reads the explicit-settings record, which therefore has
+/// to answer both spellings with the value the install will use — whichever
+/// of the two the file was written in.
+#[test]
+pub fn explicit_settings_report_the_spelling_that_won() {
+    for (yaml, expected) in [
+        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
+        ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+        ("virtualStoreType: project\n", false),
+        ("enableGlobalVirtualStore: true\n", true),
+    ] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(
+            config.explicit_settings.get("enableGlobalVirtualStore"),
+            Some(&serde_json::Value::Bool(expected)),
+            "yaml: {yaml}",
+        );
+        assert_eq!(
+            config.explicit_settings.get("virtualStoreType").and_then(serde_json::Value::as_str),
+            Some(if expected { "global" } else { "project" }),
+            "yaml: {yaml}",
+        );
+        assert_eq!(config.enable_global_virtual_store, expected, "yaml: {yaml}");
+    }
+}
+
 #[test]
 pub fn gvs_disabled_keeps_project_local_virtual_store() {
     let tmp = tempdir().unwrap();

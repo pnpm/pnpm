@@ -72,6 +72,39 @@ fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
         || detect_ci()
 }
 
+/// `virtualStoreType`: where the virtual store lives, and therefore who
+/// shares it.
+///
+/// Orthogonal to [`NodeLinker`], which picks how a project consumes the
+/// store: `pnp` and `isolated` both work with either type, and `hoisted`
+/// writes no virtual store at all, so the setting is inert there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VirtualStoreType {
+    /// One store per machine, under `<store-dir>/links`. Slots are keyed
+    /// by a dependency-graph hash, so every project resolving a package
+    /// the same way links to one directory.
+    Global,
+
+    /// One store per project, at `<project>/node_modules/.pnpm`. Slots
+    /// are keyed by the flat `<name>@<version>` form.
+    Project,
+}
+
+impl VirtualStoreType {
+    /// The `enableGlobalVirtualStore` spelling of this setting.
+    #[must_use]
+    pub fn is_global(self) -> bool {
+        matches!(self, VirtualStoreType::Global)
+    }
+
+    /// The type a given `enableGlobalVirtualStore` value selects.
+    #[must_use]
+    pub fn from_enable_global(enable_global: bool) -> Self {
+        if enable_global { VirtualStoreType::Global } else { VirtualStoreType::Project }
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {
@@ -3044,6 +3077,12 @@ impl Config {
 /// `_auth` key is dropped — it carries credentials and never belongs in
 /// `pnpm config list` output (raw auth keys come from `raw_auth_config`,
 /// censored at render time).
+///
+/// `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
+/// setting, so a source that sets either one decides both: the record follows
+/// [`WorkspaceSettings::apply_to`] and fills in the spelling the source left
+/// out, or `pnpm config get` would answer one of the two with the value the
+/// install did not use.
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,
@@ -3056,6 +3095,17 @@ fn collect_explicit_settings(
             continue;
         }
         target.insert(key, value);
+    }
+    let virtual_store_type = settings
+        .virtual_store_type
+        .or_else(|| settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global));
+    if let Some(virtual_store_type) = virtual_store_type {
+        let Ok(named) = serde_json::to_value(virtual_store_type) else { return };
+        target.insert("virtualStoreType".to_string(), named);
+        target.insert(
+            "enableGlobalVirtualStore".to_string(),
+            serde_json::Value::Bool(virtual_store_type.is_global()),
+        );
     }
 }
 
