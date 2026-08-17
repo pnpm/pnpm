@@ -71,11 +71,14 @@ pub struct ResolveOptions {
     /// cannot resolve a `catalog:` specifier in either dependencies or
     /// overrides ([pnpm/pnpm#13232](https://github.com/pnpm/pnpm/issues/13232)).
     pub catalogs: Option<Catalogs>,
-    /// Current `autoInstallPeers`; `None` preserves old-client omission.
+    /// The client's current values for the settings that shape the lockfile
+    /// the server resolves. `None` is not `Some(false)`: it leaves the
+    /// setting to the server, which takes the input lockfile's value on a
+    /// frozen request and its own default otherwise — what a client too old
+    /// to send them gets
+    /// ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
     pub auto_install_peers: Option<bool>,
-    /// Current `dedupePeers`; `None` preserves old-client omission.
     pub dedupe_peers: Option<bool>,
-    /// Current `excludeLinksFromLockfile`; `None` preserves old-client omission.
     pub exclude_links_from_lockfile: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target and the resolution-reuse seed.
@@ -457,12 +460,15 @@ impl PnprClient {
             .map(|project| project.dir.clone())
             .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
             .collect();
-        let mut request = serde_json::json!({
+        let request = serde_json::json!({
             "projects": opts.projects,
             "registry": opts.registry,
             "registries": opts.registries,
             "overrides": opts.overrides,
             "catalogs": opts.catalogs,
+            "autoInstallPeers": opts.auto_install_peers,
+            "dedupePeers": opts.dedupe_peers,
+            "excludeLinksFromLockfile": opts.exclude_links_from_lockfile,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
@@ -475,16 +481,6 @@ impl PnprClient {
             "trustPolicyExclude": opts.trust_policy_exclude,
             "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
         });
-        // Insert only `Some`: `None` is omission, while `false` is explicit.
-        if let Some(auto_install_peers) = opts.auto_install_peers {
-            request["autoInstallPeers"] = auto_install_peers.into();
-        }
-        if let Some(dedupe_peers) = opts.dedupe_peers {
-            request["dedupePeers"] = dedupe_peers.into();
-        }
-        if let Some(exclude_links_from_lockfile) = opts.exclude_links_from_lockfile {
-            request["excludeLinksFromLockfile"] = exclude_links_from_lockfile.into();
-        }
 
         let mut post = self.http.post(format!("{}-/pnpr/v0/resolve", self.base_url)).json(&request);
         if let Some(authorization) = opts.authorization.as_deref() {

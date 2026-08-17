@@ -255,7 +255,10 @@ async fn sends_the_identity_header_but_no_upstream_credentials() {
         "the request body must not carry upstream credentials, got:\n{request}",
     );
     for field in ["autoInstallPeers", "dedupePeers", "excludeLinksFromLockfile"] {
-        assert!(!request.contains(field), "{field} should be absent");
+        assert!(
+            request.contains(&format!(r#""{field}":null"#)),
+            "an unsent {field} must stay unset rather than turn into `false`, got:\n{request}",
+        );
     }
 }
 

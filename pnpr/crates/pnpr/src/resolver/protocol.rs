@@ -85,13 +85,14 @@ pub struct ResolveRequest {
     /// and overrides.
     #[serde(default)]
     pub catalogs: Option<Catalogs>,
-    /// Current `autoInstallPeers`; `None` uses legacy server precedence.
+    /// The client's current values for the settings that shape the lockfile
+    /// this request resolves. `None` is a client that doesn't send them, not
+    /// `Some(false)`; `EffectiveResolverSettings` documents what each one
+    /// falls back to.
     #[serde(default)]
     pub auto_install_peers: Option<bool>,
-    /// Current `dedupePeers`; `None` uses legacy server precedence.
     #[serde(default)]
     pub dedupe_peers: Option<bool>,
-    /// Current `excludeLinksFromLockfile`; `None` uses legacy server precedence.
     #[serde(default)]
     pub exclude_links_from_lockfile: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both

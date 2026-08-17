@@ -64,7 +64,13 @@ export interface ResolveViaPnprServerOptions {
   catalogs?: Catalogs
   /** Node.js version for resolution */
   nodeVersion?: string
-  /** Current settings; omission uses server fallback, while `false` is preserved. */
+  /**
+   * The client's current values for the settings that shape the lockfile the
+   * server resolves. Leaving one out is not the same as sending `false`: the
+   * server then falls back to the input lockfile (on a frozen request) or to
+   * its own default, which is what a client too old to send them gets
+   * ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
+   */
   autoInstallPeers?: boolean
   dedupePeers?: boolean
   excludeLinksFromLockfile?: boolean

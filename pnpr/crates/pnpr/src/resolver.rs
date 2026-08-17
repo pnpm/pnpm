@@ -50,7 +50,7 @@ mod verdict_cache;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, LazyLock, Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
@@ -248,13 +248,12 @@ const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configuration
 /// `128 KiB` is far above any real registry/overrides configuration.
 const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
 
-/// Effective resolver settings; request values win, frozen requests can use
-/// lockfile values, and update-capable requests use the server defaults. They
-/// are the only lockfile settings carried in the interning key. Keying on the
-/// whole block would let a caller mint an unbounded number of distinct configs
-/// out of fields the config never reads
-/// (`peersSuffixMaxLength` alone is a `u64`) and exhaust
-/// [`MAX_INTERNED_CONFIGS`], after which no caller gets a config at all.
+/// The settings a request resolves under, and the only part of an input
+/// lockfile's `settings` block the interning key carries. Keying on the whole
+/// block would let a caller mint an unbounded number of distinct configs out
+/// of the fields the config never reads (`peersSuffixMaxLength` alone is a
+/// `u64`) and exhaust [`MAX_INTERNED_CONFIGS`], after which no caller gets a
+/// config at all.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct EffectiveResolverSettings {
@@ -264,7 +263,19 @@ struct EffectiveResolverSettings {
 }
 
 impl EffectiveResolverSettings {
+    /// The client's own values whenever it sends them. A client that sends
+    /// none (one older than
+    /// [pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)) falls
+    /// back to the input lockfile on a frozen request — nothing is
+    /// re-resolved there, the freshness gate compares these three against the
+    /// config, and the server's defaults would call a lockfile that is valid
+    /// for its owner stale. On an update-capable request it falls back to the
+    /// server's defaults instead: the lockfile records what the *last* install
+    /// used, which is stale exactly when the client has just changed one of
+    /// these.
     fn for_request(request: &ResolveRequest) -> Self {
+        static DEFAULTS: LazyLock<PacquetConfig> = LazyLock::new(PacquetConfig::new);
+
         let lockfile_settings =
             request.frozen_lockfile.then(|| request.lockfile.as_ref()?.settings.as_ref()).flatten();
 
@@ -272,15 +283,15 @@ impl EffectiveResolverSettings {
             auto_install_peers: request
                 .auto_install_peers
                 .or_else(|| lockfile_settings.map(|settings| settings.auto_install_peers))
-                .unwrap_or(true),
+                .unwrap_or(DEFAULTS.auto_install_peers),
             dedupe_peers: request
                 .dedupe_peers
                 .or_else(|| lockfile_settings.and_then(|settings| settings.dedupe_peers))
-                .unwrap_or(false),
+                .unwrap_or(DEFAULTS.dedupe_peers),
             exclude_links_from_lockfile: request
                 .exclude_links_from_lockfile
                 .or_else(|| lockfile_settings.map(|settings| settings.exclude_links_from_lockfile))
-                .unwrap_or(false),
+                .unwrap_or(DEFAULTS.exclude_links_from_lockfile),
         }
     }
 }
