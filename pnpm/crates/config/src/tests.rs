@@ -2150,9 +2150,6 @@ pub fn gvs_disabled_or_extend_node_path_off_injects_no_resolution_env() {
     }
 }
 
-/// The fixture enables GVS explicitly: the setting is off by default, so
-/// without the opt-in the GVS-on derivation path would never run and the
-/// test would say nothing about it.
 #[test]
 pub fn yaml_global_virtual_store_dir_wins_over_derivation() {
     let tmp = tempdir().unwrap();
