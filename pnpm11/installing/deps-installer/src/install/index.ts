@@ -95,7 +95,7 @@ import type {
   ProjectRootDir,
   ReadPackageHook,
 } from '@pnpm/types'
-import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
+import { currentVerifiedFileIntegrity, trackVerifiedFileIntegrity } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
@@ -344,6 +344,16 @@ export async function mutateModules (
   projects: MutatedProject[],
   maybeOpts: MutateModulesOptions
 ): Promise<MutateModulesResult> {
+  // Scoped rather than global: a recursive command with dedicated
+  // lockfiles runs several of these at once, and each reports the store
+  // verification it caused, not its siblings'.
+  return trackVerifiedFileIntegrity(async () => _mutateModules(projects, maybeOpts))
+}
+
+async function _mutateModules (
+  projects: MutatedProject[],
+  maybeOpts: MutateModulesOptions
+): Promise<MutateModulesResult> {
   const reporter = maybeOpts?.reporter
   const detachReporter = (reporter != null) && typeof reporter === 'function'
     ? () => {
@@ -356,11 +366,6 @@ export async function mutateModules (
 
   const opts = extendOptions(maybeOpts)
 
-  // Taken before any fetching so the store-verification figures this
-  // install reports are its own: a recursive workspace command runs one
-  // `mutateModules` per project in the same process.
-  const verifiedFileIntegrityBaseline = verifiedFileIntegritySnapshot()
-
   // When a pnpr server is configured, use server-side resolution. The pnpr server
   // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
   // (pnpm remove). Mutations that need full client-side resolution (update
@@ -371,7 +376,7 @@ export async function mutateModules (
       // This path materializes packages of its own, so it verifies the
       // store like any other install and returns without reaching the
       // report below.
-      reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
+      reportVerifiedFileIntegrity(currentVerifiedFileIntegrity())
       return pnprResult
     }
   }
@@ -552,7 +557,7 @@ export async function mutateModules (
 
   const result = await settleInstall(_install(), verifyLockfilePromise)
 
-  reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
+  reportVerifiedFileIntegrity(currentVerifiedFileIntegrity())
 
   if (opts.mergeGitBranchLockfiles) {
     await cleanGitBranchLockfiles(ctx.lockfileDir)

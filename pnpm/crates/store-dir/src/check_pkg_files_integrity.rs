@@ -27,12 +27,19 @@ use std::{
 /// mtime-rewriting backup tool, an antivirus scanner, a shared store on
 /// a filesystem with coarse timestamps), so the install reports it.
 ///
-/// Process-global for the same reason pnpm keeps its counter on
-/// `global`: the verifiers run deep inside the fetch/import fan-out
-/// while the report is emitted at the end of the install, and every hop
-/// between the two is on the hot path. Callers that want the figures
-/// for one install take a [`VerifiedFileIntegrity`] snapshot when it
-/// starts and diff against it — see [`VerifiedFileIntegrity::since`].
+/// Process-global rather than install-scoped: the verifiers run deep
+/// inside the fetch/import fan-out while the report is emitted at the
+/// end of the install, and every hop between the two is on the hot
+/// path. Callers that want the figures for one install take a
+/// [`VerifiedFileIntegrity`] snapshot when it starts and diff against
+/// it — see [`VerifiedFileIntegrity::since`].
+///
+/// That diff is exact because the CLI installs one project at a time,
+/// including the per-project loop dedicated lockfiles take. (pnpm runs
+/// that loop concurrently, so its counterpart tracks the tally per
+/// install instead.) An embedder driving several installs at once in
+/// one process is the one case where a diff can pick up a sibling's
+/// hashing.
 static VERIFIED_FILE_INTEGRITY: VerifiedFileIntegrityTally =
     VerifiedFileIntegrityTally { files: AtomicU64::new(0), nanos: AtomicU64::new(0) };
 

@@ -105,6 +105,7 @@ async function handleMessage (
         if (!pkgFilesIndex) {
           parentPort!.postMessage({
             status: 'success',
+            verifiedFileIntegrity: takeVerifiedFileIntegrity(),
             value: {
               verified: false,
               pkgFilesIndex: null,
@@ -179,6 +180,10 @@ async function handleMessage (
   } catch (e: any) { // eslint-disable-line
     parentPort!.postMessage({
       status: 'error',
+      // Drained here too: a request that hashed and then threw would
+      // otherwise leave its share in this worker, to be handed to
+      // whichever install asks next.
+      verifiedFileIntegrity: takeVerifiedFileIntegrity(),
       error: {
         code: e.code,
         message: e.message ?? e.toString(),

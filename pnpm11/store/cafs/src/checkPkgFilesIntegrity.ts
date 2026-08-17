@@ -207,12 +207,13 @@ function tallyVerifyFileIntegrity (
   integrity: Integrity
 ): boolean {
   const startedAt = performance.now()
+  // A file that vanished under us, and an algorithm this Node can't
+  // hash with, both hash nothing — so they belong in neither half of
+  // the tally: the install reports the figures as time spent hashing.
   const data = readFileForIntegrity(filename)
-  // A file that vanished under us hashed nothing, so it belongs in
-  // neither half of the tally: the install reports the figures as time
-  // spent hashing.
   if (data == null) return false
   const passed = hashMatches(data, integrity)
+  if (passed == null) return false
   verifiedFileIntegrity.files++
   verifiedFileIntegrity.ms += performance.now() - startedAt
   return passed
@@ -224,7 +225,7 @@ export function verifyFileIntegrity (
 ): boolean {
   const data = readFileForIntegrity(filename)
   if (data == null) return false
-  return hashMatches(data, integrity)
+  return hashMatches(data, integrity) ?? false
 }
 
 /** The file's content, or `null` if it is no longer there. */
@@ -239,12 +240,18 @@ function readFileForIntegrity (filename: string): Buffer | null {
   }
 }
 
-function hashMatches (data: Buffer, integrity: Integrity): boolean {
+/**
+ * Whether `data` hashes to the recorded digest, or `null` when no hash
+ * could be computed at all — an invalid algorithm, e.g. from a
+ * corrupted index file. Callers treat `null` as a verification failure;
+ * it stays distinct from `false` so nothing that never hashed is
+ * reported as time spent hashing.
+ */
+function hashMatches (data: Buffer, integrity: Integrity): boolean | null {
   try {
     return crypto.hash(integrity.algorithm, data, 'hex') === integrity.digest
   } catch {
-    // Invalid algorithm (e.g., corrupted index file) - treat as verification failure
-    return false
+    return null
   }
 }
 
