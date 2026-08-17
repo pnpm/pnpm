@@ -605,6 +605,37 @@ async function resolveNpm (
     }
   }
 
+  // This runs *after* the store peek because a tag-specified dep whose only local copy is a
+  // prerelease reaches here with `update: false` (`wantedDepIsLocallyAvailable` ignores
+  // prereleases for tags, `pickMatchingLocalVersionOrNull` does not), and the peek must keep
+  // winning there. `update` is deliberately absent from the guard: that same helper forces it
+  // on for exactly these deps, so excluding it would make this block unreachable.
+  if (
+    opts.preferWorkspacePackages === true &&
+    workspacePackages != null &&
+    opts.projectDir &&
+    opts.trustPolicy !== 'no-downgrade' &&
+    !opts.updateChecksums &&
+    opts.injectWorkspacePackages !== true &&
+    !wantedDependency.injected
+  ) {
+    const workspacePkgsMatchingName = workspacePackages.get(spec.name)
+    if (workspacePkgsMatchingName?.size === 1) {
+      const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
+      if (localVersion != null) {
+        return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec, {
+          wantedDependency,
+          projectDir: opts.projectDir,
+          lockfileDir: opts.lockfileDir,
+          hardLinkLocalPackages: false,
+          saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
+          calcSpecifier: opts.calcSpecifier,
+          rangeSpecStyle: opts.rangeSpecStyle,
+        })
+      }
+    }
+  }
+
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry, { pkgName: spec.name })
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
   try {
