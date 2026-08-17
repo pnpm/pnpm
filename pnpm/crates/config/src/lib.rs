@@ -2227,9 +2227,7 @@ impl Config {
     /// [`Self::requires_full_metadata_for_registry`] as a closure the resolver
     /// can hold, capturing the four facts it needs rather than the config.
     #[must_use]
-    pub fn requires_full_metadata_for_registry_fn(
-        &self,
-    ) -> Arc<dyn Fn(&str) -> bool + Send + Sync> {
+    pub fn requires_full_metadata_for_registry_fn(&self) -> NeedsFullMetadataFor {
         let registry_options_by_url = self.registry_options_by_url.clone();
         let default_supports_time_field = self.registry_supports_time_field;
         let trust_policy = self.trust_policy;
@@ -3112,6 +3110,10 @@ fn read_npm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
 mod pnpm_default_parity;
 #[cfg(test)]
 mod tests;
+
+/// Whether the resolution has to read full packument metadata from a given
+/// registry, as [`Config::requires_full_metadata_for_registry_fn`] answers it.
+pub type NeedsFullMetadataFor = Arc<dyn Fn(&str) -> bool + Send + Sync>;
 
 /// Whether a resolution has to read full packument metadata: trust evidence
 /// (`_npmUser`) is never in the abbreviated form, and a time-based resolution

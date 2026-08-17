@@ -21,6 +21,7 @@ use std::{
     sync::Arc,
 };
 
+use pnpm_config::NeedsFullMetadataFor;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
@@ -87,7 +88,7 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     pub full_metadata: bool,
     /// Per-registry answer to the same question. A prefix-addressed registry
     /// is declared like any other, so it is exempted like any other.
-    pub needs_full_metadata_for: Option<Arc<dyn Fn(&str) -> bool + Send + Sync>>,
+    pub needs_full_metadata_for: Option<NeedsFullMetadataFor>,
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
     pub filter_metadata: bool,

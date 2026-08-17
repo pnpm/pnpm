@@ -27,7 +27,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_config::{NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy};
 use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
@@ -120,7 +120,7 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// [`PickPackageContext::needs_full_metadata_for`]. Set from
     /// `Config::requires_full_metadata_for_registry` so a registry that
     /// declares `supportsTimeField` is not charged for full metadata.
-    pub needs_full_metadata_for: Option<Arc<dyn Fn(&str) -> bool + Send + Sync>>,
+    pub needs_full_metadata_for: Option<NeedsFullMetadataFor>,
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
     pub filter_metadata: bool,

@@ -7,14 +7,13 @@
 use crate::retry_config::retry_opts_from_config;
 use chrono::{DateTime, Utc};
 use pnpm_config::{
-    Config, ResolutionMode,
+    Config, NeedsFullMetadataFor, ResolutionMode,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageContext,
 };
-use std::sync::Arc;
 
 /// The version-pick knobs derived purely from [`Config`]. Computed once and
 /// fed to both the resolver chain and the `add` pre-resolution so a single
@@ -32,7 +31,7 @@ pub(crate) struct PickPolicy {
     /// The same question asked of one registry, so a registry that declares
     /// `supportsTimeField` is not charged for full metadata because another
     /// one needs it.
-    pub needs_full_metadata_for: Arc<dyn Fn(&str) -> bool + Send + Sync>,
+    pub needs_full_metadata_for: NeedsFullMetadataFor,
     /// `minimumReleaseAge` cutoff: only versions published at or before
     /// this instant are eligible. `None` disables the maturity filter.
     pub published_by: Option<DateTime<Utc>>,

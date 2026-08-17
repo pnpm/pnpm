@@ -8,7 +8,7 @@
 
 use super::InstallWithFreshLockfileError;
 use crate::{PrefetchContext, PrefetchingResolver};
-use pnpm_config::Config;
+use pnpm_config::{Config, NeedsFullMetadataFor};
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
@@ -148,7 +148,7 @@ pub(super) struct ResolverChainInputs<'a> {
     pub full_metadata: bool,
     /// See `NpmResolver::needs_full_metadata_for` — the same question asked
     /// of one registry.
-    pub needs_full_metadata_for: Arc<dyn Fn(&str) -> bool + Send + Sync>,
+    pub needs_full_metadata_for: NeedsFullMetadataFor,
     pub wanted_lockfile: Option<&'a Lockfile>,
     pub store_index: Option<&'a SharedReadonlyStoreIndex>,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
