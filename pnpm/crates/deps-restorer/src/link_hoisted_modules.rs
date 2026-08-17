@@ -217,9 +217,15 @@ fn remove_orphans(opts: &LinkHoistedModulesOpts<'_>) -> Result<u64, LinkHoistedM
 /// previous graph, so nothing ever reclaims them
 /// (<https://github.com/pnpm/pnpm/issues/13676>).
 ///
-/// Only real directories are reported. Symlinks are how workspace
-/// packages and `link:` dependencies are attached, and they are absent
-/// from the graph by design.
+/// Only directories carrying a `package.json` are reported. That is the
+/// marker [`import_indexed_dir()`] writes last, so a directory holding
+/// one is a package that was materialized in full; a directory without
+/// one is not a package, and pruning is not entitled to remove it
+/// however little the hoisting plan has to say about it.
+///
+/// Symlinks are skipped: that is how workspace packages and `link:`
+/// dependencies are attached, and they are absent from the graph by
+/// design.
 fn find_unplanned_dirs(
     project_dir: &Path,
     planned_deps: &DepHierarchy,
@@ -234,7 +240,11 @@ fn find_unplanned_dirs(
             continue;
         }
         match fs::symlink_metadata(&dir) {
-            Ok(metadata) if metadata.is_dir() => unplanned.push(dir),
+            Ok(metadata) if metadata.is_dir() => {
+                if dir.join("package.json").exists() {
+                    unplanned.push(dir);
+                }
+            }
             // A symlink or a file is not a package directory the plan owns.
             Ok(_) => {}
             // The entry was removed while the scan was running.

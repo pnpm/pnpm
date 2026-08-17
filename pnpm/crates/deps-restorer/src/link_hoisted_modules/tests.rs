@@ -350,11 +350,12 @@ fn unplanned_directory_in_importer_modules_is_removed() {
 }
 
 /// Symlinks are how workspace packages and `link:` dependencies are
-/// attached, and dot-directories hold `.bin`, `.pnpm`, and third-party
-/// tool caches. Neither is a hoisted package directory, so the orphan
-/// scan must leave both alone.
+/// attached, dot-directories hold `.bin`, `.pnpm`, and third-party tool
+/// caches, and a directory without a `package.json` is not a package at
+/// all. None is a hoisted package directory, so the orphan scan must
+/// leave all three alone.
 #[test]
-fn symlinks_and_dot_directories_are_preserved() {
+fn entries_that_are_not_packages_are_preserved() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let cas_root = tmp.path().join("cas");
     let lockfile_dir = tmp.path().join("repo");
@@ -367,6 +368,9 @@ fn symlinks_and_dot_directories_are_preserved() {
     pnpm_fs::symlink_dir(&link_target, &linked_dep).expect("create symlink");
     let tool_cache = modules.join(".cache");
     fs::create_dir_all(&tool_cache).expect("create tool cache");
+    let build_output = modules.join("build-output");
+    fs::create_dir_all(&build_output).expect("create non-package dir");
+    fs::write(build_output.join("bundle.js"), "").expect("write non-package file");
 
     let (graph, hierarchy, cas_paths) = flat_layout(
         &lockfile_dir,
@@ -390,6 +394,7 @@ fn symlinks_and_dot_directories_are_preserved() {
     assert!(fs::symlink_metadata(&linked_dep).is_ok(), "symlink at {linked_dep:?}");
     assert!(link_target.exists(), "symlink target at {link_target:?}");
     assert!(tool_cache.exists(), "tool cache at {tool_cache:?}");
+    assert!(build_output.exists(), "non-package dir at {build_output:?}");
 }
 
 /// A name below a symlinked scope container is lexically inside the

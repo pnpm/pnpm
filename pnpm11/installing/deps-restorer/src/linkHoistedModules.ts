@@ -22,6 +22,7 @@ import type {
 import type { AllowBuild, SupportedArchitectures } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
+import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
 
 const limitLinking = pLimit(16)
@@ -194,9 +195,8 @@ async function linkAllPkgsInOrder (
  * `prevGraph`, so nothing ever reclaims them
  * (https://github.com/pnpm/pnpm/issues/13676).
  *
- * Only real directories are reported. Symlinks are how workspace packages and
- * `link:` dependencies are attached, and they are absent from the graph by
- * design.
+ * Symlinks are skipped: that is how workspace packages and `link:` dependencies
+ * are attached, and they are absent from the graph by design.
  */
 async function findUnplannedDirs (hierarchy: DepHierarchy): Promise<string[]> {
   const unplannedDirs = await Promise.all(
@@ -209,12 +209,26 @@ async function findUnplannedDirs (hierarchy: DepHierarchy): Promise<string[]> {
         .map((pkgName) => path.join(modulesDir, pkgName))
         .filter((dir) => !plannedDirs.has(dir))
       const checked = await Promise.all(
-        candidates.map(async (dir) => await isRealDir(dir) ? dir : null)
+        candidates.map(async (dir) => await isPackageDir(dir) ? dir : null)
       )
       return checked.filter((dir) => dir != null)
     })
   )
   return unplannedDirs.flat()
+}
+
+/**
+ * Whether `dir` holds a package rather than something else that happens to sit
+ * in a `node_modules`.
+ *
+ * `package.json` is the marker [`importIndexedDir`] writes last, so a directory
+ * carrying one is a package that was materialized in full. A directory without
+ * one is not a package, and pruning is not entitled to remove it however little
+ * the hoisting plan has to say about it.
+ */
+async function isPackageDir (dir: string): Promise<boolean> {
+  if (!await isRealDir(dir)) return false
+  return pathExists(path.join(dir, 'package.json'))
 }
 
 async function isRealDir (dir: string): Promise<boolean> {

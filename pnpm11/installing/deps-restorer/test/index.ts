@@ -925,6 +925,11 @@ test('installing in a workspace with node-linker=hoisted removes directories tha
   }
   const toolCache = path.join(prefix, 'foo/node_modules/.cache')
   fs.mkdirSync(toolCache, { recursive: true })
+  // Not a package — no `package.json` — so not the linker's to remove, however
+  // little the hoisting plan has to say about it.
+  const buildOutput = path.join(prefix, 'foo/node_modules/build-output')
+  fs.mkdirSync(buildOutput, { recursive: true })
+  fs.writeFileSync(path.join(buildOutput, 'bundle.js'), '')
   const linkedDep = path.join(prefix, 'foo/node_modules/linked-dep')
   fs.symlinkSync(path.join(prefix, 'bar'), linkedDep, 'junction')
   // A symlinked scope container would put every name under it outside the
@@ -946,6 +951,7 @@ test('installing in a workspace with node-linker=hoisted removes directories tha
     expect(fs.existsSync(orphan)).toBeFalsy()
   }
   expect(fs.existsSync(toolCache)).toBeTruthy()
+  expect(fs.existsSync(buildOutput)).toBeTruthy()
   expect(fs.lstatSync(linkedDep).isSymbolicLink()).toBeTruthy()
   expect(fs.existsSync(outsidePkg)).toBeTruthy()
   expect(readPkgVersion(path.join(prefix, 'foo/node_modules/webpack'))).toBe('2.7.0')
