@@ -260,8 +260,6 @@ async fn collect_choices(
         match_names: None,
         include_deprecated: false,
     };
-    // One run for the whole workspace, so the projects share both the
-    // catalogs read and the packument memo.
     let run = OutdatedRun::new(config)?;
     let choices = futures_util::future::join_all(projects.iter().map(|project| {
         collect_outdated_for_importer_in_run(
