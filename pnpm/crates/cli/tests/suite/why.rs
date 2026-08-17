@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use console::strip_ansi_codes;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -521,6 +522,26 @@ fn why_marks_importer_dep_field_and_prints_summary() {
             "{PKG}@100.0.0\n\u{2514}\u{2500}\u{2500} project@0.0.0 (devDependencies)\n\nFound 1 version of {PKG}\n"
         ),
     );
+}
+
+/// Styling a label must not mangle the styles it already carries: the
+/// colored tree has to strip back to exactly the uncolored one.
+#[test]
+fn why_styles_the_tree_without_corrupting_it() {
+    let (_root, workspace, _anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let plain = pacquet(&workspace, ["why", PKG]).output().expect("run pacquet why");
+    let colored = pacquet(&workspace, ["why", PKG])
+        .with_env("FORCE_COLOR", "1")
+        .output()
+        .expect("run pacquet why with colors");
+    assert!(colored.status.success(), "colored why should succeed: {colored:?}");
+
+    let colored_stdout = String::from_utf8_lossy(&colored.stdout);
+    assert!(colored_stdout.contains('\u{1b}'), "colors should be on: {colored_stdout:?}");
+    assert_eq!(strip_ansi_codes(&colored_stdout), String::from_utf8_lossy(&plain.stdout));
 }
 
 fn write_finder_pnpmfile(workspace: &Path, message_expr: &str) {

@@ -1,5 +1,6 @@
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
+use console::strip_ansi_codes;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, fs, path::Path, process::Command};
@@ -597,6 +598,37 @@ fn listing_specific_package_with_lockfile_only() {
             "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
         ),
     );
+}
+
+/// Styling a label must not mangle the styles it already carries: the
+/// colored tree has to strip back to exactly the uncolored one. The
+/// searched package and the project label are the bolded ones.
+#[test]
+fn list_styles_the_tree_without_corrupting_it() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { PKG: "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    let plain = run_ok(&workspace, &["list", "--lockfile-only", PKG]);
+    let colored = pacquet_in(&workspace, ["list", "--lockfile-only", PKG])
+        .with_env("FORCE_COLOR", "1")
+        .output()
+        .expect("run pacquet list with colors");
+    assert!(colored.status.success(), "colored list should succeed: {colored:?}");
+
+    let colored_stdout = String::from_utf8_lossy(&colored.stdout);
+    assert!(colored_stdout.contains('\u{1b}'), "colors should be on: {colored_stdout:?}");
+    assert_eq!(strip_ansi_codes(&colored_stdout), plain);
 }
 
 /// Port of upstream's `correctly report the value of the private field
