@@ -270,11 +270,10 @@ export interface PlatformSelector {
 
 /**
  * Resolve a {@link PlatformSelector} from the user's supportedArchitectures config
- * and the host's own platform/arch/libc. Variant selection picks exactly one
- * (os, cpu, libc) triplet per install, so each axis keeps the host's own value
- * whenever `supportedArchitectures.xxx` allows it, either by listing it or by
- * listing `"current"`. Only a config that excludes the host falls back to the
- * first requested value.
+ * and the host's own platform/arch/libc. Exactly one (os, cpu, libc) triplet is
+ * installed, so each axis prefers the host's own value: a variant built for
+ * another platform cannot run here.
+ * @see https://github.com/pnpm/pnpm/issues/13898
  */
 export function resolvePlatformSelector (
   supportedArchitectures: SupportedArchitectures | undefined,

@@ -232,7 +232,7 @@ fn host_platform_selector_omits_libc_on_non_linux_hosts() {
 }
 
 #[test]
-fn runtime_platform_selector_uses_the_first_configured_target_the_host_is_absent_from() {
+fn runtime_platform_selector_falls_back_to_the_first_configured_target_the_host_is_absent_from() {
     let supported = SupportedArchitectures {
         os: Some(vec!["freebsd".to_string(), "openbsd".to_string()]),
         cpu: Some(vec!["ppc64".to_string(), "s390x".to_string()]),

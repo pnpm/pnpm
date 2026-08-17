@@ -843,31 +843,42 @@ pub fn host_platform_selector() -> PlatformSelector {
     PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
 }
 
-/// Resolve the runtime archive selector from `supportedArchitectures`. Only
-/// one archive is installed, so each axis keeps the host's own value whenever
-/// the requested values allow it, either by listing it or by listing
-/// `current`. Values that exclude the host fall back to the first requested
-/// one.
+/// Resolve the runtime archive selector from `supportedArchitectures`.
+///
+/// Exactly one archive is installed per runtime, so each axis prefers
+/// the host's own value: an archive built for another platform cannot
+/// run here.
+///
+/// <https://github.com/pnpm/pnpm/issues/13898>
 #[must_use]
 pub fn runtime_platform_selector(
     supported: Option<&pnpm_package_is_installable::SupportedArchitectures>,
 ) -> PlatformSelector {
     let host = host_platform_selector();
-    let pick = |values: Option<&Vec<String>>, current: Option<&str>| -> Option<String> {
-        let values = values.filter(|values| !values.is_empty())?;
-        if values.iter().any(|value| value == "current" || Some(value.as_str()) == current) {
-            return current.map(str::to_string);
+    let (requested_os, requested_cpu, requested_libc) = match supported {
+        Some(supported) => {
+            (supported.os.as_deref(), supported.cpu.as_deref(), supported.libc.as_deref())
         }
-        values.first().cloned()
+        None => (None, None, None),
     };
     PlatformSelector {
-        os: pick(supported.and_then(|value| value.os.as_ref()), Some(&host.os))
-            .unwrap_or_else(|| host.os.clone()),
-        cpu: pick(supported.and_then(|value| value.cpu.as_ref()), Some(&host.cpu))
-            .unwrap_or_else(|| host.cpu.clone()),
-        libc: pick(supported.and_then(|value| value.libc.as_ref()), host.libc.as_deref())
-            .or_else(|| host.libc.clone()),
+        os: pick_supported(requested_os, Some(&host.os)).unwrap_or(&host.os).to_string(),
+        cpu: pick_supported(requested_cpu, Some(&host.cpu)).unwrap_or(&host.cpu).to_string(),
+        libc: pick_supported(requested_libc, host.libc.as_deref()).map(str::to_string),
     }
+}
+
+fn pick_supported<'a>(
+    requested: Option<&'a [String]>,
+    host_value: Option<&'a str>,
+) -> Option<&'a str> {
+    let Some(requested) = requested.filter(|requested| !requested.is_empty()) else {
+        return host_value;
+    };
+    if requested.iter().any(|value| value == "current" || Some(value.as_str()) == host_value) {
+        return host_value;
+    }
+    requested.first().map(String::as_str)
 }
 
 /// Hand-coded matcher for the
