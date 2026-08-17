@@ -12,9 +12,37 @@ use std::{
     fs,
     io::{self, BufReader, Read},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::UNIX_EPOCH,
 };
+
+/// Process-wide tally of CAFS files that had to be re-hashed by
+/// [`verify_file_integrity`]. Content hashing is the expensive half of
+/// store verification — the common case never reaches it, because the
+/// recorded `checked_at` says the file is untouched. A high tally means
+/// something keeps invalidating the store (a mtime-rewriting backup
+/// tool, an antivirus scanner, a shared store on a filesystem with
+/// coarse timestamps), so the install reports it.
+///
+/// Process-global to match pnpm, which counts the same event on
+/// `global.verifiedFileIntegrity`: the verifiers run deep inside the
+/// fetch/import fan-out while the report is emitted at the end of the
+/// install, and every hop between the two is on the hot path.
+static VERIFIED_FILE_INTEGRITY: AtomicU64 = AtomicU64::new(0);
+
+/// How many CAFS files this process has content-hashed so far.
+///
+/// Only the careful path ([`check_pkg_files_integrity`]) hashes, and
+/// only for a file whose `mtime` moved past its recorded `checked_at` —
+/// so a warm store on an install that nothing has disturbed leaves this
+/// at zero. An install reports the number once it is high enough to
+/// explain how long the install took.
+pub fn verified_file_integrity_count() -> u64 {
+    VERIFIED_FILE_INTEGRITY.load(Ordering::Relaxed)
+}
 
 /// Set of CAFS paths whose on-disk integrity has already been verified
 /// during the current install. The caller threads one cache through
@@ -403,6 +431,7 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
 /// `false` so the caller re-fetches rather than deciding on a partial
 /// hash.
 fn verify_file_integrity(path: &Path, digest: &str, algo: &str) -> bool {
+    VERIFIED_FILE_INTEGRITY.fetch_add(1, Ordering::Relaxed);
     if algo != "sha512" {
         return false;
     }

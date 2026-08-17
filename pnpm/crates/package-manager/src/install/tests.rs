@@ -4,7 +4,8 @@
 )]
 
 use super::{
-    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, install_already_up_to_date,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck,
+    apply_materialization::report_verified_file_integrity, install_already_up_to_date,
     load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
     order_project_lifecycle_groups, project_requires_lifecycle_scripts,
 };
@@ -10688,5 +10689,36 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
     assert_eq!(
         package.manifest.get("dependencies"),
         Some(&serde_json::json!({ "sibling": "workspace:*" })),
+    );
+}
+
+/// The report is what tells a user why an otherwise warm install took
+/// so long, so it has to name the count and stay silent for a store
+/// that verified a normal number of files.
+#[test]
+fn many_verified_files_are_reported_once_past_the_threshold() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    // Reset in case nextest reuses the process for a retry of this test.
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    report_verified_file_integrity::<RecordingReporter>(1000);
+    assert!(EVENTS.lock().unwrap().is_empty(), "1000 verified files is still quiet");
+
+    report_verified_file_integrity::<RecordingReporter>(1001);
+    let events = EVENTS.lock().unwrap();
+    let [LogEvent::Global(log)] = events.as_slice() else {
+        panic!("expected exactly one global log, got {events:?}");
+    };
+    assert_eq!(log.level, LogLevel::Info);
+    assert_eq!(
+        log.message,
+        "The integrity of 1001 files was checked. This might have caused installation to take longer.",
     );
 }

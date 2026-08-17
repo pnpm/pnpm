@@ -1,13 +1,15 @@
 use super::{
-    BTreeMap, BTreeSet, Catalogs, Config, HashSet, HoistedDependencies, Host, IncludedDependencies,
-    InstallError, InstallWithFreshLockfileError, Lockfile, LogEvent, LogLevel, Modules, NodeLinker,
-    PackageManifest, Path, PathBuf, ProjectMutation, ProjectScriptsInputs, RebuildOptions,
-    Reporter, SummaryLog, SystemTime, WorkspaceInstallSelection, build_modules_manifest,
-    build_workspace_state, drain_settled_projects, merge_filtered_modules_metadata,
-    merge_pending_builds, order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    BTreeMap, BTreeSet, Catalogs, Config, GlobalLog, HashSet, HoistedDependencies, Host,
+    IncludedDependencies, InstallError, InstallWithFreshLockfileError, Lockfile, LogEvent,
+    LogLevel, Modules, NodeLinker, PackageManifest, Path, PathBuf, ProjectMutation,
+    ProjectScriptsInputs, RebuildOptions, Reporter, SummaryLog, SystemTime,
+    WorkspaceInstallSelection, build_modules_manifest, build_workspace_state,
+    drain_settled_projects, merge_filtered_modules_metadata, merge_pending_builds,
+    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
+use pnpm_store_dir::verified_file_integrity_count;
 
 struct ResolveOnlyCompletionInputs<'a> {
     resolve_only: bool,
@@ -562,6 +564,8 @@ fn report_install_completion<Reporter: self::Reporter>(
     // come after `importing_done`.
     Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
 
+    report_verified_file_integrity::<Reporter>(verified_file_integrity_count());
+
     // A global install is exempt from the scaffold below: its root is a
     // throwaway per-group directory, and the approval prompt that
     // follows it records the ignored builds against the stable global
@@ -596,6 +600,26 @@ fn report_install_completion<Reporter: self::Reporter>(
     }
 
     Ok(())
+}
+
+/// Re-hashing this many CAFS files is well past what a healthy store
+/// needs, so the install owns up to the time it spent there.
+const VERIFIED_FILE_INTEGRITY_REPORT_THRESHOLD: u64 = 1000;
+
+/// Tell the user when store verification re-hashed an unusual number of
+/// files, so a slow install has a visible cause. See
+/// [`pnpm_store_dir::verified_file_integrity_count`] for what gets
+/// counted.
+pub(super) fn report_verified_file_integrity<Reporter: self::Reporter>(count: u64) {
+    if count <= VERIFIED_FILE_INTEGRITY_REPORT_THRESHOLD {
+        return;
+    }
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Info,
+        message: format!(
+            "The integrity of {count} files was checked. This might have caused installation to take longer."
+        ),
+    }));
 }
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {

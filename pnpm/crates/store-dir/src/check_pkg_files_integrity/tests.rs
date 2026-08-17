@@ -1,4 +1,7 @@
-use super::{VerifiedFilesCache, build_file_maps_from_index, check_pkg_files_integrity};
+use super::{
+    VerifiedFilesCache, build_file_maps_from_index, check_pkg_files_integrity,
+    verified_file_integrity_count,
+};
 use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
 use pretty_assertions::assert_eq;
 use sha2::{Digest, Sha512};
@@ -233,6 +236,36 @@ fn careful_path_fails_unknown_algo_as_verification_failure() {
     assert!(!result.passed);
     eprintln!("path={path:?} exists={}", path.exists());
     assert!(!path.exists(), "unknown algo → treated as corrupt → removed");
+}
+
+/// The count feeds the "this might have caused installation to take
+/// longer" report at the end of an install, so a re-hash that isn't
+/// counted makes a slow install look unexplained.
+///
+/// A lower bound, not an exact delta: the counter is process-wide, and
+/// under a plain `cargo test` (one process for the whole binary) a
+/// sibling test's re-hash can land between the two reads.
+#[test]
+fn re_hashing_a_file_is_counted() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"counted bytes";
+    let digest = sha512_hex(content);
+    plant_cafs_file(&store_dir, &digest, 0o644, content);
+    // `checked_at = 0` puts the file in the "modified" branch, which is
+    // the only one that hashes.
+    let entry = index_with(
+        "sha512",
+        vec![("counted", info(&digest, content.len() as u64, 0o644, Some(0)))],
+    );
+
+    let before = verified_file_integrity_count();
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    let after = verified_file_integrity_count();
+    dbg!(&result, before, after);
+
+    assert!(result.passed);
+    assert!(after > before, "the re-hash must advance the counter");
 }
 
 /// Plants a directory where a CAFS blob belongs (store corruption —
