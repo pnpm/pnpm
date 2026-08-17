@@ -1860,9 +1860,9 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     let sibling_manifest = PackageManifest::from_path(sibling_manifest_path).unwrap();
 
     // Re-stamp the workspace state with BOTH projects so the
-    // project-structure check passes; use a future timestamp so the
-    // mtime branch is satisfied. We want the modules-dir branch to
-    // be the deciding factor.
+    // project-structure check passes, and backdate the tree so the mtime
+    // branch reads as validated. We want the modules-dir branch to be the
+    // deciding factor.
     let settings =
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
