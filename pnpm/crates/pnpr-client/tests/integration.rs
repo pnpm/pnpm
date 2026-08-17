@@ -219,6 +219,7 @@ fn options(
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         trust_lockfile: false,
+        resolution_mode: pnpm_config::ResolutionMode::default(),
         minimum_release_age: None,
         minimum_release_age_exclude: None,
         minimum_release_age_ignore_missing_time: true,

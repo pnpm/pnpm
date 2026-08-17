@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, HashSet};
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{RegistryDeclaration, TrustPolicy};
+use pnpm_config::{RegistryDeclaration, ResolutionMode, TrustPolicy};
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
@@ -96,6 +96,9 @@ pub struct ResolveOptions {
     /// skips verifying the input lockfile (it still reuses it for
     /// resolution), mirroring the local `--trust-lockfile` opt-out.
     pub trust_lockfile: bool,
+    /// The client's `resolutionMode`. The server picks versions the way
+    /// the client would, instead of falling back to its own default.
+    pub resolution_mode: ResolutionMode,
     /// The client's verification policy. The server verifies the input
     /// lockfile under *this* policy (not its own) before resolving.
     pub minimum_release_age: Option<u64>,
@@ -141,6 +144,8 @@ pub struct ResolveProjectsOptions {
     pub prefer_frozen_lockfile: Option<bool>,
     pub ignore_manifest_check: bool,
     pub trust_lockfile: bool,
+    /// See [`ResolveOptions::resolution_mode`].
+    pub resolution_mode: ResolutionMode,
     pub minimum_release_age: Option<u64>,
     pub minimum_release_age_exclude: Option<Vec<String>>,
     pub minimum_release_age_ignore_missing_time: bool,
@@ -173,6 +178,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
             ignore_manifest_check: opts.ignore_manifest_check,
             trust_lockfile: opts.trust_lockfile,
+            resolution_mode: opts.resolution_mode,
             minimum_release_age: opts.minimum_release_age,
             minimum_release_age_exclude: opts.minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time: opts.minimum_release_age_ignore_missing_time,
@@ -474,6 +480,7 @@ impl PnprClient {
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
             "ignoreManifestCheck": opts.ignore_manifest_check,
             "trustLockfile": opts.trust_lockfile,
+            "resolutionMode": opts.resolution_mode,
             "minimumReleaseAge": opts.minimum_release_age,
             "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
             "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,

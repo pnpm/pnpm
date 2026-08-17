@@ -6,6 +6,7 @@ import { type PnprProject, resolveViaPnprServer, type ResolveViaPnprServerOption
 
 interface CapturedResolveRequest {
   projects: Array<Record<string, unknown>>
+  resolutionMode?: string
 }
 
 const resolverSettingNames = ['autoInstallPeers', 'dedupePeers', 'excludeLinksFromLockfile'] as const
@@ -66,6 +67,21 @@ test.each(resolverSettingNames)('serializes %s independently', async (setting) =
       expect(Object.hasOwn(request, key)).toBe(key === setting)
     }
   }))
+})
+
+// The mode decides which version every pick lands on, so a server resolving
+// on the client's behalf has to be told it — omitted, it resolves `highest`
+// and hands back a lockfile the client would never have written.
+test.each(['time-based', 'lowest-direct', 'highest'] as const)('serializes resolutionMode %s', async (resolutionMode) => {
+  const request = await captureResolveRequest({ dependencies: {}, resolutionMode })
+
+  expect(request).toMatchObject({ resolutionMode })
+})
+
+test('omits resolutionMode when the caller has none', async () => {
+  const request = await captureResolveRequest({ dependencies: {} })
+
+  expect(Object.hasOwn(request, 'resolutionMode')).toBe(false)
 })
 
 async function captureResolveRequest (

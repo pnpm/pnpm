@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use pnpm_config::{Config as PacquetConfig, RegistryDeclaration};
+use pnpm_config::{Config as PacquetConfig, RegistryDeclaration, ResolutionMode};
 use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
@@ -275,12 +275,18 @@ fn resolution_cache_key_changes_with_dependencies_and_policy() {
         minimum_release_age: Some(60),
         ..ResolveRequest::default()
     };
+    let different_mode = ResolveRequest {
+        dependencies: Some(deps(&[("foo", "^1.0.0")])),
+        resolution_mode: ResolutionMode::TimeBased,
+        ..ResolveRequest::default()
+    };
 
     let config = config();
     let base_key = resolution_cache_key(&config, &base);
 
     assert_ne!(base_key, resolution_cache_key(&config, &different_dep));
     assert_ne!(base_key, resolution_cache_key(&config, &different_policy));
+    assert_ne!(base_key, resolution_cache_key(&config, &different_mode));
 }
 
 #[test]
@@ -1427,4 +1433,34 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
     let second = intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).expect("config reused");
     assert!(std::ptr::eq(first, second));
     assert_eq!(configs.lock().expect("config cache poisoned").len(), 1);
+}
+
+/// The client's `resolutionMode` decides which version a pick lands on, so a
+/// server resolving on the client's behalf has to run the client's mode
+/// rather than its own default — and two modes cannot share one interned
+/// config.
+#[test]
+fn intern_config_resolves_in_the_client_s_resolution_mode() {
+    use pnpm_store_dir::StoreDir;
+
+    use super::intern_config;
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-resolution-mode-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-resolution-mode-cache");
+    let intern = |request: &ResolveRequest| {
+        intern_config(&configs, &store_dir, &cache_dir, request, 10, usize::MAX)
+            .expect("intern config")
+    };
+
+    let legacy = ResolveRequest::default();
+    assert_eq!(legacy.resolution_mode, ResolutionMode::Highest);
+    assert_eq!(intern(&legacy).resolution_mode, ResolutionMode::Highest);
+
+    for mode in [ResolutionMode::TimeBased, ResolutionMode::LowestDirect] {
+        let request = ResolveRequest { resolution_mode: mode, ..ResolveRequest::default() };
+        assert_eq!(intern(&request).resolution_mode, mode);
+    }
+
+    assert_eq!(configs.lock().expect("config cache").len(), 3);
 }

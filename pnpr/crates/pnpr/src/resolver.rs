@@ -338,6 +338,7 @@ fn intern_config(
         "resolverSettings": resolver_settings,
         "registries": &request.registries,
         "overrides": overrides_key,
+        "resolutionMode": request.resolution_mode,
         "minimumReleaseAge": request.minimum_release_age,
         "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
         "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
@@ -378,10 +379,12 @@ fn intern_config(
     config.modules_dir = PathBuf::from("node_modules");
     config.lockfile = true;
     config.verify_store_integrity = true;
-    // The client's verification policy drives both the input-lockfile
-    // verifier and the resolver's pick-time `minimumReleaseAge` /
-    // `trustPolicy` checks, so newly-resolved entries are held to the
-    // same policy as the reused ones.
+    // The client's resolution and verification policies drive both the
+    // input-lockfile verifier and the resolver's pick-time
+    // `minimumReleaseAge` / `trustPolicy` checks, so a newly-resolved
+    // entry is picked the way the client would have picked it and held
+    // to the same policy as the reused ones.
+    config.resolution_mode = request.resolution_mode;
     config.minimum_release_age = request.minimum_release_age;
     config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
     if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
@@ -814,6 +817,7 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         "preferFrozenLockfile": request.prefer_frozen_lockfile,
         "ignoreManifestCheck": request.ignore_manifest_check,
         "trustLockfile": request.trust_lockfile,
+        "resolutionMode": request.resolution_mode,
         "minimumReleaseAge": request.minimum_release_age,
         "minimumReleaseAgeExclude": &request.minimum_release_age_exclude,
         "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
