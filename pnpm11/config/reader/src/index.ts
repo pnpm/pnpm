@@ -727,6 +727,14 @@ export async function getConfig (opts: {
   // `catalogPrune`'s former name, still accepted. The canonical key wins
   // when both are set.
   pnpmConfig.catalogPrune ??= pnpmConfig.cleanupUnusedCatalogs
+  // Every layer folds `virtualStoreType` into the boolean the rest of pnpm
+  // reads, so the canonical spelling is restored here from the folded value
+  // rather than from any one layer — otherwise `pnpm config get
+  // virtualStoreType` could name the store a later layer overrode.
+  if (explicitlySetKeys.has('enableGlobalVirtualStore')) {
+    pnpmConfig.virtualStoreType = pnpmConfig.enableGlobalVirtualStore ? 'global' : 'project'
+    explicitlySetKeys.add('virtualStoreType')
+  }
   if (!pnpmConfig.httpsProxy) {
     // An empty `proxy=` is unset, so it must not suppress the environment
     // fallback. `false` and `null` keep their meaning: proxying is off.

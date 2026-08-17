@@ -3080,9 +3080,9 @@ impl Config {
 /// censored at render time).
 ///
 /// `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
-/// setting, so a source that sets the canonical one also decides the boolean:
-/// the record follows [`WorkspaceSettings::apply_to`] and derives it, or
-/// `pnpm config get enableGlobalVirtualStore` would report the spelling the
+/// setting, so a source that sets either one decides both: the record follows
+/// [`WorkspaceSettings::apply_to`] and fills in the spelling the source left
+/// out, or `pnpm config get` would answer one of the two with the value the
 /// install did not use.
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
@@ -3097,7 +3097,12 @@ fn collect_explicit_settings(
         }
         target.insert(key, value);
     }
-    if let Some(virtual_store_type) = settings.virtual_store_type {
+    let virtual_store_type = settings
+        .virtual_store_type
+        .or_else(|| settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global));
+    if let Some(virtual_store_type) = virtual_store_type {
+        let Ok(named) = serde_json::to_value(virtual_store_type) else { return };
+        target.insert("virtualStoreType".to_string(), named);
         target.insert(
             "enableGlobalVirtualStore".to_string(),
             serde_json::Value::Bool(virtual_store_type.is_global()),

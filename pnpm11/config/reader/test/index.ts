@@ -4586,7 +4586,46 @@ test.each([
   })
 
   expect(config.enableGlobalVirtualStore).toBe(expected)
-  expect((config as { virtualStoreType?: unknown }).virtualStoreType).toBeUndefined()
+  expect(config.virtualStoreType).toBe(virtualStoreType)
+})
+
+// `pnpm config get` reads either spelling off the config, so the one the
+// user did not write has to carry the value the install will use.
+test.each([
+  [true, 'global'],
+  [false, 'project'],
+] as const)('enableGlobalVirtualStore=%s names the store type', async (enableGlobalVirtualStore, expected) => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', { enableGlobalVirtualStore })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.virtualStoreType).toBe(expected)
+})
+
+test('an unset virtual store type is not reported as either spelling', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.virtualStoreType).toBeUndefined()
 })
 
 test('PNPM_CONFIG_VIRTUAL_STORE_TYPE wins over the boolean spelling in the same layer', async () => {
@@ -4607,6 +4646,7 @@ test('PNPM_CONFIG_VIRTUAL_STORE_TYPE wins over the boolean spelling in the same 
   })
 
   expect(config.enableGlobalVirtualStore).toBe(false)
+  expect(config.virtualStoreType).toBe('project')
 })
 
 test('enableGlobalVirtualStore exposes hoisted dependencies through NODE_PATH and the ESM loader', async () => {

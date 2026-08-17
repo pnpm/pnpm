@@ -2120,15 +2120,16 @@ pub fn virtual_store_type_supersedes_the_boolean_spelling() {
     }
 }
 
-/// `pnpm config get enableGlobalVirtualStore` reads the explicit-settings
-/// record, which therefore has to name the value the install will use, not
-/// the spelling the canonical key overrode.
+/// `pnpm config get` reads the explicit-settings record, which therefore has
+/// to answer both spellings with the value the install will use — whichever
+/// of the two the file was written in.
 #[test]
 pub fn explicit_settings_report_the_spelling_that_won() {
     for (yaml, expected) in [
         ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
         ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
         ("virtualStoreType: project\n", false),
+        ("enableGlobalVirtualStore: true\n", true),
     ] {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
@@ -2137,6 +2138,11 @@ pub fn explicit_settings_report_the_spelling_that_won() {
         assert_eq!(
             config.explicit_settings.get("enableGlobalVirtualStore"),
             Some(&serde_json::Value::Bool(expected)),
+            "yaml: {yaml}",
+        );
+        assert_eq!(
+            config.explicit_settings.get("virtualStoreType").and_then(serde_json::Value::as_str),
+            Some(if expected { "global" } else { "project" }),
             "yaml: {yaml}",
         );
         assert_eq!(config.enable_global_virtual_store, expected, "yaml: {yaml}");
