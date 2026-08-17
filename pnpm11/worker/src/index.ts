@@ -35,14 +35,15 @@ let workerPool: WorkerPool | undefined
  * command with dedicated lockfiles runs at `workspaceConcurrency`:
  * there, overlapping projects can pick up each other's hashing.
  *
- * Scoping the tally per install with `AsyncLocalStorage` was tried and
- * reverted. Constructing one costs the whole process ~5x on
- * promise-heavy work under Node's pre-`AsyncContextFrame`
- * implementation (measured: 44ms -> 245ms over 2M awaits, and paid
- * whether or not the scope is ever entered), which pnpm's supported
- * Node 22 and 23 still use. An install-wide slowdown is too high a
- * price for attributing a diagnostic more precisely in one non-default
- * configuration.
+ * Separating those would take an `AsyncLocalStorage` scope per install,
+ * which is not worth it here: constructing one costs the whole process
+ * ~5x on promise-heavy work under Node's pre-`AsyncContextFrame`
+ * implementation (44ms -> 245ms over 2M awaits, paid whether or not the
+ * scope is entered), and pnpm supports Node 22.13, where that is the
+ * implementation. Every install would pay it so that a diagnostic reads
+ * correctly in one non-default configuration. The alternative with no
+ * global cost is threading the tally through the store controller's
+ * per-request options into `readPkgFromCafs`.
  */
 const verifiedFileIntegrity: VerifiedFileIntegrity = { files: 0, ms: 0 }
 

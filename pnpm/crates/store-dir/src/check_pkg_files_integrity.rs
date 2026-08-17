@@ -35,11 +35,9 @@ use std::{
 /// it — see [`VerifiedFileIntegrity::since`].
 ///
 /// That diff is exact because the CLI installs one project at a time,
-/// including the per-project loop dedicated lockfiles take. (pnpm runs
-/// that loop concurrently, so its counterpart tracks the tally per
-/// install instead.) An embedder driving several installs at once in
-/// one process is the one case where a diff can pick up a sibling's
-/// hashing.
+/// including the per-project loop dedicated lockfiles take. An embedder
+/// driving several installs at once in one process is the one case
+/// where a diff can pick up a sibling's hashing.
 static VERIFIED_FILE_INTEGRITY: VerifiedFileIntegrityTally =
     VerifiedFileIntegrityTally { files: AtomicU64::new(0), nanos: AtomicU64::new(0) };
 
