@@ -12,6 +12,16 @@ test('store verification that took long enough is reported with its time', () =>
   expect(messages).toEqual(['The integrity of 1234 files was checked in 2.5s.'])
 })
 
+// A tie rounds up, in the direction `toFixed` takes it: 2.25s must not
+// render as `2.3s` here and `2.2s` in pacquet.
+test('a tie in the seconds rounds up', () => {
+  const messages = captureInfo(() => {
+    reportVerifiedFileIntegrity({ files: 7, ms: 2250 })
+  })
+
+  expect(messages).toEqual(['The integrity of 7 files was checked in 2.3s.'])
+})
+
 // Under the time threshold there is no time worth naming, so the
 // message points at what keeps invalidating the store instead.
 test('quick verification of many files is reported as churn', () => {

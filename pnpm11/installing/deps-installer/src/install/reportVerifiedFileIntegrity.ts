@@ -25,14 +25,15 @@ const MANY_FILES = 1000
  * the workers that did the hashing, so it is the work spent and can
  * exceed the install's wall-clock time.
  *
- * The seconds are formatted with one decimal rather than through
- * `pretty-ms` because pacquet renders the same messages from the same
- * figures, and the two have to agree character for character.
+ * The seconds are rounded to tenths in integer arithmetic rather than
+ * by float formatting: pacquet renders the same messages from the same
+ * figures and the two have to agree character for character, but
+ * `toFixed` rounds a tie up where Rust's `{:.1}` rounds it to even.
  */
 export function reportVerifiedFileIntegrity (verified: VerifiedFileIntegrity): void {
   if (verified.ms > SLOW_MS) {
-    const seconds = (verified.ms / 1000).toFixed(1)
-    globalInfo(`The integrity of ${verified.files} files was checked in ${seconds}s.`)
+    const tenths = Math.floor((verified.ms + 50) / 100)
+    globalInfo(`The integrity of ${verified.files} files was checked in ${Math.floor(tenths / 10)}.${tenths % 10}s.`)
   } else if (verified.files > MANY_FILES) {
     globalInfo(`The integrity of ${verified.files} files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.`)
   }

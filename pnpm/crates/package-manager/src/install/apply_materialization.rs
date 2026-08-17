@@ -627,16 +627,18 @@ const VERIFIED_FILE_INTEGRITY_MANY: u64 = 1000;
 /// across the threads that did the hashing — see
 /// [`pnpm_store_dir::VerifiedFileIntegrity`].
 ///
-/// The seconds are formatted with one decimal rather than through a
-/// pretty-printer because pnpm renders the same messages from the same
-/// figures, and the two have to agree character for character.
+/// The seconds are rounded to tenths in integer arithmetic rather than
+/// by float formatting: pnpm renders the same messages from the same
+/// figures and the two have to agree character for character, but
+/// Rust's `{:.1}` rounds a tie to even where JavaScript's `toFixed`
+/// rounds it up.
 pub(super) fn report_verified_file_integrity<Reporter: self::Reporter>(
     verified: VerifiedFileIntegrity,
 ) {
     let files = verified.files;
     let message = if verified.duration > VERIFIED_FILE_INTEGRITY_SLOW {
-        let seconds = verified.duration.as_secs_f64();
-        format!("The integrity of {files} files was checked in {seconds:.1}s.")
+        let tenths = (verified.duration.as_millis() + 50) / 100;
+        format!("The integrity of {files} files was checked in {}.{}s.", tenths / 10, tenths % 10)
     } else if files > VERIFIED_FILE_INTEGRITY_MANY {
         format!(
             "The integrity of {files} files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.",

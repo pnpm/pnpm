@@ -10705,6 +10705,17 @@ fn slow_store_verification_is_reported_with_its_time() {
     assert_eq!(messages, vec!["The integrity of 1234 files was checked in 2.5s.".to_string()]);
 }
 
+/// A tie rounds up, in the direction JavaScript's `toFixed` takes it:
+/// 2.25s must not render as `2.2s` here and `2.3s` in pnpm.
+#[test]
+fn a_tie_in_the_seconds_rounds_up() {
+    let messages = recorded_verified_file_integrity_report(VerifiedFileIntegrity {
+        files: 7,
+        duration: Duration::from_millis(2250),
+    });
+    assert_eq!(messages, vec!["The integrity of 7 files was checked in 2.3s.".to_string()]);
+}
+
 /// Under the time threshold there is no time worth naming, so the
 /// message points at what keeps invalidating the store instead.
 #[test]
