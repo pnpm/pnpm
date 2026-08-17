@@ -92,15 +92,14 @@ fn set_gvs_workspace_yaml(workspace: &Path, extra_yaml: &str) {
     let mut yaml = harness_store_and_cache_yaml(workspace);
     yaml.push_str("enableGlobalVirtualStore: true\n");
     yaml.push_str(extra_yaml);
-    fs::write(workspace.join("pnpm-workspace.yaml"), yaml)
-        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
 }
 
 /// The harness's `storeDir` / `cacheDir` lines on their own, for a test
 /// that writes its own virtual-store setting on top.
 fn harness_store_and_cache_yaml(workspace: &Path) -> String {
-    let existing =
-        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read pnpm-workspace.yaml");
+    let existing = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
     let yaml: String = existing
         .lines()
         .filter(|line| line.starts_with("storeDir:") || line.starts_with("cacheDir:"))

@@ -78,13 +78,12 @@ fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
 /// Orthogonal to [`NodeLinker`], which picks how a project consumes the
 /// store: `pnp` and `isolated` both work with either type, and `hoisted`
 /// writes no virtual store at all, so the setting is inert there.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum VirtualStoreType {
     /// One store per machine, under `<store-dir>/links`. Slots are keyed
     /// by a dependency-graph hash, so every project resolving a package
     /// the same way links to one directory.
-    #[default]
     Global,
 
     /// One store per project, at `<project>/node_modules/.pnpm`. Slots
