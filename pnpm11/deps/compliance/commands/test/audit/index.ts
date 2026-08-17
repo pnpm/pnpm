@@ -197,9 +197,15 @@ describe('plugin-commands-audit', () => {
 
     expect(exitCode).toBe(1)
     const plainOutput = stripAnsi(output)
-    expect(plainOutput).toContain('audited 1 package')
-    expect(plainOutput).toContain('1 package has an invalid registry signature')
+    expect(plainOutput).toContain('audited 2 packages')
+    expect(plainOutput).toContain('2 packages have invalid registry signatures')
     expect(plainOutput).toContain('gone-pkg')
+    expect(plainOutput).toContain('absent-pkg')
+    // The fixture lists gone-pkg before absent-pkg, so the walk records them in
+    // that order. Asserting the rendered order pins that unresolvable entries go
+    // through the same sortIssue ordering as registry-derived issues, rather
+    // than being appended in lockfile order.
+    expect(plainOutput.indexOf('absent-pkg')).toBeLessThan(plainOutput.indexOf('gone-pkg'))
   })
 
   test('audit rejects unknown subcommands', async () => {
