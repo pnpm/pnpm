@@ -99,7 +99,10 @@ pub struct WorkspaceResolveOptions {
     /// its (hook-rewritten) manifest range, and an edge whose recorded
     /// version still satisfies that range stays on it — mirroring the
     /// TypeScript resolver's forced full resolution, which forces the
-    /// walk without unpinning still-satisfied edges.
+    /// walk without unpinning still-satisfied edges. The config drift
+    /// that denied subtree reuse stays effective: hooks rewrite the
+    /// drifted manifests before the satisfies check, so the edges a
+    /// changed override or extension reaches re-resolve.
     pub reuse_lockfile_subtrees: bool,
 
     /// Which dependencies `pacquet update` excludes from lockfile-

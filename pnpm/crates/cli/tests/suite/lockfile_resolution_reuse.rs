@@ -1754,7 +1754,6 @@ fn removing_a_workspace_project_prunes_its_importer_without_resolving() {
     drop((root, mock_instance));
 }
 
-/// A workspace whose two members each depend on a package of their own.
 /// A config drift the fast rewrites cannot absorb (a changed
 /// `packageExtensions`) forces every subtree to re-resolve, but each
 /// edge whose recorded version still satisfies its range keeps it: the
@@ -1862,6 +1861,7 @@ fn config_drift_full_resolve_keeps_still_satisfied_pins() {
     drop((root, mock_instance));
 }
 
+/// A workspace whose two members each depend on a package of their own.
 fn write_two_member_workspace(workspace: &Path) {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =

@@ -1039,11 +1039,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let reuse_lockfile_subtrees = lockfile_reuse_seed.is_some();
         // A withheld seed means config drift the fast rewrites cannot
         // absorb, so recorded subtrees must re-resolve — but the prior
-        // lockfile still pins each edge whose recorded version satisfies
-        // its hook-rewritten manifest range. Without it every open range
-        // (`*`) would re-pick the highest locked version and churn the
-        // lockfile (the edges a changed override or extension actually
-        // reaches fail the satisfies gate and re-resolve).
+        // lockfile still pins the edges the drift does not reach (see
+        // `WorkspaceResolveOptions::reuse_lockfile_subtrees`).
         let resolution_lockfile = lockfile_reuse_seed
             .or_else(|| wanted_lockfile.map(|lockfile| Arc::new(lockfile.clone())));
 

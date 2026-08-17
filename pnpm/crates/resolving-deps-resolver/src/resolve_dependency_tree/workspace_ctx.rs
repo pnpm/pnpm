@@ -288,12 +288,12 @@ pub struct WorkspaceTreeCtx {
     /// [`resolve_node`]: super::walk::resolve_node
     pub(super) wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
     /// Whether the walk may reuse whole already-resolved subtrees from
-    /// [`Self::wanted_lockfile`]. `false` keeps the lockfile as a
-    /// per-edge version-pin source only: every node re-resolves against
-    /// its (hook-rewritten) manifest range, and an edge whose recorded
-    /// version still satisfies that range stays on it. Used when config
-    /// drift (overrides, packageExtensions, ...) invalidates recorded
-    /// subtrees but not the versions the untouched edges resolved to.
+    /// [`Self::wanted_lockfile`]; `false` keeps it as a per-edge
+    /// version-pin source only. See
+    /// [`WorkspaceResolveOptions::reuse_lockfile_subtrees`] for the
+    /// contract.
+    ///
+    /// [`WorkspaceResolveOptions::reuse_lockfile_subtrees`]: crate::WorkspaceResolveOptions::reuse_lockfile_subtrees
     pub(super) reuse_lockfile_subtrees: bool,
     /// Lockfile-reuse suppression for `pacquet update`. `update`
     /// re-resolves its target deps to highest-in-range, so a reused
