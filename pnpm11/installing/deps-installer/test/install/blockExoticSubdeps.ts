@@ -1,7 +1,10 @@
+import path from 'node:path'
+
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
-import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
-import { prepareEmpty } from '@pnpm/prepare'
+import { addDependenciesToPackage, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -73,4 +76,75 @@ test('blockExoticSubdeps: false (default) allows git dependencies in subdependen
 
   const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
   expect(m).toBe('Hi')
+})
+
+test('blockExoticSubdeps allows exotic dependencies in workspace packages', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'project-2': 'workspace:^',
+        },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          // Direct git dependency in workspace project
+          'is-negative': 'github:kevva/is-negative#1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  // Mock the HEAD request that isRepoPublic() makes to check if the repo is public.
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+    .reply(200)
+
+  const workspacePackages = new Map([
+    ['project-2', new Map([
+      ['1.0.0', {
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+        manifest: allProjects[1].manifest,
+      }],
+    ])],
+  ])
+
+  // This should not fail even when blockExoticSubdeps is true
+  await mutateModules(importers, testDefaults({
+    allProjects,
+    blockExoticSubdeps: true,
+    workspacePackages,
+  }))
 })
