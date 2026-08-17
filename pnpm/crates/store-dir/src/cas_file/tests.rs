@@ -182,6 +182,65 @@ fn write_cas_file_from_reader_keeps_existing_live_entry_and_removes_temp() {
     assert_eq!(stray, Vec::<std::ffi::OsString>::new(), "no temp files may leak into files/");
 }
 
+/// A same-length blob at the target whose bytes differ (disk
+/// corruption, or a tampered store) must not be kept: the streamed
+/// writer byte-compares before trusting an existing entry, matching
+/// `ensure_file`'s guarantee for the buffered writer.
+#[test]
+fn write_cas_file_from_reader_replaces_same_length_corrupt_entry() {
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let store_dir = StoreDir::new(dir.path());
+    let content = b"authentic cas payload";
+
+    let (file_path, _, _) =
+        store_dir.write_cas_file_from_reader(&mut content.as_slice(), false).unwrap();
+    std::fs::write(&file_path, vec![b'X'; content.len()]).unwrap();
+
+    let (second_path, _, _) =
+        store_dir.write_cas_file_from_reader(&mut content.as_slice(), false).unwrap();
+
+    assert_eq!(second_path, file_path);
+    assert_eq!(std::fs::read(&file_path).unwrap(), content, "corrupt blob must be healed");
+}
+
+/// A shard-directory failure after the bytes have already streamed
+/// must not leak the temp file into `files/`.
+#[test]
+fn write_cas_file_from_reader_removes_temp_when_shard_creation_fails() {
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let store_dir = StoreDir::new(dir.path());
+    let content = b"shard blocked";
+
+    // Occupy the shard path with a regular file so `create_dir_all`
+    // for `files/XX/` fails after the stream completes.
+    let shard = format!("{:02x}", Sha512::digest(content)[0]);
+    std::fs::create_dir_all(store_dir.files_dir()).unwrap();
+    let blocker = store_dir.files_dir().join(&shard);
+    std::fs::write(&blocker, b"not a directory").unwrap();
+
+    let err = store_dir
+        .write_cas_file_from_reader(&mut content.as_slice(), false)
+        .expect_err("shard creation failure must propagate");
+    assert!(
+        matches!(err, WriteCasFileFromReaderError::Write(_)),
+        "expected the Write variant, got: {err:?}",
+    );
+
+    let leftovers: Vec<_> = std::fs::read_dir(store_dir.files_dir())
+        .unwrap()
+        .map(|dirent| dirent.unwrap().file_name())
+        .collect();
+    assert_eq!(
+        leftovers,
+        vec![std::ffi::OsString::from(&shard)],
+        "only the blocking file may remain — the stream temp must be removed",
+    );
+}
+
 /// A reader failure mid-stream surfaces as the `Read` variant (so the
 /// tarball layer can attribute it to the archive, not the store) and
 /// leaves no temp file behind.

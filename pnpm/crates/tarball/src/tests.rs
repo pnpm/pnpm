@@ -1383,6 +1383,41 @@ fn streaming_extract_applies_ignore_filter_dropping_entries_from_both_maps() {
     drop(tempdir);
 }
 
+/// A `package.json` above [`STREAM_ENTRY_BUFFER_MAX`] must still be
+/// buffered and parsed on the streaming path — routing it through the
+/// direct-to-store branch would silently record
+/// `requires_build: Some(false)` and drop the bundled manifest.
+#[test]
+fn streaming_extract_parses_manifest_larger_than_entry_buffer() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let padding = "p".repeat(usize::try_from(STREAM_ENTRY_BUFFER_MAX).unwrap() + 1);
+    let manifest =
+        format!(r#"{{"name":"pad","scripts":{{"install":"node-gyp rebuild"}},"x":"{padding}"}}"#);
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(manifest.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "package/package.json", manifest.as_bytes())
+            .expect("append manifest");
+        builder.finish().expect("finalize tar");
+    }
+
+    let (_cas_paths, pkg_files_idx) =
+        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+            .expect("streaming extraction");
+
+    assert_eq!(pkg_files_idx.requires_build, Some(true));
+    assert!(pkg_files_idx.manifest.is_some(), "the bundled manifest must be recorded");
+    drop(tempdir);
+}
+
 /// Corrupt gzip bytes must surface as a [`TarballError`] the retry
 /// classifier treats as transient, matching the eager path's
 /// `DecodeGzip` handling; on the streaming path the decoder fails

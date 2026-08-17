@@ -516,8 +516,9 @@ fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
 /// [`write_pending_files`] fan-out; larger ones stream straight into
 /// the store via [`StoreDir::write_cas_file_from_reader`] without ever
 /// being held in memory. `package.json` is the exception — the bundled
-/// manifest must be parsed from bytes, so it is buffered up to
-/// [`MAX_UNTRUSTED_PREALLOC_BYTES`] regardless.
+/// manifest must be parsed from bytes (build-script detection depends
+/// on it), so it is buffered whatever its size, with only its
+/// preallocation bounded per [`MAX_UNTRUSTED_PREALLOC_BYTES`].
 pub(crate) const STREAM_ENTRY_BUFFER_MAX: u64 = 4 * 1024 * 1024;
 
 /// Byte budget for one batch of buffered entries on the streaming
@@ -608,13 +609,17 @@ pub(crate) fn extract_tarball_entries_streaming(
         }
 
         // `package.json` must be buffered whatever its header claims —
-        // the bundled manifest is parsed from bytes — but a hostile
-        // size still can't force an unbounded reservation.
-        let buffer_entry = file_size <= STREAM_ENTRY_BUFFER_MAX
-            || (cleaned_entry_path == "package.json"
-                && file_size <= MAX_UNTRUSTED_PREALLOC_BYTES as u64);
+        // the bundled manifest and its build-script detection are
+        // parsed from bytes, exactly as on the eager path — but a
+        // hostile size still can't force an unbounded reservation: the
+        // preallocation is capped, and the buffer then grows only to
+        // what the archive actually contains.
+        let buffer_entry =
+            file_size <= STREAM_ENTRY_BUFFER_MAX || cleaned_entry_path == "package.json";
         if buffer_entry {
-            let mut data = Vec::with_capacity(file_size as usize);
+            let prealloc =
+                usize::try_from(file_size).unwrap_or(usize::MAX).min(MAX_UNTRUSTED_PREALLOC_BYTES);
+            let mut data = Vec::with_capacity(prealloc);
             entry.read_to_end(&mut data).map_err(TarballError::ReadTarballEntries)?;
             if data.len() as u64 != file_size {
                 return Err(truncated());

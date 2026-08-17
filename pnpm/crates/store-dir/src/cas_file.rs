@@ -111,10 +111,9 @@ impl StoreDir {
     /// Returns the CAS path, the content hash, and the streamed byte
     /// count. A reader that yields the same bytes as a `buffer` handed
     /// to [`StoreDir::write_cas_file`] lands at the same path with the
-    /// same guarantees: an existing regular file of the expected size
-    /// at the target is kept as the live entry (CAS paths are
-    /// hash-derived, so a size-matching file is the same content), and
-    /// anything else is atomically replaced.
+    /// same guarantees: an existing regular file at the target is kept
+    /// as the live entry only after a byte-compare against the streamed
+    /// content, and anything else is atomically replaced.
     pub fn write_cas_file_from_reader(
         &self,
         reader: &mut dyn Read,
@@ -166,8 +165,10 @@ impl StoreDir {
 
         let file_hash = hasher.finalize();
         let file_path = self.cas_file_path(file_hash, executable);
-        self.ensure_shard_dir(&file_path, file_hash[0])
-            .map_err(WriteCasFileFromReaderError::Write)?;
+        if let Err(error) = self.ensure_shard_dir(&file_path, file_hash[0]) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(WriteCasFileFromReaderError::Write(error));
+        }
 
         // Serialize with buffer-based writers ([`ensure_file`]) and
         // verifiers of the same path, per [`cas_write_lock`]'s
@@ -175,13 +176,16 @@ impl StoreDir {
         let lock = cas_write_lock(&file_path);
         let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
-        // A regular file of the expected size at a hash-derived path is
-        // the same content — keep it as the live entry rather than
-        // replacing its inode. Anything else (missing, torn short blob,
-        // symlink or other non-regular dirent) is atomically replaced
-        // by the rename.
+        // A regular file already at the hash-derived target is kept —
+        // preserving its inode — only after its bytes are verified
+        // against the freshly streamed temp, the same guarantee
+        // [`ensure_file`]'s byte-compare gives the buffered writer.
+        // Anything else (missing, torn or corrupt blob, symlink or
+        // other non-regular dirent) is atomically replaced by the
+        // rename, which is self-healing in every such state.
         let existing_is_live = fs::symlink_metadata(&file_path)
-            .is_ok_and(|meta| meta.file_type().is_file() && meta.len() == size);
+            .is_ok_and(|meta| meta.file_type().is_file() && meta.len() == size)
+            && files_have_equal_contents(&tmp_path, &file_path);
         if existing_is_live {
             let _ = fs::remove_file(&tmp_path);
             return Ok((file_path, file_hash, size));
@@ -220,6 +224,32 @@ impl StoreDir {
 /// per-file allocation worth worrying about — the streaming path only
 /// runs for large entries.
 const COPY_BUFFER_SIZE: usize = 128 * 1024;
+
+/// Stream-compare two files' contents without loading either into
+/// memory. Any open or read failure counts as "not equal" — every
+/// caller's recovery for inequality (an atomic rename over the target)
+/// is safe in each such state, so distinguishing them buys nothing.
+fn files_have_equal_contents(left: &Path, right: &Path) -> bool {
+    use std::io::BufRead;
+
+    let Ok(file_a) = fs::File::open(left) else { return false };
+    let Ok(file_b) = fs::File::open(right) else { return false };
+    let mut reader_a = io::BufReader::with_capacity(COPY_BUFFER_SIZE, file_a);
+    let mut reader_b = io::BufReader::with_capacity(COPY_BUFFER_SIZE, file_b);
+    loop {
+        let Ok(chunk_a) = reader_a.fill_buf() else { return false };
+        let Ok(chunk_b) = reader_b.fill_buf() else { return false };
+        if chunk_a.is_empty() || chunk_b.is_empty() {
+            return chunk_a.is_empty() && chunk_b.is_empty();
+        }
+        let len = chunk_a.len().min(chunk_b.len());
+        if chunk_a[..len] != chunk_b[..len] {
+            return false;
+        }
+        reader_a.consume(len);
+        reader_b.consume(len);
+    }
+}
 
 #[cfg(test)]
 mod tests;

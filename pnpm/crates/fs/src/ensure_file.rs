@@ -413,6 +413,9 @@ fn write_atomic(
 pub fn create_exclusive_temp_file(
     dir: &Path,
     base: &str,
+    // `mode` feeds `OpenOptionsExt::mode` inside the `cfg(unix)` block
+    // below; Windows has no POSIX mode bits to set at open time, so the
+    // parameter is genuinely unused there.
     #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
 ) -> Result<(PathBuf, File), EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
