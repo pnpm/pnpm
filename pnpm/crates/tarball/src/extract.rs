@@ -651,19 +651,18 @@ pub(crate) fn extract_tarball_entries_streaming(
             }
         } else {
             flush_pending_batch(store_dir, &mut batch, &mut batch_bytes, &mut written)?;
+            // `Some(file_size)` makes the store writer reject a short
+            // stream before anything is committed to a
+            // content-addressed path, so a truncated archive leaves no
+            // orphan blob behind.
             let (file_path, file_hash, streamed_size) = store_dir
-                .write_cas_file_from_reader(&mut entry, file_is_executable)
+                .write_cas_file_from_reader(&mut entry, file_is_executable, Some(file_size))
                 .map_err(|error| match error {
                     WriteCasFileFromReaderError::Read(error) => {
                         TarballError::ReadTarballEntries(error)
                     }
                     WriteCasFileFromReaderError::Write(error) => TarballError::WriteCasFile(error),
                 })?;
-            // A short stream leaves only a content-addressed orphan
-            // behind — harmless, and the re-fetch retry re-extracts.
-            if streamed_size != file_size {
-                return Err(truncated());
-            }
             written.push((
                 cleaned_entry_path,
                 file_path,

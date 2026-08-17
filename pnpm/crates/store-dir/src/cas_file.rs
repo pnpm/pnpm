@@ -114,10 +114,17 @@ impl StoreDir {
     /// same guarantees: an existing regular file at the target is kept
     /// as the live entry only after a byte-compare against the streamed
     /// content, and anything else is atomically replaced.
+    ///
+    /// When `expected_size` is given, a reader that yields any other
+    /// number of bytes fails with the `Read` variant *before* anything
+    /// reaches a content-addressed path — a truncated source (e.g. a
+    /// cut-short archive) must not commit its partial content to the
+    /// store, even though such a blob would be correctly addressed.
     pub fn write_cas_file_from_reader(
         &self,
         reader: &mut dyn Read,
         executable: bool,
+        expected_size: Option<u64>,
     ) -> Result<(PathBuf, FileHash, u64), WriteCasFileFromReaderError> {
         let write_error =
             |error| WriteCasFileFromReaderError::Write(WriteCasFileError::WriteFile(error));
@@ -161,6 +168,15 @@ impl StoreDir {
         if let Err(error) = result {
             let _ = fs::remove_file(&tmp_path);
             return Err(error);
+        }
+        if let Some(expected) = expected_size
+            && size != expected
+        {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(WriteCasFileFromReaderError::Read(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                format!("reader yielded {size} bytes where {expected} were expected"),
+            )));
         }
 
         let file_hash = hasher.finalize();

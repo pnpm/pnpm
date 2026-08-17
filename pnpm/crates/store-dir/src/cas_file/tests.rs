@@ -129,8 +129,13 @@ fn write_cas_file_from_reader_matches_write_cas_file() {
 
         let streamed_dir = tempdir().unwrap();
         let streamed_store = StoreDir::new(streamed_dir.path());
-        let (streamed_path, streamed_hash, streamed_size) =
-            streamed_store.write_cas_file_from_reader(&mut content.as_slice(), executable).unwrap();
+        let (streamed_path, streamed_hash, streamed_size) = streamed_store
+            .write_cas_file_from_reader(
+                &mut content.as_slice(),
+                executable,
+                Some(content.len() as u64),
+            )
+            .unwrap();
 
         assert_eq!(streamed_hash, buffered_hash);
         assert_eq!(streamed_size, content.len() as u64);
@@ -163,10 +168,12 @@ fn write_cas_file_from_reader_keeps_existing_live_entry_and_removes_temp() {
     let store_dir = StoreDir::new(dir.path());
     let content = b"streamed twice";
 
-    let (first_path, _, _) =
-        store_dir.write_cas_file_from_reader(&mut content.as_slice(), false).unwrap();
-    let (second_path, _, second_size) =
-        store_dir.write_cas_file_from_reader(&mut content.as_slice(), false).unwrap();
+    let (first_path, _, _) = store_dir
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
+        .unwrap();
+    let (second_path, _, second_size) = store_dir
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
+        .unwrap();
 
     assert_eq!(first_path, second_path);
     assert_eq!(second_size, content.len() as u64);
@@ -194,12 +201,14 @@ fn write_cas_file_from_reader_replaces_same_length_corrupt_entry() {
     let store_dir = StoreDir::new(dir.path());
     let content = b"authentic cas payload";
 
-    let (file_path, _, _) =
-        store_dir.write_cas_file_from_reader(&mut content.as_slice(), false).unwrap();
+    let (file_path, _, _) = store_dir
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
+        .unwrap();
     std::fs::write(&file_path, vec![b'X'; content.len()]).unwrap();
 
-    let (second_path, _, _) =
-        store_dir.write_cas_file_from_reader(&mut content.as_slice(), false).unwrap();
+    let (second_path, _, _) = store_dir
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
+        .unwrap();
 
     assert_eq!(second_path, file_path);
     assert_eq!(std::fs::read(&file_path).unwrap(), content, "corrupt blob must be healed");
@@ -223,7 +232,7 @@ fn write_cas_file_from_reader_removes_temp_when_shard_creation_fails() {
     std::fs::write(&blocker, b"not a directory").unwrap();
 
     let err = store_dir
-        .write_cas_file_from_reader(&mut content.as_slice(), false)
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
         .expect_err("shard creation failure must propagate");
     assert!(
         matches!(err, WriteCasFileFromReaderError::Write(_)),
@@ -238,6 +247,37 @@ fn write_cas_file_from_reader_removes_temp_when_shard_creation_fails() {
         leftovers,
         vec![std::ffi::OsString::from(&shard)],
         "only the blocking file may remain — the stream temp must be removed",
+    );
+}
+
+/// A reader that ends short of `expected_size` (a truncated archive)
+/// must fail without committing anything to a content-addressed path —
+/// the partial blob would be correctly addressed but must not enter
+/// the store — and without leaking its temp file.
+#[test]
+fn write_cas_file_from_reader_rejects_short_reader_without_committing() {
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let store_dir = StoreDir::new(dir.path());
+    let content = b"cut short";
+
+    let err = store_dir
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64 + 7))
+        .expect_err("a short reader must not commit to the store");
+    assert!(
+        matches!(err, WriteCasFileFromReaderError::Read(_)),
+        "expected the Read variant, got: {err:?}",
+    );
+
+    let leftovers: Vec<_> = std::fs::read_dir(store_dir.files_dir())
+        .unwrap()
+        .map(|dirent| dirent.unwrap().file_name())
+        .collect();
+    assert_eq!(
+        leftovers,
+        Vec::<std::ffi::OsString>::new(),
+        "neither a CAS blob nor a temp file may remain after a short stream",
     );
 }
 
@@ -259,7 +299,7 @@ fn write_cas_file_from_reader_cleans_up_temp_on_reader_error() {
     let store_dir = StoreDir::new(dir.path());
 
     let err = store_dir
-        .write_cas_file_from_reader(&mut FailingReader, false)
+        .write_cas_file_from_reader(&mut FailingReader, false, None)
         .expect_err("reader failure must propagate");
     assert!(
         matches!(err, WriteCasFileFromReaderError::Read(_)),

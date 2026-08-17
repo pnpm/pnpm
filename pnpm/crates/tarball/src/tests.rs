@@ -1448,6 +1448,55 @@ fn streaming_extract_rejects_manifest_beyond_prealloc_cap() {
     drop(tempdir);
 }
 
+/// A large entry cut short by a truncated (but gzip-valid) archive
+/// must fail extraction without committing the partial payload to the
+/// CAS — the blob would be correctly content-addressed, but a
+/// cut-short transfer must leave the store as it found it.
+#[test]
+fn streaming_extract_truncated_large_entry_commits_nothing() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    let mut header = tar::Header::new_gnu();
+    header.set_path("package/big.bin").expect("set tar entry path");
+    header.set_size(STREAM_ENTRY_BUFFER_MAX + 1);
+    header.set_mode(0o644);
+    header.set_entry_type(tar::EntryType::Regular);
+    header.set_cksum();
+    tar_bytes.extend_from_slice(header.as_bytes());
+    // Only 1 KiB of the claimed payload is present.
+    tar_bytes.extend_from_slice(&[0u8; 1024]);
+
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+        .expect_err("truncated large entry must fail extraction");
+    assert!(
+        matches!(err, TarballError::ReadTarballEntries(_)),
+        "expected ReadTarballEntries, got: {err:?}",
+    );
+
+    fn count_files_recursively(dir: &Path) -> usize {
+        std::fs::read_dir(dir).map_or(0, |entries| {
+            entries
+                .map(|entry| entry.expect("read dirent"))
+                .map(|entry| {
+                    if entry.file_type().expect("dirent file type").is_dir() {
+                        count_files_recursively(&entry.path())
+                    } else {
+                        1
+                    }
+                })
+                .sum()
+        })
+    }
+    assert_eq!(
+        count_files_recursively(&store_path.root().join("files")),
+        0,
+        "the truncated entry must not commit anything to the CAS",
+    );
+
+    drop(tempdir);
+}
+
 /// Corrupt gzip bytes must surface as a [`TarballError`] the retry
 /// classifier treats as transient, matching the eager path's
 /// `DecodeGzip` handling; on the streaming path the decoder fails
