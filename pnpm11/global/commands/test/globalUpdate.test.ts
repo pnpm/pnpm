@@ -174,3 +174,49 @@ test('global update does not clean up or persist policy when activation fails', 
   expect(cleanupReplacedGlobalInstalls).not.toHaveBeenCalled()
   expect(updateResolutionPolicyManifest).not.toHaveBeenCalled()
 })
+
+test('global update --latest drops the spec only of plain version dependencies', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-3')
+  getHashLink.mockReturnValueOnce('/global/v11/hash-local')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: {
+        'private-linked-pkg': 'link:/home/user/projects/private-linked-pkg',
+        'local-tarball-pkg': 'file:/home/user/tarballs/local-tarball-pkg.tgz',
+        'git-pkg': 'github:user/git-pkg',
+        'remote-tarball-pkg': 'https://example.com/pkg.tgz',
+        'aliased-pkg': 'npm:other-pkg@^2.0.0',
+        'named-registry-pkg': 'gh:^3.0.0',
+        foo: '^1.0.0',
+        bar: 'next',
+      },
+      hash: 'hash-local',
+      installDir: '/global/v11/old-local',
+    },
+  ])
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).toHaveBeenCalledWith(
+    expect.objectContaining({
+      dir: '/global/v11/install-3',
+      global: false,
+      omitSummaryLog: true,
+    }),
+    [
+      'private-linked-pkg@link:/home/user/projects/private-linked-pkg',
+      'local-tarball-pkg@file:/home/user/tarballs/local-tarball-pkg.tgz',
+      'git-pkg@github:user/git-pkg',
+      'remote-tarball-pkg@https://example.com/pkg.tgz',
+      'aliased-pkg@npm:other-pkg@^2.0.0',
+      'named-registry-pkg@gh:^3.0.0',
+      'foo',
+      'bar',
+    ]
+  )
+})
