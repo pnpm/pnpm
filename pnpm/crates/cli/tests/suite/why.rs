@@ -532,6 +532,7 @@ fn why_styles_the_tree_without_corrupting_it() {
     pacquet(&workspace, ["install"]).assert().success();
 
     let plain = pacquet(&workspace, ["why", PKG]).output().expect("run pacquet why");
+    assert!(plain.status.success(), "why should succeed: {plain:?}");
     let colored = pacquet(&workspace, ["why", PKG])
         .with_env("FORCE_COLOR", "1")
         .output()
