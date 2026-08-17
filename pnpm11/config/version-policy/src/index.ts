@@ -4,16 +4,8 @@ import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
 /**
- * Builds a matcher from `minimumReleaseAgeExclude` / `trustPolicyExclude`
- * style patterns.
- *
- * A lone string is accepted because these settings reach the config as one:
- * as a YAML scalar in `pnpm-workspace.yaml` or the global config, or from a
- * `PNPM_CONFIG_*` env var, whose schema is `[String, Array]` so the parser
- * falls back to String once the value fails to parse as a JSON array.
- * Iterating such a value would build one rule per character, and a `*`
- * anywhere in it would then match every package — silently switching the
- * whole policy off.
+ * `patterns` arrives as a lone string when the setting is written as a YAML
+ * scalar or comes from a `PNPM_CONFIG_*` env var.
  */
 export function createPackageVersionPolicy (patterns: string[] | string): PackageVersionPolicy {
   const rules: VersionPolicyRule[] = []

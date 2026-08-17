@@ -694,9 +694,6 @@ test('trustPolicyExclude set to a single string in pnpm-workspace.yaml excludes 
     { expectSuccess: true }
   )
 
-  // A scalar is a legal spelling for this setting, so it has to be read as a
-  // one-entry list. Read character by character it matches nothing, and the
-  // downgrade the user meant to allow fails the install.
   writeYamlFileSync('pnpm-workspace.yaml', {
     trustPolicy: 'no-downgrade',
     trustPolicyExclude: '@pnpm/e2e.test-provenance@0.0.5',
