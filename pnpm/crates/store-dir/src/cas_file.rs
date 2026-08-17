@@ -2,11 +2,16 @@ use crate::{FileHash, StoreDir};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_fs::{
-    EnsureFileError, ensure_file, ensure_parent_dir,
+    EnsureFileError, cas_write_lock, create_exclusive_temp_file, ensure_file, ensure_parent_dir,
     file_mode::{EXEC_MODE, is_executable},
+    rename_with_retry,
 };
 use sha2::{Digest, Sha512};
-use std::path::PathBuf;
+use std::{
+    fs,
+    io::{self, Read, Write},
+    path::{Path, PathBuf},
+};
 
 impl StoreDir {
     /// Path to a file in the store directory.
@@ -63,6 +68,18 @@ pub enum WriteCasFileError {
     WriteFile(EnsureFileError),
 }
 
+/// Error type of [`StoreDir::write_cas_file_from_reader`]. Splits the
+/// reader side from the store side so the caller can attribute a
+/// mid-stream failure to its actual origin — a tar/gzip decode error is
+/// not a store-write error.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum WriteCasFileFromReaderError {
+    /// The source reader failed while its bytes were being streamed in.
+    Read(io::Error),
+    /// The content-addressed store rejected the write.
+    Write(WriteCasFileError),
+}
+
 impl StoreDir {
     /// Write a file from an npm package to the store directory.
     pub fn write_cas_file(
@@ -74,25 +91,135 @@ impl StoreDir {
         let file_path = self.cas_file_path(file_hash, executable);
         let mode = executable.then_some(EXEC_MODE);
 
-        // Ensure the shard directory (`files/XX/`) exists. The CAS has
-        // 256 shards keyed by `file_hash[0]`; `create_dir_all` does a
-        // `stat` syscall every call even when the directory is already
-        // there, so remember which shards we've created and skip on
-        // repeat. Duplicate mkdirs across threads are benign — the first
-        // few writes into a fresh shard may each call `create_dir_all`,
-        // which is idempotent; once any of them completes and inserts
-        // into the cache, subsequent writes take the fast path.
-        let shard_byte = file_hash[0];
+        self.ensure_shard_dir(&file_path, file_hash[0])?;
+
+        ensure_file(&file_path, buffer, mode).map_err(WriteCasFileError::WriteFile)?;
+        Ok((file_path, file_hash))
+    }
+
+    /// Stream a file from an npm package into the store directory
+    /// without buffering it in memory.
+    ///
+    /// The content hash — and therefore the CAS path — is only known
+    /// once the reader is exhausted, so the bytes stream into an
+    /// exclusively-created temp file in the `files/` directory (same
+    /// filesystem as the shards, so the final rename never crosses a
+    /// mount) while the SHA-512 is computed incrementally, and the temp
+    /// file is renamed to its content-addressed path at the end. Peak
+    /// memory is one fixed copy buffer regardless of file size.
+    ///
+    /// Returns the CAS path, the content hash, and the streamed byte
+    /// count. A reader that yields the same bytes as a `buffer` handed
+    /// to [`StoreDir::write_cas_file`] lands at the same path with the
+    /// same guarantees: an existing regular file of the expected size
+    /// at the target is kept as the live entry (CAS paths are
+    /// hash-derived, so a size-matching file is the same content), and
+    /// anything else is atomically replaced.
+    pub fn write_cas_file_from_reader(
+        &self,
+        reader: &mut dyn Read,
+        executable: bool,
+    ) -> Result<(PathBuf, FileHash, u64), WriteCasFileFromReaderError> {
+        let write_error =
+            |error| WriteCasFileFromReaderError::Write(WriteCasFileError::WriteFile(error));
+        let io_write_error = |file_path: &PathBuf, error| {
+            write_error(EnsureFileError::WriteFile { file_path: file_path.clone(), error })
+        };
+
+        let files_dir = self.files_dir();
+        ensure_parent_dir(files_dir).map_err(write_error)?;
+        let mode = executable.then_some(EXEC_MODE);
+        let (tmp_path, file) =
+            create_exclusive_temp_file(files_dir, "stream", mode).map_err(write_error)?;
+
+        // Bytes arrive in decompressor-sized chunks (tens of KB);
+        // BufWriter coalesces them so the kernel sees fewer, larger
+        // writes.
+        let mut writer = io::BufWriter::with_capacity(COPY_BUFFER_SIZE, file);
+        let mut hasher = Sha512::new();
+        let mut copy_buffer = vec![0u8; COPY_BUFFER_SIZE];
+        let mut size: u64 = 0;
+        let result = loop {
+            match reader.read(&mut copy_buffer) {
+                Ok(0) => break Ok(()),
+                Ok(read) => {
+                    hasher.update(&copy_buffer[..read]);
+                    if let Err(error) = writer.write_all(&copy_buffer[..read]) {
+                        break Err(io_write_error(&tmp_path, error));
+                    }
+                    size += read as u64;
+                }
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(error) => break Err(WriteCasFileFromReaderError::Read(error)),
+            }
+        };
+        let result = result.and_then(|()| {
+            writer
+                .into_inner()
+                .map_err(|error| io_write_error(&tmp_path, error.into_error()))
+                .map(drop)
+        });
+        if let Err(error) = result {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(error);
+        }
+
+        let file_hash = hasher.finalize();
+        let file_path = self.cas_file_path(file_hash, executable);
+        self.ensure_shard_dir(&file_path, file_hash[0])
+            .map_err(WriteCasFileFromReaderError::Write)?;
+
+        // Serialize with buffer-based writers ([`ensure_file`]) and
+        // verifiers of the same path, per [`cas_write_lock`]'s
+        // coordination contract.
+        let lock = cas_write_lock(&file_path);
+        let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        // A regular file of the expected size at a hash-derived path is
+        // the same content — keep it as the live entry rather than
+        // replacing its inode. Anything else (missing, torn short blob,
+        // symlink or other non-regular dirent) is atomically replaced
+        // by the rename.
+        let existing_is_live = fs::symlink_metadata(&file_path)
+            .is_ok_and(|meta| meta.file_type().is_file() && meta.len() == size);
+        if existing_is_live {
+            let _ = fs::remove_file(&tmp_path);
+            return Ok((file_path, file_hash, size));
+        }
+        if let Err(error) = rename_with_retry(&tmp_path, &file_path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(write_error(EnsureFileError::RenameFile {
+                tmp_path,
+                file_path: file_path.clone(),
+                error,
+            }));
+        }
+        Ok((file_path, file_hash, size))
+    }
+
+    /// Ensure the shard directory (`files/XX/`) exists. The CAS has
+    /// 256 shards keyed by `file_hash[0]`; `create_dir_all` does a
+    /// `stat` syscall every call even when the directory is already
+    /// there, so remember which shards we've created and skip on
+    /// repeat. Duplicate mkdirs across threads are benign — the first
+    /// few writes into a fresh shard may each call `create_dir_all`,
+    /// which is idempotent; once any of them completes and inserts
+    /// into the cache, subsequent writes take the fast path.
+    fn ensure_shard_dir(&self, file_path: &Path, shard_byte: u8) -> Result<(), WriteCasFileError> {
         if !self.shard_already_ensured(shard_byte) {
             let parent = file_path.parent().expect("CAS file path always has a parent shard dir");
             ensure_parent_dir(parent).map_err(WriteCasFileError::WriteFile)?;
             self.mark_shard_ensured(shard_byte);
         }
-
-        ensure_file(&file_path, buffer, mode).map_err(WriteCasFileError::WriteFile)?;
-        Ok((file_path, file_hash))
+        Ok(())
     }
 }
+
+/// Chunk size for [`StoreDir::write_cas_file_from_reader`]'s read loop
+/// and its `BufWriter`. 128 KB keeps syscall count low without a
+/// per-file allocation worth worrying about — the streaming path only
+/// runs for large entries.
+const COPY_BUFFER_SIZE: usize = 128 * 1024;
 
 #[cfg(test)]
 mod tests;

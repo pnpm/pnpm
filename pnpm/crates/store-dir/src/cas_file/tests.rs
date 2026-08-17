@@ -1,6 +1,6 @@
-use crate::StoreDir;
+use crate::{StoreDir, WriteCasFileFromReaderError};
 use sha2::{Digest, Sha512};
-use std::path::PathBuf;
+use std::{io, path::PathBuf};
 
 #[test]
 fn cas_file_path() {
@@ -106,6 +106,112 @@ fn shard_cache_populates_on_first_write_and_skips_mkdir_thereafter() {
     // must succeed and materialize the file on disk.
     let (path_c, _) = store_dir.write_cas_file(b"goodbye world", false).unwrap();
     assert!(path_c.is_file());
+}
+
+/// The streaming writer must land the same bytes at the same
+/// hash-derived path as the buffer-based writer — the two are used
+/// interchangeably by tarball extraction, so any divergence in path,
+/// hash, or on-disk content splits the CAS.
+#[test]
+fn write_cas_file_from_reader_matches_write_cas_file() {
+    use tempfile::tempdir;
+
+    // Larger than the internal copy buffer so the read loop runs more
+    // than one iteration.
+    let content: Vec<u8> = (0u32..200_000).flat_map(u32::to_le_bytes).collect();
+
+    for executable in [false, true] {
+        eprintln!("CASE: executable = {executable:?}");
+        let buffered_dir = tempdir().unwrap();
+        let buffered_store = StoreDir::new(buffered_dir.path());
+        let (buffered_path, buffered_hash) =
+            buffered_store.write_cas_file(&content, executable).unwrap();
+
+        let streamed_dir = tempdir().unwrap();
+        let streamed_store = StoreDir::new(streamed_dir.path());
+        let (streamed_path, streamed_hash, streamed_size) =
+            streamed_store.write_cas_file_from_reader(&mut content.as_slice(), executable).unwrap();
+
+        assert_eq!(streamed_hash, buffered_hash);
+        assert_eq!(streamed_size, content.len() as u64);
+        assert_eq!(
+            streamed_path.strip_prefix(streamed_store.root()).unwrap(),
+            buffered_path.strip_prefix(buffered_store.root()).unwrap(),
+        );
+        assert_eq!(std::fs::read(&streamed_path).unwrap(), content);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&streamed_path).unwrap().permissions().mode();
+            assert_eq!(
+                pnpm_fs::file_mode::is_executable(mode),
+                executable,
+                "streamed CAS file mode {mode:o} must match executable = {executable}",
+            );
+        }
+    }
+}
+
+/// A live entry already at the target path is kept (same inode), and
+/// the temp file the stream wrote is cleaned out of `files/` — leaking
+/// it would accumulate one orphan per warm large-entry extraction.
+#[test]
+fn write_cas_file_from_reader_keeps_existing_live_entry_and_removes_temp() {
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let store_dir = StoreDir::new(dir.path());
+    let content = b"streamed twice";
+
+    let (first_path, _, _) =
+        store_dir.write_cas_file_from_reader(&mut content.as_slice(), false).unwrap();
+    let (second_path, _, second_size) =
+        store_dir.write_cas_file_from_reader(&mut content.as_slice(), false).unwrap();
+
+    assert_eq!(first_path, second_path);
+    assert_eq!(second_size, content.len() as u64);
+    assert_eq!(std::fs::read(&second_path).unwrap(), content);
+
+    // Only the 2-hex-char shard directories may remain in `files/`.
+    let stray: Vec<_> = std::fs::read_dir(store_dir.files_dir())
+        .unwrap()
+        .map(|dirent| dirent.unwrap())
+        .filter(|dirent| !dirent.file_type().unwrap().is_dir())
+        .map(|dirent| dirent.file_name())
+        .collect();
+    assert_eq!(stray, Vec::<std::ffi::OsString>::new(), "no temp files may leak into files/");
+}
+
+/// A reader failure mid-stream surfaces as the `Read` variant (so the
+/// tarball layer can attribute it to the archive, not the store) and
+/// leaves no temp file behind.
+#[test]
+fn write_cas_file_from_reader_cleans_up_temp_on_reader_error() {
+    use tempfile::tempdir;
+
+    struct FailingReader;
+    impl io::Read for FailingReader {
+        fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+            Err(io::Error::other("simulated decode failure"))
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let store_dir = StoreDir::new(dir.path());
+
+    let err = store_dir
+        .write_cas_file_from_reader(&mut FailingReader, false)
+        .expect_err("reader failure must propagate");
+    assert!(
+        matches!(err, WriteCasFileFromReaderError::Read(_)),
+        "expected the Read variant, got: {err:?}",
+    );
+
+    let leftovers: Vec<_> = std::fs::read_dir(store_dir.files_dir())
+        .unwrap()
+        .map(|dirent| dirent.unwrap().file_name())
+        .collect();
+    assert_eq!(leftovers, Vec::<std::ffi::OsString>::new(), "failed stream must remove its temp");
 }
 
 #[test]
