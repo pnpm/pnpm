@@ -639,6 +639,70 @@ fn recursive_mode_skips_the_commit_and_tag() {
     drop(root);
 }
 
+#[test]
+fn dry_run_reports_the_bump_without_writing_the_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+
+    let output = pacquet_version(&workspace, &["patch", "--dry-run"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("1.0.0 → 1.0.1"), "{stdout}");
+    assert_eq!(manifest_version(&workspace), "1.0.0");
+    drop(root);
+}
+
+#[test]
+fn dry_run_leaves_every_workspace_manifest_untouched() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (pkg_a, pkg_b) = write_two_package_workspace(&workspace);
+
+    let output = pacquet_recursive_version(&workspace, &["-r", "version", "patch", "--dry-run"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("pkg-a: 1.0.0 → 1.0.1"), "{stdout}");
+    assert!(stdout.contains("pkg-b: 2.3.0 → 2.3.1"), "{stdout}");
+    assert_eq!(manifest_version(&pkg_a), "1.0.0");
+    assert_eq!(manifest_version(&pkg_b), "2.3.0");
+    drop(root);
+}
+
+#[test]
+fn dry_run_skips_the_git_checks_the_lifecycle_scripts_and_the_commit() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let log_script = concat!(
+        r#"node -e "require('fs').appendFileSync('lifecycle.log',"#,
+        r#" process.env.npm_lifecycle_event + '\n')""#,
+    );
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "name": "test-pkg",
+            "version": "1.0.0",
+            "scripts": {
+                "preversion": log_script,
+                "version": log_script,
+                "postversion": log_script,
+            },
+        })
+        .to_string(),
+    );
+    init_git(&workspace);
+    git_commit_all(&workspace, "init");
+    let commits_before = git_stdout(&workspace, &["rev-list", "--count", "HEAD"]);
+    fs::write(workspace.join("dirty.txt"), "x").expect("dirty the tree");
+
+    let output = pacquet_version(&workspace, &["patch", "--dry-run"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert!(!workspace.join("lifecycle.log").exists(), "lifecycle scripts must not run");
+    assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "");
+    assert_eq!(git_stdout(&workspace, &["rev-list", "--count", "HEAD"]), commits_before);
+    drop(root);
+}
+
 /// The npm-style and change-intents forms share one command: a version
 /// argument selects the npm-style bump even inside a workspace, and without
 /// `--recursive` it touches only the current package — never the workspace

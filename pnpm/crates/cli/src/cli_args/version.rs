@@ -33,8 +33,7 @@ pub struct VersionArgs {
     /// apply the pending change intents instead.
     pub params: Vec<String>,
 
-    /// Print the release plan the pending change intents produce without
-    /// applying it.
+    /// Print what the command would do without changing anything.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
 
@@ -161,7 +160,8 @@ impl VersionArgs {
         } else {
             parse_bump(raw)?
         };
-        if config.git_checks
+        if !self.dry_run
+            && config.git_checks
             && !self.no_git_checks
             && is_git_repo::<Host>(&git_cwd)
             && !is_working_tree_clean::<Host>(&git_cwd)
@@ -195,12 +195,19 @@ impl VersionArgs {
         // In recursive mode, multiple packages can be bumped to different
         // versions in a single run, and there is no obvious single version to
         // tag the commit with. Skip the git commit and tag entirely then.
-        if !recursive && !self.no_git_tag_version && is_git_repo::<Host>(&git_cwd) {
+        if !self.dry_run && !recursive && !self.no_git_tag_version && is_git_repo::<Host>(&git_cwd)
+        {
             self.commit_and_tag(&changes[0], &git_cwd)?;
         }
 
         for change in &changes {
-            run_version_lifecycle_hook::<Reporter>("postversion", change, config, dir)?;
+            run_version_lifecycle_hook::<Reporter>(
+                "postversion",
+                change,
+                config,
+                dir,
+                self.dry_run,
+            )?;
         }
 
         if self.json {
@@ -269,7 +276,13 @@ impl VersionArgs {
             path: pkg_dir.to_path_buf(),
             manifest_path: manifest_path.clone(),
         };
-        run_version_lifecycle_hook::<Reporter>("preversion", &pre_change, config, init_cwd)?;
+        run_version_lifecycle_hook::<Reporter>(
+            "preversion",
+            &pre_change,
+            config,
+            init_cwd,
+            self.dry_run,
+        )?;
 
         let new_version = match bump {
             Bump::Explicit(version) => version.clone(),
@@ -292,7 +305,9 @@ impl VersionArgs {
             .as_object_mut()
             .expect("package.json is an object — its version field was just read")
             .insert("version".to_string(), Value::String(new_version.clone()));
-        manifest.save().wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+        if !self.dry_run {
+            manifest.save().wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+        }
 
         let change = VersionChange {
             name,
@@ -301,7 +316,7 @@ impl VersionArgs {
             path: pkg_dir.to_path_buf(),
             manifest_path,
         };
-        run_version_lifecycle_hook::<Reporter>("version", &change, config, init_cwd)?;
+        run_version_lifecycle_hook::<Reporter>("version", &change, config, init_cwd, self.dry_run)?;
         Ok(Some(change))
     }
 
@@ -466,8 +481,9 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     change: &VersionChange,
     config: &Config,
     init_cwd: &Path,
+    dry_run: bool,
 ) -> miette::Result<()> {
-    if config.ignore_scripts {
+    if config.ignore_scripts || dry_run {
         return Ok(());
     }
     let manifest = PackageManifest::from_path(change.manifest_path.clone())
