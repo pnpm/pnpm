@@ -436,6 +436,15 @@ pub enum RegistryServerType {
 pub struct RegistryOptions {
     #[serde(default)]
     pub server_type: Option<RegistryServerType>,
+    /// Whether this registry's abbreviated metadata carries the `time` field.
+    ///
+    /// `registry.npmjs.org` does not, which is why the default is `false` and
+    /// why a time-based resolution falls back to the far larger full metadata.
+    /// A registry that does carry it is worth declaring: the fallback is per
+    /// registry, so one that needs full metadata no longer costs it at the
+    /// others.
+    #[serde(default)]
+    pub supports_time_field: Option<bool>,
 }
 
 /// registry.npmjs.org is the one registry whose layout pnpm knows without
@@ -464,6 +473,25 @@ pub fn registry_server_type(
         Cow::Owned(format!("{registry}/"))
     };
     registry_options_by_url.get(key.as_ref()).copied().unwrap_or_default().server_type
+}
+
+/// Whether `registry`'s abbreviated metadata carries the `time` field, per its
+/// own declaration. [`None`] when it does not declare one, which leaves the
+/// answer to the `registrySupportsTimeField` setting.
+///
+/// Keyed like [`registry_server_type`], which is why the query is normalized
+/// the same way.
+#[must_use]
+pub fn registry_supports_time_field(
+    registry_options_by_url: &BTreeMap<String, RegistryOptions>,
+    registry: &str,
+) -> Option<bool> {
+    let key = if registry.ends_with('/') {
+        Cow::Borrowed(registry)
+    } else {
+        Cow::Owned(format!("{registry}/"))
+    };
+    registry_options_by_url.get(key.as_ref()).copied().unwrap_or_default().supports_time_field
 }
 
 /// A declared server type wins; otherwise the built-in layout of a known

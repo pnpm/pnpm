@@ -33,12 +33,14 @@
   },
   "dependencies": {
     "@pnpm/cli.meta": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.path": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "dir-is-case-sensitive": "catalog:"
   },
   "peerDependencies": {

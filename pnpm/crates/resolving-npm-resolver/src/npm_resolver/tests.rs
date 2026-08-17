@@ -80,6 +80,7 @@ fn build_resolver_with_registries(
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -757,6 +758,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
             prefer_offline: false,
             ignore_missing_time_field: false,
             full_metadata: false,
+            needs_full_metadata_for: None,
             filter_metadata: false,
             retry_opts: RetryOpts::default(),
         };

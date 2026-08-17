@@ -146,6 +146,9 @@ pub(super) struct ResolverChainInputs<'a> {
     /// resolution or the `no-downgrade` trust policy needs the
     /// per-version `time` field.
     pub full_metadata: bool,
+    /// See `NpmResolver::needs_full_metadata_for` — the same question asked
+    /// of one registry.
+    pub needs_full_metadata_for: Arc<dyn Fn(&str) -> bool + Send + Sync>,
     pub wanted_lockfile: Option<&'a Lockfile>,
     pub store_index: Option<&'a SharedReadonlyStoreIndex>,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
@@ -205,6 +208,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         registries,
         registries_by_prefix,
         full_metadata,
+        needs_full_metadata_for,
         wanted_lockfile,
         store_index,
         store_index_writer,
@@ -245,6 +249,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         // abbreviated form). When `false`, [`pick_package`] still
         // upgrades per-call where `published_by` / `optional` demand it.
         full_metadata,
+        needs_full_metadata_for: Some(Arc::clone(&needs_full_metadata_for)),
         filter_metadata: full_metadata,
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     });
@@ -317,6 +322,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         // Same rationale as `NpmResolver.full_metadata` above.
         full_metadata,
+        needs_full_metadata_for: Some(Arc::clone(&needs_full_metadata_for)),
         filter_metadata: full_metadata,
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     };

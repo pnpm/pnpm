@@ -9304,6 +9304,9 @@ importers:
       '@pnpm/cli.meta':
         specifier: workspace:*
         version: link:../../cli/meta
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
@@ -9322,6 +9325,9 @@ importers:
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
       dir-is-case-sensitive:
         specifier: 'catalog:'
         version: 3.0.0

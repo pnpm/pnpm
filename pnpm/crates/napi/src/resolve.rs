@@ -169,6 +169,7 @@ fn run_resolve_blocking(
         prefer_offline: config.prefer_offline,
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata,
+        needs_full_metadata_for: None,
         filter_metadata,
         retry_opts,
     });
@@ -225,6 +226,7 @@ fn run_resolve_blocking(
         prefer_offline: config.prefer_offline,
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata,
+        needs_full_metadata_for: None,
         filter_metadata,
         retry_opts,
     };

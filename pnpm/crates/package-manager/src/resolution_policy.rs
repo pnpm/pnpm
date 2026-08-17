@@ -14,6 +14,7 @@ use pnpm_network::ThrottledClient;
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageContext,
 };
+use std::sync::Arc;
 
 /// The version-pick knobs derived purely from [`Config`]. Computed once and
 /// fed to both the resolver chain and the `add` pre-resolution so a single
@@ -28,6 +29,10 @@ pub(crate) struct PickPolicy {
     /// dates. Mirrors pnpm's `(time-based || no-downgrade) &&
     /// !registrySupportsTimeField`.
     pub full_metadata: bool,
+    /// The same question asked of one registry, so a registry that declares
+    /// `supportsTimeField` is not charged for full metadata because another
+    /// one needs it.
+    pub needs_full_metadata_for: Arc<dyn Fn(&str) -> bool + Send + Sync>,
     /// `minimumReleaseAge` cutoff: only versions published at or before
     /// this instant are eligible. `None` disables the maturity filter.
     pub published_by: Option<DateTime<Utc>>,
@@ -97,6 +102,7 @@ impl PickPolicy {
             time_based,
             pick_lowest_direct,
             full_metadata,
+            needs_full_metadata_for: config.requires_full_metadata_for_registry_fn(),
             published_by,
             published_by_exclude,
         })
@@ -113,7 +119,7 @@ impl PickPolicy {
 pub(crate) fn pick_package_context<'a>(
     http_client: &'a ThrottledClient,
     config: &'a Config,
-    policy: &PickPolicy,
+    policy: &'a PickPolicy,
     meta_cache: &'a InMemoryPackageMetaCache,
     fetch_locker: &'a PackumentFetchLocker,
 ) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
@@ -127,6 +133,7 @@ pub(crate) fn pick_package_context<'a>(
         prefer_offline: config.prefer_offline,
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata: policy.full_metadata,
+        needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
         filter_metadata: policy.full_metadata,
         retry_opts: retry_opts_from_config(config),
     }

@@ -12,7 +12,10 @@ fn config_with(registries: &[(&str, &str)], registry_options_by_url: &[&str]) ->
         .map(|registry| {
             (
                 (*registry).to_string(),
-                RegistryOptions { server_type: Some(RegistryServerType::Artifactory) },
+                RegistryOptions {
+                    server_type: Some(RegistryServerType::Artifactory),
+                    supports_time_field: None,
+                },
             )
         })
         .collect();
