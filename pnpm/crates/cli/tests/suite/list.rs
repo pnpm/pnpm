@@ -600,9 +600,8 @@ fn listing_specific_package_with_lockfile_only() {
     );
 }
 
-/// Styling a label must not mangle the styles it already carries: the
-/// colored tree has to strip back to exactly the uncolored one. The
-/// searched package and the project label are the bolded ones.
+/// Bolding a label must not mangle the styles it already carries; the
+/// project header and a searched package are the bolded ones.
 #[test]
 fn list_styles_the_tree_without_corrupting_it() {
     let (_root, workspace, _registry) = setup_registry();
@@ -627,7 +626,8 @@ fn list_styles_the_tree_without_corrupting_it() {
     assert!(colored.status.success(), "colored list should succeed: {colored:?}");
 
     let colored_stdout = String::from_utf8_lossy(&colored.stdout);
-    assert!(colored_stdout.contains('\u{1b}'), "colors should be on: {colored_stdout:?}");
+    eprintln!("PLAIN:\n{plain}\nCOLORED:\n{colored_stdout}\n");
+    assert!(colored_stdout.contains('\u{1b}'), "colors should be on");
     assert_eq!(strip_ansi_codes(&colored_stdout), plain);
 }
 

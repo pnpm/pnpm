@@ -524,8 +524,7 @@ fn why_marks_importer_dep_field_and_prints_summary() {
     );
 }
 
-/// Styling a label must not mangle the styles it already carries: the
-/// colored tree has to strip back to exactly the uncolored one.
+/// Bolding a label must not mangle the styles it already carries.
 #[test]
 fn why_styles_the_tree_without_corrupting_it() {
     let (_root, workspace, _anchor) = setup();
@@ -539,9 +538,11 @@ fn why_styles_the_tree_without_corrupting_it() {
         .expect("run pacquet why with colors");
     assert!(colored.status.success(), "colored why should succeed: {colored:?}");
 
+    let plain_stdout = String::from_utf8_lossy(&plain.stdout);
     let colored_stdout = String::from_utf8_lossy(&colored.stdout);
-    assert!(colored_stdout.contains('\u{1b}'), "colors should be on: {colored_stdout:?}");
-    assert_eq!(strip_ansi_codes(&colored_stdout), String::from_utf8_lossy(&plain.stdout));
+    eprintln!("PLAIN:\n{plain_stdout}\nCOLORED:\n{colored_stdout}\n");
+    assert!(colored_stdout.contains('\u{1b}'), "colors should be on");
+    assert_eq!(strip_ansi_codes(&colored_stdout), plain_stdout);
 }
 
 fn write_finder_pnpmfile(workspace: &Path, message_expr: &str) {
