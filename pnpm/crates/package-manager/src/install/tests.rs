@@ -1902,9 +1902,8 @@ mod build_workspace_state_tests {
         PackageManifest::from_path(manifest_path).unwrap()
     }
 
-    /// A zero-project input produces an empty `projects` map, and with
-    /// nothing on disk to take an mtime from the timestamp falls back to
-    /// the clock.
+    /// With nothing on disk to take an mtime from, the timestamp falls
+    /// back to the clock.
     #[test]
     fn empty_project_list_produces_empty_projects_map() {
         let dir = tempdir().unwrap();
@@ -1923,9 +1922,8 @@ mod build_workspace_state_tests {
         assert_eq!(state.last_validated_timestamp, FAKE_NOW_MS);
     }
 
-    /// The mtime baseline wins over the clock whenever anything the
-    /// install validated can be stat'd, so the recorded timestamp shares a
-    /// clock with the files the freshness check compares it against.
+    /// The recorded timestamp has to share a clock with the files the
+    /// freshness check later compares it against.
     #[test]
     fn prefers_the_manifest_mtime_over_the_clock() {
         let dir = tempdir().unwrap();
