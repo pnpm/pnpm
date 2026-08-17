@@ -292,7 +292,7 @@ pub struct WorkspaceTreeCtx {
     /// per-edge version-pin source only: every node re-resolves against
     /// its (hook-rewritten) manifest range, and an edge whose recorded
     /// version still satisfies that range stays on it. Used when config
-    /// drift (overrides, packageExtensions, …) invalidates recorded
+    /// drift (overrides, packageExtensions, ...) invalidates recorded
     /// subtrees but not the versions the untouched edges resolved to.
     pub(super) reuse_lockfile_subtrees: bool,
     /// Lockfile-reuse suppression for `pacquet update`. `update`
