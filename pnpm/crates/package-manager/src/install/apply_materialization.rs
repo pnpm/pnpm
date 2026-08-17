@@ -1,13 +1,16 @@
 use super::{
-    BTreeMap, BTreeSet, Catalogs, Config, HashSet, HoistedDependencies, Host, IncludedDependencies,
-    InstallError, InstallWithFreshLockfileError, Lockfile, LogEvent, LogLevel, Modules, NodeLinker,
-    PackageManifest, Path, PathBuf, ProjectMutation, ProjectScriptsInputs, RebuildOptions,
-    Reporter, SummaryLog, SystemTime, WorkspaceInstallSelection, build_modules_manifest,
-    build_workspace_state, drain_settled_projects, merge_filtered_modules_metadata,
-    merge_pending_builds, order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    BTreeMap, BTreeSet, Catalogs, Config, GlobalLog, HashSet, HoistedDependencies, Host,
+    IncludedDependencies, InstallError, InstallWithFreshLockfileError, Lockfile, LogEvent,
+    LogLevel, Modules, NodeLinker, PackageManifest, Path, PathBuf, ProjectMutation,
+    ProjectScriptsInputs, RebuildOptions, Reporter, SummaryLog, SystemTime,
+    WorkspaceInstallSelection, build_modules_manifest, build_workspace_state,
+    drain_settled_projects, merge_filtered_modules_metadata, merge_pending_builds,
+    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
+use pnpm_store_dir::VerifiedFileIntegrity;
+use std::time::Duration;
 
 struct ResolveOnlyCompletionInputs<'a> {
     resolve_only: bool,
@@ -545,6 +548,7 @@ struct ReportInstallCompletionInputs<'a> {
     workspace_manifest_dir: &'a Path,
     prefix: String,
     ignored_builds: Vec<String>,
+    verified_file_integrity_baseline: VerifiedFileIntegrity,
 }
 
 fn report_install_completion<Reporter: self::Reporter>(
@@ -556,11 +560,16 @@ fn report_install_completion<Reporter: self::Reporter>(
         workspace_manifest_dir,
         prefix,
         ignored_builds,
+        verified_file_integrity_baseline,
     } = inputs;
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must
     // come after `importing_done`.
     Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+
+    report_verified_file_integrity::<Reporter>(
+        VerifiedFileIntegrity::snapshot().since(verified_file_integrity_baseline),
+    );
 
     // A global install is exempt from the scaffold below: its root is a
     // throwaway per-group directory, and the approval prompt that
@@ -596,6 +605,48 @@ fn report_install_completion<Reporter: self::Reporter>(
     }
 
     Ok(())
+}
+
+/// Spending this long re-hashing store files is well past what a
+/// healthy store needs, so the install owns up to the time.
+const VERIFIED_FILE_INTEGRITY_SLOW: Duration = Duration::from_secs(1);
+
+/// Re-hashing this many files says something keeps invalidating the
+/// store even when the hashing itself was quick — worth telling the
+/// user about before the store grows and the same churn does cost them
+/// time.
+const VERIFIED_FILE_INTEGRITY_MANY: u64 = 1000;
+
+/// Tell the user when store verification re-hashed files: how much time
+/// it cost, or failing that, that it happened at all on a scale a
+/// healthy store never reaches. The two are separate claims, so they
+/// are separate messages, and the timed one wins when both hold — it
+/// carries the file count anyway.
+///
+/// `verified` covers this install alone, and its `duration` is summed
+/// across the threads that did the hashing — see
+/// [`pnpm_store_dir::VerifiedFileIntegrity`].
+///
+/// The seconds are rounded to tenths in integer arithmetic rather than
+/// by float formatting: pnpm renders the same messages from the same
+/// figures and the two have to agree character for character, but
+/// Rust's `{:.1}` rounds a tie to even where JavaScript's `toFixed`
+/// rounds it up.
+pub(super) fn report_verified_file_integrity<Reporter: self::Reporter>(
+    verified: VerifiedFileIntegrity,
+) {
+    let files = verified.files;
+    let message = if verified.duration > VERIFIED_FILE_INTEGRITY_SLOW {
+        let tenths = (verified.duration.as_millis() + 50) / 100;
+        format!("The integrity of {files} files was checked in {}.{}s.", tenths / 10, tenths % 10)
+    } else if files > VERIFIED_FILE_INTEGRITY_MANY {
+        format!(
+            "The integrity of {files} files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.",
+        )
+    } else {
+        return;
+    };
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
 }
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
@@ -635,6 +686,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) selection: Option<WorkspaceInstallSelection<'selection>>,
     pub(super) supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) catalogs: Catalogs,
+    pub(super) verified_file_integrity_baseline: VerifiedFileIntegrity,
 }
 
 pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'static>(
@@ -677,6 +729,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         selection,
         supported_architectures,
         catalogs,
+        verified_file_integrity_baseline,
     } = inputs;
     let modules_manifest = modules_manifest.as_ref();
     tracing::info!(target: "pacquet::install", "Complete all");
@@ -789,5 +842,6 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         workspace_manifest_dir: &workspace_manifest_dir,
         prefix,
         ignored_builds,
+        verified_file_integrity_baseline,
     })
 }

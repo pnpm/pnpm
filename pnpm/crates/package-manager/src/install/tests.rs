@@ -4,7 +4,8 @@
 )]
 
 use super::{
-    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, install_already_up_to_date,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck,
+    apply_materialization::report_verified_file_integrity, install_already_up_to_date,
     load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
     order_project_lifecycle_groups, project_requires_lifecycle_scripts,
 };
@@ -24,7 +25,7 @@ use pnpm_reporter::{
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage,
     Reporter, ScopeLog, SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
-use pnpm_store_dir::STORE_VERSION;
+use pnpm_store_dir::{STORE_VERSION, VerifiedFileIntegrity};
 use pnpm_testing_utils::{
     fs::{get_all_folders, is_symlink_or_junction},
     registry::TestRegistry,
@@ -32,7 +33,7 @@ use pnpm_testing_utils::{
 use pnpm_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
-use std::{fs, sync::Mutex};
+use std::{fs, sync::Mutex, time::Duration};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -10693,4 +10694,98 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
         package.manifest.get("dependencies"),
         Some(&serde_json::json!({ "sibling": "workspace:*" })),
     );
+}
+
+/// The report is what tells a user why an otherwise warm install took
+/// so long, or that their store is being churned even when it didn't.
+/// Both message strings are a cross-stack contract: pnpm renders the
+/// same ones from the same figures.
+#[test]
+fn slow_store_verification_is_reported_with_its_time() {
+    let messages = recorded_verified_file_integrity_report(VerifiedFileIntegrity {
+        files: 1234,
+        duration: Duration::from_millis(2450),
+    });
+    assert_eq!(messages, vec!["The integrity of 1234 files was checked in 2.5s.".to_string()]);
+}
+
+/// A tie rounds up, in the direction JavaScript's `toFixed` takes it:
+/// 2.25s must not render as `2.2s` here and `2.3s` in pnpm.
+#[test]
+fn a_tie_in_the_seconds_rounds_up() {
+    let messages = recorded_verified_file_integrity_report(VerifiedFileIntegrity {
+        files: 7,
+        duration: Duration::from_millis(2250),
+    });
+    assert_eq!(messages, vec!["The integrity of 7 files was checked in 2.3s.".to_string()]);
+}
+
+/// Under the time threshold there is no time worth naming, so the
+/// message points at what keeps invalidating the store instead.
+#[test]
+fn quick_verification_of_many_files_is_reported_as_churn() {
+    let messages = recorded_verified_file_integrity_report(VerifiedFileIntegrity {
+        files: 1001,
+        duration: Duration::from_millis(80),
+    });
+    assert_eq!(
+        messages,
+        vec![
+            "The integrity of 1001 files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this."
+                .to_string(),
+        ],
+    );
+}
+
+/// Both thresholds are exclusive, and a healthy store sits far below
+/// either — the install says nothing at all.
+#[test]
+fn verification_below_both_thresholds_is_not_reported() {
+    for verified in [
+        VerifiedFileIntegrity { files: 1000, duration: Duration::from_secs(1) },
+        VerifiedFileIntegrity { files: 12, duration: Duration::from_millis(3) },
+        VerifiedFileIntegrity { files: 0, duration: Duration::ZERO },
+    ] {
+        assert_eq!(recorded_verified_file_integrity_report(verified), Vec::<String>::new());
+    }
+}
+
+/// Each install reports its own verification, so a second install in
+/// the same process (a recursive workspace run, or an embedder driving
+/// several) doesn't re-report the first one's work.
+#[test]
+fn verified_file_integrity_is_scoped_to_one_install() {
+    let baseline = VerifiedFileIntegrity { files: 400, duration: Duration::from_secs(9) };
+    let after = VerifiedFileIntegrity { files: 401, duration: Duration::from_millis(9_100) };
+
+    let this_install = after.since(baseline);
+    dbg!(this_install);
+    assert_eq!(this_install.files, 1);
+    assert_eq!(this_install.duration, Duration::from_millis(100));
+}
+
+/// The `pnpm:global` messages one report emits, at `info` — the only
+/// level these carry.
+fn recorded_verified_file_integrity_report(verified: VerifiedFileIntegrity) -> Vec<String> {
+    static MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    // The recorder is one shared static, so one caller uses it at a
+    // time. `cargo nextest` gives each test its own process, but a
+    // plain `cargo test` runs them as threads of one.
+    static RECORDER: Mutex<()> = Mutex::new(());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Global(log) = event {
+                assert_eq!(log.level, LogLevel::Info);
+                MESSAGES.lock().unwrap().push(log.message.clone());
+            }
+        }
+    }
+
+    let _guard = RECORDER.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    MESSAGES.lock().unwrap().clear();
+    report_verified_file_integrity::<RecordingReporter>(verified);
+    let messages = MESSAGES.lock().unwrap().clone();
+    dbg!(messages)
 }
