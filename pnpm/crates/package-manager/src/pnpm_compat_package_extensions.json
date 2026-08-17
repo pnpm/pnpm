@@ -8,14 +8,6 @@
     }
   ],
   [
-    "@eslint-community/eslint-utils@*",
-    {
-      "dependencies": {
-        "estree": "*"
-      }
-    }
-  ],
-  [
     "@eslint/core@*",
     {
       "dependencies": {
@@ -96,14 +88,6 @@
     {
       "dependencies": {
         "for-each": "*"
-      }
-    }
-  ],
-  [
-    "eslint@*",
-    {
-      "dependencies": {
-        "estree": "*"
       }
     }
   ]
