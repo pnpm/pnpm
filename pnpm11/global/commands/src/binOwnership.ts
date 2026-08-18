@@ -1,26 +1,28 @@
-import { getInstalledBinNames, scanGlobalPackages } from '@pnpm/global.packages'
+import {
+  getInstalledBinNames,
+  type GlobalPackageBinSnapshot,
+  type GlobalPackageInfo,
+  scanGlobalPackages,
+} from '@pnpm/global.packages'
 
 /**
- * The set of bin names provided by global package groups *other* than those
- * in `excludeHashes`.
+ * A complete ownership snapshot for the groups about to be replaced or
+ * removed, together with the bins owned by every group that will survive.
  *
- * Used before unlinking a group's bins (on remove / update / replace) so
- * that a bin name shared with — and owned by — another still-installed
- * group is never removed. Without this, removing one group could delete a
- * bin that actually belongs to a different global package.
+ * Every manifest read settles before the caller mutates global state. That
+ * makes an incomplete target or survivor fail closed instead of allowing a
+ * partial ownership result to drive removals.
  */
-export async function getBinNamesOfOtherGroups (
+export async function getGlobalBinOwnership (
   globalDir: string,
-  excludeHashes: Set<string>
-): Promise<Set<string>> {
-  const others = scanGlobalPackages(globalDir).filter((pkg) => !excludeHashes.has(pkg.hash))
-  const names = new Set<string>()
-  await Promise.all(
-    others.map(async (pkg) => {
-      for (const name of await getInstalledBinNames(pkg)) {
-        names.add(name)
-      }
-    })
+  targetGroups: GlobalPackageInfo[]
+): Promise<{ groups: GlobalPackageBinSnapshot[], protectedBins: Set<string> }> {
+  const targetHashes = new Set(targetGroups.map(({ hash }) => hash))
+  const survivingGroups = scanGlobalPackages(globalDir).filter((pkg) => !targetHashes.has(pkg.hash))
+  const binNamesByGroup = await Promise.all(
+    [...targetGroups, ...survivingGroups].map(async (pkg) => getInstalledBinNames(pkg))
   )
-  return names
+  const groups = targetGroups.map((info, index) => ({ info, binNames: binNamesByGroup[index] }))
+  const protectedBins = new Set(binNamesByGroup.slice(targetGroups.length).flat())
+  return { groups, protectedBins }
 }

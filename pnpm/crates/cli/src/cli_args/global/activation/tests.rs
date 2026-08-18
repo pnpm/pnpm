@@ -1,7 +1,8 @@
 use super::{
     super::{
-        GlobalInstallCleanup, GlobalRemovalTransaction, cleanup_replaced_global_installs,
-        plan_replaced_global_bins, remove_global_install_entries, restore_virtual_shims,
+        GlobalInstallCleanup, GlobalPackageBinSnapshot, GlobalRemovalTransaction,
+        cleanup_replaced_global_installs, plan_replaced_global_bins, remove_global_install_entries,
+        restore_virtual_shims, snapshot_global_package,
     },
     BinSlotKind, FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot,
     activate_global_install_with_extra_bin_names, directory_symlink_slots, hash_linked_packages,
@@ -701,11 +702,12 @@ fn cleanup_after_activation_preserves_current_state_and_external_install() {
         "active-hash",
         &["activated", "survivor", "obsolete"],
     );
-    let external_group = GlobalPackageInfo {
+    let external_group = snapshot_global_package(GlobalPackageInfo {
         hash: "external-hash".to_string(),
         install_dir: external_install_dir.clone(),
         dependencies: Vec::new(),
-    };
+    })
+    .expect("snapshot the external group's bin ownership");
     for bin_name in ["activated", "survivor", "obsolete"] {
         fs::write(global_bin_dir.join(bin_name), b"bin\n").expect("seed global bin");
     }
@@ -834,11 +836,12 @@ fn replacing_a_package_that_drops_a_bin_restores_its_recorded_shim() {
     fs::write(global_bin_dir.join("node"), b"old global bin\n").expect("seed global bin");
     record_virtual_shim_state(&global_bin_dir, "node", &["node".to_string()])
         .expect("record shim restoration state");
-    let group = GlobalPackageInfo {
+    let group = snapshot_global_package(GlobalPackageInfo {
         hash: "old-hash".to_string(),
         install_dir: install_dir.clone(),
         dependencies: vec![("node".to_string(), "1.0.0".to_string())],
-    };
+    })
+    .expect("snapshot the replaced group's bin ownership");
     let old_hash_link = pnpm_global::get_hash_link(&global_pkg_dir, "old-hash");
     force_symlink_dir(&install_dir, &old_hash_link).expect("seed old hash link");
     fs::create_dir_all(&fresh_install_dir).expect("create fresh install directory");
@@ -949,7 +952,7 @@ fn global_removal_reports_cleanup_failure_and_keeps_the_group() {
     assert!(global_bin_dir.join("blocked").is_dir());
     assert!(!global_bin_dir.join("stale").exists());
     assert!(hash_link.exists());
-    assert!(group.install_dir.exists());
+    assert!(group.info.install_dir.exists());
 }
 
 #[cfg(windows)]
@@ -1377,7 +1380,11 @@ impl ActivationFixture {
     }
 }
 
-fn global_package_with_bins(install_dir: &Path, hash: &str, bins: &[&str]) -> GlobalPackageInfo {
+fn global_package_with_bins(
+    install_dir: &Path,
+    hash: &str,
+    bins: &[&str],
+) -> GlobalPackageBinSnapshot {
     let alias = "old-package";
     let package_dir = install_dir.join("node_modules").join(alias);
     fs::create_dir_all(&package_dir).expect("create installed package directory");
@@ -1395,11 +1402,12 @@ fn global_package_with_bins(install_dir: &Path, hash: &str, bins: &[&str]) -> Gl
         .expect("serialize installed package manifest"),
     )
     .expect("write installed package manifest");
-    GlobalPackageInfo {
+    snapshot_global_package(GlobalPackageInfo {
         hash: hash.to_string(),
         install_dir: install_dir.to_path_buf(),
         dependencies: vec![(alias.to_string(), "1.0.0".to_string())],
-    }
+    })
+    .expect("snapshot the installed group's bin ownership")
 }
 
 #[derive(Debug, PartialEq, Eq)]
