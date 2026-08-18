@@ -817,27 +817,6 @@ fn cleanup_replaced_global_install_snapshots(
     Err(ReplacedGlobalInstallCleanupError { cleanup_reports }.into())
 }
 
-#[cfg(test)]
-fn cleanup_replaced_global_installs(
-    global_pkg_dir: &Path,
-    global_bin_dir: &Path,
-    groups: &[GlobalPackageInfo],
-    active_hash: &str,
-    activated_bins: &HashSet<String>,
-    protected_bins: &HashSet<String>,
-) -> miette::Result<()> {
-    let snapshots =
-        groups.iter().cloned().map(snapshot_global_package).collect::<miette::Result<Vec<_>>>()?;
-    cleanup_replaced_global_install_snapshots(
-        global_pkg_dir,
-        global_bin_dir,
-        &snapshots,
-        active_hash,
-        activated_bins,
-        protected_bins,
-    )
-}
-
 fn replacement_aliases(aliases: &[String]) -> Vec<String> {
     const PNPM_CLI_PACKAGE_ALIASES: [&str; 2] = ["pnpm", "@pnpm/exe"];
 

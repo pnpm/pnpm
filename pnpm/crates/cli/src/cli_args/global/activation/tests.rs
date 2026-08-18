@@ -1,7 +1,7 @@
 use super::{
-    super::cleanup_replaced_global_installs, BinSlotKind, FsArtifactProbe, FsRename,
-    FsSwapHashLink, SavedBinSlot, activate_global_install, directory_symlink_slots,
-    hash_linked_packages, needs_directory_symlink_removal,
+    super::{cleanup_replaced_global_install_snapshots, snapshot_global_package},
+    BinSlotKind, FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot, activate_global_install,
+    directory_symlink_slots, hash_linked_packages, needs_directory_symlink_removal,
 };
 use miette::IntoDiagnostic;
 use pnpm_cmd_shim::{
@@ -21,6 +21,26 @@ use std::{
     },
 };
 use tempfile::TempDir;
+
+fn cleanup_replaced_global_installs(
+    global_pkg_dir: &Path,
+    global_bin_dir: &Path,
+    groups: &[GlobalPackageInfo],
+    active_hash: &str,
+    activated_bins: &HashSet<String>,
+    protected_bins: &HashSet<String>,
+) -> miette::Result<()> {
+    let snapshots =
+        groups.iter().cloned().map(snapshot_global_package).collect::<miette::Result<Vec<_>>>()?;
+    cleanup_replaced_global_install_snapshots(
+        global_pkg_dir,
+        global_bin_dir,
+        &snapshots,
+        active_hash,
+        activated_bins,
+        protected_bins,
+    )
+}
 
 macro_rules! delegate_cmd_shim_capabilities {
     ($system:ty) => {
