@@ -30,6 +30,7 @@ pub mod find_hash;
 pub mod global;
 pub mod ignored_builds;
 pub mod import;
+pub mod init;
 pub mod install;
 pub mod install_test;
 pub mod lane;

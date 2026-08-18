@@ -1,9 +1,9 @@
 ---
-source: pnpm/crates/cli/tests/suite/init.rs
-expression: "package_json_content.replace(pnpm_config::PNPM_VERSION, \"<pnpm-version>\")"
+source: pnpm/crates/package-manifest/src/tests.rs
+expression: "serde_json::to_string_pretty(&manifest).unwrap()"
 ---
 {
-  "name": "workspace",
+  "name": "test",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -16,10 +16,10 @@ expression: "package_json_content.replace(pnpm_config::PNPM_VERSION, \"<pnpm-ver
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "<pnpm-version>",
+      "version": "11.22.0",
       "onFail": "download"
     }
   },
-  "packageManager": "pnpm@<pnpm-version>",
+  "packageManager": "pnpm@11.22.0",
   "type": "module"
 }

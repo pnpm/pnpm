@@ -26,6 +26,7 @@ use super::{
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
     import::ImportArgs,
+    init::InitArgs,
     install::InstallArgs,
     install_test::InstallTestArgs,
     lane::LaneArgs,
@@ -406,7 +407,7 @@ pub enum CliCommand {
     /// Manage package access and visibility on the registry.
     Access(AccessArgs),
     /// Initialize a package.json
-    Init,
+    Init(InitArgs),
     /// Concurrently runs a command in all subdirectory projects.
     #[clap(visible_aliases = ["multi", "m"])]
     Recursive,

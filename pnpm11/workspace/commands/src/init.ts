@@ -35,11 +35,11 @@ export function help (): string {
         title: 'Options',
         list: [
           {
-            description: 'Set the module system for the package. Defaults to "commonjs".',
+            description: 'Set the module system for the package. Defaults to "module".',
             name: '--init-type <commonjs|module>',
           },
           {
-            description: 'Declare a pnpm version range via "devEngines.packageManager" in package.json and auto-download pnpm when it is missing',
+            description: 'Pin the pnpm version in package.json, through "devEngines.packageManager" and "packageManager", and auto-download pnpm when it is missing',
             name: '--init-package-manager',
           },
           {
@@ -111,10 +111,14 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
       ...packageJson.devEngines,
       packageManager: {
         name: 'pnpm',
-        version: `^${packageManager.version}`,
+        version: packageManager.version,
         onFail: 'download',
       },
     }
+    // Corepack reads only "packageManager", so the pin is written to both
+    // fields. They must stay in sync: a mismatch makes pnpm warn and ignore
+    // the legacy field.
+    packageJson.packageManager = `pnpm@${packageManager.version}`
   }
   const priority = Object.fromEntries([
     'name',
@@ -127,6 +131,7 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
     'author',
     'license',
     'devEngines',
+    'packageManager',
   ].map((key, index) => [key, index]))
   const sortedPackageJson = sortKeysByPriority({ priority }, packageJson)
   await writeProjectManifest(manifestPath, sortedPackageJson, {

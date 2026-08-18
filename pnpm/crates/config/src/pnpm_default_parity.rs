@@ -26,8 +26,8 @@
 //! keeps catching the next default that needs porting.
 
 use crate::{
-    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, VerifyDepsBeforeRun,
+    CatalogMode, Config, InitType, LinkWorkspacePackages, NodeLinker, NodePackageMapType,
+    ResolutionMode, SaveWorkspaceProtocol, ScriptsPrependNodePath, VerifyDepsBeforeRun,
 };
 use std::collections::BTreeSet;
 
@@ -75,8 +75,6 @@ const NOT_PORTED: &[&str] = &[
     "git-branch-lockfile",
     "ignore-workspace-cycles",
     "ignore-workspace-root-check",
-    "init-package-manager",
-    "init-type",
     "optional",
     "package-lock",
     "pending",
@@ -129,6 +127,8 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("force-legacy-deploy", Bool(cfg.force_legacy_deploy)),
         ("hoist", Bool(cfg.hoist)),
         ("hoist-workspace-packages", Bool(cfg.hoist_workspace_packages)),
+        ("init-package-manager", Bool(cfg.init_package_manager)),
+        ("init-type", init_type_scalar(cfg.init_type)),
         ("inject-workspace-packages", Bool(cfg.inject_workspace_packages)),
         ("lockfile-include-tarball-url", Bool(cfg.lockfile_include_tarball_url)),
         (
@@ -187,6 +187,13 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ),
         ("git-shallow-hosts", Scalar::Set(cfg.git_shallow_hosts.iter().cloned().collect())),
     ]
+}
+
+fn init_type_scalar(value: InitType) -> Scalar {
+    match value {
+        InitType::Module => s("module"),
+        InitType::Commonjs => s("commonjs"),
+    }
 }
 
 fn node_linker_scalar(value: NodeLinker) -> Scalar {

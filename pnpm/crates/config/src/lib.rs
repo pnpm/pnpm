@@ -355,6 +355,18 @@ impl PmOnFail {
     }
 }
 
+/// The module system `pnpm init` records for the package it scaffolds.
+///
+/// `module` writes `"type": "module"`; `commonjs` is Node's default and
+/// leaves the field out of the manifest.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InitType {
+    #[default]
+    Module,
+    Commonjs,
+}
+
 /// What to do when a runtime declared through `devEngines.runtime` or
 /// `engines.runtime` does not match the current process.
 ///
@@ -1911,6 +1923,22 @@ pub struct Config {
     /// Trust-evidence policy applied to lockfile entries; see
     /// [`TrustPolicy`].
     pub trust_policy: TrustPolicy,
+
+    /// `init-package-manager` / `initPackageManager` config: whether
+    /// `pnpm init` pins the running pnpm in the manifest it scaffolds,
+    /// through both `devEngines.packageManager` and the legacy
+    /// `packageManager` field. Only the workspace root is pinned — a
+    /// member of an existing workspace inherits the root's pin.
+    ///
+    /// Defaults to `true`.
+    #[default = true]
+    pub init_package_manager: bool,
+
+    /// `init-type` / `initType` config: the module system `pnpm init`
+    /// records for the package it scaffolds. See [`InitType`].
+    ///
+    /// Defaults to `module`.
+    pub init_type: InitType,
 
     /// `pm-on-fail` / `pmOnFail` config: what to do when the project's
     /// `packageManager` / `devEngines.packageManager` pin doesn't match the
