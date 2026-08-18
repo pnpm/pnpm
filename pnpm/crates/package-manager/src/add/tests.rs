@@ -334,7 +334,7 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
             state.lock().unwrap().active -= 1;
             result
         })
-        .expect(2)
+        .expect(1)
         .create_async()
         .await;
 
@@ -379,8 +379,8 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
         let requests = request_state.lock().unwrap();
         assert_eq!(
             (requests.max_active, requests.total),
-            (1, 2),
-            "every selector path should share one fetch before the follow-up install fetch",
+            (1, 1),
+            "every selector path should share the single packument fetch",
         );
     }
     packument.assert_async().await;

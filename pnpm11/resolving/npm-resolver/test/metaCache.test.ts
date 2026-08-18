@@ -481,3 +481,31 @@ test('pickPackage propagates a cache-loss fallback error', async () => {
   expect(fetchCalls[1].etag).toBeUndefined()
   expect(fetchCalls[1].modified).toBeUndefined()
 })
+
+test('pickPackage reuses disk-cached meta without network fetch when registry lacks etag and modified headers', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const fetchCalls: FetchMetadataOptions[] = []
+  const ctx = {
+    fetch: async (_pkgName: string, opts: FetchMetadataOptions) => {
+      fetchCalls.push(opts)
+      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const result = await pickPackage(ctx, spec, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchCalls).toHaveLength(0)
+})
+
