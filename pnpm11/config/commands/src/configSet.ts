@@ -1,7 +1,7 @@
 import path from 'node:path'
 import util from 'node:util'
 
-import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isProjectManifestSkippedKey, types, whereRefusedKeyBelongs } from '@pnpm/config.reader'
+import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isNeverAFileSetting, isProjectManifestSkippedKey, types, whereRefusedKeyBelongs } from '@pnpm/config.reader'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { parsePropertyPath } from '@pnpm/object.property-path'
@@ -207,6 +207,26 @@ function hintForRefusedKey (key: string, fallback: string): string {
   return whereRefusedKeyBelongs(camelKey)
 }
 
+export class ConfigSetNotAFileSettingError extends PnpmError {
+  readonly key: string
+  constructor (kebabKey: string) {
+    super('CONFIG_SET_NOT_A_FILE_SETTING', `The key ${JSON.stringify(kebabKey)} holds a per-invocation value, so no config file can carry it`, {
+      hint: whereRefusedKeyBelongs(camelCase(kebabKey)),
+    })
+    this.key = kebabKey
+  }
+}
+
+/**
+ * Refuse a key whose value is per-invocation. Writing it would produce a file
+ * entry every loader ignores, so the write fails instead of misleading.
+ */
+function rejectNeverAFileSetting (kebabKey: string): void {
+  if (isNeverAFileSetting(kebabKey)) {
+    throw new ConfigSetNotAFileSettingError(kebabKey)
+  }
+}
+
 export class ConfigSetNotAProjectSettingError extends PnpmError {
   readonly key: string
   constructor (key: string) {
@@ -223,6 +243,7 @@ export class ConfigSetNotAProjectSettingError extends PnpmError {
  * Return the camelCase of {@link key} if it's valid.
  */
 function validateWorkspaceKey (key: string): string {
+  rejectNeverAFileSetting(kebabCase(key))
   if (Object.hasOwn(types, key) || isConfigFileKey(key)) return camelCase(key)
   if (isProjectManifestSkippedKey(camelCase(key))) return camelCase(key)
   if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
@@ -264,6 +285,7 @@ export class ConfigSetUnsupportedYamlConfigKeyError extends PnpmError {
  */
 function validateYamlConfigKey (key: string): ConfigFileKey {
   const kebabKey = kebabCase(key)
+  rejectNeverAFileSetting(kebabKey)
   if (!isConfigFileKey(kebabKey)) {
     throw new ConfigSetUnsupportedYamlConfigKeyError(key)
   }
