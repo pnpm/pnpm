@@ -245,13 +245,7 @@ fn recursive_update_pinned_transitive_prefers_the_requested_version() {
 
     pacquet(
         &workspace,
-        [
-            "-r",
-            "update",
-            "--lockfile-only",
-            "--no-save",
-            &format!("{DEP}@100.1.0"),
-        ],
+        ["-r", "update", "--lockfile-only", "--no-save", &format!("{DEP}@100.1.0")],
     )
     .assert()
     .success();
