@@ -164,7 +164,7 @@ fn installed_bin_names_preserves_permission_denied_manifest_reads() {
         .expect_err("permission denied must fail ownership enumeration");
 
     assert!(
-        matches!(error, PackageManifestError::Io(error) if error.kind() == io::ErrorKind::PermissionDenied)
+        matches!(error, PackageManifestError::Io(error) if error.kind() == io::ErrorKind::PermissionDenied),
     );
 }
 
@@ -179,7 +179,7 @@ fn scan_finds_a_globally_installed_runtime() {
     let groups = scan_global_packages(global_dir.path()).unwrap();
     assert_eq!(groups.len(), 1);
     assert!(groups[0].has_alias("node"));
-    assert_eq!(get_installed_bin_names(&groups[0]).unwrap(), vec!["node".to_string()],);
+    assert_eq!(get_installed_bin_names(&groups[0]).unwrap(), vec!["node".to_string()]);
 
     assert!(find_global_package(global_dir.path(), "node").unwrap().is_some());
 }

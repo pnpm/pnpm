@@ -41,13 +41,27 @@ fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
 /// passes for the mutating commands).
 #[cfg(unix)]
 fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
+    // macOS temp paths use `/var` as an alias for `/private/var`, while
+    // scanning a hash symlink canonicalizes its install directory. Give the
+    // command the canonical fixture home so containment checks compare paths
+    // with the same spelling.
+    let pnpm_home = match fs::canonicalize(pnpm_home) {
+        Ok(pnpm_home) => pnpm_home,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let parent = pnpm_home.parent().expect("pnpm test home parent");
+            fs::canonicalize(parent)
+                .expect("canonicalize the pnpm test home parent")
+                .join(pnpm_home.file_name().expect("pnpm test home name"))
+        }
+        Err(error) => panic!("canonicalize the pnpm test home: {error}"),
+    };
     let global_bin = pnpm_home.join("bin");
     let existing_path = std::env::var("PATH").unwrap_or_default();
     let path = format!("{}:{existing_path}", global_bin.display());
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
-        .with_env("PNPM_HOME", pnpm_home)
+        .with_env("PNPM_HOME", &pnpm_home)
         .with_env("PATH", path)
         .without_ambient_pnpm_config()
 }
