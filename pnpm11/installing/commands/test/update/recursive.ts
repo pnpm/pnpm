@@ -261,7 +261,7 @@ test('recursive update of a pinned transitive dependency updates only the target
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
 
-  const projects = preparePackages([
+  preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
