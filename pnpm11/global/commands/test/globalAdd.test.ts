@@ -268,7 +268,7 @@ test('global add retries safely and activates from a complete replacement owners
     activateGlobalInstall.mockImplementation(async (opts) => {
       ownershipReadsAtSwitch = getInstalledBinNames.mock.calls.length
       const installDir = (opts as { installDir: string }).installDir
-      fs.rmSync(oldHashLink, { force: true })
+      fs.unlinkSync(oldHashLink)
       fs.symlinkSync(installDir, oldHashLink, process.platform === 'win32' ? 'junction' : 'dir')
       return new Set(['pnpm'])
     })
