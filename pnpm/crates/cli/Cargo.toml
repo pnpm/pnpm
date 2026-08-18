@@ -39,6 +39,7 @@ pnpm-injected-deps-syncer              = { workspace = true }
 pnpm-install-coordinator               = { workspace = true }
 pnpm-lockfile                          = { workspace = true }
 pnpm-lockfile-import                   = { workspace = true }
+pnpm-lockfile-preferred-versions       = { workspace = true }
 pnpm-lockfile-verification             = { workspace = true }
 pnpm-modules-yaml                      = { workspace = true }
 pnpm-network                           = { workspace = true }

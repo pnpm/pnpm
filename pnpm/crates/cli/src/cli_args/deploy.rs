@@ -17,12 +17,14 @@ use pnpm_lockfile::{
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
     TarballResolution, VersionPart, WantedLockfileSelection,
 };
+use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pnpm_package_manager::{
     ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, apply_deploy_manifest_hook,
     import_indexed_dir,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_resolver_base::PreferredVersions;
 use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
 use serde_json::{Map, Value};
 use std::{
@@ -218,6 +220,10 @@ impl DeployArgs {
         }
 
         apply_deploy_hook(&deploy_dir.join("package.json"))?;
+        let preferred_versions_override = legacy_deploy_preferred_versions::<ReporterT>(
+            config,
+            config.lockfile_dir_for(&selected.project.root_dir),
+        );
         // Boxed: the install future exceeds clippy's large-future threshold
         // (the captured `Config` is large).
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
@@ -226,6 +232,7 @@ impl DeployArgs {
             DeployInstallMode::Legacy,
             false,
             source_hooks,
+            preferred_versions_override,
         ))
         .await
     }
@@ -288,6 +295,7 @@ impl DeployArgs {
             DeployInstallMode::Shared { workspace_config: deploy_files.workspace_config },
             true,
             source_hooks,
+            None,
         ))
         .await?;
         Ok(SharedDeployOutcome::Deployed)
@@ -300,6 +308,7 @@ impl DeployArgs {
         mode: DeployInstallMode,
         frozen_lockfile: bool,
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+        preferred_versions_override: Option<PreferredVersions>,
     ) -> miette::Result<()> {
         let legacy = matches!(&mode, DeployInstallMode::Legacy);
         let config = self.deploy_install_config(
@@ -371,7 +380,7 @@ impl DeployArgs {
             dry_run: false,
             persist_policy_excludes: false,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
+            preferred_versions_override,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,
@@ -481,6 +490,32 @@ fn source_pnpmfile_hooks(
         pnpm_package_manager::pnpmfile_selection(config),
     )
     .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))
+}
+
+/// Loads source lockfile pins as preferred versions for legacy deploy.
+/// The source install's branch-lockfile selection is preserved, while a
+/// missing or malformed source lockfile falls back to fresh resolution.
+fn legacy_deploy_preferred_versions<ReporterT: Reporter>(
+    config: &Config,
+    source_lockfile_dir: &Path,
+) -> Option<PreferredVersions> {
+    if !config.lockfile {
+        return None;
+    }
+    match Lockfile::load_wanted(source_lockfile_dir, &config.wanted_lockfile_selection()) {
+        Ok(Some(lockfile)) => Some(get_preferred_versions_from_lockfile_and_manifests(
+            lockfile.snapshots.as_ref(),
+            &[],
+        )),
+        Ok(None) => None,
+        Err(error) => {
+            warn::<ReporterT>(
+                source_lockfile_dir,
+                format!("Ignoring broken lockfile at {}: {error}", source_lockfile_dir.display()),
+            );
+            None
+        }
+    }
 }
 
 fn create_deploy_install_config(
