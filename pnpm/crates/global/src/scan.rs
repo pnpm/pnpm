@@ -2,7 +2,9 @@
 //! directory and the details needed to list, update, and remove them.
 
 use crate::read_package_json;
-use pnpm_cmd_shim::{FsReadFile, Host, PackageBinSource, get_bins_from_package_manifest};
+use pnpm_cmd_shim::{
+    FsReadFile, FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest,
+};
 use pnpm_package_manifest::{PackageManifestError, parse_manifest_bytes};
 use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
 use serde_json::Value;
@@ -122,7 +124,7 @@ fn get_installed_bin_names_with_fs<Sys>(
     info: &GlobalPackageInfo,
 ) -> Result<Vec<String>, PackageManifestError>
 where
-    Sys: FsReadFile,
+    Sys: FsReadFile + FsWalkFiles,
 {
     let modules_dir = info.install_dir.join("node_modules");
     let mut bins = BTreeSet::new();
@@ -132,7 +134,7 @@ where
         let bytes = Sys::read_file(&manifest_path).map_err(PackageManifestError::Io)?;
         let manifest = parse_manifest_bytes(&bytes)
             .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
-        for command in get_bins_from_package_manifest::<Host>(&manifest, &dep_dir) {
+        for command in get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir) {
             bins.insert(command.name);
         }
     }

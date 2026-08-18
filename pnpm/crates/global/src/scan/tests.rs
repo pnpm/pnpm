@@ -3,7 +3,7 @@ use super::{
     get_installed_bin_names_with_fs, read_direct_dependency_aliases, read_installed_packages,
     scan_global_packages,
 };
-use pnpm_cmd_shim::FsReadFile;
+use pnpm_cmd_shim::{FsReadFile, FsWalkFiles};
 use pnpm_package_manifest::PackageManifestError;
 use serde_json::json;
 use std::{io, path::Path};
@@ -155,6 +155,12 @@ fn installed_bin_names_preserves_permission_denied_manifest_reads() {
     impl FsReadFile for PermissionDeniedManifestRead {
         fn read_file(_: &Path) -> io::Result<Vec<u8>> {
             Err(io::Error::from(io::ErrorKind::PermissionDenied))
+        }
+    }
+
+    impl FsWalkFiles for PermissionDeniedManifestRead {
+        fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = std::path::PathBuf>> {
+            Ok(std::iter::empty())
         }
     }
 

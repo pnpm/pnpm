@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import util from 'node:util'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import type { GlobalPackageInfo } from '@pnpm/global.packages'
@@ -286,7 +287,7 @@ test('global update preserves ownership state and both errors when fresh install
       thrown = err
     }
 
-    expect(thrown).toBeInstanceOf(AggregateError)
+    expect(util.types.isNativeError(thrown)).toBe(true)
     const aggregateError = thrown as AggregateError
     expect(aggregateError.errors).toStrictEqual([enumerationError, cleanupError])
     expect(aggregateError.cause).toBe(enumerationError)

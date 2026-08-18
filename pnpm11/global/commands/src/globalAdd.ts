@@ -9,6 +9,7 @@ import {
   createInstallDir,
   findGlobalPackage,
   getHashLink,
+  type GlobalPackageBinSnapshot,
   type GlobalPackageInfo,
 } from '@pnpm/global.packages'
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
@@ -256,7 +257,7 @@ function resolveLocalParam (param: string, baseDir: string): string {
 }
 
 interface ExistingGlobalInstalls {
-  groups: Array<{ info: GlobalPackageInfo, binNames: string[] }>
+  groups: GlobalPackageBinSnapshot[]
   protectedBins: Set<string>
 }
 
