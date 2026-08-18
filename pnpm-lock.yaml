@@ -123,8 +123,8 @@ catalogs:
       specifier: ^21.2.2
       version: 21.2.2
     '@cyclonedx/cyclonedx-library':
-      specifier: 10.1.1
-      version: 10.1.1
+      specifier: 10.2.0
+      version: 10.2.0
     '@eslint/js':
       specifier: ^10.0.1
       version: 10.0.1
@@ -3094,7 +3094,7 @@ importers:
     dependencies:
       '@cyclonedx/cyclonedx-library':
         specifier: 'catalog:'
-        version: 10.1.1(ajv@8.20.0)(spdx-expression-parse@4.0.0)
+        version: 10.2.0(ajv@8.20.0)(spdx-expression-parse@4.0.0)
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../../config/normalize-registries
@@ -10858,8 +10858,8 @@ packages:
     resolution: {integrity: sha512-LY1lFiZLTQF/ma1ilfKmRmFmEOw0RfYhyl0UMhY7/d93b+kiDMhxP/9Qir4+5LyiRncaE3++ZcWno9Hya+ssRg==}
     engines: {node: '>=20'}
 
-  '@cyclonedx/cyclonedx-library@10.1.1':
-    resolution: {integrity: sha512-m3GxJ4fdHMZb5tbu5o+PEfNsgHcDdbbnXKqD4wZlCuCk4lsQfc42wXv7FYFRCAgImC6TaXJdF+K35Tx7a+yaow==}
+  '@cyclonedx/cyclonedx-library@10.2.0':
+    resolution: {integrity: sha512-hGeo1XXM0zuIeTyzJihxPxnEOeNBmgZkuPRmTR28RktlAqF9xLneonHRCzahZHLgCq/LOmtCs5vyojJlnmJ87w==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       ajv: '>=8.18.0'
@@ -17952,7 +17952,7 @@ snapshots:
 
   '@cspell/url@9.8.0': {}
 
-  '@cyclonedx/cyclonedx-library@10.1.1(ajv@8.20.0)(spdx-expression-parse@4.0.0)':
+  '@cyclonedx/cyclonedx-library@10.2.0(ajv@8.20.0)(spdx-expression-parse@4.0.0)':
     optionalDependencies:
       ajv: 8.20.0
       spdx-expression-parse: 4.0.0
