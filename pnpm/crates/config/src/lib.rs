@@ -1666,6 +1666,13 @@ pub struct Config {
     /// `otp` (`--otp`): the one-time password for a two-factor-authenticated
     /// registry. Overridden by `--otp`.
     ///
+    /// Deliberately not a config-file setting, unlike its four publish
+    /// neighbours: the value is valid for about thirty seconds, so it
+    /// describes a single invocation rather than a project or a machine, and
+    /// a committed `pnpm-workspace.yaml` is the wrong place for a credential.
+    /// `--otp` and `PNPM_CONFIG_OTP` are the channels; `pnpm config set otp`
+    /// is refused rather than writing an entry the loader would ignore.
+    ///
     /// `PNPM_CONFIG_OTP` reaches this field through the ordinary env overlay,
     /// so it is normally already resolved by the time
     /// `pnpm_publish::resolve_otp_from_env` runs. That second read is kept

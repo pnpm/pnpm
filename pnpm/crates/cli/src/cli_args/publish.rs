@@ -104,8 +104,8 @@ pub struct PublishFlags {
 }
 
 impl PublishFlags {
-    /// The one-time password: `--otp` wins, then the `otp` config setting
-    /// (which the env overlay has already folded `PNPM_CONFIG_OTP` into).
+    /// The one-time password: `--otp` wins, then [`Config::otp`] — which no
+    /// file may set, so in practice `PNPM_CONFIG_OTP` or `--config.otp=`.
     ///
     /// Lives on the flags rather than on [`PublishArgs`] because `pnpm stage`
     /// flattens the same flags and has to resolve the OTP the same way for

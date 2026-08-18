@@ -189,7 +189,6 @@ fn parses_and_applies_the_publish_settings_from_yaml() {
 access: restricted
 tag: next
 provenance: true
-otp: '123456'
 publishBranch: release
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
@@ -199,7 +198,6 @@ publishBranch: release
     assert_eq!(config.access.as_deref(), Some("restricted"));
     assert_eq!(config.tag.as_deref(), Some("next"));
     assert_eq!(config.provenance, Some(true));
-    assert_eq!(config.otp.as_deref(), Some("123456"));
     assert_eq!(config.publish_branch.as_deref(), Some("release"));
 }
 
@@ -214,7 +212,7 @@ fn provenance_false_applies_as_an_explicit_false() {
     assert_eq!(config.provenance, Some(false));
 }
 
-/// `access`, `tag`, `provenance`, and `otp` are `npmConfigTypes` keys that
+/// `access`, `tag`, and `provenance` are `npmConfigTypes` keys that
 /// pnpm's `isConfigFileKey` accepts, so they must survive the workspace-only
 /// stripping that runs on the global `config.yaml`.
 #[test]
@@ -223,7 +221,6 @@ fn npm_publish_settings_survive_workspace_only_field_clearing() {
 access: public
 tag: beta
 provenance: true
-otp: '246810'
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
@@ -231,7 +228,6 @@ otp: '246810'
     assert_eq!(settings.access.as_deref(), Some("public"));
     assert_eq!(settings.tag.as_deref(), Some("beta"));
     assert_eq!(settings.provenance, Some(true));
-    assert_eq!(settings.otp.as_deref(), Some("246810"));
 }
 
 /// `publish-branch` is in pnpm's `excludedPnpmKeys`, so the global
@@ -445,13 +441,12 @@ namedRegistries:
     assert_eq!(config.registries_by_prefix.get("work"), None);
 }
 
-/// `otp` is a credential the workspace file gets to choose, and `publish`
-/// puts it on the wire to a registry that same file can point anywhere. A
-/// placeholder is refused so a repository cannot turn a variable in the
-/// publisher's environment into an outbound `npm-otp` header; a literal value
-/// is left alone, and the trusted layers still expand.
+/// `otp` is not a config-file setting: the value is valid for about thirty
+/// seconds, so no file can carry a useful one. Neither a literal nor a
+/// placeholder reaches the settings, which also removes the exfiltration
+/// channel a repo-controlled `otp: ${VAR}` would otherwise have opened.
 #[test]
-fn a_workspace_otp_placeholder_is_dropped_but_a_literal_is_kept() {
+fn a_workspace_otp_is_not_read_from_yaml_at_all() {
     struct EnvWithToken;
     impl EnvVar for EnvWithToken {
         fn var(name: &str) -> Option<String> {
@@ -459,27 +454,23 @@ fn a_workspace_otp_placeholder_is_dropped_but_a_literal_is_kept() {
         }
     }
 
-    let mut settings: WorkspaceSettings = serde_saphyr::from_str("otp: ${NPM_TOKEN}\n").unwrap();
-    settings.substitute_env_untrusted::<EnvWithToken>();
-    assert_eq!(settings.otp, None);
+    for yaml in ["otp: ${NPM_TOKEN}\n", "otp: '123456'\n"] {
+        let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        settings.substitute_env_untrusted::<EnvWithToken>();
+        assert_eq!(settings.otp, None, "{yaml:?} must not supply an otp");
 
-    let mut literal: WorkspaceSettings = serde_saphyr::from_str("otp: '123456'\n").unwrap();
-    literal.substitute_env_untrusted::<EnvWithToken>();
-    assert_eq!(literal.otp.as_deref(), Some("123456"));
-
-    let mut trusted: WorkspaceSettings = serde_saphyr::from_str("otp: ${NPM_TOKEN}\n").unwrap();
-    trusted.substitute_env_trusted::<EnvWithToken>();
-    assert_eq!(trusted.otp.as_deref(), Some("s3cret"));
+        let mut trusted: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        trusted.substitute_env_trusted::<EnvWithToken>();
+        assert_eq!(trusted.otp, None, "{yaml:?} must not supply an otp to a trusted layer either");
+    }
 }
 
-/// `otp` is the only publish setting the untrusted layer refuses to expand.
-/// `access` and `tag` also reach the registry — they are fields of the publish
-/// document — but a `${VAR}` in them has legitimate uses in release automation
-/// (`tag: ${RELEASE_CHANNEL}`), and pnpm expands every string outside its
-/// request-destination set. `otp` is singled out because it is a credential
-/// slot with no such use: a one-time password does not belong in a committed
-/// file, so a placeholder there is far more likely to be an exfiltration
-/// attempt than a workflow.
+/// The publish settings a file *may* carry keep expanding `${VAR}`. They reach
+/// the registry as fields of the publish document, but a placeholder in them
+/// has legitimate uses in release automation (`tag: ${RELEASE_CHANNEL}`), and
+/// `SECURITY.md` scopes the suppression to request destinations and auth
+/// values. `otp` was the one auth value in reach, and it is no longer a file
+/// setting at all — see [`a_workspace_otp_is_not_read_from_yaml_at_all`].
 #[test]
 fn the_other_publish_settings_still_expand_from_the_untrusted_layer() {
     struct EnvWithChannel;

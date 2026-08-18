@@ -397,8 +397,13 @@ pub struct WorkspaceSettings {
     /// [`Config::provenance`].
     pub provenance: Option<bool>,
 
-    /// `otp` from `pnpm-workspace.yaml` / global `config.yaml`. See
-    /// [`Config::otp`].
+    /// `otp` from `PNPM_CONFIG_OTP`. See [`Config::otp`].
+    ///
+    /// Never deserialized: a one-time password is valid for about thirty
+    /// seconds, so it is not a property of a project or of a machine and has
+    /// no meaning in a file that is read on every invocation. `--otp` and
+    /// `PNPM_CONFIG_OTP` are its channels; this field carries the latter.
+    #[serde(skip_deserializing)]
     pub otp: Option<String>,
 
     /// `engineStrict` from `pnpm-workspace.yaml` / global `config.yaml`.
@@ -1126,17 +1131,13 @@ impl WorkspaceSettings {
     /// are filtered instead of expanding environment variables into
     /// request URLs.
     ///
-    /// `otp` is filtered as an auth value: `publish` puts it on the wire as an
-    /// `npm-otp` header to a registry this same file can point anywhere, so
-    /// expanding a placeholder would let a repository turn any variable in the
-    /// publisher's environment into an outbound header. A literal `otp` still
-    /// works — only a `${VAR}` in it is refused.
-    ///
-    /// `SECURITY.md` states the policy these two groups implement, and its
-    /// bounds: this is hardening against silent credential exfiltration that
-    /// survives `--ignore-scripts`, not a general-purpose sandbox. A setting
-    /// outside the two groups — `tag` and `access` reach the registry too — is
-    /// deliberately still expanded.
+    /// `SECURITY.md` states the policy this implements, and its bounds: this
+    /// is hardening against silent credential exfiltration that survives
+    /// `--ignore-scripts`, not a general-purpose sandbox. A setting outside
+    /// the request-destination group — `tag` and `access` reach the registry
+    /// too — is deliberately still expanded. The one auth value a repository
+    /// could otherwise have reached, `otp`, is not readable from a file at
+    /// all (see [`Self::otp`]), so there is nothing here to filter.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`] and filtered values do not.
@@ -1155,9 +1156,6 @@ impl WorkspaceSettings {
 
         if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
             self.pnpr_server = None;
-        }
-        if self.otp.as_deref().is_some_and(has_env_placeholder) {
-            self.otp = None;
         }
         for proxy in [&mut self.https_proxy, &mut self.http_proxy, &mut self.proxy] {
             if proxy.as_deref().is_some_and(has_env_placeholder) {

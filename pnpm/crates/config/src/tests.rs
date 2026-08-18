@@ -2030,7 +2030,6 @@ pub fn pnpm_workspace_yaml_supplies_the_publish_settings() {
 access: restricted
 tag: next
 provenance: true
-otp: '123456'
 publishBranch: release
 ",
     )
@@ -2040,24 +2039,27 @@ publishBranch: release
     assert_eq!(config.access.as_deref(), Some("restricted"));
     assert_eq!(config.tag.as_deref(), Some("next"));
     assert_eq!(config.provenance, Some(true));
-    assert_eq!(config.otp.as_deref(), Some("123456"));
     assert_eq!(config.publish_branch.as_deref(), Some("release"));
 }
 
-/// The end of the chain for the untrusted-layer `otp` filter: a project's own
-/// `pnpm-workspace.yaml` goes through `substitute_env_untrusted`, so a
-/// placeholder there must not reach `Config` no matter what the variable holds.
+/// The full chain for "`otp` is not a file setting": whatever a project's own
+/// `pnpm-workspace.yaml` says, literal or placeholder, no `otp` reaches
+/// `Config` from it. `PNPM_CONFIG_OTP` still does.
 #[test]
-pub fn a_workspace_yaml_otp_placeholder_never_reaches_the_config() {
+pub fn a_workspace_yaml_otp_never_reaches_the_config() {
     fake_env!(load_with_fake_env);
+    for yaml in ["otp: ${NPM_TOKEN}\n", "otp: '123456'\n"] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+
+        set_fake_env(&[("NPM_TOKEN", "s3cret")]);
+        assert_eq!(load_with_fake_env(tmp.path()).otp, None, "{yaml:?} must not supply an otp");
+    }
+
     let tmp = tempdir().unwrap();
-    fs::write(tmp.path().join("pnpm-workspace.yaml"), "otp: ${NPM_TOKEN}\n")
-        .expect("write to pnpm-workspace.yaml");
-
-    set_fake_env(&[("NPM_TOKEN", "s3cret")]);
-    let config = load_with_fake_env(tmp.path());
-
-    assert_eq!(config.otp, None);
+    set_fake_env(&[("PNPM_CONFIG_OTP", "135791")]);
+    assert_eq!(load_with_fake_env(tmp.path()).otp.as_deref(), Some("135791"));
 }
 
 /// pnpm's `readAndFilterNpmrc` keeps only auth and network keys, so none of
@@ -2085,8 +2087,9 @@ publish-branch=release
     assert_eq!(config.publish_branch, None);
 }
 
-/// The global `config.yaml` may set the `npmConfigTypes` publish settings but
-/// not `publishBranch`, which pnpm lists in `excludedPnpmKeys`.
+/// The global `config.yaml` may set the `npmConfigTypes` publish settings, but
+/// not `publishBranch` (pnpm lists it in `excludedPnpmKeys`) and not `otp`
+/// (no file carries a per-invocation value).
 #[test]
 pub fn global_config_yaml_supplies_the_npm_publish_settings_but_not_publish_branch() {
     fake_env!(load_with_fake_env);
@@ -2112,7 +2115,9 @@ publishBranch: release
     assert_eq!(config.access.as_deref(), Some("public"));
     assert_eq!(config.tag.as_deref(), Some("beta"));
     assert_eq!(config.provenance, Some(true));
-    assert_eq!(config.otp.as_deref(), Some("246810"));
+    // `otp` joins `publishBranch` in being ignored here, for a different
+    // reason: no file may carry it at all.
+    assert_eq!(config.otp, None);
     assert_eq!(config.publish_branch, None);
 }
 
@@ -2127,7 +2132,6 @@ pub fn pnpm_config_env_publish_settings_override_the_workspace_yaml() {
 access: public
 tag: beta
 provenance: false
-otp: '111111'
 publishBranch: from-yaml
 ",
     )

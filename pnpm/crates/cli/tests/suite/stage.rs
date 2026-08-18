@@ -220,18 +220,16 @@ fn approve_and_reject_send_the_configured_otp_and_stage_headers() {
     );
 }
 
-/// `otp` is one of the `publish` rc options `stage` inherits, so the
-/// subcommands that talk to the `-/stage` API have to honor a configured one
-/// the same way `--otp` is honored — upstream reads `opts.otp` before falling
-/// back to `opts.cliOptions.otp`.
+/// `stage`'s non-publish subcommands are the ones that answer a 2FA
+/// challenge, so the OTP has to reach them the same way it reaches
+/// `stage publish` — upstream reads the config-resolved `opts.otp` for every
+/// subcommand, not just that one.
 #[test]
-fn approve_sends_an_otp_configured_in_the_workspace_yaml() {
+fn approve_sends_an_otp_from_the_environment() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
-    fs::write(dir.path().join("pnpm-workspace.yaml"), "otp: '654321'\n")
-        .expect("write pnpm-workspace.yaml");
     let approve_mock = server
         .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
         .match_header("npm-otp", "654321")
@@ -240,7 +238,12 @@ fn approve_sends_an_otp_configured_in_the_workspace_yaml() {
         .expect(1)
         .create();
 
-    let approve = stage(dir.path(), &["approve", STAGE_ID]);
+    let approve = pacquet(dir.path())
+        .with_arg("stage")
+        .with_args(["approve", STAGE_ID])
+        .with_env("PNPM_CONFIG_OTP", "654321")
+        .output()
+        .expect("spawn pacquet stage");
     approve_mock.assert();
     assert_success(&approve);
 }

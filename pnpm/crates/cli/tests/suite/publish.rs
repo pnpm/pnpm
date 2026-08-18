@@ -342,9 +342,11 @@ fn the_config_override_outranks_the_workspace_yaml_and_the_env_var() {
 }
 
 /// The OTP rides on the first `PUT` rather than waiting for a 2FA challenge,
-/// so a configured one is observable as a header on the ordinary publish path.
+/// so whichever channel supplies it is observable as a header. A one-time
+/// password is not a file setting: `pnpm-workspace.yaml` supplies nothing,
+/// `PNPM_CONFIG_OTP` supplies the header.
 #[test]
-fn workspace_yaml_supplies_the_otp() {
+fn the_otp_comes_from_the_environment_and_never_from_the_workspace_yaml() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
@@ -356,16 +358,39 @@ fn workspace_yaml_supplies_the_otp() {
     fs::write(dir.path().join("pnpm-workspace.yaml"), "otp: '135791'\n")
         .expect("write pnpm-workspace.yaml");
 
-    let mock = server
+    let from_yaml = server
         .mock("PUT", "/test-publish-otp")
         .match_header("npm-otp", "135791")
+        .expect(0)
+        .create();
+    let without_otp = server
+        .mock("PUT", "/test-publish-otp")
+        .match_header("npm-otp", Matcher::Missing)
         .with_status(200)
         .with_body("{}")
         .expect(1)
         .create();
 
     assert_success(&publish(dir.path(), &[]));
-    mock.assert();
+    from_yaml.assert();
+    without_otp.assert();
+
+    let from_env = server
+        .mock("PUT", "/test-publish-otp")
+        .match_header("npm-otp", "246810")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    let output = pacquet(dir.path())
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .with_env("PNPM_CONFIG_OTP", "246810")
+        .output()
+        .expect("spawn pacquet publish");
+    assert_success(&output);
+    from_env.assert();
 }
 
 /// Commit everything in `dir` on `branch` so the publish git checks see a
