@@ -132,7 +132,7 @@ impl StoreDir {
     /// path calls this per CAFS file written, so caching the joined
     /// path saves one `PathBuf` allocation per call (~170k on the
     /// alotta-files clean install).
-    fn files_dir(&self) -> &PathBuf {
+    pub(crate) fn files_dir(&self) -> &PathBuf {
         self.cached_files_dir.get_or_init(|| self.root.join("files"))
     }
 

@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, HashSet};
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{RegistryDeclaration, TrustPolicy};
+use pnpm_config::{RegistryDeclaration, ResolutionMode, TrustPolicy};
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
@@ -71,6 +71,15 @@ pub struct ResolveOptions {
     /// cannot resolve a `catalog:` specifier in either dependencies or
     /// overrides ([pnpm/pnpm#13232](https://github.com/pnpm/pnpm/issues/13232)).
     pub catalogs: Option<Catalogs>,
+    /// The client's current values for the settings that shape the lockfile
+    /// the server resolves. `None` is not `Some(false)`: it leaves the
+    /// setting to the server, which takes the input lockfile's value on a
+    /// frozen request and its own default otherwise — what a client too old
+    /// to send them gets
+    /// ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
+    pub auto_install_peers: Option<bool>,
+    pub dedupe_peers: Option<bool>,
+    pub exclude_links_from_lockfile: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target and the resolution-reuse seed.
     pub lockfile: Option<Lockfile>,
@@ -87,6 +96,9 @@ pub struct ResolveOptions {
     /// skips verifying the input lockfile (it still reuses it for
     /// resolution), mirroring the local `--trust-lockfile` opt-out.
     pub trust_lockfile: bool,
+    /// The client's `resolutionMode`. The server picks versions the way
+    /// the client would, instead of falling back to its own default.
+    pub resolution_mode: ResolutionMode,
     /// The client's verification policy. The server verifies the input
     /// lockfile under *this* policy (not its own) before resolving.
     pub minimum_release_age: Option<u64>,
@@ -124,11 +136,16 @@ pub struct ResolveProjectsOptions {
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub catalogs: Option<Catalogs>,
+    pub auto_install_peers: Option<bool>,
+    pub dedupe_peers: Option<bool>,
+    pub exclude_links_from_lockfile: Option<bool>,
     pub lockfile: Option<Lockfile>,
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
     pub ignore_manifest_check: bool,
     pub trust_lockfile: bool,
+    /// See [`ResolveOptions::resolution_mode`].
+    pub resolution_mode: ResolutionMode,
     pub minimum_release_age: Option<u64>,
     pub minimum_release_age_exclude: Option<Vec<String>>,
     pub minimum_release_age_ignore_missing_time: bool,
@@ -153,11 +170,15 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             authorization: opts.authorization,
             overrides: opts.overrides,
             catalogs: opts.catalogs,
+            auto_install_peers: opts.auto_install_peers,
+            dedupe_peers: opts.dedupe_peers,
+            exclude_links_from_lockfile: opts.exclude_links_from_lockfile,
             lockfile: opts.lockfile,
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
             ignore_manifest_check: opts.ignore_manifest_check,
             trust_lockfile: opts.trust_lockfile,
+            resolution_mode: opts.resolution_mode,
             minimum_release_age: opts.minimum_release_age,
             minimum_release_age_exclude: opts.minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time: opts.minimum_release_age_ignore_missing_time,
@@ -451,11 +472,15 @@ impl PnprClient {
             "registries": opts.registries,
             "overrides": opts.overrides,
             "catalogs": opts.catalogs,
+            "autoInstallPeers": opts.auto_install_peers,
+            "dedupePeers": opts.dedupe_peers,
+            "excludeLinksFromLockfile": opts.exclude_links_from_lockfile,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
             "ignoreManifestCheck": opts.ignore_manifest_check,
             "trustLockfile": opts.trust_lockfile,
+            "resolutionMode": opts.resolution_mode,
             "minimumReleaseAge": opts.minimum_release_age,
             "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
             "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,

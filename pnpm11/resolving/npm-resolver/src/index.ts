@@ -140,6 +140,13 @@ export interface ResolverFactoryOptions {
   storeDir?: string
   frozenStore?: boolean
   fullMetadata?: boolean
+  /**
+   * Asked instead of {@link ResolverFactoryOptions.fullMetadata} when the
+   * caller can answer per registry — a registry that declares
+   * `supportsTimeField` needs no full metadata for a time-based resolution
+   * even when the others do.
+   */
+  needsFullMetadataFor?: (registry: string) => boolean
   filterMetadata?: boolean
   offline?: boolean
   preferOffline?: boolean
@@ -266,6 +273,7 @@ export function createNpmResolver (
     pickPackage: pickPackage.bind(null, {
       fetch,
       fullMetadata: opts.fullMetadata,
+      needsFullMetadataFor: opts.needsFullMetadataFor,
       filterMetadata: opts.filterMetadata,
       metaCache,
       offline: opts.offline,
@@ -601,6 +609,37 @@ async function resolveNpm (
             }),
           }
         }
+      }
+    }
+  }
+
+  // This runs *after* the store peek because a tag-specified dep whose only local copy is a
+  // prerelease reaches here with `update: false` (`wantedDepIsLocallyAvailable` ignores
+  // prereleases for tags, `pickMatchingLocalVersionOrNull` does not), and the peek must keep
+  // winning there. `update` is deliberately absent from the guard: that same helper forces it
+  // on for exactly these deps, so excluding it would make this block unreachable.
+  if (
+    opts.preferWorkspacePackages === true &&
+    workspacePackages != null &&
+    opts.projectDir &&
+    opts.trustPolicy !== 'no-downgrade' &&
+    !opts.updateChecksums &&
+    opts.injectWorkspacePackages !== true &&
+    !wantedDependency.injected
+  ) {
+    const workspacePkgsMatchingName = workspacePackages.get(spec.name)
+    if (workspacePkgsMatchingName?.size === 1) {
+      const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
+      if (localVersion != null) {
+        return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec, {
+          wantedDependency,
+          projectDir: opts.projectDir,
+          lockfileDir: opts.lockfileDir,
+          hardLinkLocalPackages: false,
+          saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
+          calcSpecifier: opts.calcSpecifier,
+          rangeSpecStyle: opts.rangeSpecStyle,
+        })
       }
     }
   }

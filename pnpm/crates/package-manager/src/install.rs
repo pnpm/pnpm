@@ -33,7 +33,8 @@ use pnpm_modules_yaml::{
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, node_version_from_engines_runtime};
 use pnpm_reporter::{
-    ContextLog, LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog, Stage, StageLog, SummaryLog,
+    ContextLog, GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog, Stage, StageLog,
+    SummaryLog,
 };
 use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pnpm_resolving_resolver_base::ResolutionVerifier;

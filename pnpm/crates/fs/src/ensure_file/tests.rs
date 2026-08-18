@@ -1,6 +1,6 @@
 use super::{
-    EnsureFileError, ensure_file, file_equals_bytes, is_transient_rename_error, rename_with_retry,
-    temp_path_for,
+    EnsureFileError, create_exclusive_temp_file, ensure_file, file_equals_bytes,
+    is_transient_rename_error, rename_with_retry, strip_dash_suffix, temp_path_in,
 };
 use std::{fs, io, path::Path};
 use tempfile::tempdir;
@@ -85,19 +85,38 @@ fn unix_mode_is_applied_on_new_files() {
 
 #[test]
 fn temp_path_strips_exec_suffix() {
-    let store_path = Path::new("/tmp/store/v11/files/ab/cdef-exec");
-    let tmp = temp_path_for(store_path);
+    let shard_dir = Path::new("/tmp/store/v11/files/ab");
+    let tmp = temp_path_in(shard_dir, &strip_dash_suffix("cdef-exec"));
     let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
     assert!(name.starts_with("cdefx"), "got {name}");
 }
 
 #[test]
 fn temp_path_passes_plain_basename_through() {
-    let store_path = Path::new("/tmp/store/v11/files/ab/cdef");
-    let tmp = temp_path_for(store_path);
+    let shard_dir = Path::new("/tmp/store/v11/files/ab");
+    let tmp = temp_path_in(shard_dir, &strip_dash_suffix("cdef"));
     let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
     assert!(name.starts_with("cdef"), "got {name}");
     assert_ne!(name, "cdef", "must include pid + counter suffix");
+}
+
+/// The exclusive temp helper hands back an open handle inside the
+/// requested directory; distinct calls never collide.
+#[test]
+fn create_exclusive_temp_file_yields_distinct_open_files() {
+    use std::io::Write;
+
+    let tmp = tempdir().unwrap();
+    let (path_a, mut file_a) =
+        create_exclusive_temp_file(tmp.path(), "stream", None).expect("first temp file");
+    let (path_b, _file_b) =
+        create_exclusive_temp_file(tmp.path(), "stream", None).expect("second temp file");
+
+    assert_ne!(path_a, path_b);
+    assert_eq!(path_a.parent().unwrap(), tmp.path());
+    file_a.write_all(b"payload").expect("write through the returned handle");
+    drop(file_a);
+    assert_eq!(fs::read(&path_a).unwrap(), b"payload");
 }
 
 /// Windows AV / indexer interference surfaces as

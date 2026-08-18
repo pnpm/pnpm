@@ -2,6 +2,7 @@ use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    VirtualStoreType,
     api::EnvVar,
     proxy_keys::{ProxyKeys, ProxyValue},
     resolve_child_concurrency,
@@ -173,8 +174,13 @@ pub struct WorkspaceSettings {
     pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,
-    /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. See
+    /// `virtualStoreType` from `pnpm-workspace.yaml`. See
+    /// [`crate::VirtualStoreType`], and
     /// [`Config::enable_global_virtual_store`] for the default.
+    pub virtual_store_type: Option<VirtualStoreType>,
+    /// `enableGlobalVirtualStore`, the boolean spelling of
+    /// [`Self::virtual_store_type`]. A file may carry either or both; the
+    /// canonical key wins.
     pub enable_global_virtual_store: Option<bool>,
     /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
     /// [`Config::virtual_store_only`].
@@ -1165,6 +1171,12 @@ impl WorkspaceSettings {
             config.catalog_prune = v;
         }
 
+        // `virtualStoreType` is the canonical spelling of the boolean
+        // `enableGlobalVirtualStore`, which the macro below applies. Both
+        // land in the same field, so applying this after the macro is what
+        // makes the canonical key win when a file carries both.
+        let virtual_store_type = self.virtual_store_type;
+
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
                 if let Some(v) = self.$field {
@@ -1214,6 +1226,10 @@ impl WorkspaceSettings {
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
             allow_unused_patches,
+        }
+
+        if let Some(virtual_store_type) = virtual_store_type {
+            config.enable_global_virtual_store = virtual_store_type.is_global();
         }
 
         // `globalShims` merges key-wise instead of replacing,

@@ -12,6 +12,7 @@ import type {
   RegistryOptions,
   TrustPolicy,
   VersioningSettings,
+  VirtualStoreType,
 } from '@pnpm/types'
 
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
@@ -187,6 +188,12 @@ export interface Config extends OptionsFromRootManifest {
   virtualStoreDir?: string
   virtualStoreOnly?: boolean
   enableGlobalVirtualStore?: boolean
+  /**
+   * The canonical spelling of {@link Config.enableGlobalVirtualStore}, derived
+   * from it so `pnpm config get` answers either name. Nothing installs off
+   * this field.
+   */
+  virtualStoreType?: VirtualStoreType
   verifyStoreIntegrity?: boolean
   frozenStore?: boolean
   maxSockets?: number

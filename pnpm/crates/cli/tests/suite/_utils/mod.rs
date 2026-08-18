@@ -31,6 +31,29 @@ pub fn pacquet_in(workspace: &Path) -> Command {
         .without_ambient_pnpm_config()
 }
 
+/// Make the spawned `pnpm` style its output.
+///
+/// Whether a run carries ANSI styles is otherwise decided by the
+/// inherited `FORCE_COLOR` / `CLICOLOR_FORCE` / `NO_COLOR`, so a
+/// contributor's shell or a CI runner can flip it under a test that
+/// asserts on the styling. [`without_colors`] is the counterpart.
+#[must_use]
+pub fn with_colors(mut command: Command) -> Command {
+    command.env_remove("NO_COLOR");
+    command.env("FORCE_COLOR", "1");
+    command
+}
+
+/// Make the spawned `pnpm` leave its output unstyled. See
+/// [`with_colors`] for why a test pins this.
+#[must_use]
+pub fn without_colors(mut command: Command) -> Command {
+    command.env_remove("FORCE_COLOR");
+    command.env_remove("CLICOLOR_FORCE");
+    command.env("NO_COLOR", "1");
+    command
+}
+
 /// Strip whitespace and box-drawing glyphs out of a miette report so a
 /// substring assertion can't be broken by where the renderer chose to
 /// hard-wrap the message.

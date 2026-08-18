@@ -260,6 +260,12 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// `false`; the verifier-time fetcher sets it `true` because
     /// it needs `time` and trust evidence for every entry.
     pub full_metadata: bool,
+    /// Asked instead of [`Self::full_metadata`] when the caller can answer
+    /// per registry — a registry that declares `supportsTimeField` needs no
+    /// full metadata for a time-based resolution even when the others do. The
+    /// mirror path and cache key below are already keyed by registry, so two
+    /// registries may disagree within one install.
+    pub needs_full_metadata_for: Option<&'a (dyn Fn(&str) -> bool + Send + Sync)>,
     /// When full metadata is forced, use pnpm's filtered full-metadata
     /// mirror and filtered packument shape.
     pub filter_metadata: bool,
@@ -436,7 +442,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         ignore_missing_time_field: ctx.ignore_missing_time_field,
     };
 
-    let full_metadata = opts.optional || ctx.full_metadata;
+    // The per-registry answer is authoritative when the caller can give one:
+    // it already folds in the reasons that hold for every registry, so a
+    // registry that carries `time` is free to stay on abbreviated metadata
+    // while the others do not.
+    let policy_wants_full_metadata = ctx
+        .needs_full_metadata_for
+        .map_or(ctx.full_metadata, |needs_full_metadata| needs_full_metadata(opts.registry));
+    let full_metadata = opts.optional || policy_wants_full_metadata;
     let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
     let base_meta_dir = if full_metadata {
         if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }

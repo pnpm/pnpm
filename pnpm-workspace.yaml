@@ -72,7 +72,7 @@ versioning:
   # The Rust CLI wrapper and its NAPI addon always release in lockstep at one
   # shared version.
   fixed:
-    - ['pacquet', '@pnpm/napi']
+    - [ 'pacquet', '@pnpm/napi' ]
   # The Rust CLI and its NAPI addon release as `X.Y.Z-rc.N` prereleases, while
   # pnpr remains on `X.Y.Z-alpha.N`. Both are published under the `next` dist-tag
   # while the TypeScript CLI keeps releasing stable versions on the main lane.
@@ -107,9 +107,9 @@ catalog:
   # above pnpm's supported floor of Node.js >=22.13.
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
-  '@commitlint/cli': ^21.2.1
-  '@commitlint/config-conventional': ^21.2.0
-  '@commitlint/prompt-cli': ^21.2.0
+  '@commitlint/cli': ^21.2.2
+  '@commitlint/config-conventional': ^21.2.2
+  '@commitlint/prompt-cli': ^21.2.2
   '@cyclonedx/cyclonedx-library': 10.1.1
   '@eslint/js': ^10.0.1
   '@inquirer/prompts': ^8.5.2
@@ -131,7 +131,7 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.22
+  '@rushstack/worker-pool': 0.7.23
   '@stylistic/eslint-plugin': ^5.10.0
   '@types/adm-zip': ^0.5.8
   '@types/archy': 0.0.36
@@ -293,7 +293,7 @@ catalog:
   # above pnpm's supported floor of Node.js >=22.13.
   npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
-  open: ^11.0.0
+  open: ^11.0.1
   openpgp: ^6.3.1
   '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
@@ -509,6 +509,7 @@ overrides:
   validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
   http-proxy-middleware@>=0.16.0 <3.0.6: ^3.0.6
+  deepmerge-ts@<8.0.0: ^8.0.0
 
 packageExtensions:
   '@babel/parser':
@@ -566,6 +567,7 @@ update:
     - bin-links
     - bole
     - cspell
+    - eslint-plugin-regexp
     - ini
     - libnpmpublish
     - node-gyp

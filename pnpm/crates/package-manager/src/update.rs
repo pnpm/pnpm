@@ -1519,7 +1519,8 @@ fn ensure_latest_resolver_chain<'chain>(
             prefer_offline: ctx.config.prefer_offline,
             ignore_missing_time_field: ctx.config.minimum_release_age_ignore_missing_time,
             full_metadata: policy.full_metadata,
-            filter_metadata: policy.full_metadata,
+            needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
+            filter_metadata: ctx.config.requires_filtered_full_metadata(),
             retry_opts: crate::retry_config::retry_opts_from_config(ctx.config),
         });
         let mut node_resolver = NodeResolver::new(Arc::clone(ctx.http_client_arc));

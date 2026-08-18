@@ -18,6 +18,7 @@
 use crate::{
     State,
     cli_args::{
+        catalogs::configured_catalogs,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
         sanitize::sanitize_inline,
     },
@@ -27,6 +28,9 @@ use clap::{Args, ValueEnum};
 use miette::IntoDiagnostic;
 use node_semver::Version;
 use owo_colors::{OwoColorize, Stream};
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{
     Config,
     matcher::{Matcher, create_matcher},
@@ -38,6 +42,7 @@ use pnpm_registry::{Package, PackageVersion, RegistryError};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use std::{
+    borrow::Cow,
     collections::HashMap,
     io::Write,
     path::PathBuf,
@@ -46,6 +51,24 @@ use std::{
 use tokio::sync::OnceCell;
 
 type PackumentCache = Mutex<HashMap<(String, String), Arc<OnceCell<Arc<Package>>>>>;
+
+/// State shared by every importer inspected in one `outdated` (or
+/// `update --interactive`) run: the packument memo, so a dependency
+/// several workspace projects share is fetched once, and the catalogs
+/// their `catalog:` specifiers dereference against.
+pub(crate) struct OutdatedRun {
+    packument_cache: PackumentCache,
+    catalogs: Catalogs,
+}
+
+impl OutdatedRun {
+    pub(crate) fn new(config: &Config) -> miette::Result<Self> {
+        Ok(Self {
+            packument_cache: PackumentCache::default(),
+            catalogs: configured_catalogs(config)?,
+        })
+    }
+}
 
 /// Which registry version a dependency is compared against to decide
 /// whether it is outdated.
@@ -156,26 +179,26 @@ pub(crate) async fn collect_outdated_for_importer(
     http_client: &ThrottledClient,
     query: &OutdatedQuery<'_>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
-    collect_outdated_for_importer_with_cache(
+    collect_outdated_for_importer_in_run(
         manifest,
         lockfile,
         importer_id,
         config,
         http_client,
         query,
-        &PackumentCache::default(),
+        &OutdatedRun::new(config)?,
     )
     .await
 }
 
-async fn collect_outdated_for_importer_with_cache(
+pub(crate) async fn collect_outdated_for_importer_in_run(
     manifest: &PackageManifest,
     lockfile: Option<&Lockfile>,
     importer_id: &str,
     config: &Config,
     http_client: &ThrottledClient,
     query: &OutdatedQuery<'_>,
-    packument_cache: &PackumentCache,
+    run: &OutdatedRun,
 ) -> miette::Result<Vec<OutdatedPackage>> {
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, query.include_direct);
@@ -214,14 +237,15 @@ async fn collect_outdated_for_importer_with_cache(
             })
         })
         .map(|(alias, group, bare_specifier, current)| async move {
+            let bare_specifier = dereference_catalog(&run.catalogs, alias, bare_specifier)?;
             let (package_name, range) =
-                PackageManifest::resolve_registry_dependency(alias, bare_specifier);
+                PackageManifest::resolve_registry_dependency(alias, &bare_specifier);
             let registries: HashMap<String, String> =
                 config.resolved_registries().into_iter().collect();
             let registry =
-                pick_registry_for_package(&registries, package_name, Some(bare_specifier));
+                pick_registry_for_package(&registries, package_name, Some(&bare_specifier));
             let package = fetch_package_cached(
-                packument_cache,
+                &run.packument_cache,
                 package_name,
                 http_client,
                 &registry,
@@ -262,6 +286,32 @@ async fn collect_outdated_for_importer_with_cache(
         .into_iter()
         .collect::<miette::Result<Vec<_>>>()?;
     Ok(fetched.into_iter().flatten().collect())
+}
+
+/// Replace a `catalog:` specifier with the specifier the catalog holds,
+/// so both the queried package name and the `--compatible` range come
+/// from the catalog entry — which may itself be an npm alias
+/// (`npm:@types/table@^6`). Any other specifier passes through.
+fn dereference_catalog<'a>(
+    catalogs: &Catalogs,
+    alias: &str,
+    bare_specifier: &'a str,
+) -> miette::Result<Cow<'a, str>> {
+    // Most dependencies are not catalog entries, and every walked
+    // dependency reaches this, so screen them out before the resolver's
+    // owned `WantedDependency`.
+    if parse_catalog_protocol(bare_specifier).is_none() {
+        return Ok(Cow::Borrowed(bare_specifier));
+    }
+    let wanted =
+        WantedDependency { alias: alias.to_string(), bare_specifier: bare_specifier.to_string() };
+    match resolve_from_catalog(catalogs, &wanted) {
+        CatalogResolutionResult::Found(found) => Ok(Cow::Owned(found.resolution.specifier)),
+        CatalogResolutionResult::Misconfiguration(misconfiguration) => {
+            Err(miette::Report::new(misconfiguration.error))
+        }
+        CatalogResolutionResult::Unused => Ok(Cow::Borrowed(bare_specifier)),
+    }
 }
 
 async fn fetch_package_cached(
@@ -588,7 +638,7 @@ impl OutdatedArgs {
             };
             project_inputs.push((project_dir, project, project_lockfile));
         }
-        let packument_cache = PackumentCache::default();
+        let run = OutdatedRun::new(config)?;
         let project_queries =
             project_inputs.iter().map(|(project_dir, project, project_lockfile)| async {
                 let (lockfile, importer_id) = if config.shared_workspace_lockfile {
@@ -607,14 +657,14 @@ impl OutdatedArgs {
                     };
                     return Err(no_lockfile_error(lockfile_dir));
                 };
-                let project_outdated = collect_outdated_for_importer_with_cache(
+                let project_outdated = collect_outdated_for_importer_in_run(
                     &project.manifest,
                     Some(lockfile),
                     &importer_id,
                     config,
                     &state.http_client,
                     &query,
-                    &packument_cache,
+                    &run,
                 )
                 .await?;
                 let dependent = DependentProject {

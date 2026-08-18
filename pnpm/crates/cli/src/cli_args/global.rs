@@ -336,11 +336,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     }
 
     for pkg in &to_update {
-        let selectors: Vec<String> = pkg
-            .dependencies
-            .iter()
-            .map(|(alias, spec)| if latest { alias.clone() } else { format!("{alias}@{spec}") })
-            .collect();
+        let selectors = update_selectors(&pkg.dependencies, latest);
         let (install_dir, config) = Box::pin(run_group_install::<Reporter>(
             base_config,
             &global_pkg_dir,
@@ -408,6 +404,31 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         .wrap_err("remove existing global installs")?;
     }
     Ok(())
+}
+
+/// With `--latest`, a dependency is reduced to its bare alias so the newest
+/// registry version is resolved.
+fn update_selectors(dependencies: &[(String, String)], latest: bool) -> Vec<String> {
+    dependencies
+        .iter()
+        .map(|(alias, spec)| {
+            if latest && is_plain_version_spec(spec) {
+                alias.clone()
+            } else {
+                format!("{alias}@{spec}")
+            }
+        })
+        .collect()
+}
+
+/// Only a plain version range may be dropped in favor of the bare alias.
+/// Every other spec form (`link:`, `file:`, a git or tarball URL, an `npm:`
+/// alias, a named registry) also says where the package comes from, so the
+/// alias alone would be resolved from the default registry: a different
+/// package gets installed, or the lookup 404s and aborts the groups that
+/// have not been updated yet.
+fn is_plain_version_spec(spec: &str) -> bool {
+    !spec.contains(':')
 }
 
 /// `pnpm remove -g`. Removes the bins, hash symlinks, and install dirs of

@@ -8,6 +8,32 @@
     }
   ],
   [
+    "@eslint/core@*",
+    {
+      "dependencies": {
+        "json-schema": "*"
+      }
+    }
+  ],
+  [
+    "@eslint/eslintrc@*",
+    {
+      "dependencies": {
+        "eslint": "*"
+      }
+    }
+  ],
+  [
+    "@jest/types@*",
+    {
+      "dependencies": {
+        "istanbul-lib-coverage": "*",
+        "istanbul-reports": "*",
+        "yargs": "*"
+      }
+    }
+  ],
+  [
     "@nuxt/vite-builder@>=4.0.0 <4.5.0",
     {
       "dependencies": {
@@ -20,6 +46,48 @@
     {
       "dependencies": {
         "unplugin": "^3.3.0"
+      }
+    }
+  ],
+  [
+    "@types/babel__core@*",
+    {
+      "dependencies": {
+        "@babel/generator": "*",
+        "@babel/template": "*",
+        "@babel/traverse": "*"
+      }
+    }
+  ],
+  [
+    "@types/react-dom@*",
+    {
+      "dependencies": {
+        "react": "*"
+      }
+    }
+  ],
+  [
+    "@types/yargs@*",
+    {
+      "dependencies": {
+        "yargs-parser": "*"
+      }
+    }
+  ],
+  [
+    "@typescript-eslint/types@*",
+    {
+      "dependencies": {
+        "typescript": "*"
+      }
+    }
+  ],
+  [
+    "es-abstract@*",
+    {
+      "dependencies": {
+        "for-each": "*"
       }
     }
   ]

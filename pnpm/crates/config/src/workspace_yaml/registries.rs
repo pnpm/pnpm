@@ -62,6 +62,9 @@ pub enum RegistryEntry {
 pub struct RegistryDeclaration {
     #[serde(default)]
     pub server_type: Option<RegistryServerType>,
+    /// See [`RegistryOptions::supports_time_field`].
+    #[serde(default)]
+    pub supports_time_field: Option<bool>,
     /// The scopes routed here, `@`-prefixed. A bare `@` is the scope-less
     /// default registry, the one the `registry` setting names.
     #[serde(default)]
@@ -255,10 +258,14 @@ fn extend_lookups_with_declarations(
 ) {
     for (registry, declaration) in entries {
         let normalized = normalize_registry_url(&registry);
-        if let Some(server_type) = declaration.server_type {
-            lookups
-                .registry_options_by_url
-                .insert(normalized.clone(), RegistryOptions { server_type: Some(server_type) });
+        if declaration.server_type.is_some() || declaration.supports_time_field.is_some() {
+            lookups.registry_options_by_url.insert(
+                normalized.clone(),
+                RegistryOptions {
+                    server_type: declaration.server_type,
+                    supports_time_field: declaration.supports_time_field,
+                },
+            );
         }
         for scope in declaration.scopes.into_iter().flatten() {
             if scope == DEFAULT_REGISTRY_SCOPE {
@@ -301,7 +308,9 @@ pub fn to_declarations(lookups: &RegistryLookups) -> BTreeMap<String, RegistryDe
         declarations.entry(registry.clone()).or_default().prefix = Some(prefix.clone());
     }
     for (registry, options) in &lookups.registry_options_by_url {
-        declarations.entry(registry.clone()).or_default().server_type = options.server_type;
+        let declaration = declarations.entry(registry.clone()).or_default();
+        declaration.server_type = options.server_type;
+        declaration.supports_time_field = options.supports_time_field;
     }
     declarations
 }

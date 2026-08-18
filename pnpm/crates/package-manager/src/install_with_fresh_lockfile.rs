@@ -805,6 +805,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             time_based,
             pick_lowest_direct,
             full_metadata,
+            needs_full_metadata_for,
             published_by,
             published_by_exclude,
         } = crate::resolution_policy::PickPolicy::from_config_with_extra_excludes(
@@ -847,6 +848,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             requester,
             supported_architectures,
             registries: &registries,
+            needs_full_metadata_for: Arc::clone(&needs_full_metadata_for),
             registries_by_prefix: &merged_registries_by_prefix,
             full_metadata,
             wanted_lockfile,

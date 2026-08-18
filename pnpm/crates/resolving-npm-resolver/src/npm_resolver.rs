@@ -27,7 +27,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_config::{NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy};
 use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
@@ -116,6 +116,11 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// Install-wide bias toward full metadata. Threaded through to
     /// [`PickPackageContext::full_metadata`].
     pub full_metadata: bool,
+    /// Per-registry answer to the same question, threaded through to
+    /// [`PickPackageContext::needs_full_metadata_for`]. Set from
+    /// `Config::requires_full_metadata_for_registry` so a registry that
+    /// declares `supportsTimeField` is not charged for full metadata.
+    pub needs_full_metadata_for: Option<NeedsFullMetadataFor>,
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
     pub filter_metadata: bool,
@@ -216,6 +221,30 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             .always_try_workspace_packages
             .then_some(opts.workspace_packages.as_ref())
             .flatten();
+
+        // A store-manifest peek, once pacquet grows one, has to run before
+        // this fast path — the TypeScript counterpart
+        // (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
+        if opts.prefer_workspace_packages
+            && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+            && !opts.update_checksums
+            && !opts.inject_workspace_packages
+            && !wanted_dependency.injected.unwrap_or(false)
+            && let Some(workspace_packages) = workspace_packages_active
+            && let Some(matching_name) = workspace_packages.get(spec.name.as_str())
+            && matching_name.len() == 1
+            && let Some(local_version) = pick_matching_local_version_or_null(matching_name, &spec)
+            && let Some(local_package) = matching_name.get(&local_version)
+        {
+            return Ok(Some(resolve_from_local_package(
+                local_package,
+                wanted_dependency,
+                false,
+                opts.project_dir.as_path(),
+                opts.lockfile_dir.as_path(),
+                saved_specifier_options(opts),
+            )));
+        }
 
         let pick_result = self.pick_from_registry(&registry, &spec, opts, optional).await;
         let picked = match pick_result {
@@ -392,6 +421,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             prefer_offline: self.prefer_offline,
             ignore_missing_time_field: self.ignore_missing_time_field,
             full_metadata: self.full_metadata,
+            needs_full_metadata_for: self.needs_full_metadata_for.as_deref(),
             filter_metadata: self.filter_metadata,
             retry_opts: self.retry_opts,
         };

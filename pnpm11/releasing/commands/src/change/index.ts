@@ -1,6 +1,9 @@
+import util from 'node:util'
+
 import { checkbox, input, Separator } from '@inquirer/prompts'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import { globalInfo } from '@pnpm/logger'
 import {
   assembleReleasePlan,
   BUMP_TYPES,
@@ -84,7 +87,15 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
   if (params.length === 1 && params[0] === 'status' && opts.bump == null && opts.summary == null) {
     return renderStatus(workspaceDir, opts)
   }
-  return recordChange(workspaceDir, opts, params)
+  try {
+    return await recordChange(workspaceDir, opts, params)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && err.name === 'ExitPromptError') {
+      globalInfo('Change canceled')
+      process.exit(0)
+    }
+    throw err
+  }
 }
 
 async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, params: string[]): Promise<string> {

@@ -3,8 +3,8 @@ use super::{
     persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
     workspace_save_specifier,
 };
-use crate::{ResolvedPackages, tests::project_local_config};
-use pnpm_config::LinkWorkspacePackages;
+use crate::ResolvedPackages;
+use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
@@ -22,7 +22,7 @@ const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 #[test]
 fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.link_workspace_packages = LinkWorkspacePackages::DirectOnly;
 
     assert_eq!(
@@ -83,7 +83,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         .create_async()
         .await;
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -163,7 +163,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
 
     let request_state = Arc::new((Mutex::new(RequestState::default()), Condvar::new()));
     let packages = [("one", "a", 200), ("two", "b", 100), ("three", "c", 0)];
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -338,7 +338,7 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
         .create_async()
         .await;
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
@@ -397,7 +397,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
         .expect("create manifest");
 
     let packages = [("first", "a", 200), ("second", "b", 0)];
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -475,7 +475,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     // peer is still sleeping, with enough slack that a loaded machine
     // cannot push the fast path past the deadline.
     let packages = [("first", "a", 100), ("second", "b", 20_000)];
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -643,7 +643,7 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
-    let config = Box::leak(Box::new(project_local_config()));
+    let config = Box::leak(Box::new(Config::new()));
     let http_client = ThrottledClient::default();
     let http_client_arc = Arc::new(ThrottledClient::default());
 
@@ -690,7 +690,7 @@ async fn selected_add_merges_catalog_updates_in_command_order() {
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
-    let config = Box::leak(Box::new(project_local_config()));
+    let config = Box::leak(Box::new(Config::new()));
     let http_client = ThrottledClient::default();
     let http_client_arc = Arc::new(ThrottledClient::default());
 

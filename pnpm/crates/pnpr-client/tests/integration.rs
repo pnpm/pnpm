@@ -211,11 +211,15 @@ fn options(
         authorization: Some(authorization.to_string()),
         overrides: None,
         catalogs: None,
+        auto_install_peers: None,
+        dedupe_peers: None,
+        exclude_links_from_lockfile: None,
         lockfile: None,
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         trust_lockfile: false,
+        resolution_mode: pnpm_config::ResolutionMode::default(),
         minimum_release_age: None,
         minimum_release_age_exclude: None,
         minimum_release_age_ignore_missing_time: true,
@@ -251,6 +255,12 @@ async fn sends_the_identity_header_but_no_upstream_credentials() {
         !request.contains("authHeaders"),
         "the request body must not carry upstream credentials, got:\n{request}",
     );
+    for field in ["autoInstallPeers", "dedupePeers", "excludeLinksFromLockfile"] {
+        assert!(
+            request.contains(&format!(r#""{field}":null"#)),
+            "an unsent {field} must stay unset rather than turn into `false`, got:\n{request}",
+        );
+    }
 }
 
 #[tokio::test]

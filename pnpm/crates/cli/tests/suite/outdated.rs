@@ -1,3 +1,4 @@
+use crate::_utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -412,6 +413,78 @@ fn outdated_npm_alias_reports_real_name() {
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(FOO), "report should use the real package name: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// A `catalog:` dependency is checked against the specifier the catalog
+/// holds, so an npm-aliased catalog entry is reported under the real
+/// registry name instead of failing on the alias key.
+#[test]
+fn outdated_catalog_npm_alias_reports_real_name() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(&workspace, "catalog", format!("{{ positive: 'npm:{FOO}@^1.0.0' }}"));
+    write_manifest(&workspace, r#"{ "positive": "catalog:" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(FOO), "report should use the catalog entry's package name: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// `--compatible` compares against the range the catalog entry holds.
+#[test]
+fn outdated_compatible_uses_the_catalog_range() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(&workspace, "catalog", format!("{{ '{DEP}': '100.0.0' }}"));
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    // Widening the catalog range without reinstalling leaves the lockfile
+    // pinned at 100.0.0 while 100.1.0 is now in range.
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, yaml.replace("'100.0.0'", "'^100.0.0'"))
+        .expect("widen the catalog range");
+
+    let output =
+        pacquet(&workspace, ["outdated", "--compatible"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1), "the in-range 100.1.0 should be reported");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("100.1.0"), "report should show the in-range version: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// A dependency left on `catalog:` after its catalog entry is gone
+/// fails with pnpm's catalog error, not with whatever the registry
+/// answers for the bare dependency key.
+#[test]
+fn outdated_catalog_entry_missing_is_a_catalog_error() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(&workspace, "catalog", format!("{{ '{DEP}': '^100.0.0' }}"));
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    let without_catalog =
+        yaml.lines().filter(|line| !line.starts_with("catalog:")).collect::<Vec<_>>().join("\n");
+    fs::write(&workspace_yaml, without_catalog).expect("drop the catalog entry");
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "the run should fail: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
+        "missing catalog entry should be reported as such: {stderr}",
+    );
 
     drop((root, anchor));
 }

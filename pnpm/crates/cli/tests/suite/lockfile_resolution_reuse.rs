@@ -315,6 +315,70 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
     drop((root, mock_instance));
 }
 
+/// A changed override is absorbed even though an unchanged override's
+/// configured value is a `catalog:` reference. Override values are
+/// compared catalog-resolved, so with the catalogs settled the
+/// `catalog:` override shows no drift and only the added removal is
+/// applied — which the dead registry proves needs no resolution.
+#[test]
+fn removal_override_composes_with_a_settled_catalog_override() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let manifest_path = workspace.join("package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-good-optional": "1.0.0",
+                "@pnpm.e2e/bar": "catalog:"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}trustLockfile: true\ncatalog:\n  '@pnpm.e2e/bar': 100.0.0\n  '@pnpm.e2e/foo': 1.0.0\noverrides:\n  '@pnpm.e2e/foo': 'catalog:'\n",
+        ),
+    )
+    .expect("write the settled catalog override");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}  is-positive: '-'\n"))
+        .expect("add dependency removal override");
+    let dead_registry = dead_registry_url();
+    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let npmrc = npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let overrides = wanted.overrides.as_ref().expect("recorded overrides");
+    assert_eq!(overrides["@pnpm.e2e/foo"], "1.0.0");
+    assert_eq!(overrides["is-positive"], "-");
+    let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
+    assert!(
+        wanted.snapshots.as_ref().is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
+    );
+
+    drop((root, mock_instance));
+}
+
 /// An override on a cataloged package replaces the `catalog:` specifier
 /// outright, so the entry is dropped rather than moved. The seed only
 /// feeds the resolver — the catalogs section is rebuilt from what the

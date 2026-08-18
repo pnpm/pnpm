@@ -288,6 +288,35 @@ test('an override on a cataloged package is left to the resolver', async () => {
   })
 })
 
+test('an override change composes when an unchanged override uses the catalog protocol', async () => {
+  const project = prepareEmpty()
+  const catalogs = { default: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0' } }
+  const settledOverrides = { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'catalog:' }
+  await installOverrideFixture(testDefaults({ catalogs, overrides: settledOverrides }))
+
+  const options = testDefaults({
+    catalogs,
+    overrides: { ...settledOverrides, '@pnpm.e2e/bar': '100.1.0' },
+  })
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  await mutateModulesInSingleProject({
+    manifest: overrideFixtureManifest(),
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  // Only the version the new override names is resolved; the `catalog:`
+  // override is compared catalog-resolved, so it shows no drift.
+  expect(requestedPackages).toStrictEqual(['@pnpm.e2e/bar'])
+  const written = project.readLockfile()
+  expect(written.overrides).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+    '@pnpm.e2e/bar': '100.1.0',
+  })
+  expect(Object.keys(written.snapshots)).toContain('@pnpm.e2e/bar@100.1.0')
+  expect(Object.keys(written.snapshots)).not.toContain('@pnpm.e2e/bar@100.0.0')
+})
+
 /** The two changes a resolution away, in their own project. */
 async function resolveTheSameChanges (): Promise<unknown> {
   const previousCwd = process.cwd()
