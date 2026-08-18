@@ -416,9 +416,14 @@ pub(super) struct ResolvePassInputs<'a> {
     pub pick_lowest_direct: bool,
     pub time_based: bool,
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
-    /// The prior lockfile the walk may reuse subtrees from — see
-    /// [`lockfile_reuse_seed`].
-    pub lockfile_reuse_seed: Option<Arc<Lockfile>>,
+    /// The prior lockfile the walk resolves against — the granted
+    /// [`lockfile_reuse_seed`], or the raw wanted lockfile when the seed
+    /// was withheld and only per-edge version pinning remains safe.
+    pub resolution_lockfile: Option<Arc<Lockfile>>,
+    /// Whether [`Self::resolution_lockfile`] is a granted reuse seed the
+    /// walk may reuse whole subtrees from. `false` restricts it to
+    /// per-edge version pinning.
+    pub reuse_lockfile_subtrees: bool,
     pub update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
     pub update_reuse_scopes_by_importer:
         BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
@@ -457,7 +462,8 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         pick_lowest_direct,
         time_based,
         published_by,
-        lockfile_reuse_seed,
+        resolution_lockfile,
+        reuse_lockfile_subtrees,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         update_depth,
@@ -500,7 +506,8 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
         pick_lowest_direct,
         time_based,
-        wanted_lockfile: lockfile_reuse_seed,
+        wanted_lockfile: resolution_lockfile,
+        reuse_lockfile_subtrees,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         update_depth,

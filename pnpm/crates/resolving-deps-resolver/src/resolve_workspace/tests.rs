@@ -214,6 +214,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         pick_lowest_direct,
         time_based,
         wanted_lockfile: None,
+        reuse_lockfile_subtrees: true,
         update_reuse_scope: crate::UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         update_depth: crate::UpdateDepth::UNLIMITED,
@@ -2348,8 +2349,11 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
                     }),
                 ),
             ),
+            // The cycle-membered subtree is denied reuse, so its edges
+            // resolve freshly with their recorded versions pinned as
+            // exact specs — the table serves the pinned form.
             (
-                ("cyclic".to_string(), "^1.0.0".to_string()),
+                ("cyclic".to_string(), "1.0.0".to_string()),
                 fake_result(
                     "cyclic",
                     "1.0.0",
@@ -2362,7 +2366,7 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
                 ),
             ),
             (
-                ("loop".to_string(), "^1.0.0".to_string()),
+                ("loop".to_string(), "1.0.0".to_string()),
                 fake_result(
                     "loop",
                     "1.0.0",
