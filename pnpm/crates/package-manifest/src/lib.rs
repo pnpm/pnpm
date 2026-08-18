@@ -102,8 +102,22 @@ pub struct PackageManifest {
     on_disk: Option<Value>,
 }
 
+/// What `pnpm init` records in the manifest it scaffolds, beyond the fields
+/// every scaffold carries.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct InitOptions<'a> {
+    /// Record the package as an ES module (`"type": "module"`). The
+    /// `commonjs` alternative leaves the field out, since that is what Node
+    /// assumes when it is absent. The `initType` setting.
+    pub es_module: bool,
+
+    /// The pnpm version to record as the project's package-manager pin, or
+    /// `None` to leave the project unpinned. See [`PackageManifest::init`].
+    pub pinned_pnpm_version: Option<&'a str>,
+}
+
 impl PackageManifest {
-    fn create_init_package_json(name: &str, pinned_pnpm_version: Option<&str>) -> Value {
+    fn create_init_package_json(name: &str, options: InitOptions<'_>) -> Value {
         let mut manifest = json!({
             "name": name,
             "version": "1.0.0",
@@ -116,8 +130,8 @@ impl PackageManifest {
             "author": "",
             "license": "ISC"
         });
-        if let Some(version) = pinned_pnpm_version {
-            let fields = manifest.as_object_mut().expect("the scaffold is a JSON object");
+        let fields = manifest.as_object_mut().expect("the scaffold is a JSON object");
+        if let Some(version) = options.pinned_pnpm_version {
             // The pin is written twice on purpose: pnpm reads
             // `devEngines.packageManager`, corepack reads only the legacy
             // `packageManager` field. The two must agree — pnpm warns and
@@ -136,6 +150,9 @@ impl PackageManifest {
             );
             fields.insert("packageManager".to_string(), json!(format!("pnpm@{version}")));
         }
+        if options.es_module {
+            fields.insert("type".to_string(), json!("module"));
+        }
         manifest
     }
 
@@ -148,17 +165,16 @@ impl PackageManifest {
     /// The scaffold manifest `pnpm init` (and [`Self::create_if_needed`])
     /// produces for `path`, named after the containing directory.
     ///
-    /// `pinned_pnpm_version` is the pnpm version to record as the project's
-    /// package-manager pin, or `None` to leave the manifest unpinned. See
-    /// [`Self::init`] for when a pin is written.
+    /// See [`InitOptions`] for the fields `options` controls, and
+    /// [`Self::init`] for when a package-manager pin is written.
     #[must_use]
-    pub fn init_value_for(path: &Path, pinned_pnpm_version: Option<&str>) -> Value {
+    pub fn init_value_for(path: &Path, options: InitOptions<'_>) -> Value {
         let name = path
             .parent()
             .and_then(|folder| folder.file_name())
             .and_then(|file_name| file_name.to_str())
             .unwrap_or("");
-        PackageManifest::create_init_package_json(name, pinned_pnpm_version)
+        PackageManifest::create_init_package_json(name, options)
     }
 
     /// Write `contents` to `path` atomically: a sibling temp file is written
@@ -203,18 +219,15 @@ impl PackageManifest {
 
     /// Scaffold a `package.json` at `path`, failing if one is already there.
     ///
-    /// `pinned_pnpm_version` pins the project to that pnpm version; the
-    /// caller passes `None` when the `initPackageManager` setting is off, or
-    /// when `path` is a member of an existing workspace and therefore
-    /// inherits the root's pin.
-    pub fn init(
-        path: &Path,
-        pinned_pnpm_version: Option<&str>,
-    ) -> Result<(), PackageManifestError> {
+    /// [`InitOptions::pinned_pnpm_version`] pins the project to that pnpm
+    /// version; the caller passes `None` when the `initPackageManager`
+    /// setting is off, or when `path` is a member of an existing workspace
+    /// and therefore inherits the root's pin.
+    pub fn init(path: &Path, options: InitOptions<'_>) -> Result<(), PackageManifestError> {
         if path.exists() {
             return Err(PackageManifestError::AlreadyExist);
         }
-        let manifest = PackageManifest::init_value_for(path, pinned_pnpm_version);
+        let manifest = PackageManifest::init_value_for(path, options);
         let contents = PackageManifest::write_to_file(path, &manifest)?;
         println!("Wrote to {path}\n\n{contents}", path = path.display());
         Ok(())
@@ -230,7 +243,8 @@ impl PackageManifest {
 
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
         if !path.exists() {
-            PackageManifest::write_to_file(&path, &PackageManifest::init_value_for(&path, None))?;
+            let scaffold = PackageManifest::init_value_for(&path, InitOptions::default());
+            PackageManifest::write_to_file(&path, &scaffold)?;
         }
         // Read the scaffold back rather than assembling the manifest by
         // hand, so its formatting and no-op-save baseline are derived from

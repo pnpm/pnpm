@@ -20,5 +20,6 @@ expression: "serde_json::to_string_pretty(&manifest).unwrap()"
       "onFail": "download"
     }
   },
-  "packageManager": "pnpm@11.22.0"
+  "packageManager": "pnpm@11.22.0",
+  "type": "module"
 }

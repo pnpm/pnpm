@@ -35,7 +35,7 @@ export function help (): string {
         title: 'Options',
         list: [
           {
-            description: 'Set the module system for the package. Defaults to "commonjs".',
+            description: 'Set the module system for the package. Defaults to "module".',
             name: '--init-type <commonjs|module>',
           },
           {

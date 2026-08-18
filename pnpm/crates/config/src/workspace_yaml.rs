@@ -1,5 +1,5 @@
 use crate::{
-    AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
+    AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType,
@@ -547,6 +547,10 @@ pub struct WorkspaceSettings {
     ///
     /// [`Config::init_package_manager`]: crate::Config::init_package_manager
     pub init_package_manager: Option<bool>,
+
+    /// `initType` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`InitType`].
+    pub init_type: Option<InitType>,
 
     /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
@@ -1206,6 +1210,7 @@ impl WorkspaceSettings {
             exclude_links_from_lockfile,
             optimistic_repeat_install,
             init_package_manager,
+            init_type,
             hoist_workspace_packages,
             extend_node_path,
             hoisting_limits, external_dependencies,

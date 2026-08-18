@@ -80,9 +80,8 @@ fn a_workspace_root_is_pinned() {
 
     let manifest =
         fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
-    assert!(
-        manifest.contains(&format!(r#""packageManager": "pnpm@{}""#, pnpm_config::PNPM_VERSION))
-    );
+    let pin = format!(r#""packageManager": "pnpm@{}""#, pnpm_config::PNPM_VERSION);
+    assert!(manifest.contains(&pin), "{manifest}");
 
     drop(root);
 }
@@ -107,4 +106,30 @@ fn assert_unpinned(dir: &Path) {
     let manifest = fs::read_to_string(dir.join("package.json")).expect("read from package.json");
     assert!(!manifest.contains("devEngines"), "{manifest}");
     assert!(!manifest.contains("packageManager"), "{manifest}");
+}
+
+#[test]
+fn init_type_commonjs_leaves_the_type_field_out() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    pacquet.with_arg("init").with_arg("--init-type").with_arg("commonjs").assert().success();
+
+    let manifest =
+        fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
+    assert!(!manifest.contains(r#""type""#), "{manifest}");
+
+    drop(root);
+}
+
+#[test]
+fn init_type_from_the_workspace_manifest_is_honored() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "initType: commonjs\n")
+        .expect("write to pnpm-workspace.yaml");
+    pacquet.with_arg("init").assert().success();
+
+    let manifest =
+        fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
+    assert!(!manifest.contains(r#""type""#), "{manifest}");
+
+    drop(root);
 }

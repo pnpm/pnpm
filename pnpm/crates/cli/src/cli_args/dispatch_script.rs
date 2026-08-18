@@ -10,13 +10,18 @@ use super::{
     set_script::SetScriptArgs,
 };
 use miette::Context;
-use pnpm_config::{Config, PNPM_VERSION};
-use pnpm_package_manifest::PackageManifest;
+use pnpm_config::{Config, InitType, PNPM_VERSION};
+use pnpm_package_manifest::{InitOptions, PackageManifest};
 use std::path::Path;
 
 pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<CommandFuture<'a>> {
-    let pin = pinned_pnpm_version(args, (ctx.config)()?, ctx.dir);
-    let result = PackageManifest::init(ctx.manifest_path, pin).wrap_err("initialize package.json");
+    let config = (ctx.config)()?;
+    let options = InitOptions {
+        es_module: args.effective_init_type(config) == InitType::Module,
+        pinned_pnpm_version: pinned_pnpm_version(args, config, ctx.dir),
+    };
+    let result =
+        PackageManifest::init(ctx.manifest_path, options).wrap_err("initialize package.json");
     Ok(Box::pin(std::future::ready(result)))
 }
 

@@ -12,9 +12,10 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
+    AuditLevel, CatalogMode, HoistingLimits, InitType, NodeLinker, NodePackageMapType,
+    PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol,
+    ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
+    api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -245,6 +246,7 @@ impl WorkspaceSettings {
         enum_field!(trust_policy, "TRUST_POLICY", TrustPolicy);
         enum_field!(pm_on_fail, "PM_ON_FAIL", PmOnFail);
         json_field!(init_package_manager, "INIT_PACKAGE_MANAGER");
+        enum_field!(init_type, "INIT_TYPE", InitType);
         // pnpm applies this env var on presence alone (`!= null`) and
         // assigns the raw value without validation, so presence always
         // overrides the other config layers: an empty value assigns an

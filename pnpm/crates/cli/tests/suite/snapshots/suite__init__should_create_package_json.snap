@@ -20,5 +20,6 @@ expression: "package_json_content.replace(pnpm_config::PNPM_VERSION, \"<pnpm-ver
       "onFail": "download"
     }
   },
-  "packageManager": "pnpm@<pnpm-version>"
+  "packageManager": "pnpm@<pnpm-version>",
+  "type": "module"
 }

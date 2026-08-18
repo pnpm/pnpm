@@ -1,9 +1,13 @@
-use clap::Args;
-use pnpm_config::Config;
+use clap::{Args, ValueEnum};
+use pnpm_config::{Config, InitType};
 
 /// Create a `package.json` file.
 #[derive(Debug, Args)]
 pub struct InitArgs {
+    /// Set the module system for the package. Defaults to "module".
+    #[clap(long = "init-type", value_name = "commonjs|module")]
+    pub init_type: Option<InitTypeArg>,
+
     /// Pin the pnpm version in package.json, through
     /// "devEngines.packageManager" and "packageManager", and auto-download
     /// pnpm when it is missing.
@@ -25,6 +29,30 @@ impl InitArgs {
             false
         } else {
             config.init_package_manager
+        }
+    }
+
+    /// `--init-type` layered over the `initType` setting.
+    pub(crate) fn effective_init_type(&self, config: &Config) -> InitType {
+        self.init_type.map_or(config.init_type, InitTypeArg::into_config)
+    }
+}
+
+/// `--init-type` value parser. CLI mirror of [`pnpm_config::InitType`] so the
+/// config crate stays free of `clap` as a dependency.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+#[clap(rename_all = "lowercase")]
+pub enum InitTypeArg {
+    Commonjs,
+    Module,
+}
+
+impl InitTypeArg {
+    #[inline]
+    fn into_config(self) -> InitType {
+        match self {
+            InitTypeArg::Commonjs => InitType::Commonjs,
+            InitTypeArg::Module => InitType::Module,
         }
     }
 }

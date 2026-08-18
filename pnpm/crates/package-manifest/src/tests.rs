@@ -6,10 +6,10 @@ use pretty_assertions::assert_eq;
 use tempfile::{NamedTempFile, tempdir};
 
 use super::{
-    BundleDependencies, PackageManifest, PackageManifestError, apply_runtime_on_fail_override,
-    convert_dependencies_to_engines_runtime, convert_engines_runtime_to_dependencies,
-    extract_license, node_version_from_engines_runtime, parse_manifest_bytes,
-    safe_read_package_json_from_dir,
+    BundleDependencies, InitOptions, PackageManifest, PackageManifestError,
+    apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
+    convert_engines_runtime_to_dependencies, extract_license, node_version_from_engines_runtime,
+    parse_manifest_bytes, safe_read_package_json_from_dir,
 };
 use crate::DependencyGroup;
 use serde_json::json;
@@ -62,13 +62,16 @@ fn save_preserves_the_existing_package_json_permissions() {
 
 #[test]
 fn test_init_package_json_content() {
-    let manifest = PackageManifest::create_init_package_json("test", None);
+    let manifest = PackageManifest::create_init_package_json("test", InitOptions::default());
     assert_snapshot!(serde_json::to_string_pretty(&manifest).unwrap());
 }
 
 #[test]
-fn init_package_json_content_with_a_pinned_pnpm_version() {
-    let manifest = PackageManifest::create_init_package_json("test", Some("11.22.0"));
+fn init_package_json_content_with_every_init_option() {
+    let manifest = PackageManifest::create_init_package_json(
+        "test",
+        InitOptions { es_module: true, pinned_pnpm_version: Some("11.22.0") },
+    );
     assert_snapshot!(serde_json::to_string_pretty(&manifest).unwrap());
 }
 
@@ -76,14 +79,15 @@ fn init_package_json_content_with_a_pinned_pnpm_version() {
 fn init_should_throw_if_exists() {
     let tmp = NamedTempFile::new().unwrap();
     write!(tmp.as_file(), "hello world").unwrap();
-    PackageManifest::init(tmp.path(), None).expect_err("package.json already exist");
+    PackageManifest::init(tmp.path(), InitOptions::default())
+        .expect_err("package.json already exist");
 }
 
 #[test]
 fn init_should_create_package_json_if_not_exist() {
     let dir = tempdir().unwrap();
     let tmp = dir.path().join("package.json");
-    PackageManifest::init(&tmp, None).unwrap();
+    PackageManifest::init(&tmp, InitOptions::default()).unwrap();
     eprintln!("tmp={tmp:?} exists={} is_file={}", tmp.exists(), tmp.is_file());
     assert!(tmp.exists());
     assert!(tmp.is_file());
