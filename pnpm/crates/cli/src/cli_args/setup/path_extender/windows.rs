@@ -162,7 +162,10 @@ fn run_capture_chcp(args: &[&str]) -> Result<String, PathExtenderError> {
     run_capture_chcp_with(args, run_capture)
 }
 
-fn run_capture_chcp_with<Runner>(args: &[&str], mut runner: Runner) -> Result<String, PathExtenderError>
+fn run_capture_chcp_with<Runner>(
+    args: &[&str],
+    mut runner: Runner,
+) -> Result<String, PathExtenderError>
 where
     Runner: FnMut(&str, &[&str]) -> Result<String, PathExtenderError>,
 {
