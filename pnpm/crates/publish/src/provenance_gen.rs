@@ -14,9 +14,9 @@
 
 use std::time::Duration;
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_network::{RetryOpts, redact_url_credentials};
-use pacquet_reporter::Reporter;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_network::{RetryOpts, redact_url_credentials};
+use pnpm_reporter::Reporter;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha512};
 use sigstore_sign::{SigningContext, oidc::IdentityToken};
@@ -186,7 +186,7 @@ where
             Err(error) if attempt < retry_opts.retries => {
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
-                    target: "pacquet_publish::provenance",
+                    target: "pnpm_publish::provenance",
                     error = %redact_url_credentials(&error.to_string()),
                     attempt = attempt + 1,
                     max_attempts = retry_opts.retries + 1,

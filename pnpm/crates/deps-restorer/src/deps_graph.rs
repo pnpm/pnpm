@@ -1,5 +1,5 @@
 //! Adapter from pacquet's lockfile structures to
-//! [`pacquet_graph_hasher::DepsGraphNode`].
+//! [`pnpm_graph_hasher::DepsGraphNode`].
 //!
 //! `BuildModules`'s `is_built` gate needs to call
 //! `calc_dep_state(graph, ...)` per snapshot to compute the
@@ -9,8 +9,8 @@
 //! + `optional_dependencies`.
 
 use indexmap::IndexMap;
-use pacquet_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
-use pacquet_lockfile::{
+use pnpm_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry,
 };
 use std::collections::HashMap;
@@ -127,26 +127,31 @@ fn full_pkg_id_for(pkg_key: &PackageKey, resolution: &LockfileResolution) -> Str
 /// from `dependencies` while taking its value from
 /// `optionalDependencies`. Both sections are sorted on disk, so sorting
 /// them here restores the order the graph hasher's digests are defined
-/// in (see [`pacquet_graph_hasher::DepsGraphNode::children`]).
+/// in (see [`pnpm_graph_hasher::DepsGraphNode::children`]).
 #[must_use]
 pub fn build_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
+    build_children_with(snapshot, |alias, dep_ref| dep_ref.resolve(alias))
+}
+
+pub(crate) fn build_children_with<Child>(
+    snapshot: &SnapshotEntry,
+    mut resolve: impl FnMut(&PkgName, &SnapshotDepRef) -> Option<Child>,
+) -> IndexMap<String, Child> {
     let mut children = IndexMap::new();
-    extend_children(&mut children, snapshot.dependencies.as_ref());
-    extend_children(&mut children, snapshot.optional_dependencies.as_ref());
+    extend_children(&mut children, snapshot.dependencies.as_ref(), &mut resolve);
+    extend_children(&mut children, snapshot.optional_dependencies.as_ref(), &mut resolve);
     children
 }
 
-fn extend_children(
-    children: &mut IndexMap<String, PackageKey>,
+fn extend_children<Child>(
+    children: &mut IndexMap<String, Child>,
     deps: Option<&HashMap<PkgName, SnapshotDepRef>>,
+    resolve: &mut impl FnMut(&PkgName, &SnapshotDepRef) -> Option<Child>,
 ) {
     let Some(deps) = deps else { return };
-    let mut section: Vec<(String, PackageKey)> = deps
+    let mut section: Vec<(String, Child)> = deps
         .iter()
-        // `SnapshotDepRef::resolve` returns the `PkgNameVerPeer`
-        // (= `PackageKey`) the alias points at in the `snapshots:`
-        // map. `link:` deps don't have a snapshot key — skip them.
-        .filter_map(|(alias, dep_ref)| Some((alias.to_string(), dep_ref.resolve(alias)?)))
+        .filter_map(|(alias, dep_ref)| Some((alias.to_string(), resolve(alias, dep_ref)?)))
         .collect();
     section.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
     children.extend(section);
@@ -158,7 +163,7 @@ fn extend_children(
 /// directly hands the graph hasher a different entry-point order on
 /// every run — and the digests it computes for cyclic subgraphs depend
 /// on that order (see
-/// [`pacquet_graph_hasher::DepsGraphNode::children`]). Sorting by the
+/// [`pnpm_graph_hasher::DepsGraphNode::children`]). Sorting by the
 /// rendered snapshot key reproduces how pnpm writes — and therefore
 /// iterates — the `snapshots:` section.
 #[must_use]

@@ -11,7 +11,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use pacquet_reporter::{
+use pnpm_reporter::{
     AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
     FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
     InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
@@ -691,8 +691,8 @@ impl ReporterState {
 
     // --- summary ----------------------------------------------------------
 
-    fn on_root(&mut self, message: &pacquet_reporter::RootMessage) {
-        use pacquet_reporter::RootMessage;
+    fn on_root(&mut self, message: &pnpm_reporter::RootMessage) {
+        use pnpm_reporter::RootMessage;
         let prefix = match message {
             RootMessage::Added { prefix, .. } | RootMessage::Removed { prefix, .. } => prefix,
         };

@@ -1,27 +1,31 @@
 use crate::{
     State,
     cli_args::{add::add_package, supported_architectures::SupportedArchitecturesArgs},
+    engine_pm::{channel::PackageManager, provision::provision},
+    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    shim_dispatch::materialize_runtime,
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
-use pacquet_config::Config;
-use pacquet_config_parse_overrides::parse_overrides_iter;
-use pacquet_crypto_hash::create_short_hash;
-use pacquet_fs::force_symlink_dir;
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::{
-    DependencyGroup, convert_engines_runtime_to_dependencies, parse_manifest,
+use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
+use pnpm_config::Config;
+use pnpm_config_parse_overrides::parse_overrides_iter;
+use pnpm_crypto_hash::create_short_hash;
+use pnpm_fs::force_symlink_dir;
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_package_manifest::{
+    DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias,
+    package_manager_spec::{is_version_request, split_spec},
+    parse_manifest,
 };
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::Reporter;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap},
-    ffi::OsString,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -29,6 +33,12 @@ use std::{
 };
 
 /// Run a package in a temporary environment.
+///
+/// A command naming a package manager (`yarn`, `npm`, `bun`, `pnpm`) or a
+/// runtime (`node`, `deno`, `bun`) is provisioned rather than installed
+/// from the package that shares its name: those npm packages are either a
+/// different line of the tool (`yarn` stops at Classic) or a wrapper that
+/// downloads it.
 #[derive(Debug, Args)]
 pub struct DlxArgs {
     /// The command to run, followed by its arguments.
@@ -130,6 +140,12 @@ pub enum DlxError {
     },
 }
 
+impl From<BadPathDir> for DlxError {
+    fn from(BadPathDir { dir, delimiter }: BadPathDir) -> Self {
+        DlxError::BadPathDir { dir, delimiter }
+    }
+}
+
 impl DlxArgs {
     /// Execute the subcommand. The package is installed into a cache
     /// directory under `config.cache_dir`, and the resolved bin runs in
@@ -145,6 +161,75 @@ impl DlxArgs {
         let Some((bin_command, args)) = command.split_first() else {
             return Err(DlxError::MissingCommand.into());
         };
+
+        // Read the config values every dlx spawn applies, before the
+        // install path below consumes `config` to anchor it at the cache
+        // directory.
+        let extra_bin_paths = config.extra_bin_paths.clone();
+        let mut extra_env = config.extra_env.clone();
+        // The GVS resolution env injected by `Config::current` points at
+        // the *invoking* project's node_modules; the dlx tool runs from
+        // its own self-contained cache (GVS forced off for the cache
+        // install), so inheriting it would let the tool resolve phantom
+        // deps from the caller's tree.
+        extra_env.remove("NODE_PATH");
+        extra_env.remove("NODE_OPTIONS");
+        let user_agent = config.user_agent.clone();
+
+        // The dlx command runs in the process working directory
+        // (`cwd: process.cwd()`), independent of `--dir`.
+        let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+        let spawn = DlxSpawn {
+            cwd: &run_cwd,
+            extra_bin_paths: &extra_bin_paths,
+            extra_env: &extra_env,
+            user_agent: &user_agent,
+            shell_mode,
+        };
+
+        // An explicit `--package` is the user naming what to install, so
+        // it stays literal; a bare tool name is provisioned instead of
+        // fetched (see `engine_pm::selector` for why the name alone is
+        // not enough to install one).
+        if package.is_empty()
+            && let Some((pm, version_spec)) = parse_package_manager_spec(bin_command)
+        {
+            return run_package_manager::<Reporter>(
+                config,
+                pm,
+                version_spec,
+                bin_command,
+                None,
+                args,
+                &spawn,
+            )
+            .await;
+        }
+
+        // A package manager publishes more than one command, so naming it
+        // with `--package` says which engine to provision while the
+        // command says which of its bins to run: `pnx --package npm@11 npx`.
+        if let [spec] = package.as_slice()
+            && let Some((pm, version_spec)) = parse_package_manager_spec(spec)
+            && pm.bins().contains(&bin_command.as_str())
+        {
+            return run_package_manager::<Reporter>(
+                config,
+                pm,
+                version_spec,
+                spec,
+                Some(bin_command),
+                args,
+                &spawn,
+            )
+            .await;
+        }
+
+        if package.is_empty()
+            && let Some((name, version_spec)) = parse_runtime_spec(bin_command)
+        {
+            return run_runtime(name, version_spec, bin_command, args, &spawn).await;
+        }
 
         // `pkgs = package ?? [command]`. With `--package`, the command
         // names the bin to run; otherwise the command is also the package.
@@ -166,10 +251,6 @@ impl DlxArgs {
             supported_architectures.apply_to(config.supported_architectures.clone());
         let cache_key =
             create_cache_key(&pkgs, &registries, &allow_build, effective_architectures.as_ref());
-        let extra_bin_paths = config.extra_bin_paths.clone();
-        let extra_env = config.extra_env.clone();
-        let user_agent = config.user_agent.clone();
-
         let dlx_command_cache_dir = cache_dir.join("dlx").join(&cache_key);
         fs::create_dir_all(&dlx_command_cache_dir).map_err(|source| DlxError::Cache {
             dir: dlx_command_cache_dir.display().to_string(),
@@ -216,21 +297,7 @@ impl DlxArgs {
         let bin_name =
             if package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };
 
-        // The dlx bin runs in the process working directory
-        // (`cwd: process.cwd()`), independent of `--dir`.
-        let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-        run_bin(
-            &bin_name,
-            args,
-            &run_cwd,
-            bins_dir,
-            &SpawnEnv {
-                extra_bin_paths: &extra_bin_paths,
-                extra_env: &extra_env,
-                user_agent: &user_agent,
-            },
-            shell_mode,
-        )
+        run_bin(DlxProgram::Named(&bin_name), args, vec![bins_dir], &spawn)
     }
 }
 
@@ -282,7 +349,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         && overrides.values().any(|spec| spec.starts_with("catalog:"))
     {
         let workspace_manifest =
-            pacquet_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
+            pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
         let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
             .into_diagnostic()
             .wrap_err("reading the caller's catalogs for the dlx install")?;
@@ -296,8 +363,17 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The throwaway cache project is not part of the caller's
     // workspace. If a caller has a settings-only pnpm-workspace.yaml,
     // carrying its workspace root here makes the install enumerate that
-    // workspace and fail on the missing root package.json.
-    config.workspace_dir = None;
+    // workspace and fail on the missing root package.json. Anchored
+    // rather than `None`, which walks up from the cache dir and can
+    // adopt a stray `pnpm-workspace.yaml` above it (pnpm/pnpm#13697).
+    config.workspace_dir = Some(prepare_dir.to_path_buf());
+    // The caller's patches never apply to the throwaway install (pnpm's
+    // dlx installs the package unpatched too). Their paths are relative
+    // to the caller's workspace root, which the anchor above replaced, so
+    // keeping them would also make every dlx invocation from a project
+    // with `patchedDependencies` fail on a patch file missing under the
+    // cache dir.
+    config.patched_dependencies = None;
     // Build a *fresh* allow-list for the throwaway install — the dlx
     // packages themselves plus the CLI `--allow-build` entries — rather
     // than inheriting the caller project's `allow_builds` /
@@ -337,34 +413,69 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
-/// Resolve and spawn the bin, prepending the cache's `node_modules/.bin`
-/// (and `extraBinPaths`) to `PATH`.
-/// The config-derived environment a dlx bin is spawned with, read off
+/// How dlx spawns whatever it ends up running: the working directory and
+/// shell mode the command was invoked with, plus the environment read off
 /// `Config` before the install path consumes it.
-struct SpawnEnv<'a> {
+struct DlxSpawn<'a> {
+    cwd: &'a Path,
     extra_bin_paths: &'a [PathBuf],
     extra_env: &'a HashMap<String, String>,
     user_agent: &'a str,
+    shell_mode: bool,
+}
+
+/// What dlx runs.
+#[derive(Clone, Copy)]
+enum DlxProgram<'a> {
+    /// A bin from the installed package, looked up on the prepared `PATH`.
+    Named(&'a str),
+    /// A provisioned engine's own executable, run by path rather than by
+    /// name: an engine's directory can hold another executable named the
+    /// way a user would type it — Yarn 6's archive ships a `yarn` launcher
+    /// beside the `yarn-bin` that is the engine itself.
+    Provisioned { command: &'a str, executable: &'a Path },
+}
+
+impl DlxProgram<'_> {
+    /// The word a shell runs the command by — both forms are reachable
+    /// through the prepended directories — or `None` when there is no
+    /// word a shell could carry, which only a provisioned executable
+    /// whose file name is not valid UTF-8 can produce.
+    fn shell_word(&self) -> Option<&str> {
+        match self {
+            DlxProgram::Named(name) => Some(name),
+            DlxProgram::Provisioned { executable, .. } => {
+                executable.file_name().and_then(std::ffi::OsStr::to_str)
+            }
+        }
+    }
+
+    fn command(&self) -> &str {
+        match self {
+            DlxProgram::Named(name) => name,
+            DlxProgram::Provisioned { command, .. } => command,
+        }
+    }
 }
 
 fn run_bin(
-    bin_name: &str,
+    program: DlxProgram<'_>,
     args: &[String],
-    cwd: &Path,
-    bins_dir: PathBuf,
-    env: &SpawnEnv<'_>,
-    shell_mode: bool,
+    bin_dirs: Vec<PathBuf>,
+    spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
-    let SpawnEnv { extra_bin_paths, extra_env, user_agent } = *env;
-    let mut prepend = Vec::with_capacity(1 + extra_bin_paths.len());
-    prepend.push(bins_dir);
+    let DlxSpawn { cwd, extra_bin_paths, extra_env, user_agent, shell_mode } = *spawn;
+    let mut prepend = bin_dirs;
     prepend.extend(extra_bin_paths.iter().cloned());
-    let path = prepend_dirs_to_path(&prepend)?;
+    let path = prepend_dirs_to_path(&prepend).map_err(DlxError::from)?;
 
     let mut cmd = if shell_mode {
-        let shell = pacquet_executor::select_shell(None, cfg!(windows))
+        let shell = pnpm_executor::select_shell(None, cfg!(windows))
             .expect("default shell selection never fails");
-        let mut joined = vec![bin_name.to_string()];
+        let word = program
+            .shell_word()
+            .ok_or_else(|| DlxError::CommandNotFound { command: program.command().to_string() })?;
+        let mut joined = vec![word.to_string()];
         joined.extend(args.iter().cloned());
         let mut cmd = Command::new(&shell.program);
         cmd.args(&shell.args);
@@ -372,12 +483,15 @@ fn run_bin(
         // Windows `cmd /d /s /c` verbatim path uses `raw_arg`, matching
         // execa's `windowsVerbatimArguments` and preserving embedded
         // quoting (same as exec's shell mode).
-        pacquet_executor::push_script_arg(&mut cmd, &joined.join(" "), shell.windows_verbatim_args);
+        pnpm_executor::push_script_arg(&mut cmd, &joined.join(" "), shell.windows_verbatim_args);
         cmd
     } else {
-        let program = which::which_in(bin_name, Some(&path), cwd)
-            .map_err(|_| DlxError::CommandNotFound { command: bin_name.to_string() })?;
-        let mut cmd = Command::new(program);
+        let executable = match program {
+            DlxProgram::Named(name) => which::which_in(name, Some(&path), cwd)
+                .map_err(|_| DlxError::CommandNotFound { command: name.to_string() })?,
+            DlxProgram::Provisioned { executable, .. } => executable.to_path_buf(),
+        };
+        let mut cmd = Command::new(executable);
         cmd.args(args);
         cmd
     };
@@ -389,13 +503,12 @@ fn run_bin(
     // empty; wired for uniformity with the other spawn sites and so it
     // works if that changes.
     cmd.envs(extra_env);
-    cmd.env_remove("PATH");
-    cmd.env_remove("Path");
-    cmd.env("PATH", &path);
+    set_command_path(&mut cmd, &path);
     cmd.env("npm_config_user_agent", user_agent);
 
-    let status =
-        cmd.status().map_err(|source| DlxError::Spawn { command: bin_name.to_string(), source })?;
+    let status = cmd
+        .status()
+        .map_err(|source| DlxError::Spawn { command: program.command().to_string(), source })?;
     if !status.success() {
         #[expect(
             clippy::exit,
@@ -406,11 +519,84 @@ fn run_bin(
     Ok(())
 }
 
+/// Split a dlx command word into the package manager it names and the
+/// version specifier it asks for, or `None` when it names something else.
+///
+/// The bare name is the package manager's own line — `pnx yarn` is
+/// whatever Yarn currently ships — matching how a `dlx` package spec
+/// without a version resolves.
+fn parse_package_manager_spec(command: &str) -> Option<(PackageManager, &str)> {
+    let (name, version_spec) = split_spec(command);
+    let version_spec = version_spec.unwrap_or("latest");
+    // A specifier that locates a package names what to install, not a line
+    // of the tool, so it stays on the ordinary dlx path.
+    if !is_version_request(version_spec) {
+        return None;
+    }
+    Some((PackageManager::parse(name)?, version_spec))
+}
+
+/// Split a dlx command word into the runtime it names and the version
+/// specifier it asks for, or `None` when it names something else.
+fn parse_runtime_spec(command: &str) -> Option<(&str, &str)> {
+    let (name, version_spec) = split_spec(command);
+    let version_spec = version_spec.unwrap_or("latest");
+    // `node@runtime:22` is the same request spelled with the protocol the
+    // resolver uses; anything else that locates a package is an ordinary
+    // one.
+    let version_spec = match version_spec.strip_prefix("runtime:") {
+        Some(version_spec) => version_spec,
+        None if is_version_request(version_spec) => version_spec,
+        None => return None,
+    };
+    is_runtime_alias(name).then_some((name, version_spec))
+}
+
+/// Materialize `name` at `version_spec` and run it, the runtime half of
+/// [`run_package_manager`].
+async fn run_runtime(
+    name: &str,
+    version_spec: &str,
+    command: &str,
+    args: &[String],
+    spawn: &DlxSpawn<'_>,
+) -> miette::Result<()> {
+    let executable =
+        Box::pin(materialize_runtime(name.to_string(), version_spec.to_string())).await?;
+    let bin_dirs: Vec<PathBuf> = executable.parent().map(Path::to_path_buf).into_iter().collect();
+    run_bin(DlxProgram::Provisioned { command, executable: &executable }, args, bin_dirs, spawn)
+}
+
+/// Provision `pm` and run `bin` — or the engine's own command, when the
+/// caller named none — with the caller's arguments, propagating the exit
+/// status the way the rest of dlx does.
+async fn run_package_manager<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    pm: PackageManager,
+    version_spec: &str,
+    command: &str,
+    bin: Option<&str>,
+    args: &[String],
+    spawn: &DlxSpawn<'_>,
+) -> miette::Result<()> {
+    let engine = Box::pin(provision::<Reporter>(config, pm, version_spec)).await?;
+    let executable = match bin {
+        Some(bin) => engine.command(bin),
+        None => engine.program.clone(),
+    };
+    run_bin(
+        DlxProgram::Provisioned { command, executable: &executable },
+        args,
+        engine.bin_dirs,
+        spawn,
+    )
+}
+
 /// Build the `{ "default": registry, <alias>: url, … }` map fed into the
 /// cache key.
 fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
     let mut map = config.resolved_registries();
-    for (name, url) in &config.named_registries {
+    for (name, url) in &config.registries_by_prefix {
         map.insert(name.clone(), url.clone());
     }
     map
@@ -563,36 +749,6 @@ fn scopeless(pkg_name: &str) -> &str {
     } else {
         pkg_name
     }
-}
-
-fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, DlxError> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    for dir in dirs {
-        if dir.to_string_lossy().contains(delimiter) {
-            return Err(DlxError::BadPathDir {
-                dir: dir.to_string_lossy().into_owned(),
-                delimiter,
-            });
-        }
-    }
-
-    let sep = if cfg!(windows) { ";" } else { ":" };
-    let mut out = OsString::new();
-    for (index, dir) in dirs.iter().enumerate() {
-        if index > 0 {
-            out.push(sep);
-        }
-        out.push(dir);
-    }
-    if let Some(current) = std::env::var_os("PATH")
-        && !current.is_empty()
-    {
-        if !out.is_empty() {
-            out.push(sep);
-        }
-        out.push(current);
-    }
-    Ok(out)
 }
 
 #[cfg(test)]

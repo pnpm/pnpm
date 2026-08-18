@@ -42,7 +42,7 @@ jobs:
         if: github.event_name != 'merge_group'
         with:
           persist-credentials: false
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'merge_group'
         id: filter
         with:
@@ -81,9 +81,11 @@ jobs:
       with:
         persist-credentials: false
     - name: Install pnpm
-      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
-    - name: Test release publication guard
-      run: .github/scripts/npm-package-publication-state.test.sh
+      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+    - name: Test release publication scripts
+      run: |
+        .github/scripts/npm-package-publication-state.test.sh
+        .github/scripts/npm-staged-publication.test.sh
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint
@@ -142,7 +144,7 @@ jobs:
             test_chunk: '1'
             test_chunk_total: '1'
             garnet: true
-          - node: '26.6.0'
+          - node: '26.7.0'
             node_major: '26'
             platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu

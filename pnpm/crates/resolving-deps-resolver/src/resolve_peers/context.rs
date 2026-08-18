@@ -3,14 +3,13 @@
 //! node-id remapping, peer-suffix parsing, and range matching.
 
 use crate::{
-    dependencies_graph::ParentPackageRef,
     node_id::NodeId,
     resolve_peers::{ResolvePeersOptions, walker::Walker},
     resolved_tree::{ResolvedPackage, TreeChildren},
 };
 use node_semver::{Range, Version};
-use pacquet_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
-use pacquet_resolving_resolver_base::ResolveResult;
+use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
+use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     path::{Path, PathBuf},
@@ -55,14 +54,14 @@ pub(super) type ParentRefs = HashMap<String, ParentRef>;
 /// fall back to a pure `version` comparison.
 #[derive(Debug, Clone)]
 pub(super) struct ParentPkgInfo {
-    pub(super) pkg_id: Option<String>,
+    pub(super) pkg_id: Option<Arc<str>>,
     pub(super) version: Option<String>,
     pub(super) depth: i32,
     pub(super) occurrence: u32,
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct SharedChain<Element>(Option<Arc<SharedChainLink<Element>>>);
+pub(crate) struct SharedChain<Element>(Option<Arc<SharedChainLink<Element>>>);
 
 #[derive(Debug)]
 struct SharedChainLink<Element> {
@@ -77,18 +76,24 @@ impl<Element> Default for SharedChain<Element> {
 }
 
 impl<Element> SharedChain<Element> {
-    pub(super) fn pushed(&self, value: Element) -> Self {
+    pub(crate) fn pushed(&self, value: Element) -> Self {
         SharedChain(Some(Arc::new(SharedChainLink { value, parent: self.0.clone() })))
     }
 
-    pub(super) fn iter(&self) -> SharedChainIter<'_, Element> {
+    pub(crate) fn iter(&self) -> SharedChainIter<'_, Element> {
         SharedChainIter { next: self.0.as_deref() }
     }
 }
 
 impl<Element: PartialEq> SharedChain<Element> {
-    pub(super) fn contains(&self, value: &Element) -> bool {
-        self.iter().any(|item| item == value)
+    /// Takes `&str` rather than `&Element` so a caller holding a
+    /// shared package id can test membership without allocating a
+    /// `String` to compare against.
+    pub(super) fn contains_str(&self, value: &str) -> bool
+    where
+        Element: AsRef<str>,
+    {
+        self.iter().any(|item| item.as_ref() == value)
     }
 }
 
@@ -150,14 +155,14 @@ fn link_key<Element>(link: &Arc<SharedChainLink<Element>>) -> usize {
 }
 
 impl<Element: Clone> SharedChain<Element> {
-    fn to_root_vec(&self) -> Vec<Element> {
+    pub(crate) fn to_root_vec(&self) -> Vec<Element> {
         let mut values: Vec<Element> = self.iter().cloned().collect();
         values.reverse();
         values
     }
 }
 
-pub(super) struct SharedChainIter<'a, Element> {
+pub(crate) struct SharedChainIter<'a, Element> {
     next: Option<&'a SharedChainLink<Element>>,
 }
 
@@ -200,7 +205,7 @@ impl Walker<'_> {
                 .node_id
                 .as_ref()
                 .and_then(|nid| self.tree.dependencies_tree.get(nid))
-                .map(|tn| tn.resolved_package_id.clone());
+                .map(|tn| std::sync::Arc::<str>::clone(&tn.resolved_package_id));
             let version = pkg_id.is_none().then(|| parent_ref.version.clone());
             out.insert(
                 name.clone(),
@@ -286,7 +291,7 @@ impl Walker<'_> {
             TreeChildren::Realized(children) => children
                 .values()
                 .filter_map(|child_node_id| self.tree.dependencies_tree.get(child_node_id))
-                .map(|child| child.resolved_package_id.as_str())
+                .map(|child| &*child.resolved_package_id)
                 .collect(),
             TreeChildren::Lazy { .. } => self
                 .tree
@@ -294,7 +299,7 @@ impl Walker<'_> {
                 .get(&node.resolved_package_id)
                 .into_iter()
                 .flat_map(|children| children.iter())
-                .map(|child| child.pkg_id.as_str())
+                .map(|child| &*child.pkg_id)
                 .collect(),
         };
         for child_pkg_id in child_pkg_ids {
@@ -322,7 +327,7 @@ impl Walker<'_> {
                 .tree
                 .dependencies_tree
                 .get(current_node_id)
-                .is_none_or(|node| node.resolved_package_id != *inherited_pkg_id);
+                .is_none_or(|node| *node.resolved_package_id != **inherited_pkg_id);
         }
         inherited_peer.version.as_ref() != Some(&current_peer.version)
     }
@@ -420,14 +425,14 @@ pub(super) fn importer_relative_link_dep_path(
     };
     let target = Path::new(target);
     let absolute_target = if target.is_absolute() {
-        pacquet_fs::lexical_normalize(target)
+        pnpm_fs::lexical_normalize(target)
     } else {
-        pacquet_fs::lexical_normalize(&lockfile_dir.join(target))
+        pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
     };
     // `diff_paths` walks both paths component-wise, so a base still
     // carrying `.` / `..` segments would consume them as real directories
     // and count the wrong number of `..` hops back out.
-    let project_dir = pacquet_fs::lexical_normalize(project_dir);
+    let project_dir = pnpm_fs::lexical_normalize(project_dir);
     let relative_target = pathdiff::diff_paths(&absolute_target, project_dir)
         .unwrap_or(absolute_target)
         .display()
@@ -462,7 +467,7 @@ pub(super) fn remap_link_node_id(
     let lockfile_dir = opts.lockfile_dir.as_ref()?;
     let modules_dir = opts.modules_dir.as_ref()?;
     let directory = match &result.resolution {
-        pacquet_lockfile::LockfileResolution::Directory(dir) => &dir.directory,
+        pnpm_lockfile::LockfileResolution::Directory(dir) => &dir.directory,
         _ => return None,
     };
     if !result.id.as_str().starts_with("link:") {
@@ -475,7 +480,7 @@ pub(super) fn remap_link_node_id(
         Some(project_dir) => project_dir.join(directory),
         None => PathBuf::from(directory),
     };
-    if pacquet_fs::is_subdir(lockfile_dir, &link_target) {
+    if pnpm_fs::is_subdir(lockfile_dir, &link_target) {
         return None;
     }
     let target = modules_dir.join(alias);
@@ -538,27 +543,8 @@ pub(super) fn peer_id_pair(result: &ResolveResult) -> PeerId {
 fn named_registry_of(result: &ResolveResult) -> Option<&str> {
     let id = result.id.as_str();
     let at = id.get(1..)?.find('@')? + 1;
-    let (registry_name, _) =
-        pacquet_deps_path::parse_registry_qualified_version(id.get(at + 1..)?)?;
+    let (registry_name, _) = pnpm_deps_path::parse_registry_qualified_version(id.get(at + 1..)?)?;
     Some(registry_name)
-}
-
-/// Build the `parents` chain attached to a peer issue. Records just
-/// `name` and `version` per parent, which is what the renderer
-/// downstream consumes.
-pub(super) fn parents_from_chain(
-    chain_names: &SharedChain<String>,
-    _pkg_name: &str,
-) -> Vec<ParentPackageRef> {
-    // The chain pacquet tracks today is name-only — populating
-    // `version` would need a parallel `Vec<String>` of versions or a
-    // re-lookup against the tree. The issue-renderer consumes the
-    // names primarily; expanding to versions is a follow-up.
-    chain_names
-        .to_root_vec()
-        .into_iter()
-        .map(|name| ParentPackageRef { name, version: String::new() })
-        .collect()
 }
 
 pub(super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<String>> {

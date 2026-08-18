@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use chrono::{TimeDelta, Utc};
 use miette::Diagnostic;
-use pacquet_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 
 use super::{
-    NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions, stringify_date,
-    strip_trailing_semver_suffix,
+    GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
+    stringify_date, strip_trailing_semver_suffix,
 };
 
 fn make_package(name: &str, versions: &[&str], dist_tags: &[(&str, &str)]) -> Package {
@@ -207,4 +207,83 @@ fn a_plain_name_suggests_nothing() {
     assert_eq!(strip_trailing_semver_suffix("@scope/pkg"), None);
     assert_eq!(strip_trailing_semver_suffix("is-odd@latest"), None);
     assert_eq!(strip_trailing_semver_suffix("4.17.21"), None);
+}
+
+#[test]
+fn an_unreachable_https_remote_explains_the_transport_and_how_to_substitute_it() {
+    let err = GitResolveError::new(
+        "zkochan/is-negative#next",
+        "https://github.com/zkochan/is-negative.git",
+        "git ls-remote failed: fatal: unable to access",
+    );
+
+    assert_eq!(err.code().expect("code").to_string(), "ERR_PNPM_GIT_RESOLVE_FAILED");
+    assert_eq!(
+        err.to_string(),
+        r#"Failed to resolve git dependency "zkochan/is-negative#next": git ls-remote failed: fatal: unable to access"#,
+    );
+    let help = err.help().expect("help").to_string();
+    assert!(
+        help.contains(
+            r#"git config --global url."git@github.com:".insteadOf "https://github.com/""#
+        ),
+        "{help}",
+    );
+}
+
+#[test]
+fn an_unreachable_ssh_remote_carries_no_transport_substitution_hint() {
+    let err = GitResolveError::new(
+        "git+ssh://git@github.com/foo/bar.git",
+        "git+ssh://git@github.com/foo/bar.git",
+        "git ls-remote failed: Permission denied (publickey)",
+    );
+
+    assert!(err.help().is_none());
+}
+
+#[test]
+fn the_transport_hint_keeps_a_non_default_port_out_of_the_ssh_remote() {
+    let err = GitResolveError::new(
+        "https://git.example.com:8443/foo/bar.git",
+        "https://git.example.com:8443/foo/bar.git",
+        "git ls-remote failed: connection refused",
+    );
+
+    let help = err.help().expect("help").to_string();
+    assert!(
+        help.contains(
+            r#"git config --global url."git@git.example.com:".insteadOf "https://git.example.com:8443/""#
+        ),
+        "{help}",
+    );
+}
+
+#[test]
+fn an_unreachable_remote_redacts_the_credentials_git_echoes_back() {
+    let err = GitResolveError::new(
+        "git+https://hunter2:x-oauth-basic@github.com/foo/bar.git",
+        "https://hunter2:x-oauth-basic@github.com/foo/bar.git",
+        "git ls-remote failed: fatal: unable to access 'https://hunter2:x-oauth-basic@github.com/foo/bar.git/'",
+    );
+
+    assert!(!err.to_string().contains("hunter2"), "{err}");
+    assert!(!err.help().expect("help").to_string().contains("hunter2"));
+}
+
+#[test]
+fn the_transport_hint_drops_the_scheme_s_own_port() {
+    let err = GitResolveError::new(
+        "https://github.com:443/foo/bar.git",
+        "https://github.com:443/foo/bar.git",
+        "git ls-remote failed: connection refused",
+    );
+
+    let help = err.help().expect("help").to_string();
+    assert!(
+        help.contains(
+            r#"git config --global url."git@github.com:".insteadOf "https://github.com/""#
+        ),
+        "{help}",
+    );
 }

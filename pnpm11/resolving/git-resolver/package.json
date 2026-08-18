@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.git-resolver",
-  "version": "1100.1.15",
+  "version": "1100.1.17",
   "description": "Resolver for git-hosted packages",
   "keywords": [
     "pnpm",
@@ -37,7 +37,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
-    "graceful-git": "catalog:",
+    "execa": "catalog:",
     "hosted-git-info": "catalog:",
     "semver": "catalog:"
   },

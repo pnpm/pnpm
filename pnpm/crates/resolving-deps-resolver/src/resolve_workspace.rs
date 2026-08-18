@@ -27,8 +27,9 @@ use crate::{
     resolved_tree::ResolvedTree,
 };
 use chrono::{DateTime, Duration, Utc};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
+use pnpm_lockfile::RegistryContext;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
@@ -90,7 +91,19 @@ pub struct WorkspaceResolveOptions {
     /// reuse already-resolved dependencies instead of re-resolving them
     /// (see `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`). `None` on a
     /// first install or when reuse is disabled.
-    pub wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+    pub wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
+
+    /// Whether the walk may reuse whole already-resolved subtrees from
+    /// [`Self::wanted_lockfile`]. `false` keeps the lockfile as a
+    /// per-edge version-pin source only: every node re-resolves against
+    /// its (hook-rewritten) manifest range, and an edge whose recorded
+    /// version still satisfies that range stays on it — mirroring the
+    /// TypeScript resolver's forced full resolution, which forces the
+    /// walk without unpinning still-satisfied edges. The config drift
+    /// that denied subtree reuse stays effective: hooks rewrite the
+    /// drifted manifests before the satisfies check, so the edges a
+    /// changed override or extension reaches re-resolve.
+    pub reuse_lockfile_subtrees: bool,
 
     /// Which dependencies `pacquet update` excludes from lockfile-
     /// resolution reuse. [`UpdateReuseScope::All`] for `install` / `add`.
@@ -107,12 +120,12 @@ pub struct WorkspaceResolveOptions {
     /// `pnpmfileHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per
     /// install); wraps `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls, pre-bound to the install's reporter. `None` leaves hook
     /// logging a no-op.
-    pub read_package_log: Option<pacquet_hooks::LogFn>,
+    pub read_package_log: Option<pnpm_hooks::LogFn>,
 
     /// Sink for skipped-optional-dependency notifications, pre-bound to
     /// the install's reporter (the install layer forwards each one as a
@@ -139,14 +152,12 @@ pub struct WorkspaceResolveOptions {
     /// [`crate::ResolveImporterOptions::auto_install_peers`] — the
     /// setting is workspace-wide.
     pub auto_install_peers: bool,
-    /// Resolved registry map (`"default"` + per-scope), for
-    /// materializing a prior `Registry` lockfile resolution back into
-    /// its tarball URL when building the `currentPkg` payload custom
-    /// resolvers receive.
-    pub registries: std::collections::HashMap<String, String>,
-    /// Alias → URL map of named registries (built-ins merged with the
-    /// user's setting). See [`WorkspaceResolveOptions::registries`].
-    pub named_registries: std::collections::HashMap<String, String>,
+    /// How a package's registry is decided and what it serves: the scope
+    /// map, the named-registry aliases (built-ins merged with the user's
+    /// setting), and the per-registry settings. Used to materialize a
+    /// prior `Registry` lockfile resolution back into its tarball URL when
+    /// building the `currentPkg` payload custom resolvers receive.
+    pub registry_context: RegistryContext,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -157,6 +168,9 @@ pub struct WorkspaceResolveOptions {
 pub struct ResolveWorkspaceResult {
     pub merged_tree: ResolvedTree,
     pub peers: WorkspaceResolvePeersResult,
+    /// Publish date of every direct dependency, for the lockfile's
+    /// `time:` section. Empty unless the install ran `time-based`.
+    pub time: BTreeMap<String, String>,
 }
 
 /// Resolve every importer's dependencies, then run one workspace-wide
@@ -195,18 +209,26 @@ where
         pick_lowest_direct,
         time_based,
         wanted_lockfile,
+        reuse_lockfile_subtrees,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         update_depth,
         auto_install_peers,
-        registries,
-        named_registries,
+        registry_context,
     } = opts;
+    // Taken before the lockfile moves into the workspace ctx below, and
+    // only for the pre-pass that reads it — a lockfile is untrusted
+    // input, so an install that will not consult the recorded dates
+    // must not copy them.
+    let recorded_time = time_based
+        .then(|| wanted_lockfile.as_ref().and_then(|lockfile| lockfile.time.clone()))
+        .flatten();
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(manifest_hook)
             .with_overrides_hook(overrides_hook)
             .with_wanted_lockfile(wanted_lockfile)
+            .with_reuse_lockfile_subtrees(reuse_lockfile_subtrees)
             .with_update_reuse_scope(update_reuse_scope)
             .with_update_reuse_scopes_by_importer(update_reuse_scopes_by_importer)
             .with_update_depth(update_depth)
@@ -216,8 +238,7 @@ where
             .with_allowed_deprecated_versions(allowed_deprecated_versions)
             .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
-            .with_registries(registries)
-            .with_named_registries(named_registries),
+            .with_registry_context(registry_context),
     );
 
     // Build every importer's options up front so the `time-based`
@@ -236,22 +257,36 @@ where
         })
         .collect();
 
+    // Resolve importers in id order. Children-owner claims are ranked
+    // by importer position and the hoist rounds run sequentially in
+    // list order, so a stable order makes ownership, the first-walk
+    // missing scope, and every auto-install decision a function of the
+    // importer set rather than of the caller's listing order
+    // (pnpm/pnpm#13846).
+    let (importers, importer_opts): (Vec<&WorkspaceImporter<'a>>, Vec<ResolveImporterOptions>) = {
+        let mut paired: Vec<(&WorkspaceImporter<'a>, ResolveImporterOptions)> =
+            importers.iter().zip(importer_opts).collect();
+        paired.sort_by(|(left, _), (right, _)| left.id.cmp(&right.id));
+        paired.into_iter().unzip()
+    };
+
     // The `minimumReleaseAge` cutoff is set uniformly on every
     // importer's `base_opts.published_by` by the install layer; it is
     // the upper bound on the time-based cutoff.
     let maximum_published_by = importer_opts.first().and_then(|opts| opts.base_opts.published_by);
-    let subdep_published_by = if time_based {
+    let TimeBasedCutoff { published_by: subdep_published_by, time } = if time_based {
         compute_time_based_cutoff(
             resolver,
-            importers,
+            &importers,
             &importer_opts,
             dependency_groups,
             pick_lowest_direct,
             maximum_published_by,
+            recorded_time.as_ref(),
         )
         .await
     } else {
-        maximum_published_by
+        TimeBasedCutoff { published_by: maximum_published_by, time: BTreeMap::new() }
     };
 
     // Phase 1: every importer's initial wave resolves before any peer
@@ -295,7 +330,7 @@ where
     let root_deps = Arc::new(
         states
             .iter()
-            .find(|state| state.importer_id() == pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY)
+            .find(|state| state.importer_id() == pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY)
             .map(ImporterHoistState::hoistable_root_deps)
             .transpose()?
             .unwrap_or_default(),
@@ -396,28 +431,45 @@ where
         resolve_peers_from_workspace_root,
         peer_opts,
     );
-    Ok(ResolveWorkspaceResult { merged_tree, peers })
+    Ok(ResolveWorkspaceResult { merged_tree, peers, time })
+}
+
+/// What a `time-based` pre-pass learned about the direct dependencies.
+struct TimeBasedCutoff {
+    /// The ceiling every transitive dependency's publish date must
+    /// respect.
+    published_by: Option<DateTime<Utc>>,
+    /// Publish date per direct dependency, for the lockfile's `time:`
+    /// section.
+    time: BTreeMap<String, String>,
 }
 
 /// Resolve every importer's direct dependencies and derive the
 /// `time-based` publish-date cutoff for transitive deps.
 ///
-/// Only the direct deps' `published_at` is read here, so the throwaway
+/// Each direct dependency's publish date comes from its packument, or —
+/// against a registry whose abbreviated metadata omits publish times —
+/// from `recorded_time`, the date the lockfile's `time:` section
+/// recorded for it. The cutoff is the newest of those dates plus an
+/// hour, clamped by `maximum_published_by`.
+///
+/// Only the direct deps' publish date is read here, so the throwaway
 /// resolves warm the resolver's packument cache for the real walk that
 /// follows. Resolver errors are ignored here — the real walk surfaces
 /// them.
 async fn compute_time_based_cutoff<Chain>(
     resolver: &Chain,
-    importers: &[WorkspaceImporter<'_>],
+    importers: &[&WorkspaceImporter<'_>],
     importer_opts: &[ResolveImporterOptions],
     dependency_groups: &[DependencyGroup],
     pick_lowest_direct: bool,
     maximum_published_by: Option<DateTime<Utc>>,
-) -> Option<DateTime<Utc>>
+    recorded_time: Option<&BTreeMap<String, String>>,
+) -> TimeBasedCutoff
 where
     Chain: Resolver + ?Sized,
 {
-    let mut newest: Option<DateTime<Utc>> = None;
+    let mut time = BTreeMap::new();
     for (importer, opts) in importers.iter().zip(importer_opts) {
         let Ok(specs) = importer_direct_wanted_specs(
             importer.manifest,
@@ -437,21 +489,25 @@ where
                 injected: injected.then_some(true),
                 ..WantedDependency::default()
             };
-            if let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await
-                && let Some(published_at) = result.published_at.as_deref()
-                && let Some(parsed) = parse_packument_timestamp(published_at)
-            {
-                newest = Some(newest.map_or(parsed, |current| current.max(parsed)));
+            let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await else { continue };
+            let published_at = result.published_at.or_else(|| {
+                recorded_time.and_then(|recorded| recorded.get(result.id.as_str())).cloned()
+            });
+            if let Some(published_at) = published_at {
+                time.insert(result.id.into_inner(), published_at);
             }
         }
     }
 
+    let newest =
+        time.values().filter_map(|published_at| parse_packument_timestamp(published_at)).max();
     let candidate = newest.and_then(|date| date.checked_add_signed(Duration::hours(1)));
-    match (candidate, maximum_published_by) {
+    let published_by = match (candidate, maximum_published_by) {
         (Some(candidate), Some(maximum)) => Some(candidate.min(maximum)),
         (Some(candidate), None) => Some(candidate),
         (None, maximum) => maximum,
-    }
+    };
+    TimeBasedCutoff { published_by, time }
 }
 
 #[cfg(test)]

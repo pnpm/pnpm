@@ -82,7 +82,7 @@ Install the project's task tools and the git pre-push hook:
 just init
 ```
 
-`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`. The repo-wide `pnpm install` wires up husky, whose `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint checks.
+`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`, then installs `cargo-fixit@0.1.15` from source with `cargo install ... --locked` (it has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. The repo-wide `pnpm install` wires up husky, whose `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint checks.
 
 `just init` does not install the dylint tools. To run the `Dylint` job's checks locally, install `cargo-dylint` and `dylint-link` as described under [Rust toolchain and git hooks](../CONTRIBUTING.md#rust-toolchain-and-git-hooks) in the root guide.
 
@@ -102,6 +102,14 @@ just ready
 
 This runs `typos`, `cargo fmt`, `just check` (which is `cargo check --locked --workspace --all-targets`), `just test` (which is `cargo nextest run`), and `just lint` (which is `cargo clippy --locked --workspace --all-targets -- --deny warnings`), then prints `git status`. CI runs the same commands on Linux, macOS, and Windows.
 
+To let clippy rewrite the lints it can fix automatically, run `just fix` instead of hand-editing each warning:
+
+```sh
+just fix
+```
+
+`just fix` runs `cargo fixit --clippy --workspace --all-targets --allow-dirty --allow-staged` (via the pinned `cargo-fixit`). It is faster than `cargo clippy --fix` on repeated runs because `cargo fixit` skips the full re-check compile between fix rounds, so iterating on a lint cleanup does not rebuild the workspace each pass. Run `just lint` afterward to confirm no warnings remain (clippy can't autofix everything).
+
 > [!IMPORTANT]
 > Run `just ready` before every commit. This rule applies to all changes, including documentation edits, comment changes, and config updates. Any change can break formatting, linting, building, or tests across the supported platforms.
 
@@ -113,7 +121,7 @@ This runs `typos`, `cargo fmt`, `just check` (which is `cargo check --locked --w
 Set the `TRACE` environment variable to enable trace-level logging for a given module:
 
 ```sh
-TRACE=pacquet_tarball just cli add fastify
+TRACE=pnpm_tarball just cli add fastify
 ```
 
 ## Testing
@@ -127,7 +135,7 @@ When porting tests from the upstream `pnpm/pnpm` TypeScript repository, see
 [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It tracks the tests
 scheduled for porting (with upstream file paths and line numbers), the
 expected layout for not-yet-implemented behavior (`known_failures` modules
-guarded by `pacquet_testing_utils::allow_known_failure!`), and the
+guarded by `pnpm_testing_utils::allow_known_failure!`), and the
 verification step of temporarily breaking the implementation to confirm a
 ported test actually fails for the right reason before committing.
 

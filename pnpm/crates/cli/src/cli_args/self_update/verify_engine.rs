@@ -19,11 +19,11 @@ use p256::{
     ecdsa::{Signature, VerifyingKey, signature::Verifier},
     pkcs8::DecodePublicKey,
 };
-use pacquet_config::Config;
-use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
-use pacquet_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef, SpecifierAndResolution};
-use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_package_name, redact_url_credentials,
+use pnpm_config::Config;
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef, SpecifierAndResolution};
+use pnpm_network::{
+    NetworkSettings, RetryOpts, ThrottledClient, encode_package_name, redact_and_sanitize,
     send_with_retry,
 };
 use serde::Deserialize;
@@ -56,8 +56,16 @@ struct NpmSigningKey<'a> {
     expires: Option<&'a str>,
 }
 
-/// A pnpm-engine component whose registry signature must validate over the
-/// bytes the lockfile pins.
+/// The canonical npm registry, consulted for signature metadata when a
+/// user-configured registry cannot provide a verifiable signature. Where the
+/// signature bytes come from does not affect what they prove: they are
+/// verified against the embedded keys over the lockfile integrity, so a
+/// component passes only when a genuine signature validates over the bytes
+/// actually installed. See <https://github.com/pnpm/pnpm/issues/13147>.
+const CANONICAL_NPM_REGISTRY: &str = "https://registry.npmjs.org/";
+
+/// A package-manager engine component whose registry signature must
+/// validate over the bytes the lockfile pins.
 struct EngineComponent {
     name: String,
     registry: String,
@@ -65,23 +73,62 @@ struct EngineComponent {
     integrity: String,
 }
 
-/// Verify the pnpm engine recorded in `env` against npm's embedded keys.
+/// The engine whose identity is being checked.
+pub(crate) struct EngineToVerify<'a> {
+    /// `<name>@<version>` as the user asked for it, for diagnostics.
+    pub(crate) label: &'a str,
+    /// The packages the env lockfile pins for the engine.
+    pub(crate) packages: &'a [&'a str],
+    pub(crate) platform_binaries: PlatformBinaries,
+}
+
+/// How an engine ships the native code that actually executes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PlatformBinaries {
+    /// `@pnpm/exe.<target>` packages, listed as optional dependencies of
+    /// the pnpm wrapper.
+    PnpmExe,
+    /// The engine is a JavaScript CLI — the pinned packages are all there
+    /// is to verify.
+    None,
+}
+
+/// Verify the package-manager engine recorded in `env` against npm's
+/// embedded keys.
 ///
-/// Returns an error when verification detects tampering (an invalid
-/// signature), when a component is absent from the registry, when a
-/// component carries no integrity metadata, or when the registry is
-/// unreachable — failing closed in every case, since the lockfile
-/// integrity is project-controlled and not a safe fallback.
-pub(crate) async fn verify_pnpm_engine_identity(
+/// Registries that serve no `dist.signatures` (private mirrors and feed
+/// proxies commonly strip them) do not fail the check outright: the
+/// signature is fetched from [`CANONICAL_NPM_REGISTRY`] instead, which
+/// proves exactly the same thing. When no signature can be obtained from
+/// either source (both unreachable, or the integrity is a non-sha512 pin no
+/// npm signature can cover), the check returns a warning for the caller to
+/// emit and lets the install proceed — but only when every engine component
+/// resolves through a non-canonical registry. Such a registry can only come
+/// from the user's own trusted (non-project) configuration, the download URL
+/// is derived from it rather than read from the lockfile, and the bytes stay
+/// pinned by the lockfile integrity — so a cloned repository still cannot
+/// steer pnpm to attacker-controlled bytes; the residual trust is the same
+/// the user already places in that registry for every package installed
+/// from it.
+///
+/// Returns `Ok(None)` when a signature validated, `Ok(Some(warning))` when
+/// the install may proceed unverified, and an error when verification
+/// detects tampering (an invalid signature), when a component is absent from
+/// a reachable canonical registry, when a component carries no integrity
+/// metadata, or when the canonical registry is the configured registry and
+/// is unreachable — the lockfile integrity is project-controlled and not a
+/// safe fallback there.
+pub(crate) async fn verify_engine_identity(
     env: &EnvLockfile,
-    pnpm_version: &str,
+    engine: &EngineToVerify<'_>,
     config: &Config,
-) -> Result<(), SelfUpdateError> {
-    let to_verify = collect_engine_components(env, config)?;
+) -> Result<Option<String>, SelfUpdateError> {
+    let label = engine.label;
+    let to_verify = collect_engine_components(env, config, engine)?;
     if to_verify.is_empty() {
         return Err(SelfUpdateError::EngineIdentityUnverifiable {
             message: format!(
-                "Cannot verify the identity of pnpm@{pnpm_version}: its integrity metadata is missing from pnpm-lock.yaml.",
+                "Cannot verify the identity of {label}: its integrity metadata is missing from pnpm-lock.yaml.",
             ),
         });
     }
@@ -91,23 +138,40 @@ pub(crate) async fn verify_pnpm_engine_identity(
 
     let mut failures: Vec<SignatureFailure> = Vec::new();
     for component in &to_verify {
-        if let Some(failure) = find_signature_failure(component, &client, retry_opts, config).await
+        if let Some(failure) = find_signature_failure(
+            component,
+            CANONICAL_NPM_REGISTRY,
+            NPM_SIGNING_KEYS,
+            &client,
+            retry_opts,
+            config,
+        )
+        .await
         {
             failures.push(failure);
         }
     }
     if failures.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     failures.sort_by(|left, right| left.label.cmp(&right.label));
+    let described = failures.iter().map(SignatureFailure::describe).collect::<Vec<_>>().join("; ");
+
+    if failures.iter().all(SignatureFailure::tolerable_without_signature) {
+        return Ok(Some(format!(
+            "The authenticity of {label} could not be verified against npm's registry \
+             signatures: {described}. Proceeding anyway, because the release was resolved through \
+             the registry configured in your own (non-project) configuration and stays pinned by \
+             its integrity checksum.",
+        )));
+    }
 
     let only_unreachable =
         failures.iter().all(|failure| failure.category == FailureCategory::Unreachable);
-    let described = failures.iter().map(SignatureFailure::describe).collect::<Vec<_>>().join("; ");
     let message = format!(
-        "Refusing to run pnpm@{pnpm_version}: its npm registry signature could not be verified \
-         ({described}). The bytes selected by this project's lockfile/registry do not match a \
-         published, signed pnpm release.",
+        "Refusing to run {label}: its npm registry signature could not be verified \
+         ({described}). The bytes its environment lockfile pins, resolved through the configured \
+         package-manager registry, do not match a published, signed release.",
     );
     if only_unreachable {
         Err(SelfUpdateError::EngineIdentityUnverifiable { message })
@@ -116,13 +180,14 @@ pub(crate) async fn verify_pnpm_engine_identity(
     }
 }
 
-/// Collect the engine components to verify from the env lockfile: `pnpm`,
-/// `@pnpm/exe`, and the host's platform binary (an optional dependency of
-/// the native wrapper, see [`native_engine_wrapper`]). Errors if a present
-/// component carries no integrity.
+/// Collect the engine components to verify from the env lockfile: the
+/// engine's own packages, plus — for pnpm — the host's platform binary (an
+/// optional dependency of the native wrapper, see [`native_engine_wrapper`]).
+/// Errors if a present component carries no integrity.
 fn collect_engine_components(
     env: &EnvLockfile,
     config: &Config,
+    engine: &EngineToVerify<'_>,
 ) -> Result<Vec<EngineComponent>, SelfUpdateError> {
     let mut to_verify = Vec::new();
     let pm_deps = env
@@ -133,17 +198,29 @@ fn collect_engine_components(
         return Ok(to_verify);
     };
 
-    for name in ["pnpm", "@pnpm/exe"] {
-        if let Some(dep) = pm_deps.get(name) {
-            to_verify.push(engine_component(env, config, name, &dep.version)?);
-        }
+    for name in engine.packages {
+        // The engine's package list is derived from the version being
+        // installed, so a package missing from the lockfile that pins it
+        // means the two disagree about what is about to run.
+        let dep =
+            pm_deps.get(*name).ok_or_else(|| SelfUpdateError::EngineIdentityUnverifiable {
+                message: format!(
+                    "Cannot verify the identity of {}: {name} is missing from pnpm-lock.yaml.",
+                    engine.label,
+                ),
+            })?;
+        to_verify.push(engine_component(env, config, name, &dep.version)?);
+    }
+
+    if engine.platform_binaries == PlatformBinaries::None {
+        return Ok(to_verify);
     }
 
     // The bytes actually executed are the host's platform binary, listed as
     // an optional dependency of the native wrapper. Since this is the native
-    // code self-update will run, a missing snapshot, missing optional deps,
-    // or no host candidate fails closed rather than letting verification pass
-    // on the wrappers alone.
+    // code that will run, a missing snapshot, missing optional deps, or no
+    // host candidate fails closed rather than letting verification pass on
+    // the wrappers alone.
     if let Some((wrapper_name, wrapper_version)) = native_engine_wrapper(pm_deps) {
         let snapshot_label = format!("{wrapper_name}@{wrapper_version}");
         let snapshot_key = snapshot_label.parse::<PackageKey>().map_err(|_| {
@@ -252,10 +329,16 @@ enum FailureCategory {
     Invalid,
     Absent,
     Unreachable,
+    /// The lockfile integrity is not a sha512 hash (e.g. a sha1 pin from a
+    /// registry that publishes only `shasum`), so no npm registry signature
+    /// can ever validate over it — verification is impossible by
+    /// construction, not evidence of tampering.
+    Uncovered,
 }
 
 struct SignatureFailure {
     label: String,
+    registry: String,
     reason: String,
     category: FailureCategory,
 }
@@ -264,41 +347,134 @@ impl SignatureFailure {
     fn describe(&self) -> String {
         format!("{}: {}", self.label, self.reason)
     }
+
+    /// Whether the engine may run despite this failure: no signature was
+    /// obtainable (nothing suspicious was observed — as opposed to a
+    /// signature that exists but does not validate, or the canonical
+    /// registry answering that no signed release exists), and the component
+    /// resolves through a registry the user configured themselves.
+    fn tolerable_without_signature(&self) -> bool {
+        matches!(self.category, FailureCategory::Unreachable | FailureCategory::Uncovered)
+            && !equal_registries(&self.registry, CANONICAL_NPM_REGISTRY)
+    }
 }
 
 /// Per-component verification. Returns `None` when a registry signature
-/// validates over the lockfile bytes.
+/// validates over the lockfile bytes — from the component's own registry,
+/// or from `fallback_registry` when its own registry cannot provide a
+/// verifiable one. `fallback_registry` is [`CANONICAL_NPM_REGISTRY`] in
+/// production and a mock registry in unit tests.
 async fn find_signature_failure(
     component: &EngineComponent,
+    fallback_registry: &str,
+    keys: &[NpmSigningKey<'_>],
     client: &ThrottledClient,
     retry_opts: RetryOpts,
     config: &Config,
 ) -> Option<SignatureFailure> {
     let label = format!("{}@{}", component.name, component.version);
-    let packument = match fetch_packument(component, client, retry_opts, config).await {
+    let failure = |reason: String, category: FailureCategory| {
+        Some(SignatureFailure {
+            reason,
+            category,
+            label: label.clone(),
+            registry: redact_and_sanitize(&component.registry),
+        })
+    };
+
+    // npm registry signatures sign `name@version:integrity` with the sha512
+    // integrity the registry published; any other installed form can never
+    // validate, and verifying it would misreport an authentic release as
+    // tampered with.
+    if !component.integrity.starts_with("sha512-") {
+        return failure(
+            format!(
+                "{label} is pinned by a non-sha512 integrity, which npm registry signatures cannot cover",
+            ),
+            FailureCategory::Uncovered,
+        );
+    }
+
+    let primary = attempt_signature_verification(
+        component,
+        &component.registry,
+        keys,
+        client,
+        retry_opts,
+        config,
+    )
+    .await?;
+    if equal_registries(&component.registry, fallback_registry) {
+        return failure(primary.0, primary.1);
+    }
+
+    // A genuine signature validating over the installed integrity proves the
+    // installed bytes regardless of which registry the primary attempt hit
+    // or what it answered (e.g. a mirror serving stale signatures from a
+    // rotated key), so a fallback pass is a pass.
+    let secondary = attempt_signature_verification(
+        component,
+        fallback_registry,
+        keys,
+        client,
+        retry_opts,
+        config,
+    )
+    .await?;
+
+    // A well-formed signature that fails to validate is a tamper signal from
+    // either source; surface it over the softer categories.
+    if primary.1 == FailureCategory::Invalid {
+        return failure(primary.0, primary.1);
+    }
+    if secondary.1 != FailureCategory::Unreachable {
+        return failure(secondary.0, secondary.1);
+    }
+    // The primary registry had no usable signature (a mirror commonly serves
+    // none) and the fallback could not be consulted — nothing suspicious was
+    // observed, the signature was simply unobtainable.
+    failure(
+        format!(
+            "{}; the fallback registry ({}) could not be consulted either: {}",
+            primary.0,
+            redact_and_sanitize(fallback_registry),
+            secondary.0,
+        ),
+        FailureCategory::Unreachable,
+    )
+}
+
+/// Verify `component`'s lockfile integrity against the signatures the
+/// packument on `registry` carries. Returns `None` on success, otherwise
+/// the failure reason and category.
+async fn attempt_signature_verification(
+    component: &EngineComponent,
+    registry: &str,
+    keys: &[NpmSigningKey<'_>],
+    client: &ThrottledClient,
+    retry_opts: RetryOpts,
+    config: &Config,
+) -> Option<(String, FailureCategory)> {
+    let label = format!("{}@{}", component.name, component.version);
+    // Registry URLs may carry inline `user:pass@` credentials, and the
+    // reasons built here end up in error messages and warnings.
+    let display_registry = redact_and_sanitize(registry);
+    let packument = match fetch_packument(component, registry, client, retry_opts, config).await {
         Ok(Some(packument)) => packument,
         Ok(None) => {
-            return Some(SignatureFailure {
-                reason: format!("{} is not published on {}", component.name, component.registry),
-                category: FailureCategory::Absent,
-                label,
-            });
+            return Some((
+                format!("{} is not published on {display_registry}", component.name),
+                FailureCategory::Absent,
+            ));
         }
-        Err(reason) => {
-            return Some(SignatureFailure {
-                reason,
-                category: FailureCategory::Unreachable,
-                label,
-            });
-        }
+        Err(reason) => return Some((reason, FailureCategory::Unreachable)),
     };
 
     let Some(version) = packument.versions.get(&component.version) else {
-        return Some(SignatureFailure {
-            reason: format!("{label} was not found on {}", component.registry),
-            category: FailureCategory::Absent,
-            label,
-        });
+        return Some((
+            format!("{label} was not found on {display_registry}"),
+            FailureCategory::Absent,
+        ));
     };
     let raw_signatures = version.dist.as_ref().and_then(|dist| dist.signatures.as_ref());
     let parsed_signatures = match raw_signatures {
@@ -308,59 +484,61 @@ async fn find_signature_failure(
             for element in elements {
                 let Ok(signature) = serde_json::from_value::<PackageSignature>(element.clone())
                 else {
-                    return Some(SignatureFailure {
-                        reason: format!("malformed registry signatures metadata for {label}"),
-                        category: FailureCategory::Absent,
-                        label,
-                    });
+                    return Some((
+                        format!("malformed registry signatures metadata for {label}"),
+                        FailureCategory::Absent,
+                    ));
                 };
                 parsed.push(signature);
             }
             parsed
         }
         Some(_) => {
-            return Some(SignatureFailure {
-                reason: format!("malformed registry signatures metadata for {label}"),
-                category: FailureCategory::Absent,
-                label,
-            });
+            return Some((
+                format!("malformed registry signatures metadata for {label}"),
+                FailureCategory::Absent,
+            ));
         }
     };
     if parsed_signatures.is_empty() {
-        return Some(SignatureFailure {
-            reason: format!("{label} has no registry signature"),
-            category: FailureCategory::Absent,
-            label,
-        });
+        return Some((
+            format!("{label} has no registry signature on {display_registry}"),
+            FailureCategory::Absent,
+        ));
     }
 
     let published_at = packument.time.get(&component.version).and_then(serde_json::Value::as_str);
     // The message is built from the *lockfile* integrity, so a signature
     // only validates when the installed bytes match what the registry
     // signed.
-    if signature_validates(component, &parsed_signatures, published_at) {
+    if signature_validates_against(component, &parsed_signatures, published_at, keys) {
         None
     } else {
-        Some(SignatureFailure {
-            reason: "invalid registry signature".to_string(),
-            category: FailureCategory::Invalid,
-            label,
-        })
+        Some(("invalid registry signature".to_string(), FailureCategory::Invalid))
     }
 }
 
-/// `true` as soon as one signature validates against a trusted, unexpired
-/// npm key over `name@version:integrity`.
-fn signature_validates(
-    component: &EngineComponent,
-    signatures: &[PackageSignature],
-    published_at: Option<&str>,
-) -> bool {
-    signature_validates_against(component, signatures, published_at, NPM_SIGNING_KEYS)
+/// Whether two registry URLs address the same registry. URL-equivalent
+/// forms must compare equal — hosts are case-insensitive and default ports
+/// are implied — or a canonical registry written as e.g.
+/// `https://Registry.NPMJS.org:443/` would be misclassified as a different,
+/// non-canonical one, weakening fail-closed decisions keyed on whether the
+/// registry is the canonical one. Inline `user:pass@` credentials are auth
+/// material, not identity, so they are stripped before comparing for the
+/// same reason.
+fn equal_registries(left: &str, right: &str) -> bool {
+    normalize_registry_url(left).eq_ignore_ascii_case(&normalize_registry_url(right))
 }
 
-/// [`signature_validates`] against an explicit key set — the trusted
-/// [`NPM_SIGNING_KEYS`] in production, a test key in unit tests.
+fn normalize_registry_url(registry: &str) -> String {
+    let with_slash = redact_and_sanitize(&with_trailing_slash(registry));
+    // URL normalization lowercases the host and drops a default port.
+    url::Url::parse(&with_slash).map(String::from).unwrap_or(with_slash)
+}
+
+/// `true` as soon as one signature validates against a trusted, unexpired
+/// key over `name@version:integrity` — the trusted [`NPM_SIGNING_KEYS`] in
+/// production, a test key in unit tests.
 fn signature_validates_against(
     component: &EngineComponent,
     signatures: &[PackageSignature],
@@ -437,18 +615,20 @@ struct Packument {
     versions: std::collections::HashMap<String, PackumentVersion>,
 }
 
-/// Fetch a component's packument from its (trusted) registry. `Ok(None)`
-/// for a 404 (package absent); `Err` for any other failure (treated as
-/// `unreachable` by the caller, so verification fails closed).
+/// Fetch a component's packument from `registry` — its own (trusted)
+/// registry, or the canonical fallback. `Ok(None)` for a 404 (package
+/// absent); `Err` for any other failure (treated as `unreachable` by the
+/// caller).
 async fn fetch_packument(
     component: &EngineComponent,
+    registry: &str,
     client: &ThrottledClient,
     retry_opts: RetryOpts,
     config: &Config,
 ) -> Result<Option<Packument>, String> {
-    let registry_url = with_trailing_slash(&component.registry);
+    let registry_url = with_trailing_slash(registry);
     let packument_url = format!("{registry_url}{}", encode_package_name(&component.name));
-    let display_url = redact_url_credentials(&packument_url);
+    let display_url = redact_and_sanitize(&packument_url);
     // Resolve auth against the request URL *and* the package name so a
     // `@scope:registry`-scoped token applies (plain `for_url` skips the
     // scope lookup, breaking bootstrap registries that require it).
@@ -465,7 +645,7 @@ async fn fetch_packument(
         request
     })
     .await
-    .map_err(|source| format!("{display_url}: {}", redact_url_credentials(&source.to_string())))?;
+    .map_err(|source| format!("{display_url}: {}", redact_and_sanitize(&source.to_string())))?;
 
     let status = response.status().as_u16();
     if status == 404 {
@@ -487,7 +667,7 @@ async fn fetch_packument(
     let mut body_bytes = Vec::new();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|source| {
-            format!("{display_url}: {}", redact_url_credentials(&source.to_string()))
+            format!("{display_url}: {}", redact_and_sanitize(&source.to_string()))
         })?;
         if (body_bytes.len() + chunk.len()) as u64 > MAX_PACKUMENT_BYTES {
             return Err(format!("{display_url} returned an oversized packument"));

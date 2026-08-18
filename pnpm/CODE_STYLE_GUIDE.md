@@ -813,7 +813,7 @@ Verify the test catches a regression: temporarily comment out the emit, run the 
 
 - **Don't reformat the wire messages.** Field names and string values are part of the wire contract — change them and `@pnpm/cli.default-reporter` silently drops the record.
 - **Don't invent new channels.** The channel set is shared; it expands only when both stacks add a channel together.
-- **Don't emit at higher granularity than the reporter expects.** Throttling and size gates exist for a reason — see `pacquet-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading and trailing edges.
+- **Don't emit at higher granularity than the reporter expects.** Throttling and size gates exist for a reason — see `pnpm-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading and trailing edges.
 - **Don't emit at lower granularity, either.** Skipping events the consumer expects (`fetched` after a download succeeds, `imported` after `create_cas_files` Ok) breaks pnpm's reporter counters.
 
 #### Worked example: `pnpm:summary` in `Install::run`

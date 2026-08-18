@@ -1,5 +1,5 @@
 use crate::{StoreDir, register_project};
-use pacquet_fs::symlink_dir;
+use pnpm_fs::symlink_dir;
 use std::{fs, path::PathBuf};
 use tempfile::tempdir;
 

@@ -106,6 +106,65 @@ test('deploy without existing lockfile', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/13754
+test('legacy deploy injects workspace dependencies that the shared lockfile links', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: true,
+    injectWorkspacePackages: false,
+    production: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(assertProject(process.cwd()).readLockfile().importers['project-1'].dependencies!['project-2'].version).toBe('link:../project-2')
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    forceLegacyDeploy: true,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  expect(fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))).toBe(
+    path.join(deployDir, 'node_modules/.pnpm/project-2@file+project-2/node_modules/project-2')
+  )
+})
+
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {
   preparePackages([
     {

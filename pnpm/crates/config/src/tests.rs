@@ -1,10 +1,10 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, fs,
+    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, default_ci, fs,
 };
 use crate::defaults::default_store_dir;
-use pacquet_store_dir::StoreDir;
-use pacquet_testing_utils::env_guard::EnvGuard;
+use pnpm_store_dir::StoreDir;
+use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
 use std::{
     env,
@@ -57,6 +57,45 @@ fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
     let subscriber = tracing_subscriber::registry().with(CaptureLayer(messages_clone));
     tracing::subscriber::with_default(subscriber, f);
     Arc::try_unwrap(messages).unwrap().into_inner().unwrap()
+}
+
+#[test]
+fn ci_false_disables_github_actions_detection() {
+    struct GithubActionsWithCiFalse;
+
+    impl EnvVar for GithubActionsWithCiFalse {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CI" => Some("false".to_string()),
+                "GITHUB_ACTIONS" => Some("true".to_string()),
+                _ => None,
+            }
+        }
+
+        fn vars() -> Vec<(String, String)> {
+            Vec::new()
+        }
+    }
+
+    assert!(!default_ci::<GithubActionsWithCiFalse>(|| true));
+}
+
+#[test]
+fn ci_detection_uses_injected_detector() {
+    struct InjectedCi;
+
+    impl EnvVar for InjectedCi {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+
+        fn vars() -> Vec<(String, String)> {
+            Vec::new()
+        }
+    }
+
+    assert!(default_ci::<InjectedCi>(|| true));
+    assert!(!default_ci::<InjectedCi>(|| false));
 }
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage
@@ -262,7 +301,7 @@ pub fn fetch_retries_defaults_match_pnpm() {
 #[test]
 pub fn network_settings_defaults_match_pnpm() {
     let value = Config::new();
-    assert_eq!(value.network_concurrency, pacquet_network::default_network_concurrency());
+    assert_eq!(value.network_concurrency, pnpm_network::default_network_concurrency());
     assert_eq!(value.fetch_timeout, 60_000);
     assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
     assert_eq!(value.npmrc_auth_file, None);
@@ -457,7 +496,7 @@ namedRegistries:
     assert_eq!(config.registry, "https://trusted.example.com/npm/");
     assert_eq!(config.pnpr_server.as_deref(), Some("https://trusted.example.com/pnpr/"));
     assert_eq!(
-        config.named_registries.get("work").map(String::as_str),
+        config.registries_by_prefix.get("work").map(String::as_str),
         Some("https://trusted.example.com/work/"),
     );
 }
@@ -661,7 +700,7 @@ pub fn json_env_default_scope_routes_default_registry() {
 
     assert_eq!(config.registry, "https://my-npm-proxy.example/");
     assert_eq!(
-        config.registries.get("default").map(String::as_str),
+        config.registries_by_scope.get("default").map(String::as_str),
         Some("https://my-npm-proxy.example/"),
     );
     assert_eq!(
@@ -684,7 +723,7 @@ pub fn json_env_scoped_entry_routes_that_scope() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config.registries.get("@org").map(String::as_str),
+        config.registries_by_scope.get("@org").map(String::as_str),
         Some("https://npm.pkg.github.com/"),
     );
 }
@@ -710,7 +749,7 @@ pub fn json_env_env_default_wins_over_workspace_yaml_default() {
 
     assert_eq!(config.registry, "https://my-npm-proxy.example/");
     assert_eq!(
-        config.registries.get("default").map(String::as_str),
+        config.registries_by_scope.get("default").map(String::as_str),
         Some("https://my-npm-proxy.example/"),
     );
 }
@@ -744,7 +783,7 @@ pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config.registries.get("@victim-scope").map(String::as_str),
+        config.registries_by_scope.get("@victim-scope").map(String::as_str),
         Some("https://npm.pkg.github.com/"),
     );
     assert_eq!(
@@ -794,7 +833,7 @@ pub fn global_config_yaml_auth_configures_registry_auth() {
     );
     assert_eq!(config.registry, "https://global-auth.example.com/");
     assert_eq!(
-        config.registries.get("@org").map(String::as_str),
+        config.registries_by_scope.get("@org").map(String::as_str),
         Some("https://global-auth.example.com/"),
     );
 }
@@ -866,7 +905,7 @@ pub fn json_env_env_registry_flag_wins_over_json_env_default() {
 
     assert_eq!(config.registry, "https://cli-registry.example/");
     assert_eq!(
-        config.registries.get("default").map(String::as_str),
+        config.registries_by_scope.get("default").map(String::as_str),
         Some("https://cli-registry.example/"),
     );
     assert_eq!(
@@ -919,7 +958,7 @@ pub fn json_env_inferred_registries_flow_to_bootstrap() {
 /// End-to-end: a scoped env JSON entry overrides a repo-controlled
 /// `pnpm-workspace.yaml` scoped registry in the main cascade, and the
 /// token is pinned to the env-declared host. Asserts
-/// `config.registries["@scope"]` — not just auth headers — so a regression
+/// `config.registries_by_scope["@scope"]` — not just auth headers — so a regression
 /// that breaks routing while leaving auth-header pinning intact is caught.
 #[test]
 pub fn json_env_env_scoped_wins_over_workspace_yaml_scoped() {
@@ -937,7 +976,7 @@ pub fn json_env_env_scoped_wins_over_workspace_yaml_scoped() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config.registries.get("@victim-scope").map(String::as_str),
+        config.registries_by_scope.get("@victim-scope").map(String::as_str),
         Some("https://registry.npmjs.org/"),
     );
     assert_eq!(
@@ -997,7 +1036,7 @@ pub fn json_env_overrides_user_bootstrap_scoped_registry() {
         Some("https://my-npm-proxy.example/"),
     );
     assert_eq!(
-        config.registries.get("@org").map(String::as_str),
+        config.registries_by_scope.get("@org").map(String::as_str),
         Some("https://my-npm-proxy.example/"),
     );
 }
@@ -1030,7 +1069,7 @@ pub fn user_username_password_pins_to_its_own_file_registry() {
 
     let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
 
-    let expected = format!("Basic {}", pacquet_network::base64_encode("alice:pass"));
+    let expected = format!("Basic {}", pnpm_network::base64_encode("alice:pass"));
     assert_eq!(
         config.auth_headers.for_url("https://trusted.example.com/pkg").as_deref(),
         Some(expected.as_str()),
@@ -1099,7 +1138,7 @@ pub fn global_config_yaml_supplies_proxy_settings() {
     assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://proxy.example.com:8443"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec![
+        Some(pnpm_network::NoProxySetting::List(vec![
             "localhost".to_string(),
             "127.0.0.1".to_string(),
         ])),
@@ -1239,7 +1278,7 @@ pub fn project_npmrc_proxy_settings_are_preserved() {
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8080"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
+        Some(pnpm_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
     );
 }
 
@@ -1441,7 +1480,7 @@ pub fn workspace_yaml_scheme_proxy_keys_set_to_false_mask_the_project_npmrc() {
     assert_eq!(config.proxy.http_proxy, None);
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["env.example".to_string()])),
+        Some(pnpm_network::NoProxySetting::List(vec!["env.example".to_string()])),
         "a masked key still falls through to the environment",
     );
 }
@@ -1461,7 +1500,7 @@ pub fn empty_workspace_yaml_no_proxy_falls_through_to_its_alias() {
 
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["alias.example".to_string()])),
+        Some(pnpm_network::NoProxySetting::List(vec!["alias.example".to_string()])),
     );
 }
 
@@ -1824,7 +1863,7 @@ pub fn should_use_pnpm_home_env_var() {
     let store_dir = default_store_dir::<EnvWithPnpmHome>();
     assert_eq!(
         display_store_dir(&store_dir),
-        format!("/hello/store/{}", pacquet_store_dir::STORE_VERSION),
+        format!("/hello/store/{}", pnpm_store_dir::STORE_VERSION),
     );
 }
 
@@ -1855,7 +1894,7 @@ pub fn should_use_xdg_data_home_env_var() {
     let store_dir = default_store_dir::<EnvWithXdgDataHome>();
     assert_eq!(
         display_store_dir(&store_dir),
-        format!("/hello/pnpm/store/{}", pacquet_store_dir::STORE_VERSION),
+        format!("/hello/pnpm/store/{}", pnpm_store_dir::STORE_VERSION),
     );
 }
 
@@ -2081,12 +2120,68 @@ pub fn gvs_default_is_off_and_paths_derive_cleanly() {
     let tmp = tempdir().unwrap();
     let config =
         Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
-    assert!(
-        !config.enable_global_virtual_store,
-        "GVS defaults to false (matches pnpm v11 for non-global installs)",
-    );
+    assert!(!config.enable_global_virtual_store, "GVS is off by default");
     assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
+}
+
+/// A `Config` that never goes through [`Config::current`] never runs
+/// [`Config::apply_global_virtual_store_derivation`] either, so the
+/// `SmartDefault` has to hold the same invariant on its own: the
+/// machine-wide store never points at the working directory.
+#[test]
+pub fn default_config_disables_gvs_and_points_it_at_the_store() {
+    let config = Config::default();
+    assert!(!config.enable_global_virtual_store);
+    assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
+}
+
+/// Both spellings reach one field, so which of them applies last decides.
+#[test]
+pub fn virtual_store_type_supersedes_the_boolean_spelling() {
+    for (yaml, expected) in [
+        ("virtualStoreType: project\n", false),
+        ("virtualStoreType: global\n", true),
+        ("enableGlobalVirtualStore: false\n", false),
+        ("enableGlobalVirtualStore: true\n", true),
+        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
+        ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+    ] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(config.enable_global_virtual_store, expected, "yaml: {yaml}");
+    }
+}
+
+/// `pnpm config get` reads the explicit-settings record, which therefore has
+/// to answer both spellings with the value the install will use — whichever
+/// of the two the file was written in.
+#[test]
+pub fn explicit_settings_report_the_spelling_that_won() {
+    for (yaml, expected) in [
+        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
+        ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+        ("virtualStoreType: project\n", false),
+        ("enableGlobalVirtualStore: true\n", true),
+    ] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(
+            config.explicit_settings.get("enableGlobalVirtualStore"),
+            Some(&serde_json::Value::Bool(expected)),
+            "yaml: {yaml}",
+        );
+        assert_eq!(
+            config.explicit_settings.get("virtualStoreType").and_then(serde_json::Value::as_str),
+            Some(if expected { "global" } else { "project" }),
+            "yaml: {yaml}",
+        );
+        assert_eq!(config.enable_global_virtual_store, expected, "yaml: {yaml}");
+    }
 }
 
 #[test]
@@ -2115,11 +2210,40 @@ pub fn gvs_user_pinned_virtual_store_routes_into_global_virtual_store_dir() {
     assert_eq!(config.global_virtual_store_dir, user_path);
 }
 
-/// The fixture also enables GVS explicitly. Pacquet's default
-/// is `enableGlobalVirtualStore: false` (matches pnpm v11 for
-/// non-`--global` installs), so without the explicit opt-in the
-/// GVS-on derivation path wouldn't run at all and the test
-/// would say nothing about that path's behaviour.
+#[test]
+pub fn gvs_enabled_exposes_hoisted_dependencies_through_node_path_and_the_esm_loader() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    let path_delimiter = if cfg!(windows) { ";" } else { ":" };
+    assert_eq!(
+        config.extra_env.get("NODE_PATH"),
+        Some(&format!(
+            "{}{path_delimiter}{}",
+            tmp.path().join("node_modules").join(".pnpm").join("node_modules").display(),
+            tmp.path().join("node_modules").display(),
+        )),
+    );
+    let node_options = config.extra_env.get("NODE_OPTIONS").expect("NODE_OPTIONS is injected");
+    assert!(node_options.contains(crate::esm_node_path_loader::esm_node_path_loader_import_flag()));
+}
+
+#[test]
+pub fn gvs_disabled_or_extend_node_path_off_injects_no_resolution_env() {
+    for yaml in [
+        "enableGlobalVirtualStore: false\n",
+        "enableGlobalVirtualStore: true\nextendNodePath: false\n",
+    ] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(config.extra_env.get("NODE_PATH"), None, "yaml: {yaml}");
+        assert_eq!(config.extra_env.get("NODE_OPTIONS"), None, "yaml: {yaml}");
+    }
+}
+
 #[test]
 pub fn yaml_global_virtual_store_dir_wins_over_derivation() {
     let tmp = tempdir().unwrap();
@@ -2251,7 +2375,7 @@ pub fn single_project_anchors_modules_at_cwd() {
 
 /// `NPM_CONFIG_WORKSPACE_DIR` must steer `Config::current`'s
 /// path-anchoring just like it steers
-/// [`pacquet_workspace::find_workspace_dir`] — otherwise the
+/// [`pnpm_workspace::find_workspace_dir`] — otherwise the
 /// virtual store would land in the cwd while the per-importer
 /// `SymlinkDirectDependencies` writes land under the env-var
 /// path, producing two `node_modules` layouts for the same
@@ -2302,7 +2426,7 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
 
 /// An empty `NPM_CONFIG_WORKSPACE_DIR` falls through to the
 /// upward walk, matching pnpm, which treats only a non-empty
-/// workspace-dir value as set. Pairs with `pacquet_workspace`'s
+/// workspace-dir value as set. Pairs with `pnpm_workspace`'s
 /// `empty_env_var_is_treated_as_unset`.
 ///
 /// Drives the [`EnvVarOs`] DI seam with a fake that returns an
@@ -2954,14 +3078,49 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
 }
 
 #[test]
-pub fn cleanup_unused_catalogs_from_workspace_yaml() {
+pub fn catalog_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
-    assert!(!config.cleanup_unused_catalogs);
+    assert!(!config.catalog_prune);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "catalogPrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.catalog_prune);
+}
+
+/// `catalogPrune` was released as `cleanupUnusedCatalogs`, which every
+/// `pnpm-workspace.yaml` written since pnpm 10.15 may still carry.
+#[test]
+pub fn catalog_prune_from_its_former_name_in_workspace_yaml() {
+    let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "cleanupUnusedCatalogs: true\n")
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-    assert!(config.cleanup_unused_catalogs);
+    assert!(config.catalog_prune);
+}
+
+/// The canonical name wins, whichever order the two appear in.
+#[test]
+pub fn catalog_prune_overrides_its_former_name() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "cleanupUnusedCatalogs: true\ncatalogPrune: false\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(!config.catalog_prune);
+}
+
+#[test]
+pub fn minimum_release_age_exclude_prune_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.minimum_release_age_exclude_prune);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAgeExcludePrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.minimum_release_age_exclude_prune);
 }
 
 #[test]
@@ -3105,8 +3264,7 @@ fn patched_dependency_hashes_resolves_and_hashes_each_patch() {
     let patch_path = workspace.path().join("patches").join("graceful-fs@4.2.11.patch");
     std::fs::create_dir_all(patch_path.parent().unwrap()).expect("create patches dir");
     std::fs::write(&patch_path, "--- a/index.js\n+++ b/index.js\n").expect("write patch");
-    let expected =
-        pacquet_patching::create_hex_hash_from_file(&patch_path).expect("hash patch file");
+    let expected = pnpm_patching::create_hex_hash_from_file(&patch_path).expect("hash patch file");
 
     let mut config = Config::new();
     assert!(config.patched_dependency_hashes().expect("no error").is_none(), "unset → None");
@@ -3184,7 +3342,7 @@ pub fn package_manager_bootstrap_ignores_workspace_yaml_registries() {
         "workspace yaml drives normal installs",
     );
     assert_eq!(
-        config.registries.get("@evil").map(String::as_str),
+        config.registries_by_scope.get("@evil").map(String::as_str),
         Some("https://attacker-scoped.example.com/"),
     );
     assert_eq!(
@@ -3241,7 +3399,7 @@ pub fn package_manager_bootstrap_honors_env_registry() {
 /// When `PNPM_CONFIG_REGISTRY` is set without a trailing slash, the env
 /// override normalizes it before storing — matching pnpm, which treats
 /// `https://r` and `https://r/` as the same registry. The slash must be
-/// appended consistently to `config.registry`, `config.registries`, and
+/// appended consistently to `config.registry`, `config.registries_by_scope`, and
 /// the bootstrap map so downstream lookups (auth-header pinning,
 /// `package_manager_bootstrap`) all key against the normalized form.
 #[test]
@@ -3254,7 +3412,7 @@ pub fn env_registry_override_appends_missing_trailing_slash() {
 
     assert_eq!(config.registry, "https://env.example.com/");
     assert_eq!(
-        config.registries.get("default").map(String::as_str),
+        config.registries_by_scope.get("default").map(String::as_str),
         Some("https://env.example.com/"),
     );
     assert_eq!(

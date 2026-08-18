@@ -1,21 +1,25 @@
 use super::{
-    Decision, FileMtime, LinkedPackagesContext, MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
-    OptimisticRepeatInstallCheck, RunDepsStatus, check_deps_status_before_run,
-    check_optimistic_repeat_install, check_optimistic_repeat_install_ignoring, current_pnpmfiles,
-    current_settings, current_settings_with_catalogs, linked_packages_are_up_to_date,
-    lockfile_modified_since, modified_at_or_after,
+    Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+    check_optimistic_repeat_install_ignoring,
+    conflict_markers::MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
+    current_pnpmfiles,
+    deps_status::{RunDepsStatus, check_deps_status_before_run},
+    manifest_agreement::{LinkedPackagesContext, linked_packages_are_up_to_date},
+    settings::{current_settings, current_settings_with_catalogs},
+    timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
 };
 use indexmap::IndexMap;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
-use pacquet_modules_yaml::IncludedDependencies;
-use pacquet_package_manifest::PackageManifest;
-use pacquet_workspace_state::{
-    ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state, now_millis,
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_testing_utils::fs::backdate_existing_files;
+use pnpm_workspace_state::{
+    ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state,
     update_workspace_state,
 };
-use std::{collections::BTreeMap, fs, thread::sleep, time::Duration};
+use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
 fn isolated_included() -> IncludedDependencies {
@@ -28,7 +32,7 @@ fn isolated_included() -> IncludedDependencies {
 fn check(
     workspace_root: &std::path::Path,
     config: &Config,
-    node_linker: pacquet_config::NodeLinker,
+    node_linker: pnpm_config::NodeLinker,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> Decision {
     check_with_catalogs(
@@ -44,7 +48,7 @@ fn check(
 fn check_with_catalogs(
     workspace_root: &std::path::Path,
     config: &Config,
-    node_linker: pacquet_config::NodeLinker,
+    node_linker: pnpm_config::NodeLinker,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     is_workspace_install: bool,
     catalogs: &Catalogs,
@@ -65,7 +69,7 @@ fn check_with_catalogs(
 fn check_workspace(
     workspace_root: &std::path::Path,
     config: &Config,
-    node_linker: pacquet_config::NodeLinker,
+    node_linker: pnpm_config::NodeLinker,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     catalogs: &Catalogs,
 ) -> Decision {
@@ -110,10 +114,9 @@ fn write_state_with_pnpmfiles(
 #[test]
 fn returns_skipped_when_a_pnpmfile_is_modified() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
     let pnpmfile = dir.path().join(".pnpmfile.cjs");
     fs::write(&pnpmfile, "module.exports = {}\n").expect("write pnpmfile");
-    sleep(Duration::from_millis(20));
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -121,18 +124,17 @@ fn returns_skipped_when_a_pnpmfile_is_modified() {
     );
     write_state_with_pnpmfiles(
         dir.path(),
-        now_millis(),
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None),
+        backdate_existing_files(dir.path()),
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None),
         projects,
-        current_pnpmfiles(dir.path()),
+        current_pnpmfiles(dir.path(), config),
     );
-    sleep(Duration::from_millis(20));
     fs::write(&pnpmfile, "module.exports = { hooks: {} }\n").expect("modify pnpmfile");
 
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
 
@@ -142,12 +144,10 @@ fn returns_skipped_when_a_pnpmfile_is_modified() {
     ));
 }
 
-/// Setup a workspace with a manifest written *before* the recorded
-/// `lastValidatedTimestamp`. The sleep covers filesystem mtime
-/// resolution (1 s on HFS+, 1 µs on APFS / ext4) so the manifest
-/// reliably lands earlier in time than the state's timestamp.
+/// Setup a workspace whose recorded `lastValidatedTimestamp` covers
+/// every file written so far, so the manifest reads as validated.
 fn setup_fresh_install(
-    config_kind: pacquet_config::NodeLinker,
+    config_kind: pnpm_config::NodeLinker,
     project_name: &str,
     project_version: &str,
     manifest_extra_json: &str,
@@ -165,7 +165,7 @@ fn setup_fresh_install(
 /// `Config` before the workspace-state snapshot is taken, so the
 /// settings comparison sees the configured values as unchanged.
 fn setup_fresh_install_with_config(
-    config_kind: pacquet_config::NodeLinker,
+    config_kind: pnpm_config::NodeLinker,
     project_name: &str,
     project_version: &str,
     manifest_extra_json: &str,
@@ -192,12 +192,6 @@ fn setup_fresh_install_with_config(
     // to exercise.
     write_empty_lockfile(workspace_root);
 
-    // Sleep long enough for the filesystem clock to advance past the
-    // manifest's mtime before stamping the workspace state. Without
-    // this, fast filesystems (APFS / tmpfs) leave both timestamps in
-    // the same millisecond bucket and `<=` vs `<` flips the test.
-    sleep(Duration::from_millis(20));
-
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     configure(&mut config);
@@ -212,7 +206,7 @@ fn setup_fresh_install_with_config(
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some(project_name.into()), version: Some(project_version.into()) },
     );
-    write_state(workspace_root, now_millis(), settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     (dir, config, manifest)
 }
@@ -223,12 +217,12 @@ fn setup_fresh_install_with_config(
 #[test]
 fn returns_up_to_date_when_state_and_manifests_agree() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
@@ -240,7 +234,7 @@ fn returns_up_to_date_when_state_and_manifests_agree() {
 #[test]
 fn returns_skipped_when_a_project_has_a_file_dependency() {
     let (dir, config, manifest) = setup_fresh_install(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"file:../foo"}"#,
@@ -249,7 +243,7 @@ fn returns_skipped_when_a_project_has_a_file_dependency() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(
@@ -262,7 +256,7 @@ fn returns_skipped_when_a_project_has_a_file_dependency() {
 #[test]
 fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
     let (dir, config, manifest) = setup_fresh_install(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""devDependencies":{"tar":"file:./vendor/tar.tgz"}"#,
@@ -271,7 +265,7 @@ fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(
@@ -287,7 +281,7 @@ fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
         ["vendor/pkg.tgz", "../sibling-dir", "~/pkgs/foo", "/abs/path/foo", "c:/pkgs/foo", "c:pkgs"]
     {
         let (dir, config, manifest) = setup_fresh_install(
-            pacquet_config::NodeLinker::Isolated,
+            pnpm_config::NodeLinker::Isolated,
             "root",
             "1.0.0",
             &format!(r#""dependencies":{{"foo":"{spec}"}}"#),
@@ -296,7 +290,7 @@ fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
         let decision = check(
             dir.path(),
             config,
-            pacquet_config::NodeLinker::Isolated,
+            pnpm_config::NodeLinker::Isolated,
             &[(dir.path().to_path_buf(), &manifest)],
         );
         assert!(
@@ -313,7 +307,7 @@ fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
 #[test]
 fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
     let (dir, config, manifest) = setup_fresh_install(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""optionalDependencies":{"foo":"file:../foo"}"#,
@@ -327,18 +321,18 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
     // Re-stamp the state with the same include flags the check runs
     // under, so the settings comparison passes and the include gate is
     // what gets exercised.
-    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included, None);
+    let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included,
         supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
@@ -354,7 +348,7 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
 #[test]
 fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
     let (dir, config, manifest) = setup_fresh_install(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"file:../foo"}"#,
@@ -365,18 +359,18 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
         dev_dependencies: false,
         optional_dependencies: false,
     };
-    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included, None);
+    let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included,
         supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
@@ -396,7 +390,7 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
 #[test]
 fn returns_skipped_when_an_override_maps_to_a_local_file_dependency() {
     let (dir, config, manifest) = setup_fresh_install_with_config(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"^1.0.0"}"#,
@@ -409,7 +403,7 @@ fn returns_skipped_when_an_override_maps_to_a_local_file_dependency() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(
@@ -423,7 +417,7 @@ fn returns_skipped_when_an_override_maps_to_a_local_file_dependency() {
 #[test]
 fn returns_up_to_date_when_overrides_are_not_local_paths() {
     let (dir, config, manifest) = setup_fresh_install_with_config(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"^1.0.0"}"#,
@@ -438,7 +432,7 @@ fn returns_up_to_date_when_overrides_are_not_local_paths() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
@@ -450,14 +444,14 @@ fn returns_up_to_date_when_overrides_are_not_local_paths() {
 #[test]
 fn returns_skipped_when_a_package_extension_injects_a_local_file_dependency() {
     let (dir, config, manifest) = setup_fresh_install_with_config(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"^1.0.0"}"#,
         |config| {
             config.package_extensions = Some(IndexMap::from([(
                 "foo@1".to_string(),
-                pacquet_config::PackageExtension {
+                pnpm_config::PackageExtension {
                     dependencies: Some(BTreeMap::from([(
                         "bar".to_string(),
                         "file:../bar".to_string(),
@@ -471,7 +465,7 @@ fn returns_skipped_when_a_package_extension_injects_a_local_file_dependency() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(
@@ -486,14 +480,14 @@ fn returns_skipped_when_a_package_extension_injects_a_local_file_dependency() {
 #[test]
 fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded() {
     let (dir, config, manifest) = setup_fresh_install_with_config(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"^1.0.0"}"#,
         |config| {
             config.package_extensions = Some(IndexMap::from([(
                 "foo@1".to_string(),
-                pacquet_config::PackageExtension {
+                pnpm_config::PackageExtension {
                     optional_dependencies: Some(BTreeMap::from([(
                         "bar".to_string(),
                         "file:../bar".to_string(),
@@ -509,18 +503,18 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
         dev_dependencies: true,
         optional_dependencies: false,
     };
-    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included, None);
+    let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included,
         supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
@@ -539,7 +533,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
 #[test]
 fn returns_skipped_with_parse_error_reason_when_overrides_cannot_be_parsed() {
     let (dir, config, manifest) = setup_fresh_install_with_config(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"^1.0.0"}"#,
@@ -551,7 +545,7 @@ fn returns_skipped_with_parse_error_reason_when_overrides_cannot_be_parsed() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(
@@ -568,7 +562,7 @@ fn returns_skipped_with_parse_error_reason_when_overrides_cannot_be_parsed() {
 #[test]
 fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
     let (dir, config, manifest) = setup_fresh_install(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"catalog:"}"#,
@@ -581,7 +575,7 @@ fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included: isolated_included(),
         supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
@@ -600,7 +594,7 @@ fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
 #[test]
 fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
     let (dir, config, manifest) = setup_fresh_install(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"catalog:"}"#,
@@ -615,7 +609,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
     // "catalogs cache outdated" bail.
     let settings = current_settings_with_catalogs(
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
         &catalogs,
@@ -625,12 +619,12 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included: isolated_included(),
         supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
@@ -648,7 +642,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
 #[test]
 fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
     let (dir, config, manifest) = setup_fresh_install_with_config(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"^1.0.0"}"#,
@@ -664,7 +658,7 @@ fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included: isolated_included(),
         supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
@@ -684,7 +678,7 @@ fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
 #[test]
 fn returns_up_to_date_when_specs_are_not_local_paths() {
     let (dir, config, manifest) = setup_fresh_install(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         concat!(
@@ -698,7 +692,7 @@ fn returns_up_to_date_when_specs_are_not_local_paths() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
@@ -709,7 +703,7 @@ fn returns_up_to_date_when_specs_are_not_local_paths() {
 #[test]
 fn returns_up_to_date_when_a_project_has_only_link_dependencies() {
     let (dir, config, manifest) = setup_fresh_install(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         r#""dependencies":{"foo":"link:../foo"}"#,
@@ -718,7 +712,7 @@ fn returns_up_to_date_when_a_project_has_only_link_dependencies() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
@@ -744,7 +738,7 @@ fn returns_skipped_when_config_disabled() {
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("disabled")));
@@ -767,7 +761,7 @@ fn returns_skipped_when_no_state_file() {
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(
@@ -780,10 +774,9 @@ fn returns_skipped_when_no_state_file() {
 #[test]
 fn returns_skipped_when_manifest_is_newer_than_validation() {
     let (dir, config, _manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     // Touch the manifest after the workspace-state was stamped.
-    sleep(Duration::from_millis(20));
     let manifest_path = dir.path().join("package.json");
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let refreshed_manifest = PackageManifest::from_path(manifest_path).unwrap();
@@ -791,7 +784,7 @@ fn returns_skipped_when_manifest_is_newer_than_validation() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &refreshed_manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("newer")));
@@ -803,12 +796,12 @@ fn returns_skipped_when_manifest_is_newer_than_validation() {
 fn returns_skipped_when_node_linker_drifts() {
     // Previous install was Hoisted; today's call asks for Isolated.
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Hoisted, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Hoisted, "root", "1.0.0", "");
 
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -819,12 +812,12 @@ fn returns_skipped_when_node_linker_drifts() {
 #[test]
 fn returns_skipped_when_workspace_project_set_changes() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     // Append a fake second-project entry to the cached state so
     // count + identity diverge from today's single-project walk.
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -834,14 +827,14 @@ fn returns_skipped_when_workspace_project_set_changes() {
         dir.path().join("pkg-a").to_string_lossy().into_owned(),
         ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
     );
-    // Re-stamp with future timestamp so the mtime branch wouldn't
-    // fire — we want to prove the project-list branch fires.
-    write_state(dir.path(), now_millis() + 60_000, settings, projects);
+    // Re-stamp so every file reads as validated and the mtime branch
+    // cannot fire. This test is about the project-list branch.
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("project list")));
@@ -872,7 +865,7 @@ fn returns_skipped_when_overrides_drift() {
     stale_overrides_config.overrides = Some(overrides);
     let stale_settings = current_settings(
         &stale_overrides_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -881,12 +874,12 @@ fn returns_skipped_when_overrides_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -917,7 +910,7 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     stale_config.inject_workspace_packages = false;
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -926,12 +919,12 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -961,7 +954,7 @@ fn returns_skipped_when_enable_global_virtual_store_drifts() {
     stale_config.enable_global_virtual_store = false;
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -970,12 +963,12 @@ fn returns_skipped_when_enable_global_virtual_store_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -990,22 +983,22 @@ fn returns_skipped_when_enable_global_virtual_store_drifts() {
 #[test]
 fn returns_up_to_date_when_recorded_global_virtual_store_is_explicit_off() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     let mut settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     settings.enable_global_virtual_store = Some(false);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
@@ -1035,7 +1028,7 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
     stale_config.exclude_links_from_lockfile = false;
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1044,12 +1037,12 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1078,7 +1071,7 @@ fn returns_skipped_when_minimum_release_age_drifts() {
     stale_config.minimum_release_age = Some(1440);
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1087,12 +1080,12 @@ fn returns_skipped_when_minimum_release_age_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1120,7 +1113,7 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
     stale_config.minimum_release_age_ignore_missing_time = true;
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1129,12 +1122,12 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1161,7 +1154,7 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
     stale_config.ignored_optional_dependencies = Some(vec!["old-pattern".to_string()]);
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1170,12 +1163,12 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1205,7 +1198,7 @@ fn returns_skipped_when_patched_dependencies_drift() {
     stale_config.patched_dependencies = Some(patched);
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1214,12 +1207,12 @@ fn returns_skipped_when_patched_dependencies_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1251,21 +1244,20 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
     let config = config.leak();
 
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    // Validate "now", then bump the patch's mtime past that timestamp.
-    write_state(workspace_root, now_millis(), settings, projects);
-    sleep(Duration::from_millis(20));
+    // Validate everything on disk, then bump the patch past that timestamp.
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
     fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("patch")));
@@ -1296,20 +1288,19 @@ fn returns_up_to_date_when_patch_file_unchanged() {
     let config = config.leak();
 
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     // Both the manifest and patch were written before this timestamp.
-    sleep(Duration::from_millis(20));
-    write_state(workspace_root, now_millis(), settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
@@ -1336,7 +1327,7 @@ fn returns_skipped_when_dedupe_peers_drift() {
     stale_config.dedupe_peers = false;
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1345,12 +1336,12 @@ fn returns_skipped_when_dedupe_peers_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1377,7 +1368,7 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
     stale_config.prefer_workspace_packages = false;
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1386,12 +1377,12 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1417,7 +1408,7 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
     stale_config.peers_suffix_max_length = 1000;
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1426,12 +1417,12 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1449,7 +1440,7 @@ fn returns_skipped_when_package_extensions_drift() {
     let mut deps = std::collections::BTreeMap::new();
     deps.insert("dep-a".to_string(), "1.0.0".to_string());
     let extension =
-        pacquet_config::PackageExtension { dependencies: Some(deps), ..Default::default() };
+        pnpm_config::PackageExtension { dependencies: Some(deps), ..Default::default() };
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
@@ -1466,12 +1457,12 @@ fn returns_skipped_when_package_extensions_drift() {
     let mut extensions = indexmap::IndexMap::new();
     extensions.insert(
         "foo".to_string(),
-        pacquet_config::PackageExtension { dependencies: Some(deps), ..Default::default() },
+        pnpm_config::PackageExtension { dependencies: Some(deps), ..Default::default() },
     );
     stale_config.package_extensions = Some(extensions);
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1480,12 +1471,12 @@ fn returns_skipped_when_package_extensions_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1512,7 +1503,7 @@ fn returns_skipped_when_allow_builds_drift() {
     stale_config.allow_builds.insert("foo".to_string(), false);
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1521,12 +1512,12 @@ fn returns_skipped_when_allow_builds_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
@@ -1535,7 +1526,7 @@ fn returns_skipped_when_allow_builds_drift() {
         &OptimisticRepeatInstallCheck {
             workspace_root,
             config,
-            node_linker: pacquet_config::NodeLinker::Isolated,
+            node_linker: pnpm_config::NodeLinker::Isolated,
             included: isolated_included(),
             supported_architectures: None,
             project_manifests: &[(workspace_root.to_path_buf(), &manifest)],
@@ -1571,7 +1562,7 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
     stale_config.dedupe_direct_deps = false;
     let stale_settings = current_settings(
         &stale_config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
     );
@@ -1580,15 +1571,76 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
+/// `explicit_settings` stands in for pnpm's raw (default-`undefined`)
+/// config value, which is what gates whether the policy is recorded.
+#[test]
+fn returns_skipped_when_trust_policy_is_newly_configured() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
+
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = workspace_root.join("node_modules");
+    let stale_settings = current_settings(
+        &stale_config,
+        pnpm_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
+    assert_eq!(stale_settings.trust_policy, None, "an unconfigured policy is not recorded");
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.trust_policy = pnpm_config::TrustPolicy::NoDowngrade;
+    config
+        .explicit_settings
+        .insert("trustPolicy".to_string(), serde_json::Value::String("no-downgrade".to_string()));
+    let config = config.leak();
+
+    let decision = check(
+        workspace_root,
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
+/// See `WorkspaceStateSettings::minimum_release_age_strict` for the
+/// resolution rule being mirrored.
+#[test]
+fn records_minimum_release_age_strict_like_pnpm_resolves_it() {
+    let mut config = Config::new();
+    config.explicit_settings.insert("minimumReleaseAge".to_string(), serde_json::Value::from(1440));
+    let settings =
+        current_settings(&config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    assert_eq!(settings.minimum_release_age_strict, Some(true));
+
+    config.minimum_release_age_strict = Some(false);
+    let settings =
+        current_settings(&config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    assert_eq!(settings.minimum_release_age_strict, Some(false), "an explicit value wins");
 }
 
 /// State written by pnpm with a field pacquet doesn't read or
@@ -1620,7 +1672,7 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     let config = config.leak();
 
     let mut settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     // Populate fields pacquet records but `settings_match` does not
     // compare, to prove a difference on them keeps the fast path.
     // `workspacePackagePatterns` is recorded by pnpm from
@@ -1634,12 +1686,12 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
@@ -1665,7 +1717,7 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
     )]);
     let settings = current_settings_with_catalogs(
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
         &recorded_catalogs,
@@ -1676,7 +1728,7 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let current_catalogs = Catalogs::from([(
         "default".to_string(),
@@ -1685,7 +1737,7 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
     let decision = check_workspace(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
         &current_catalogs,
     );
@@ -1712,7 +1764,7 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
     )]);
     let settings = current_settings_with_catalogs(
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         isolated_included(),
         None,
         &recorded_catalogs,
@@ -1723,7 +1775,7 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let current_catalogs = Catalogs::from([(
         "default".to_string(),
@@ -1732,7 +1784,7 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
     let decision = check_with_catalogs(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
         false,
         &current_catalogs,
@@ -1762,7 +1814,7 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     let config = config.leak();
 
     let mut settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     // Simulate a pnpm-written state: empty `allowBuilds` map
     // serialized as `{}`, where pacquet would have written `None`.
     settings.allow_builds = Some(BTreeMap::new());
@@ -1772,12 +1824,12 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
@@ -1793,7 +1845,7 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
 #[test]
 fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     let (dir, config, root_manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     // Add a sibling project with dependencies but no node_modules.
     let sibling_dir = dir.path().join("pkg-a");
@@ -1807,11 +1859,11 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     let sibling_manifest = PackageManifest::from_path(sibling_manifest_path).unwrap();
 
     // Re-stamp the workspace state with BOTH projects so the
-    // project-structure check passes; use a future timestamp so the
-    // mtime branch is satisfied. We want the modules-dir branch to
-    // be the deciding factor.
+    // project-structure check passes, and backdate the tree so the mtime
+    // branch reads as validated. We want the modules-dir branch to be the
+    // deciding factor.
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -1821,12 +1873,12 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         sibling_dir.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis() + 60_000, settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included: isolated_included(),
         supported_architectures: None,
         project_manifests: &[
@@ -1851,7 +1903,7 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
 #[test]
 fn returns_skipped_when_lockfile_missing_in_single_project_mode() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     // `setup_fresh_install` seeds `pnpm-lock.yaml` for happy-path
     // tests; delete it here so this test exercises the missing-
@@ -1861,7 +1913,7 @@ fn returns_skipped_when_lockfile_missing_in_single_project_mode() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(
@@ -1879,7 +1931,7 @@ fn returns_skipped_when_lockfile_missing_in_single_project_mode() {
 #[test]
 fn returns_up_to_date_in_workspace_mode_without_lockfile() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     // Same seeded state as the happy path, but the lockfile gets
     // wiped first — the workspace branch shouldn't care.
@@ -1888,7 +1940,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included: isolated_included(),
         supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
@@ -1902,8 +1954,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
 #[test]
 fn returns_skipped_when_wanted_lockfile_has_merge_conflict_markers() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
-    sleep(Duration::from_millis(20));
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
     fs::write(
         dir.path().join(Lockfile::FILE_NAME),
         "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
@@ -1913,7 +1964,7 @@ fn returns_skipped_when_wanted_lockfile_has_merge_conflict_markers() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
 
@@ -1923,8 +1974,7 @@ fn returns_skipped_when_wanted_lockfile_has_merge_conflict_markers() {
 #[test]
 fn run_status_reports_wanted_lockfile_merge_conflicts() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
-    sleep(Duration::from_millis(20));
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
     fs::write(
         dir.path().join(Lockfile::FILE_NAME),
         "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
@@ -1936,7 +1986,7 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
         &OptimisticRepeatInstallCheck {
             workspace_root: dir.path(),
             config,
-            node_linker: pacquet_config::NodeLinker::Isolated,
+            node_linker: pnpm_config::NodeLinker::Isolated,
             included: isolated_included(),
             supported_architectures: None,
             project_manifests: &[(dir.path().to_path_buf(), &manifest)],
@@ -1957,7 +2007,7 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
 #[test]
 fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
     let (dir, config, root_manifest) = setup_fresh_install_with_config(
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         "root",
         "1.0.0",
         "",
@@ -1967,7 +2017,6 @@ fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
     fs::create_dir_all(&project_root).expect("create project");
     fs::write(project_root.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#)
         .expect("write project manifest");
-    sleep(Duration::from_millis(20));
     fs::write(
         project_root.join(Lockfile::FILE_NAME),
         "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
@@ -1979,7 +2028,7 @@ fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
     let decision = check_workspace(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &root_manifest), (project_root, &project_manifest)],
         &BTreeMap::default(),
     );
@@ -1990,7 +2039,7 @@ fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
 #[test]
 fn returns_skipped_when_lockfile_is_not_a_regular_file() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
     let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
     fs::remove_file(&lockfile_path).expect("remove lockfile");
     fs::create_dir(&lockfile_path).expect("replace lockfile with directory");
@@ -1998,7 +2047,7 @@ fn returns_skipped_when_lockfile_is_not_a_regular_file() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
 
@@ -2015,7 +2064,7 @@ fn returns_skipped_without_following_a_lockfile_symlink() {
     use std::os::unix::fs::symlink;
 
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
     let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
     fs::remove_file(&lockfile_path).expect("remove lockfile");
     symlink("/dev/zero", &lockfile_path).expect("replace lockfile with symlink");
@@ -2023,7 +2072,7 @@ fn returns_skipped_without_following_a_lockfile_symlink() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
 
@@ -2037,8 +2086,7 @@ fn returns_skipped_without_following_a_lockfile_symlink() {
 #[test]
 fn returns_skipped_without_scanning_an_oversized_changed_lockfile() {
     let (dir, config, manifest) =
-        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
-    sleep(Duration::from_millis(20));
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
     let lockfile = fs::OpenOptions::new()
         .write(true)
         .truncate(true)
@@ -2049,7 +2097,7 @@ fn returns_skipped_without_scanning_an_oversized_changed_lockfile() {
     let decision = check(
         dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
+        pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
 
@@ -2112,16 +2160,14 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
     let config = config.leak();
 
-    sleep(Duration::from_millis(20));
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis(), settings, projects);
-    sleep(Duration::from_millis(20));
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     (dir, config)
 }
@@ -2136,7 +2182,7 @@ fn content_check_decision(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included: isolated_included(),
         supported_architectures: None,
         project_manifests,
@@ -2166,16 +2212,14 @@ fn returns_skipped_when_current_lockfile_missing_for_wanted_lockfile_with_import
     let workspace_root = dir.path();
     fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE_WITHOUT_PACKAGES).unwrap();
 
-    sleep(Duration::from_millis(20));
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis(), settings, projects);
-    sleep(Duration::from_millis(20));
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
     let manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
@@ -2286,7 +2330,7 @@ fn returns_skipped_when_only_the_lockfile_changed() {
 #[test]
 fn workspace_content_check_refreshes_last_validated_timestamp() {
     let (dir, config) = setup_content_check_project();
-    let before = pacquet_workspace_state::load_workspace_state(dir.path())
+    let before = pnpm_workspace_state::load_workspace_state(dir.path())
         .unwrap()
         .unwrap()
         .last_validated_timestamp;
@@ -2298,7 +2342,7 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
         content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
 
-    let after = pacquet_workspace_state::load_workspace_state(dir.path())
+    let after = pnpm_workspace_state::load_workspace_state(dir.path())
         .unwrap()
         .unwrap()
         .last_validated_timestamp;
@@ -2315,7 +2359,7 @@ fn linked_sibling_decision(sibling_version: &str) -> Decision {
         "^1.0.0",
         "link:pkg-a",
         sibling_version,
-        pacquet_config::LinkWorkspacePackages::DirectOnly,
+        pnpm_config::LinkWorkspacePackages::DirectOnly,
     )
 }
 
@@ -2324,7 +2368,7 @@ fn linked_sibling_decision_for_spec(
     specifier: &str,
     lockfile_ref: &str,
     sibling_version: &str,
-    link_workspace_packages: pacquet_config::LinkWorkspacePackages,
+    link_workspace_packages: pnpm_config::LinkWorkspacePackages,
 ) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
@@ -2374,9 +2418,8 @@ importers:
     let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
     let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
 
-    sleep(Duration::from_millis(20));
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -2386,8 +2429,7 @@ importers:
         sibling_dir.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("pkg-a".into()), version: Some(sibling_version.into()) },
     );
-    write_state(workspace_root, now_millis(), settings, projects);
-    sleep(Duration::from_millis(20));
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     // Touch the root manifest so the content re-check runs.
     fs::write(
@@ -2408,7 +2450,7 @@ importers:
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker: pacquet_config::NodeLinker::Isolated,
+        node_linker: pnpm_config::NodeLinker::Isolated,
         included: isolated_included(),
         supported_architectures: None,
         project_manifests: &[
@@ -2443,7 +2485,7 @@ fn returns_up_to_date_when_aliased_workspace_dependency_satisfies_range() {
             "npm:pkg-a@^1.0.0",
             "link:pkg-a",
             "1.5.0",
-            pacquet_config::LinkWorkspacePackages::DirectOnly,
+            pnpm_config::LinkWorkspacePackages::DirectOnly,
         ),
         Decision::UpToDate,
     );
@@ -2456,7 +2498,7 @@ fn returns_skipped_when_aliased_workspace_dependency_version_is_outdated() {
         "npm:pkg-a@^1.0.0",
         "link:pkg-a",
         "2.0.0",
-        pacquet_config::LinkWorkspacePackages::DirectOnly,
+        pnpm_config::LinkWorkspacePackages::DirectOnly,
     );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
@@ -2472,7 +2514,7 @@ fn returns_up_to_date_when_linked_workspace_dependency_uses_a_tag() {
             "unpublished-tag",
             "link:pkg-a",
             "1.0.0",
-            pacquet_config::LinkWorkspacePackages::DirectOnly,
+            pnpm_config::LinkWorkspacePackages::DirectOnly,
         ),
         Decision::UpToDate,
     );
@@ -2486,7 +2528,7 @@ fn returns_up_to_date_for_registry_resolution_when_workspace_linking_is_off() {
             "1.0.0",
             "1.0.0",
             "1.0.0",
-            pacquet_config::LinkWorkspacePackages::Off,
+            pnpm_config::LinkWorkspacePackages::Off,
         ),
         Decision::UpToDate,
     );
@@ -2602,7 +2644,7 @@ fn returns_skipped_when_missing_wanted_lockfile_and_manifest_adds_a_dependency()
 #[test]
 fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
     let (dir, config) = setup_content_check_project();
-    let before = pacquet_workspace_state::load_workspace_state(dir.path())
+    let before = pnpm_workspace_state::load_workspace_state(dir.path())
         .unwrap()
         .unwrap()
         .last_validated_timestamp;
@@ -2614,7 +2656,7 @@ fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
         content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
     assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
-    let after = pacquet_workspace_state::load_workspace_state(dir.path())
+    let after = pnpm_workspace_state::load_workspace_state(dir.path())
         .unwrap()
         .unwrap()
         .last_validated_timestamp;

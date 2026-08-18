@@ -17,9 +17,10 @@
     "test-branch": "pn pretest && pn lint && git remote set-branches --add origin main && git fetch origin main && pn test-pkgs-branch",
     "ci:test-branch": "pn prepare-fixtures && pn test-pkgs-branch",
     "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=1 --filter=...[origin/main] --no-sort --if-present .test",
-    "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.6.0 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
+    "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.7.0 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
     "compile": "pn compile-only && pn update-manifests",
     "build:pnpm": "cargo build --release --bin pnpm",
+    "fix:rust": "just fix",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger 'pnpm11/**/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pn meta-updater && pn install",
     "meta-updater": "pn --filter=@pnpm-private/updater compile && pn exec meta-updater",
@@ -59,16 +60,16 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@12.0.0-beta.4",
+  "packageManager": "pnpm@12.0.0-rc.6",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.0.0-beta.4",
+      "version": "12.0.0-rc.6",
       "onFail": "download"
     },
     "runtime": {
       "name": "node",
-      "version": "26.6.0",
+      "version": "26.7.0",
       "onFail": "download"
     }
   }

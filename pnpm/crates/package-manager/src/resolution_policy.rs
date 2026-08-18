@@ -6,12 +6,12 @@
 
 use crate::retry_config::retry_opts_from_config;
 use chrono::{DateTime, Utc};
-use pacquet_config::{
-    Config, ResolutionMode,
+use pnpm_config::{
+    Config, NeedsFullMetadataFor, ResolutionMode,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_npm_resolver::{
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageContext,
 };
 
@@ -28,6 +28,10 @@ pub(crate) struct PickPolicy {
     /// dates. Mirrors pnpm's `(time-based || no-downgrade) &&
     /// !registrySupportsTimeField`.
     pub full_metadata: bool,
+    /// The same question asked of one registry, so a registry that declares
+    /// `supportsTimeField` is not charged for full metadata because another
+    /// one needs it.
+    pub needs_full_metadata_for: NeedsFullMetadataFor,
     /// `minimumReleaseAge` cutoff: only versions published at or before
     /// this instant are eligible. `None` disables the maturity filter.
     pub published_by: Option<DateTime<Utc>>,
@@ -97,6 +101,7 @@ impl PickPolicy {
             time_based,
             pick_lowest_direct,
             full_metadata,
+            needs_full_metadata_for: config.requires_full_metadata_for_registry_fn(),
             published_by,
             published_by_exclude,
         })
@@ -113,7 +118,7 @@ impl PickPolicy {
 pub(crate) fn pick_package_context<'a>(
     http_client: &'a ThrottledClient,
     config: &'a Config,
-    policy: &PickPolicy,
+    policy: &'a PickPolicy,
     meta_cache: &'a InMemoryPackageMetaCache,
     fetch_locker: &'a PackumentFetchLocker,
 ) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
@@ -127,7 +132,8 @@ pub(crate) fn pick_package_context<'a>(
         prefer_offline: config.prefer_offline,
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata: policy.full_metadata,
-        filter_metadata: policy.full_metadata,
+        needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
+        filter_metadata: config.requires_filtered_full_metadata(),
         retry_opts: retry_opts_from_config(config),
     }
 }

@@ -9,11 +9,11 @@ use node_semver::{Range, Version};
 use owo_colors::{OwoColorize, Stream};
 use serde::Serialize;
 
-use pacquet_config::{Config, PeerDependencyRules};
-use pacquet_lockfile::{Lockfile, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry};
-use pacquet_package_manifest::PackageManifest;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_resolving_resolver_base::get_peer_version_range;
+use pnpm_config::{Config, PeerDependencyRules};
+use pnpm_lockfile::{Lockfile, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_resolver_base::get_peer_version_range;
 
 use crate::cli_args::{
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
@@ -190,7 +190,7 @@ fn check_peer_dependencies_from_lockfile(
 ) -> IssuesByProjects {
     let mut importer_ids: Vec<String> = project_dirs
         .iter()
-        .map(|project_dir| pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir))
+        .map(|project_dir| pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir))
         .filter(|importer_id| lockfile.importers.contains_key(importer_id))
         .collect();
     importer_ids.sort();
@@ -286,7 +286,7 @@ fn resolve_link_version(
 
 fn check_linked_package_peers(
     importer_id: &str,
-    importer: &pacquet_lockfile::ProjectSnapshot,
+    importer: &pnpm_lockfile::ProjectSnapshot,
     link_target: &str,
     alias: &str,
     linked_version: &str,
@@ -417,10 +417,8 @@ fn collect_initial_keys(
                 if !path_is_within(&linked_importer_path, lockfile_dir) {
                     continue;
                 }
-                let linked_importer_id = pacquet_workspace::importer_id_from_root_dir(
-                    lockfile_dir,
-                    &linked_importer_path,
-                );
+                let linked_importer_id =
+                    pnpm_workspace::importer_id_from_root_dir(lockfile_dir, &linked_importer_path);
                 collect_initial_keys(
                     &linked_importer_id,
                     lockfile,
@@ -971,8 +969,8 @@ fn filter_peer_issues(
     let allowed_versions_map = rules.allowed_versions.clone().unwrap_or_default();
 
     let (allow_all_matcher, allow_by_parent) = parse_allowed_versions(&allowed_versions_map);
-    let ignore_missing_matcher = pacquet_config::matcher::create_matcher(&ignore_missing_pats);
-    let allow_any_matcher_rule = pacquet_config::matcher::create_matcher(&allow_any_pats);
+    let ignore_missing_matcher = pnpm_config::matcher::create_matcher(&ignore_missing_pats);
+    let allow_any_matcher_rule = pnpm_config::matcher::create_matcher(&allow_any_pats);
 
     for project_issues in issues.values_mut() {
         let mut filtered_missing: BTreeMap<String, Vec<MissingPeerIssue>> = BTreeMap::new();

@@ -1,10 +1,11 @@
-use pacquet_config::Config as PacquetConfig;
-use pacquet_lockfile::Lockfile;
-use pacquet_resolving_resolver_base::{
+use axum::http::StatusCode;
+use pnpm_config::{Config as PacquetConfig, RegistryDeclaration, ResolutionMode};
+use pnpm_lockfile::Lockfile;
+use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     net::SocketAddr,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -14,7 +15,7 @@ use std::{
 use super::{
     MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution,
     protocol::{ResolveRequest, ResolveRequestProject},
-    resolution_cache_key, store_resolution,
+    reject_inline_url_auth, reject_off_allowlist_fetches, resolution_cache_key, store_resolution,
 };
 use crate::{
     config::{Config as RegistryConfig, PublicRoute, UpstreamConfig},
@@ -185,6 +186,57 @@ fn resolution_cache_key_normalizes_single_project_requests() {
     );
 }
 
+/// The `registries` map is keyed by URL and carries declarations only. The
+/// setting's older `<scope>: <url>` shape puts the URL in the *value*, where
+/// the boundary checks — which read a key as a fetch target — would not see
+/// it, so a request in that shape must not parse at all.
+#[test]
+fn a_scope_routed_registries_map_does_not_parse() {
+    let declarations = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "registries": { "https://npm.corp.example/": { "scopes": ["@acme"] } }
+    }))
+    .expect("a declaration map parses");
+    assert_eq!(declarations.registries.len(), 1);
+
+    let scope_routed = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "registries": { "@acme": "http://169.254.169.254/" }
+    }));
+    assert!(scope_routed.is_err(), "a scope-routed map must not parse");
+}
+
+#[test]
+fn resolution_cache_key_changes_with_catalogs() {
+    let request = |version: &str| {
+        serde_json::from_value::<ResolveRequest>(serde_json::json!({
+            "catalogs": { "default": { "foo": version } }
+        }))
+        .expect("resolve request parses")
+    };
+    let config = config();
+
+    assert_ne!(
+        resolution_cache_key(&config, &request("^1.0.0")),
+        resolution_cache_key(&config, &request("^2.0.0")),
+    );
+}
+
+#[test]
+fn resolution_cache_key_normalizes_catalog_json_order() {
+    let first = serde_json::from_str::<ResolveRequest>(
+        r#"{"catalogs":{"tools":{"typescript":"^6","eslint":"^10"},"default":{"react":"^19"}}}"#,
+    )
+    .expect("first request parses");
+    let reordered = serde_json::from_str::<ResolveRequest>(
+        r#"{"catalogs":{"default":{"react":"^19"},"tools":{"eslint":"^10","typescript":"^6"}}}"#,
+    )
+    .expect("reordered request parses");
+
+    assert_eq!(
+        resolution_cache_key(&config(), &first),
+        resolution_cache_key(&config(), &reordered),
+    );
+}
+
 #[test]
 fn resolution_cache_key_changes_with_project_identity() {
     let request = |name: &str, version: &str| {
@@ -223,12 +275,18 @@ fn resolution_cache_key_changes_with_dependencies_and_policy() {
         minimum_release_age: Some(60),
         ..ResolveRequest::default()
     };
+    let different_mode = ResolveRequest {
+        dependencies: Some(deps(&[("foo", "^1.0.0")])),
+        resolution_mode: ResolutionMode::TimeBased,
+        ..ResolveRequest::default()
+    };
 
     let config = config();
     let base_key = resolution_cache_key(&config, &base);
 
     assert_ne!(base_key, resolution_cache_key(&config, &different_dep));
     assert_ne!(base_key, resolution_cache_key(&config, &different_policy));
+    assert_ne!(base_key, resolution_cache_key(&config, &different_mode));
 }
 
 #[test]
@@ -517,7 +575,7 @@ fn public_lockfile_routing_keeps_registry_resolutions_compact() {
 
 #[test]
 fn private_alias_lockfile_routing_uses_gateway_url() {
-    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
     registry.upstreams.insert(
         "corp".to_string(),
@@ -525,7 +583,7 @@ fn private_alias_lockfile_routing_uses_gateway_url() {
     );
     let router = tarball_router(&registry, user("alice"));
 
-    let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
+    let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
     let tarball = lockfile_tarball_url(&routed, "acme@1.0.0");
 
     assert!(tarball.starts_with("http://127.0.0.1:7677/~corp/acme/-/acme-1.0.0.tgz"));
@@ -540,7 +598,7 @@ fn private_alias_lockfile_routing_uses_gateway_url() {
 
 #[test]
 fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment() {
-    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
     registry.upstreams.insert(
         "corp".to_string(),
@@ -548,7 +606,7 @@ fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment
     );
     let router = tarball_router(&registry, user("alice"));
 
-    let routed = router.route_lockfile(&pacquet_config, &package_lockfile("@acme/foo", "1.0.0"));
+    let routed = router.route_lockfile(&pnpm_config, &package_lockfile("@acme/foo", "1.0.0"));
     let tarball = lockfile_tarball_url(&routed, "@acme/foo@1.0.0");
 
     assert!(tarball.contains("/~corp/@acme/foo/-/foo-1.0.0.tgz"));
@@ -563,12 +621,12 @@ fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment
 
 #[test]
 fn unknown_lockfile_routing_leaves_resolution_unrewritten() {
-    let pacquet_config = config_for_registry("https://unknown.example/");
+    let pnpm_config = config_for_registry("https://unknown.example/");
     let registry = registry_config();
     let router = tarball_router(&registry, user("alice"));
 
     let input = lockfile("1.0.0");
-    let routed = router.route_lockfile(&pacquet_config, &input);
+    let routed = router.route_lockfile(&pnpm_config, &input);
 
     // An unknown route has no upstream and no managed credential, so pnpr mints
     // no gateway URL: the integrity-only registry resolution is left untouched
@@ -601,7 +659,6 @@ fn lockfile_with_tarball(tarball: &str) -> Lockfile {
 
 #[test]
 fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
-    use super::reject_off_allowlist_fetches;
     let context = RouteContext::from_config(&registry_config());
 
     // The built-in npm registry is allowlisted.
@@ -618,16 +675,21 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&ssrf, &context).is_some());
 
-    // A named registry off the allowlist is rejected too.
-    let named = ResolveRequest {
+    // A registry the request merely declares is not a fetch target: the client
+    // describes its whole configuration, including scopes this resolve never
+    // reaches. `RouteHook::allows_fetch` refuses the ones it does reach.
+    let declared = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),
-        named_registries: BTreeMap::from([(
-            "@acme".to_string(),
+        registries: BTreeMap::from([(
             "http://169.254.169.254/".to_string(),
+            RegistryDeclaration {
+                scopes: Some(vec!["@acme".to_string()]),
+                ..RegistryDeclaration::default()
+            },
         )]),
         ..ResolveRequest::default()
     };
-    assert!(reject_off_allowlist_fetches(&named, &context).is_some());
+    assert!(reject_off_allowlist_fetches(&declared, &context).is_none());
 
     // A semver-range dependency never hits the network, so it is ignored.
     let ranges = ResolveRequest {
@@ -691,9 +753,34 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
 }
 
 #[test]
-fn reject_inline_url_auth_scans_input_lockfile_tarballs() {
-    use super::reject_inline_url_auth;
+fn reject_off_allowlist_fetches_scans_catalogs() {
+    let context = RouteContext::from_config(&registry_config());
+    let default_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "default": { "foo": "https://169.254.169.254/foo.tgz" } }
+    }))
+    .expect("default catalog request parses");
+    let named_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "internal": { "foo": "git+ssh://169.254.169.254/repo.git" } }
+    }))
+    .expect("named catalog request parses");
+    let clean_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "default": { "foo": "^1.0.0" } }
+    }))
+    .expect("clean catalog request parses");
 
+    let default_response = reject_off_allowlist_fetches(&default_catalog, &context)
+        .expect("default catalog URL is rejected");
+    assert_eq!(default_response.status(), StatusCode::FORBIDDEN);
+
+    let named_response = reject_off_allowlist_fetches(&named_catalog, &context)
+        .expect("named catalog URL is rejected");
+    assert_eq!(named_response.status(), StatusCode::FORBIDDEN);
+
+    assert!(reject_off_allowlist_fetches(&clean_catalog, &context).is_none());
+}
+
+#[test]
+fn reject_inline_url_auth_scans_input_lockfile_tarballs() {
     // A lockfile tarball carrying inline `user:pass@host` credentials is
     // rejected before any fetch, so it can't reach the verify/frozen paths or
     // be echoed back.
@@ -716,16 +803,43 @@ fn reject_inline_url_auth_scans_input_lockfile_tarballs() {
 }
 
 #[test]
+fn reject_inline_url_auth_scans_catalogs() {
+    let dirty_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": {
+            "default": { "foo": "https://user:pass@registry.example.test/foo.tgz" }
+        }
+    }))
+    .expect("dirty catalog request parses");
+    let clean_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "default": { "foo": "https://registry.example.test/foo.tgz" } }
+    }))
+    .expect("clean catalog request parses");
+    let ssh_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "default": { "foo": "git+ssh://git@github.com/org/repo.git" } }
+    }))
+    .expect("ssh catalog request parses");
+
+    let response =
+        reject_inline_url_auth(&dirty_catalog).expect("inline catalog credentials are rejected");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    assert!(reject_inline_url_auth(&clean_catalog).is_none());
+    // A bare ssh login username is not an inline credential (the off-allowlist
+    // gate still decides whether the host may be fetched at all).
+    assert!(reject_inline_url_auth(&ssh_catalog).is_none());
+}
+
+#[test]
 fn private_cached_resolution_keeps_routed_tarball_urls() {
     let cache = Mutex::new(HashMap::new());
     let key = "base".to_string();
-    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
     registry
         .upstreams
         .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
     let router = tarball_router(&registry, user("alice"));
-    let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
+    let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
 
     assert!(store_resolution(
         &cache,
@@ -781,7 +895,7 @@ fn candidate_lists_stay_bounded_and_keep_public_entries() {
 
 #[test]
 fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
-    use pacquet_package_manager::{ResolutionObserver, ResolvedPackageHint};
+    use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint};
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let registry = public_registry_config("https://r.test/");
@@ -818,7 +932,7 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
 
 #[test]
 fn package_frames_route_private_alias_tarballs_to_gateway() {
-    use pacquet_package_manager::ResolvedPackageHint;
+    use pnpm_package_manager::ResolvedPackageHint;
 
     let mut registry = registry_config();
     registry.upstreams.insert(
@@ -847,7 +961,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
 
 #[test]
 fn package_frame_routes_split_domain_registry_tarball_by_registry() {
-    use pacquet_package_manager::ResolvedPackageHint;
+    use pnpm_package_manager::ResolvedPackageHint;
 
     let mut registry = registry_config();
     registry.upstreams.insert(
@@ -882,7 +996,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
 
 #[test]
 fn package_frame_strips_signed_token_from_public_registry_tarball() {
-    use pacquet_package_manager::ResolvedPackageHint;
+    use pnpm_package_manager::ResolvedPackageHint;
 
     let registry = registry_config();
     let registries =
@@ -910,8 +1024,8 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
 
 #[test]
 fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
-    use pacquet_lockfile::Lockfile;
-    use pacquet_resolving_npm_resolver::{DistStats, observed_dist_stats_sink};
+    use pnpm_lockfile::Lockfile;
+    use pnpm_resolving_npm_resolver::{DistStats, observed_dist_stats_sink};
 
     let lockfile: Lockfile = serde_json::from_value(serde_json::json!({
         "lockfileVersion": "9.0",
@@ -957,9 +1071,9 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
 
 #[test]
 fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
-    use pacquet_resolving_npm_resolver::observed_dist_stats_sink;
+    use pnpm_resolving_npm_resolver::observed_dist_stats_sink;
 
-    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let pnpm_config = config_for_registry("https://npm.corp.example/");
     let lockfile = lockfile("1.0.0");
     let stats = observed_dist_stats_sink();
     let mut registry = registry_config();
@@ -969,7 +1083,7 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
     );
 
     let frames = super::frozen_package_frames(
-        &pacquet_config,
+        &pnpm_config,
         &tarball_router(&registry, user("alice")),
         &lockfile,
         &stats,
@@ -983,7 +1097,7 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
 
 #[test]
 fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() {
-    use pacquet_lockfile::{LockfileResolution, TarballResolution};
+    use pnpm_lockfile::{LockfileResolution, TarballResolution};
 
     let tarball = |url: &str, git_hosted: Option<bool>| {
         LockfileResolution::Tarball(TarballResolution {
@@ -1040,22 +1154,16 @@ fn tarball_url_version_extracts_conventional_names_only() {
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
 
-/// The resolve protocol carries no `autoInstallPeers` / `dedupePeers` /
-/// `excludeLinksFromLockfile`, so a request's config would otherwise
-/// resolve — and compare its frozen lockfile — under the server's
-/// defaults. The input lockfile records what its owner used, and the
-/// freshness gate rejects a lockfile whose settings disagree, so those
-/// values have to reach the config.
 #[test]
-fn intern_config_adopts_the_input_lockfile_settings() {
+fn intern_config_uses_lockfile_settings_for_a_legacy_frozen_request() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-lockfile-settings-store"));
     let cache_dir = PathBuf::from("/tmp/pnpr-lockfile-settings-cache");
-    let request = |settings: Option<pacquet_lockfile::LockfileSettings>| ResolveRequest {
+    let request = |settings: Option<pnpm_lockfile::LockfileSettings>| ResolveRequest {
         registry: Some("https://a.test/".to_string()),
         lockfile: Some(Lockfile { settings, ..lockfile("1.0.0") }),
         frozen_lockfile: true,
@@ -1066,34 +1174,119 @@ fn intern_config_adopts_the_input_lockfile_settings() {
             .expect("intern config")
     };
 
-    let client_settings = pacquet_lockfile::LockfileSettings {
+    let client_settings = pnpm_lockfile::LockfileSettings {
         auto_install_peers: false,
         dedupe_peers: Some(true),
         exclude_links_from_lockfile: true,
-        ..pacquet_lockfile::LockfileSettings::default()
+        ..pnpm_lockfile::LockfileSettings::default()
     };
     let adopted = intern(&request(Some(client_settings)));
     assert!(!adopted.auto_install_peers);
     assert!(adopted.dedupe_peers);
     assert!(adopted.exclude_links_from_lockfile);
 
-    // A lockfile with no `settings` block says nothing, so the server's
-    // own defaults stand — and the two must not share an interned config.
     let defaults = intern(&request(None));
     assert!(defaults.auto_install_peers);
     assert!(!defaults.dedupe_peers);
     assert!(!defaults.exclude_links_from_lockfile);
 }
 
-/// A request that may update resolutions resolves under the server's
-/// settings, not the lockfile's: the lockfile records what the last
-/// install used, which is stale precisely when the client has just
-/// changed one. Nothing in the request carries the client's current
-/// value, so the frozen contract is the only place adoption is sound.
 #[test]
-fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
+fn intern_config_prefers_request_settings_and_keys_effective_values() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
+
+    type Settings = (bool, bool, bool);
+    type OptionalSettings = (Option<bool>, Option<bool>, Option<bool>);
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-request-settings-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-request-settings-cache");
+    let requested = |(auto, dedupe, exclude): Settings| (Some(auto), Some(dedupe), Some(exclude));
+    let request =
+        |(auto_install_peers, dedupe_peers, exclude_links_from_lockfile): OptionalSettings,
+         lockfile_settings: Option<Settings>,
+         frozen_lockfile| {
+            let lockfile = lockfile_settings.map(
+                |(auto_install_peers, dedupe_peers, exclude_links_from_lockfile)| {
+                    serde_json::json!({
+                        "lockfileVersion": "9.0",
+                        "settings": {
+                            "autoInstallPeers": auto_install_peers,
+                            "dedupePeers": dedupe_peers,
+                            "excludeLinksFromLockfile": exclude_links_from_lockfile,
+                        }
+                    })
+                },
+            );
+            serde_json::from_value(serde_json::json!({
+                "autoInstallPeers": auto_install_peers,
+                "dedupePeers": dedupe_peers,
+                "excludeLinksFromLockfile": exclude_links_from_lockfile,
+                "lockfile": lockfile,
+                "frozenLockfile": frozen_lockfile,
+            }))
+            .expect("resolve request parses")
+        };
+    let intern = |configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
+                  request: &ResolveRequest| {
+        intern_config(configs, &store_dir, &cache_dir, request, 10, usize::MAX)
+            .expect("intern config")
+    };
+    let effective = |config: &PacquetConfig| {
+        (config.auto_install_peers, config.dedupe_peers, config.exclude_links_from_lockfile)
+    };
+    let legacy = serde_json::from_value::<ResolveRequest>(serde_json::json!({}))
+        .expect("legacy resolve request parses");
+    assert_eq!(
+        (legacy.auto_install_peers, legacy.dedupe_peers, legacy.exclude_links_from_lockfile),
+        (None, None, None),
+    );
+
+    let first = (false, true, false);
+    let second = (true, false, true);
+    let frozen = intern(&configs, &request(requested(first), Some(second), true));
+    let update = intern(&configs, &request(requested(second), Some(first), false));
+    assert_eq!(effective(frozen), first);
+    assert_eq!(effective(update), second);
+    let update_reusing_frozen = intern(&configs, &request(requested(first), Some(second), false));
+    assert!(std::ptr::eq(frozen, update_reusing_frozen));
+
+    for (request_settings, lockfile_settings) in [
+        ((Some(false), None, None), (true, true, false)),
+        ((None, Some(true), None), (false, false, false)),
+        ((None, None, Some(false)), (false, true, true)),
+    ] {
+        let partial = intern(&configs, &request(request_settings, Some(lockfile_settings), true));
+        assert!(std::ptr::eq(frozen, partial));
+    }
+    let partial_update =
+        intern(&configs, &request((None, Some(true), None), Some((false, false, true)), false));
+    assert_eq!(effective(partial_update), (true, true, false));
+
+    let intern_key = |settings| intern(&configs, &request(requested(settings), None, false));
+    let cache_request = ResolveRequest::default();
+    let mut cache_keys = HashSet::new();
+    for auto_install_peers in [false, true] {
+        for dedupe_peers in [false, true] {
+            for exclude_links_from_lockfile in [false, true] {
+                let settings = (auto_install_peers, dedupe_peers, exclude_links_from_lockfile);
+                let config = intern_key(settings);
+                assert_eq!(effective(config), settings);
+                let cache_key =
+                    resolution_cache_key(config, &cache_request).expect("resolution cache key");
+                assert!(cache_keys.insert(cache_key));
+            }
+        }
+    }
+    assert_eq!(configs.lock().expect("config cache poisoned").len(), 8);
+    assert_eq!(cache_keys.len(), 8);
+}
+
+#[test]
+fn intern_config_uses_server_defaults_for_a_legacy_update_request() {
+    use super::intern_config;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
@@ -1102,10 +1295,11 @@ fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
     let request = ResolveRequest {
         registry: Some("https://a.test/".to_string()),
         lockfile: Some(Lockfile {
-            settings: Some(pacquet_lockfile::LockfileSettings {
+            settings: Some(pnpm_lockfile::LockfileSettings {
                 auto_install_peers: false,
+                dedupe_peers: Some(true),
                 exclude_links_from_lockfile: true,
-                ..pacquet_lockfile::LockfileSettings::default()
+                ..pnpm_lockfile::LockfileSettings::default()
             }),
             ..lockfile("1.0.0")
         }),
@@ -1115,19 +1309,21 @@ fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
 
     let config = intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
         .expect("intern config");
-    assert!(config.auto_install_peers);
-    assert!(!config.exclude_links_from_lockfile);
+    let defaults = PacquetConfig::new();
+    assert_eq!(config.auto_install_peers, defaults.auto_install_peers);
+    assert_eq!(config.dedupe_peers, defaults.dedupe_peers);
+    assert_eq!(config.exclude_links_from_lockfile, defaults.exclude_links_from_lockfile);
 }
 
-/// Only the three adopted fields may reach the interning key. The rest of
+/// Only the three effective fields may reach the interning key. The rest of
 /// the `settings` block doesn't change the config, and keying on it would
 /// let a caller mint a distinct leaked config per value —
 /// `peersSuffixMaxLength` is a `u64` — until `MAX_INTERNED_CONFIGS` is
 /// spent and every caller is refused.
 #[test]
-fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
+fn intern_config_ignores_unrelated_lockfile_settings() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
@@ -1137,15 +1333,14 @@ fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
         registry: Some("https://a.test/".to_string()),
         frozen_lockfile: true,
         lockfile: Some(Lockfile {
-            settings: Some(pacquet_lockfile::LockfileSettings {
+            settings: Some(pnpm_lockfile::LockfileSettings {
                 peers_suffix_max_length: Some(peers_suffix_max_length),
-                ..pacquet_lockfile::LockfileSettings::default()
+                ..pnpm_lockfile::LockfileSettings::default()
             }),
             ..lockfile("1.0.0")
         }),
         ..ResolveRequest::default()
     };
-    // A cap of one: a second distinct key would be refused outright.
     let intern = |request: &ResolveRequest| {
         intern_config(&configs, &store_dir, &cache_dir, request, 1, usize::MAX)
     };
@@ -1160,7 +1355,7 @@ fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
 #[test]
 fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
@@ -1194,7 +1389,7 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
 #[test]
 fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
@@ -1219,7 +1414,7 @@ fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
 #[test]
 fn intern_config_keys_overrides_canonically_regardless_of_order() {
     use super::intern_config;
-    use pacquet_store_dir::StoreDir;
+    use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
     let configs = Mutex::new(HashMap::new());
@@ -1238,4 +1433,34 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
     let second = intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).expect("config reused");
     assert!(std::ptr::eq(first, second));
     assert_eq!(configs.lock().expect("config cache poisoned").len(), 1);
+}
+
+/// The client's `resolutionMode` decides which version a pick lands on, so a
+/// server resolving on the client's behalf has to run the client's mode
+/// rather than its own default — and two modes cannot share one interned
+/// config.
+#[test]
+fn intern_config_resolves_in_the_client_s_resolution_mode() {
+    use pnpm_store_dir::StoreDir;
+
+    use super::intern_config;
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-resolution-mode-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-resolution-mode-cache");
+    let intern = |request: &ResolveRequest| {
+        intern_config(&configs, &store_dir, &cache_dir, request, 10, usize::MAX)
+            .expect("intern config")
+    };
+
+    let legacy = ResolveRequest::default();
+    assert_eq!(legacy.resolution_mode, ResolutionMode::Highest);
+    assert_eq!(intern(&legacy).resolution_mode, ResolutionMode::Highest);
+
+    for mode in [ResolutionMode::TimeBased, ResolutionMode::LowestDirect] {
+        let request = ResolveRequest { resolution_mode: mode, ..ResolveRequest::default() };
+        assert_eq!(intern(&request).resolution_mode, mode);
+    }
+
+    assert_eq!(configs.lock().expect("config cache").len(), 3);
 }

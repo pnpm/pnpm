@@ -15,7 +15,7 @@
 //!
 use std::{collections::HashMap, sync::Arc};
 
-use pacquet_registry::Package;
+use pnpm_registry::Package;
 use tokio::sync::{Mutex, OnceCell};
 
 /// Per-version time map keyed by version string. The verifier only
@@ -72,6 +72,11 @@ pub(crate) struct PublishedAtLookupContext {
     /// ignores it and falls back to per-version lookups.
     pub abbreviated_meta: SingleflightMap<Result<AbbreviatedMetaProjection, String>>,
     pub local_meta: SingleflightMap<Option<Arc<PublishedAtTimeMap>>>,
+    /// Package-level `Last-Modified` header from a packument `HEAD`
+    /// probe, keyed per `(registry, name)`. `None` for a probe the
+    /// registry answered without the header (or not at all) — the
+    /// caller falls through to the metadata-backed layers.
+    pub head_modified: SingleflightMap<Option<String>>,
 }
 
 impl PublishedAtLookupContext {

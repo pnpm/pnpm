@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli.default-reporter",
-  "version": "1100.3.15",
+  "version": "1100.3.16",
   "description": "The default reporter of pnpm",
   "keywords": [
     "pnpm",

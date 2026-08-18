@@ -31,7 +31,7 @@ describe('whoami', () => {
 
     const result = await whoami.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     })
 
     expect(result).toBe('alice')
@@ -39,7 +39,7 @@ describe('whoami', () => {
 
   it('throws when not logged in', async () => {
     await expect(whoami.handler({
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     })).rejects.toThrow('You must be logged in')
   })
 
@@ -52,7 +52,7 @@ describe('whoami', () => {
 
     await expect(whoami.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     })).rejects.toThrow('Failed to find the current user')
   })
 
@@ -65,7 +65,7 @@ describe('whoami', () => {
 
     const result = await whoami.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: `${REGISTRY}/custom-prefix` },
+      registriesByScope: { default: `${REGISTRY}/custom-prefix` },
     })
 
     expect(result).toBe('alice')

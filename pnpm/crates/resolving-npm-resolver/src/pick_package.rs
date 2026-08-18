@@ -54,10 +54,10 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
-use pacquet_registry::{Package, PackageVersion};
-use pacquet_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
+use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
+use pnpm_registry::{Package, PackageVersion};
+use pnpm_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
 use tokio::sync::Semaphore;
 
 use crate::{
@@ -65,7 +65,8 @@ use crate::{
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
-        get_pkg_mirror_path, load_meta_async, save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
+        get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed, save_meta_ndjson,
+        scoped_meta_dir,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
@@ -167,7 +168,7 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
 
 /// Per-`(registry, pkg_name, version)` cache for the resolver's
 /// serialized `manifest` JSON. The npm resolver builds
-/// [`pacquet_resolving_resolver_base::ResolveResult`]'s `manifest`
+/// [`pnpm_resolving_resolver_base::ResolveResult`]'s `manifest`
 /// field via `serde_json::to_value(picked)`; when many resolves
 /// pick the same version of the same package (the common case for
 /// shared deps like `react`, `lodash`, ...) every duplicate would
@@ -259,6 +260,12 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// `false`; the verifier-time fetcher sets it `true` because
     /// it needs `time` and trust evidence for every entry.
     pub full_metadata: bool,
+    /// Asked instead of [`Self::full_metadata`] when the caller can answer
+    /// per registry — a registry that declares `supportsTimeField` needs no
+    /// full metadata for a time-based resolution even when the others do. The
+    /// mirror path and cache key below are already keyed by registry, so two
+    /// registries may disagree within one install.
+    pub needs_full_metadata_for: Option<&'a (dyn Fn(&str) -> bool + Send + Sync)>,
     /// When full metadata is forced, use pnpm's filtered full-metadata
     /// mirror and filtered packument shape.
     pub filter_metadata: bool,
@@ -283,8 +290,9 @@ pub struct PickPackageOptions<'a> {
     /// `minimumReleaseAgeExclude` policy. `None` skips exclusion.
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     /// Pick the lowest satisfying version instead of the highest.
-    /// Forced to `false` when `published_by` is active (the maturity
-    /// filter always picks highest then falls back to lowest).
+    /// Honoured under `published_by` too: maturity narrows which
+    /// versions are on offer, and this decides which end of what is
+    /// left to take.
     pub pick_lowest_version: bool,
     /// Compare the spec-pick against a `latest`-tag pick and keep
     /// the higher of the two. Used by `pnpm add` to make sure a
@@ -434,7 +442,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         ignore_missing_time_field: ctx.ignore_missing_time_field,
     };
 
-    let full_metadata = opts.optional || ctx.full_metadata;
+    // The per-registry answer is authoritative when the caller can give one:
+    // it already folds in the reasons that hold for every registry, so a
+    // registry that carries `time` is free to stay on abbreviated metadata
+    // while the others do not.
+    let policy_wants_full_metadata = ctx
+        .needs_full_metadata_for
+        .map_or(ctx.full_metadata, |needs_full_metadata| needs_full_metadata(opts.registry));
+    let full_metadata = opts.optional || policy_wants_full_metadata;
     let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
     let base_meta_dir = if full_metadata {
         if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
@@ -631,10 +646,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 meta,
             )
             .await?;
-            let meta = upgrade.meta;
+            let mut meta = upgrade.meta;
             if upgrade.upgraded && !opts.dry_run {
-                if let Some(path) = pkg_mirror.as_deref() {
-                    persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
+                if let Some(reloaded) = pkg_mirror.as_deref().and_then(|path| {
+                    persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata)
+                }) {
+                    meta = Arc::new(reloaded);
                 }
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
             }
@@ -671,6 +688,8 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         cache_dir: ctx.cache_dir,
         full_metadata,
         filter_metadata: use_filtered_full_metadata,
+        offline: ctx.offline,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: ctx.retry_opts,
     };
 
@@ -703,7 +722,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             };
             if let Some(disk) = disk_fallback {
                 tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver::pick_package",
+                    target: "pnpm_resolving_npm_resolver::pick_package",
                     ?error,
                     pkg_name = %spec.name,
                     "metadata fetch failed; falling back to on-disk mirror",
@@ -725,12 +744,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         meta,
     )
     .await?;
-    let meta = upgrade.meta;
+    let mut meta = upgrade.meta;
     if upgrade.upgraded
         && !opts.dry_run
-        && let Some(path) = pkg_mirror.as_deref()
+        && let Some(reloaded) = pkg_mirror
+            .as_deref()
+            .and_then(|path| persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata))
     {
-        persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
+        meta = Arc::new(reloaded);
     }
 
     // Worth flagging: a dry-run is meant to gate the on-disk save, but
@@ -789,12 +810,14 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         cached.meta,
     )
     .await?;
-    let meta = upgrade.meta;
+    let mut meta = upgrade.meta;
     // The upgrade fetch (re)validated the packument against the registry.
     let registry_verified = cached.registry_verified || upgrade.upgraded;
     if upgrade.upgraded && !opts.dry_run {
-        if let Some(path) = pkg_mirror {
-            persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
+        if let Some(reloaded) = pkg_mirror
+            .and_then(|path| persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata))
+        {
+            meta = Arc::new(reloaded);
         }
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
@@ -903,30 +926,27 @@ fn pick_matching_version_final(
     }
 }
 
-/// `publishedBy` is active: try highest mature; if no mature
-/// version satisfies, fall back to lowest (regardless of maturity)
-/// so the orchestrator can report the violation inline and let the
-/// install layer decide what to do.
+/// `publishedBy` is active: it narrows which versions are on offer, and
+/// `pick_lowest_version` decides which end of what is left to take. The
+/// fallback deliberately drops the maturity filter so a range no mature
+/// version satisfies still yields a pick, which the install layer
+/// reports as a violation.
 fn pick_respecting_min_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
 ) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     run_picker(picker_opts, spec, |target_spec| {
-        let highest = pick_package_from_meta(
-            pick_version_by_version_range,
-            &meta_opts(picker_opts),
-            meta,
-            target_spec,
-        )?;
-        if highest.is_some() {
-            return Ok(highest);
+        let pick_mature = if picker_opts.pick_lowest_version {
+            pick_lowest_version_by_version_range
+        } else {
+            pick_version_by_version_range
+        };
+        let mature =
+            pick_package_from_meta(pick_mature, &meta_opts(picker_opts), meta, target_spec)?;
+        if mature.is_some() {
+            return Ok(mature);
         }
-        // Fall-back lowest pick drops `publishedBy` so the picker
-        // can return *something* even if every version is past the
-        // cutoff. The install layer reads the resulting pick's
-        // publish timestamp and surfaces the violation through the
-        // verifier.
         let fallback_opts = PickPackageFromMetaOptions {
             preferred_version_selectors: picker_opts.preferred_version_selectors,
             published_by: None,
@@ -1086,7 +1106,7 @@ fn warn_missing_time_once(pkg_name: &str) {
     }
     warned.insert(pkg_name.to_string());
     tracing::warn!(
-        target: "pacquet_resolving_npm_resolver::pick_package",
+        target: "pnpm_resolving_npm_resolver::pick_package",
         pkg_name,
         r#"The metadata of {pkg_name} is missing the "time" field; skipping the minimumReleaseAge check for this package."#,
     );
@@ -1284,34 +1304,49 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
 
 /// Write the upgraded full metadata back to `pkg_mirror` (which
 /// points at the abbreviated cache because the picker is in
-/// abbreviated mode). Fire-and-forget: a write failure logs at debug
-/// and the install proceeds — the next install simply re-triggers
-/// the upgrade fetch.
-fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package, filter_metadata: bool) {
+/// abbreviated mode). A write failure logs at debug and the install
+/// proceeds — the next install simply re-triggers the upgrade fetch.
+///
+/// On a successful indexed save, returns the just-persisted mirror
+/// reloaded in its file-backed form so the caller can cache *it*
+/// instead of the response-body-backed document — upgraded packuments
+/// are the largest documents an install handles, and caching the
+/// in-memory form kept every full body resident for the rest of the
+/// resolution.
+fn persist_upgraded_to_mirror(
+    pkg_mirror: &Path,
+    meta: &Package,
+    filter_metadata: bool,
+) -> Option<Package> {
     let save_result = if filter_metadata {
         let meta_for_cache = match clear_meta(meta) {
             Ok(meta_for_cache) => meta_for_cache,
             Err(error) => {
                 tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver::pick_package",
+                    target: "pnpm_resolving_npm_resolver::pick_package",
                     ?error,
                     path = %pkg_mirror.display(),
                     "could not filter upgraded mirror metadata",
                 );
-                return;
+                return None;
             }
         };
         save_meta_ndjson(pkg_mirror, &meta_for_cache, meta.etag.as_deref())
     } else {
         save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref())
     };
-    if let Err(error) = save_result {
-        tracing::debug!(
-            target: "pacquet_resolving_npm_resolver::pick_package",
-            ?error,
-            path = %pkg_mirror.display(),
-            "could not write upgraded meta to mirror; skipping persist",
-        );
+    match save_result {
+        Ok(()) if !filter_metadata => load_meta(pkg_mirror),
+        Ok(()) => None,
+        Err(error) => {
+            tracing::debug!(
+                target: "pnpm_resolving_npm_resolver::pick_package",
+                ?error,
+                path = %pkg_mirror.display(),
+                "could not write upgraded meta to mirror; skipping persist",
+            );
+            None
+        }
     }
 }
 

@@ -2,14 +2,14 @@ use super::{
     ConvertCtx, convert_package_key, convert_package_metadata, create_deploy_install_config,
     split_local_payload, validate_lockfile_local_path,
 };
-use pacquet_config::{Config, NodeLinker};
-use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
+use pnpm_config::{Config, NodeLinker};
+use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
 use std::path::Path;
 
 #[cfg(unix)]
 use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
 #[cfg(unix)]
-use pacquet_lockfile::Lockfile;
+use pnpm_lockfile::Lockfile;
 #[cfg(unix)]
 use serde_json::json;
 #[cfg(unix)]

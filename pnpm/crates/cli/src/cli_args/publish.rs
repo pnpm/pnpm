@@ -1,7 +1,7 @@
 //! `pacquet publish` — publish a package to an npm registry.
 //!
 //! The registry-facing work (OIDC, OTP, the publish document and PUT) lives in
-//! [`pacquet_publish`]; this module maps the resolved [`Config`] and CLI flags
+//! [`pnpm_publish`]; this module maps the resolved [`Config`] and CLI flags
 //! onto its options, runs the git checks and publish-lifecycle scripts, and
 //! packs the project before handing the tarball off.
 //!
@@ -16,16 +16,16 @@ use std::{collections::HashMap, path::Path};
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
-use pacquet_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
-use pacquet_publish::{
+use pipe_trait::Pipe;
+use pnpm_config::Config;
+use pnpm_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
+use pnpm_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
+use pnpm_publish::{
     Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
     PublishSummary, extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
     resolve_otp_from_env, run_git_checks,
 };
-use pacquet_reporter::Reporter;
-use pipe_trait::Pipe;
+use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::cli_args::registry_client::build_registry_client;
@@ -227,7 +227,7 @@ impl PublishArgs {
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
     ) -> miette::Result<PublishSummary> {
-        let manifest = pacquet_package_manifest::safe_read_package_json_from_dir(project_dir)
+        let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(project_dir)
             .into_diagnostic()
             .wrap_err("read package.json")?
             .ok_or_else(|| {
@@ -300,7 +300,7 @@ impl PublishArgs {
             crate::config_deps::load_before_packing_hooks(config, pnpmfile_root);
         let mut options = PackOptions {
             dir: dir.to_path_buf(),
-            catalogs: crate::cli_args::pack::pack_catalogs(config)?,
+            catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
             ignore_scripts: self.should_ignore_scripts(config),
             unsafe_perm: config.unsafe_perm,
             embed_readme: false,
@@ -333,7 +333,7 @@ impl PublishArgs {
     ) -> PublishPackedPkgOptions {
         PublishPackedPkgOptions {
             default_registry: config.registry.clone(),
-            scoped_registries: config.registries.clone(),
+            scoped_registries: config.registries_by_scope.clone(),
             access: self.flags.access.as_deref().and_then(Access::parse),
             tag: self.flags.tag.clone().unwrap_or_else(|| "latest".to_owned()),
             otp,
@@ -385,7 +385,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
         node_gyp_path: None,
         user_agent: Some(&config.user_agent),
         unsafe_perm: true,
-        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
+        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: ScriptsPrependNodePath::default(),
         script_shell: None,
         optional: false,

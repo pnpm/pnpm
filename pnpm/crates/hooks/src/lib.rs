@@ -246,7 +246,7 @@ pub trait CustomResolver: Send + Sync {
     /// of `canResolve`; a `true` for any package forces full re-resolution.
     async fn should_refresh_resolution(
         &self,
-        dep_path: &pacquet_lockfile::PackageKey,
+        dep_path: &pnpm_lockfile::PackageKey,
         pkg_snapshot: Value,
     ) -> Result<bool, HookError>;
 }
@@ -271,7 +271,7 @@ pub async fn current_pnpmfile_checksum(
     let hooks = hooks?;
     if recorded.is_some()
         && let Some(file) = hooks.source_path()
-        && let Ok(hash) = pacquet_crypto_hash::create_hash_from_file(file)
+        && let Ok(hash) = pnpm_crypto_hash::create_hash_from_file(file)
     {
         return Some(hash);
     }

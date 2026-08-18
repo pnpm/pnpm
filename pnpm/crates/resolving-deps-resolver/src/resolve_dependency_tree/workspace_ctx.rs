@@ -4,8 +4,8 @@
 //! which occurrence of a package records its children.
 
 use chrono::{DateTime, Utc};
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_lockfile::{PkgName, PkgNameVerPeer};
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
@@ -81,8 +81,8 @@ use super::{
 /// Ordinary keep-all importers use no importer scope and retain the existing
 /// cross-importer cache sharing.
 ///
-/// [`Resolver::resolve`]: pacquet_resolving_resolver_base::Resolver::resolve
-/// [`WantedDependency`]: pacquet_resolving_resolver_base::WantedDependency
+/// [`Resolver::resolve`]: pnpm_resolving_resolver_base::Resolver::resolve
+/// [`WantedDependency`]: pnpm_resolving_resolver_base::WantedDependency
 /// [`extend_tree`]: super::extend_tree
 /// [`fn@resolve_node`]: super::walk::resolve_node
 pub(super) type WantedKey = (
@@ -174,6 +174,20 @@ pub(super) struct RecordedChildrenContext {
 }
 
 impl RecordedChildrenContext {
+    /// Whether a walk under `other` would re-resolve what the prior
+    /// lockfile pinned for this recording — the churn reuse exists to
+    /// avoid, and which leaves the occurrences that realized the
+    /// pinned subtree pointing at children the record no longer holds.
+    ///
+    /// An update policy is the one thing that re-resolves a pin on
+    /// purpose, so a walk under one is never held to the pins.
+    pub(super) fn pins_children_over(&self, other: &Self) -> bool {
+        self.peer_shadowed == other.peer_shadowed
+            && self.prior_key.is_some()
+            && other.prior_key.is_none()
+            && !other.update_active
+    }
+
     /// Two contexts produce the same children.
     ///
     /// The preferred-versions overlay is deliberately not part of the
@@ -217,7 +231,7 @@ pub struct WorkspaceTreeCtx {
     /// engine rebuilds its view instead of merging when this advanced
     /// since its last sync.
     children_rewrites: std::sync::atomic::AtomicU64,
-    pub(super) packages: Mutex<HashMap<String, ResolvedPackage>>,
+    pub(super) packages: Mutex<HashMap<Arc<str>, ResolvedPackage>>,
     /// `pkgIdWithPatchHash` of every importer-level direct dependency
     /// recorded so far (initial waves plus hoisted peers), across all
     /// importers. These are the roots [`Self::run_preferred_versions`]
@@ -235,20 +249,26 @@ pub struct WorkspaceTreeCtx {
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     pub(super) all_peer_dep_names: Mutex<HashSet<String>>,
     pub(super) policy_violations:
-        Mutex<Vec<pacquet_resolving_resolver_base::ResolutionPolicyViolation>>,
+        Mutex<Vec<pnpm_resolving_resolver_base::ResolutionPolicyViolation>>,
     pub(super) applied_patches: Mutex<HashSet<String>>,
     pub(super) resolved_by_wanted:
-        Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
-    pub(super) children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
-    pub(super) children_by_id: Mutex<HashMap<String, RecordedChildren>>,
-    children_owner_by_id: Mutex<HashMap<String, ChildrenOwnerEntry>>,
+        Mutex<HashMap<WantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    pub(super) children_specs_by_id: Mutex<HashMap<Arc<str>, Arc<Vec<ChildSpec>>>>,
+    /// Package ids whose children have already been speculatively
+    /// resolved. A package is warmed once, however many occurrences of
+    /// it a level seeds — see [`fn@warm_children_resolutions`].
+    ///
+    /// [`fn@warm_children_resolutions`]: super::walk::warm_children_resolutions
+    warmed_children_by_id: Mutex<HashSet<Arc<str>>>,
+    pub(super) children_by_id: Mutex<HashMap<Arc<str>, RecordedChildren>>,
+    children_owner_by_id: Mutex<HashMap<Arc<str>, ChildrenOwnerEntry>>,
     node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
     /// Reverse index over `dependencies_tree`: every occurrence node
     /// recorded for a `pkgIdWithPatchHash`. Keeps
     /// [`fn@make_non_owner_nodes_lazy`] proportional to the package's
     /// own occurrences — scanning the whole tree per recorded package
     /// made lockfile-reuse walks quadratic in workspace size.
-    nodes_by_pkg_id: Mutex<HashMap<String, Vec<NodeId>>>,
+    nodes_by_pkg_id: Mutex<HashMap<Arc<str>, Vec<NodeId>>>,
     /// See [`SyncLog`].
     sync_log: Mutex<SyncLog>,
     pub(super) manifest_hook: Option<ManifestHook>,
@@ -266,7 +286,15 @@ pub struct WorkspaceTreeCtx {
     /// `None` on a first install or when reuse is disabled.
     ///
     /// [`resolve_node`]: super::walk::resolve_node
-    pub(super) wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+    pub(super) wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
+    /// Whether the walk may reuse whole already-resolved subtrees from
+    /// [`Self::wanted_lockfile`]; `false` keeps it as a per-edge
+    /// version-pin source only. See
+    /// [`WorkspaceResolveOptions::reuse_lockfile_subtrees`] for the
+    /// contract.
+    ///
+    /// [`WorkspaceResolveOptions::reuse_lockfile_subtrees`]: crate::WorkspaceResolveOptions::reuse_lockfile_subtrees
+    pub(super) reuse_lockfile_subtrees: bool,
     /// Lockfile-reuse suppression for `pacquet update`. `update`
     /// re-resolves its target deps to highest-in-range, so a reused
     /// resolution would defeat the bump. See [`UpdateReuseScope`].
@@ -287,7 +315,7 @@ pub struct WorkspaceTreeCtx {
     /// calls, pre-bound to the install's reporter, project prefix, and
     /// pnpmfile path. `None` leaves hook logging a no-op. See
     /// [`WorkspaceTreeCtx::with_read_package_log`].
-    pub(super) read_package_log: Option<pacquet_hooks::LogFn>,
+    pub(super) read_package_log: Option<pnpm_hooks::LogFn>,
     /// Sink for skipped-optional-dependency notifications. `None`
     /// keeps the skip behavior but drops the notification. See
     /// [`SkippedOptionalLogFn`].
@@ -310,11 +338,10 @@ pub struct WorkspaceTreeCtx {
     /// tarball URL for the `currentPkg` payload. Empty when the entry
     /// point doesn't thread registries (then `currentPkg` is withheld
     /// for `Registry`-shaped entries rather than sent without a URL).
-    pub(super) registries: std::collections::HashMap<String, String>,
     /// Alias → URL map of named registries (built-ins merged with the
     /// user's setting), for materializing a prior registry-qualified
     /// `Registry` lockfile resolution back into its tarball URL.
-    pub(super) named_registries: std::collections::HashMap<String, String>,
+    pub(super) registry_context: RegistryContext,
     /// `pkg id → importer id` of the importer whose occurrence owns
     /// that package's shared children context. Ownership is chosen by
     /// update-active status followed by `(depth, importer order, parent path)`:
@@ -419,7 +446,7 @@ pub(super) struct RunVersionsCache {
     /// and a later wave can add such an edge to an already-visited
     /// package.
     awaiting_identity: HashSet<String>,
-    pub(super) versions: pacquet_resolving_resolver_base::PreferredVersions,
+    pub(super) versions: pnpm_resolving_resolver_base::PreferredVersions,
 }
 
 /// Append-only record of which keys of the shared maps have been
@@ -463,7 +490,7 @@ impl Default for WorkspaceTreeCtx {
                 children_rewrites: 0,
                 visited: HashSet::default(),
                 awaiting_identity: HashSet::default(),
-                versions: pacquet_resolving_resolver_base::PreferredVersions::new(),
+                versions: pnpm_resolving_resolver_base::PreferredVersions::new(),
             }),
             dependencies_tree: Mutex::new(HashMap::default()),
             all_peer_dep_names: Mutex::new(HashSet::default()),
@@ -471,6 +498,7 @@ impl Default for WorkspaceTreeCtx {
             applied_patches: Mutex::new(HashSet::default()),
             resolved_by_wanted: Mutex::new(HashMap::default()),
             children_specs_by_id: Mutex::new(HashMap::default()),
+            warmed_children_by_id: Mutex::new(HashSet::default()),
             children_by_id: Mutex::new(HashMap::default()),
             children_owner_by_id: Mutex::new(HashMap::default()),
             node_parent_ids_by_id: Mutex::new(HashMap::default()),
@@ -479,6 +507,7 @@ impl Default for WorkspaceTreeCtx {
             manifest_hook: None,
             overrides_hook: None,
             wanted_lockfile: None,
+            reuse_lockfile_subtrees: true,
             update_reuse_scope: UpdateReuseScope::All,
             update_reuse_scopes_by_importer: BTreeMap::new(),
             update_depth: UpdateDepth::UNLIMITED,
@@ -489,8 +518,7 @@ impl Default for WorkspaceTreeCtx {
             allowed_deprecated_versions: BTreeMap::new(),
             deprecation_log: None,
             auto_install_peers: false,
-            registries: std::collections::HashMap::new(),
-            named_registries: std::collections::HashMap::new(),
+            registry_context: RegistryContext::default(),
             first_importer_by_pkg: Mutex::new(SnapshotCell::default()),
             first_walk_missing_by_pkg: Mutex::new(SnapshotCell::default()),
             changed_direct_deps: Mutex::new(HashMap::default()),
@@ -515,7 +543,9 @@ impl WorkspaceTreeCtx {
             applied_patches: lock_recoverable(&self.applied_patches).clone(),
             children_by_id: lock_recoverable(&self.children_by_id)
                 .iter()
-                .map(|(pkg_id, recorded)| (pkg_id.clone(), Arc::clone(&recorded.edges)))
+                .map(|(pkg_id, recorded)| {
+                    (std::sync::Arc::<str>::clone(pkg_id), Arc::clone(&recorded.edges))
+                })
                 .collect(),
         }
     }
@@ -547,7 +577,7 @@ impl WorkspaceTreeCtx {
             let Some(node) = dependencies_tree.get(&node_id) else {
                 continue;
             };
-            reachable_pkg_ids.insert(node.resolved_package_id.clone());
+            reachable_pkg_ids.insert(std::sync::Arc::<str>::clone(&node.resolved_package_id));
             if let crate::resolved_tree::TreeChildren::Realized(children) = &node.children {
                 pending_node_ids.extend(children.values().cloned());
             }
@@ -566,7 +596,7 @@ impl WorkspaceTreeCtx {
         let dependencies_tree = reachable_dependencies_tree;
 
         let all_children = lock_recoverable(&self.children_by_id);
-        let mut pending_pkg_ids: Vec<String> = reachable_pkg_ids.iter().cloned().collect();
+        let mut pending_pkg_ids: Vec<Arc<str>> = reachable_pkg_ids.iter().cloned().collect();
         let mut children_by_id = HashMap::default();
         while let Some(pkg_id) = pending_pkg_ids.pop() {
             let Some(children) = all_children.get(&pkg_id) else {
@@ -574,8 +604,8 @@ impl WorkspaceTreeCtx {
             };
             children_by_id.insert(pkg_id, Arc::clone(&children.edges));
             for child in children.edges.iter() {
-                if reachable_pkg_ids.insert(child.pkg_id.clone()) {
-                    pending_pkg_ids.push(child.pkg_id.clone());
+                if reachable_pkg_ids.insert(std::sync::Arc::<str>::clone(&child.pkg_id)) {
+                    pending_pkg_ids.push(std::sync::Arc::<str>::clone(&child.pkg_id));
                 }
             }
         }
@@ -584,7 +614,7 @@ impl WorkspaceTreeCtx {
         let packages = lock_recoverable(&self.packages);
         let packages = reachable_pkg_ids
             .into_iter()
-            .filter_map(|pkg_id| packages.get(&pkg_id).cloned().map(|pkg| (pkg_id, pkg)))
+            .filter_map(|pkg_id| packages.get(&*pkg_id).cloned().map(|pkg| (pkg_id, pkg)))
             .collect();
 
         ResolvedTree {
@@ -621,15 +651,23 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn with_wanted_lockfile(
         mut self,
-        wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+        wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
     ) -> Self {
         self.wanted_lockfile = wanted_lockfile;
         self
     }
 
     /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
-    pub fn wanted_lockfile(&self) -> Option<&Arc<pacquet_lockfile::Lockfile>> {
+    pub fn wanted_lockfile(&self) -> Option<&Arc<pnpm_lockfile::Lockfile>> {
         self.wanted_lockfile.as_ref()
+    }
+
+    /// Restrict [`Self::wanted_lockfile`] to per-edge version pinning.
+    /// See the `reuse_lockfile_subtrees` field.
+    #[must_use]
+    pub fn with_reuse_lockfile_subtrees(mut self, reuse_lockfile_subtrees: bool) -> Self {
+        self.reuse_lockfile_subtrees = reuse_lockfile_subtrees;
+        self
     }
 
     /// Snapshot of `pkg id → children-owner importer id`. See the field doc.
@@ -658,15 +696,15 @@ impl WorkspaceTreeCtx {
             }
             let recorded_by_current_owner = record
                 .map()
-                .get(pkg_id)
+                .get(&**pkg_id)
                 .is_some_and(|entry| entry.recorded_by.as_ref() == Some(owner));
             if !recorded_by_current_owner {
                 let names = missing_by_pkg
-                    .get(pkg_id.as_str())
+                    .get(&**pkg_id)
                     .map(|names| names.iter().map(str::to_owned).collect())
                     .unwrap_or_default();
                 record.map_mut().insert(
-                    pkg_id.clone(),
+                    std::sync::Arc::<str>::clone(pkg_id).to_string(),
                     OwnerMissingRecord { recorded_by: Some(owner.clone()), names },
                 );
             }
@@ -715,7 +753,7 @@ impl WorkspaceTreeCtx {
 
     /// The `name → version` entries of every package reachable from any
     /// importer's recorded direct dependencies, shaped as the plain
-    /// [`pacquet_resolving_resolver_base::PreferredVersions`] entries the
+    /// [`pnpm_resolving_resolver_base::PreferredVersions`] entries the
     /// peer-hoist pickers bias toward.
     ///
     /// Derived from the settled tree — the recorded roots plus the
@@ -765,10 +803,10 @@ impl WorkspaceTreeCtx {
                 if !cache.visited.insert(pkg_id.clone()) {
                     continue;
                 }
-                if let Some(children) = children_by_id.get(&pkg_id) {
+                if let Some(children) = children_by_id.get(pkg_id.as_str()) {
                     for child in children.edges.iter() {
-                        if !cache.visited.contains(&child.pkg_id) {
-                            queue.push(child.pkg_id.clone());
+                        if !cache.visited.contains(&*child.pkg_id) {
+                            queue.push(std::sync::Arc::<str>::clone(&child.pkg_id).to_string());
                         }
                     }
                 }
@@ -778,7 +816,7 @@ impl WorkspaceTreeCtx {
         {
             let packages = lock_recoverable(&self.packages);
             for pkg_id in newly_visited {
-                match packages.get(&pkg_id).and_then(|pkg| pkg.result.name_ver.as_ref()) {
+                match packages.get(pkg_id.as_str()).and_then(|pkg| pkg.result.name_ver.as_ref()) {
                     Some(name_ver) => fold_version(
                         &mut cache.versions,
                         name_ver.name.to_string(),
@@ -903,10 +941,12 @@ impl WorkspaceTreeCtx {
             });
             let children_by_id = lock_recoverable(&self.children_by_id);
             for pkg_id in &written {
-                let Some(spec) = children_by_id.get(pkg_id).map(|recorded| &recorded.edges) else {
+                let Some(spec) =
+                    children_by_id.get(pkg_id.as_str()).map(|recorded| &recorded.edges)
+                else {
                     continue;
                 };
-                match tree.children_by_id.entry(pkg_id.clone()) {
+                match tree.children_by_id.entry(Arc::from(pkg_id.clone())) {
                     Entry::Vacant(entry) => {
                         entry.insert(Arc::clone(spec));
                     }
@@ -926,8 +966,8 @@ impl WorkspaceTreeCtx {
             let written = self.written_since(cursor.packages, next.packages, |log| &log.packages);
             let packages = lock_recoverable(&self.packages);
             for pkg_id in &written {
-                let Some(pkg) = packages.get(pkg_id) else { continue };
-                match tree.packages.entry(pkg_id.clone()) {
+                let Some(pkg) = packages.get(pkg_id.as_str()) else { continue };
+                match tree.packages.entry(Arc::from(pkg_id.clone())) {
                     Entry::Vacant(entry) => {
                         entry.insert(pkg.clone());
                     }
@@ -988,11 +1028,13 @@ impl WorkspaceTreeCtx {
         };
         for (pkg_id, recorded) in lock_recoverable(&self.children_by_id).iter() {
             tree.children_by_id
-                .entry(pkg_id.clone())
+                .entry(std::sync::Arc::<str>::clone(pkg_id))
                 .or_insert_with(|| Arc::clone(&recorded.edges));
         }
         for (pkg_id, pkg) in lock_recoverable(&self.packages).iter() {
-            tree.packages.entry(pkg_id.clone()).or_insert_with(|| pkg.clone());
+            tree.packages
+                .entry(std::sync::Arc::<str>::clone(pkg_id))
+                .or_insert_with(|| pkg.clone());
         }
         for (node_id, node) in lock_recoverable(&self.dependencies_tree).iter() {
             tree.dependencies_tree.entry(node_id.clone()).or_insert_with(|| node.clone());
@@ -1031,7 +1073,7 @@ impl WorkspaceTreeCtx {
         node_ids
             .filter_map(|node_id| {
                 let pkg_id = &dependencies_tree.get(node_id)?.resolved_package_id;
-                packages.contains_key(pkg_id).then(|| (node_id.clone(), pkg_id.clone()))
+                packages.contains_key(&**pkg_id).then(|| (node_id.clone(), pkg_id.to_string()))
             })
             .collect()
     }
@@ -1047,7 +1089,7 @@ impl WorkspaceTreeCtx {
                 continue;
             };
             if let Some(node) = tree.get_mut(&dep.node_id) {
-                node.locked_peer_names = Some(Arc::clone(names));
+                node.locked_mut().locked_peer_names = Some(Arc::clone(names));
             }
         }
     }
@@ -1093,7 +1135,7 @@ impl WorkspaceTreeCtx {
     /// reporter, project prefix, and pnpmfile path into the closure so the
     /// resolver stays reporter-agnostic.
     #[must_use]
-    pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
+    pub fn with_read_package_log(mut self, read_package_log: Option<pnpm_hooks::LogFn>) -> Self {
         self.read_package_log = read_package_log;
         self
     }
@@ -1135,23 +1177,10 @@ impl WorkspaceTreeCtx {
         self
     }
 
-    /// Attach the resolved registry map. See the `registries` field.
+    /// Attach the registry facts. See the `registry_context` field.
     #[must_use]
-    pub fn with_registries(
-        mut self,
-        registries: std::collections::HashMap<String, String>,
-    ) -> Self {
-        self.registries = registries;
-        self
-    }
-
-    /// Attach the named-registry alias map. See the `named_registries` field.
-    #[must_use]
-    pub fn with_named_registries(
-        mut self,
-        named_registries: std::collections::HashMap<String, String>,
-    ) -> Self {
-        self.named_registries = named_registries;
+    pub fn with_registry_context(mut self, registry_context: RegistryContext) -> Self {
+        self.registry_context = registry_context;
         self
     }
 
@@ -1194,13 +1223,13 @@ impl WorkspaceTreeCtx {
 /// Fold one `name → version` pair into `versions` as a plain
 /// `version` selector; the first fold of a pair wins over later ones.
 fn fold_version(
-    versions: &mut pacquet_resolving_resolver_base::PreferredVersions,
+    versions: &mut pnpm_resolving_resolver_base::PreferredVersions,
     name: String,
     version: String,
 ) {
     versions.entry(name).or_default().entry(version).or_insert(
-        pacquet_resolving_resolver_base::VersionSelectorEntry::Plain(
-            pacquet_resolving_resolver_base::VersionSelectorType::Version,
+        pnpm_resolving_resolver_base::VersionSelectorEntry::Plain(
+            pnpm_resolving_resolver_base::VersionSelectorType::Version,
         ),
     );
 }
@@ -1215,8 +1244,11 @@ pub(super) struct ChildrenOwnerClaim {
     /// A winning claim displaced an owner whose shadowed-dependency set
     /// equals this occurrence's, so the other occurrences' realized
     /// children — including a subtree reused from the prior lockfile —
-    /// stay valid and the winner skips the lazy-flip (and the
-    /// engine-invalidating rewrite signal) it would otherwise broadcast.
+    /// stay valid *as far as the claim can tell*, and the winner skips
+    /// the lazy-flip (and the engine-invalidating rewrite signal) it
+    /// would otherwise broadcast. The walk it then runs can still land
+    /// on different edges, which
+    /// [`ChildrenRecording::PublishedOverStale`] reports instead.
     ///
     /// This is a narrower question than whether the *recorded* children
     /// can be reused instead of walked; that one is
@@ -1253,7 +1285,7 @@ pub(super) fn claim_children_owner(
                     existing.is_some_and(|entry| *entry.peer_shadowed == peer_shadowed);
                 let peer_shadowed = Arc::new(peer_shadowed);
                 owners.insert(
-                    pkg_id.to_string(),
+                    Arc::from(pkg_id),
                     ChildrenOwnerEntry {
                         owner: owner.clone(),
                         peer_shadowed: Arc::clone(&peer_shadowed),
@@ -1272,6 +1304,17 @@ pub(super) fn claim_children_owner(
     ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
 }
 
+/// Whether this occurrence is the first to offer to warm its package's
+/// children, so the speculative resolutions run once per package
+/// rather than once per occurrence of it.
+pub(super) fn claim_children_warmup(ctx: &TreeCtx, pkg_id: &str) -> bool {
+    let mut warmed = lock_recoverable(&ctx.workspace.warmed_children_by_id);
+    // Every occurrence of a package offers, and all but the first are
+    // turned away, so the owned key is built only for the one that
+    // takes the warmup.
+    !warmed.contains(pkg_id) && warmed.insert(Arc::from(pkg_id.to_string()))
+}
+
 /// Whether this package's recorded children were resolved under
 /// `context`, and can therefore be expanded from instead of walked
 /// again. The walk that recorded them need not be the one owning the
@@ -1282,36 +1325,105 @@ pub(super) fn recorded_children_match(
     pkg_id: &str,
     context: &RecordedChildrenContext,
 ) -> bool {
-    lock_recoverable(&ctx.workspace.children_by_id)
-        .get(pkg_id)
-        .is_some_and(|recorded| recorded.context.produces_same_children_as(context))
+    lock_recoverable(&ctx.workspace.children_by_id).get(pkg_id).is_some_and(|recorded| {
+        recorded.context.produces_same_children_as(context)
+            || recorded.context.pins_children_over(context)
+    })
+}
+
+/// What [`fn@record_children`] did with a walk's child edges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ChildrenRecording {
+    /// This walk's ownership lapsed before it could publish, so the
+    /// standing owner's children stand. Its node stays lazy and expands
+    /// from whatever that owner recorded.
+    Declined,
+    /// Published, and the realized children every other occurrence node
+    /// holds still stand.
+    Published,
+    /// Published over edges the other occurrence nodes realized, whose
+    /// children are now stale.
+    PublishedOverStale,
+}
+
+impl ChildrenRecording {
+    /// The children to hang on the recording walk's own node, plus
+    /// whether the recording staled the children the package's other
+    /// occurrence nodes realized — the flag that gates
+    /// [`fn@make_non_owner_nodes_lazy`].
+    pub(super) fn into_children(
+        self,
+        realized: BTreeMap<String, NodeId>,
+        parent_ids: &Arc<Vec<String>>,
+    ) -> (crate::resolved_tree::TreeChildren, bool) {
+        match self {
+            ChildrenRecording::Declined => (lazy_children(parent_ids), false),
+            ChildrenRecording::Published => {
+                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), false)
+            }
+            ChildrenRecording::PublishedOverStale => {
+                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), true)
+            }
+        }
+    }
+}
+
+/// Children a node expands from the standing owner's recording, under
+/// its own `parent_ids` cycle break.
+pub(super) fn lazy_children(parent_ids: &Arc<Vec<String>>) -> crate::resolved_tree::TreeChildren {
+    crate::resolved_tree::TreeChildren::Lazy {
+        parent_ids: AncestorIds::from(Arc::clone(parent_ids)),
+    }
 }
 
 /// Publish a package's children together with the context that
-/// produced them, and report whether they were published.
+/// produced them, and report what that did.
 ///
-/// The ownership check happens under the same lock as the write: a
-/// claim that landed while this walk ran has its own children to
-/// publish, and an older walk finishing afterwards would otherwise
-/// overwrite them. A walk whose ownership lapsed keeps its node lazy
-/// and expands from whatever the standing owner recorded.
+/// The ownership check and the comparison against the standing
+/// recording happen under the same lock as the write: a claim that
+/// landed while this walk ran has its own children to publish, and an
+/// older walk finishing afterwards would otherwise overwrite them.
 pub(super) fn record_children(
     ctx: &TreeCtx,
     pkg_id: &str,
     owner: &ChildrenOwner,
     edges: Vec<crate::resolved_tree::ChildEdge>,
     context: RecordedChildrenContext,
-) -> bool {
-    {
+) -> ChildrenRecording {
+    let recording = {
         let owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
         if owners.get(pkg_id).is_none_or(|entry| entry.owner != *owner) {
-            return false;
+            return ChildrenRecording::Declined;
         }
-        lock_recoverable(&ctx.workspace.children_by_id)
-            .insert(pkg_id.to_string(), RecordedChildren { edges: Arc::new(edges), context });
-    }
+        let mut children = lock_recoverable(&ctx.workspace.children_by_id);
+        let recording = match children.get(pkg_id) {
+            // Nothing recorded yet, so no occurrence node can hold
+            // realized children of this package to stale.
+            None => ChildrenRecording::Published,
+            // A recording the prior lockfile pinned outlives a fresh
+            // walk's answer, so this walk publishes nothing and reads
+            // the pinned children like every occurrence that reused the
+            // subtree. Publishing over them would re-resolve the open
+            // ranges reuse exists to hold still, and would leave those
+            // occurrences realizing children the record no longer
+            // holds. This comes before the equal-edge arm because
+            // republishing even the same edges would carry this walk's
+            // unpinned context onto the record, leaving the next fresh
+            // walk to land on different edges nothing to hold it back.
+            Some(recorded) if recorded.context.pins_children_over(&context) => {
+                return ChildrenRecording::Declined;
+            }
+            Some(recorded) if *recorded.edges == edges => ChildrenRecording::Published,
+            Some(_) => ChildrenRecording::PublishedOverStale,
+        };
+        children.insert(
+            Arc::from(pkg_id.to_string()),
+            RecordedChildren { edges: Arc::new(edges), context },
+        );
+        recording
+    };
     ctx.workspace.record_children_by_id_write(pkg_id);
-    true
+    recording
 }
 
 /// Seed the peer-walker's `parentPkgs` filter with the names a
@@ -1366,7 +1478,12 @@ pub(super) fn insert_tree_node(
             false
         }
         std::collections::hash_map::Entry::Vacant(entry) => {
-            entry.insert(DependenciesTreeNode::new(pkg_id.to_string(), children, depth, true));
+            entry.insert(DependenciesTreeNode::new(
+                Arc::from(pkg_id.to_string()),
+                children,
+                depth,
+                true,
+            ));
             true
         }
     };
@@ -1375,7 +1492,7 @@ pub(super) fn insert_tree_node(
     }
     if inserted {
         lock_recoverable(&ctx.workspace.nodes_by_pkg_id)
-            .entry(pkg_id.to_string())
+            .entry(Arc::from(pkg_id.to_string()))
             .or_default()
             .push(node_id);
     }
@@ -1402,7 +1519,13 @@ pub(super) fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_
     let mut tree = lock_recoverable(&ctx.workspace.dependencies_tree);
     let mut rewritten = Vec::new();
     for (node_id, parent_ids) in parent_ids_by_node {
-        if let Some(node) = tree.get_mut(&node_id) {
+        // An occurrence already reading the owner's children needs no
+        // rewrite — and must not report one, since the signal makes the
+        // discovery engine rebuild from scratch. In a peer-heavy graph
+        // most occurrences of a package are already lazy.
+        if let Some(node) = tree.get_mut(&node_id)
+            && !matches!(node.children, crate::resolved_tree::TreeChildren::Lazy { .. })
+        {
             node.children = crate::resolved_tree::TreeChildren::Lazy {
                 parent_ids: AncestorIds::from(parent_ids),
             };

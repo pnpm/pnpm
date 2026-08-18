@@ -6,10 +6,10 @@ use std::{collections::BTreeSet, io::Read};
 
 use flate2::read::GzDecoder;
 use miette::{Context, IntoDiagnostic};
-use pacquet_pack::sort_paths_en_locale;
-use pacquet_package_manifest::parse_manifest;
-use pacquet_publish::{PackedPkgInfo, PublishSummary, create_publish_summary};
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_pack::sort_paths_en_locale;
+use pnpm_package_manifest::parse_manifest;
+use pnpm_publish::{PackedPkgInfo, PublishSummary, create_publish_summary};
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::Value;
 
 use super::StageError;

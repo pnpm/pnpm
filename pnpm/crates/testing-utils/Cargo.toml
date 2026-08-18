@@ -1,5 +1,5 @@
 [package]
-name                 = "pacquet-testing-utils"
+name                 = "pnpm-testing-utils"
 version              = "0.0.0"
 description          = "Common utilities to test pacquet code"
 publish              = false
@@ -15,6 +15,7 @@ assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
 dunce             = { workspace = true }
 flate2            = { workspace = true }
+pipe-trait        = { workspace = true }
 pnpr              = { workspace = true }
 serde_json        = { workspace = true }
 ssri              = { workspace = true }
@@ -25,7 +26,9 @@ url               = { workspace = true }
 walkdir           = { workspace = true }
 text-block-macros = { workspace = true }
 pnpr-fixtures     = { workspace = true }
-pacquet-fs        = { workspace = true }
+pnpm-fs           = { workspace = true }
+
+pnpm-workspace-state = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,9 +1,9 @@
 use std::{fs, sync::Mutex};
 
-use pacquet_config::Config;
-use pacquet_lockfile::{LockfileResolution, RegistryResolution};
-use pacquet_reporter::{LogEvent, PromptAction, Reporter, SilentReporter};
-use pacquet_resolving_resolver_base::ResolutionPolicyViolation;
+use pnpm_config::Config;
+use pnpm_lockfile::{LockfileResolution, RegistryResolution};
+use pnpm_reporter::{LogEvent, PromptAction, Reporter, SilentReporter};
+use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
 use ssri::Integrity;
 use tempfile::tempdir;
 
@@ -128,6 +128,7 @@ async fn non_interactive_strict_mode_reports_every_immature_pick() {
         dir.path(),
         &violations,
         false,
+        true,
         &mut prompt,
     )
     .await
@@ -165,6 +166,7 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
         dir.path(),
         &violations,
         true,
+        true,
         &mut prompt,
     )
     .await
@@ -179,6 +181,115 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
     assert!(workspace.contains("- bar@3.0.0"));
 
     assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
+}
+
+#[tokio::test]
+async fn loose_mode_persists_excludes_without_prompting() {
+    recording_reporter!(reset_events);
+    reset_events();
+    let dir = tempdir().expect("temp dir");
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nminimumReleaseAgeExclude:\n  - foo@1.0.0\n",
+    )
+    .expect("write workspace manifest");
+    let mut config = Config::new();
+    config.minimum_release_age = Some(60);
+    config.minimum_release_age_exclude = Some(vec!["foo@1.0.0".to_string()]);
+    let mut prompt = FakePrompt::default();
+    let violations = vec![
+        violation("foo", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
+        violation("bar", "3.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
+        violation("ignored", "4.0.0", "TRUST_DOWNGRADE"),
+    ];
+
+    handle_minimum_release_age_violations_with::<RecordingReporter, _>(
+        &config,
+        dir.path(),
+        &violations,
+        true,
+        true,
+        &mut prompt,
+    )
+    .await
+    .expect("loose mode always proceeds");
+
+    assert!(prompt.messages.is_empty());
+    let workspace = fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
+        .expect("read workspace manifest");
+    assert!(workspace.contains("- foo@1.0.0 || 2.0.0"));
+    assert!(workspace.contains("- bar@3.0.0"));
+    let messages: Vec<String> = EVENTS
+        .lock()
+        .expect("event lock")
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Pnpm(log) => Some(log.message.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(messages.len(), 1);
+    assert_eq!(
+        messages[0],
+        "Added 2 entries to minimumReleaseAgeExclude in pnpm-workspace.yaml (set minimumReleaseAgeStrict to true to gate these updates with a prompt):\n  bar@3.0.0\n  foo@2.0.0",
+    );
+}
+
+#[tokio::test]
+async fn strict_approval_without_persistence_proceeds_but_leaves_the_workspace_manifest_unchanged()
+{
+    recording_reporter!(reset_events, prompt_actions);
+    reset_events();
+    let dir = tempdir().expect("temp dir");
+    let path = dir.path().join("pnpm-workspace.yaml");
+    fs::write(&path, "packages:\n  - packages/*\n").expect("write workspace manifest");
+    let original = fs::read_to_string(&path).expect("read original");
+    let mut config = Config::new();
+    config.minimum_release_age_strict = Some(true);
+    let mut prompt = FakePrompt { answer: true, messages: Vec::new() };
+
+    handle_minimum_release_age_violations_with::<RecordingReporter, _>(
+        &config,
+        dir.path(),
+        &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
+        true,
+        false,
+        &mut prompt,
+    )
+    .await
+    .expect("approval should continue");
+
+    assert_eq!(prompt.messages.len(), 1);
+    assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
+    assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
+}
+
+#[tokio::test]
+async fn loose_mode_without_persistence_leaves_the_workspace_manifest_unchanged() {
+    recording_reporter!(reset_events);
+    reset_events();
+    let dir = tempdir().expect("temp dir");
+    let path = dir.path().join("pnpm-workspace.yaml");
+    fs::write(&path, "packages:\n  - packages/*\n").expect("write workspace manifest");
+    let original = fs::read_to_string(&path).expect("read original");
+    let mut config = Config::new();
+    config.minimum_release_age = Some(60);
+    let mut prompt = FakePrompt::default();
+
+    handle_minimum_release_age_violations_with::<RecordingReporter, _>(
+        &config,
+        dir.path(),
+        &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
+        true,
+        false,
+        &mut prompt,
+    )
+    .await
+    .expect("loose mode always proceeds");
+
+    assert!(prompt.messages.is_empty());
+    assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
+    assert!(EVENTS.lock().expect("event lock").is_empty());
 }
 
 #[tokio::test]
@@ -197,6 +308,7 @@ async fn denying_approval_leaves_the_workspace_manifest_unchanged() {
         &config,
         dir.path(),
         &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
+        true,
         true,
         &mut prompt,
     )
@@ -220,6 +332,7 @@ async fn prompt_input_error_releases_the_reporter() {
         &config,
         dir.path(),
         &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
+        true,
         true,
         &mut FailingPrompt,
     )

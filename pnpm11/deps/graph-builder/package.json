@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-builder",
-  "version": "1100.2.0",
+  "version": "1100.2.2",
   "description": "A package for building a dependency graph from a lockfile",
   "keywords": [
     "pnpm",
@@ -31,6 +31,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",

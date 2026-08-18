@@ -2,7 +2,7 @@
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createResolver } from '@pnpm/resolving.default-resolver'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
@@ -18,7 +18,7 @@ const ghAcmePrivateMeta = loadJsonFileSync<any>(
 const GH_REGISTRY = 'https://npm.pkg.github.com/'
 const ENTERPRISE_REGISTRY = 'https://npm.enterprise.example.com/'
 
-const registries = {
+const registriesByScope = {
   default: 'https://registry.npmjs.org/',
   '@jsr': 'https://npm.jsr.io/',
 }
@@ -45,7 +45,7 @@ test('createResolver() routes <alias>:@scope/pkg through the named-registry reso
   const { resolve } = createResolver(fetch, () => undefined, {
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   const result = await resolve(
@@ -63,8 +63,8 @@ test('createResolver() routes a user-configured named registry alias through the
   const { resolve } = createResolver(fetch, () => undefined, {
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({
       work: ENTERPRISE_REGISTRY,
     }),
   })
@@ -87,8 +87,8 @@ test.each([
   expect(() => createResolver(fetch, () => undefined, {
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({
       [alias]: ENTERPRISE_REGISTRY,
     }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
@@ -98,8 +98,8 @@ test('createResolver() rejects a malformed named-registry alias', () => {
   expect(() => createResolver(fetch, () => undefined, {
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({
       'no colons:allowed': ENTERPRISE_REGISTRY,
     }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
@@ -111,8 +111,8 @@ test('createResolver() qualifies a named-registry id with the registry alias', a
   const { resolve } = createResolver(fetch, () => undefined, {
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({
       work: ENTERPRISE_REGISTRY,
     }),
   })

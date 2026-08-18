@@ -2,12 +2,13 @@ use super::exec::ExecArgs;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
-use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_package_manifest::PackageManifest;
-use pacquet_reporter::LogEvent;
-use pacquet_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
+use pnpm_config::Config;
+use pnpm_executor::{RunScript, ScriptsPrependNodePath, run_script};
+use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use pnpm_package_manager::{make_node_package_map_option, package_map_path_for_execution};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_reporter::LogEvent;
+use pnpm_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
 use regex::Regex;
 use serde_json::Value;
 use std::{
@@ -194,10 +195,7 @@ impl RunArgs {
             .into());
         }
 
-        let mut extra_env = config.extra_env.clone();
-        if let Some(node_options) = &config.node_options {
-            extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-        }
+        let mut extra_env = config.extra_env_with_node_options();
         if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
             let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
             extra_env.insert(
@@ -387,6 +385,16 @@ pub(super) fn run_stages(
         }
     }
 
+    if ctx.config.sync_injected_deps_after_scripts.iter().any(|script| script == name) {
+        sync_injected_deps(&SyncInjectedDeps {
+            pkg_name: ctx.manifest.value().get("name").and_then(Value::as_str),
+            pkg_root_dir: ctx.dir,
+            workspace_dir: ctx.config.workspace_dir.as_deref(),
+            // Read before the script ran, so a bin it drops can still be named.
+            manifest_before_scripts: Some(ctx.manifest.value()),
+        })?;
+    }
+
     Ok(main_status)
 }
 
@@ -454,12 +462,12 @@ pub(super) fn run_stage(
 }
 
 pub(crate) fn exec_scripts_prepend_node_path(
-    value: pacquet_config::ScriptsPrependNodePath,
+    value: pnpm_config::ScriptsPrependNodePath,
 ) -> ScriptsPrependNodePath {
     match value {
-        pacquet_config::ScriptsPrependNodePath::Always => ScriptsPrependNodePath::Always,
-        pacquet_config::ScriptsPrependNodePath::Never => ScriptsPrependNodePath::Never,
-        pacquet_config::ScriptsPrependNodePath::WarnOnly => ScriptsPrependNodePath::WarnOnly,
+        pnpm_config::ScriptsPrependNodePath::Always => ScriptsPrependNodePath::Always,
+        pnpm_config::ScriptsPrependNodePath::Never => ScriptsPrependNodePath::Never,
+        pnpm_config::ScriptsPrependNodePath::WarnOnly => ScriptsPrependNodePath::WarnOnly,
     }
 }
 

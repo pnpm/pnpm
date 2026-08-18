@@ -1,5 +1,5 @@
 import { createShortHash } from '@pnpm/crypto.hash'
-import type { DepPath, PkgId, PkgIdWithPatchHash, PkgResolutionId, Registries } from '@pnpm/types'
+import type { DepPath, PkgId, PkgIdWithPatchHash, PkgResolutionId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string): boolean {
@@ -147,10 +147,10 @@ export function tryGetPackageId (relDepPath: DepPath): PkgId {
   return pkgId as PkgId
 }
 
-export function getRegistryByPackageName (registries: Registries, packageName: string): string {
-  if (packageName[0] !== '@') return registries.default
+export function getRegistryByPackageName (registriesByScope: RegistriesByScope, packageName: string): string {
+  if (packageName[0] !== '@') return registriesByScope.default
   const scope = packageName.substring(0, packageName.indexOf('/'))
-  return registries[scope] || registries.default
+  return registriesByScope[scope] || registriesByScope.default
 }
 
 export function refToRelative (

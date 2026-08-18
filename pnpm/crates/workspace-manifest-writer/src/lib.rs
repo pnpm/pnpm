@@ -19,9 +19,11 @@ use std::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config_parse_overrides::parse_pkg_and_parent_selector;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+
+pub use pnpm_config::version_policy::ResolvedPackageVersions;
 
 mod edit;
 mod model;
@@ -121,18 +123,25 @@ fn has_control_char(value: &str) -> bool {
 pub struct UpdateWorkspaceManifestOptions<'a> {
     /// Catalog entries to merge into the `catalog:` / `catalogs:` blocks.
     pub updated_catalogs: Option<&'a Catalogs>,
-    /// Run the `cleanupUnusedCatalogs` pass after the merge: drop catalog
+    /// Run the `catalogPrune` pass after the merge: drop catalog
     /// entries no manifest in [`Self::all_projects`] references.
-    pub cleanup_unused_catalogs: bool,
+    pub catalog_prune: bool,
     /// Every workspace project manifest (with in-memory dependency edits
     /// applied), consulted by the cleanup pass to decide which catalog
     /// entries are still referenced. An empty list disables the cleanup
     /// pass, mirroring upstream's `allProjects ?? []` guard.
     pub all_projects: &'a [&'a PackageManifest],
+    /// Package name → the versions the freshly resolved lockfile
+    /// records. Present only under `minimumReleaseAgeExcludePrune`, and
+    /// only when the lockfile covers every project
+    /// `minimumReleaseAgeExclude` governs; `None` disables that pass,
+    /// mirroring the [`Self::all_projects`] guard of
+    /// `catalogPrune`.
+    pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
 }
 
 /// Merge `opts.updated_catalogs` into `dir`'s `pnpm-workspace.yaml` and run
-/// the `cleanupUnusedCatalogs` pass when requested, writing the file back
+/// the `catalogPrune` pass when requested, writing the file back
 /// only when something actually changed (and removing it when the edits
 /// empty the document).
 pub fn update_workspace_manifest(
@@ -164,9 +173,12 @@ pub fn update_workspace_manifest(
         }
         None => false,
     };
-    if opts.cleanup_unused_catalogs && !opts.all_projects.is_empty() {
+    if opts.catalog_prune && !opts.all_projects.is_empty() {
         let references = collect_catalog_references(opts.all_projects, &manifest);
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
+    }
+    if let Some(resolved) = opts.resolved_package_versions {
+        changed |= edit::prune_minimum_release_age_excludes(&mut manifest, resolved);
     }
     if !changed {
         return Ok(());
@@ -493,7 +505,7 @@ pub fn set_audit_ignore_ghsas(
 /// Set `dir`'s `pnpm-workspace.yaml` top-level `minimumReleaseAgeExclude:` to
 /// `excludes` (the complete desired list), creating the file/block if absent
 /// and removing the block when `excludes` is empty. The caller merges with any
-/// existing entries (via `pacquet_config::version_policy::merge_package_version_specs`)
+/// existing entries (via `pnpm_config::version_policy::merge_package_version_specs`)
 /// before calling. Used by `pnpm audit --fix` to let patched versions through
 /// the `minimumReleaseAge` maturity cutoff.
 pub fn set_minimum_release_age_excludes(

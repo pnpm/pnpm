@@ -6,11 +6,11 @@
 
 use async_recursion::async_recursion;
 use futures_util::future;
-use pacquet_lockfile::{
+use pipe_trait::Pipe;
+use pnpm_lockfile::{
     PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
 };
-use pacquet_resolving_resolver_base::{Resolver, WantedDependency};
-use pipe_trait::Pipe;
+use pnpm_resolving_resolver_base::{Resolver, WantedDependency};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
@@ -18,7 +18,7 @@ use crate::{
     lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
     node_id::NodeId,
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{AncestorIds, DirectDep, PeerDep, ResolvedPackage},
+    resolved_tree::{DirectDep, PeerDep, ResolvedPackage},
 };
 
 use super::{
@@ -30,7 +30,7 @@ use super::{
     walk::{node_alias, parent_ids_contain_sequence, resolve_node},
     workspace_ctx::{
         DirectDepVersions, RecordedChildrenContext, claim_children_owner, insert_tree_node,
-        is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        is_current_children_owner, lazy_children, make_non_owner_nodes_lazy, record_children,
         remember_node_parent_ids,
     },
 };
@@ -146,7 +146,7 @@ pub(crate) fn record_changed_direct_deps(
 ///
 /// [`fn@resolve_catalog_specifiers`]: super::resolve_catalog_specifiers
 fn catalog_specifier_unchanged(
-    lockfile: Option<&pacquet_lockfile::Lockfile>,
+    lockfile: Option<&pnpm_lockfile::Lockfile>,
     recorded: &str,
     alias: &str,
     resolved_spec: &str,
@@ -229,10 +229,8 @@ pub(super) fn node_depends_on_changed_direct_dep(
 /// The highest resolved direct-dependency version of `name` strictly
 /// above `pinned` that still satisfies `range`, or `None`. Anchored to
 /// direct deps (the deterministic, resolved-before-the-walk signal).
-/// `direct_versions` is the importer's snapshot, taken once per walk by
-/// [`fn@walk_node_children`].
-///
-/// [`fn@walk_node_children`]: super::walk::walk_node_children
+/// `direct_versions` is the importer's snapshot, taken once per walked
+/// occurrence as it seeds its children.
 pub(super) fn higher_direct_dep_version(
     direct_versions: Option<&DirectDepVersions>,
     name: &str,
@@ -251,7 +249,7 @@ pub(super) fn higher_direct_dep_version(
 /// `ResolveResult` synthesized from the lockfile metadata.
 pub(super) struct ReusedNode {
     key: PkgNameVerPeer,
-    result: pacquet_resolving_resolver_base::ResolveResult,
+    result: pnpm_resolving_resolver_base::ResolveResult,
 }
 
 /// Decide whether the current edge can reuse the prior lockfile's
@@ -320,7 +318,7 @@ fn update_excludes(scope: UpdateScope<'_>, name: &str, depth: i32) -> bool {
 /// even when the failing edge itself was never locked. This matches
 /// the TypeScript resolver's `wantedLockfileContainsSatisfyingEntry`.
 pub(super) fn wanted_lockfile_contains_satisfying_entry(
-    lockfile: Option<&pacquet_lockfile::Lockfile>,
+    lockfile: Option<&pnpm_lockfile::Lockfile>,
     wanted: &WantedDependency,
 ) -> bool {
     let Some(packages) = lockfile.and_then(|lockfile| lockfile.packages.as_ref()) else {
@@ -366,20 +364,21 @@ pub(crate) fn unwrap_package_name<'a>(
     }
 }
 
-/// Resolve the *real* package name a [`WantedDependency`] targets — the
-/// name update targeting matches against, not the local install alias,
-/// which an `npm:` alias or a `jsr:` specifier can differ from. The
-/// picker and the lockfile snapshots key on this name.
+/// Resolve the *real* package name an `(alias, bare_specifier)` edge
+/// targets — the name update targeting matches against, not the local
+/// install alias, which an `npm:` alias or a `jsr:` specifier can
+/// differ from. The picker and the lockfile snapshots key on this name.
 /// `walk::overlay_lookup_names` builds its candidate set from it.
 ///
 /// `None` when no name can be recovered; the caller reads that as "not
 /// a targeted update", since update targets are keyed by package name.
-pub(super) fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
-    let bare = wanted.bare_specifier.as_deref()?;
+pub(super) fn real_package_name_of<'edge>(
+    alias: Option<&'edge str>,
+    bare_specifier: Option<&'edge str>,
+) -> Option<Cow<'edge, str>> {
+    let bare = bare_specifier?;
     if let Some(rest) = bare.strip_prefix("npm:") {
-        let alias_keeps_name = wanted
-            .alias
-            .as_deref()
+        let alias_keeps_name = alias
             .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
         if !alias_keeps_name {
             let last_at =
@@ -392,15 +391,34 @@ pub(super) fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, 
         }
     }
     if bare.starts_with("jsr:") {
-        let spec = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
-            bare,
-            wanted.alias.as_deref(),
-        )
-        .ok()
-        .flatten()?;
+        let spec =
+            pnpm_resolving_jsr_specifier_parser::parse_jsr_specifier(bare, alias).ok().flatten()?;
         return Some(Cow::Owned(spec.npm_pkg_name));
     }
-    wanted.alias.as_deref().map(Cow::Borrowed)
+    alias.map(Cow::Borrowed)
+}
+
+/// Whether the running `pacquet update` reaches this edge, so its
+/// locked-version pin must not survive — the update exists to move it.
+/// Unlike [`fn@is_update_target`], an update-everything scope
+/// ([`UpdateReuseScope::None`]) unpins every edge the depth ceiling
+/// reaches.
+pub(super) fn update_unpins_edge(
+    scope: UpdateScope<'_>,
+    wanted: &WantedDependency,
+    depth: i32,
+) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
+        UpdateReuseScope::All => false,
+        UpdateReuseScope::None => true,
+        UpdateReuseScope::Except(_) => {
+            real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
+                .is_some_and(|name| update_excludes(scope, name.as_ref(), depth))
+        }
+    }
 }
 
 /// Whether `wanted` is one of the packages the user asked to update,
@@ -419,7 +437,8 @@ pub(super) fn is_update_target(
     match scope.reuse {
         UpdateReuseScope::All | UpdateReuseScope::None => false,
         UpdateReuseScope::Except(_) => {
-            real_package_name_of(wanted).is_some_and(|n| update_excludes(scope, n.as_ref(), depth))
+            real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
+                .is_some_and(|name| update_excludes(scope, name.as_ref(), depth))
         }
     }
 }
@@ -443,7 +462,7 @@ pub(super) fn is_update_target(
 /// [`WorkspaceTreeCtx::subtree_reusable`]: super::WorkspaceTreeCtx::subtree_reusable
 fn subtree_fully_reusable(
     ctx: &TreeCtx,
-    lockfile: &pacquet_lockfile::Lockfile,
+    lockfile: &pnpm_lockfile::Lockfile,
     key: &PkgNameVerPeer,
     depth: i32,
 ) -> bool {
@@ -473,7 +492,7 @@ fn subtree_fully_reusable(
 /// reuse path doesn't model.
 fn subtree_children_reusable(
     ctx: &TreeCtx,
-    lockfile: &pacquet_lockfile::Lockfile,
+    lockfile: &pnpm_lockfile::Lockfile,
     key: &PkgNameVerPeer,
     depth: i32,
 ) -> bool {
@@ -567,7 +586,7 @@ where
 
     let package_is_new = {
         let mut packages = lock_recoverable(&ctx.workspace.packages);
-        if let Some(existing) = packages.get_mut(&id) {
+        if let Some(existing) = packages.get_mut(id.as_str()) {
             existing.optional = existing.optional && current_is_optional;
             false
         } else {
@@ -580,10 +599,11 @@ where
                 }
             }
             ctx.workspace.record_package_write(&id);
+            let shared_id: Arc<str> = Arc::from(id.as_str());
             packages.insert(
-                id.clone(),
+                Arc::<str>::clone(&shared_id),
                 ResolvedPackage {
-                    id: id.clone(),
+                    id: shared_id,
                     result: Arc::clone(&result),
                     peer_dependencies,
                     optional: current_is_optional,
@@ -603,7 +623,7 @@ where
     let next_ancestors = Arc::new(next_ancestors);
     let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids, HashSet::default());
 
-    let children = if children_owner.owns_children {
+    let (children, others_stale) = if children_owner.owns_children {
         let child_results = child_refs
             .iter()
             .map(|(child_alias, child_key)| {
@@ -645,12 +665,12 @@ where
                 let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
                 by_id.push(crate::resolved_tree::ChildEdge {
                     alias: dep.alias.clone(),
-                    pkg_id: dep.id.clone(),
+                    pkg_id: Arc::from(dep.id),
                     optional,
                 });
                 realized.insert(dep.alias, dep.node_id);
             }
-            let published = record_children(
+            let recording = record_children(
                 ctx,
                 &id,
                 &children_owner.owner,
@@ -661,28 +681,18 @@ where
                     update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
                 },
             );
-            if published {
-                crate::resolved_tree::TreeChildren::Realized(realized)
-            } else {
-                crate::resolved_tree::TreeChildren::Lazy {
-                    parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
-                }
-            }
+            recording.into_children(realized, ancestor_ids)
         } else {
-            crate::resolved_tree::TreeChildren::Lazy {
-                parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
-            }
+            (lazy_children(ancestor_ids), false)
         }
     } else {
-        crate::resolved_tree::TreeChildren::Lazy {
-            parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
-        }
+        (lazy_children(ancestor_ids), false)
     };
 
     remember_node_parent_ids(ctx, &node_id, Arc::clone(ancestor_ids));
     insert_tree_node(ctx, node_id.clone(), &id, children, depth);
     if children_owner.owns_children
-        && !children_owner.children_context_unchanged
+        && (others_stale || !children_owner.children_context_unchanged)
         && is_current_children_owner(ctx, &id, &children_owner.owner)
     {
         make_non_owner_nodes_lazy(ctx, &id, &node_id);
@@ -745,7 +755,7 @@ fn snapshot_child_refs(
 /// the reused child's [`crate::resolved_tree::ChildEdge`].
 fn is_optional_child(snapshot: Option<&SnapshotEntry>, alias: &str) -> bool {
     let Some(snapshot) = snapshot else { return false };
-    let Ok(name) = alias.parse::<pacquet_lockfile::PkgName>() else { return false };
+    let Ok(name) = alias.parse::<pnpm_lockfile::PkgName>() else { return false };
     snapshot.optional_dependencies.as_ref().is_some_and(|deps| deps.contains_key(&name))
 }
 

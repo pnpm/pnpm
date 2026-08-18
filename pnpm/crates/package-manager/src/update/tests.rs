@@ -1,14 +1,15 @@
 use super::{
-    is_workspace_local_path_specifier, parse_update_param, persist_selected_manifests,
+    KeptRangeVerdict, apply_bumped_manifest_specs, is_workspace_local_path_specifier,
+    judge_against_kept_range, parse_update_param, persist_selected_manifests,
     prepare_selected_manifests, selected_project_indices,
 };
-use pacquet_config::{CatalogMode, Config};
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::SilentReporter;
-use pacquet_workspace::Project;
+use pnpm_config::{CatalogMode, Config};
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::SilentReporter;
+use pnpm_workspace::Project;
 use serde_json::json;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use tempfile::tempdir;
 
 #[test]
@@ -91,6 +92,65 @@ fn workspace_range_specifiers_are_not_local_paths() {
     }
 }
 
+// The group travels with the range from the lockfile entry that was
+// rewritten, so an alias declared in several groups cannot have the
+// manifest move one group while the lockfile moved another.
+#[test]
+fn a_bumped_range_lands_in_the_group_it_was_read_from() {
+    let dir = tempdir().expect("create tempdir");
+    let package_json = dir.path().join("package.json");
+    std::fs::write(
+        &package_json,
+        json!({
+            "name": "a",
+            "dependencies": { "foo": "1.0.0" },
+            "optionalDependencies": { "foo": "^1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let mut manifest = PackageManifest::from_path(package_json).expect("read package.json");
+
+    let bumped =
+        BTreeMap::from([("foo".to_string(), (DependencyGroup::Optional, "^1.2.0".to_string()))]);
+    assert!(apply_bumped_manifest_specs::<SilentReporter>(&mut manifest, &bumped, false));
+
+    assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"), Some("1.0.0"));
+    assert_eq!(
+        dependency_specifier_in(&manifest, DependencyGroup::Optional, "foo"),
+        Some("^1.2.0"),
+    );
+}
+
+/// An alias the manifest no longer declares under the group the lockfile
+/// read it from is left alone rather than added back.
+#[test]
+fn a_bump_for_an_undeclared_group_writes_nothing() {
+    let dir = tempdir().expect("create tempdir");
+    let package_json = dir.path().join("package.json");
+    std::fs::write(
+        &package_json,
+        json!({ "name": "a", "dependencies": { "foo": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    let mut manifest = PackageManifest::from_path(package_json).expect("read package.json");
+
+    let bumped =
+        BTreeMap::from([("foo".to_string(), (DependencyGroup::Dev, "^1.2.0".to_string()))]);
+    assert!(!apply_bumped_manifest_specs::<SilentReporter>(&mut manifest, &bumped, false));
+
+    assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"), Some("1.0.0"));
+    assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Dev, "foo"), None);
+}
+
+fn dependency_specifier_in<'a>(
+    manifest: &'a PackageManifest,
+    group: DependencyGroup,
+    alias: &str,
+) -> Option<&'a str> {
+    manifest.dependencies([group]).find(|(name, _)| *name == alias).map(|(_, spec)| spec)
+}
+
 #[tokio::test]
 async fn selected_update_prepares_and_persists_only_selected_projects() {
     let dir = tempdir().expect("create tempdir");
@@ -158,7 +218,7 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
         &http_client,
         &config,
         None,
-        &["foo@2.0.0".to_string()],
+        &["foo@1.5.0".to_string()],
         false,
         false,
         false,
@@ -182,8 +242,48 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
             .and_then(|catalogs| catalogs.get("default"))
             .and_then(|catalog| catalog.get("foo"))
             .map(String::as_str),
-        Some("2.0.0"),
+        Some("1.5.0"),
     );
+}
+
+#[tokio::test]
+async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
+    let dir = tempdir().expect("create tempdir");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
+    let mut projects = vec![project_with_foo(dir.path(), "a")];
+    let ordered_dirs = [projects[0].root_dir.clone()];
+    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+    let config = Config::new();
+    let http_client = std::sync::Arc::new(ThrottledClient::default());
+
+    let prepared = prepare_selected_manifests::<SilentReporter>(
+        &mut projects,
+        &indices,
+        dir.path(),
+        &http_client,
+        &config,
+        None,
+        &["foo@2.0.0".to_string()],
+        false,
+        false,
+        false,
+        &[DependencyGroup::Prod],
+        0,
+        None,
+        false,
+        None,
+    )
+    .await
+    .expect("prepare selected manifests");
+
+    // 2.0.0 falls outside the kept ^1.0.0, so the selector is skipped:
+    // the in-memory manifest keeps the declared range and no rewrite is
+    // recorded for resolution.
+    assert_eq!(dependency_specifier(&projects[0].manifest), "^1.0.0");
+    assert!(prepared.persist_indices.is_empty());
+    assert!(prepared.catalogs_override.is_none());
 }
 
 #[tokio::test]
@@ -382,4 +482,38 @@ fn saved_dependency_specifier(manifest: &PackageManifest) -> String {
     let saved =
         PackageManifest::from_path(manifest.path().to_path_buf()).expect("reread package.json");
     dependency_specifier(&saved).to_string()
+}
+
+#[test]
+fn requested_version_outside_the_kept_range_is_excluded() {
+    assert!(matches!(judge_against_kept_range("7.8.5", "^6.0.0"), KeptRangeVerdict::Excluded,));
+    assert!(matches!(
+        judge_against_kept_range("2.0.0-beta.1", "^2.0.0"),
+        KeptRangeVerdict::Excluded,
+    ));
+}
+
+#[test]
+fn requested_version_inside_the_kept_range_is_admitted() {
+    assert!(matches!(judge_against_kept_range("6.3.0", "^6.0.0"), KeptRangeVerdict::Admitted));
+    // A range that admits prereleases admits this one.
+    assert!(matches!(
+        judge_against_kept_range("2.0.0-beta.1", "^2.0.0-0"),
+        KeptRangeVerdict::Admitted,
+    ));
+}
+
+#[test]
+fn only_a_requested_version_gets_a_verdict() {
+    // Range-against-range containment is not decided consistently across
+    // semver implementations, so a request that names no version is left to
+    // the specifier the manifest keeps.
+    for (requested, kept) in
+        [(">=6", "^6.0.0"), ("^7.0.0", "^6.0.0"), ("beta", "^6.0.0"), ("6.3.0", "workspace:*")]
+    {
+        assert!(
+            matches!(judge_against_kept_range(requested, kept), KeptRangeVerdict::Undecided),
+            "{requested:?} against {kept:?} should be undecided",
+        );
+    }
 }

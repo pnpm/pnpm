@@ -13,11 +13,11 @@ use std::{collections::HashMap, future::Future, io, path::PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::{
+use pnpm_network::{
     RetryOpts, ThrottledClient, encode_uri_component, nerf_dart, redact_and_sanitize,
     send_with_retry,
 };
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 
 use crate::{ini::IniSettings, registry_url::normalize_registry_url};
 
@@ -32,7 +32,7 @@ pub trait FsReadToString {
 
 /// Write `bytes` to a file, replacing its contents. The production [`Host`]
 /// provider writes atomically and symlink-safely, since `auth.ini` holds
-/// credentials (see [`pacquet_fs::write_atomic`]).
+/// credentials (see [`pnpm_fs::write_atomic`]).
 pub trait FsWrite {
     fn write(path: &std::path::Path, bytes: &[u8]) -> io::Result<()>;
 }
@@ -73,7 +73,7 @@ impl FsReadToString for Host {
 
 impl FsWrite for Host {
     fn write(path: &std::path::Path, bytes: &[u8]) -> io::Result<()> {
-        pacquet_fs::write_atomic(path, bytes)
+        pnpm_fs::write_atomic(path, bytes)
     }
 }
 

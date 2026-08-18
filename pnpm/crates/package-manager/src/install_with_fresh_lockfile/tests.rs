@@ -1,8 +1,10 @@
 use super::{
     ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
-    full_resolution_required, is_partial_workspace_selection, update_reuse_scopes,
+    full_resolution_required, include_transitive_optional_dependencies,
+    is_partial_workspace_selection, update_reuse_scopes,
 };
-use pacquet_config::{Config, PackageExtension};
+use pnpm_config::{Config, PackageExtension};
+use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
 fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
@@ -31,6 +33,16 @@ fn full_workspace_selection_keeps_resolution_prefetch_enabled() {
     assert!(!is_partial_workspace_selection(Some(&real), Some(&all_selected)));
     assert!(is_partial_workspace_selection(Some(&real), Some(&partial)));
     assert!(!is_partial_workspace_selection(None, None));
+}
+
+#[test]
+fn partial_installs_keep_transitive_optional_dependencies() {
+    let prod_only = [DependencyGroup::Prod];
+    let with_optional = [DependencyGroup::Prod, DependencyGroup::Optional];
+
+    assert!(include_transitive_optional_dependencies(false, &prod_only));
+    assert!(!include_transitive_optional_dependencies(true, &prod_only));
+    assert!(include_transitive_optional_dependencies(true, &with_optional));
 }
 
 /// Ports `installing/.../packageExtensions.ts:103-153`
@@ -83,7 +95,7 @@ fn compute_checksum_is_none_for_explicit_empty_map() {
 
 #[test]
 fn importer_scoped_update_full_resolution_requires_every_importer_to_disable_reuse() {
-    use pacquet_resolving_deps_resolver::UpdateReuseScope;
+    use pnpm_resolving_deps_resolver::UpdateReuseScope;
 
     let importer_ids = ["selected", "unselected"];
     let mixed =
@@ -105,7 +117,7 @@ fn importer_scoped_update_full_resolution_requires_every_importer_to_disable_reu
 
 #[test]
 fn importer_scoped_update_custom_refresh_widens_every_importer() {
-    use pacquet_resolving_deps_resolver::UpdateReuseScope;
+    use pnpm_resolving_deps_resolver::UpdateReuseScope;
 
     let scoped = std::collections::BTreeMap::from([(
         "selected".to_string(),
@@ -121,14 +133,14 @@ fn importer_scoped_update_custom_refresh_widens_every_importer() {
 
 #[test]
 fn importer_scoped_update_absent_importer_keeps_all_reuse() {
-    use pacquet_resolving_deps_resolver::UpdateReuseScope;
+    use pnpm_resolving_deps_resolver::UpdateReuseScope;
 
     let policy = UpdateSeedPolicy::ByImporter {
         policies: std::collections::BTreeMap::from([(
             "selected".to_string(),
             ImporterUpdateSeedPolicy::DropAll,
         )]),
-        max_depth: pacquet_resolving_deps_resolver::UpdateDepth::UNLIMITED,
+        max_depth: pnpm_resolving_deps_resolver::UpdateDepth::UNLIMITED,
     };
     let (default_scope, scopes) = update_reuse_scopes(&policy);
     assert_eq!(default_scope, UpdateReuseScope::All);

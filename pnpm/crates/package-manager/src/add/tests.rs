@@ -4,12 +4,12 @@ use super::{
     workspace_save_specifier,
 };
 use crate::ResolvedPackages;
-use pacquet_config::{Config, LinkWorkspacePackages};
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
-use pacquet_workspace::Project;
+use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_workspace::Project;
 use serde_json::json;
 use std::{
     collections::HashSet,
@@ -88,7 +88,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
-    config.registries.insert("@private".to_string(), scoped_registry_url);
+    config.registries_by_scope.insert("@private".to_string(), scoped_registry_url);
     config.minimum_release_age = None;
     let config = config.leak();
 
@@ -167,7 +167,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
-    config.catalog_mode = pacquet_config::CatalogMode::Prefer;
+    config.catalog_mode = pnpm_config::CatalogMode::Prefer;
     config.minimum_release_age = None;
     let mut servers = Vec::new();
     let mut mocks = Vec::new();
@@ -177,7 +177,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         let package_name = format!("@{scope}/{name}");
         let mut server = mockito::Server::new_async().await;
         let registry_url = format!("{}/", server.url());
-        config.registries.insert(format!("@{scope}"), registry_url.clone());
+        config.registries_by_scope.insert(format!("@{scope}"), registry_url.clone());
 
         let response_body = version_body(&package_name, &registry_url);
         let state = Arc::clone(&request_state);
@@ -409,7 +409,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
     for (scope, name, response_delay_ms) in packages {
         let package_name = format!("@{scope}/{name}");
         let mut server = mockito::Server::new_async().await;
-        config.registries.insert(format!("@{scope}"), format!("{}/", server.url()));
+        config.registries_by_scope.insert(format!("@{scope}"), format!("{}/", server.url()));
         let latest_path = format!("/@{scope}%2F{name}/latest");
         let latest = server
             .mock("GET", latest_path.as_str())
@@ -487,7 +487,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     for (scope, name, response_delay_ms) in packages {
         let package_name = format!("@{scope}/{name}");
         let mut server = mockito::Server::new_async().await;
-        config.registries.insert(format!("@{scope}"), format!("{}/", server.url()));
+        config.registries_by_scope.insert(format!("@{scope}"), format!("{}/", server.url()));
         let latest_path = format!("/@{scope}%2F{name}/latest");
         let latest = server
             .mock("GET", latest_path.as_str())

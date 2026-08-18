@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
-use pacquet_config::version_policy::create_package_version_policy;
-use pacquet_registry::Package;
+use pnpm_config::version_policy::create_package_version_policy;
+use pnpm_registry::Package;
 
 use super::{TrustCheckOptions, TrustViolation, fail_if_trust_downgraded};
 
@@ -381,7 +381,7 @@ fn undecodable_prior_version_fails_closed() {
 }
 
 mod get_trust_evidence {
-    use pacquet_registry::PackageVersion;
+    use pnpm_registry::PackageVersion;
 
     use super::{Evidence, version_json};
     use crate::trust_checks::{TrustEvidence, get_trust_evidence};

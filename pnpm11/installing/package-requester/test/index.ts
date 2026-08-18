@@ -23,7 +23,7 @@ const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(import.meta.dirname)
 const IS_POSITIVE_TARBALL = f.find('is-positive-1.0.0.tgz')
 
-const registries = { default: registry }
+const registriesByScope = { default: registry }
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {
@@ -37,7 +37,7 @@ const { resolve, fetchers } = createClient({
   configByUri: {},
   cacheDir: '.store',
   storeDir: '.store',
-  registries,
+  registriesByScope,
   storeIndex: topStoreIndex,
 })
 
@@ -48,7 +48,7 @@ function createFetchersForStore (storeDir: string) {
     configByUri: {},
     cacheDir: storeDir,
     storeDir,
-    registries,
+    registriesByScope,
     storeIndex: si,
   }).fetchers
 }
@@ -759,7 +759,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     retry: { retries: 0 },
     cacheDir: '.pnpm',
     storeDir: '.store',
-    registries,
+    registriesByScope,
     storeIndex: topStoreIndex,
   })
 

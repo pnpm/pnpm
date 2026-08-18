@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-patching"
+name                  = "pnpm-patching"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,11 +11,15 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pnpm-git-fetcher      = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+
 derive_more = { workspace = true }
 diffy       = { workspace = true }
 indexmap    = { workspace = true }
 miette      = { workspace = true }
 node-semver = { workspace = true }
+serde_json  = { workspace = true }
 sha2        = { workspace = true }
 
 [dev-dependencies]

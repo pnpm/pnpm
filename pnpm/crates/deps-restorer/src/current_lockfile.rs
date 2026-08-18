@@ -21,8 +21,8 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_lockfile::{Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap};
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_lockfile::{Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::SkippedSnapshots;
 
@@ -34,7 +34,7 @@ pub struct MaterializationClosure {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum MergeFilteredWantedLockfileError {
     #[display("fresh lockfile is missing importer {importer_id}")]
-    #[diagnostic(code(pacquet_package_manager::missing_fresh_lockfile_importer))]
+    #[diagnostic(code(pnpm_package_manager::missing_fresh_lockfile_importer))]
     MissingImporter {
         #[error(not(source))]
         importer_id: String,
@@ -98,6 +98,7 @@ pub fn materialization_closure(
             importers,
             packages,
             snapshots,
+            time: lockfile.time.clone(),
         },
         importer_ids: reachable.importer_ids,
     }
@@ -313,8 +314,8 @@ fn overlay_package_maps<Value: Clone>(
 fn lockfile_with_graph(
     source: &Lockfile,
     importers: HashMap<String, ProjectSnapshot>,
-    packages: Option<HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
-    snapshots: Option<HashMap<PackageKey, pacquet_lockfile::SnapshotEntry>>,
+    packages: Option<HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
+    snapshots: Option<HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>>,
 ) -> Lockfile {
     Lockfile {
         lockfile_version: source.lockfile_version,
@@ -328,6 +329,7 @@ fn lockfile_with_graph(
         importers,
         packages,
         snapshots,
+        time: source.time.clone(),
     }
 }
 
@@ -423,9 +425,7 @@ where
     known_importer_ids.sort();
     let known_importers = known_importer_ids
         .into_iter()
-        .map(|id| {
-            (pacquet_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)), id)
-        })
+        .map(|id| (pnpm_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)), id))
         .collect::<HashMap<_, _>>();
     let mut importer_ids = HashSet::new();
     let mut snapshot_keys = HashSet::new();
@@ -439,7 +439,6 @@ where
             }
             let Some(importer) = lockfile.importers.get(&importer_id) else { continue };
             importer_ids.insert(importer_id.clone());
-            let importer_dir = crate::importer_root_dir(workspace_root, &importer_id);
             for map in [
                 included.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
                 included.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
@@ -452,14 +451,7 @@ where
             .flatten()
             {
                 for (name, spec) in map {
-                    if let Some(target) = spec.version.as_link_target() {
-                        enqueue_linked_importer(
-                            &importer_dir,
-                            target,
-                            &known_importers,
-                            &mut importer_queue,
-                        );
-                    } else if let Some(key) = spec.version.resolved_key(name)
+                    if let Some(key) = spec.version.resolved_key(name)
                         && !should_skip(&key)
                         && snapshots.is_some_and(|snapshots| snapshots.contains_key(&key))
                     {
@@ -526,9 +518,9 @@ fn linked_importer_id(
 ) -> Option<String> {
     let target = Path::new(target);
     let resolved = if target.is_absolute() {
-        pacquet_fs::lexical_normalize(target)
+        pnpm_fs::lexical_normalize(target)
     } else {
-        pacquet_fs::lexical_normalize(&base.join(target))
+        pnpm_fs::lexical_normalize(&base.join(target))
     };
     known_importers.get(&resolved).cloned()
 }

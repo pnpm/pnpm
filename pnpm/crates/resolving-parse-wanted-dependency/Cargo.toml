@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-resolving-parse-wanted-dependency"
+name                  = "pnpm-resolving-parse-wanted-dependency"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true

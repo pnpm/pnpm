@@ -26,16 +26,17 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pacquet_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
-use pacquet_registry::{
+use miette::Diagnostic as _;
+use pipe_trait::Pipe;
+use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
+use pnpm_registry::{
     Approver, DerivedPackuments, NpmUser, Package, PackageDistribution, PackageVersion,
 };
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
 };
-use pipe_trait::Pipe;
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 use tokio::sync::OnceCell;
@@ -46,6 +47,7 @@ use crate::{
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
     named_registry::{named_registry_tarball_prefixes, pick_registry_for_package},
     pick_package::PackageMetaCache,
+    registry_url::to_registry_url,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
         MINIMUM_RELEASE_AGE_VIOLATION_CODE, MISSING_NAMED_REGISTRY_VIOLATION_CODE,
@@ -115,8 +117,8 @@ pub struct CreateNpmResolutionVerifierOptions {
     pub registries: HashMap<String, String>,
     /// User-defined named-registry aliases (e.g. `gh:` →
     /// `https://npm.pkg.github.com/`). Merged with
-    /// [`crate::BUILTIN_NAMED_REGISTRIES`].
-    pub named_registries: HashMap<String, String>,
+    /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`].
+    pub registries_by_prefix: HashMap<String, String>,
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     /// Root of pnpm's on-disk metadata mirror. When set, the verifier
@@ -133,6 +135,9 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// unit tests don't have a resolver running alongside, in which
     /// case the verifier falls back to its own fetch chain.
     pub meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    /// When true, verifier metadata lookups must use the local mirror
+    /// only and never reach the registry or attestation endpoint.
+    pub offline: bool,
     /// Retry budget for the verifier's metadata and attestation
     /// fetches. Sourced from the same `fetch-retries` config the
     /// resolver and tarball paths use.
@@ -145,6 +150,16 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// `dist` work statistics (see [`ObservedDistStats`]). `None`
     /// skips collection.
     pub observed_dist_stats: Option<ObservedDistStats>,
+    /// Fetch evidence the materialization path fills after its
+    /// warm/cold partition (see
+    /// [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`]).
+    /// When supplied, an entry listed there passes the age check on a
+    /// package-level `Last-Modified` HEAD probe alone — the planned
+    /// canonical fetch fail-closes the entry's registry existence, so
+    /// no metadata body is needed. `None` (paths that materialize
+    /// nothing or run a resolver alongside) keeps the metadata-backed
+    /// chain for every entry.
+    pub planned_canonical_fetches: Option<pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores
@@ -169,16 +184,18 @@ pub struct NpmResolutionVerifier {
     /// Alias → URL map (built-ins merged with the user's setting) for
     /// routing registry-qualified lockfile keys, which carry no tarball
     /// URL for the prefix list to match.
-    named_registries_by_name: HashMap<String, String>,
+    registries_by_prefix: HashMap<String, String>,
     http_client: Arc<ThrottledClient>,
     auth_headers: Arc<AuthHeaders>,
     cache_dir: Option<PathBuf>,
     meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    offline: bool,
     retry_opts: RetryOpts,
     now: Option<DateTime<Utc>>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
     lookup_context: PublishedAtLookupContext,
     observed_dist_stats: Option<ObservedDistStats>,
+    planned_canonical_fetches: Option<pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
 }
 
 impl std::fmt::Debug for NpmResolutionVerifier {
@@ -189,6 +206,7 @@ impl std::fmt::Debug for NpmResolutionVerifier {
             .field("ignore_missing_time_field", &self.ignore_missing_time_field)
             .field("trust_policy", &self.trust_policy)
             .field("trust_policy_ignore_after", &self.trust_policy_ignore_after)
+            .field("offline", &self.offline)
             .field("sorted_min_age_excludes", &self.sorted_min_age_excludes)
             .field("sorted_trust_excludes", &self.sorted_trust_excludes)
             .field("policy_snapshot", &self.policy_snapshot)
@@ -223,12 +241,12 @@ pub fn create_npm_resolution_verifier(
         None
     };
 
-    let named_registry_prefixes = named_registry_tarball_prefixes(&opts.named_registries);
-    let named_registries_by_name = opts.named_registries.clone();
+    let named_registry_prefixes = named_registry_tarball_prefixes(&opts.registries_by_prefix);
+    let registries_by_prefix = opts.registries_by_prefix.clone();
 
     let sorted_min_age_excludes = sorted_unique(&opts.minimum_release_age_exclude_patterns);
     let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
-    let named_registries_routing = named_registries_routing_digest(&named_registries_by_name);
+    let named_registries_routing = named_registries_routing_digest(&registries_by_prefix);
 
     let policy_snapshot = build_policy_snapshot(
         opts.minimum_release_age.unwrap_or(0),
@@ -251,16 +269,18 @@ pub fn create_npm_resolution_verifier(
         sorted_trust_excludes,
         registries: opts.registries,
         named_registry_prefixes,
-        named_registries_by_name,
+        registries_by_prefix,
         http_client: opts.http_client,
         auth_headers: opts.auth_headers,
         cache_dir: opts.cache_dir,
         meta_cache: opts.meta_cache,
+        offline: opts.offline,
         retry_opts: opts.retry_opts,
         now: opts.now,
         policy_snapshot,
         lookup_context: PublishedAtLookupContext::new(),
         observed_dist_stats: opts.observed_dist_stats,
+        planned_canonical_fetches: opts.planned_canonical_fetches,
     }
 }
 
@@ -394,7 +414,7 @@ impl NpmResolutionVerifier {
         // closed on an unknown alias: none of the metadata-backed checks
         // below could vouch for the entry without its registry URL.
         let named_registry = match ctx.registry_name {
-            Some(registry_name) => match self.named_registries_by_name.get(registry_name) {
+            Some(registry_name) => match self.registries_by_prefix.get(registry_name) {
                 Some(url) => Some(url.clone()),
                 None => {
                     return ResolutionVerification::Err {
@@ -437,7 +457,8 @@ impl NpmResolutionVerifier {
         }
 
         if age_applies
-            && let Some(violation) = self.run_age_check(&registry, ctx.name, ctx.version).await
+            && let Some(violation) =
+                self.run_age_check(&registry, ctx.name, ctx.version, ctx.registry_name).await
         {
             return violation;
         }
@@ -540,8 +561,27 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
         version: &str,
+        registry_name: Option<&str>,
     ) -> Option<ResolutionVerification> {
         let cutoff = self.cutoff.expect("cutoff is Some when age check is active");
+        // Cheapest layer: for an entry whose canonical tarball this
+        // install fetches (existence fail-closed by the fetch itself),
+        // a package-level `Last-Modified` older than the cutoff bounds
+        // every version's publish time — no metadata body needed. The
+        // evidence cell is consulted before the probe so installs that
+        // never fill it (no materialization, or a resolver alongside)
+        // send no extra request.
+        let planned_key =
+            (name.to_string(), version.to_string(), registry_name.map(str::to_string));
+        if self
+            .planned_canonical_fetches
+            .as_ref()
+            .and_then(|cell| cell.get())
+            .is_some_and(|planned| planned.contains(&planned_key))
+            && self.head_modified_is_before(registry, name, cutoff).await
+        {
+            return None;
+        }
         let published = match self.fetch_published_at(registry, name, version).await {
             Ok(value) => value,
             // A transport failure propagates the registry's own fetch error so
@@ -608,6 +648,64 @@ impl NpmResolutionVerifier {
                 reason: format_trust_violation(err),
             }),
         }
+    }
+
+    /// Whether the package-level `Last-Modified` a packument `HEAD`
+    /// reports is older than `cutoff` by more than the header's own
+    /// one-second resolution. HTTP dates carry whole seconds, and a
+    /// registry that truncates a fractional `time.modified` understates
+    /// it by up to 999ms — the guard band keeps the comparison an upper
+    /// bound regardless of how the server rounds. `false` when the
+    /// probe fails, the header is missing or unparsable, or the
+    /// registry is unreachable — the caller falls through to the
+    /// metadata-backed layers, so the probe can only ever *save* a
+    /// body, never widen what passes. Trust-wise the header is the same
+    /// statement as the packument body's `time.modified`, served by the
+    /// same registry. One probe per `(registry, name)`, queued in the
+    /// background network class.
+    async fn head_modified_is_before(
+        &self,
+        registry: &str,
+        name: &PkgName,
+        cutoff: DateTime<Utc>,
+    ) -> bool {
+        if self.offline {
+            return false;
+        }
+        let key = package_key(registry, &name.to_string());
+        let cell = {
+            let mut cache = self.lookup_context.head_modified.lock().await;
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+        };
+        let modified = cell
+            .get_or_init(|| async {
+                let url = to_registry_url(registry, &name.to_string());
+                let guard = self
+                    .http_client
+                    .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
+                    .await;
+                let mut request = guard.head(&url);
+                if let Some(value) =
+                    self.auth_headers.for_url_with_package(&url, Some(&name.to_string()))
+                {
+                    request = request.header("authorization", value);
+                }
+                let response = match request.send().await {
+                    Ok(response) if response.status().is_success() => response,
+                    _ => return None,
+                };
+                response
+                    .headers()
+                    .get("last-modified")
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_string)
+            })
+            .await;
+        modified
+            .as_deref()
+            .and_then(|value| httpdate::parse_http_date(value).ok())
+            .map(DateTime::<Utc>::from)
+            .is_some_and(|parsed| parsed + chrono::Duration::seconds(1) <= cutoff)
     }
 
     /// Per-`(registry, name, version)` lookup with a layered fallback.
@@ -739,6 +837,8 @@ impl NpmResolutionVerifier {
                     cache_dir: self.cache_dir.as_deref(),
                     full_metadata: false,
                     filter_metadata: false,
+                    offline: self.offline,
+                    priority: pnpm_network::BACKGROUND,
                     retry_opts: self.retry_opts,
                 };
                 // Carry a fetch failure (auth/network/5xx) as the `Err` value
@@ -748,7 +848,7 @@ impl NpmResolutionVerifier {
                 // it reports a 403 as a tampering-style mismatch.
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
                     Ok(meta) => Ok(project_abbreviated_meta(&meta)),
-                    Err(error) => Err(redact_url_credentials(&error.to_string())),
+                    Err(error) => Err(render_fetch_metadata_error(&error)),
                 }
             })
             .await;
@@ -826,6 +926,9 @@ impl NpmResolutionVerifier {
         name: &PkgName,
         version: &str,
     ) -> Result<Option<String>, String> {
+        if self.offline {
+            return Ok(None);
+        }
         let opts = FetchAttestationOptions {
             registry,
             http_client: &self.http_client,
@@ -917,11 +1020,22 @@ impl NpmResolutionVerifier {
             // both of which the abbreviated form drops. Always full.
             full_metadata: true,
             filter_metadata: false,
+            offline: self.offline,
+            priority: pnpm_network::BACKGROUND,
             retry_opts: self.retry_opts,
         };
         fetch_full_metadata_cached(&name.to_string(), &opts)
             .await
-            .map_err(|err| redact_url_credentials(&err.to_string()))
+            .map_err(|error| render_fetch_metadata_error(&error))
+    }
+}
+
+fn render_fetch_metadata_error(error: &crate::FetchMetadataError) -> String {
+    let code = error.code().map(|code| code.to_string());
+    let message = redact_url_credentials(&error.to_string());
+    match code {
+        Some(code) => format!("{code}: {message}"),
+        None => message,
     }
 }
 
@@ -967,9 +1081,9 @@ fn npm_registry_tarball(resolution: &LockfileResolution) -> Option<Option<&str>>
 fn is_excluded(policy: Option<&PackageVersionPolicy>, name: &PkgName, version: &str) -> bool {
     let Some(policy) = policy else { return false };
     match policy.matches(&name.to_string()) {
-        pacquet_config::version_policy::PolicyMatch::No => false,
-        pacquet_config::version_policy::PolicyMatch::AnyVersion => true,
-        pacquet_config::version_policy::PolicyMatch::ExactVersions(versions) => {
+        pnpm_config::version_policy::PolicyMatch::No => false,
+        pnpm_config::version_policy::PolicyMatch::AnyVersion => true,
+        pnpm_config::version_policy::PolicyMatch::ExactVersions(versions) => {
             versions.iter().any(|exact| exact == version)
         }
     }
@@ -993,8 +1107,8 @@ fn sorted_unique(values: &[String]) -> Vec<String> {
     deduped
 }
 
-fn named_registries_routing_digest(named_registries: &HashMap<String, String>) -> String {
-    let sorted: BTreeMap<&str, &str> = named_registries
+fn named_registries_routing_digest(registries_by_prefix: &HashMap<String, String>) -> String {
+    let sorted: BTreeMap<&str, &str> = registries_by_prefix
         .iter()
         .map(|(alias, registry)| (alias.as_str(), registry.as_str()))
         .collect();
@@ -1090,7 +1204,7 @@ fn project_trust_meta(meta: &Package) -> Package {
 fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
     let attestations =
         version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).map(|prov| {
-            pacquet_registry::AttestationsDist { provenance: Some(prov.clone()), url: None }
+            pnpm_registry::AttestationsDist { provenance: Some(prov.clone()), url: None }
         });
     // `get_trust_evidence` only reads `npm_user.approver` (presence) and
     // `npm_user.trusted_publisher`; drop the maintainer `name` / `email`

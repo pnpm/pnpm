@@ -1,14 +1,14 @@
 use crate::{PackageManifests, SkippedSnapshots};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::{
+use pnpm_cmd_shim::{
     BinOrigin, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
     FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, PackageBinSource,
     collect_packages_in_modules_dir, link_bins_of_packages,
 };
-use pacquet_config::{Config, NodeLinker};
-use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
-use pacquet_package_manifest::parse_manifest_bytes;
+use pnpm_config::{Config, NodeLinker};
+use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
+use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -96,7 +96,7 @@ fn link_named_dep_bins(
     // `LinkBinsError::{ReadManifest, ParseManifest}` so the failure
     // is diagnosable rather than hiding behind a missing `.bin`
     // entry. Matches the read-side error policy in
-    // `pacquet_cmd_shim::link_bins`.
+    // `pnpm_cmd_shim::link_bins`.
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
         .filter_map(|(name, resolved)| {
@@ -155,7 +155,7 @@ pub fn link_direct_dep_bins_from_locations(
 
 /// Top-level bin link that mixes direct-dep candidates and hoisted
 /// (`publicly_hoisted_aliases_with_bins`) candidates in a single
-/// [`link_bins_of_packages`] call so `pacquet_cmd_shim::pick_winner` (private)
+/// [`link_bins_of_packages`] call so `pnpm_cmd_shim::pick_winner` (private)
 /// can apply [`BinOrigin::Direct`] precedence over
 /// [`BinOrigin::Hoisted`] — a hoisted (transitive) dep's bin must
 /// never shadow a direct dep's bin with the same name.
@@ -740,7 +740,7 @@ where
 ///
 /// The slot directory's name encodes the package name as
 /// `<scope>+<name>@<version>` for the simple case (see
-/// [`pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name`]). For
+/// [`pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name`]). For
 /// peer-resolved slots the version segment itself contains additional
 /// `@`-separated peer specs joined by `_`, e.g.
 /// `ts-node@10.9.1_@types+node@18.7.19_typescript@5.1.6`. The `@` after
@@ -782,7 +782,7 @@ fn find_slot_own_package_dir(slot_dir: &Path, modules_dir: &Path) -> Option<Path
     Some(pkg_dir)
 }
 
-/// Like [`pacquet_cmd_shim::link_bins`] but skipping the slot's own package
+/// Like [`pnpm_cmd_shim::link_bins`] but skipping the slot's own package
 /// from the candidate set.
 fn link_bins_excluding<Sys>(
     modules_dir: &Path,

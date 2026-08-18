@@ -1,9 +1,39 @@
 use std::{fs, path::Path};
 
-use pacquet_config::{Config, Host, TrustPolicy};
-use pacquet_reporter::SilentReporter;
+use pnpm_config::{Config, Host, TrustPolicy};
+use pnpm_reporter::SilentReporter;
 
-use super::{resolve_pnpm_version, run_update_config_hooks};
+use super::{resolve_engine_version, run_update_config_hooks};
+
+#[tokio::test]
+async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
+    for prefer_value in [true, false] {
+        let root = tempfile::tempdir().expect("workspace tempdir");
+        fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+        fs::write(
+            root.path().join(".pnpmfile.cjs"),
+            format!(
+                "module.exports = {{ hooks: {{ updateConfig (config) {{ config.preferFrozenLockfile = {prefer_value}; return config }} }} }}",
+            ),
+        )
+        .expect("write pnpmfile");
+        let mut config =
+            Config::default().current::<Host>(root.path()).expect("load configuration");
+
+        run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+            .await
+            .expect("run updateConfig hook");
+
+        assert_eq!(config.prefer_frozen_lockfile, prefer_value);
+        assert_eq!(
+            config
+                .explicit_settings
+                .get("preferFrozenLockfile")
+                .and_then(serde_json::Value::as_bool),
+            Some(prefer_value),
+        );
+    }
+}
 
 #[tokio::test]
 async fn update_config_null_clears_virtual_store_dir() {
@@ -277,7 +307,7 @@ async fn resolve_pnpm_version_fetches_full_metadata_and_rejects_a_downgrade() {
     let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
     let config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
 
-    let err = resolve_pnpm_version(&config, "^1.0.0")
+    let err = resolve_engine_version(&config, "pnpm", "^1.0.0")
         .await
         .expect_err("a trust downgrade must be rejected");
     let report = format!("{err:?}");
@@ -314,7 +344,7 @@ async fn resolve_pnpm_version_resolves_a_clean_update_under_no_downgrade() {
     let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
     let config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
 
-    let resolved = resolve_pnpm_version(&config, "^1.0.0")
+    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0")
         .await
         .expect("a clean update must resolve")
         .expect("a matching pnpm version resolves");
@@ -352,7 +382,7 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
     let mut config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
     config.registry_supports_time_field = true;
 
-    let err = resolve_pnpm_version(&config, "^1.0.0")
+    let err = resolve_engine_version(&config, "pnpm", "^1.0.0")
         .await
         .expect_err("the downgrade must be rejected even with registrySupportsTimeField");
     let report = format!("{err:?}");

@@ -1,6 +1,6 @@
 use super::{execute_token_helper, strip_bearer_prefix};
 use crate::capabilities::{CommandOutput, RunCommand};
-use pacquet_reporter::SilentReporter;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::{io, path::Path};
 

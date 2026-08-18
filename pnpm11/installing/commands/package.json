@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.13.0",
+  "version": "1100.15.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -58,6 +58,7 @@
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
+    "@pnpm/global.packages": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/installing.dedupe.check": "workspace:*",
@@ -66,6 +67,7 @@
     "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",

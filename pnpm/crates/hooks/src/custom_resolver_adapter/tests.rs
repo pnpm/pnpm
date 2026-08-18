@@ -6,7 +6,7 @@ use std::sync::{
 use serde_json::{Value, json};
 
 use async_trait::async_trait;
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     CurrentPkg, PkgResolutionId, ResolveOptions, Resolver, WantedDependency,
 };
 
@@ -48,7 +48,7 @@ impl CustomResolver for ScriptedResolver {
 
     async fn should_refresh_resolution(
         &self,
-        _: &pacquet_lockfile::PackageKey,
+        _: &pnpm_lockfile::PackageKey,
         _: Value,
     ) -> Result<bool, HookError> {
         Ok(false)

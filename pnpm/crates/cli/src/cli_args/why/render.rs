@@ -7,7 +7,7 @@ use std::{collections::HashMap, path::Path};
 use crate::cli_args::deps_tree::{
     dependents::{DependentNode, DependentsTree},
     render::{
-        PeerVariants, TreeNode, bold, circular_label, deduped_label, dim, name_at_version,
+        PeerVariants, TreeNode, bold_styled, circular_label, deduped_label, dim, name_at_version,
         peer_hash_suffix, plain, read_long_pkg_info, render_archy,
     },
 };
@@ -33,7 +33,7 @@ pub(crate) fn render_dependents_tree(
             let displayed_name = tree.display_name.as_deref().unwrap_or(&tree.name);
             let mut root_label_parts = vec![format!(
                 "{}{}",
-                bold(&name_at_version_plain(displayed_name, &tree.version)),
+                bold_styled(&name_at_version_plain(displayed_name, &tree.version)),
                 peer_hash_suffix(
                     &multi_peer_pkgs,
                     &tree.name,
@@ -149,7 +149,7 @@ fn dependents_to_tree_nodes(
                 // An importer (leaf node).
                 format!(
                     "{} {}",
-                    bold(&name_at_version_plain(displayed_name, &dep.version)),
+                    bold_styled(&name_at_version_plain(displayed_name, &dep.version)),
                     dim(&format!("({})", dep_field.as_str())),
                 )
             } else {

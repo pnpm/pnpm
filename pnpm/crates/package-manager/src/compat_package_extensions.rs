@@ -1,16 +1,55 @@
+// `compat_package_extensions.json` is a copy of the compatibility database in
+// `@yarnpkg/extensions`, which is distributed under the following license:
+//
+//     BSD 2-Clause License
+//
+//     Copyright (c) 2016-present, Yarn Contributors.
+//     All rights reserved.
+//
+//     Redistribution and use in source and binary forms, with or without
+//     modification, are permitted provided that the following conditions are met:
+//
+//     1. Redistributions of source code must retain the above copyright notice, this
+//        list of conditions and the following disclaimer.
+//
+//     2. Redistributions in binary form must reproduce the above copyright notice,
+//        this list of conditions and the following disclaimer in the documentation
+//        and/or other materials provided with the distribution.
+//
+//     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//     IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+//     FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//     DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+//     SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+//     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+//     OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+//     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 use crate::PackageExtender;
 use indexmap::IndexMap;
-use pacquet_config::{PackageExtension, PeerDependencyMeta};
+use pnpm_config::{PackageExtension, PeerDependencyMeta};
 use std::{collections::BTreeMap, sync::LazyLock};
 
+// `pnpm_compat_package_extensions.json` holds pnpm-specific entries not in
+// `@yarnpkg/extensions`: the original three from the TypeScript CLI's
+// `pnpmCompatPackageExtensions`, plus phantom-dependency findings detected
+// by static analysis of published npm packages.
 static COMPAT_PACKAGE_EXTENSIONS: LazyLock<IndexMap<String, PackageExtension>> =
     LazyLock::new(|| {
-        let entries: Vec<(String, PackageExtension)> =
-            serde_json::from_str(include_str!("compat_package_extensions.json"))
-                .expect("@yarnpkg/extensions compatibility DB JSON is valid");
         let mut extensions = IndexMap::new();
-        for (selector, extension) in entries {
-            merge_package_extension_entry(&mut extensions, selector, extension);
+        for (source, name) in [
+            (include_str!("compat_package_extensions.json"), "@yarnpkg/extensions"),
+            (include_str!("pnpm_compat_package_extensions.json"), "pnpm"),
+        ] {
+            let entries: Vec<(String, PackageExtension)> = serde_json::from_str(source)
+                .unwrap_or_else(|error| {
+                    panic!("failed to parse {name} compatibility DB JSON: {error}")
+                });
+            for (selector, extension) in entries {
+                merge_package_extension_entry(&mut extensions, selector, extension);
+            }
         }
         extensions
     });
@@ -67,3 +106,6 @@ fn merge_peer_meta_map(
     }
     *previous = Some(merged);
 }
+
+#[cfg(test)]
+mod tests;

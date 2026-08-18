@@ -1,3 +1,32 @@
+// This crate is a Rust port of the hoisting algorithm in `@yarnpkg/nm`,
+// which is distributed under the following license:
+//
+//     BSD 2-Clause License
+//
+//     Copyright (c) 2016-present, Yarn Contributors.
+//     All rights reserved.
+//
+//     Redistribution and use in source and binary forms, with or without
+//     modification, are permitted provided that the following conditions are met:
+//
+//     1. Redistributions of source code must retain the above copyright notice, this
+//        list of conditions and the following disclaimer.
+//
+//     2. Redistributions in binary form must reproduce the above copyright notice,
+//        this list of conditions and the following disclaimer in the documentation
+//        and/or other materials provided with the distribution.
+//
+//     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//     IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+//     FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//     DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+//     SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+//     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+//     OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+//     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 //! Real-directory hoister for the `nodeLinker: hoisted` install layout.
 //!
 //! Implements pnpm's hoisted layout as a thin wrapper around the
@@ -11,7 +40,7 @@
 use derive_more::{Display, Error};
 use indexmap::{IndexMap, IndexSet};
 use miette::Diagnostic;
-use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
@@ -159,7 +188,7 @@ pub struct HoistOpts {
     /// hoist-decisions pass — without this every project hoists
     /// independently and conflicting versions don't dedupe across
     /// the workspace. Pacquet's `Config::hoist_workspace_packages`
-    /// (in `pacquet-config`) drives this for the install pipeline.
+    /// (in `pnpm-config`) drives this for the install pipeline.
     pub hoist_workspace_packages: bool,
 }
 
@@ -359,7 +388,7 @@ fn collect_importer_deps(
     // order is lost; merge into a `HashMap` (last write wins) and emit
     // in alias-sorted order so the build is deterministic regardless
     // of map seed.
-    let mut merged: HashMap<&PkgName, (&pacquet_lockfile::ResolvedDependencySpec, bool)> =
+    let mut merged: HashMap<&PkgName, (&pnpm_lockfile::ResolvedDependencySpec, bool)> =
         HashMap::new();
     for (deps, optional) in [
         (&importer.dependencies, false),
@@ -382,7 +411,7 @@ fn collect_importer_deps(
         // `link:` deps (cross-importer `workspace:*` resolutions, see
         // [`ImporterDepVersion::Link`]) don't live in the virtual
         // store — they're directory symlinks materialised by
-        // [`pacquet_package_manager::SymlinkDirectDependencies`] —
+        // [`pnpm_package_manager::SymlinkDirectDependencies`] —
         // so they have no snapshot to hoist and we skip them here.
         let Some(dep_key) = spec.version.resolved_key(alias) else {
             continue;
@@ -480,7 +509,7 @@ fn collect_snapshot_deps(
     nodes: &mut HashMap<String, Rc<HoisterTree>>,
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
-    let mut merged: HashMap<&PkgName, (&pacquet_lockfile::SnapshotDepRef, bool)> = HashMap::new();
+    let mut merged: HashMap<&PkgName, (&pnpm_lockfile::SnapshotDepRef, bool)> = HashMap::new();
     for (deps, optional) in
         [(&snapshot.dependencies, false), (&snapshot.optional_dependencies, true)]
     {
@@ -514,7 +543,7 @@ fn collect_snapshot_deps(
 
 /// Encode an importer id for use as a child node's `name` (and in
 /// the hoisting-limits locator keys built by
-/// `pacquet_package_manager::get_hoisting_limits`). Matches
+/// `pnpm_package_manager::get_hoisting_limits`). Matches
 /// `encodeURIComponent`: percent-encode everything except
 /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`. Pacquet workspace importers are
 /// filesystem-relative paths, so the common case is alphanumeric +

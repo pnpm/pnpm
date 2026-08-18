@@ -1,9 +1,9 @@
 use std::{collections::HashSet, marker::PhantomData, sync::Mutex};
 
-use pacquet_lockfile::PackageMetadata;
-use pacquet_package_manager::{InstallabilityHost, LockfileDiff, SnapshotDiff};
-use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
-use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndex, store_index_key};
+use pnpm_lockfile::PackageMetadata;
+use pnpm_package_manager::{InstallabilityHost, LockfileDiff, SnapshotDiff};
+use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
+use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndex, store_index_key};
 use tempfile::TempDir;
 
 use super::{
@@ -81,7 +81,7 @@ fn resolution_observer_emits_resolved_progress() {
         reusable_skipped_package_ids: HashSet::new(),
         reporter: PhantomData,
     };
-    pacquet_package_manager::ResolutionObserver::on_resolved(&observer, resolved_dep_hint());
+    pnpm_package_manager::ResolutionObserver::on_resolved(&observer, resolved_dep_hint());
 
     let captured = EVENTS.lock().unwrap();
     assert!(
@@ -124,7 +124,7 @@ fn resolution_observer_reports_packages_found_in_store() {
         reporter: PhantomData,
     };
 
-    pacquet_package_manager::ResolutionObserver::on_resolved(&observer, resolved_dep_hint());
+    pnpm_package_manager::ResolutionObserver::on_resolved(&observer, resolved_dep_hint());
 
     let captured = EVENTS.lock().unwrap();
     assert!(
@@ -158,7 +158,7 @@ fn resolution_observer_reports_skipped_packages_as_reused() {
         reusable_skipped_package_ids: HashSet::from(["dep@2.0.0".to_string()]),
         reporter: PhantomData,
     };
-    pacquet_package_manager::ResolutionObserver::on_resolved(&observer, resolved_dep_hint());
+    pnpm_package_manager::ResolutionObserver::on_resolved(&observer, resolved_dep_hint());
 
     let captured = EVENTS.lock().unwrap();
     assert!(
@@ -200,8 +200,8 @@ fn engine_incompatible_skipped_packages_are_not_reported_as_reused() {
     assert!(reusable.is_none());
 }
 
-fn resolved_dep_hint() -> pacquet_package_manager::ResolvedPackageHint<'static> {
-    pacquet_package_manager::ResolvedPackageHint {
+fn resolved_dep_hint() -> pnpm_package_manager::ResolvedPackageHint<'static> {
+    pnpm_package_manager::ResolvedPackageHint {
         id: "dep@2.0.0",
         name: "dep",
         version: "2.0.0",

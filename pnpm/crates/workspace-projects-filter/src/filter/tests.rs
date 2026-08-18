@@ -6,7 +6,7 @@ use crate::{
     parse_project_selector::ProjectSelector,
 };
 use indexmap::IndexMap;
-use pacquet_workspace_projects_graph::{BaseProject, GraphProject, ProjectGraph, ProjectGraphNode};
+use pnpm_workspace_projects_graph::{BaseProject, GraphProject, ProjectGraph, ProjectGraphNode};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
@@ -415,7 +415,7 @@ mod changed_packages {
         parse_project_selector::ProjectSelector,
     };
     use indexmap::IndexMap;
-    use pacquet_workspace_projects_graph::ProjectGraph;
+    use pnpm_workspace_projects_graph::ProjectGraph;
     use std::{fs, path::Path, process::Command};
     use tempfile::TempDir;
 

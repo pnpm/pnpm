@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { namedRegistryTarballPrefixes, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { FULL_META_DIR } from '@pnpm/constants'
@@ -12,7 +12,7 @@ import {
   type Resolution,
   type ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
-import type { PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
+import type { PackageVersionPolicy, RegistriesByScope, TrustPolicy } from '@pnpm/types'
 import semver from 'semver'
 
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
@@ -72,14 +72,14 @@ export interface CreateNpmResolutionVerifierOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
-  registries: Registries
+  registriesByScope: RegistriesByScope
   /**
-   * Registries reached via the named-registry resolver chain (e.g. `gh:` →
+   * RegistriesByScope reached via the named-registry resolver chain (e.g. `gh:` →
    * GitHub Packages). When a lockfile entry's tarball URL falls under one of
    * these registry base URLs, route the manifest fetch there instead of the
    * scope-derived default.
    */
-  namedRegistries?: Record<string, string>
+  registriesByPrefix?: Record<string, string>
   /**
    * Cache-aware full-metadata fetcher. Decoupled from the resolver pipeline
    * so abbreviated metadata and `peekManifestFromStore` fast paths cannot
@@ -88,6 +88,11 @@ export interface CreateNpmResolutionVerifierOptions {
   fetchOpts: FetchMetadataFromFromRegistryOptions
   getAuthHeaderValueByURI: GetAuthHeader
   cacheDir?: FetchFullMetadataCachedOptions['cacheDir']
+  /**
+   * When true, verifier metadata lookups must use the local mirror
+   * only and never reach the registry or attestation endpoint.
+   */
+  offline?: boolean
   /**
    * Per-install LRU shared with the npm resolver's `pickPackage`
    * (`{ get, set }` over `PackageMeta`). When provided, the verifier
@@ -133,8 +138,8 @@ export function createNpmResolutionVerifier (
     ? createExcludePolicy(opts.trustPolicyExclude, 'trustPolicyExclude')
     : undefined
 
-  const mergedNamedRegistries = normalizeNamedRegistries(opts.namedRegistries)
-  const namedRegistryPrefixes = namedRegistryTarballPrefixes(mergedNamedRegistries)
+  const mergedRegistriesByPrefix = normalizeRegistriesByPrefix(opts.registriesByPrefix)
+  const namedRegistryPrefixes = namedRegistryTarballPrefixes(mergedRegistriesByPrefix)
 
   // Per-install dedup of every network/disk fetch the verifier issues.
   // The maturity check uses the layered `fetchPublishedAt` lookup; the
@@ -148,6 +153,7 @@ export function createNpmResolutionVerifier (
     fetchOpts: opts.fetchOpts,
     getAuthHeaderValueByURI: opts.getAuthHeaderValueByURI,
     cacheDir: opts.cacheDir,
+    offline: opts.offline === true,
     cutoffMs: cutoff,
     sharedMetaCache: opts.metaCache,
     abbreviatedMetaCache: new Map(),
@@ -204,19 +210,19 @@ export function createNpmResolutionVerifier (
       // Registry-qualified entries name their registry in the dep path, so
       // routing does not depend on a recorded tarball URL (canonical URLs
       // are omitted from the lockfile in the 12.0 format).
-      const namedRegistry = mergedNamedRegistries[registryName]
+      const namedRegistry = mergedRegistriesByPrefix[registryName]
       if (!namedRegistry) {
         // Fail closed: without the registry URL, none of the metadata-backed
         // checks below can vouch for this entry.
         return {
           ok: false,
           code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
-          reason: `was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting`,
+          reason: `was resolved from the named registry '${registryName}:', which is not present in the registriesByPrefix setting`,
         }
       }
       registry = namedRegistry
     } else {
-      registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
+      registry = pickRegistryForVersion(opts.registriesByScope, namedRegistryPrefixes, name, tarballUrl)
     }
 
     // A registry entry that pins an explicit tarball URL must point at the
@@ -262,11 +268,11 @@ export function createNpmResolutionVerifier (
   // stays trusted after its exclude entry has been pulled.
   const sortedMinAgeExcludes = [...new Set(opts.minimumReleaseAgeExclude ?? [])].sort()
   const sortedTrustExcludes = [...new Set(opts.trustPolicyExclude ?? [])].sort()
-  const sortedNamedRegistries = Object.fromEntries(
-    Object.entries(mergedNamedRegistries).sort(([aliasA], [aliasB]) => aliasA.localeCompare(aliasB))
+  const sortedRegistriesByPrefix = Object.fromEntries(
+    Object.entries(mergedRegistriesByPrefix).sort(([aliasA], [aliasB]) => aliasA.localeCompare(aliasB))
   )
   const namedRegistriesRouting = createHash('sha256')
-    .update(JSON.stringify(sortedNamedRegistries))
+    .update(JSON.stringify(sortedRegistriesByPrefix))
     .digest('hex')
   return {
     verify,
@@ -431,10 +437,9 @@ function sameTarballUrl (a: string, b: string): boolean {
   return canonicalTarballUrl(a) === canonicalTarballUrl(b)
 }
 
-// Mirror the tolerance toLockfileResolution applies when it decides whether
-// a tarball URL is "the expected one": ignore the protocol and `%2f` scope
-// encoding so a benign http/https or encoding difference isn't read as
-// tampering. The `%2f` match is case-insensitive because `normalizeRegistryUrl`
+// Both URLs come from the registry, so ignore the protocol and `%2f` scope
+// encoding: a benign http/https or encoding difference isn't tampering. The
+// `%2f` match is case-insensitive because `normalizeRegistryUrl`
 // (`new URL().toString()`) can upper-case percent-escapes to `%2F`.
 function canonicalTarballUrl (url: string): string {
   const normalized = normalizeRegistryUrl(url).replace(/%2f/gi, '/')
@@ -522,6 +527,7 @@ function fetchFullMetaForTrust (
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
+        offline: context.offline,
       }).then(projectTrustMeta)
     }
     context.fullMetaForTrustCache.set(cacheKey, cachedPromise)
@@ -588,6 +594,7 @@ interface PublishedAtLookupContext {
   fetchOpts: FetchMetadataFromFromRegistryOptions
   getAuthHeaderValueByURI: GetAuthHeader
   cacheDir?: string
+  offline: boolean
   /**
    * The `minimumReleaseAge` cutoff converted to a unix-ms epoch. A
    * version with a publish time strictly less than this passes the
@@ -697,11 +704,13 @@ async function resolvePublishedAt (
   const localTime = await readLocalMetaTime(context, registry, name)
   if (localTime?.[version]) return localTime[version]
 
-  const attestationTime = await fetchAttestationPublishedAt(context.fetchOpts, name, version, {
-    registry,
-    authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
-  })
-  if (attestationTime != null) return attestationTime
+  if (!context.offline) {
+    const attestationTime = await fetchAttestationPublishedAt(context.fetchOpts, name, version, {
+      registry,
+      authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
+    })
+    if (attestationTime != null) return attestationTime
+  }
 
   const fullMetaTime = await fetchFullMetaTime(context, registry, name)
   return fullMetaTime?.[version]
@@ -773,6 +782,7 @@ function fetchAbbreviatedMeta (
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
+        offline: context.offline,
       }).then(
         (meta) => ({ meta: projectAbbreviatedMeta(meta) }),
         (error: unknown) => ({ error })
@@ -915,6 +925,7 @@ function fetchFullMetaTime (
       registry,
       authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
       cacheDir: context.cacheDir,
+      offline: context.offline,
     }).then((meta) => meta.time)
     context.fullMetaCache.set(cacheKey, cachedPromise)
   }
@@ -922,7 +933,7 @@ function fetchFullMetaTime (
 }
 
 function pickRegistryForVersion (
-  registries: Registries,
+  registriesByScope: RegistriesByScope,
   namedRegistryPrefixes: readonly string[],
   name: string,
   tarballUrl: string | undefined
@@ -942,7 +953,7 @@ function pickRegistryForVersion (
       if (normalized.startsWith(canonicalTarballUrl(prefix))) return prefix
     }
   }
-  return pickRegistryForPackage(registries, name)
+  return pickRegistryForPackage(registriesByScope, name)
 }
 
 function tryParseUrl (url: string): URL | null {

@@ -2,14 +2,19 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
 
-// symbols and numbers are used instead of discriminated union because
+// symbols and strings are used instead of discriminated union because
 // it's faster and simpler to compare primitives than to deep compare objects
-export type File = number // representing the file's inode, which is sufficient for hardlinks
+/**
+ * A file's identity, as `<device>:<inode>`. An inode number is only unique
+ * within one filesystem, so the device it came from is part of the identity:
+ * without it two unrelated files on different devices can collide and be
+ * taken for the same file, leaving the injected copy stale.
+ */
+export type File = string
 export type Dir = typeof DIR
 
 export type Value = File | Dir
@@ -83,12 +88,30 @@ export function diffDir (oldIndex: InodeMap, newIndex: InodeMap): DirDiff {
 export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string, targetDir: string): Promise<void> {
   async function addRecursive (sourcePath: string, targetPath: string, value: Value): Promise<void> {
     if (value === DIR) {
-      await fs.promises.mkdir(targetPath, { recursive: true })
-    } else if (typeof value === 'number') {
+      await retryOverBlockingInode(targetPath, async () => fs.promises.mkdir(targetPath, { recursive: true }))
+    } else if (typeof value === 'string') {
       fs.mkdirSync(path.dirname(targetPath), { recursive: true })
-      await fs.promises.link(sourcePath, targetPath)
+      await retryOverBlockingInode(targetPath, async () => fs.promises.link(sourcePath, targetPath))
     } else {
       const _: never = value // static type guard
+    }
+  }
+
+  /**
+   * The target may hold an inode that {@link extendFilesMap} skips — a FIFO, a
+   * socket, a device. The diff cannot see it, so it is never scheduled for
+   * removal, and adding over it fails with `EEXIST`. Clear that path and retry
+   * once instead of aborting the sync partway through.
+   */
+  async function retryOverBlockingInode (targetPath: string, add: () => Promise<unknown>): Promise<void> {
+    try {
+      await add()
+    } catch (error) {
+      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EEXIST')) {
+        throw error
+      }
+      await removeRecursive(targetPath)
+      await add()
     }
   }
 
@@ -102,29 +125,39 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     }
   }
 
-  const adding = Promise.all(optimizedDirPatch.added.map(async item => {
+  async function applyChange (item: AddedItem | ModifiedItem): Promise<void> {
     const sourcePath = path.join(sourceDir, item.path)
     const targetPath = path.join(targetDir, item.path)
+    if (item.oldValue !== undefined) {
+      await removeRecursive(targetPath)
+    }
     await addRecursive(sourcePath, targetPath, item.newValue)
+  }
+
+  const changes: Array<AddedItem | ModifiedItem> = [...optimizedDirPatch.added, ...optimizedDirPatch.modified]
+    .filter(item => item.oldValue !== item.newValue)
+  const newDirs = changes.filter(item => item.newValue === DIR).sort((a, b) => comparePaths(a.path, b.path))
+  const newFiles = changes.filter(item => item.newValue !== DIR)
+
+  // The phase order is load-bearing twice over. Removals go first, so a path
+  // the source turned from a directory into a file still has a directory in it
+  // when its dropped children are unlinked. Directories then go in ahead of the
+  // files they hold, so a directory is always empty when it displaces what the
+  // target held at its path — otherwise a removal landing late would take out
+  // files a sibling had already linked. A path the target holds as a file and
+  // the source as a directory lands in `modified` rather than `added`, so both
+  // arrays feed the directory pass.
+  await Promise.all(optimizedDirPatch.removed.map(async item => {
+    await removeRecursive(path.join(targetDir, item.path))
   }))
 
-  const removing = Promise.all(optimizedDirPatch.removed.map(async item => {
-    const targetPath = path.join(targetDir, item.path)
-    await removeRecursive(targetPath)
-  }))
-
-  const modifying = Promise.all(optimizedDirPatch.modified.map(async item => {
-    const sourcePath = path.join(sourceDir, item.path)
-    const targetPath = path.join(targetDir, item.path)
-    if (item.oldValue === item.newValue) return
-    await removeRecursive(targetPath)
-    await addRecursive(sourcePath, targetPath, item.newValue)
-  }))
-
-  await Promise.all([adding, removing, modifying])
+  for (const item of newDirs) {
+    await applyChange(item) // eslint-disable-line no-await-in-loop
+  }
+  await Promise.all(newFiles.map(applyChange))
 }
 
-export type ExtendFilesMapStats = Pick<fs.Stats, 'ino' | 'isFile' | 'isDirectory'>
+export type ExtendFilesMapStats = Pick<fs.Stats, 'dev' | 'ino' | 'isFile' | 'isDirectory'>
 
 export interface ExtendFilesMapOptions {
   /** Map relative path of each file to their real path */
@@ -153,16 +186,18 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
   await Promise.all(Array.from(filesMap.entries()).map(async ([relativePath, realPath]) => {
     const stats = filesStats?.[relativePath] ?? await fs.promises.stat(realPath)
     if (stats.isFile()) {
-      addInodeAndAncestors(relativePath, stats.ino)
+      addInodeAndAncestors(relativePath, fileId(stats))
     } else if (stats.isDirectory()) {
       addInodeAndAncestors(relativePath, DIR)
-    } else {
-      throw new PnpmError('UNSUPPORTED_INODE_TYPE', `Filesystem inode at ${realPath} is neither a file, a directory, or a symbolic link`)
     }
+    // Anything else — a FIFO, a socket, a device — cannot be hardlinked into
+    // the injected copy, so it is left out of the map.
   }))
 
   return result
 }
+
+const fileId = (stats: Pick<ExtendFilesMapStats, 'dev' | 'ino'>): File => `${stats.dev}:${stats.ino}`
 
 export class DirPatcher {
   private readonly sourceDir: string

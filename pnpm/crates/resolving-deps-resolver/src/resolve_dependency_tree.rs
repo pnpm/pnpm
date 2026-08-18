@@ -1,16 +1,16 @@
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
-use pacquet_catalogs_resolver::CatalogResolutionError;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError};
-use pacquet_resolving_resolver_base::{
-    NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError, ResolveOptions,
-    Resolver, WantedDependency,
-};
 use pipe_trait::Pipe;
+use pnpm_catalogs_resolver::CatalogResolutionError;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
+use pnpm_resolving_resolver_base::{
+    GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
+    ResolveOptions, Resolver, WantedDependency,
+};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -39,7 +39,7 @@ pub(crate) use workspace_ctx::SyncCursor;
 
 use reuse::{ReuseSource, record_direct_dep_versions};
 use walk::{
-    NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_node_children,
+    NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,
     warm_children_resolutions,
 };
 
@@ -128,7 +128,7 @@ pub struct ResolveDependencyTreeOptions {
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls. `None` leaves hook logging a no-op. See
     /// [`WorkspaceTreeCtx::with_read_package_log`].
-    pub read_package_log: Option<pacquet_hooks::LogFn>,
+    pub read_package_log: Option<pnpm_hooks::LogFn>,
     /// The install's `autoInstallPeers` setting. See
     /// [`WorkspaceTreeCtx::with_auto_install_peers`].
     pub auto_install_peers: bool,
@@ -234,6 +234,11 @@ pub enum ResolveDependencyTreeError {
     #[diagnostic(transparent)]
     RegistryResponse(#[error(source)] RegistryResponseError),
 
+    /// A git dependency's `git ls-remote` failed, raised with the
+    /// `ERR_PNPM_GIT_RESOLVE_FAILED` code.
+    #[diagnostic(transparent)]
+    GitResolve(#[error(source)] GitResolveError),
+
     /// An optional dependency failed to resolve while the wanted
     /// lockfile still holds a package entry satisfying the wanted
     /// range. Rethrown loudly instead of skipped, because skipping
@@ -265,7 +270,7 @@ pub enum ResolveDependencyTreeError {
     /// `patchedDependencies` configured more than one version range that
     /// satisfies the same `name@version` and the user did not break the
     /// tie with an exact-version entry. Propagated verbatim from
-    /// [`pacquet_patching::get_patch_info`].
+    /// [`pnpm_patching::get_patch_info`].
     #[display("{_0}")]
     #[diagnostic(transparent)]
     PatchKeyConflict(#[error(source)] PatchKeyConflictError),
@@ -304,7 +309,7 @@ pub enum ResolveDependencyTreeError {
     /// two yet.
     #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
-    PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
+    PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
@@ -366,14 +371,14 @@ where
         let injected = injected_names.contains(name);
         wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
-    record_changed_direct_deps(&ctx, pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
+    record_changed_direct_deps(&ctx, pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
     let parent_pkg_aliases =
         ParentPkgAliases::root(wanted.iter().map(|(alias, ..)| alias.clone()).collect());
     let direct = extend_tree(
         &ctx,
         resolver,
         wanted,
-        pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
         &parent_pkg_aliases,
     )
     .await?;
@@ -562,6 +567,7 @@ where
                     base_overlay,
                     None,
                     parent_pkg_aliases,
+                    false,
                 )
                 .await?;
                 warm_children_resolutions(ctx, resolver, &seed).await;
@@ -581,24 +587,10 @@ where
         direct_versions,
     );
     let children_pkg_aliases = parent_pkg_aliases.extend(level_aliases(&seeds));
-    // Phase 2: walk each direct dep's children with the level overlay.
-    let results = seeds
-        .into_iter()
-        .map(|seed| {
-            let overlay = children_overlay.clone();
-            let pkg_aliases = Arc::clone(&children_pkg_aliases);
-            async move {
-                match seed {
-                    NodeSeed::Done(dep) => Ok(dep),
-                    NodeSeed::Pending(pending) => {
-                        walk_node_children(ctx, resolver, *pending, overlay, pkg_aliases).await
-                    }
-                }
-            }
-        })
-        .pipe(future::try_join_all)
-        .await?;
-    let direct: Vec<DirectDep> = results.into_iter().flatten().collect();
+    // Phase 2: settle this level's children ownership and walk the tree
+    // below it a level at a time.
+    let direct =
+        walk_from_seeds(ctx, resolver, seeds, children_overlay, children_pkg_aliases).await?;
     ctx.workspace.record_preferred_version_roots(direct.iter().map(|dep| dep.id.as_str()));
     // Second bump, after every write of this wave (including the roots
     // above) has landed: a `run_preferred_versions` read racing with

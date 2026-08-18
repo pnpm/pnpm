@@ -10,18 +10,18 @@
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::{Config, LinkWorkspacePackages};
-use pacquet_package_manager::{GraphSequencerResult, graph_sequencer};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_workspace::{
+use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_workspace::{
     FindWorkspaceProjectsOpts, Project, find_workspace_projects, read_workspace_manifest,
     workspace_package_patterns,
 };
-use pacquet_workspace_projects_filter::{
+use pnpm_workspace_projects_filter::{
     FilterWorkspaceProjectsOptions, ProjectSelector, filter_workspace_projects,
     parse_project_selector,
 };
-use pacquet_workspace_projects_graph::{
+use pnpm_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
 };
 use serde::Serialize;

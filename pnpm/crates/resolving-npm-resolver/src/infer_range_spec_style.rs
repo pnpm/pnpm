@@ -1,7 +1,7 @@
 //! Detect the range operator a specifier already pins to, so an update can
 //! preserve it.
 
-use pacquet_registry::RangeSpecStyle;
+use pnpm_registry::RangeSpecStyle;
 
 /// Classify the range operator an existing specifier pins to.
 ///

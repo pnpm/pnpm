@@ -153,9 +153,9 @@ fn prepare_cell(
 }
 
 /// Pin the store and cache inside the cell so pnpm and pacquet never share a
-/// store, and so every cell starts cold. The explicit
-/// `enableGlobalVirtualStore` matters under CI: CI defaults it to `false`,
-/// but an explicit value in `pnpm-workspace.yaml` is respected.
+/// store, and so every cell starts cold. `enableGlobalVirtualStore` is
+/// written explicitly so the layout axis means the same thing for both
+/// binaries no matter what either one defaults it to.
 ///
 /// `dangerouslyAllowAllBuilds` lets dependency build scripts run unattended
 /// (esbuild, etc.) so the build stage exercises a real, fully-built

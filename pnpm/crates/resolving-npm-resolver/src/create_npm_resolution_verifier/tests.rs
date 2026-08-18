@@ -1,13 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
-use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pacquet_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
-use pacquet_network::{
+use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
+use pnpm_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
+use pnpm_network::{
     AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
 };
-use pacquet_registry::Package;
-use pacquet_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier, VerifyCtx};
+use pnpm_registry::Package;
+use pnpm_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier, VerifyCtx};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use tempfile::TempDir;
@@ -62,17 +62,19 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         trust_policy_exclude_patterns: Vec::new(),
         trust_policy_ignore_after: None,
         registries: registries_with_default(registry_url),
-        named_registries: HashMap::new(),
+        registries_by_prefix: HashMap::new(),
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         cache_dir: None,
         meta_cache: None,
+        offline: false,
         // No retries: tests that point an endpoint at an unmocked /
         // erroring upstream would otherwise wait out the full pnpm
         // backoff (10 s + 60 s) on every run.
         retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         now: None,
         observed_dist_stats: None,
+        planned_canonical_fetches: None,
     }
 }
 
@@ -373,7 +375,7 @@ async fn verify_short_circuits_non_registry_resolution() {
     let mut opts = default_opts("https://registry.example/");
     opts.minimum_release_age = Some(60 * 24 * 365);
     let verifier = create_npm_resolution_verifier(opts);
-    let directory = LockfileResolution::Directory(pacquet_lockfile::DirectoryResolution {
+    let directory = LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
         directory: "/some/path".into(),
     });
     let name: PkgName = "acme".parse().expect("parse");
@@ -669,6 +671,65 @@ async fn verify_skips_age_check_for_an_exact_version_in_a_union() {
 }
 
 #[tokio::test]
+async fn planned_fetch_head_shortcut_skips_the_metadata_body() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _head_mock = server
+        .mock("HEAD", "/acme")
+        .with_status(200)
+        .with_header("last-modified", "Mon, 01 Jan 2024 00:00:00 GMT")
+        .expect(1)
+        .create_async()
+        .await;
+    // The whole point: no metadata body is fetched for a planned entry
+    // whose package-level Last-Modified is older than the cutoff.
+    let _meta_mock = server.mock("GET", "/acme").expect(0).create_async().await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
+    planned
+        .set(std::collections::HashSet::from([("acme".to_string(), "1.0.0".to_string(), None)]))
+        .expect("first fill");
+    opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
+        .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn unplanned_entry_sends_no_head_probe() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _head_mock = server.mock("HEAD", "/acme").expect(0).create_async().await;
+    // The metadata-backed chain answers instead: the abbreviated
+    // `modified` shortcut passes on an old package whose pinned
+    // version the versions map still lists.
+    let _meta_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(min_age_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
+    planned
+        .set(std::collections::HashSet::from([("other".to_string(), "2.0.0".to_string(), None)]))
+        .expect("first fill");
+    opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
+        .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
 async fn min_age_pass_when_published_before_cutoff() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
@@ -910,7 +971,7 @@ async fn verify_routes_via_named_registry_prefix() {
     // breaks, the request would target the bogus URL and the test
     // would fail with a connection error instead of finding the mock.
     let mut opts = default_opts("http://nonexistent.example.invalid/");
-    opts.named_registries = named;
+    opts.registries_by_prefix = named;
     opts.minimum_release_age = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
@@ -991,11 +1052,14 @@ fn can_trust_past_check_accepts_looser_min_age() {
 #[test]
 fn can_trust_past_check_rejects_changed_named_registry_mapping() {
     let mut opts = default_opts("https://registry.example/");
-    opts.named_registries.insert("work".to_string(), "https://registry.work.example/".to_string());
+    opts.registries_by_prefix
+        .insert("work".to_string(), "https://registry.work.example/".to_string());
     let verifier = create_npm_resolution_verifier(opts);
     let cached = verifier.policy().clone();
     let mut changed_opts = default_opts("https://registry.example/");
-    changed_opts.named_registries.insert("work".to_string(), "https://other.example/".to_string());
+    changed_opts
+        .registries_by_prefix
+        .insert("work".to_string(), "https://other.example/".to_string());
     let changed = create_npm_resolution_verifier(changed_opts);
 
     // Pins that the rejection below comes from the URL change and not from

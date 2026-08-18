@@ -65,7 +65,7 @@ test('getPkgMetaCacheKey canonicalizes the registry so trailing-slash variants s
   expect(getPkgMetaCacheKey('https://reg.example.com', 'foo', false, false))
     .toBe(getPkgMetaCacheKey('https://reg.example.com/', 'foo', false, false))
 
-  // Registries that genuinely differ by path are never collapsed.
+  // RegistriesByScope that genuinely differ by path are never collapsed.
   expect(getPkgMetaCacheKey('https://reg.example.com/team-a/', 'foo', false, false))
     .not.toBe(getPkgMetaCacheKey('https://reg.example.com/team-b/', 'foo', false, false))
 

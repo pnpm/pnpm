@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-config"
+name                  = "pnpm-config"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,21 +11,24 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-types         = { workspace = true }
-pacquet-config-dir             = { workspace = true }
-pacquet-detect-libc            = { workspace = true }
-pacquet-env-replace            = { workspace = true }
-pacquet-network                = { workspace = true }
-pacquet-package-is-installable = { workspace = true }
-pacquet-package-manifest       = { workspace = true }
-pacquet-patching               = { workspace = true }
-pacquet-store-dir              = { workspace = true }
-pacquet-versioning             = { workspace = true }
-pacquet-workspace-state        = { workspace = true }
+pnpm-catalogs-types         = { workspace = true }
+pnpm-config-dir             = { workspace = true }
+pnpm-detect-libc            = { workspace = true }
+pnpm-env-replace            = { workspace = true }
+pnpm-fs                     = { workspace = true }
+pnpm-lockfile               = { workspace = true }
+pnpm-network                = { workspace = true }
+pnpm-package-is-installable = { workspace = true }
+pnpm-package-manifest       = { workspace = true }
+pnpm-patching               = { workspace = true }
+pnpm-store-dir              = { workspace = true }
+pnpm-versioning             = { workspace = true }
+pnpm-workspace-state        = { workspace = true }
 
 derive_more   = { workspace = true }
 home          = { workspace = true }
 indexmap      = { workspace = true }
+is_ci         = { workspace = true }
 miette        = { workspace = true }
 node-semver   = { workspace = true }
 pipe-trait    = { workspace = true }
@@ -40,7 +43,7 @@ url           = { workspace = true }
 libc = { workspace = true }
 
 [dev-dependencies]
-pacquet-testing-utils = { workspace = true }
+pnpm-testing-utils = { workspace = true }
 
 pretty_assertions  = { workspace = true }
 tempfile           = { workspace = true }

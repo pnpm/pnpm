@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-tarball"
+name                  = "pnpm-tarball"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,15 +11,16 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-diagnostics      = { workspace = true }
-pacquet-fs               = { workspace = true }
-pacquet-network          = { workspace = true }
-pacquet-package-manifest = { workspace = true }
-pacquet-reporter         = { workspace = true }
-pacquet-store-dir        = { workspace = true }
+pnpm-diagnostics      = { workspace = true }
+pnpm-fs               = { workspace = true }
+pnpm-network          = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-reporter         = { workspace = true }
+pnpm-store-dir        = { workspace = true }
 
 dashmap      = { workspace = true }
 derive_more  = { workspace = true }
+flate2       = { workspace = true }
 futures-util = { workspace = true }
 miette       = { workspace = true }
 num_cpus     = { workspace = true }
@@ -38,7 +39,6 @@ zune-inflate = { workspace = true }
 
 [dev-dependencies]
 dashmap           = { workspace = true, features = ["raw-api"] }
-flate2            = { workspace = true }
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }

@@ -3,11 +3,11 @@
 //!
 //! Scenario:
 //!
-//! 1. A writer thread is inside [`pacquet_fs::ensure_file`] for path
+//! 1. A writer thread is inside [`pnpm_fs::ensure_file`] for path
 //!    `F`, holding the per-path `cas_write_lock`. Between
 //!    `O_CREAT|O_EXCL` and `write_all` completion, `F` exists on
 //!    disk with a partial body.
-//! 2. A verifier thread runs [`pacquet_store_dir::check_pkg_files_integrity`]
+//! 2. A verifier thread runs [`pnpm_store_dir::check_pkg_files_integrity`]
 //!    for an index row that references `F` (different package, same
 //!    content hash — common for shared boilerplate like `LICENSE`
 //!    files across sibling packages).
@@ -45,7 +45,7 @@ use std::{
     time::Duration,
 };
 
-use pacquet_store_dir::{
+use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, StoreDir, VerifiedFilesCache, check_pkg_files_integrity,
 };
 use sha2::{Digest, Sha512};
@@ -125,7 +125,7 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     // lock is the only primitive `ensure_file` uses to gate concurrent
     // writers; with Option C, `verify_file` acquires the same lock
     // before considering a delete.
-    let lock = pacquet_fs::cas_write_lock(&target);
+    let lock = pnpm_fs::cas_write_lock(&target);
     let guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
     // Use a channel to synchronize lock-release with the verifier so
@@ -199,7 +199,7 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     drop(tmp);
 }
 
-/// Sanity check: the lock acquired by [`pacquet_fs::cas_write_lock`]
+/// Sanity check: the lock acquired by [`pnpm_fs::cas_write_lock`]
 /// keys on the absolute path. Two callers asking for the same path
 /// receive a reference to the same `Mutex` — the property the Option-C
 /// fix relies on for the verifier to wait on the writer.
@@ -208,8 +208,8 @@ fn cas_write_lock_returns_same_mutex_for_same_path() {
     let tmp = tempdir().expect("tempdir");
     let path = tmp.path().join("shared-blob");
 
-    let lock_a = pacquet_fs::cas_write_lock(&path);
-    let lock_b = pacquet_fs::cas_write_lock(&path);
+    let lock_a = pnpm_fs::cas_write_lock(&path);
+    let lock_b = pnpm_fs::cas_write_lock(&path);
 
     assert!(
         std::ptr::eq(lock_a, lock_b),

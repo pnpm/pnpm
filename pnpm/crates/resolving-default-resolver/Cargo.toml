@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-resolving-default-resolver"
+name                  = "pnpm-resolving-default-resolver"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,13 +11,13 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-resolving-resolver-base = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }
 
 [dev-dependencies]
-pacquet-lockfile = { workspace = true }
+pnpm-lockfile = { workspace = true }
 
 ssri  = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }

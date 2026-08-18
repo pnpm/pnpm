@@ -59,52 +59,33 @@ mod higher_direct_dep_version {
 }
 
 mod real_package_name_of {
-    use pacquet_resolving_resolver_base::WantedDependency;
-
     use super::super::real_package_name_of;
-
-    fn wanted(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
-        WantedDependency {
-            alias: alias.map(str::to_string),
-            bare_specifier: bare_specifier.map(str::to_string),
-            ..WantedDependency::default()
-        }
-    }
 
     #[test]
     fn returns_none_when_bare_specifier_is_missing() {
-        assert_eq!(real_package_name_of(&wanted(Some("foo"), None)).as_deref(), None);
+        assert_eq!(real_package_name_of(Some("foo"), None).as_deref(), None);
     }
 
     #[test]
     fn falls_back_to_alias_for_plain_dep() {
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("^1.0.0"))).as_deref(),
-            Some("foo"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("^1.0.0")).as_deref(), Some("foo"));
     }
 
     #[test]
     fn falls_back_to_none_when_alias_is_missing_for_plain_dep() {
-        assert_eq!(real_package_name_of(&wanted(None, Some("^1.0.0"))).as_deref(), None);
+        assert_eq!(real_package_name_of(None, Some("^1.0.0")).as_deref(), None);
     }
 
     #[test]
     fn parses_real_name_from_npm_alias_with_version_range() {
         // Update targeting is keyed by the real name (matches the depPath
         // recorded in the lockfile, not the install alias).
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:bar@^4"))).as_deref(),
-            Some("bar"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:bar@^4")).as_deref(), Some("bar"));
     }
 
     #[test]
     fn parses_real_name_from_npm_alias_without_version() {
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:bar"))).as_deref(),
-            Some("bar"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:bar")).as_deref(), Some("bar"));
     }
 
     #[test]
@@ -113,7 +94,7 @@ mod real_package_name_of {
         // guard skips it and the search finds the `@` separating name
         // from version.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:@scope/pkg@^4"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("npm:@scope/pkg@^4")).as_deref(),
             Some("@scope/pkg"),
         );
     }
@@ -123,7 +104,7 @@ mod real_package_name_of {
         // Only one `@` (the scope marker) at index 0, which the
         // `idx >= 1` guard skips — the whole `rest` is the name.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:@scope/pkg"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("npm:@scope/pkg")).as_deref(),
             Some("@scope/pkg"),
         );
     }
@@ -132,7 +113,7 @@ mod real_package_name_of {
     fn returns_none_for_empty_npm_alias_target() {
         // Defensive: filtered out so the caller treats this as "not a
         // targeted update."
-        assert_eq!(real_package_name_of(&wanted(Some("foo"), Some("npm:"))).as_deref(), None);
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:")).as_deref(), None);
     }
 
     #[test]
@@ -141,10 +122,7 @@ mod real_package_name_of {
         // not a name. The install alias `foo` is the real package
         // name — without this branch, the range string itself would
         // be returned as the name and update targeting would miss.
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:^1.0.0"))).as_deref(),
-            Some("foo"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:^1.0.0")).as_deref(), Some("foo"));
     }
 
     #[test]
@@ -152,7 +130,7 @@ mod real_package_name_of {
         // The `npm:<range>` form supports any valid semver range in
         // the body — `>=1.0.0 <2.0.0`, `~1.2.3`, `1.x`, etc.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:>=1.0.0 <2.0.0"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("npm:>=1.0.0 <2.0.0")).as_deref(),
             Some("foo"),
         );
     }
@@ -165,7 +143,7 @@ mod real_package_name_of {
         // folded name, not the original jsr name, or jsr deps would
         // never count as update targets.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("jsr:@foo/bar@^1"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("jsr:@foo/bar@^1")).as_deref(),
             Some("@jsr/foo__bar"),
         );
     }
@@ -174,7 +152,7 @@ mod real_package_name_of {
     fn folds_jsr_specifier_to_npm_registry_name_without_version() {
         // Default-tag form `jsr:@foo/bar`: still folds to `@jsr/foo__bar`.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("jsr:@foo/bar"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("jsr:@foo/bar")).as_deref(),
             Some("@jsr/foo__bar"),
         );
     }
@@ -185,17 +163,14 @@ mod real_package_name_of {
         // must not fall back to the install alias — otherwise a broken
         // jsr dep could match an update target by alias and wrongly be
         // treated as one.
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("jsr:foo@^1.0.0"))).as_deref(),
-            None,
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("jsr:foo@^1.0.0")).as_deref(), None);
     }
 }
 
 mod is_update_target {
     use rustc_hash::FxHashSet as HashSet;
 
-    use pacquet_resolving_resolver_base::WantedDependency;
+    use pnpm_resolving_resolver_base::WantedDependency;
 
     use super::super::{UpdateDepth, UpdateReuseScope, UpdateScope, is_update_target};
 

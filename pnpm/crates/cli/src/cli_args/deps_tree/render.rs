@@ -8,7 +8,7 @@ use std::{
 };
 
 use owo_colors::{OwoColorize, Stream};
-use pacquet_package_manifest::parse_manifest_bytes;
+use pnpm_package_manifest::parse_manifest_bytes;
 
 use crate::cli_args::sanitize::sanitize;
 
@@ -206,8 +206,24 @@ pub(crate) fn dim(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
 }
 
-pub(crate) fn bold(text: &str) -> String {
-    sanitize(text).if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+const BOLD: &str = "\u{1b}[1m";
+const RESET: &str = "\u{1b}[0m";
+
+/// Bold a label that the other helpers of this module already styled and
+/// sanitized.
+///
+/// Sanitizing here would strip the `ESC` of those styles and leave their
+/// bare `[1m` codes in the output, so the label is taken as-is; text that
+/// has not been through a helper yet must be passed through one first.
+/// The nested styles end in a full reset, so the bold is reopened after
+/// each of them to stay in effect through the whole label, the way
+/// `chalk` nests styles for the TypeScript CLI.
+pub(crate) fn bold_styled(styled: &str) -> String {
+    styled
+        .if_supports_color(Stream::Stdout, |text| {
+            format!("{BOLD}{}{RESET}", text.replace(RESET, &format!("{RESET}{BOLD}")))
+        })
+        .to_string()
 }
 
 pub(crate) fn cyan_bright(text: &str) -> String {

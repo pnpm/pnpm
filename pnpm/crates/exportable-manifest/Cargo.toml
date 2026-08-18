@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-exportable-manifest"
+name                  = "pnpm-exportable-manifest"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,10 +11,10 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-resolver              = { workspace = true }
-pacquet-catalogs-types                 = { workspace = true }
-pacquet-package-manifest               = { workspace = true }
-pacquet-resolving-jsr-specifier-parser = { workspace = true }
+pnpm-catalogs-resolver              = { workspace = true }
+pnpm-catalogs-types                 = { workspace = true }
+pnpm-package-manifest               = { workspace = true }
+pnpm-resolving-jsr-specifier-parser = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

@@ -8,7 +8,7 @@
 //! shape of `<flat-name>` versus `<scope>/<name>/<version>/<hash>` is
 //! also different — flat name uses [`PkgNameVerPeer::to_virtual_store_name`]
 //! while the GVS layout uses
-//! [`pacquet_graph_hasher::format_global_virtual_store_path`] over a
+//! [`pnpm_graph_hasher::format_global_virtual_store_path`] over a
 //! `calc_graph_node_hash`-computed digest.
 //!
 //! [`VirtualStoreLayout`] hides that difference behind one
@@ -17,8 +17,8 @@
 //! computes a per-snapshot path.
 //!
 //! [`slot_dir`]: VirtualStoreLayout::slot_dir
-//! [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
-//! [`pacquet_graph_hasher::format_global_virtual_store_path`]: pacquet_graph_hasher::format_global_virtual_store_path
+//! [`PkgNameVerPeer::to_virtual_store_name`]: pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name
+//! [`pnpm_graph_hasher::format_global_virtual_store_path`]: pnpm_graph_hasher::format_global_virtual_store_path
 
 use crate::{
     AllowBuildPolicy,
@@ -26,13 +26,14 @@ use crate::{
         find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
     },
 };
-use pacquet_config::Config;
-use pacquet_deps_path::get_pkg_id_with_patch_hash;
-use pacquet_graph_hasher::{
+use indexmap::IndexMap;
+use pnpm_config::Config;
+use pnpm_deps_path::get_pkg_id_with_patch_hash;
+use pnpm_graph_hasher::{
     DepsGraphNode, DepsStateCache, calc_graph_node_hash, detect_node_major, engine_name,
     format_global_virtual_store_path, join_global_virtual_store_path,
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgVerPeer, SnapshotEntry,
     VersionPart,
 };
@@ -74,7 +75,7 @@ pub struct VirtualStoreLayout {
     /// to [`PkgNameVerPeer::to_virtual_store_name`] computed on demand
     /// from the snapshot key.
     ///
-    /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
+    /// [`PkgNameVerPeer::to_virtual_store_name`]: pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name
     gvs_suffixes: Option<HashMap<PackageKey, String>>,
 
     /// Threshold passed into
@@ -87,8 +88,16 @@ pub struct VirtualStoreLayout {
     /// to leave headroom for the `<name>@<version>/` suffix appended
     /// below).
     ///
-    /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
+    /// [`PkgNameVerPeer::to_virtual_store_name`]: pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name
     virtual_store_dir_max_length: usize,
+
+    /// Directory the lockfile's relative paths resolve against.
+    /// [`crate::create_symlink_layout()`] needs it to point a `link:`
+    /// dependency's symlink at the directory the lockfile names, which
+    /// it records relative to this root. `None` when the caller has no
+    /// lockfile context, in which case `link:` dependencies inside a
+    /// slot are left unlinked exactly as before.
+    lockfile_dir: Option<PathBuf>,
 }
 
 impl VirtualStoreLayout {
@@ -105,7 +114,23 @@ impl VirtualStoreLayout {
             package_store_dir: root.into(),
             gvs_suffixes: None,
             virtual_store_dir_max_length,
+            lockfile_dir: None,
         }
+    }
+
+    /// Directory the lockfile's relative paths resolve against, when
+    /// the caller supplied one to [`Self::new`].
+    #[must_use]
+    pub fn lockfile_dir(&self) -> Option<&Path> {
+        self.lockfile_dir.as_deref()
+    }
+
+    /// Attach a lockfile directory to a layout built by
+    /// [`Self::legacy`], which has no lockfile context of its own.
+    #[cfg(test)]
+    pub(crate) fn with_lockfile_dir(mut self, lockfile_dir: impl Into<PathBuf>) -> Self {
+        self.lockfile_dir = Some(lockfile_dir.into());
+        self
     }
 
     /// Build the layout for one install. Reads
@@ -121,7 +146,7 @@ impl VirtualStoreLayout {
     /// `new`).
     ///
     /// `engine` is the install-wide fallback `ENGINE_NAME`-style
-    /// string that [`pacquet_graph_hasher::engine_name`] produces;
+    /// string that [`pnpm_graph_hasher::engine_name`] produces;
     /// threaded in instead of recomputed inside so the value matches
     /// whatever the rest of the install (notably the side-effects
     /// cache key) uses. Snapshots that themselves pin Node via
@@ -189,6 +214,7 @@ impl VirtualStoreLayout {
                 package_store_dir,
                 gvs_suffixes: None,
                 virtual_store_dir_max_length,
+                lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
         }
         let Some(snapshots) = snapshots else {
@@ -196,9 +222,10 @@ impl VirtualStoreLayout {
                 package_store_dir,
                 gvs_suffixes: Some(HashMap::new()),
                 virtual_store_dir_max_length,
+                lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
         };
-        let graph = lockfile_to_dep_graph(snapshots, packages);
+        let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir);
         // One conversion for the whole lockfile: the same string scopes every
         // local directory snapshot in it.
         //
@@ -210,19 +237,19 @@ impl VirtualStoreLayout {
         // Build the engine-agnostic gating set once per install.
         // `None` here disables gating so every snapshot still hashes
         // with its engine string.
-        let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
+        let built_dep_paths: Option<HashSet<String>> = allow_build_policy.map(|policy| {
             snapshots
                 .keys()
                 .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
-                .cloned()
+                .map(ToString::to_string)
                 .collect()
         });
-        let mut cache: DepsStateCache<PackageKey> = HashMap::new();
+        let mut cache: DepsStateCache<String> = HashMap::new();
         // Install-scoped memoization for the `transitivelyRequiresBuild`
         // walk; shared across every snapshot's hash computation so
         // diamond-shaped subgraphs only get visited once. Untouched
         // when `built_dep_paths` is `None`.
-        let mut build_required_cache: HashMap<PackageKey, bool> = HashMap::new();
+        let mut build_required_cache: HashMap<String, bool> = HashMap::new();
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
         // Lockfile key order, not `HashMap` order: `calc_graph_node_hash`
         // memoizes into `cache` / `build_required_cache`, and for a
@@ -245,10 +272,11 @@ impl VirtualStoreLayout {
             let metadata = packages.and_then(|map| map.get(&metadata_key));
             let project =
                 local_directory_scope(metadata, &metadata_key.suffix, project_scope.as_deref());
+            let graph_key = snapshot_key.to_string();
             let hex_digest = calc_graph_node_hash(
                 &graph,
                 &mut cache,
-                snapshot_key,
+                &graph_key,
                 snapshot_engine,
                 built_dep_paths.as_ref(),
                 &mut build_required_cache,
@@ -263,13 +291,14 @@ impl VirtualStoreLayout {
             package_store_dir,
             gvs_suffixes: Some(gvs_suffixes),
             virtual_store_dir_max_length,
+            lockfile_dir: lockfile_dir.map(Path::to_path_buf),
         }
     }
 
     /// Root of the layout — the directory that contains every per-
     /// snapshot subdirectory. Exposed so callers that need to pass a
     /// path to existing helpers (e.g. the
-    /// [`pacquet_modules_yaml::Modules`] writer, which still records
+    /// [`pnpm_modules_yaml::Modules`] writer, which still records
     /// the legacy [`Config::virtual_store_dir`] string) have one
     /// source of truth.
     #[must_use]
@@ -288,7 +317,7 @@ impl VirtualStoreLayout {
 
     /// Absolute directory that holds `node_modules/<name>` for one
     /// snapshot. Falls back to
-    /// [`PkgNameVerPeer::to_virtual_store_name`](pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name)
+    /// [`PkgNameVerPeer::to_virtual_store_name`](pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name)
     /// when GVS is off, or when GVS is on but the key isn't in the
     /// precomputed map (which would indicate a bug — every snapshot
     /// the install touches must have been visited in
@@ -503,6 +532,11 @@ fn local_directory_scope<'a>(
 /// alias→snapshot-key edges pulled from the snapshot's combined
 /// `dependencies` + `optionalDependencies`.
 ///
+/// Resolved `link:` targets become leaf nodes whose identity is the
+/// absolute target path. Modeling them as children makes the target
+/// participate in every ancestor's recursive hash while keeping slots
+/// shared between projects that resolve the link to the same directory.
+///
 /// Packages whose metadata is missing or whose resolution has no
 /// `integrity` (directory / git) are emitted with the bare
 /// `pkg_id_with_patch_hash` as their `full_pkg_id`. The frozen-
@@ -513,23 +547,38 @@ fn local_directory_scope<'a>(
 fn lockfile_to_dep_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-) -> HashMap<PackageKey, DepsGraphNode<PackageKey>> {
-    snapshots
-        .iter()
-        .map(|(snapshot_key, snapshot)| {
-            let children = crate::deps_graph::build_children(snapshot);
-            let metadata_key = snapshot_key.without_peer();
-            // The metadata-map key (peer- and patch-hash-stripped) is
-            // derived via `without_peer` for the `packages:` lookup.
-            let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
-                get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
-            );
-            let resolution =
-                packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
-            let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
-            (snapshot_key.clone(), DepsGraphNode { full_pkg_id, children })
-        })
-        .collect()
+    lockfile_dir: Option<&Path>,
+) -> HashMap<String, DepsGraphNode<String>> {
+    let mut graph = HashMap::with_capacity(snapshots.len());
+    let mut link_target_nodes = HashSet::new();
+    for (snapshot_key, snapshot) in snapshots {
+        let children = crate::deps_graph::build_children_with(snapshot, |alias, dep_ref| {
+            if let Some(snapshot_key) = dep_ref.resolve(alias) {
+                return Some(snapshot_key.to_string());
+            }
+            let link_target = dep_ref.as_link_target()?;
+            let lockfile_dir = lockfile_dir?;
+            let resolved = pnpm_fs::lexical_normalize(&lockfile_dir.join(link_target));
+            Some(format!("link:{}", resolved.to_string_lossy()))
+        });
+        link_target_nodes
+            .extend(children.values().filter(|child_key| child_key.starts_with("link:")).cloned());
+        let metadata_key = snapshot_key.without_peer();
+        let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
+            get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
+        );
+        let resolution =
+            packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
+        let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
+        graph.insert(snapshot_key.to_string(), DepsGraphNode { full_pkg_id, children });
+    }
+    for link_target_node in link_target_nodes {
+        graph.insert(
+            link_target_node.clone(),
+            DepsGraphNode { full_pkg_id: link_target_node, children: IndexMap::default() },
+        );
+    }
+    graph
 }
 
 /// `variations` (cross-platform variant) resolutions don't exist in

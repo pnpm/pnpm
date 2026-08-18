@@ -12,12 +12,12 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use node_semver::Version;
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
-use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
-use pacquet_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
-use pacquet_config::CatalogMode;
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use node_semver::{Range, Version};
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
+use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_config::CatalogMode;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 
 /// Wanted dependency outside the version range defined in catalog.
 ///
@@ -155,7 +155,7 @@ pub(crate) fn decide_catalog_outcome(
         }
     };
 
-    if versions_equal(dep.bare_specifier, &entry) {
+    if catalog_covers(&entry, dep.bare_specifier) {
         return Ok(CatalogDecisionOutcome {
             decision: CatalogDecision::Catalog {
                 manifest_specifier: catalog_specifier,
@@ -187,20 +187,21 @@ pub(crate) fn decide_catalog_outcome(
     }
 }
 
-/// Equal only when **both** specifiers are concrete semver versions that
-/// compare equal. A range (e.g. `^2.0.0`) fails [`Version::parse`], so it
-/// never reaches the comparison — the Rust analogue of pnpm guarding
-/// `semver.eq` with `semver.valid`
-/// ([pnpm#11706](https://github.com/pnpm/pnpm/pull/11706)). Passing a
-/// range to an exact-version comparison is the bug that fix prevents.
-fn versions_equal(lhs: &str, rhs: &str) -> bool {
-    matches!((Version::parse(lhs), Version::parse(rhs)), (Ok(left), Ok(right)) if left == right)
+/// Whether the catalog entry already covers the wanted specifier, so the
+/// dependency can keep resolving through the catalog: the entry names the
+/// same concrete version, or it is a range the wanted version satisfies.
+///
+/// The wanted specifier has to be a concrete version. A wanted range is
+/// never covered, because the catalog — not the dependency — decides which
+/// version a `catalog:` reference resolves to.
+pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
+    matches!((Range::parse(entry), Version::parse(wanted)), (Ok(entry), Ok(wanted)) if entry.satisfies(&wanted))
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`
 /// specifier pins the named group; otherwise the global `--save-catalog-name`,
 /// falling back to the default catalog.
-fn per_dep_catalog_name<'a>(
+pub(crate) fn per_dep_catalog_name<'a>(
     prev_specifier: Option<&'a str>,
     save_catalog_name: Option<&'a str>,
 ) -> &'a str {

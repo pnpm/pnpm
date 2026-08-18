@@ -1,8 +1,8 @@
 use super::{
     infer_local_package_alias, is_windows_drive_path, replacement_aliases, resolve_local_param,
-    should_replace_existing_package, split_comma_separated,
+    should_replace_existing_package, split_comma_separated, update_selectors,
 };
-use pacquet_global::GlobalPackageInfo;
+use pnpm_global::GlobalPackageInfo;
 use std::path::{Path, PathBuf};
 
 #[test]
@@ -26,6 +26,37 @@ fn detects_windows_drive_paths() {
     assert!(is_windows_drive_path(r"C:\foo"));
     assert!(is_windows_drive_path("d:/bar"));
     assert!(!is_windows_drive_path("foo"));
+}
+
+#[test]
+fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
+    let dependencies = vec![
+        ("private-linked-pkg".to_string(), "link:/home/user/private-linked-pkg".to_string()),
+        ("local-tarball-pkg".to_string(), "file:/home/user/local-tarball-pkg.tgz".to_string()),
+        ("git-pkg".to_string(), "github:user/git-pkg".to_string()),
+        ("remote-tarball-pkg".to_string(), "https://example.com/pkg.tgz".to_string()),
+        ("aliased-pkg".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("named-registry-pkg".to_string(), "gh:^3.0.0".to_string()),
+        ("foo".to_string(), "^1.0.0".to_string()),
+        ("bar".to_string(), "next".to_string()),
+    ];
+    assert_eq!(
+        update_selectors(&dependencies, true),
+        vec![
+            "private-linked-pkg@link:/home/user/private-linked-pkg",
+            "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
+            "git-pkg@github:user/git-pkg",
+            "remote-tarball-pkg@https://example.com/pkg.tgz",
+            "aliased-pkg@npm:other-pkg@^2.0.0",
+            "named-registry-pkg@gh:^3.0.0",
+            "foo",
+            "bar",
+        ],
+    );
+    assert_eq!(
+        update_selectors(&dependencies, false),
+        dependencies.iter().map(|(alias, spec)| format!("{alias}@{spec}")).collect::<Vec<String>>(),
+    );
 }
 
 #[test]

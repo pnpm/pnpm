@@ -2,8 +2,8 @@ use crate::cli_args::dlx::DlxArgs;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_reporter::Reporter;
+use pnpm_config::Config;
+use pnpm_reporter::Reporter;
 use std::path::Path;
 
 /// Create a project from a `create-*` starter kit.

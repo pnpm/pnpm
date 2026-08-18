@@ -11,7 +11,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };

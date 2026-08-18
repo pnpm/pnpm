@@ -33,12 +33,12 @@ use std::{
 
 use dashmap::DashMap;
 use indexmap::IndexMap;
-use pacquet_config::{
+use pnpm_config::{
     Config, GetHomeDir, Host, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker,
-    PackageImportMethod, default_registry,
+    PackageExtension, PackageImportMethod, default_registry,
 };
-use pacquet_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart, normalize_auth_key};
-use pacquet_store_dir::StoreDir;
+use pnpm_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart, normalize_auth_key};
+use pnpm_store_dir::StoreDir;
 
 /// Host-supplied config values. Every field is optional: `None` keeps the
 /// value [`Config::current`] resolved from `.npmrc` / `pnpm-workspace.yaml` /
@@ -59,6 +59,14 @@ pub struct ConfigOverlay {
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
     pub package_import_method: Option<PackageImportMethod>,
     pub virtual_store_dir_max_length: Option<u64>,
+    pub enable_global_virtual_store: Option<bool>,
+    pub global_virtual_store_dir: Option<PathBuf>,
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// `allowUnusedPatches` — when `true`, a configured patch that matches no
+    /// installed package warns instead of failing with
+    /// `ERR_PNPM_UNUSED_PATCH`.
+    pub allow_unused_patches: Option<bool>,
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
     pub external_dependencies: Option<BTreeSet<String>>,
@@ -125,7 +133,7 @@ pub struct ConfigOverlay {
 }
 
 /// Host-supplied `peerDependencyRules`. Mirrors pnpm's shape and pacquet's
-/// [`pacquet_config::Config::peer_dependency_rules`] fields.
+/// [`pnpm_config::Config::peer_dependency_rules`] fields.
 #[derive(Debug, Default)]
 pub struct PeerDependencyRulesOverlay {
     pub ignore_missing: Option<Vec<String>>,
@@ -160,14 +168,14 @@ fn hash_config_sources(dir: &Path, hasher: &mut DefaultHasher) {
         .or_else(|| std::env::var_os("npm_config_workspace_dir"))
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .or_else(|| pacquet_workspace::find_workspace_dir(dir).ok().flatten());
+        .or_else(|| pnpm_workspace::find_workspace_dir(dir).ok().flatten());
     if let Some(workspace_dir) = workspace_dir {
-        hash_file(&workspace_dir.join(pacquet_config::WORKSPACE_MANIFEST_FILENAME), hasher);
+        hash_file(&workspace_dir.join(pnpm_config::WORKSPACE_MANIFEST_FILENAME), hasher);
         hash_file(&workspace_dir.join(".npmrc"), hasher);
     }
 
-    if let Some(config_dir) = pacquet_config::default_config_dir::<Host>() {
-        hash_file(&config_dir.join(pacquet_config::GLOBAL_CONFIG_YAML_FILENAME), hasher);
+    if let Some(config_dir) = pnpm_config::default_config_dir::<Host>() {
+        hash_file(&config_dir.join(pnpm_config::GLOBAL_CONFIG_YAML_FILENAME), hasher);
         hash_file(&config_dir.join("auth.ini"), hasher);
     }
     if let Some(home_dir) = Host::home_dir() {
@@ -252,11 +260,11 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     if let Some(registry) = &overlay.registry {
         config.registry.clone_from(registry);
-        config.registries.insert("default".to_string(), registry.clone());
+        config.registries_by_scope.insert("default".to_string(), registry.clone());
     }
     if let Some(registries) = &overlay.registries {
         for (scope, url) in registries {
-            config.registries.insert(scope.clone(), url.clone());
+            config.registries_by_scope.insert(scope.clone(), url.clone());
             if scope == "default" {
                 config.registry.clone_from(url);
             }
@@ -279,6 +287,27 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     if let Some(max_length) = overlay.virtual_store_dir_max_length {
         config.virtual_store_dir_max_length = max_length;
+    }
+    if let Some(value) = overlay.enable_global_virtual_store {
+        config.enable_global_virtual_store = value;
+    }
+    if let Some(package_extensions) = &overlay.package_extensions {
+        config.package_extensions = Some(package_extensions.clone());
+    }
+    if let Some(patched_dependencies) = &overlay.patched_dependencies {
+        // Embedded installs resolve relative patch paths from `dir`, even without a workspace file.
+        config.patched_dependencies = Some(
+            patched_dependencies
+                .iter()
+                .map(|(key, path)| (key.clone(), dir.join(path).display().to_string()))
+                .collect(),
+        );
+        if config.workspace_dir.is_none() {
+            config.workspace_dir = Some(dir.to_path_buf());
+        }
+    }
+    if let Some(value) = overlay.allow_unused_patches {
+        config.allow_unused_patches = value;
     }
     if let Some(hoist_pattern) = &overlay.hoist_pattern {
         config.hoist_pattern = Some(hoist_pattern.clone());
@@ -402,6 +431,18 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
             headers,
             &overlay_default_registry(overlay),
         )));
+    }
+    // Overlay fields may invalidate the path derived by `Config::current`.
+    if let Some(global_virtual_store_dir) = &overlay.global_virtual_store_dir {
+        config.global_virtual_store_dir.clone_from(global_virtual_store_dir);
+    } else if overlay.enable_global_virtual_store.is_some() || overlay.store_dir.is_some() {
+        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        config.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
     }
     Ok(config)
 }

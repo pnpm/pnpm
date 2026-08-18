@@ -1,7 +1,8 @@
 //! Reconcile an existing `node_modules` with the wanted lockfile before
 //! linking: the port of the removal half of pnpm's `modules-cleaner`
 //! `prune`. Removes direct-dependency links (and their bin shims) the
-//! wanted lockfile no longer records, unlinks hoisted aliases whose
+//! wanted lockfile no longer records — or, under `dedupeDirectDeps`, that
+//! the workspace root now provides — unlinks hoisted aliases whose
 //! owner snapshot disappeared, and emits the `pnpm:root` `removed` and
 //! `pnpm:stats` `removed` events pnpm emits from the same spot. Runs
 //! before the link passes so a follow-up hoist can claim the vacated
@@ -18,14 +19,14 @@ use crate::{
     prune_direct_deps::{PruneDirectDepsError, confined_modules_dir, remove_direct_dep_link},
     symlink_direct_dependencies::{importer_root_dir, validate_importer_id},
 };
-use pacquet_config::Config;
-use pacquet_lockfile::{
+use pnpm_config::Config;
+use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
-use pacquet_modules_yaml::HoistKind;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::{
+use pnpm_modules_yaml::HoistKind;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::{
     DependencyType, LogEvent, LogLevel, RemovedRoot, Reporter, RootLog, RootMessage,
 };
 use std::{
@@ -86,6 +87,22 @@ impl PruneStaleModules<'_> {
         let modules_dir_name: &OsStr =
             config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
 
+        // `dedupeDirectDeps`'s removal half. The link pass only decides
+        // which links to *create*, so a sibling's link that an earlier
+        // install legitimately created has to be retired here once the
+        // root starts providing the same resolution — otherwise the
+        // layout would depend on install history rather than on the
+        // manifests. Pnpm folds the same condition into this diff.
+        let wanted_root_deps: Option<HashMap<&PkgName, &ImporterDepVersion>> =
+            config.dedupe_direct_deps.then(|| wanted_lockfile.importers.get(".")).flatten().map(
+                |root_snapshot| {
+                    direct_deps_of(root_snapshot, included_groups)
+                        .into_iter()
+                        .map(|(alias, spec, _)| (alias, &spec.version))
+                        .collect()
+                },
+            );
+
         for (importer_id, current_snapshot) in &current_lockfile.importers {
             // An importer the wanted lockfile doesn't cover was not
             // re-materialized; leave its links alone (the partial
@@ -102,12 +119,19 @@ impl PruneStaleModules<'_> {
                 continue;
             };
             let wanted_specs = direct_deps_of(wanted_snapshot, included_groups);
+            // Root is what the others dedupe *against*; it keeps every
+            // link the wanted lockfile still records.
+            let dedupe_against_root =
+                (importer_id != ".").then_some(wanted_root_deps.as_ref()).flatten();
             let prefix = importer_dir.display().to_string();
             for (alias, current_spec, group) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
-                if wanted_specs
+                let still_wanted = wanted_specs
                     .iter()
-                    .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version)
-                {
+                    .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version);
+                let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
+                    root_deps.get(alias).is_some_and(|version| **version == current_spec.version)
+                });
+                if still_wanted && !deduped_by_root {
                     continue;
                 }
                 remove_direct_dep_link(&modules_dir, &alias.to_string())?;

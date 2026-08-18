@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use pacquet_network::{
+use pnpm_network::{
     AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
 };
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use chrono::{DateTime, Utc};
-use pacquet_config::version_policy::create_package_version_policy;
+use pnpm_config::version_policy::create_package_version_policy;
 
 use super::{
     InMemoryPackageMetaCache, PackageMetaCache, PickPackageContext, PickPackageError,
@@ -135,6 +135,7 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -176,6 +177,7 @@ async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: true,
+        needs_full_metadata_for: None,
         filter_metadata: true,
         retry_opts: RetryOpts::default(),
     };
@@ -199,7 +201,7 @@ async fn warm_in_memory_cache_skips_network() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
 
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     meta_cache.set(format!("{registry}\x00acme"), std::sync::Arc::new(preloaded));
 
@@ -213,6 +215,7 @@ async fn warm_in_memory_cache_skips_network() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -231,7 +234,7 @@ async fn offline_with_mirror_picks_from_disk() {
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
@@ -250,6 +253,7 @@ async fn offline_with_mirror_picks_from_disk() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -279,6 +283,7 @@ async fn offline_without_mirror_errors() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -294,8 +299,7 @@ async fn offline_without_mirror_errors() {
 #[test]
 fn meta_cache_tracks_registry_verification_per_entry() {
     let cache = InMemoryPackageMetaCache::default();
-    let meta: pacquet_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let meta: pnpm_registry::Package = serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     let meta = Arc::new(meta);
     cache.set_unverified("k".to_string(), Arc::clone(&meta));
     assert!(!cache.get("k").expect("entry").registry_verified);
@@ -310,7 +314,7 @@ fn meta_cache_tracks_registry_verification_per_entry() {
 async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = "https://registry.example.com/".to_string();
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
@@ -329,6 +333,7 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -358,7 +363,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
@@ -377,6 +382,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
         prefer_offline: true,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -416,7 +422,7 @@ async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline()
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
-    let stale: pacquet_registry::Package =
+    let stale: pnpm_registry::Package =
         serde_json::from_str(STALE_PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale)
         .expect("warm mirror");
@@ -435,6 +441,7 @@ async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline()
         prefer_offline: true,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -463,7 +470,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
@@ -482,6 +489,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -524,7 +532,7 @@ async fn version_spec_missing_in_mirror_fetches() {
             }
         }
     }"#;
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(older_body).expect("parse old packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
@@ -543,6 +551,7 @@ async fn version_spec_missing_in_mirror_fetches() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -581,6 +590,7 @@ async fn dry_run_skips_in_memory_cache() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -620,6 +630,7 @@ async fn pick_lowest_version_picks_min() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -704,6 +715,7 @@ async fn in_memory_cache_does_not_leak_across_registries() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -746,6 +758,7 @@ async fn invalid_package_name_errors_synchronously() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -812,6 +825,7 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -864,6 +878,7 @@ async fn optional_opt_forces_full_metadata_endpoint() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -922,6 +937,7 @@ async fn cache_key_separates_abbreviated_from_full() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -965,6 +981,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: true,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -978,6 +995,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: true,
+        needs_full_metadata_for: None,
         filter_metadata: true,
         retry_opts: RetryOpts::default(),
     };
@@ -1033,6 +1051,7 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1096,6 +1115,7 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1143,6 +1163,7 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1186,7 +1207,7 @@ async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
     let meta_cache = InMemoryPackageMetaCache::default();
     // The document a prior mirror load would have produced: abbreviated
     // (no `time`), carrying the mirror's etag as the upgrade validator.
-    let mut seeded: pacquet_registry::Package =
+    let mut seeded: pnpm_registry::Package =
         serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
     seeded.etag = Some(r#""acme-etag""#.to_string());
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
@@ -1203,6 +1224,7 @@ async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
         // take its warn-and-skip fallback instead of erroring.
         ignore_missing_time_field: true,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1256,7 +1278,7 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
             }
         }
     }"#;
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(stale_body).expect("parse stale packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm stale mirror");
@@ -1285,6 +1307,7 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1333,6 +1356,7 @@ async fn concurrent_picks_for_same_key_share_one_network_fetch() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1365,7 +1389,7 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
@@ -1384,6 +1408,7 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1431,7 +1456,7 @@ impl UpstreamRouteHook for RouteRecorder {
 /// resolution would be wrongly cached as public.
 #[tokio::test]
 async fn cache_fast_paths_record_route_through_hook() {
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
 
     // The mock 500s and expects zero calls: every pick below is served
@@ -1461,6 +1486,7 @@ async fn cache_fast_paths_record_route_through_hook() {
             prefer_offline: false,
             ignore_missing_time_field: false,
             full_metadata: false,
+            needs_full_metadata_for: None,
             filter_metadata: false,
             retry_opts: RetryOpts::default(),
         };
@@ -1492,6 +1518,7 @@ async fn cache_fast_paths_record_route_through_hook() {
             prefer_offline: false,
             ignore_missing_time_field: false,
             full_metadata: false,
+            needs_full_metadata_for: None,
             filter_metadata: false,
             retry_opts: RetryOpts::default(),
         };
@@ -1523,6 +1550,7 @@ async fn cache_fast_paths_record_route_through_hook() {
             prefer_offline: false,
             ignore_missing_time_field: false,
             full_metadata: false,
+            needs_full_metadata_for: None,
             filter_metadata: false,
             retry_opts: RetryOpts::default(),
         };
@@ -1623,6 +1651,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1647,7 +1676,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
 /// own descriptor-scoped mirror.
 #[tokio::test]
 async fn private_scope_fails_closed_on_401_without_disk_fallback() {
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     let mut server = mockito::Server::new_async().await;
     let mock = server.mock("GET", "/acme").with_status(401).create_async().await;
@@ -1679,6 +1708,7 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1691,7 +1721,7 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
 /// fail-closed behavior is scoped to private routes only.
 #[tokio::test]
 async fn public_scope_falls_back_to_mirror_on_401() {
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     let mut server = mockito::Server::new_async().await;
     let mock = server.mock("GET", "/acme").with_status(401).create_async().await;
@@ -1714,6 +1744,7 @@ async fn public_scope_falls_back_to_mirror_on_401() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };

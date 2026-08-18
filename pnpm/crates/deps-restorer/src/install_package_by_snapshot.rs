@@ -4,36 +4,49 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{Config, NodeLinker};
-use pacquet_directory_fetcher::DirectoryFetcherError;
-use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
-use pacquet_fs::lexical_normalize;
-use pacquet_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
-use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
-use pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker;
-use pacquet_lockfile::{
+use pipe_trait::Pipe;
+use pnpm_config::{Config, NodeLinker};
+use pnpm_directory_fetcher::DirectoryFetcherError;
+use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pnpm_fs::lexical_normalize;
+use pnpm_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker;
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, is_git_hosted_tarball_url,
     select_platform_variant,
 };
-use pacquet_network::ThrottledClient;
-use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
-use pacquet_store_dir::{
+use pnpm_network::ThrottledClient;
+use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
+use pnpm_resolving_npm_resolver::pick_registry_for_package;
+use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter,
     git_hosted_store_index_key,
 };
-use pacquet_tarball::{
+use pnpm_tarball::{
     DownloadTarballToStore, DownloadZipArchiveToStore, IgnoreEntryFilter, MemCache,
     PrefetchedCasPaths, SharedReportedProgressKeys, TarballError,
 };
-use pipe_trait::Pipe;
 use std::{
     borrow::Cow,
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU8},
+    sync::{Arc, LazyLock, atomic::AtomicU8},
 };
+
+/// The running pnpm, which a git-hosted dependency's build is given so it
+/// can install with the package manager it asks for.
+///
+/// `None` when the executable is something other than pnpm itself — the
+/// Node.js addon runs this code inside `node`, where there is no pnpm
+/// binary to forward to — and the build then falls back to whatever
+/// package managers the host has installed.
+static PNPM_EXECPATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
+    let path = std::env::current_exe().ok()?;
+    let stem = path.file_stem()?.to_str()?;
+    (stem == "pnpm").then_some(path)
+});
 
 /// This subroutine downloads a package tarball, extracts it, installs it to a
 /// virtual dir, then creates the symlink layout for the package. CAS file
@@ -51,7 +64,7 @@ pub struct InstallPackageBySnapshot<'a> {
     pub store_index: Option<&'a SharedReadonlyStoreIndex>,
     pub store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
     /// Install-scoped batched cache lookup result. See
-    /// [`pacquet_tarball::prefetch_cas_paths`].
+    /// [`pnpm_tarball::prefetch_cas_paths`].
     pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
     /// Install-scoped shared in-flight tarball cache. When present, the
     /// registry/tarball download routes through
@@ -79,7 +92,7 @@ pub struct InstallPackageBySnapshot<'a> {
     pub logged_methods: &'a AtomicU8,
     /// Install root, threaded into reporter events (`pnpm:progress`'s
     /// `requester`). Same value as the `prefix` in
-    /// [`pacquet_reporter::StageLog`].
+    /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
     pub package_key: &'a PackageKey,
     pub metadata: &'a PackageMetadata,
@@ -104,6 +117,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// exclusion, or swallowed optional fetch failure). See
     /// [`crate::SkippedSnapshots`] for how it is built.
     pub skipped: &'a crate::SkippedSnapshots,
+    pub include_optional_dependencies: bool,
     /// Platform triple used to select a runtime archive. This is the host
     /// triple unless `supportedArchitectures` targets another platform.
     pub runtime_platform_selector: &'a PlatformSelector,
@@ -184,7 +198,7 @@ pub enum InstallPackageBySnapshotError {
     /// preparePackage / packlist / re-import). Both share the same
     /// `GitFetcherError` taxonomy because they share `prepare_package`,
     /// `packlist`, and the CAS-import helpers; the variant covers
-    /// every fetcher path that exits through `pacquet-git-fetcher`.
+    /// every fetcher path that exits through `pnpm-git-fetcher`.
     #[diagnostic(transparent)]
     GitFetch(#[error(source)] GitFetcherError),
 
@@ -262,12 +276,25 @@ pub enum InstallPackageBySnapshotError {
     },
 }
 
+/// What installing one package produced.
+#[derive(Debug)]
+pub struct InstalledPackage {
+    pub cas_paths: HashMap<String, PathBuf>,
+    /// Whether [`Self::cas_paths`] points at mutable local source
+    /// rather than immutable content-addressed entries. See
+    /// [`crate::CreateVirtualDirBySnapshot::source_is_mutable`].
+    pub source_is_mutable: bool,
+}
+
 impl InstallPackageBySnapshot<'_> {
-    /// Execute the subroutine. Returns the CAS file index for the
-    /// fetched package — the map relative-archive-path →
-    /// absolute-store-path that downstream consumers use to either
-    /// populate a virtual-store slot (isolated) or import into a
-    /// hoisted `node_modules/<alias>/` directly (hoisted).
+    /// Execute the subroutine. Returns the fetched package's CAS file
+    /// index — the map relative-archive-path → absolute-store-path
+    /// that downstream consumers use to either populate a
+    /// virtual-store slot (isolated) or import into a hoisted
+    /// `node_modules/<alias>/` directly (hoisted) — together with
+    /// whether that map points at mutable local source, which only
+    /// this function can tell because a custom fetcher's `delegate`
+    /// can replace the lockfile's resolution.
     ///
     /// Under [`NodeLinker::Isolated`] the slot has already been
     /// materialized by the time this returns (via
@@ -279,7 +306,7 @@ impl InstallPackageBySnapshot<'_> {
     /// gets, and it's threaded into [`crate::link_hoisted_modules()`].
     pub async fn run<Reporter: self::Reporter>(
         self,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<InstalledPackage, InstallPackageBySnapshotError> {
         let InstallPackageBySnapshot {
             http_client,
             config,
@@ -297,6 +324,7 @@ impl InstallPackageBySnapshot<'_> {
             snapshot,
             allow_build_policy,
             skipped,
+            include_optional_dependencies,
             runtime_platform_selector,
             workspace_root,
             node_linker,
@@ -322,11 +350,9 @@ impl InstallPackageBySnapshot<'_> {
         let allow_build_closure =
             |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
         let scripts_prepend_node_path = match config.scripts_prepend_node_path {
-            pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
-            pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
-            pacquet_config::ScriptsPrependNodePath::WarnOnly => {
-                ExecScriptsPrependNodePath::WarnOnly
-            }
+            pnpm_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
+            pnpm_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
+            pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
         };
 
         let effective_resolution: Option<LockfileResolution> = if let Some(picker) =
@@ -374,6 +400,11 @@ impl InstallPackageBySnapshot<'_> {
             None
         };
         let resolution = effective_resolution.as_ref().unwrap_or(&metadata.resolution);
+        // Derived from the effective resolution, not the lockfile's: a
+        // custom fetcher's `delegate` can resolve to a directory, and
+        // then the file map points at mutable source even though the
+        // lockfile entry says otherwise.
+        let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
 
         let cas_paths: HashMap<String, PathBuf> = match resolution {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
@@ -464,6 +495,7 @@ impl InstallPackageBySnapshot<'_> {
                         script_shell: None,
                         node_execpath: None,
                         npm_execpath: None,
+                        pnpm_execpath: PNPM_EXECPATH.as_deref(),
                         store_dir: &config.store_dir,
                         package_id: &package_id,
                         requester,
@@ -584,6 +616,7 @@ impl InstallPackageBySnapshot<'_> {
                 // lock-step with `snapshot_cache_key`.
                 let built = !config.ignore_scripts;
                 let files_index_file = git_hosted_store_index_key(&package_id, built);
+                let package_name = package_key.name.to_string();
                 let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
                     repo: &git_resolution.repo,
                     commit: &git_resolution.commit,
@@ -597,8 +630,10 @@ impl InstallPackageBySnapshot<'_> {
                     script_shell: None,
                     node_execpath: None,
                     npm_execpath: None,
+                    pnpm_execpath: PNPM_EXECPATH.as_deref(),
                     store_dir: &config.store_dir,
                     package_id: &package_id,
+                    package_name: &package_name,
                     requester,
                     store_index_writer,
                     files_index_file: &files_index_file,
@@ -636,6 +671,8 @@ impl InstallPackageBySnapshot<'_> {
                 package_id: &package_id,
                 package_key,
                 snapshot,
+                source_is_mutable,
+                include_optional_dependencies,
                 symlink: config.symlink,
                 skipped,
                 // The non-deferred slot link runs only on the fresh
@@ -650,7 +687,7 @@ impl InstallPackageBySnapshot<'_> {
             .map_err(InstallPackageBySnapshotError::CreateVirtualDir)?;
         }
 
-        Ok(cas_paths)
+        Ok(InstalledPackage { cas_paths, source_is_mutable })
     }
 }
 
@@ -659,7 +696,7 @@ fn fetch_directory_resolution(
     dir_resolution: &DirectoryResolution,
 ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
     let directory = lexical_normalize(&workspace_root.join(&dir_resolution.directory));
-    let output = pacquet_directory_fetcher::DirectoryFetcher {
+    let output = pnpm_directory_fetcher::DirectoryFetcher {
         directory,
         include_only_package_files: false,
         resolve_symlinks: false,
@@ -696,7 +733,7 @@ fn local_file_tarball_install_url<'a>(
 /// recorded integrity pins nothing (absent, or the empty SRI string an
 /// edited lockfile can carry) is refused here rather than fetched
 /// unchecked. See
-/// [`pacquet_tarball::DownloadTarballToStore::package_integrity`] for
+/// [`pnpm_tarball::DownloadTarballToStore::package_integrity`] for
 /// what an unverified fetch does.
 ///
 /// # Panics
@@ -729,27 +766,28 @@ pub fn tarball_url_and_integrity<'a>(
             // A registry-qualified key (`<name>@<registryName>:<version>`)
             // reconstructs its tarball from its named registry; everything
             // else routes by scope.
-            let (registry, version) = if let Some((registry_name, version)) =
-                package_key.suffix.registry_qualified()
-            {
-                let registry = pacquet_resolving_npm_resolver::BUILTIN_NAMED_REGISTRIES
-                    .iter()
-                    .find(|(name, _)| *name == registry_name)
-                    .map(|(_, url)| (*url).to_string())
-                    .pipe(|builtin| config.named_registries.get(registry_name).cloned().or(builtin))
-                    .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
-                        package_key: package_key.to_string(),
-                        registry_name: registry_name.to_string(),
-                    })?;
-                (registry, version.to_string())
-            } else {
-                let registries: HashMap<String, String> =
-                    config.resolved_registries().into_iter().collect();
-                (
-                    pick_registry_for_package(&registries, &name, None),
-                    package_key.suffix.version().to_string(),
-                )
-            };
+            let (registry, version) =
+                if let Some((registry_name, version)) = package_key.suffix.registry_qualified() {
+                    let registry = pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
+                        .iter()
+                        .find(|(name, _)| *name == registry_name)
+                        .map(|(_, url)| (*url).to_string())
+                        .pipe(|builtin| {
+                            config.registries_by_prefix.get(registry_name).cloned().or(builtin)
+                        })
+                        .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
+                            package_key: package_key.to_string(),
+                            registry_name: registry_name.to_string(),
+                        })?;
+                    (registry, version.to_string())
+                } else {
+                    let registries: HashMap<String, String> =
+                        config.resolved_registries().into_iter().collect();
+                    (
+                        pick_registry_for_package(&registries, &name, None),
+                        package_key.suffix.version().to_string(),
+                    )
+                };
             let registry = registry.strip_suffix('/').unwrap_or(&registry);
             let bare_name = package_key.name.bare.as_str();
             let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");
@@ -809,7 +847,7 @@ pub fn host_platform_selector() -> PlatformSelector {
 /// the first requested value on each axis and expanding `current` to the host.
 #[must_use]
 pub fn runtime_platform_selector(
-    supported: Option<&pacquet_package_is_installable::SupportedArchitectures>,
+    supported: Option<&pnpm_package_is_installable::SupportedArchitectures>,
 ) -> PlatformSelector {
     let host = host_platform_selector();
     let pick = |values: Option<&Vec<String>>, current: &str| {
@@ -845,7 +883,7 @@ pub fn runtime_platform_selector(
 /// store free of the bundled tooling without a post-hoc cleanup.
 ///
 /// The hand-coded matcher avoids pulling a regex engine into
-/// [`pacquet_tarball`].
+/// [`pnpm_tarball`].
 fn node_extras_filter(path: &str) -> bool {
     // ^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$))
     let after_lib = path.strip_prefix("lib/").unwrap_or(path);
@@ -1035,7 +1073,7 @@ fn synthesize_runtime_manifest_bytes(
 /// Render a variant's target list as a human-readable string for
 /// inclusion in the [`InstallPackageBySnapshotError::NoMatchingPlatformVariant`]
 /// error.
-fn render_variant_targets(variants: &[pacquet_lockfile::PlatformAssetResolution]) -> String {
+fn render_variant_targets(variants: &[pnpm_lockfile::PlatformAssetResolution]) -> String {
     let mut entries: Vec<String> = Vec::new();
     for variant in variants {
         for target in &variant.targets {

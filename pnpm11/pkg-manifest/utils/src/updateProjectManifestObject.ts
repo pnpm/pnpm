@@ -41,6 +41,24 @@ export async function updateProjectManifestObject (
   packageManifest: ProjectManifest,
   packageSpecs: PackageSpecObject[]
 ): Promise<ProjectManifest> {
+  applyPackageSpecs(packageManifest, packageSpecs)
+
+  packageManifestLogger.debug({
+    prefix,
+    updated: packageManifest,
+  })
+  return packageManifest
+}
+
+/**
+ * The manifest edit {@link updateProjectManifestObject} applies, without
+ * announcing it. Separate so a caller that may still discard the edited
+ * manifest reports the update only once it commits to it.
+ */
+export function applyPackageSpecs (
+  packageManifest: ProjectManifest,
+  packageSpecs: PackageSpecObject[]
+): ProjectManifest {
   for (const packageSpec of packageSpecs) {
     if (packageSpec.saveType) {
       const spec = packageSpec.bareSpecifier ?? findSpec(packageSpec.alias, packageManifest)
@@ -69,11 +87,6 @@ export async function updateProjectManifestObject (
       }
     }
   }
-
-  packageManifestLogger.debug({
-    prefix,
-    updated: packageManifest,
-  })
   return packageManifest
 }
 

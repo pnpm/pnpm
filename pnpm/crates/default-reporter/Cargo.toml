@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-default-reporter"
+name                  = "pnpm-default-reporter"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,7 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-reporter = { workspace = true }
+pnpm-reporter = { workspace = true }
 
 chrono      = { workspace = true }
 libc        = { workspace = true }

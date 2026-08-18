@@ -7,10 +7,12 @@ import type {
   ProjectManifest,
   ProjectRootDir,
   ProjectsGraph,
-  Registries,
+  RegistriesByScope,
   RegistryConfig,
+  RegistryOptions,
   TrustPolicy,
   VersioningSettings,
+  VirtualStoreType,
 } from '@pnpm/types'
 
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
@@ -136,7 +138,6 @@ export interface Config extends OptionsFromRootManifest {
   nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
-  /** Never read from a project `pnpm-workspace.yaml`, which `pnpm login` would let choose a global scope-to-registry route. */
   scope?: string
   optional?: boolean
   unsafePerm?: boolean
@@ -188,6 +189,12 @@ export interface Config extends OptionsFromRootManifest {
   virtualStoreDir?: string
   virtualStoreOnly?: boolean
   enableGlobalVirtualStore?: boolean
+  /**
+   * The canonical spelling of {@link Config.enableGlobalVirtualStore}, derived
+   * from it so `pnpm config get` answers either name. Nothing installs off
+   * this field.
+   */
+  virtualStoreType?: VirtualStoreType
   verifyStoreIntegrity?: boolean
   frozenStore?: boolean
   maxSockets?: number
@@ -210,7 +217,7 @@ export interface Config extends OptionsFromRootManifest {
   workspacePackagePatterns?: string[]
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
-  cleanupUnusedCatalogs?: boolean
+  catalogPrune?: boolean
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
@@ -252,16 +259,23 @@ export interface Config extends OptionsFromRootManifest {
 
   pnprServer?: string
 
-  registries: Registries
-  packageManagerRegistries?: Registries
+  registriesByScope: RegistriesByScope
+  packageManagerRegistries?: RegistriesByScope
   packageManagerNetworkConfig?: PackageManagerNetworkConfig
   /**
    * As the user wrote it. Built-ins are filled in by
-   * `normalizeNamedRegistries` where a lookup happens, not here — this value
+   * `normalizeRegistriesByPrefix` where a lookup happens, not here — this value
    * is also forwarded to a pnpr server, which must only be asked about
    * registries the project actually declares.
    */
-  namedRegistries?: Record<string, string>
+  registriesByPrefix?: Record<string, string>
+  /**
+   * Non-secret per-registry settings from `pnpm-workspace.yaml`, keyed by
+   * normalized registry URL. Deliberately not folded into `configByUri`: that
+   * one carries credentials, and the install and lockfile layers that need a
+   * registry's tarball layout must not be handed its secrets.
+   */
+  registryOptionsByUrl?: Record<string, RegistryOptions>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
@@ -303,6 +317,7 @@ export interface Config extends OptionsFromRootManifest {
   preserveAbsolutePaths?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeExcludePrune?: boolean
   minimumReleaseAgeIgnoreMissingTime?: boolean
   minimumReleaseAgeStrict?: boolean
   fetchWarnTimeoutMs?: number
@@ -319,6 +334,8 @@ export interface Config extends OptionsFromRootManifest {
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
+  /** `catalogPrune`'s former name, still accepted. */
+  cleanupUnusedCatalogs?: boolean
 }
 
 export const PROJECT_CONFIG_FIELDS = [

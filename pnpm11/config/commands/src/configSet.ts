@@ -1,7 +1,7 @@
 import path from 'node:path'
 import util from 'node:util'
 
-import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, types } from '@pnpm/config.reader'
+import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isProjectManifestSkippedKey, types, whereRefusedKeyBelongs } from '@pnpm/config.reader'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { parsePropertyPath } from '@pnpm/object.property-path'
@@ -50,16 +50,28 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   switch (configFileName) {
     case GLOBAL_CONFIG_YAML_FILENAME:
     case WORKSPACE_MANIFEST_FILENAME: {
-      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
+      // `pnpm config set <key> null` casts to a removal too.
+      const castValue = castField(value, kebabCase(key))
+      const isRemoval = castValue == null
+      // Validation stops a write landing in a file that will not read it back.
+      // Nothing reads back a key being deleted, so a removal skips both checks.
+      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME && !isRemoval) {
         key = validateYamlConfigKey(key)
       }
-      key = validateWorkspaceKey(key)
-      await updateWorkspaceManifest(configDir, {
-        fileName: configFileName,
-        updatedFields: ({
-          [key]: castField(value, kebabCase(key)),
-        }),
-      })
+      const writtenKey = isRemoval ? camelCase(key) : validateWorkspaceKey(key)
+      if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedKey(writtenKey)) {
+        throw new ConfigSetNotAProjectSettingError(writtenKey)
+      }
+      const updatedFields: Record<string, unknown> = {
+        [writtenKey]: castValue,
+      }
+      // A hand-edited file may carry a spelling pnpm did not write, and that
+      // is the one the reader's warning names, so a removal clears them all.
+      if (isRemoval) {
+        updatedFields[key] = null
+        updatedFields[kebabCase(writtenKey)] = null
+      }
+      await updateWorkspaceManifest(configDir, { fileName: configFileName, updatedFields })
       break
     }
 
@@ -188,6 +200,23 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
   }
 }
 
+/** The suggestion for {@link key}, which falls back when the key is allowed in a project manifest. */
+function hintForRefusedKey (key: string, fallback: string): string {
+  const camelKey = camelCase(key)
+  if (!isProjectManifestSkippedKey(camelKey)) return fallback
+  return whereRefusedKeyBelongs(camelKey)
+}
+
+export class ConfigSetNotAProjectSettingError extends PnpmError {
+  readonly key: string
+  constructor (key: string) {
+    super('CONFIG_SET_NOT_A_PROJECT_SETTING', `The key ${JSON.stringify(key)} cannot be set in a project's pnpm-workspace.yaml`, {
+      hint: whereRefusedKeyBelongs(key),
+    })
+    this.key = key
+  }
+}
+
 /**
  * Only an rc option key would be allowed to be kebab-case, otherwise, it must be camelCase.
  *
@@ -195,6 +224,7 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
  */
 function validateWorkspaceKey (key: string): string {
   if (Object.hasOwn(types, key) || isConfigFileKey(key)) return camelCase(key)
+  if (isProjectManifestSkippedKey(camelCase(key))) return camelCase(key)
   if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
   return key
 }
@@ -221,7 +251,7 @@ export class ConfigSetUnsupportedYamlConfigKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY', `The key ${JSON.stringify(key)} isn't supported by the global config.yaml file`, {
-      hint: 'Try setting them instead to the local pnpm-workspace.yaml file',
+      hint: hintForRefusedKey(key, 'Try setting them instead to the local pnpm-workspace.yaml file'),
     })
     this.key = key
   }

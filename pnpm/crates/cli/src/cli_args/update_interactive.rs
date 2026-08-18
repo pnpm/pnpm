@@ -17,19 +17,23 @@
 
 use crate::{
     cli_args::{
-        outdated::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated_for_importer},
+        outdated::{
+            OutdatedPackage, OutdatedQuery, OutdatedRun, TargetVersion,
+            collect_outdated_for_importer, collect_outdated_for_importer_in_run,
+        },
         pipelines::InstallFamilySelection,
+        sanitize::sanitize_inline,
     },
     github_actions,
 };
 use dialoguer::MultiSelect;
 use miette::{IntoDiagnostic, miette};
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::Reporter;
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::Reporter;
 use std::{collections::HashSet, path::Path};
 
 struct InteractiveUpdateProject<'a> {
@@ -41,6 +45,113 @@ pub(crate) struct InteractiveUpdateOptions<'a> {
     pub latest: bool,
     pub include_direct: &'a [DependencyGroup],
     pub include_github_actions: bool,
+}
+
+pub(crate) async fn select_global_package_groups(
+    base_config: &'static Config,
+    packages: &[String],
+    latest: bool,
+) -> miette::Result<Option<HashSet<String>>> {
+    let global_pkg_dir = base_config.global_pkg_dir.clone().ok_or_else(|| {
+        miette!(code = "ERR_PNPM_NO_GLOBAL_BIN_DIR", "Unable to find the global packages directory")
+    })?;
+    let mut config = base_config.clone();
+    config.workspace_dir = None;
+    config.shared_workspace_lockfile = false;
+    // A group's lockfile is written unconditionally (`run_group_install`
+    // forces it) because it is where the installed versions are recorded, so
+    // reading it back must not depend on the caller's `lockfile` setting.
+    config.lockfile = true;
+    let config = Config::leak(config);
+    let query = OutdatedQuery {
+        target_version: if latest { TargetVersion::Latest } else { TargetVersion::WithinRange },
+        include_direct: &[DependencyGroup::Prod],
+        match_names: None,
+        include_deprecated: false,
+    };
+    let mut labels = Vec::new();
+    let mut hashes = Vec::new();
+    let global_packages = pnpm_global::scan_global_packages(&global_pkg_dir)
+        .map_err(|err| miette!("failed to scan global packages: {err}"))?;
+    if global_packages.is_empty() {
+        println!("No global packages found");
+        return Ok(None);
+    }
+    // A global group is always updated as a whole, so the params select groups
+    // rather than dependencies, the same way `handle_global_update` reads them.
+    let matched_packages = if packages.is_empty() {
+        global_packages
+    } else {
+        let matched = global_packages
+            .into_iter()
+            .filter(|pkg| packages.iter().any(|param| pkg.has_alias(param)))
+            .collect::<Vec<_>>();
+        if matched.is_empty() {
+            println!("No matching global packages found");
+            return Ok(None);
+        }
+        matched
+    };
+    for pkg in matched_packages {
+        let state = crate::State::init(pkg.install_dir.join("package.json"), config, false)
+            .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
+        let lockfile = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let outdated = collect_outdated_for_importer(
+            &state.manifest,
+            lockfile,
+            pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+            config,
+            &state.http_client,
+            &query,
+        )
+        .await?;
+        if outdated.is_empty() {
+            continue;
+        }
+        labels.push(
+            outdated
+                .iter()
+                .map(|package| {
+                    format!(
+                        "{} {} → {}",
+                        sanitize_inline(&package.alias),
+                        package.current,
+                        package.target,
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        hashes.push(pkg.hash);
+    }
+    if labels.is_empty() {
+        let message = if latest {
+            "All of your dependencies are already up to date"
+        } else {
+            "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
+        };
+        println!("{message}");
+        return Ok(None);
+    }
+    let selected_indices = MultiSelect::new()
+        .with_prompt(
+            "Choose which global package groups to update (space to select, enter to confirm)",
+        )
+        .items(&labels)
+        .interact()
+        .into_diagnostic()
+        .map_err(|err| miette!("interactive update selection failed: {err}"))?;
+    let selected = selected_indices
+        .into_iter()
+        .filter_map(|index| hashes.get(index).cloned())
+        .collect::<HashSet<_>>();
+    if selected.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(selected))
 }
 
 /// Gather outdated direct dependencies, prompt the user, and return the
@@ -92,7 +203,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         .filter(|project| selection.selected_dirs.contains(&project.root_dir))
         .map(|project| InteractiveUpdateProject {
             manifest: &project.manifest,
-            importer_id: pacquet_workspace::importer_id_from_root_dir(
+            importer_id: pnpm_workspace::importer_id_from_root_dir(
                 &selection.workspace_root,
                 &project.root_dir,
             ),
@@ -149,14 +260,16 @@ async fn collect_choices(
         match_names: None,
         include_deprecated: false,
     };
+    let run = OutdatedRun::new(config)?;
     let choices = futures_util::future::join_all(projects.iter().map(|project| {
-        collect_outdated_for_importer(
+        collect_outdated_for_importer_in_run(
             project.manifest,
             lockfile,
             &project.importer_id,
             config,
             http_client,
             &query,
+            &run,
         )
     }))
     .await;

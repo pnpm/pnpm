@@ -13,7 +13,7 @@ roughly the role [verdaccio](https://verdaccio.org/) plays in the JS
 ecosystem. It is a **sibling** of `pnpm/`, not part of it.
 
 The two Rust projects share the same Cargo workspace at the repo root so
-that the registry can depend directly on `pacquet-*` crates (tarball
+that the registry can depend directly on the pacquet `pnpm-*` crates (tarball
 handling, integrity hashes, manifest parsing, network plumbing, etc.) and
 the `Cargo.lock` stays unified.
 
@@ -52,18 +52,18 @@ The Rust workspace itself, `rust-toolchain.toml`, `justfile`, and
 
 ## Code reuse
 
-**Prefer existing `pacquet-*` crates over writing new code.** Before
-implementing anything non-trivial, check whether `pacquet-*` already
-solves it. Candidates worth checking first: `pacquet-tarball`,
-`pacquet-crypto-hash`, `pacquet-crypto-shasums-file`,
-`pacquet-package-manifest`, `pacquet-network`, `pacquet-registry`,
-`pacquet-fs`, `pacquet-diagnostics`. Add a `pacquet-*` crate the same
+**Prefer existing `pnpm-*` crates over writing new code.** Before
+implementing anything non-trivial, check whether `pnpm-*` already
+solves it. Candidates worth checking first: `pnpm-tarball`,
+`pnpm-crypto-hash`, `pnpm-crypto-shasums-file`,
+`pnpm-package-manifest`, `pnpm-network`, `pnpm-registry`,
+`pnpm-fs`, `pnpm-diagnostics`. Add a `pnpm-*` crate the same
 way pacquet crates do: declare it in the root `[workspace.dependencies]`
 (already done for the pacquet crates) and use `{ workspace = true }`
 in this crate's `Cargo.toml`.
 
 If a piece of code currently inside `pnpm/` turns out to be genuinely
-shared between the two stacks and the `pacquet-` prefix becomes
+shared between the two stacks and living under `pnpm/crates/` becomes
 misleading, propose renaming/relocating it in a dedicated PR — not as a
 drive-by during feature work.
 
@@ -79,7 +79,7 @@ the root with the `pnpr-` prefix so other crates can use
 `{ workspace = true }`.
 
 Use the `pnpr-` prefix exclusively for registry-only crates.
-Don't reach for `pacquet-` to name something new on the registry side.
+Don't reach for `pnpm-` to name something new on the registry side.
 
 ## Dependencies
 

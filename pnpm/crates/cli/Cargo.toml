@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-cli"
+name                  = "pnpm-cli"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -15,51 +15,55 @@ name = "pnpm"
 path = "src/bin/main.rs"
 
 [dependencies]
-pacquet-auth-commands                     = { workspace = true }
-pacquet-catalogs-config                   = { workspace = true }
-pacquet-catalogs-protocol-parser          = { workspace = true }
-pacquet-catalogs-types                    = { workspace = true }
-pacquet-cmd-shim                          = { workspace = true }
-pacquet-crypto-hash                       = { workspace = true }
-pacquet-detect-libc                       = { workspace = true }
-pacquet-engine-runtime-node-resolver      = { workspace = true }
-pacquet-pnpr-client                       = { workspace = true }
-pacquet-env-installer                     = { workspace = true }
-pacquet-executor                          = { workspace = true }
-pacquet-fs                                = { workspace = true }
-pacquet-global                            = { workspace = true }
-pacquet-graph-hasher                      = { workspace = true }
-pacquet-hooks                             = { workspace = true }
-pacquet-lockfile                          = { workspace = true }
-pacquet-modules-yaml                      = { workspace = true }
-pacquet-network                           = { workspace = true }
-pacquet-network-web-auth                  = { workspace = true }
-pacquet-config                            = { workspace = true }
-pacquet-config-parse-overrides            = { workspace = true }
-pacquet-default-reporter                  = { workspace = true }
-pacquet-deps-path                         = { workspace = true }
-pacquet-pack                              = { workspace = true }
-pacquet-publish                           = { workspace = true }
-pacquet-package-manifest                  = { workspace = true }
-pacquet-package-manager                   = { workspace = true }
-pacquet-patching                          = { workspace = true }
-pacquet-package-is-installable            = { workspace = true }
-pacquet-registry                          = { workspace = true }
-pacquet-reporter                          = { workspace = true }
-pacquet-resolving-git-resolver            = { workspace = true }
-pacquet-resolving-npm-resolver            = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
-pacquet-resolving-resolver-base           = { workspace = true }
-pacquet-store-dir                         = { workspace = true }
-pacquet-tarball                           = { workspace = true }
-pacquet-diagnostics                       = { workspace = true }
-pacquet-directory-fetcher                 = { workspace = true }
-pacquet-versioning                        = { workspace = true }
-pacquet-workspace                         = { workspace = true }
-pacquet-workspace-manifest-writer         = { workspace = true }
-pacquet-workspace-projects-graph          = { workspace = true }
-pacquet-workspace-projects-filter         = { workspace = true }
-pacquet-workspace-state                   = { workspace = true }
+pnpm-auth-commands                     = { workspace = true }
+pnpm-catalogs-config                   = { workspace = true }
+pnpm-catalogs-protocol-parser          = { workspace = true }
+pnpm-catalogs-resolver                 = { workspace = true }
+pnpm-catalogs-types                    = { workspace = true }
+pnpm-cmd-shim                          = { workspace = true }
+pnpm-crypto-hash                       = { workspace = true }
+pnpm-detect-libc                       = { workspace = true }
+pnpm-engine-pm-yarn-resolver           = { workspace = true }
+pnpm-engine-runtime-node-resolver      = { workspace = true }
+pnpm-pnpr-client                       = { workspace = true }
+pnpm-env-installer                     = { workspace = true }
+pnpm-executor                          = { workspace = true }
+pnpm-fs                                = { workspace = true }
+pnpm-global                            = { workspace = true }
+pnpm-graph-hasher                      = { workspace = true }
+pnpm-hooks                             = { workspace = true }
+pnpm-injected-deps-syncer              = { workspace = true }
+pnpm-lockfile                          = { workspace = true }
+pnpm-lockfile-verification             = { workspace = true }
+pnpm-modules-yaml                      = { workspace = true }
+pnpm-network                           = { workspace = true }
+pnpm-network-web-auth                  = { workspace = true }
+pnpm-config                            = { workspace = true }
+pnpm-config-parse-overrides            = { workspace = true }
+pnpm-default-reporter                  = { workspace = true }
+pnpm-deps-path                         = { workspace = true }
+pnpm-pack                              = { workspace = true }
+pnpm-publish                           = { workspace = true }
+pnpm-package-manifest                  = { workspace = true }
+pnpm-package-manager                   = { workspace = true }
+pnpm-patching                          = { workspace = true }
+pnpm-package-is-installable            = { workspace = true }
+pnpm-registry                          = { workspace = true }
+pnpm-reporter                          = { workspace = true }
+pnpm-resolving-git-resolver            = { workspace = true }
+pnpm-resolving-npm-resolver            = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-resolving-resolver-base           = { workspace = true }
+pnpm-store-dir                         = { workspace = true }
+pnpm-tarball                           = { workspace = true }
+pnpm-diagnostics                       = { workspace = true }
+pnpm-directory-fetcher                 = { workspace = true }
+pnpm-versioning                        = { workspace = true }
+pnpm-workspace                         = { workspace = true }
+pnpm-workspace-manifest-writer         = { workspace = true }
+pnpm-workspace-projects-graph          = { workspace = true }
+pnpm-workspace-projects-filter         = { workspace = true }
+pnpm-workspace-state                   = { workspace = true }
 
 chrono               = { workspace = true }
 clap                 = { workspace = true }
@@ -87,6 +91,7 @@ rmp-serde            = { workspace = true }
 same-file            = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
+ssri                 = { workspace = true }
 tabled               = { workspace = true }
 tar                  = { workspace = true }
 tempfile             = { workspace = true }
@@ -105,6 +110,7 @@ wax                  = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
   "Win32_Storage_FileSystem",
+  "Win32_System_SystemInformation",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
 ] }
@@ -113,9 +119,9 @@ windows-sys = { workspace = true, features = [
 libc = { workspace = true }
 
 [dev-dependencies]
-pacquet-network-web-auth-testing = { workspace = true }
-pacquet-testing-utils            = { workspace = true }
-pnpr                             = { workspace = true }
+pnpm-network-web-auth-testing = { workspace = true }
+pnpm-testing-utils            = { workspace = true }
+pnpr                          = { workspace = true }
 
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }

@@ -19,11 +19,12 @@ use std::{
     time::Duration,
 };
 
-use pacquet_pnpr_client::{
+use pnpm_config::RegistryDeclaration;
+use pnpm_pnpr_client::{
     PnprClient, PnprClientError, ResolveOptions, ResolveProject, ResolveProjectsOptions,
     VerifyLockfileOptions,
 };
-use pacquet_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
@@ -206,19 +207,23 @@ fn options(
         dev_dependencies: BTreeMap::new(),
         optional_dependencies: BTreeMap::new(),
         registry: registry.to_string(),
-        named_registries: BTreeMap::new(),
+        registries: BTreeMap::new(),
         authorization: Some(authorization.to_string()),
         overrides: None,
         catalogs: None,
+        auto_install_peers: None,
+        dedupe_peers: None,
+        exclude_links_from_lockfile: None,
         lockfile: None,
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         trust_lockfile: false,
+        resolution_mode: pnpm_config::ResolutionMode::default(),
         minimum_release_age: None,
         minimum_release_age_exclude: None,
         minimum_release_age_ignore_missing_time: true,
-        trust_policy: pacquet_config::TrustPolicy::Off,
+        trust_policy: pnpm_config::TrustPolicy::Off,
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,
     }
@@ -250,6 +255,12 @@ async fn sends_the_identity_header_but_no_upstream_credentials() {
         !request.contains("authHeaders"),
         "the request body must not carry upstream credentials, got:\n{request}",
     );
+    for field in ["autoInstallPeers", "dedupePeers", "excludeLinksFromLockfile"] {
+        assert!(
+            request.contains(&format!(r#""{field}":null"#)),
+            "an unsent {field} must stay unset rather than turn into `false`, got:\n{request}",
+        );
+    }
 }
 
 #[tokio::test]
@@ -721,4 +732,84 @@ async fn handshake_rejects_a_non_pnpr_server() {
     let err = client.handshake().await.expect_err("a non-pnpr server should be rejected");
     assert!(err.to_string().contains("not a pnpr server"), "got: {err}");
     mock.assert_async().await;
+}
+
+/// The client describes its registries to the server the way its own
+/// `registries` setting does, so a scope the client routes elsewhere resolves
+/// from that registry and not from the request's default one.
+///
+/// This is also the contract test for the two ends of the protocol: the
+/// server reads the declarations under the key the client writes them.
+#[tokio::test]
+async fn resolves_a_scope_from_the_registry_declared_for_it() {
+    let registry = TestRegistry::start();
+    // A default registry that is allowlisted but serves nothing: reaching it
+    // for the scoped package is the failure this test is looking for.
+    let dead_default = "http://127.0.0.1:9/";
+    let (pnpr_url, pnpr_auth, _storage) =
+        start_pnpr_inner(None, Vec::new(), vec![registry.url(), dead_default.to_string()]).await;
+
+    let mut opts = options(dead_default, &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    opts.registries = BTreeMap::from([(
+        registry.url(),
+        RegistryDeclaration {
+            scopes: Some(vec!["@foo".to_string()]),
+            ..RegistryDeclaration::default()
+        },
+    )]);
+
+    let outcome = PnprClient::new(pnpr_url).resolve(opts).await.expect("install should succeed");
+
+    let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
+    assert!(
+        packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+        "the declared registry should have served the scope, got: {:?}",
+        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+    );
+}
+
+/// A client describes its whole configuration, including scopes a given
+/// resolve never reaches. Declaring a registry this pnpr does not serve is
+/// therefore not an error by itself — only fetching from one is.
+#[tokio::test]
+async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+
+    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    opts.registries = BTreeMap::from([(
+        "http://169.254.169.254/".to_string(),
+        RegistryDeclaration {
+            scopes: Some(vec!["@never-resolved".to_string()]),
+            ..RegistryDeclaration::default()
+        },
+    )]);
+
+    let outcome = PnprClient::new(pnpr_url).resolve(opts).await.expect("install should succeed");
+    let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
+    assert!(packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")));
+}
+
+/// The SSRF boundary still holds where it matters: a scope the resolve *does*
+/// reach is refused before the request leaves the server.
+#[tokio::test]
+async fn a_declared_registry_the_resolve_reaches_is_refused() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+
+    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    opts.registries = BTreeMap::from([(
+        "http://169.254.169.254/".to_string(),
+        RegistryDeclaration {
+            scopes: Some(vec!["@foo".to_string()]),
+            ..RegistryDeclaration::default()
+        },
+    )]);
+
+    let Err(error) = PnprClient::new(pnpr_url).resolve(opts).await else {
+        panic!("an off-allowlist registry the resolve reaches must be refused")
+    };
+    let error = error.to_string();
+    assert!(error.contains("is not allowed by this pnpr server"), "{error}");
+    assert!(error.contains("169.254.169.254"), "the refused origin is named: {error}");
 }

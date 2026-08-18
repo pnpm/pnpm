@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-registry"
+name                  = "pnpm-registry"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,8 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-diagnostics = { workspace = true }
-pacquet-network     = { workspace = true }
+pnpm-diagnostics = { workspace = true }
+pnpm-network     = { workspace = true }
 
 derive_more = { workspace = true }
 reqwest     = { workspace = true }

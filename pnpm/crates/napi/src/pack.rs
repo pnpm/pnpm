@@ -1,6 +1,6 @@
 //! `pack` — build a publishable `.tgz` from a project directory.
 //!
-//! Wraps [`pacquet_pack::api`], replacing Bit's side-load of
+//! Wraps [`pnpm_pack::api`], replacing Bit's side-load of
 //! `@pnpm/releasing.commands`' internal `publish/pack.js`. The Rust `api` is
 //! synchronous and does blocking filesystem work plus (unless
 //! `ignoreScripts`) runs the `prepack` / `prepare` / `postpack` lifecycle
@@ -10,8 +10,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use napi_derive::napi;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{NodeLinker, PNPM_VERSION};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{NodeLinker, PNPM_VERSION};
 
 use crate::{
     error::to_napi_error,
@@ -54,7 +54,7 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
     // Restores the previous sink on drop, whatever path `pack` returns on.
     let _sink_guard = EngineCallGuard::new(on_log);
 
-    let pack_opts = pacquet_pack::PackOptions {
+    let pack_opts = pnpm_pack::PackOptions {
         dir: PathBuf::from(&options.dir),
         // Bit does not use catalog: specifiers; workspace catalog loading is
         // deferred until a consumer needs it. See pnpm/plans/NAPI.md.
@@ -88,7 +88,7 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         // `api` is async; drive it to completion on this blocking-pool thread so
         // the blocking tarball write does not tie up an async worker thread.
         tokio::runtime::Handle::current()
-            .block_on(pacquet_pack::api::<NodeBridgeReporter, pacquet_pack::Host>(&pack_opts))
+            .block_on(pnpm_pack::api::<NodeBridgeReporter, pnpm_pack::Host>(&pack_opts))
     })
     .await;
 

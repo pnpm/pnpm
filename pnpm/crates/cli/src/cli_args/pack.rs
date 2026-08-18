@@ -1,8 +1,8 @@
 //! `pacquet pack` — create a tarball from a package.
 //!
-//! The single-project work lives in [`pacquet_pack::api`]; this module
+//! The single-project work lives in [`pnpm_pack::api`]; this module
 //! maps the resolved [`Config`] and CLI flags onto
-//! [`pacquet_pack::PackOptions`], and drives the recursive (`-r`) sweep
+//! [`pnpm_pack::PackOptions`], and drives the recursive (`-r`) sweep
 //! over the workspace the same way the other recursive commands do.
 //!
 //! `--workspace-concurrency` is accepted but the recursive sweep runs
@@ -10,20 +10,22 @@
 //! `embedReadme` / `extraEnv` config keys are not surfaced by `Config`
 //! yet, so they take their `false` / empty defaults.
 
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_filtered_projects,
+use crate::cli_args::{
+    catalogs::configured_catalogs,
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+        sort_filtered_projects,
+    },
 };
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_pack::{
+use miette::Context;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_pack::{
     Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
 };
-use pacquet_reporter::Reporter;
-use pacquet_workspace::read_workspace_manifest;
+use pnpm_reporter::Reporter;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -34,26 +36,6 @@ use std::{
 /// underlying pack diagnostic instead of this wrapper, so the two sites must
 /// share one definition.
 pub(crate) const PACK_ERROR_CONTEXT: &str = "pack the package";
-
-/// The catalogs `catalog:` specifiers resolve against when packing a
-/// package for `pack` / `publish`: the hook-injected set when an
-/// `updateConfig` pnpmfile provided one ([`Config::catalogs`] is `Some`),
-/// otherwise the `catalog:` / `catalogs:` tables of the workspace
-/// manifest — the same fallback the install performs.
-pub(crate) fn pack_catalogs(config: &Config) -> miette::Result<Catalogs> {
-    if let Some(catalogs) = &config.catalogs {
-        return Ok(catalogs.clone());
-    }
-    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
-        return Ok(Catalogs::default());
-    };
-    let workspace_manifest = read_workspace_manifest(workspace_dir)
-        .into_diagnostic()
-        .wrap_err("read the workspace manifest for catalogs")?;
-    get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-        .into_diagnostic()
-        .wrap_err("read the workspace catalogs")
-}
 
 /// Create a tarball from a package.
 #[derive(Debug, Args)]
@@ -107,7 +89,7 @@ impl PackArgs {
             let mut options = self.pack_options(
                 dir.to_path_buf(),
                 config,
-                pack_catalogs(config)?,
+                configured_catalogs(config)?,
                 self.out.clone(),
                 self.pack_destination.clone(),
                 crate::config_deps::load_before_packing_hooks(config, pnpmfile_root),
@@ -155,7 +137,7 @@ impl PackArgs {
         // to the CLI dir), so every tarball lands in one place regardless
         // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
-        let catalogs = pack_catalogs(config)?;
+        let catalogs = configured_catalogs(config)?;
         // Load the pnpmfiles once for the whole workspace (they live at the
         // workspace root); cloning the Arcs into each project shares one
         // worker per pnpmfile instead of re-spawning it per packed project.

@@ -1,7 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::PackageImportMethod;
-use pacquet_reporter::{
+use pnpm_config::PackageImportMethod;
+use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, PackageImportMethodLog, Reporter,
 };
 use std::{
@@ -181,12 +181,13 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
         // the `-exec` suffix (idempotent, a no-op for non-exec entries)
         // before adopting the dirent.
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
-                .map_err(|error| LinkFileError::Import {
+            pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link).map_err(
+                |error| LinkFileError::Import {
                     from: source_file.to_path_buf(),
                     to: target_link.to_path_buf(),
                     error,
-                })
+                },
+            )
         }
         Err(error) => Err(LinkFileError::Import {
             from: source_file.to_path_buf(),
@@ -244,17 +245,17 @@ fn try_import<Reporter: self::Reporter>(
 }
 
 /// `fs::copy` for the copy fallback tier, then exec-bit restoration via
-/// [`pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix`].
+/// [`pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix`].
 fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     fs::copy(source_file, target_link)?;
-    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+    pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
 /// `reflink_copy::reflink` for the clone tier, then exec-bit restoration via
-/// [`pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix`].
+/// [`pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix`].
 fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     reflink_copy::reflink(source_file, target_link)?;
-    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+    pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
 /// EXDEV = "cross-device link not permitted". Linux / macOS / BSD all
@@ -325,7 +326,7 @@ fn auto_link<Reporter: self::Reporter>(
             // just-created file and mask the real error behind `AlreadyExists`.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
-                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
+                    pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
@@ -375,7 +376,7 @@ fn clone_or_copy_link<Reporter: self::Reporter>(
             // here); the post-reflink restoration error is terminal.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
-                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
+                    pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }

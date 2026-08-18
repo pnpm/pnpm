@@ -3,22 +3,32 @@
 //! ignoring the project's `packageManager` / `devEngines.packageManager`
 //! pin.
 //!
+//! This is about pnpm's own version. Running one of the *other* package
+//! managers is `pnpm dlx <pm>@<spec>` (`pnx yarn@4 install`), which
+//! provisions it through the same engine installer.
+//!
 //! `with current <cmd>` is rewritten before clap parses argv (see
 //! [`crate::with_current`]) into a direct dispatch of `<cmd>` with
 //! `pmOnFail` forced to `ignore`, so this handler only ever sees a
 //! version / range / dist-tag spec, which it resolves, installs into the
 //! global virtual store, and spawns.
 
-pub(crate) mod install_pnpm_to_store;
-
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_reporter::Reporter;
-use std::{ffi::OsString, fs, path::Path, process::Command};
+use pnpm_config::Config;
+use pnpm_reporter::Reporter;
+use std::{path::PathBuf, process::Command};
 
-use crate::{cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS, config_deps};
+use crate::{
+    cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
+    engine_pm::{
+        channel::PackageManager,
+        error::EngineError,
+        provision::{engine_bin, provision},
+    },
+    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+};
 
 /// Errors specific to `pacquet with`. The codes carry the shared
 /// `ERR_PNPM_` prefix.
@@ -32,24 +42,17 @@ pub enum WithError {
     #[diagnostic(code(ERR_PNPM_CANT_USE_WITH_IN_COREPACK))]
     CantUseWithInCorepack,
 
-    #[display(r#"Cannot resolve pnpm version for "{spec}""#)]
-    #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PNPM))]
-    CannotResolvePnpm { spec: String },
-
-    #[display("Unable to find the global packages directory")]
-    #[diagnostic(
-        code(ERR_PNPM_NO_GLOBAL_BIN_DIR),
-        help(
-            r#"Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable."#
-        )
-    )]
-    NoGlobalDir,
-
     #[display(
         "Cannot add {dir} to PATH because it contains the path delimiter character ({delimiter})"
     )]
     #[diagnostic(code(ERR_PNPM_BAD_PATH_DIR))]
     BadPathDir { dir: String, delimiter: char },
+}
+
+impl From<BadPathDir> for WithError {
+    fn from(BadPathDir { dir, delimiter }: BadPathDir) -> Self {
+        WithError::BadPathDir { dir, delimiter }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -73,24 +76,9 @@ impl WithArgs {
             return Err(WithError::CantUseWithInCorepack.into());
         }
 
-        let resolved = config_deps::resolve_pnpm_version(config, spec)
-            .await?
-            .ok_or_else(|| WithError::CannotResolvePnpm { spec: spec.clone() })?;
+        let engine = Box::pin(provision::<Reporter>(config, PackageManager::Pnpm, spec)).await?;
 
-        let env_root = config.global_pkg_dir.clone().ok_or(WithError::NoGlobalDir)?;
-        fs::create_dir_all(&env_root)
-            .into_diagnostic()
-            .wrap_err("create the global packages directory")?;
-
-        let bin_dir = Box::pin(install_pnpm_to_store::install_pnpm_to_store::<Reporter>(
-            config,
-            &env_root,
-            spec,
-            &resolved.version,
-        ))
-        .await?;
-
-        let status = spawn_pnpm(&bin_dir, args, PackageManagerCheck::Disabled)?;
+        let status = spawn_pnpm(&engine.bin_dirs, args, PackageManagerCheck::Disabled)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
@@ -106,10 +94,11 @@ pub(crate) enum PackageManagerCheck {
     Disabled,
 }
 
-/// Spawn the downloaded `pnpm` with `bin_dir` prepended to `PATH`,
-/// inheriting stdio.
+/// Spawn the downloaded `pnpm` with `bin_dirs` prepended to `PATH`,
+/// inheriting stdio. The first entry is the engine's own bin directory;
+/// any that follow are what it needs to run, such as a managed Node.js.
 pub(crate) fn spawn_pnpm<Args, Arg>(
-    bin_dir: &Path,
+    bin_dirs: &[PathBuf],
     args: Args,
     package_manager_check: PackageManagerCheck,
 ) -> miette::Result<std::process::ExitStatus>
@@ -117,23 +106,16 @@ where
     Args: IntoIterator<Item = Arg>,
     Arg: AsRef<std::ffi::OsStr>,
 {
-    let path = prepend_to_path(bin_dir)?;
-    // Resolve `pnpm` strictly within `bin_dir`, never the full PATH, so a
-    // missing or broken shim is an error rather than silently falling
-    // through to a different `pnpm` elsewhere on PATH (which would run the
-    // wrong engine). `which_in` is used only to pick the platform-correct
-    // shim name (e.g. `pnpm.cmd` on Windows).
-    let program = which::which_in("pnpm", Some(bin_dir), bin_dir)
-        .into_diagnostic()
-        .wrap_err("locate the requested pnpm binary in the engine's bin directory")?;
+    let bin_dir = bin_dirs.first().expect("an installed engine has a bin directory");
+    let path = prepend_dirs_to_path(bin_dirs).map_err(WithError::from)?;
+    let program = engine_bin(bin_dir, "pnpm").ok_or_else(|| EngineError::MissingEngineBin {
+        name: "pnpm",
+        dir: bin_dir.display().to_string(),
+    })?;
 
     let mut cmd = Command::new(program);
     cmd.args(args);
-    // Drop any inherited PATH-like key before re-inserting our own, so a
-    // Windows `Path`/`PATH` pair can't collapse to an unspecified winner.
-    cmd.env_remove("PATH");
-    cmd.env_remove("Path");
-    cmd.env("PATH", &path);
+    set_command_path(&mut cmd, &path);
     disable_package_manager_switching(&mut cmd);
     if matches!(package_manager_check, PackageManagerCheck::Disabled) {
         // The child pnpm must skip the packageManager / devEngines check so the
@@ -154,24 +136,6 @@ fn disable_package_manager_switching(cmd: &mut Command) {
     for name in PACKAGE_MANAGER_SWITCH_ENV_VARS {
         cmd.env(name, "false");
     }
-}
-
-/// Prepend `dir` to the current process `PATH`, rejecting a `dir` that
-/// contains the platform path delimiter (it cannot be expressed as a
-/// single `PATH` entry and would silently split into several). Mirrors the
-/// `BAD_PATH_DIR` guard `exec`'s `prepend_dirs_to_path` already applies;
-/// `dir` here is the engine's store-resident `bin` directory.
-fn prepend_to_path(dir: &Path) -> Result<OsString, WithError> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    if dir.to_string_lossy().contains(delimiter) {
-        return Err(WithError::BadPathDir { dir: dir.to_string_lossy().into_owned(), delimiter });
-    }
-    let mut out = OsString::from(dir);
-    if let Some(current) = std::env::var_os("PATH").filter(|value| !value.is_empty()) {
-        out.push(if cfg!(windows) { ";" } else { ":" });
-        out.push(current);
-    }
-    Ok(out)
 }
 
 /// `true` when pnpm is running under corepack (which sets `COREPACK_ROOT`

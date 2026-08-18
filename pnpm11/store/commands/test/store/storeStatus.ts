@@ -19,7 +19,7 @@ const cleanConfigDir = temporaryDirectory()
 const execaOpts = { env: { XDG_CONFIG_HOME: cleanConfigDir } }
 
 test('CLI fails when store status finds modified packages', async () => {
-  const project = prepare()
+  prepare()
   const tmp = temporaryDirectory()
   const cacheDir = path.join(tmp, 'cache')
   const storeDir = path.join(tmp, 'store')
@@ -36,14 +36,13 @@ test('CLI fails when store status finds modified packages', async () => {
   rimrafSync('node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js')
 
   let err!: PnpmError & { modified: string[] }
-  const modulesState = project.readModulesManifest()
   try {
     await store.handler({
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
       configByUri: {},
-      registries: modulesState!.registries!,
+      registriesByScope: { default: REGISTRY },
       storeDir,
       dlxCacheMaxAge: 0,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -57,7 +56,7 @@ test('CLI fails when store status finds modified packages', async () => {
 })
 
 test('CLI does not fail when store status does not find modified packages', async () => {
-  const project = prepare()
+  prepare()
   fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "es5-ext": false, "fsevents": true }', 'utf8')
   const tmp = temporaryDirectory()
   const cacheDir = path.join(tmp, 'cache')
@@ -88,13 +87,12 @@ test('CLI does not fail when store status does not find modified packages', asyn
     '--verify-store-integrity',
   ], execaOpts)
 
-  const modulesState = project.readModulesManifest()
   await store.handler({
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: modulesState!.registries!,
+    registriesByScope: { default: REGISTRY },
     storeDir,
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -102,7 +100,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
 })
 
 test('CLI does not fail when storeDir is relative', async () => {
-  const project = prepare()
+  prepare()
   const cacheDir = path.resolve('cache')
   const workspaceDir = process.cwd()
   const subpackageDir = path.join(workspaceDir, 'packages', 'foo')
@@ -128,7 +126,6 @@ storeDir: "${relativeStoreDir}"
     '--verify-store-integrity',
   ], execaOpts)
 
-  const modulesState = project.readModulesManifest()
 
   // relativeStoreDir should resolve from workspaceDir, not dir
   await store.handler({
@@ -137,7 +134,7 @@ storeDir: "${relativeStoreDir}"
     workspaceDir,
     pnpmHomeDir: '',
     configByUri: {},
-    registries: modulesState!.registries!,
+    registriesByScope: { default: REGISTRY },
     storeDir: relativeStoreDir,
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,

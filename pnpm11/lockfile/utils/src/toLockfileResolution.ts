@@ -1,6 +1,17 @@
 import type { LockfileResolution } from '@pnpm/lockfile.types'
-import { isGitHostedTarballUrl, type Resolution, type TarballResolution } from '@pnpm/resolving.resolver-base'
+import { type GitResolution, isGitHostedTarballUrl, type Resolution, type TarballResolution } from '@pnpm/resolving.resolver-base'
 import { isCanonicalRegistryTarballUrl } from '@pnpm/resolving.tarball-url'
+import type { RegistryServerType } from '@pnpm/types'
+
+export interface ToLockfileResolutionOptions {
+  registry: string
+  /**
+   * Undeclared by default, which is the strict reading: only the exact
+   * canonical URL is dropped. See {@link RegistryServerType}.
+   */
+  serverType?: RegistryServerType
+  lockfileIncludeTarballUrl?: boolean
+}
 
 export function toLockfileResolution (
   pkg: {
@@ -8,10 +19,18 @@ export function toLockfileResolution (
     version: string
   },
   resolution: Resolution,
-  registry: string,
-  lockfileIncludeTarballUrl?: boolean
+  opts: ToLockfileResolutionOptions
 ): LockfileResolution {
+  const { registry, serverType, lockfileIncludeTarballUrl } = opts
   if (resolution.type !== undefined || !resolution['integrity']) {
+    // Nothing checks a git checkout against a hash — the commit pins the
+    // content — so an `integrity` some other tool recorded on a git
+    // resolution is dropped rather than written back, instead of standing
+    // in the lockfile as a check that never runs.
+    if (resolution.type === 'git' && 'integrity' in resolution) {
+      const { integrity: _integrity, ...rest } = resolution as GitResolution & { integrity?: string }
+      return rest
+    }
     return resolution as LockfileResolution
   }
   // Tarball-typed resolutions are guaranteed to carry a tarball URL by the
@@ -37,7 +56,7 @@ export function toLockfileResolution (
     !lockfileIncludeTarballUrl &&
     !gitHosted &&
     !tarball.startsWith('file:') &&
-    isCanonicalRegistryTarballUrl(tarball, pkg, registry)
+    isCanonicalRegistryTarballUrl(tarball, pkg, { registry, serverType })
   ) {
     return { integrity: resolution['integrity'] }
   }

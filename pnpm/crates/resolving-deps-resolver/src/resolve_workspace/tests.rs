@@ -9,9 +9,9 @@ use std::{
 };
 
 use chrono::{DateTime, TimeZone, Utc};
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution, RegistryContext};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{
     LatestQuery, NoMatchingVersionError, PkgResolutionId, PreferredVersions, RegistryResponseError,
     RegistryResponseErrorOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
@@ -129,7 +129,7 @@ fn fake_result(
     published_at: Option<&str>,
     manifest: serde_json::Value,
 ) -> ResolveResult {
-    use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
     let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),
@@ -182,7 +182,7 @@ fn importer_opts(
         base_opts: ResolveOptions { published_by, project_dir, ..ResolveOptions::default() },
         pick_lowest_direct: false,
         subdep_published_by: published_by,
-        catalogs: pacquet_catalogs_types::Catalogs::new(),
+        catalogs: pnpm_catalogs_types::Catalogs::new(),
         exclude_links_from_lockfile: false,
         lockfile_dir: None,
         modules_dir: None,
@@ -196,7 +196,7 @@ fn importer_opts(
 
 fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolveOptions {
     WorkspaceResolveOptions {
-        named_registries: std::collections::HashMap::new(),
+        registry_context: RegistryContext::default(),
         dedupe_peers: false,
         dedupe_injected_deps: false,
         dedupe_peer_dependents: false,
@@ -214,11 +214,11 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         pick_lowest_direct,
         time_based,
         wanted_lockfile: None,
+        reuse_lockfile_subtrees: true,
         update_reuse_scope: crate::UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         update_depth: crate::UpdateDepth::UNLIMITED,
         auto_install_peers: false,
-        registries: std::collections::HashMap::new(),
     }
 }
 
@@ -228,8 +228,8 @@ fn importer_scoped_update_lockfile(
     direct_specifier: &str,
     direct_version: &str,
     transitive: Option<(&str, &str)>,
-) -> pacquet_lockfile::Lockfile {
-    use pacquet_lockfile::{
+) -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
         PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedDependencySpec,
         SnapshotDepRef, SnapshotEntry,
@@ -306,6 +306,7 @@ fn importer_scoped_update_lockfile(
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 
@@ -458,7 +459,11 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
         let parent_children =
             result.merged_tree.children_by_id.get("parent@1.0.0").expect("parent children");
         assert_eq!(parent_children.len(), 1);
-        assert_eq!(parent_children[0].pkg_id, "pkg@100.1.0");
+        assert_eq!(&*parent_children[0].pkg_id, "pkg@100.1.0");
+        // Recording the winner's children is not enough on its own: the
+        // occurrence that ran first realized the ones it resolved, and
+        // only the handover makes it re-read them.
+        assert_eq!(graph_versions_of(&result, "pkg"), ["100.1.0"], "order {order:?}");
     }
 }
 
@@ -630,7 +635,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
         .expect("injected workspace package children");
     assert_eq!(children.len(), 1);
     assert_eq!(children[0].alias, "is-positive");
-    assert_eq!(children[0].pkg_id, "is-positive@1.0.0");
+    assert_eq!(&*children[0].pkg_id, "is-positive@1.0.0");
     assert!(!children[0].optional);
 }
 
@@ -742,7 +747,7 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0", "b": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
-    resolve_workspace(
+    let result = resolve_workspace(
         &resolver,
         &importers,
         &[DependencyGroup::Prod],
@@ -764,6 +769,86 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
         (false, Some(expected_cutoff)),
         "subdep picks highest, constrained to newest-direct + 1h",
     );
+    assert_eq!(
+        result.time,
+        recorded_time(&[
+            ("a@1.0.0", "2024-03-01T10:00:00.000Z"),
+            ("b@1.0.0", "2024-05-20T08:00:00.000Z"),
+        ]),
+        "the direct deps' publish dates are handed to the lockfile's `time:` section",
+    );
+}
+
+/// Against a registry whose abbreviated metadata omits publish times,
+/// the dates the lockfile already recorded are what the cutoff is
+/// derived from — otherwise a re-resolve would compute a different
+/// cutoff and could pick different subdependency versions.
+#[tokio::test]
+async fn time_based_cutoff_falls_back_to_the_lockfiles_recorded_time() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("a".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "a",
+            "1.0.0",
+            None,
+            serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": { "sub": "^2.0.0" } }),
+        ),
+    );
+    table.insert(
+        ("sub".to_string(), "^2.0.0".to_string()),
+        fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+
+    let mut opts = workspace_opts(true, true);
+    opts.wanted_lockfile =
+        Some(Arc::new(lockfile_recording_time(&[("a@1.0.0", "2024-05-20T08:00:00.000Z")])));
+
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(tmp.path().to_path_buf(), None)
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(
+        resolver.opts_for("sub"),
+        (false, Some(Utc.with_ymd_and_hms(2024, 5, 20, 9, 0, 0).unwrap())),
+        "the recorded publish date stands in for the missing one",
+    );
+    assert_eq!(
+        result.time,
+        recorded_time(&[("a@1.0.0", "2024-05-20T08:00:00.000Z")]),
+        "a recorded date is carried forward, not dropped",
+    );
+}
+
+fn recorded_time(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
+    entries
+        .iter()
+        .map(|(pkg_id, published_at)| ((*pkg_id).to_string(), (*published_at).to_string()))
+        .collect()
+}
+
+fn lockfile_recording_time(entries: &[(&str, &str)]) -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion};
+
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: std::collections::HashMap::new(),
+        packages: None,
+        snapshots: None,
+        time: Some(recorded_time(entries)),
+    }
 }
 
 #[tokio::test]
@@ -960,9 +1045,9 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
     let dirs = [tmp_root.path(), tmp_a.path()];
     let mut opts = workspace_opts(false, false);
     opts.auto_install_peers = true;
-    opts.wanted_lockfile = Some(std::sync::Arc::new(pacquet_lockfile::Lockfile {
-        lockfile_version: pacquet_lockfile::LockfileVersion::<9>::try_from(
-            pacquet_lockfile::ComVer::new(9, 0),
+    opts.wanted_lockfile = Some(std::sync::Arc::new(pnpm_lockfile::Lockfile {
+        lockfile_version: pnpm_lockfile::LockfileVersion::<9>::try_from(
+            pnpm_lockfile::ComVer::new(9, 0),
         )
         .unwrap(),
         settings: None,
@@ -975,9 +1060,10 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
         importers: std::collections::HashMap::new(),
         packages: None,
         snapshots: Some(std::collections::HashMap::from([(
-            pacquet_lockfile::PkgNameVerPeer::from_str("shared@1.0.0(opt@25.0.0)").unwrap(),
-            pacquet_lockfile::SnapshotEntry::default(),
+            pnpm_lockfile::PkgNameVerPeer::from_str("shared@1.0.0(opt@25.0.0)").unwrap(),
+            pnpm_lockfile::SnapshotEntry::default(),
         )])),
+        time: None,
     }));
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
@@ -1532,8 +1618,8 @@ fn optional_failure_fixture(
 }
 
 /// A wanted lockfile whose `packages:` map holds exactly one entry.
-fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
-    use pacquet_lockfile::{
+fn lockfile_with_package(key: &str) -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{
         ComVer, LockfileVersion, PackageMetadata, PkgNameVerPeer, TarballResolution,
     };
     let key: PkgNameVerPeer = key.parse().expect("parse package key");
@@ -1556,7 +1642,7 @@ fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
         peer_dependencies: None,
         peer_dependencies_meta: None,
     };
-    pacquet_lockfile::Lockfile {
+    pnpm_lockfile::Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
         settings: None,
         catalogs: None,
@@ -1568,6 +1654,7 @@ fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
         importers: std::collections::HashMap::new(),
         packages: Some(std::collections::HashMap::from([(key, metadata)])),
         snapshots: None,
+        time: None,
     }
 }
 
@@ -1799,9 +1886,11 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     let (_transitive_tmp, transitive_manifest) =
         fake_manifest(serde_json::json!({ "wrapper": "1.0.0" }));
     let (_direct_tmp, direct_manifest) = fake_manifest(serde_json::json!({ "old": "1.0.0" }));
+    // Ids chosen so the transitive importer is walked first under the
+    // resolver's id-ordered importer processing.
     let importers = [
-        WorkspaceImporter { id: "transitive".to_string(), manifest: &transitive_manifest },
-        WorkspaceImporter { id: "direct".to_string(), manifest: &direct_manifest },
+        WorkspaceImporter { id: "a-transitive".to_string(), manifest: &transitive_manifest },
+        WorkspaceImporter { id: "b-direct".to_string(), manifest: &direct_manifest },
     ];
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
@@ -1854,8 +1943,78 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     assert_eq!(deprecation.depth, 1);
     assert_eq!(
         deprecation.prefix,
-        std::path::PathBuf::from("/repo").join("transitive").display().to_string(),
+        std::path::PathBuf::from("/repo").join("a-transitive").display().to_string(),
     );
+}
+
+/// The listing order of importers is not part of the input: processing
+/// is id-ordered, so a reversed listing attributes the deprecation to
+/// the same first occurrence (pnpm/pnpm#13846).
+#[tokio::test]
+async fn deprecation_attribution_does_not_depend_on_importer_listing_order() {
+    let deprecation_prefix_for = |reversed: bool| async move {
+        let (_transitive_tmp, transitive_manifest) =
+            fake_manifest(serde_json::json!({ "wrapper": "1.0.0" }));
+        let (_direct_tmp, direct_manifest) = fake_manifest(serde_json::json!({ "old": "1.0.0" }));
+        let mut importers = vec![
+            WorkspaceImporter { id: "a-transitive".to_string(), manifest: &transitive_manifest },
+            WorkspaceImporter { id: "b-direct".to_string(), manifest: &direct_manifest },
+        ];
+        if reversed {
+            importers.reverse();
+        }
+        let resolver = RecordingResolver {
+            table: HashMap::from_iter([
+                (
+                    ("wrapper".to_string(), "1.0.0".to_string()),
+                    fake_result(
+                        "wrapper",
+                        "1.0.0",
+                        None,
+                        serde_json::json!({
+                            "name": "wrapper",
+                            "version": "1.0.0",
+                            "dependencies": { "old": "1.0.0" },
+                        }),
+                    ),
+                ),
+                (
+                    ("old".to_string(), "1.0.0".to_string()),
+                    fake_result(
+                        "old",
+                        "1.0.0",
+                        None,
+                        serde_json::json!({
+                            "name": "old",
+                            "version": "1.0.0",
+                            "deprecated": "use new instead",
+                        }),
+                    ),
+                ),
+            ]),
+            seen: Mutex::new(HashMap::default()),
+        };
+        let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let sink = std::sync::Arc::clone(&notifications);
+        let mut opts = workspace_opts(false, false);
+        opts.deprecation_log = Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
+            sink.lock().unwrap().push(deprecation);
+        }));
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve the workspace");
+        let notifications = notifications.lock().unwrap();
+        let [deprecation] = notifications.as_slice() else {
+            panic!("expected one deprecation: {notifications:?}");
+        };
+        deprecation.prefix.clone()
+    };
+
+    let listed = deprecation_prefix_for(false).await;
+    let reversed = deprecation_prefix_for(true).await;
+    assert_eq!(listed, reversed, "attribution must not depend on the listing order");
 }
 
 /// A dependency reused from the wanted lockfile still notifies the
@@ -1873,7 +2032,7 @@ async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
         .packages
         .as_mut()
         .expect("lockfile carries packages")
-        .get_mut(&"old@1.2.0".parse::<pacquet_lockfile::PkgNameVerPeer>().expect("parse key"))
+        .get_mut(&"old@1.2.0".parse::<pnpm_lockfile::PkgNameVerPeer>().expect("parse key"))
         .expect("direct entry")
         .deprecated = Some("use new instead".to_string());
     let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
@@ -1909,8 +2068,8 @@ fn reuse_graph_lockfile(
     direct: &[(&str, &str, &str)],
     graph: &[(&str, &[(&str, &str)])],
     catalogs: &[(&str, &str, &str, &str)],
-) -> pacquet_lockfile::Lockfile {
-    use pacquet_lockfile::{
+) -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
         PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedCatalogEntry,
         ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
@@ -1975,7 +2134,7 @@ fn reuse_graph_lockfile(
         snapshots.insert(key, SnapshotEntry { dependencies, ..SnapshotEntry::default() });
     }
     let catalog_snapshots = (!catalogs.is_empty()).then(|| {
-        let mut snapshot: pacquet_lockfile::CatalogSnapshots = BTreeMap::new();
+        let mut snapshot: pnpm_lockfile::CatalogSnapshots = BTreeMap::new();
         for (catalog, alias, specifier, version) in catalogs {
             snapshot.entry((*catalog).to_string()).or_default().insert(
                 (*alias).to_string(),
@@ -1999,6 +2158,7 @@ fn reuse_graph_lockfile(
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 
@@ -2189,8 +2349,11 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
                     }),
                 ),
             ),
+            // The cycle-membered subtree is denied reuse, so its edges
+            // resolve freshly with their recorded versions pinned as
+            // exact specs — the table serves the pinned form.
             (
-                ("cyclic".to_string(), "^1.0.0".to_string()),
+                ("cyclic".to_string(), "1.0.0".to_string()),
                 fake_result(
                     "cyclic",
                     "1.0.0",
@@ -2203,7 +2366,7 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
                 ),
             ),
             (
-                ("loop".to_string(), "^1.0.0".to_string()),
+                ("loop".to_string(), "1.0.0".to_string()),
                 fake_result(
                     "loop",
                     "1.0.0",
@@ -2349,7 +2512,7 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
         serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
     );
     unnamed.name_ver = None;
-    unnamed.id = pacquet_resolving_resolver_base::PkgResolutionId::from(TARBALL.to_string());
+    unnamed.id = pnpm_resolving_resolver_base::PkgResolutionId::from(TARBALL.to_string());
     unnamed.alias = Some("aliased".to_string());
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
@@ -2461,7 +2624,7 @@ async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: Mani
         unnamed.manifest = None;
     }
     unnamed.normalized_bare_specifier = Some(local.to_string());
-    unnamed.id = pacquet_resolving_resolver_base::PkgResolutionId::from(local.to_string());
+    unnamed.id = pnpm_resolving_resolver_base::PkgResolutionId::from(local.to_string());
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
             (("real-peer".to_string(), local.to_string()), unnamed),
@@ -2563,7 +2726,7 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
     );
     linked.name_ver = None;
     linked.normalized_bare_specifier = Some("link:vendor/real-peer".to_string());
-    linked.id = pacquet_resolving_resolver_base::PkgResolutionId::from("link:vendor/real-peer");
+    linked.id = pnpm_resolving_resolver_base::PkgResolutionId::from("link:vendor/real-peer");
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
             (("real-peer".to_string(), "link:vendor/real-peer".to_string()), linked),
@@ -2644,7 +2807,7 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
     );
     linked.name_ver = None;
     linked.normalized_bare_specifier = Some(WORKSPACE_RANGE.to_string());
-    linked.id = pacquet_resolving_resolver_base::PkgResolutionId::from(LINK.to_string());
+    linked.id = pnpm_resolving_resolver_base::PkgResolutionId::from(LINK.to_string());
     linked.resolution = LockfileResolution::Directory(DirectoryResolution {
         directory: "../packages/real-peer".to_string(),
     });
@@ -2956,8 +3119,11 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
     );
     let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "wrapperB": "1.0.0" }));
-    let (tmp_root, root_manifest) =
-        fake_manifest(serde_json::json!({ "shared2": "1.0.0", "needyC": "1.0.0" }));
+    // The root carries only the peer consumer: with importers walked in
+    // id order the root's wave runs first, so the shared subtree must
+    // be claimed by pkg-b's wave and reach the root only through the
+    // later peer-hoist round for a handover to occur at all.
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "needyC": "1.0.0" }));
     let importers = [
         WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
         WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
@@ -2987,7 +3153,7 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
     let mid2 = result
         .peers
         .graph
-        .get(&pacquet_deps_path::DepPath::from("mid2@1.0.0".to_string()))
+        .get(&pnpm_deps_path::DepPath::from("mid2@1.0.0".to_string()))
         .expect("mid2 in graph");
     assert_eq!(
         mid2.children.get("leaf2").map(std::string::ToString::to_string),
@@ -2995,8 +3161,105 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
         "the lockfile-reused subtree must survive the ownership handover",
     );
 }
-fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
-    use pacquet_lockfile::{
+/// Publishing a fresh answer over pinned children re-resolves the open
+/// ranges reuse exists to hold still, and leaves the occurrences that
+/// realized the pinned subtree reading children the record no longer
+/// holds (<https://github.com/pnpm/pnpm/issues/13837>).
+#[tokio::test]
+async fn a_pinned_subtree_keeps_its_children_against_a_fresh_walk() {
+    for slow in [("fresh", "1.0.0"), ("reused", "1.0.0")] {
+        let tree = resolve_pinned_versus_fresh(slow).await;
+        let recorded: Vec<&str> = tree
+            .children_by_id
+            .get("shared@1.0.0")
+            .expect("shared children")
+            .iter()
+            .map(|edge| &*edge.pkg_id)
+            .collect();
+        assert_eq!(recorded, ["pin@1.0.0"], "the pins stand, held back: {slow:?}");
+        assert!(
+            !tree.packages.contains_key("pin@1.5.0"),
+            "and nothing re-resolves the range they pinned, held back: {slow:?}",
+        );
+    }
+}
+
+/// `slow` is the `(alias, range)` the resolver holds back, which
+/// decides whether the pinned subtree or the fresh edge records
+/// `shared`'s children first.
+async fn resolve_pinned_versus_fresh(slow: (&str, &str)) -> crate::ResolvedTree {
+    let dependencies = |deps| {
+        move |name: &str, version: &str| {
+            fake_result(
+                name,
+                version,
+                None,
+                serde_json::json!({ "name": name, "version": version, "dependencies": deps }),
+            )
+        }
+    };
+    let table = HashMap::from_iter([
+        (
+            ("reused".to_string(), "1.0.0".to_string()),
+            dependencies(serde_json::json!({ "shared": "1.0.0" }))("reused", "1.0.0"),
+        ),
+        (
+            ("fresh".to_string(), "1.0.0".to_string()),
+            dependencies(serde_json::json!({ "shared": "^1.0.0" }))("fresh", "1.0.0"),
+        ),
+        (
+            ("shared".to_string(), "1.0.0".to_string()),
+            dependencies(serde_json::json!({ "pin": "^1.0.0" }))("shared", "1.0.0"),
+        ),
+        (
+            ("shared".to_string(), "^1.0.0".to_string()),
+            dependencies(serde_json::json!({ "pin": "^1.0.0" }))("shared", "1.0.0"),
+        ),
+        (
+            ("pin".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "pin",
+                "1.0.0",
+                None,
+                serde_json::json!({ "name": "pin", "version": "1.0.0" }),
+            ),
+        ),
+        (
+            ("pin".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "pin",
+                "1.5.0",
+                None,
+                serde_json::json!({ "name": "pin", "version": "1.5.0" }),
+            ),
+        ),
+    ]);
+    let resolver = SlowAliasResolver { table, slow: (slow.0.to_string(), slow.1.to_string()) };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "reused": "1.0.0", "fresh": "1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(Arc::new(reuse_graph_lockfile(
+        ".",
+        &[("reused", "1.0.0", "1.0.0")],
+        &[
+            ("reused@1.0.0", &[("shared", "1.0.0")]),
+            ("shared@1.0.0", &[("pin", "1.0.0")]),
+            ("pin@1.0.0", &[]),
+        ],
+        &[],
+    )));
+    let dir = tmp.path().to_path_buf();
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(dir.clone(), None)
+    })
+    .await
+    .expect("resolve the pinned-versus-fresh contest")
+    .merged_tree
+}
+
+fn reuse_steal_lockfile() -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
         PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedDependencySpec,
         SnapshotDepRef, SnapshotEntry,
@@ -3076,6 +3339,7 @@ fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 
@@ -3123,8 +3387,8 @@ impl Resolver for OverlapRecordingResolver {
             }
             self.in_flight.lock().unwrap().remove(&project_dir);
 
-            let name_ver = pacquet_lockfile::PkgNameVer::new(
-                pacquet_lockfile::PkgName::parse(&alias).expect("alias parses as a package name"),
+            let name_ver = pnpm_lockfile::PkgNameVer::new(
+                pnpm_lockfile::PkgName::parse(&alias).expect("alias parses as a package name"),
                 node_semver::Version::from_str("1.0.0").expect("version parses"),
             );
             Ok::<_, ResolveError>(Some(ResolveResult {

@@ -1,10 +1,10 @@
 import path from 'node:path'
 
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { LogBase } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { Registries, RegistryConfig, SupportedArchitectures } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig, SupportedArchitectures } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 
 export type StrictBuildOptions = {
@@ -28,7 +28,7 @@ export type StrictBuildOptions = {
   storeController: StoreController
   force: boolean
   useLockfile: boolean
-  registries: Registries
+  registriesByScope: RegistriesByScope
   dir: string
   pnpmHomeDir: string
 
@@ -78,7 +78,7 @@ const defaults = async (opts: BuildOptions): Promise<StrictBuildOptions> => {
     pending: false,
     production: true,
     configByUri: {},
-    registries: DEFAULT_REGISTRIES,
+    registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
     scriptsPrependNodePath: false,
     shamefullyHoist: false,
     shellEmulator: false,
@@ -109,7 +109,7 @@ export async function extendBuildOptions (
     ...opts,
     storeDir: defaultOpts.storeDir,
   }
-  extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
+  extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
   // Mirror extendInstallOptions: under a global virtual store, the virtual
   // store directory is `<storeDir>/links`, not the per-project
   // `node_modules/.pnpm`. Without this, getContext() in the build step

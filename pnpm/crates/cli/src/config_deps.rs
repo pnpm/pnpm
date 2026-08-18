@@ -9,22 +9,23 @@
 
 use crate::config_overrides::apply_store_dir_override;
 use miette::{IntoDiagnostic, Result, WrapErr};
-use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_config::{Config, Host, WorkspaceSettings};
-use pacquet_env_installer::{
-    ConfigDepsInstallOptions, resolve_and_install_config_deps, resolve_package_manager_integrities,
+use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_config::{Config, Host, WorkspaceSettings};
+use pnpm_env_installer::{
+    ConfigDepsInstallOptions, pnpm_engine_packages, resolve_and_install_config_deps,
+    resolve_package_manager_integrities,
 };
-use pacquet_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
-use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter};
-use pacquet_resolving_npm_resolver::{
+use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
+use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
+use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pacquet_store_dir::StoreDir;
-use pacquet_workspace_state::ConfigDependency;
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_store_dir::StoreDir;
+use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -51,48 +52,85 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
 }
 
-/// Resolve the package-manager engine dependencies into the env lockfile's
+/// Resolve pnpm's own engine dependencies into the env lockfile's
 /// `packageManagerDependencies` block before the wanted lockfile is
-/// loaded.
+/// loaded. `force_resync` discards recorded entries and re-resolves them
+/// even when they look up to date.
 pub async fn sync_package_manager_dependencies(
     config: &Config,
     root_dir: &Path,
     wanted_specifier: &str,
     pnpm_version: &str,
     frozen_lockfile: bool,
+    force_resync: bool,
+) -> Result<()> {
+    sync_engine_dependencies(
+        config,
+        root_dir,
+        pnpm_engine_packages(pnpm_version),
+        wanted_specifier,
+        pnpm_version,
+        frozen_lockfile,
+        force_resync,
+    )
+    .await
+}
+
+/// Resolve the packages a package manager is installed from into the env
+/// lockfile at `root_dir`, so its bytes are pinned by integrity before any
+/// of them are downloaded or executed.
+pub async fn sync_engine_dependencies(
+    config: &Config,
+    root_dir: &Path,
+    packages: &[&str],
+    wanted_specifier: &str,
+    version: &str,
+    frozen_lockfile: bool,
+    force_resync: bool,
 ) -> Result<()> {
     let context = EnvInstallerContext::for_package_manager(config)?;
     let options = context.options(root_dir, frozen_lockfile);
-    resolve_package_manager_integrities(wanted_specifier, pnpm_version, &context.resolver, &options)
-        .await
-        .map_err(miette::Report::new)
-        .wrap_err("resolve package manager dependencies")
+    resolve_package_manager_integrities(
+        packages,
+        wanted_specifier,
+        version,
+        &context.resolver,
+        &options,
+        force_resync,
+    )
+    .await
+    .map_err(miette::Report::new)
+    .wrap_err("resolve package manager dependencies")
 }
 
-/// The version `pnpm self-update` resolved a specifier to, plus whether
-/// the pick violated the active maturity/trust policy.
+/// The version a package-manager specifier resolved to, plus whether the
+/// pick violated the active maturity/trust policy.
 #[derive(Debug)]
-pub struct ResolvedPnpm {
+pub struct ResolvedEngine {
     pub version: String,
+    /// The resolved package's manifest, when the resolver returned one.
+    /// `pnpm shim` reads the `bin` field from it.
+    pub manifest: Option<Arc<Value>>,
     /// Set when the resolver picked a version despite the maturity
     /// (`minimumReleaseAge`) or `trustPolicy` gate. Self-update fails
     /// closed on this under strict resolution; the code tells the two
     /// gates apart, and the reason is the user-facing explanation.
-    pub policy_violation: Option<PnpmPolicyViolation>,
+    pub policy_violation: Option<EnginePolicyViolation>,
 }
 
-/// Why the resolver's pnpm pick violates a policy.
+/// Why the resolver's pick violates a policy.
 #[derive(Debug)]
-pub struct PnpmPolicyViolation {
+pub struct EnginePolicyViolation {
     pub code: &'static str,
     pub reason: String,
 }
 
-/// Resolve `pnpm@<bare_specifier>` against the trusted package-manager
-/// bootstrap registry (never the repository-controlled project
-/// registries), applying the same `minimumReleaseAge` and `trustPolicy`
-/// gates the install path uses. Returns `None` when the specifier cannot
-/// be resolved. Backs `pacquet self-update`'s "check for updates" probe.
+/// Resolve `<package>@<bare_specifier>` against the trusted
+/// package-manager bootstrap registry (never the repository-controlled
+/// project registries), applying the same `minimumReleaseAge` and
+/// `trustPolicy` gates the install path uses. Returns `None` when the
+/// specifier cannot be resolved. Backs `pacquet self-update`'s "check for
+/// updates" probe and every package-manager provisioning path.
 ///
 /// The metadata mode follows [`Config::requires_full_metadata_for_resolution`]
 /// (via [`EnvInstallerContext`]), so under `trustPolicy=no-downgrade` or
@@ -100,10 +138,11 @@ pub struct PnpmPolicyViolation {
 /// trust and maturity checks need — the same resolver behaviour as a
 /// regular install, rather than a self-update-specific abbreviated-metadata
 /// path that would fail closed with "missing time".
-pub async fn resolve_pnpm_version(
+pub async fn resolve_engine_version(
     config: &Config,
+    package: &str,
     bare_specifier: &str,
-) -> Result<Option<ResolvedPnpm>> {
+) -> Result<Option<ResolvedEngine>> {
     let context = EnvInstallerContext::for_package_manager(config)?;
 
     // `minimumReleaseAge` cutoff, computed the same way as the install
@@ -129,25 +168,25 @@ pub async fn resolve_pnpm_version(
         .minimum_release_age_exclude
         .as_deref()
         .filter(|patterns| !patterns.is_empty())
-        .map(pacquet_config::version_policy::create_package_version_policy)
+        .map(pnpm_config::version_policy::create_package_version_policy)
         .transpose()
         .into_diagnostic()
         .wrap_err("compile the minimum-release-age-exclude policy")?;
     let trust_policy = match config.trust_policy {
-        pacquet_config::TrustPolicy::Off => None,
-        pacquet_config::TrustPolicy::NoDowngrade => Some(pacquet_config::TrustPolicy::NoDowngrade),
+        pnpm_config::TrustPolicy::Off => None,
+        pnpm_config::TrustPolicy::NoDowngrade => Some(pnpm_config::TrustPolicy::NoDowngrade),
     };
     let trust_policy_exclude = config
         .trust_policy_exclude
         .as_deref()
         .filter(|patterns| !patterns.is_empty())
-        .map(pacquet_config::version_policy::create_package_version_policy)
+        .map(pnpm_config::version_policy::create_package_version_policy)
         .transpose()
         .into_diagnostic()
         .wrap_err("compile the trust-policy-exclude policy")?;
 
     let wanted = WantedDependency {
-        alias: Some("pnpm".to_string()),
+        alias: Some(package.to_string()),
         bare_specifier: Some(bare_specifier.to_string()),
         ..WantedDependency::default()
     };
@@ -165,23 +204,24 @@ pub async fn resolve_pnpm_version(
         .resolve(&wanted, &opts)
         .await
         .map_err(|error| miette::miette!("{error}"))
-        .wrap_err_with(|| format!("resolve pnpm@{bare_specifier}"))?;
+        .wrap_err_with(|| format!("resolve {package}@{bare_specifier}"))?;
     let Some(result) = result else {
         return Ok(None);
     };
     let Some(name_ver) = result.name_ver else {
         return Ok(None);
     };
-    // Fail closed if the specifier resolved to something other than `pnpm`
-    // (e.g. an `npm:other-pkg@x` alias): otherwise the maturity/trust
-    // policy decision would be made against the wrong package's metadata
-    // while self-update still installs `pnpm@<version>`.
-    if name_ver.name.to_string() != "pnpm" {
+    // Fail closed if the specifier resolved to a different package (e.g. an
+    // `npm:other-pkg@x` alias): otherwise the maturity/trust policy decision
+    // would be made against the wrong package's metadata while the caller
+    // still installs `<package>@<version>`.
+    if name_ver.name.to_string() != package {
         return Ok(None);
     }
-    Ok(Some(ResolvedPnpm {
+    Ok(Some(ResolvedEngine {
         version: name_ver.suffix.to_string(),
-        policy_violation: result.policy_violation.map(|violation| PnpmPolicyViolation {
+        manifest: result.manifest.clone(),
+        policy_violation: result.policy_violation.map(|violation| EnginePolicyViolation {
             code: violation.code,
             reason: violation.reason,
         }),
@@ -205,7 +245,7 @@ pub async fn add_config_dependencies<Reporter: self::Reporter>(
 
     resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false).await?;
 
-    pacquet_workspace_manifest_writer::set_config_dependencies(
+    pnpm_workspace_manifest_writer::set_config_dependencies(
         root_dir,
         added.iter().map(|(name, specifier)| (name.as_str(), specifier.as_str())),
     )
@@ -233,14 +273,14 @@ async fn resolve_and_install<Reporter: self::Reporter>(
 
 struct EnvInstallerContext {
     http_client: Arc<ThrottledClient>,
-    auth_headers: Arc<pacquet_network::AuthHeaders>,
+    auth_headers: Arc<pnpm_network::AuthHeaders>,
     registries: HashMap<String, String>,
     retry_opts: RetryOpts,
     store_dir: &'static StoreDir,
     node_version: String,
     verify_store_integrity: bool,
     offline: bool,
-    package_import_method: pacquet_config::PackageImportMethod,
+    package_import_method: pnpm_config::PackageImportMethod,
     resolver: NpmResolver<InMemoryPackageMetaCache>,
 }
 
@@ -260,7 +300,7 @@ impl EnvInstallerContext {
 
     /// Context for resolving the package manager pnpm auto-switches to
     /// (`pnpm` / `@pnpm/exe`), routed through the trusted
-    /// [`PackageManagerBootstrap`](pacquet_config::PackageManagerBootstrap)
+    /// [`PackageManagerBootstrap`](pnpm_config::PackageManagerBootstrap)
     /// config instead of the repository-controlled project registries.
     fn for_package_manager(config: &Config) -> Result<Self> {
         let bootstrap = &config.package_manager_bootstrap;
@@ -276,11 +316,11 @@ impl EnvInstallerContext {
 
     fn build(
         config: &Config,
-        proxy: &pacquet_network::ProxyConfig,
-        tls: &pacquet_network::TlsConfig,
-        tls_by_uri: &pacquet_network::PerRegistryTls,
+        proxy: &pnpm_network::ProxyConfig,
+        tls: &pnpm_network::TlsConfig,
+        tls_by_uri: &pnpm_network::PerRegistryTls,
         registries: std::collections::BTreeMap<String, String>,
-        auth_headers: Arc<pacquet_network::AuthHeaders>,
+        auth_headers: Arc<pnpm_network::AuthHeaders>,
     ) -> Result<Self> {
         let http_client = Arc::new(
             ThrottledClient::for_installs(
@@ -307,7 +347,7 @@ impl EnvInstallerContext {
         };
         let resolver = NpmResolver {
             registries: registries.clone(),
-            named_registries: HashMap::new(),
+            registries_by_prefix: HashMap::new(),
             http_client: Arc::clone(&http_client),
             auth_headers: Arc::clone(&auth_headers),
             meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
@@ -324,6 +364,7 @@ impl EnvInstallerContext {
             // `minimumReleaseAge` and trust checks need — instead of failing
             // closed on abbreviated metadata that omits `time`.
             full_metadata: config.requires_full_metadata_for_resolution(),
+            needs_full_metadata_for: None,
             filter_metadata: config.requires_full_metadata_for_resolution(),
             retry_opts,
         };
@@ -388,6 +429,9 @@ impl EnvInstallerContext {
 /// pnpm's single loaded hooks object.
 #[must_use]
 pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> {
+    if config.ignore_pnpmfile {
+        return Vec::new();
+    }
     let config_modules_dir = root_dir.join("node_modules").join(".pnpm-config");
     let mut pnpmfiles: Vec<PathBuf> = match config.config_dependencies.as_ref() {
         Some(deps) => finder::calc_pnpmfile_paths_of_plugin_deps(
@@ -433,8 +477,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     // Seed the hook input with the catalogs read from the workspace
     // manifest (`catalog:` + `catalogs:`), which `WorkspaceSettings`
     // doesn't carry, so a hook can read and extend them.
-    let workspace_manifest =
-        pacquet_workspace::read_workspace_manifest(root_dir).into_diagnostic()?;
+    let workspace_manifest = pnpm_workspace::read_workspace_manifest(root_dir).into_diagnostic()?;
     let yaml_catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;
@@ -501,6 +544,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         return Ok(());
     }
     let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
+    let changed_prefer_frozen_lockfile = delta.get("preferFrozenLockfile").cloned();
     let changed_virtual_store_dir = delta.get("virtualStoreDir").cloned();
     let changed_global_virtual_store_dir = delta.get("globalVirtualStoreDir").cloned();
     let virtual_store_dir_cleared = changed_virtual_store_dir.as_ref().is_some_and(Value::is_null);
@@ -533,6 +577,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         config.virtual_store_dir = base_dir.join("node_modules/.pnpm");
     }
     for (key, value) in [
+        ("preferFrozenLockfile", changed_prefer_frozen_lockfile),
         ("virtualStoreDir", changed_virtual_store_dir),
         ("globalVirtualStoreDir", changed_global_virtual_store_dir),
     ] {

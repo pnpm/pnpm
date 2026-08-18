@@ -1,3 +1,3 @@
 fn main() -> std::process::ExitCode {
-    pacquet_cli::main()
+    pnpm_cli::main()
 }

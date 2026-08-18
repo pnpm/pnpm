@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
+import type { VerifiedFileIntegrity } from '@pnpm/store.cafs'
 import type { FilesMap, PackageFilesResponse } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest } from '@pnpm/types'
@@ -22,6 +23,47 @@ import type {
 
 let workerPool: WorkerPool | undefined
 
+/**
+ * Store verification runs in the workers, so each one tallies the files
+ * it re-hashed and the time that took, and hands its share back with
+ * every response (see `takeVerifiedFileIntegrity` in `@pnpm/store.cafs`).
+ * This is the sum across all of them for the lifetime of the process.
+ *
+ * An install reports its own share by snapshotting this when it starts
+ * and diffing at the end. That is exact for one install at a time,
+ * which is every install except the per-project loop a recursive
+ * command with dedicated lockfiles runs at `workspaceConcurrency`:
+ * there, overlapping projects can pick up each other's hashing.
+ *
+ * Separating those would take an `AsyncLocalStorage` scope per install,
+ * which is not worth it here: constructing one costs the whole process
+ * ~5x on promise-heavy work under Node's pre-`AsyncContextFrame`
+ * implementation (44ms -> 245ms over 2M awaits, paid whether or not the
+ * scope is entered), and pnpm supports Node 22.13, where that is the
+ * implementation. Every install would pay it so that a diagnostic reads
+ * correctly in one non-default configuration. The alternative with no
+ * global cost is threading the tally through the store controller's
+ * per-request options into `readPkgFromCafs`.
+ */
+const verifiedFileIntegrity: VerifiedFileIntegrity = { files: 0, ms: 0 }
+
+export function verifiedFileIntegritySnapshot (): VerifiedFileIntegrity {
+  return { ...verifiedFileIntegrity }
+}
+
+export function verifiedFileIntegritySince (baseline: VerifiedFileIntegrity): VerifiedFileIntegrity {
+  return {
+    files: verifiedFileIntegrity.files - baseline.files,
+    ms: verifiedFileIntegrity.ms - baseline.ms,
+  }
+}
+
+function addVerifiedFileIntegrity (reported: VerifiedFileIntegrity | undefined): void {
+  if (reported == null) return
+  verifiedFileIntegrity.files += reported.files
+  verifiedFileIntegrity.ms += reported.ms
+}
+
 export async function restartWorkerPool (): Promise<void> {
   await finishWorkers()
   workerPool = createTarballWorkerPool()
@@ -33,7 +75,6 @@ export async function finishWorkers (): Promise<void> {
   // @ts-expect-error
   global.finishWorkers = undefined
   await finish?.()
-  workerPool = undefined
 }
 
 function createTarballWorkerPool (): WorkerPool {
@@ -242,8 +283,9 @@ export async function readPkgFromCafs (
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value, warnings }) => {
+    localWorker.once('message', ({ status, error, value, warnings, verifiedFileIntegrity }) => {
       workerPool!.checkinWorker(localWorker)
+      addVerifiedFileIntegrity(verifiedFileIntegrity)
       if (status === 'error') {
         reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string, { hint: error.hint }))
         return

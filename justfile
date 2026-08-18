@@ -13,6 +13,9 @@ alias t := test
 # or install via `cargo install cargo-binstall`
 init:
   cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov -y
+  # `cargo-fixit` has no prebuilt binaries, so install it from source
+  # with `cargo install` (pinned) instead of `cargo binstall`.
+  cargo install cargo-fixit@0.1.15 --locked
 
 # When ready, run the same CI commands
 ready:
@@ -51,7 +54,8 @@ check:
 
 # Run all the tests.
 test:
-  cargo nextest run
+  # Tests opt into CI-sensitive pnpm defaults explicitly.
+  env PNPM_CONFIG_CI=false cargo nextest run
 
 # A test process that is killed cannot run `TempDir`'s cleanup, so a
 # fail-fast or interrupted run abandons whole fixture trees — each holding a
@@ -67,7 +71,8 @@ sweep-test-temp:
 
 # Run pacquet package tests only.
 test-pacquet:
-  cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
+  # GitHub Actions sets CI=true; keep lockfile-mutating tests deterministic.
+  env PNPM_CONFIG_CI=false cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
 
 # Run pnpr package tests only.
 test-pnpr:
@@ -84,6 +89,15 @@ known-failures:
 # Lint the whole project
 lint:
   cargo clippy --locked --workspace --all-targets -- --deny warnings
+
+# Apply clippy's autofix suggestions across the workspace.
+# Uses `cargo fixit --clippy` (installed by `just init`, pinned to
+# `cargo-fixit@0.1.15`) instead of `cargo clippy --fix`. `cargo fixit`
+# is faster than `cargo clippy --fix` on repeated runs because it skips
+# the full re-check compile between fix rounds, so iterating on a lint
+# cleanup doesn't rebuild the workspace each pass.
+fix:
+  cargo fixit --clippy --workspace --all-targets --allow-dirty --allow-staged
 
 # Run perfectionist dylint rules. Requires `cargo-dylint` and `dylint-link`
 # (install from source with `cargo install cargo-dylint dylint-link`; the
@@ -109,7 +123,7 @@ micro-benchmark:
 # running binary, failing with `os error 5` on Windows MSVC.
 registry-mock +args:
   cargo nextest run --no-run
-  cargo run --bin=pacquet-registry-mock -- {{args}}
+  cargo run --bin=pnpm-registry-mock -- {{args}}
 
 # The benchmark may auto-spawn the registry mock (via
 # `AutoMockInstance::load_or_init()`), so make sure `pnpr`

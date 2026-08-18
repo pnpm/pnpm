@@ -1,8 +1,8 @@
 use crate::LockfileToDepGraphResult;
-use pacquet_config::{Config, NodePackageMapType};
-use pacquet_fs::lexical_normalize;
-use pacquet_lockfile::{Lockfile, PackageKey, ProjectSnapshot, SnapshotDepRef};
-use pacquet_package_manifest::PackageManifest;
+use pnpm_config::{Config, NodePackageMapType};
+use pnpm_fs::lexical_normalize;
+use pnpm_lockfile::{Lockfile, PackageKey, ProjectSnapshot, SnapshotDepRef};
+use pnpm_package_manifest::PackageManifest;
 use serde::Serialize;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -30,7 +30,7 @@ pub enum WritePackageMapError {
     #[display("failed to serialize package map: {_0}")]
     Serialize(#[error(source)] serde_json::Error),
     #[display("failed to write package map: {_0}")]
-    Write(#[error(source)] pacquet_fs::EnsureFileError),
+    Write(#[error(source)] pnpm_fs::EnsureFileError),
 }
 
 pub struct PackageMapOptions<'a> {
@@ -62,7 +62,7 @@ pub fn write_package_map(
     // Hardened atomic write (temp file + rename): never follows a symlink an
     // attacker (or a crashed prior install) may have pre-seeded at the target,
     // and never leaves a torn file a concurrent reader could observe.
-    pacquet_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
+    pnpm_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
         .map_err(WritePackageMapError::Write)
 }
 
@@ -79,7 +79,7 @@ pub fn write_hoisted_package_map(
     // Hardened atomic write (temp file + rename): never follows a symlink an
     // attacker (or a crashed prior install) may have pre-seeded at the target,
     // and never leaves a torn file a concurrent reader could observe.
-    pacquet_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
+    pnpm_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
         .map_err(WritePackageMapError::Write)
 }
 
@@ -430,7 +430,7 @@ fn add_physical_importer_dependencies(
     lockfile: &Lockfile,
     opts: &PackageMapOptions<'_>,
     modules_dir: &Path,
-    deps: Option<&pacquet_lockfile::ResolvedDependencyMap>,
+    deps: Option<&pnpm_lockfile::ResolvedDependencyMap>,
     importer_id: Option<&str>,
 ) {
     let Some(deps) = deps else { return };
@@ -454,7 +454,7 @@ fn add_snapshot_dependencies(
     dependencies: &mut BTreeMap<String, String>,
     lockfile: &Lockfile,
     opts: &PackageMapOptions<'_>,
-    deps: Option<&HashMap<pacquet_lockfile::PkgName, SnapshotDepRef>>,
+    deps: Option<&HashMap<pnpm_lockfile::PkgName, SnapshotDepRef>>,
 ) {
     let Some(deps) = deps else { return };
     for (alias, reference) in deps {
@@ -478,7 +478,7 @@ fn add_physical_snapshot_dependencies(
     lockfile: &Lockfile,
     opts: &PackageMapOptions<'_>,
     modules_dir: &Path,
-    deps: Option<&HashMap<pacquet_lockfile::PkgName, SnapshotDepRef>>,
+    deps: Option<&HashMap<pnpm_lockfile::PkgName, SnapshotDepRef>>,
 ) {
     let Some(deps) = deps else { return };
     for (alias, reference) in deps {
@@ -498,7 +498,7 @@ fn add_physical_snapshot_dependencies(
 
 fn add_hoisted_importer_dependencies(
     dependencies: &mut BTreeMap<String, String>,
-    deps: Option<&pacquet_lockfile::ResolvedDependencyMap>,
+    deps: Option<&pnpm_lockfile::ResolvedDependencyMap>,
     package_ids_by_dep_path: &BTreeMap<String, String>,
 ) {
     let Some(deps) = deps else { return };
@@ -531,7 +531,7 @@ fn add_hoisted_linked_dependencies<Reference>(
     dependencies: &mut BTreeMap<String, String>,
     loose_index: &mut Option<PhysicalPackageIndex>,
     opts: &HoistedPackageMapOptions<'_>,
-    deps: Option<&HashMap<pacquet_lockfile::PkgName, Reference>>,
+    deps: Option<&HashMap<pnpm_lockfile::PkgName, Reference>>,
     importer_id: Option<&str>,
     modules_dir: Option<&Path>,
 ) where
@@ -558,7 +558,7 @@ trait LinkReference {
     fn as_link_target(&self) -> Option<&'_ str>;
 }
 
-impl LinkReference for pacquet_lockfile::ResolvedDependencySpec {
+impl LinkReference for pnpm_lockfile::ResolvedDependencySpec {
     fn as_link_target(&self) -> Option<&'_ str> {
         self.version.as_link_target()
     }

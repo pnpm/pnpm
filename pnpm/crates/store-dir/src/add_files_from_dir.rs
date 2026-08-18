@@ -10,7 +10,7 @@
 use crate::{CafsFileInfo, StoreDir, WriteCasFileError};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::file_mode::is_executable;
+use pnpm_fs::file_mode::is_executable;
 use std::{
     collections::{HashMap, HashSet},
     fs, io,

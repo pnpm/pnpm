@@ -1,5 +1,5 @@
 use super::infer_range_spec_style;
-use pacquet_registry::RangeSpecStyle;
+use pnpm_registry::RangeSpecStyle;
 
 #[test]
 fn matches_pnpm_infer_range_spec_style() {

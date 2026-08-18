@@ -12,8 +12,8 @@ import { createResolver, policyViolationToError, type ResolutionPolicyViolation 
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import { inferRangeSpecStyle, MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
+import { inferRangeSpecStyle, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { isCI } from 'ci-info'
@@ -206,7 +206,7 @@ export async function handler (
         if (shouldPersistLockfile({ ...opts.wantedPackageManager, fromDevEngines: true })) {
           const store = await createStoreController({ ...opts, ...bootstrapConfig })
           await resolvePackageManagerIntegrities(resolution.manifest.version, {
-            registries: bootstrapConfig.registries,
+            registriesByScope: bootstrapConfig.registriesByScope,
             rootDir: opts.rootProjectManifestDir,
             storeController: store.ctrl,
             storeDir: store.dir,
@@ -240,7 +240,7 @@ export async function handler (
 
   // Resolve integrities and write env lockfile to pnpm-lock.yaml
   const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
-    registries: bootstrapConfig.registries,
+    registriesByScope: bootstrapConfig.registriesByScope,
     rootDir: opts.pnpmHomeDir,
     storeController: store.ctrl,
     storeDir: store.dir,

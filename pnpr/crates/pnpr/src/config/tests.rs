@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
-use pacquet_env_replace::EnvVar;
+use pnpm_env_replace::EnvVar;
 use reqwest::header::AUTHORIZATION;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},

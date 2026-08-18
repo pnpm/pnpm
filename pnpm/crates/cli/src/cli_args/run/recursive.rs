@@ -19,10 +19,10 @@ use crate::cli_args::recursive::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
-use pacquet_config::Config;
-use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_reporter::{LogEvent, LogLevel, ScopeLog};
-use pacquet_workspace_projects_graph::ProjectGraph;
+use pnpm_config::Config;
+use pnpm_package_manager::{make_node_package_map_option, package_map_path_for_execution};
+use pnpm_reporter::{LogEvent, LogLevel, ScopeLog};
+use pnpm_workspace_projects_graph::ProjectGraph;
 use std::{
     collections::HashMap,
     env,
@@ -152,10 +152,7 @@ pub fn run_recursive(
     // `script_shell`, and the user-agent. Compute the bits that don't
     // vary per project once; the per-project `RunContext` reuses them.
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-    let mut extra_env: HashMap<String, String> = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
-        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-    }
+    let mut extra_env: HashMap<String, String> = config.extra_env_with_node_options();
     if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
         extra_env.insert(

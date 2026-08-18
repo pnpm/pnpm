@@ -6,7 +6,7 @@
 //! ...). Once a concrete version is picked, the resolver crawls the
 //! mirror's `SHASUMS256.txt` to enumerate every platform-specific
 //! artifact and emits one
-//! [`VariationsResolution`](pacquet_lockfile::VariationsResolution)
+//! [`VariationsResolution`](pnpm_lockfile::VariationsResolution)
 //! variant per `(os, cpu, libc?)` triple.
 //!
 //! Three pieces:
@@ -17,7 +17,7 @@
 //!   [`get_normalized_arch`] — mirror URL normalisation, archive URL
 //!   composition, and the arch quirks for ia32 Windows / armv7l Linux
 //!   / Apple-Silicon-on-pre-16 macOS.
-//! - [`NodeResolver`] — the [`Resolver`](pacquet_resolving_resolver_base::Resolver)
+//! - [`NodeResolver`] — the [`Resolver`](pnpm_resolving_resolver_base::Resolver)
 //!   impl that ties the parser, mirror config, and asset-list fetch
 //!   into the dispatcher chain.
 

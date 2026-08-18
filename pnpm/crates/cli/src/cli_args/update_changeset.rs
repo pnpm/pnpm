@@ -2,14 +2,14 @@ use super::recursive::discover_workspace_projects;
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, matcher::create_matcher};
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pacquet_versioning::{IntentBumpType, format_change_intent};
-use pacquet_workspace::{
+use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{Config, matcher::create_matcher};
+use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_versioning::{IntentBumpType, format_change_intent};
+use pnpm_workspace::{
     ReadProjectManifestOnlyError, ReadWorkspaceManifestError, read_workspace_manifest,
     safe_read_project_manifest_only,
 };
@@ -280,7 +280,7 @@ fn ensure_changeset_dir_is_safe(changeset_dir: &Path) -> Result<(), UpdateChange
         }
     };
     if metadata.file_type().is_symlink()
-        || pacquet_fs::read_symlink_dir(changeset_dir).is_ok()
+        || pnpm_fs::read_symlink_dir(changeset_dir).is_ok()
         || !metadata.is_dir()
     {
         return Err(UpdateChangesetError::UnsafeChangesetDir { path: changeset_dir.to_path_buf() });

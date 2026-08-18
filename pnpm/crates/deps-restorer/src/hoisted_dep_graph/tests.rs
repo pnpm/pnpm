@@ -2,8 +2,8 @@ use super::{
     DepHierarchy, DependenciesGraph, DependenciesGraphNode, LockfileToDepGraphResult,
     LockfileToHoistedDepGraphOptions,
 };
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
-use pacquet_modules_yaml::DepPath;
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
+use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -15,7 +15,7 @@ fn sample_resolution() -> LockfileResolution {
 }
 
 /// Sample v9 depPath. v9 lockfiles use `name@version[(peers)]`
-/// (see `PkgNameVerPeer` in `pacquet-lockfile`); the v5-era
+/// (see `PkgNameVerPeer` in `pnpm-lockfile`); the v5-era
 /// `/name/version` shape is only kept for legacy
 /// `hoistedAliases` read-side compatibility.
 const ACCEPTS_DEP_PATH: &str = "accepts@1.3.7";
@@ -94,7 +94,7 @@ fn options_default_is_empty() {
 // --- Walker tests ----------------------------------------------------
 
 use super::{HoistedDepGraphError, InstallabilityError, lockfile_to_hoisted_dep_graph};
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     ComVer, Lockfile, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata, PkgName,
     PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
     SnapshotDepRef, SnapshotEntry,
@@ -167,6 +167,7 @@ fn lockfile_with(
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 
@@ -185,6 +186,7 @@ fn walker_empty_lockfile_produces_empty_result() {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     };
     let opts = LockfileToHoistedDepGraphOptions {
         lockfile_dir: PathBuf::from("/repo"),
@@ -604,6 +606,7 @@ fn prev_graph_none_when_current_lockfile_has_no_packages() {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
     };
     let opts = LockfileToHoistedDepGraphOptions {
         lockfile_dir: PathBuf::from("/repo"),
@@ -642,6 +645,7 @@ fn prev_graph_none_when_current_lockfile_has_empty_packages() {
         importers: HashMap::new(),
         packages: Some(HashMap::new()),
         snapshots: Some(HashMap::new()),
+        time: None,
     };
     let opts = LockfileToHoistedDepGraphOptions {
         lockfile_dir: PathBuf::from("/repo"),
@@ -772,6 +776,7 @@ fn workspace_lockfile(
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
+        time: None,
     }
 }
 

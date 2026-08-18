@@ -95,7 +95,7 @@ async fn fetch_from_registry_attaches_authorization_header() {
     let registry = format!("{}/", server.url());
     let client = ThrottledClient::default();
     let auth_headers = AuthHeaders::from_creds_map([(
-        pacquet_network::nerf_dart(&registry),
+        pnpm_network::nerf_dart(&registry),
         "Bearer top-secret".to_owned(),
     )]);
 
@@ -103,6 +103,33 @@ async fn fetch_from_registry_attaches_authorization_header() {
         .await
         .expect("server should accept the request once the bearer header is attached");
     assert_eq!(pkg.name, "acme");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_from_registry_reports_the_status_of_an_unknown_package() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"error":"Not found"}"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let error = Package::fetch_from_registry(
+        "acme",
+        &ThrottledClient::default(),
+        &registry,
+        &AuthHeaders::default(),
+    )
+    .await
+    .expect_err("a 404 packument is not a package");
+
+    let message = error.to_string();
+    assert!(message.contains("404"), "{message}");
     mock.assert_async().await;
 }
 

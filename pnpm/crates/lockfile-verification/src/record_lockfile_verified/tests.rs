@@ -1,7 +1,7 @@
 use std::{fs, sync::Arc};
 
-use pacquet_lockfile::{Lockfile, LockfileResolution};
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
 use tempfile::TempDir;

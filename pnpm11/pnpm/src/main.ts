@@ -25,6 +25,7 @@ import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
+import { checkSudo } from './checkSudo.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
@@ -41,7 +42,7 @@ export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 // path` is meant to be captured with `STORE=$(pnpm store path)` and `pnpm config
 // list --json` to be piped into `jq`; a warning mixed into stdout would corrupt
 // both.
-const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store', 'prefix'])
+const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store', 'prefix', 'root', 'bin'])
 
 loudRejection()
 
@@ -213,6 +214,8 @@ export async function main (inputArgv: string[]): Promise<void> {
     })
     global[REPORTER_INITIALIZED] = reporterType
   }
+
+  checkSudo({ cmd, cliParams, global: cliOptions.global, location: cliOptions.location, printLogs })
 
   // Commands with scriptOverride: if the current project's package.json has a
   // script with the same name, run the script instead of the built-in command.

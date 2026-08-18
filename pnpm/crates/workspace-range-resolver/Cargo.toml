@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-workspace-range-resolver"
+name                  = "pnpm-workspace-range-resolver"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true

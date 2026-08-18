@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-resolving-resolver-base"
+name                  = "pnpm-resolving-resolver-base"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,10 +11,10 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-config   = { workspace = true }
-pacquet-lockfile = { workspace = true }
-pacquet-network  = { workspace = true }
-pacquet-registry = { workspace = true }
+pnpm-config   = { workspace = true }
+pnpm-lockfile = { workspace = true }
+pnpm-network  = { workspace = true }
+pnpm-registry = { workspace = true }
 
 chrono      = { workspace = true }
 derive_more = { workspace = true }

@@ -57,8 +57,8 @@ Supported targets: `win32-x64`, `win32-arm64`, `darwin-x64`, `darwin-arm64`,
 Build the Rust crate and point the loader at the artifact:
 
 ```sh
-cargo build -p pacquet-napi --profile napi-release
-cp ../../../target/napi-release/libpacquet_napi.dylib \
+cargo build -p pnpm-napi --profile napi-release
+cp ../../../target/napi-release/libpnpm_napi.dylib \
    ./pnpm-napi.darwin-arm64.node   # .so on Linux, .dll on Windows
 node -e "console.log(require('.').engineVersion())"
 ```

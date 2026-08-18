@@ -1,6 +1,6 @@
 //! `pacquet login` / `pacquet adduser` — authenticate with an npm registry
 //! and record the token in `auth.ini`. The command logic lives in
-//! `pacquet-auth-commands`; this module is the thin CLI adapter that resolves
+//! `pnpm-auth-commands`; this module is the thin CLI adapter that resolves
 //! config into [`LoginOptions`].
 
 use std::{path::Path, time::Duration};
@@ -8,10 +8,10 @@ use std::{path::Path, time::Duration};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
-use pacquet_auth_commands::login::{Host as AuthHost, LoginHost, LoginOptions, login};
-use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, ThrottledClient};
-use pacquet_reporter::Reporter;
+use pnpm_auth_commands::login::{Host as AuthHost, LoginHost, LoginOptions, login};
+use pnpm_config::Config;
+use pnpm_network::{NetworkSettings, ThrottledClient};
+use pnpm_reporter::Reporter;
 
 /// Log in to an npm registry.
 #[derive(Debug, Args)]

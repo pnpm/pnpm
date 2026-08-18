@@ -1,4 +1,4 @@
-use pacquet_crypto_hash::shorten_virtual_store_name;
+use pnpm_crypto_hash::shorten_virtual_store_name;
 
 /// Turn a depPath into a filesystem-safe directory name.
 #[must_use]

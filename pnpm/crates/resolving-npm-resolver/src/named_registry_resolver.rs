@@ -21,8 +21,9 @@ use std::{
     sync::Arc,
 };
 
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_resolving_resolver_base::{
+use pnpm_config::NeedsFullMetadataFor;
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, UpdateBehavior, WantedDependency,
 };
@@ -61,8 +62,8 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// (`gh:` → GitHub Packages) plus any user-supplied overrides
     /// from `pnpm-workspace.yaml#namedRegistries`. Already validated
     /// — every URL parses and is http(s).
-    pub named_registries: HashMap<String, String>,
-    /// Precomputed key set of [`Self::named_registries`]. The parser
+    pub registries_by_prefix: HashMap<String, String>,
+    /// Precomputed key set of [`Self::registries_by_prefix`]. The parser
     /// checks aliases against this set per call, so caching it
     /// avoids rebuilding the set for every resolve.
     pub registry_names: HashSet<String>,
@@ -85,6 +86,9 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// Install-wide bias toward full metadata. Threaded through to
     /// [`PickPackageContext::full_metadata`].
     pub full_metadata: bool,
+    /// Per-registry answer to the same question. A prefix-addressed registry
+    /// is declared like any other, so it is exempted like any other.
+    pub needs_full_metadata_for: Option<NeedsFullMetadataFor>,
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
     pub filter_metadata: bool,
@@ -136,7 +140,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
 
         // Defensive: should never trigger because the parser checks
         // the alias set first, but kept as a belt-and-braces guard.
-        let Some(registry) = self.named_registries.get(&registry_name) else {
+        let Some(registry) = self.registries_by_prefix.get(&registry_name) else {
             return Ok(None);
         };
 
@@ -232,6 +236,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             prefer_offline: self.prefer_offline,
             ignore_missing_time_field: self.ignore_missing_time_field,
             full_metadata: self.full_metadata,
+            needs_full_metadata_for: self.needs_full_metadata_for.as_deref(),
             filter_metadata: self.filter_metadata,
             retry_opts: self.retry_opts,
         };

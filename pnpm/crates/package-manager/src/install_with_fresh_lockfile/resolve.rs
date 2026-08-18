@@ -8,15 +8,15 @@
 use super::{ImporterUpdateSeedPolicy, InstallWithFreshLockfileError, UpdateSeedPolicy};
 use crate::VersionsOverrider;
 use indexmap::IndexMap;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::LogLevel;
-use pacquet_resolving_deps_resolver::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::LogLevel;
+use pnpm_resolving_deps_resolver::{
     DependencyOverrider, ManifestHook, ResolveImporterError, ResolveImporterOptions,
 };
-use pacquet_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
+use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -46,8 +46,9 @@ pub(super) fn preferred_versions_seeds(
     update_seed_policy: &UpdateSeedPolicy,
     wanted_lockfile: Option<&Lockfile>,
     importer_manifests: &BTreeMap<String, &PackageManifest>,
+    overrides: Option<&PreferredVersions>,
 ) -> (Arc<PreferredVersions>, BTreeMap<String, Arc<PreferredVersions>>) {
-    use pacquet_lockfile_preferred_versions::{
+    use pnpm_lockfile_preferred_versions::{
         get_preferred_versions_from_lockfile_and_manifests as from_lockfile,
         get_preferred_versions_from_lockfile_and_manifests_excluding as from_lockfile_excluding,
     };
@@ -55,7 +56,7 @@ pub(super) fn preferred_versions_seeds(
     let manifests: Vec<&PackageManifest> = importer_manifests.values().copied().collect();
     let snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
 
-    let workspace_seed = match update_seed_policy {
+    let mut workspace_seed = match update_seed_policy {
         UpdateSeedPolicy::KeepAll
         | UpdateSeedPolicy::KeepAllResolveAll
         | UpdateSeedPolicy::ByImporter { .. } => from_lockfile(snapshots, manifests.as_slice()),
@@ -65,27 +66,41 @@ pub(super) fn preferred_versions_seeds(
         }
     };
 
+    // A per-importer policy carries its own overrides below. Layering them onto the
+    // workspace seed as well would reach the importers that policy left out, moving
+    // dependencies in projects the command never named.
+    if !matches!(update_seed_policy, UpdateSeedPolicy::ByImporter { .. }) {
+        merge_preferred_versions(&mut workspace_seed, overrides);
+    }
+
     let mut by_importer = BTreeMap::new();
     if let UpdateSeedPolicy::ByImporter { policies, .. } = update_seed_policy {
         let mut drop_all_seed = None;
         let mut drop_only_seeds = HashMap::new();
         for (importer_id, policy) in policies {
             let seed = match policy {
-                ImporterUpdateSeedPolicy::DropAll => Arc::clone(
-                    drop_all_seed
-                        .get_or_insert_with(|| Arc::new(from_lockfile(None, manifests.as_slice()))),
-                ),
+                ImporterUpdateSeedPolicy::DropAll => {
+                    Arc::clone(drop_all_seed.get_or_insert_with(|| {
+                        let mut seed = from_lockfile(None, manifests.as_slice());
+                        merge_preferred_versions(&mut seed, overrides);
+                        Arc::new(seed)
+                    }))
+                }
                 ImporterUpdateSeedPolicy::DropOnly(names) => {
                     let mut cache_key = names.iter().cloned().collect::<Vec<_>>();
                     cache_key.sort_unstable();
                     if let Some(seed) = drop_only_seeds.get(&cache_key) {
                         Arc::clone(seed)
                     } else {
-                        let seed = Arc::new(from_lockfile_excluding(
-                            snapshots,
-                            manifests.as_slice(),
-                            &excluded_names(names),
-                        ));
+                        let seed = Arc::new({
+                            let mut seed = from_lockfile_excluding(
+                                snapshots,
+                                manifests.as_slice(),
+                                &excluded_names(names),
+                            );
+                            merge_preferred_versions(&mut seed, overrides);
+                            seed
+                        });
                         drop_only_seeds.insert(cache_key, Arc::clone(&seed));
                         seed
                     }
@@ -98,15 +113,25 @@ pub(super) fn preferred_versions_seeds(
     (Arc::new(workspace_seed), by_importer)
 }
 
+/// Layer caller-supplied preferences onto a seed, per package name. A
+/// selector present in both wins from `overrides`, which is how a version
+/// named on the command line outranks the pin the lockfile seeded for it.
+fn merge_preferred_versions(seed: &mut PreferredVersions, overrides: Option<&PreferredVersions>) {
+    let Some(overrides) = overrides else { return };
+    for (name, selectors) in overrides {
+        seed.entry(name.clone()).or_default().extend(selectors.clone());
+    }
+}
+
 fn excluded_names(
     names: &std::collections::HashSet<String>,
-) -> std::collections::HashSet<pacquet_lockfile::PkgName> {
-    names.iter().filter_map(|name| pacquet_lockfile::PkgName::parse(name.as_str()).ok()).collect()
+) -> std::collections::HashSet<pnpm_lockfile::PkgName> {
+    names.iter().filter_map(|name| pnpm_lockfile::PkgName::parse(name.as_str()).ok()).collect()
 }
 
 /// Call the pnpmfile's `preResolution` hook before resolution starts.
-pub(super) async fn run_pre_resolution_hook<Reporter: pacquet_reporter::Reporter>(
-    hook: &Arc<dyn pacquet_hooks::PnpmfileHooks>,
+pub(super) async fn run_pre_resolution_hook<Reporter: pnpm_reporter::Reporter>(
+    hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
     config: &Config,
     lockfile_dir: &Path,
     wanted_lockfile: Option<&Lockfile>,
@@ -122,7 +147,7 @@ pub(super) async fn run_pre_resolution_hook<Reporter: pacquet_reporter::Reporter
         || serde_json::json!({}),
         |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
     );
-    let ctx = pacquet_hooks::PreResolutionHookContext {
+    let ctx = pnpm_hooks::PreResolutionHookContext {
         wanted_lockfile: wanted_lockfile_json,
         current_lockfile: current_lockfile_json,
         exists_current_lockfile,
@@ -135,7 +160,7 @@ pub(super) async fn run_pre_resolution_hook<Reporter: pacquet_reporter::Reporter
     };
     hook.pre_resolution(
         ctx,
-        pacquet_hooks::PreResolutionHookLogger {
+        pnpm_hooks::PreResolutionHookLogger {
             info: super::pre_resolution_log_fn::<Reporter>(lockfile_dir, LogLevel::Info),
             warn: super::pre_resolution_log_fn::<Reporter>(lockfile_dir, LogLevel::Warn),
         },
@@ -150,12 +175,11 @@ pub(super) struct SharedResolveOptions<'a> {
     pub config: &'a Config,
     pub lockfile_dir: &'a Path,
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
-    pub published_by_exclude: Option<pacquet_config::version_policy::PackageVersionPolicy>,
-    pub trust_policy: Option<pacquet_config::TrustPolicy>,
-    pub trust_policy_exclude: Option<pacquet_config::version_policy::PackageVersionPolicy>,
-    pub package_version_guard:
-        Option<Arc<dyn pacquet_resolving_resolver_base::PackageVersionGuard>>,
-    pub workspace_packages: Option<Arc<pacquet_resolving_resolver_base::WorkspacePackages>>,
+    pub published_by_exclude: Option<pnpm_config::version_policy::PackageVersionPolicy>,
+    pub trust_policy: Option<pnpm_config::TrustPolicy>,
+    pub trust_policy_exclude: Option<pnpm_config::version_policy::PackageVersionPolicy>,
+    pub package_version_guard: Option<Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
+    pub workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     /// See [`super::InstallWithFreshLockfile::update_checksums`].
     pub update_checksums: bool,
 }
@@ -180,7 +204,7 @@ impl SharedResolveOptions<'_> {
             workspace_packages: self.workspace_packages.clone(),
             block_exotic_subdeps: self.config.block_exotic_subdeps,
             always_try_workspace_packages: self.config.link_workspace_packages
-                != pacquet_config::LinkWorkspacePackages::Off,
+                != pnpm_config::LinkWorkspacePackages::Off,
             inject_workspace_packages: self.config.inject_workspace_packages,
             prefer_workspace_packages: self.config.prefer_workspace_packages,
             update_checksums: self.update_checksums,
@@ -195,7 +219,7 @@ pub(super) struct ReuseSeedInputs<'a> {
     /// The previous run's lockfile, the only reuse candidate.
     pub wanted_lockfile: Option<&'a Lockfile>,
     pub package_extensions_checksum: Option<&'a str>,
-    pub parsed_overrides: Option<&'a [pacquet_config_parse_overrides::VersionOverride]>,
+    pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
     pub resolved_overrides: Option<&'a IndexMap<String, String>>,
     /// The extensions and overrides halves of the read-package chain.
     /// This path has no pnpmfile hook (see [`Self::fast_override_eligible`]),
@@ -208,7 +232,7 @@ pub(super) struct ReuseSeedInputs<'a> {
     /// pnpr server also opts out, since its per-resolution observer must
     /// see every edge.
     pub fast_override_eligible: bool,
-    pub npm_resolver: &'a dyn pacquet_resolving_resolver_base::Resolver,
+    pub npm_resolver: &'a dyn pnpm_resolving_resolver_base::Resolver,
     pub resolve_options: &'a ResolveOptions,
     pub registries: &'a HashMap<String, String>,
 }
@@ -220,12 +244,15 @@ pub(super) struct ReuseSeedInputs<'a> {
 /// A changed `catalogs` or `pnpm.overrides` block normally withholds the
 /// seed entirely. Two shapes are cheap enough to rewrite in place
 /// instead — a catalog edit and an exact generic registry override — and
-/// each yields a dependency-shape-verified seed. Every other shape falls
-/// back to withholding.
+/// each yields a dependency-shape-verified seed. They compose: the
+/// catalog rewrite settles first and the override rewrite replays onto
+/// its result, the order a resolution applies the two in. Every other
+/// shape falls back to withholding.
 pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<Arc<Lockfile>> {
     use crate::{
+        fast_update_catalog_versions::try_fast_update_catalog_versions,
         fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs},
-        fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides},
+        fast_update_overrides::{FastOverrideOptions, RewriteContext, try_fast_update_overrides},
     };
 
     let ReuseSeedInputs {
@@ -256,44 +283,74 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
         FastCatalogUpdate::Unsupported => (false, None),
     };
 
-    let reusable_settings_lockfile = wanted_lockfile.filter(|lockfile| {
+    let lockfile = wanted_lockfile.filter(|lockfile| {
         lockfile.package_extensions_checksum.as_deref() == package_extensions_checksum
-    });
-    let override_settings_match = reusable_settings_lockfile.is_some_and(|lockfile| {
-        super::overrides_match(lockfile.overrides.as_ref(), resolved_overrides)
-    });
+            && super::ignored_optional_dependencies_match(
+                lockfile.ignored_optional_dependencies.as_deref(),
+                config.ignored_optional_dependencies.as_deref(),
+            )
+    })?;
+    let override_settings_match =
+        super::overrides_match(lockfile.overrides.as_ref(), resolved_overrides);
 
-    if let (Some(lockfile), Some(parsed), Some(resolved)) =
-        (reusable_settings_lockfile, parsed_overrides, resolved_overrides)
-        && catalogs_match
-        && !overrides_use_catalogs
-        && !override_settings_match
-        && fast_override_eligible
-        && let Some(seed) = try_fast_update_overrides(FastOverrideOptions {
-            lockfile,
-            parsed_overrides: parsed,
-            resolved_overrides: resolved,
+    let rewrite_manifest_hook = super::compose_manifest_hooks(manifest_hook, overrides_hook);
+    // A catalog move can change the effective value of an override whose
+    // configured value is a `catalog:` reference — an effect no catalog
+    // rewrite can express — so catalog drift under such an override goes to
+    // the resolver. The override rewrite itself is safe under one: it runs
+    // only once the catalogs are settled, and override values are compared
+    // catalog-resolved, so a settled `catalog:` override shows no drift and
+    // only the genuinely changed entries are rewritten.
+    let can_rewrite_catalogs = fast_override_eligible && !overrides_use_catalogs;
+
+    let catalog_rewrite = if catalogs_match {
+        None
+    } else if let Some(seed) = fast_catalog_seed {
+        Some(seed)
+    } else if can_rewrite_catalogs {
+        // A catalog entry that now names a version the locked one cannot
+        // satisfy left `catalogs_match` false with no seed above. Replacing
+        // the package is the same rewrite an exact override performs.
+        Some(
+            try_fast_update_catalog_versions(
+                &RewriteContext {
+                    lockfile,
+                    resolver: npm_resolver,
+                    resolve_options,
+                    manifest_hook: rewrite_manifest_hook.as_ref(),
+                    registries,
+                    registry_options_by_url: &config.registry_options_by_url,
+                    lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+                },
+                catalogs,
+            )
+            .await?,
+        )
+    } else {
+        return None;
+    };
+
+    if override_settings_match {
+        return Some(Arc::new(catalog_rewrite.unwrap_or_else(|| lockfile.clone())));
+    }
+    if !fast_override_eligible {
+        return None;
+    }
+    let seed = try_fast_update_overrides(FastOverrideOptions {
+        context: RewriteContext {
+            lockfile: catalog_rewrite.as_ref().unwrap_or(lockfile),
             resolver: npm_resolver,
             resolve_options,
-            manifest_hook: super::compose_manifest_hooks(manifest_hook, overrides_hook).as_ref(),
+            manifest_hook: rewrite_manifest_hook.as_ref(),
             registries,
+            registry_options_by_url: &config.registry_options_by_url,
             lockfile_include_tarball_url: config.lockfile_include_tarball_url,
-        })
-        .await
-    {
-        return Some(Arc::new(seed));
-    }
-
-    // `override_settings_match` is computed with `is_some_and`, so it
-    // already implies `reusable_settings_lockfile` is `Some`.
-    if override_settings_match && let Some(seed) = fast_catalog_seed {
-        return Some(Arc::new(seed));
-    }
-
-    (catalogs_match && override_settings_match)
-        .then_some(reusable_settings_lockfile)
-        .flatten()
-        .map(|lockfile| Arc::new(lockfile.clone()))
+        },
+        parsed_overrides: parsed_overrides?,
+        resolved_overrides: resolved_overrides?,
+    })
+    .await?;
+    Some(Arc::new(seed))
 }
 
 /// Report the `pnpm.overrides` convergence entries whose pinned value is
@@ -305,13 +362,13 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
 /// silent rather than warn from unseen ranges. Call before the resolver
 /// chain is dropped so the per-range picks reuse the still-warm packument
 /// cache.
-pub(super) async fn warn_stale_convergence_overrides<Reporter: pacquet_reporter::Reporter>(
-    npm_resolver: &dyn pacquet_resolving_resolver_base::Resolver,
-    parsed_overrides: &[pacquet_config_parse_overrides::VersionOverride],
+pub(super) async fn warn_stale_convergence_overrides<Reporter: pnpm_reporter::Reporter>(
+    npm_resolver: &dyn pnpm_resolving_resolver_base::Resolver,
+    parsed_overrides: &[pnpm_config_parse_overrides::VersionOverride],
     versions_overrider: &VersionsOverrider,
     lockfile_dir: &Path,
     published_by: Option<chrono::DateTime<chrono::Utc>>,
-    published_by_exclude: Option<&pacquet_config::version_policy::PackageVersionPolicy>,
+    published_by_exclude: Option<&pnpm_config::version_policy::PackageVersionPolicy>,
 ) {
     use crate::warn_on_stale_convergence_overrides as stale;
 
@@ -348,26 +405,31 @@ pub(super) struct ResolvePassInputs<'a> {
     pub preferred_versions_seed: &'a Arc<PreferredVersions>,
     pub preferred_versions_seeds_by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
     pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
-    pub patched_dependencies: Option<Arc<pacquet_patching::PatchGroupRecord>>,
+    pub patched_dependencies: Option<Arc<pnpm_patching::PatchGroupRecord>>,
     pub manifest_hook: Option<ManifestHook>,
     pub overrides_hook: Option<ManifestHook>,
     /// Consumed by the resolver; the caller keeps its own clone for the
     /// `afterAllResolved` hook.
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
-    pub read_package_log: Option<pacquet_hooks::LogFn>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    pub read_package_log: Option<pnpm_hooks::LogFn>,
     /// See [`crate::resolution_policy::PickPolicy`].
     pub pick_lowest_direct: bool,
     pub time_based: bool,
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
-    /// The prior lockfile the walk may reuse subtrees from — see
-    /// [`lockfile_reuse_seed`].
-    pub lockfile_reuse_seed: Option<Arc<Lockfile>>,
-    pub update_reuse_scope: pacquet_resolving_deps_resolver::UpdateReuseScope,
+    /// The prior lockfile the walk resolves against — the granted
+    /// [`lockfile_reuse_seed`], or the raw wanted lockfile when the seed
+    /// was withheld and only per-edge version pinning remains safe.
+    pub resolution_lockfile: Option<Arc<Lockfile>>,
+    /// Whether [`Self::resolution_lockfile`] is a granted reuse seed the
+    /// walk may reuse whole subtrees from. `false` restricts it to
+    /// per-edge version pinning.
+    pub reuse_lockfile_subtrees: bool,
+    pub update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
     pub update_reuse_scopes_by_importer:
-        BTreeMap<String, pacquet_resolving_deps_resolver::UpdateReuseScope>,
-    pub update_depth: pacquet_resolving_deps_resolver::UpdateDepth,
+        BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
+    pub update_depth: pnpm_resolving_deps_resolver::UpdateDepth,
     pub registries: HashMap<String, String>,
-    pub named_registries: HashMap<String, String>,
+    pub registries_by_prefix: HashMap<String, String>,
 }
 
 /// Walk every importer's dependencies through the resolver chain.
@@ -378,10 +440,9 @@ pub(super) struct ResolvePassInputs<'a> {
 /// picked-manifest caches keep the metadata and version-pick work
 /// amortized across importers. `resolve_workspace` then runs the
 /// cross-importer peer pass and applies `dedupeInjectedDeps`.
-pub(super) async fn run_resolve_pass<Reporter: pacquet_reporter::Reporter>(
+pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     inputs: ResolvePassInputs<'_>,
-) -> Result<pacquet_resolving_deps_resolver::ResolveWorkspaceResult, InstallWithFreshLockfileError>
-{
+) -> Result<pnpm_resolving_deps_resolver::ResolveWorkspaceResult, InstallWithFreshLockfileError> {
     let ResolvePassInputs {
         config,
         resolver,
@@ -401,18 +462,19 @@ pub(super) async fn run_resolve_pass<Reporter: pacquet_reporter::Reporter>(
         pick_lowest_direct,
         time_based,
         published_by,
-        lockfile_reuse_seed,
+        resolution_lockfile,
+        reuse_lockfile_subtrees,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         update_depth,
         registries,
-        named_registries,
+        registries_by_prefix,
     } = inputs;
 
-    let workspace_importers: Vec<pacquet_resolving_deps_resolver::WorkspaceImporter<'_>> =
+    let workspace_importers: Vec<pnpm_resolving_deps_resolver::WorkspaceImporter<'_>> =
         importer_manifests
             .iter()
-            .map(|(id, manifest)| pacquet_resolving_deps_resolver::WorkspaceImporter {
+            .map(|(id, manifest)| pnpm_resolving_deps_resolver::WorkspaceImporter {
                 id: id.clone(),
                 manifest,
             })
@@ -424,7 +486,12 @@ pub(super) async fn run_resolve_pass<Reporter: pacquet_reporter::Reporter>(
         .file_name()
         .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
 
-    let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
+    let workspace_opts = pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
+        registry_context: pnpm_lockfile::RegistryContext {
+            registries,
+            registries_by_prefix,
+            registry_options_by_url: config.registry_options_by_url.clone(),
+        },
         dedupe_peers: config.dedupe_peers,
         dedupe_injected_deps: config.dedupe_injected_deps,
         dedupe_peer_dependents: config.dedupe_peer_dependents,
@@ -439,18 +506,17 @@ pub(super) async fn run_resolve_pass<Reporter: pacquet_reporter::Reporter>(
         skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
         pick_lowest_direct,
         time_based,
-        wanted_lockfile: lockfile_reuse_seed,
+        wanted_lockfile: resolution_lockfile,
+        reuse_lockfile_subtrees,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         update_depth,
         auto_install_peers: config.auto_install_peers,
-        registries,
-        named_registries,
         allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
         deprecation_log: Some(super::deprecation_log_fn::<Reporter>()),
     };
 
-    pacquet_resolving_deps_resolver::resolve_workspace(
+    pnpm_resolving_deps_resolver::resolve_workspace(
         resolver,
         &workspace_importers,
         dependency_groups,

@@ -6,7 +6,7 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, path::Path};
 
 use node_semver::{Range, Version};
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, get_peer_version_range,
 };
 

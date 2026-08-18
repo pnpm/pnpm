@@ -1,4 +1,5 @@
 import path from 'node:path'
+import util from 'node:util'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
@@ -35,17 +36,19 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
 
   // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
   let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  let freshlyResolved = false
   if (!pmVersion || !semver.satisfies(pmVersion, pm.version, { includePrerelease: true })) {
     // Resolve to an exact version from the registry.
     storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
     envLockfile = await resolvePackageManagerIntegrities(pm.version, {
       envLockfile,
-      registries: packageManagerConfig.registries,
+      registriesByScope: packageManagerConfig.registriesByScope,
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
       save: persistLockfile,
     })
+    freshlyResolved = true
     pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
     if (!pmVersion) {
       globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
@@ -56,12 +59,13 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
     envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
       envLockfile,
-      registries: packageManagerConfig.registries,
+      registriesByScope: packageManagerConfig.registriesByScope,
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
       save: persistLockfile,
     })
+    freshlyResolved = true
   }
 
   // If the wanted version matches the current version, no switch needed.
@@ -87,7 +91,44 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   }
 
   try {
-    assertPackageManagerLockfileUsesRegistryResolutions(envLockfile)
+    try {
+      assertPackageManagerLockfileUsesRegistryResolutions(envLockfile)
+    } catch (err: unknown) {
+      if (
+        freshlyResolved ||
+        !util.types.isNativeError(err) ||
+        !('code' in err) ||
+        err.code !== 'ERR_PNPM_INVALID_PACKAGE_MANAGER_LOCKFILE'
+      ) {
+        throw err
+      }
+      // The persisted entries don't satisfy the current bootstrap rules — e.g.
+      // an earlier pnpm recorded resolutions carrying tarball URLs. Rather than
+      // refusing to run, discard them and resolve afresh through the trusted
+      // bootstrap registries, which yields entries in the accepted shape.
+      delete envLockfile.importers['.'].packageManagerDependencies
+      storeToUse ??= await createStoreController({ ...config, ...context, ...packageManagerConfig })
+      envLockfile = await resolvePackageManagerIntegrities(pm.version, {
+        envLockfile,
+        registriesByScope: packageManagerConfig.registriesByScope,
+        rootDir: context.rootProjectManifestDir,
+        storeController: storeToUse.ctrl,
+        storeDir: storeToUse.dir,
+        save: persistLockfile,
+      })
+      pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
+      if (!pmVersion) {
+        globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
+        await storeToUse.ctrl.close()
+        return
+      }
+      if (pmVersion === packageManager.version) {
+        await storeToUse.ctrl.close()
+        return
+      }
+      assertReleaseIsInstallable(pmVersion)
+      assertPackageManagerLockfileUsesRegistryResolutions(envLockfile)
+    }
   } catch (err: unknown) {
     await storeToUse?.ctrl.close()
     throw err
@@ -105,7 +146,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       envLockfile,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
-      registries: packageManagerConfig.registries,
+      registriesByScope: packageManagerConfig.registriesByScope,
       virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
       // Network settings so the engine identity check can reach the canonical

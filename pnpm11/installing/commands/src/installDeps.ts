@@ -55,6 +55,7 @@ import {
   type RecursiveOptions,
   type UpdateDepsMatcher,
 } from './recursive.js'
+import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 import { makeRunPacquet } from './runPacquet.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
@@ -70,7 +71,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'catalogMode'
-| 'cleanupUnusedCatalogs'
+| 'catalogPrune'
+| 'minimumReleaseAgeExcludePrune'
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'depth'
@@ -86,12 +88,13 @@ export type InstallDepsOptions = Pick<Config,
 | 'ignoreScripts'
 | 'optimisticRepeatInstall'
 | 'linkWorkspacePackages'
+| 'lockfile'
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'pnprServer'
 | 'production'
 | 'preferWorkspacePackages'
-| 'registries'
+| 'registriesByScope'
 | 'runtime'
 | 'runtimeOnFail'
 | 'save'
@@ -416,7 +419,7 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false && !opts.dryRun) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim we added entries the workspace manifest
@@ -427,7 +430,8 @@ export async function installDeps (
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
-          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+          catalogPrune: opts.catalogPrune,
+          resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
           allProjects: opts.allProjects,
           ...policyUpdates,
         }),
@@ -447,7 +451,7 @@ export async function installDeps (
     return dryRunResult
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
@@ -463,7 +467,8 @@ export async function installDeps (
         writeProjectManifest(updatedManifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
-          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+          catalogPrune: opts.catalogPrune,
+          resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
           allProjects,
           ...policyUpdates,
         }),

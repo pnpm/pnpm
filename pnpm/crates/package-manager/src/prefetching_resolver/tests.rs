@@ -1,16 +1,16 @@
 use super::PrefetchingResolver;
 use crate::PrefetchContext;
-use pacquet_config::Config;
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
-use pacquet_network::ThrottledClient;
-use pacquet_reporter::SilentReporter;
-use pacquet_resolving_default_resolver::DefaultResolver;
-use pacquet_resolving_resolver_base::{
+use pnpm_config::Config;
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
+use pnpm_network::ThrottledClient;
+use pnpm_reporter::SilentReporter;
+use pnpm_resolving_default_resolver::DefaultResolver;
+use pnpm_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
     WantedDependency,
 };
-use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndexWriter};
-use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndexWriter};
+use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
 use serde_json::json;
 use std::{io::Write, path::Path, sync::Arc};
 use tempfile::tempdir;

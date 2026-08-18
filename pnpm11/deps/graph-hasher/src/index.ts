@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
 import { engineName } from '@pnpm/engine.runtime.system-version'
@@ -190,11 +192,9 @@ export interface GraphNodeHashOptions {
    */
   nodeVersion?: string
   /**
-   * Directory the lockfile lives in. Scopes the slots of local directory
-   * dependencies to the project that owns them — see
-   * {@link isLocalDirectoryResolution}. Omitting it leaves those packages on a
-   * shared slot, which is only safe for a lockfile known to have no directory
-   * dependencies.
+   * Directory the lockfile lives in. Scopes local directory dependencies to
+   * their project and resolves `link:` targets for recursive dependency
+   * hashing. Omitting it is only safe for a lockfile known to contain neither.
    */
   lockfileDir?: string
 }
@@ -376,20 +376,28 @@ export function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<Dep
 
 export function lockfileToDepGraph (
   lockfile: LockfileObject,
-  supportedArchitectures?: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures,
+  lockfileDir?: string
 ): DepsGraph<DepPath> {
   const graph: DepsGraph<DepPath> = {}
+  const linkTargetNodes = new Set<DepPath>()
   if (lockfile.packages != null) {
     for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
       const children = lockfileDepsToGraphChildren({
         ...pkgSnapshot.dependencies,
         ...pkgSnapshot.optionalDependencies,
-      })
+      }, lockfileDir, linkTargetNodes)
       graph[depPath as DepPath] = {
         children,
         resolution: pkgSnapshot.resolution,
         fullPkgId: createFullPkgId(getPkgIdWithPatchHash(depPath as DepPath), pkgSnapshot.resolution, supportedArchitectures),
       }
+    }
+  }
+  for (const linkTargetNode of linkTargetNodes) {
+    graph[linkTargetNode] = {
+      children: {},
+      fullPkgId: linkTargetNode,
     }
   }
   return graph
@@ -439,12 +447,20 @@ function transitivelyRequiresBuild<T extends string> (
   return false
 }
 
-function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<string, DepPath> {
+function lockfileDepsToGraphChildren (
+  deps: Record<string, string>,
+  lockfileDir: string | undefined,
+  linkTargetNodes: Set<DepPath>
+): Record<string, DepPath> {
   const children: Record<string, DepPath> = {}
   for (const [alias, reference] of Object.entries(deps)) {
     const depPath = refToRelative(reference, alias)
     if (depPath) {
       children[alias] = depPath
+    } else if (lockfileDir != null && reference.startsWith('link:')) {
+      const linkTargetNode = `link:${path.resolve(lockfileDir, reference.slice(5))}` as DepPath
+      children[alias] = linkTargetNode
+      linkTargetNodes.add(linkTargetNode)
     }
   }
   return children

@@ -1,5 +1,5 @@
 use super::State;
-use pacquet_config::Config;
+use pnpm_config::Config;
 
 #[test]
 fn workspace_state_anchors_lockfile_at_workspace_root() {
@@ -15,7 +15,7 @@ fn workspace_state_anchors_lockfile_at_workspace_root() {
     let state = State::init(manifest_path, config, false).expect("initialize state");
 
     assert_eq!(state.lockfile_dir(), workspace_root);
-    assert_eq!(state.lockfile_path(), workspace_root.join(pacquet_lockfile::Lockfile::FILE_NAME));
+    assert_eq!(state.lockfile_path(), workspace_root.join(pnpm_lockfile::Lockfile::FILE_NAME));
     assert_eq!(state.active_importer_id(), "packages/app");
 }
 
@@ -36,6 +36,6 @@ fn workspace_state_anchors_per_project_lockfile_at_project_root() {
     let state = State::init(manifest_path, config, false).expect("initialize state");
 
     assert_eq!(state.lockfile_dir(), project_dir);
-    assert_eq!(state.lockfile_path(), project_dir.join(pacquet_lockfile::Lockfile::FILE_NAME));
+    assert_eq!(state.lockfile_path(), project_dir.join(pnpm_lockfile::Lockfile::FILE_NAME));
     assert_eq!(state.active_importer_id(), ".");
 }

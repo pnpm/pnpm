@@ -13,7 +13,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 
 /// Parsed `jsr:` specifier.
 #[derive(Debug, Clone, PartialEq, Eq)]

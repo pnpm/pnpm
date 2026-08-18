@@ -12,14 +12,14 @@ use std::path::{Path, PathBuf};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pacquet_config::SaveWorkspaceProtocol;
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_resolving_resolver_base::{
+use pnpm_config::SaveWorkspaceProtocol;
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_resolving_resolver_base::{
     PkgResolutionId, ResolveResult, WantedDependency, WorkspacePackage, WorkspacePackages,
     WorkspacePackagesByVersion,
 };
-use pacquet_workspace_range_resolver::resolve_workspace_range;
+use pnpm_workspace_range_resolver::resolve_workspace_range;
 
 use crate::{
     calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep},
@@ -63,7 +63,7 @@ pub struct ResolveFromWorkspaceOptions<'a> {
 /// manifest-ready [`ResolveResult::normalized_bare_specifier`].
 ///
 /// Mirrors the same-named fields of
-/// [`ResolveOptions`](pacquet_resolving_resolver_base::ResolveOptions);
+/// [`ResolveOptions`](pnpm_resolving_resolver_base::ResolveOptions);
 /// carried separately because the workspace entry point takes its own
 /// options struct.
 #[derive(Debug, Default, Clone, Copy)]

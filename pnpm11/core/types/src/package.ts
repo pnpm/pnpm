@@ -1,4 +1,4 @@
-import type { Registries } from './misc.js'
+import type { RegistriesByScope, RegistryDeclaration } from './misc.js'
 import type { VersioningSettings } from './versioning.js'
 
 export type Dependencies = Record<string, string>
@@ -231,7 +231,20 @@ export interface UpdateSettings {
 
 export interface PnpmSettings {
   npmrcAuthFile?: string
-  registries?: Registries
+  /**
+   * The registries the project declares, keyed by registry URL, so that a
+   * registry's layout, the scopes routed to it, and the bare-specifier prefix
+   * it answers to are all stated once, in one place.
+   *
+   * A map whose values are plain strings is the older `scope: url` shape and
+   * is read as one.
+   */
+  registries?: Record<string, RegistryDeclaration> | RegistriesByScope
+  /**
+   * @deprecated Give the registry a `prefix` in
+   * {@link PnpmSettings.registries} instead. Kept working until the next major
+   * version.
+   */
   namedRegistries?: Record<string, string>
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
@@ -267,7 +280,21 @@ export interface PnpmSettings {
   noProxy?: string | boolean
   pnprServer?: string
   versioning?: VersioningSettings
+  /**
+   * Where the virtual store lives, and therefore who shares it: one store
+   * per machine (`global`) or one per project (`project`).
+   *
+   * The canonical spelling of {@link PnpmSettings.enableGlobalVirtualStore}.
+   * When both are set, this one wins.
+   */
+  virtualStoreType?: VirtualStoreType
+  /**
+   * The boolean spelling of {@link PnpmSettings.virtualStoreType}.
+   */
+  enableGlobalVirtualStore?: boolean
 }
+
+export type VirtualStoreType = 'global' | 'project'
 
 export interface ProjectManifest extends BaseManifest {
   packageManager?: string

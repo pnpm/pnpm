@@ -3,7 +3,7 @@ import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/store.controller'
-import type { DepPath, ProjectId, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
 import { convertToLockfileEnvObject } from './pruneEnvLockfile.js'
@@ -16,7 +16,7 @@ const PNPM_EXE_INTRODUCED = '6.17.1'
 
 export interface ResolvePackageManagerIntegritiesOpts {
   envLockfile?: EnvLockfile
-  registries: Registries
+  registriesByScope: RegistriesByScope
   rootDir: string
   storeController: StoreController
   storeDir: string
@@ -84,6 +84,7 @@ export async function resolvePackageManagerIntegrities (
   }
 
   const lockfile = await resolveWantedPnpmPackages(pnpmVersion, opts)
+  stripRegistryTarballUrls(lockfile)
 
   if (lockfile.packages) {
     // Build packageManagerDependencies from the resolved lockfile importers
@@ -115,6 +116,34 @@ export async function resolvePackageManagerIntegrities (
 }
 
 /**
+ * Rewrites registry tarball resolutions to integrity-only form, dropping
+ * tarball URLs that a registry advertises on a host other than its own —
+ * load-balanced proxies and Artifactory-style mirrors do this, see
+ * https://github.com/pnpm/pnpm/issues/13619. The package-manager bootstrap
+ * never fetches a URL recorded in the lockfile: the download URL is always
+ * derived from the trusted bootstrap registries at install time, so a
+ * repository-provided entry cannot steer the download. Dropping the URL here
+ * keeps freshly resolved entries in exactly the integrity-only shape the
+ * bootstrap validation accepts.
+ */
+function stripRegistryTarballUrls (lockfile: LockfileObject): void {
+  for (const pkg of Object.values(lockfile.packages ?? {})) {
+    const resolution = pkg.resolution
+    if (
+      resolution == null ||
+      !('integrity' in resolution) || !resolution.integrity ||
+      !('tarball' in resolution) || typeof resolution.tarball !== 'string' ||
+      resolution.tarball.startsWith('file:') ||
+      ('gitHosted' in resolution && resolution.gitHosted === true) ||
+      ('path' in resolution && resolution.path != null)
+    ) {
+      continue
+    }
+    pkg.resolution = { integrity: resolution.integrity }
+  }
+}
+
+/**
  * Resolves the pnpm packages wanted by `spec`, which may also be a range or a
  * dist-tag. A spec that is not an exact version is resolved through `pnpm`
  * alone first, because which packages are wanted (see
@@ -126,7 +155,7 @@ async function resolveWantedPnpmPackages (
 ): Promise<LockfileObject> {
   const resolveOpts = {
     dir: opts.rootDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
   }

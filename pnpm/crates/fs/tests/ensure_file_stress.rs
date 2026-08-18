@@ -1,4 +1,4 @@
-//! Cross-process stress tests for [`pacquet_fs::ensure_file`].
+//! Cross-process stress tests for [`pnpm_fs::ensure_file`].
 //!
 //! Covers three multi-process scenarios:
 //!
@@ -13,7 +13,7 @@
 //!    fast path inside `verify_or_rewrite` kicks in and the
 //!    overwrite-via-rename heals the store.
 //!
-//! Pacquet's [`cas_write_lock`](pacquet_fs::ensure_file) is
+//! Pacquet's [`cas_write_lock`](pnpm_fs::ensure_file) is
 //! process-local (a static array of [`std::sync::Mutex<()>`] stripes
 //! keyed by hashed path), so the cross-process safety contract lives
 //! entirely in the kernel-level `O_CREAT | O_EXCL` + atomic-rename
@@ -68,7 +68,7 @@ fn run_workers(content_path: &Path, target_path: &Path) -> Vec<std::process::Exi
 }
 
 /// Sha-512-hex the byte slice, the same digest format
-/// [`pacquet_fs::ensure_file`] would use for CAS naming.
+/// [`pnpm_fs::ensure_file`] would use for CAS naming.
 fn sha512_hex(content: &[u8]) -> String {
     let digest = Sha512::digest(content);
     format!("{digest:x}")

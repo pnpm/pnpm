@@ -5,7 +5,7 @@ import {
   type CreateStoreControllerOptions,
 } from '@pnpm/store.connection-manager'
 
-export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries'>
+export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registriesByScope'>
 
 export async function writePackage (dep: ParseWantedDependencyResult, dest: string, opts: WritePackageOptions): Promise<void> {
   const store = await createStoreController({

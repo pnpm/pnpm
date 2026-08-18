@@ -14,7 +14,7 @@
 use crate::{
     AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
     PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    TrustPolicy, VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
+    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -135,6 +135,7 @@ impl WorkspaceSettings {
             };
         }
 
+        json_field!(ci, "CI");
         json_field!(hoist, "HOIST");
         tri_array_field!(hoist_pattern, "HOIST_PATTERN");
         tri_array_field!(public_hoist_pattern, "PUBLIC_HOIST_PATTERN");
@@ -146,7 +147,9 @@ impl WorkspaceSettings {
         enum_field!(node_package_map_type, "NODE_PACKAGE_MAP_TYPE", NodePackageMapType);
         json_field!(symlink, "SYMLINK");
         string_field!(virtual_store_dir, "VIRTUAL_STORE_DIR");
+        enum_field!(virtual_store_type, "VIRTUAL_STORE_TYPE", VirtualStoreType);
         json_field!(enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");
+        json_field!(global_shims, "GLOBAL_SHIMS");
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
         enum_field!(package_import_method, "PACKAGE_IMPORT_METHOD", PackageImportMethod);
         json_field!(modules_cache_max_age, "MODULES_CACHE_MAX_AGE");
@@ -223,6 +226,7 @@ impl WorkspaceSettings {
         json_field!(workspace_concurrency, "WORKSPACE_CONCURRENCY");
         json_field!(git_shallow_hosts, "GIT_SHALLOW_HOSTS");
         json_field!(test_pattern, "TEST_PATTERN");
+        json_field!(sync_injected_deps_after_scripts, "SYNC_INJECTED_DEPS_AFTER_SCRIPTS");
         json_field!(changed_files_ignore_pattern, "CHANGED_FILES_IGNORE_PATTERN");
         json_field!(supported_architectures, "SUPPORTED_ARCHITECTURES");
         json_field!(ignored_optional_dependencies, "IGNORED_OPTIONAL_DEPENDENCIES");

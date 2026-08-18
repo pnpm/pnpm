@@ -73,14 +73,13 @@ const ROOT_KEYS: [&str; 9] = [
     "packages",
 ];
 
-/// Serialize `value` to a YAML string matching pnpm's lockfile formatting.
-pub(crate) fn to_string<Value: serde::Serialize>(
-    value: &Value,
-) -> Result<String, serde_json::Error> {
-    let value = sort_lockfile_keys(serde_json::to_value(value)?);
+/// Render an already-normalized lockfile document to a YAML string
+/// matching pnpm's lockfile formatting.
+pub(crate) fn to_string(value: Value) -> String {
+    let value = sort_lockfile_keys(value);
     let mut dump = render(&value, 0, true, true, None, false);
     dump.push('\n');
-    Ok(dump)
+    dump
 }
 
 /// Reorder a lockfile document's keys to match pnpm's on-write ordering:

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use pacquet_config::PeerDependencyRules;
+use pnpm_config::PeerDependencyRules;
 
 use super::{
     BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, filter_peer_issues,

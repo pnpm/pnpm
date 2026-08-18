@@ -5,7 +5,7 @@
 //! - [`materialize_into`] copies CAS-resident files into a fresh
 //!   working directory so the prepare phase has a writable tree.
 //!   Used by the git-hosted tarball fetcher: by the time the tarball
-//!   has been downloaded by `pacquet-tarball`, the files already live
+//!   has been downloaded by `pnpm-tarball`, the files already live
 //!   in the CAS, so the prepare phase reads them out into a temp dir
 //!   it can mutate without corrupting the CAS.
 //! - [`import_into_cas`] writes a prepared file set back to the CAS
@@ -15,10 +15,8 @@
 //!   import.
 
 use crate::error::GitFetcherError;
-use pacquet_fs::file_mode::{
-    cas_path_is_executable, is_executable, restore_exec_bit_from_cas_suffix,
-};
-use pacquet_store_dir::{CafsFileInfo, StoreDir};
+use pnpm_fs::file_mode::{cas_path_is_executable, is_executable, restore_exec_bit_from_cas_suffix};
+use pnpm_store_dir::{CafsFileInfo, StoreDir};
 use std::{
     collections::HashMap,
     fs, io,
@@ -27,7 +25,7 @@ use std::{
 
 /// Result of [`import_into_cas`]. The dispatcher uses `cas_paths` to
 /// build the virtual-store layout; `files_index` is the
-/// [`pacquet_store_dir::PackageFilesIndex::files`] payload the warm
+/// [`pnpm_store_dir::PackageFilesIndex::files`] payload the warm
 /// prefetch on a future install reads to skip re-fetching.
 pub(crate) struct ImportedFiles {
     pub cas_paths: HashMap<String, PathBuf>,
@@ -42,7 +40,7 @@ pub(crate) struct ImportedFiles {
 /// which traces back to either a tarball extraction or a packlist
 /// over a freshly-checked-out git tree. Tarball entries on the
 /// extraction side already get path-traversal guards in
-/// `pacquet-tarball`, but defense-in-depth at this layer means a
+/// `pnpm-tarball`, but defense-in-depth at this layer means a
 /// future caller (or a bug in that earlier sanitiser) can't turn
 /// a malformed entry into a write outside the working tree.
 fn join_checked(root: &Path, rel: &str) -> Result<PathBuf, GitFetcherError> {
@@ -101,7 +99,7 @@ pub(crate) fn materialize_into(
 
 /// Write each file in `files` (relative to `pkg_dir`) into the CAS,
 /// returning both the install-dispatcher map and the
-/// [`pacquet_store_dir::PackageFilesIndex::files`] payload the fetcher
+/// [`pnpm_store_dir::PackageFilesIndex::files`] payload the fetcher
 /// queues to `index.db` so a future install's warm prefetch can skip
 /// the re-fetch. This is the post-prepare write side of the CAS
 /// import.
@@ -149,7 +147,7 @@ pub(crate) fn import_into_cas(
 
 /// POSIX file mode (`meta.mode() & 0o777`) on Unix; a fixed `0o644`
 /// on Windows where the OS has no analog. Mirrors
-/// `pacquet_store_dir::add_files_from_dir::file_mode_from`.
+/// `pnpm_store_dir::add_files_from_dir::file_mode_from`.
 #[cfg(unix)]
 fn file_mode_from(meta: &fs::Metadata) -> u32 {
     use std::os::unix::fs::PermissionsExt;
@@ -161,7 +159,7 @@ fn file_mode_from(_meta: &fs::Metadata) -> u32 {
     0o644
 }
 
-/// Synthesize the [`PackageFilesIndex::files`](pacquet_store_dir::PackageFilesIndex::files)
+/// Synthesize the [`PackageFilesIndex::files`](pnpm_store_dir::PackageFilesIndex::files)
 /// payload from an existing `cas_paths` map without re-reading file
 /// bytes. Used by [`crate::GitHostedTarballFetcher`]'s fast path,
 /// where the prepared file set is byte-identical to the raw tarball,
@@ -172,7 +170,7 @@ fn file_mode_from(_meta: &fs::Metadata) -> u32 {
 /// shard byte (parent directory name) with the file stem (sans the
 /// optional `-exec` suffix) reconstructs the full hex digest. Mode
 /// reporting follows the read side's
-/// [`cas_file_path_by_mode`](pacquet_store_dir::StoreDir::cas_file_path_by_mode)
+/// [`cas_file_path_by_mode`](pnpm_store_dir::StoreDir::cas_file_path_by_mode)
 /// rule: any-exec-bit-set ↔ `-exec` suffix, so a synthesized `0o755`
 /// for `-exec` entries and `0o644` otherwise round-trip cleanly.
 /// `size` still requires a `fs::metadata` stat, but that's two syscalls
@@ -233,10 +231,10 @@ fn cas_path_digest(path: &Path) -> Option<String> {
 /// Preserves the miette source chain shape so a future replacement of
 /// the per-file `write_cas_file` loop with an `add_files_from_dir`-
 /// shaped helper doesn't disturb the dispatcher's error rendering.
-pub(crate) fn map_write_cas(err: pacquet_store_dir::WriteCasFileError) -> GitFetcherError {
-    let pacquet_store_dir::WriteCasFileError::WriteFile(inner) = err;
-    GitFetcherError::AddFilesFromDir(pacquet_store_dir::AddFilesFromDirError::WriteCas(
-        pacquet_store_dir::WriteCasFileError::WriteFile(inner),
+pub(crate) fn map_write_cas(err: pnpm_store_dir::WriteCasFileError) -> GitFetcherError {
+    let pnpm_store_dir::WriteCasFileError::WriteFile(inner) = err;
+    GitFetcherError::AddFilesFromDir(pnpm_store_dir::AddFilesFromDirError::WriteCas(
+        pnpm_store_dir::WriteCasFileError::WriteFile(inner),
     ))
 }
 

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use pacquet_lockfile::LockfileResolution;
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_resolver_base::{LatestQuery, ResolveOptions, Resolver, WantedDependency};
+use pnpm_lockfile::LockfileResolution;
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_resolver_base::{LatestQuery, ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
 
 use crate::TarballResolver;

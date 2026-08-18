@@ -9,14 +9,14 @@ import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { CreateFetchFromRegistryOptions, RetryTimeoutOptions } from '@pnpm/network.fetch'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 
 import { pacquetPlatformPkgName } from './runPacquet.js'
 
 export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOptions {
   lockfileDir: string
   rootDir: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
   configByUri?: Record<string, RegistryConfig>
   retry?: RetryTimeoutOptions
   timeout?: number
@@ -50,7 +50,7 @@ export async function verifyPacquetIdentity (
   opts: VerifyPacquetIdentityOptions
 ): Promise<boolean> {
   const trustedKeys = getNpmSigningKeys()
-  const toVerify = await collectPacquetPackagesToVerify(packageName, opts.rootDir, opts.registries)
+  const toVerify = await collectPacquetPackagesToVerify(packageName, opts.rootDir, opts.registriesByScope)
   if (toVerify == null) {
     // pacquet has no installed binary for this platform — use pnpm's own engine.
     return skip(opts.lockfileDir)
@@ -82,7 +82,7 @@ export async function verifyPacquetIdentity (
 async function collectPacquetPackagesToVerify (
   packageName: string,
   rootDir: string,
-  registries: Registries
+  registriesByScope: RegistriesByScope
 ): Promise<InstalledPackageToVerify[] | undefined> {
   const envLockfile = await readEnvLockfile(rootDir)
   if (envLockfile == null) return undefined
@@ -103,8 +103,8 @@ async function collectPacquetPackagesToVerify (
   if (platformIntegrity == null) return undefined
 
   return [
-    { name: packageName, version: shim.version, registry: pickRegistryForPackage(registries, packageName), integrity: shimIntegrity },
-    { name: platformPkgName, version: platformVersion, registry: pickRegistryForPackage(registries, platformPkgName), integrity: platformIntegrity },
+    { name: packageName, version: shim.version, registry: pickRegistryForPackage(registriesByScope, packageName), integrity: shimIntegrity },
+    { name: platformPkgName, version: platformVersion, registry: pickRegistryForPackage(registriesByScope, platformPkgName), integrity: platformIntegrity },
   ]
 }
 

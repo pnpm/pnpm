@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-restorer",
-  "version": "1102.3.0",
+  "version": "1102.3.2",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -40,6 +40,7 @@
     "@pnpm/bins.linker": "workspace:*",
     "@pnpm/building.during-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",

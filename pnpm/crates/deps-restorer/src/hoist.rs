@@ -9,9 +9,9 @@
 //! alias-list inputs that pass needs.
 
 use indexmap::IndexMap;
-use pacquet_config::matcher::Matcher;
-use pacquet_lockfile::{PackageKey, PackageMetadata, PkgName, ProjectSnapshot, SnapshotEntry};
-use pacquet_modules_yaml::HoistKind;
+use pnpm_config::matcher::Matcher;
+use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, ProjectSnapshot, SnapshotEntry};
+use pnpm_modules_yaml::HoistKind;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -58,7 +58,7 @@ pub fn build_hoist_graph(
     build_hoist_graph_with_max_length(
         snapshots,
         packages,
-        pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize,
+        pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize,
     )
 }
 
@@ -127,18 +127,18 @@ pub type DirectDepsByImporter = IndexMap<String, IndexMap<String, PackageKey>>;
 /// signature lets future selected-projects (`--filter`) installs
 /// pass a filtered iterator without touching this function. The
 /// `link:` workspace-sibling entries are skipped via
-/// [`pacquet_lockfile::ImporterDepVersion::as_regular`] inside the
+/// [`pnpm_lockfile::ImporterDepVersion::as_regular`] inside the
 /// loop.
 ///
 /// [#443]: https://github.com/pnpm/pacquet/pull/443
 pub fn build_direct_deps_by_importer<'a, Iter>(
     importers: Iter,
-    dependency_groups: impl IntoIterator<Item = pacquet_package_manifest::DependencyGroup>,
+    dependency_groups: impl IntoIterator<Item = pnpm_package_manifest::DependencyGroup>,
 ) -> DirectDepsByImporter
 where
     Iter: IntoIterator<Item = (&'a String, &'a ProjectSnapshot)>,
 {
-    use pacquet_package_manifest::DependencyGroup;
+    use pnpm_package_manifest::DependencyGroup;
 
     let mut result: DirectDepsByImporter = IndexMap::new();
     let mut importers: Vec<_> = importers.into_iter().collect();
@@ -599,7 +599,7 @@ pub fn symlink_hoisted_dependencies(
                 HoistKind::Private => private_hoisted_modules_dir,
             };
             let dest = target_dir_root.join(alias);
-            match pacquet_fs::symlink_dir(dep_dir.as_path(), &dest) {
+            match pnpm_fs::symlink_dir(dep_dir.as_path(), &dest) {
                 Ok(()) => Ok(()),
                 Err(ref error) if error.kind() == ErrorKind::AlreadyExists => {
                     update_stale_hoist_symlink(
@@ -630,7 +630,7 @@ pub fn symlink_hoisted_dependencies(
 ///
 /// The already-correct fast path skips the unlink + recreate churn (and
 /// the transient missing-link window it opens) on warm reinstalls, the
-/// same way [`pacquet_fs::force_symlink_dir`] does — see its
+/// same way [`pnpm_fs::force_symlink_dir`] does — see its
 /// `existing_symlink_up_to_date` helper.
 fn update_stale_hoist_symlink(
     dep_dir: &std::path::Path,
@@ -638,7 +638,7 @@ fn update_stale_hoist_symlink(
     package_store_dir: &std::path::Path,
     internal_pnpm_dir: &std::path::Path,
 ) -> Result<(), crate::SymlinkPackageError> {
-    let Ok(existing_raw) = pacquet_fs::read_symlink_dir(dest) else {
+    let Ok(existing_raw) = pnpm_fs::read_symlink_dir(dest) else {
         return Ok(());
     };
     let existing = if existing_raw.is_relative() {
@@ -646,22 +646,20 @@ fn update_stale_hoist_symlink(
     } else {
         existing_raw
     };
-    if pacquet_fs::lexical_normalize(&existing) == pacquet_fs::lexical_normalize(dep_dir) {
+    if pnpm_fs::lexical_normalize(&existing) == pnpm_fs::lexical_normalize(dep_dir) {
         return Ok(());
     }
-    if !pacquet_fs::is_subdir(package_store_dir, &existing)
-        && !pacquet_fs::is_subdir(internal_pnpm_dir, &existing)
+    if !pnpm_fs::is_subdir(package_store_dir, &existing)
+        && !pnpm_fs::is_subdir(internal_pnpm_dir, &existing)
     {
         return Ok(());
     }
-    pacquet_fs::remove_symlink_dir(dest).map_err(|error| {
-        crate::SymlinkPackageError::SymlinkDir {
-            symlink_target: dep_dir.to_path_buf(),
-            symlink_path: dest.to_path_buf(),
-            error,
-        }
+    pnpm_fs::remove_symlink_dir(dest).map_err(|error| crate::SymlinkPackageError::SymlinkDir {
+        symlink_target: dep_dir.to_path_buf(),
+        symlink_path: dest.to_path_buf(),
+        error,
     })?;
-    pacquet_fs::symlink_dir(dep_dir, dest).map_err(|error| crate::SymlinkPackageError::SymlinkDir {
+    pnpm_fs::symlink_dir(dep_dir, dest).map_err(|error| crate::SymlinkPackageError::SymlinkDir {
         symlink_target: dep_dir.to_path_buf(),
         symlink_path: dest.to_path_buf(),
         error,

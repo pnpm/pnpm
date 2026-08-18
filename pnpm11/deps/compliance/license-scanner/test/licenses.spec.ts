@@ -3,10 +3,10 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, describe, expect, jest, test } from '@jest/globals'
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { DepPath, ProjectId, ProjectManifest, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectManifest, RegistriesByScope } from '@pnpm/types'
 
 import type { GetPackageInfoOptions, PackageInfo } from '../lib/getPkgInfo.js'
 import type { LicensePackage } from '../lib/licenses.js'
@@ -81,7 +81,7 @@ describe('licences', () => {
       lockfileDir: '/opt/pnpm',
       manifest: {} as ProjectManifest,
       virtualStoreDir: '/.pnpm',
-      registries: {} as Registries,
+      registriesByScope: {} as RegistriesByScope,
       wantedLockfile: lockfile,
       storeDir: tmpStoreDir,
       virtualStoreDirMaxLength: 120,
@@ -167,7 +167,7 @@ describe('licences', () => {
       lockfileDir: '/opt/pnpm',
       manifest: {} as ProjectManifest,
       virtualStoreDir: '/.pnpm',
-      registries: {} as Registries,
+      registriesByScope: {} as RegistriesByScope,
       wantedLockfile: lockfile,
       storeDir: tmpStoreDir,
       includedImporterIds: ['packages/a'] as ProjectId[],
@@ -244,7 +244,7 @@ describe('licences', () => {
       lockfileDir: '/opt/pnpm',
       manifest: {} as ProjectManifest,
       virtualStoreDir: '/.pnpm',
-      registries: {} as Registries,
+      registriesByScope: {} as RegistriesByScope,
       wantedLockfile: lockfile,
       storeDir: tmpStoreDir,
       virtualStoreDirMaxLength: 120,
@@ -347,7 +347,7 @@ describe('licences', () => {
       lockfileDir: '/opt/pnpm',
       manifest: {} as ProjectManifest,
       virtualStoreDir: '/.pnpm',
-      registries: {} as Registries,
+      registriesByScope: {} as RegistriesByScope,
       wantedLockfile: lockfile,
       storeDir: tmpStoreDir,
       virtualStoreDirMaxLength: 120,
@@ -398,8 +398,8 @@ describe('licences', () => {
       lockfileDir: '/opt/pnpm',
       manifest: {} as ProjectManifest,
       virtualStoreDir: '/.pnpm',
-      registries: {} as Registries,
-      namedRegistries: normalizeNamedRegistries({ work: 'https://npm.enterprise.example.com/' }),
+      registriesByScope: {} as RegistriesByScope,
+      registriesByPrefix: normalizeRegistriesByPrefix({ work: 'https://npm.enterprise.example.com/' }),
       wantedLockfile: lockfile,
       storeDir: tmpStoreDir,
       virtualStoreDirMaxLength: 120,

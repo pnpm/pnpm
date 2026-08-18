@@ -16,7 +16,7 @@ const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
   packages,
-  registries: { default: REGISTRY },
+  registriesByScope: { default: REGISTRY },
 })
 
 test('remove unreferenced packages', async () => {
@@ -48,7 +48,7 @@ test('remove unreferenced packages', async () => {
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     reporter,
     storeDir,
     dlxCacheMaxAge: Infinity,
@@ -70,7 +70,7 @@ test('remove unreferenced packages', async () => {
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     reporter,
     storeDir,
     dlxCacheMaxAge: Infinity,
@@ -83,7 +83,9 @@ test('remove unreferenced packages', async () => {
       message: 'Removed 1 package',
     })
   )
-  expect(fs.readdirSync(cacheDir)).toStrictEqual([])
+  const cacheEntriesExceptVerificationLog = fs.readdirSync(cacheDir)
+    .filter((entry) => entry !== 'lockfile-verified.jsonl')
+  expect(cacheEntriesExceptVerificationLog).toStrictEqual([])
 })
 
 test('prune outputs total size of removed files', async () => {
@@ -115,7 +117,7 @@ test('prune outputs total size of removed files', async () => {
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     reporter,
     storeDir,
     dlxCacheMaxAge: Infinity,
@@ -150,7 +152,7 @@ test('remove packages that are used by project that no longer exist', async () =
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     reporter,
     storeDir,
     dlxCacheMaxAge: Infinity,
@@ -195,7 +197,7 @@ test('keep dependencies used by others', async () => {
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     storeDir,
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -218,7 +220,7 @@ test('keep dependency used by package', async () => {
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     storeDir,
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -239,7 +241,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     storeDir,
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -263,7 +265,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     reporter,
     storeDir,
     dlxCacheMaxAge: Infinity,
@@ -298,7 +300,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     reporter,
     storeDir,
     force: true,
@@ -326,7 +328,7 @@ describe('prune when store directory is not properly configured', () => {
         dir: process.cwd(),
         pnpmHomeDir: '',
         configByUri: {},
-        registries: { default: REGISTRY },
+        registriesByScope: { default: REGISTRY },
         reporter,
         storeDir: nonExistentStoreDir,
         dlxCacheMaxAge: Infinity,
@@ -359,7 +361,7 @@ describe('prune when store directory is not properly configured', () => {
         dir: process.cwd(),
         pnpmHomeDir: '',
         configByUri: {},
-        registries: { default: REGISTRY },
+        registriesByScope: { default: REGISTRY },
         reporter: jest.fn(),
         storeDir: fileInPlaceOfStoreDir,
         dlxCacheMaxAge: Infinity,
@@ -417,7 +419,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: REGISTRY },
+    registriesByScope: { default: REGISTRY },
     reporter () {},
     storeDir,
     dlxCacheMaxAge: 7,
@@ -479,7 +481,7 @@ describe('global virtual store prune', () => {
       dir: process.cwd(),
       pnpmHomeDir: '',
       configByUri: {},
-      registries: { default: REGISTRY },
+      registriesByScope: { default: REGISTRY },
       storeDir: path.join(storeDir, STORE_VERSION),
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -544,7 +546,7 @@ describe('global virtual store prune', () => {
       dir: process.cwd(),
       pnpmHomeDir: '',
       configByUri: {},
-      registries: { default: REGISTRY },
+      registriesByScope: { default: REGISTRY },
       storeDir: path.join(storeDir, STORE_VERSION),
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -612,7 +614,7 @@ describe('global virtual store prune', () => {
       dir: process.cwd(),
       pnpmHomeDir: '',
       configByUri: {},
-      registries: { default: REGISTRY },
+      registriesByScope: { default: REGISTRY },
       storeDir: path.join(storeDir, STORE_VERSION),
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -693,7 +695,7 @@ describe('global virtual store prune', () => {
       dir: process.cwd(),
       pnpmHomeDir: '',
       configByUri: {},
-      registries: { default: REGISTRY },
+      registriesByScope: { default: REGISTRY },
       storeDir: path.join(storeDir, STORE_VERSION),
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -716,4 +718,32 @@ describe('global virtual store prune', () => {
     expect(scopedPkgsAfter).toContain('romeo')
     expect(scopedPkgsAfter).toContain('romeo-dep')
   })
+})
+
+test('prune keeps the lockfile verification log', async () => {
+  prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
+
+  // The log records which lockfile passed which supply-chain policies, so it
+  // outlives the store it was written next to. CI restores it on its own to
+  // skip re-verification, and a prune in the post step must not undo that.
+  const verificationLog = path.join(cacheDir, 'lockfile-verified.jsonl')
+  fs.mkdirSync(cacheDir, { recursive: true })
+  fs.writeFileSync(verificationLog, '{}\n')
+
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    configByUri: {},
+    registriesByScope: { default: REGISTRY },
+    storeDir,
+    dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['prune'])
+
+  expect(fs.existsSync(verificationLog)).toBeTruthy()
 })

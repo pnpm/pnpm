@@ -2,13 +2,13 @@
 //!
 //! Replaces Bit's use of `@pnpm/resolving.npm-resolver`'s `parseBareSpecifier`
 //! (which Bit calls only through `isValidVersionSpecifier`). The pacquet
-//! equivalent is [`pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency`],
+//! equivalent is [`pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency`],
 //! which never fails — it treats any unrecognized input as a bare specifier —
 //! so this wrapper returns `None` for the empty string, matching the "not a
 //! valid specifier" signal the JS consumer relies on.
 
 use napi_derive::napi;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 /// The `(alias, bareSpecifier)` split of a dependency specifier, plus the
 /// resolver-facing fields when they can be derived. Shape matches

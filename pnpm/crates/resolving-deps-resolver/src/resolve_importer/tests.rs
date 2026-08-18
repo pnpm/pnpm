@@ -3,8 +3,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, LatestQuery, PreferredVersions, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, VersionSelectorEntry,
     VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
@@ -14,7 +14,7 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use super::{
     ImporterLockedPeerContext, discard_changed_direct_dep_peer_context,
-    importer_locked_peer_context,
+    importer_locked_peer_context, merge_ranges,
 };
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
@@ -23,7 +23,7 @@ use crate::{
 
 #[test]
 fn locked_peer_context_is_recorded_by_direct_alias() {
-    use pacquet_lockfile::{
+    use pnpm_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PkgName, PkgVerPeer,
         ProjectSnapshot, ResolvedDependencySpec,
     };
@@ -55,6 +55,7 @@ fn locked_peer_context_is_recorded_by_direct_alias() {
         patched_dependencies: None,
         packages: None,
         snapshots: None,
+        time: None,
     };
 
     let ImporterLockedPeerContext { versions, names_by_alias } =
@@ -66,7 +67,7 @@ fn locked_peer_context_is_recorded_by_direct_alias() {
 
 #[test]
 fn changed_direct_dependency_discards_prior_peer_context() {
-    use pacquet_lockfile::PkgName;
+    use pnpm_lockfile::PkgName;
     use std::sync::Arc;
 
     let mut names_by_alias = HashMap::from_iter([
@@ -90,7 +91,7 @@ fn changed_direct_dependency_discards_prior_peer_context() {
 
 #[test]
 fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
-    use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer, SnapshotEntry};
+    use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer, SnapshotEntry};
 
     let lockfile = Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
@@ -116,6 +117,7 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
                 SnapshotEntry::default(),
             ),
         ])),
+        time: None,
     };
 
     assert_eq!(
@@ -131,7 +133,7 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
 
 #[test]
 fn hashed_peer_suffix_uses_package_peer_metadata() {
-    use pacquet_lockfile::{
+    use pnpm_lockfile::{
         ComVer, DirectoryResolution, Lockfile, LockfileResolution, LockfileVersion,
         PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
     };
@@ -181,6 +183,7 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
                 ..SnapshotEntry::default()
             },
         )])),
+        time: None,
     };
 
     let ImporterLockedPeerContext { versions, names_by_alias } =
@@ -192,7 +195,7 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
     assert!(names_by_alias.is_empty());
 }
 
-fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> HashSet<String> {
+fn locked_peer_names(wanted_lockfile: Option<&pnpm_lockfile::Lockfile>) -> HashSet<String> {
     let Some(lockfile) = wanted_lockfile else {
         return HashSet::default();
     };
@@ -272,7 +275,7 @@ impl Resolver for StubResolver {
 }
 
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
-    use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
     let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),
@@ -333,7 +336,7 @@ fn default_opts() -> ResolveImporterOptions {
         base_opts: ResolveOptions::default(),
         pick_lowest_direct: false,
         subdep_published_by: None,
-        catalogs: pacquet_catalogs_types::Catalogs::new(),
+        catalogs: pnpm_catalogs_types::Catalogs::new(),
         exclude_links_from_lockfile: false,
         lockfile_dir: None,
         modules_dir: None,
@@ -805,6 +808,129 @@ async fn auto_install_does_not_install_when_no_intersection() {
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
     assert!(!direct.contains(&"peer-c"), "peer-c must not be hoisted on conflict: {direct:?}");
+}
+
+#[test]
+fn repeated_consumer_ranges_merge_into_the_unique_intersection() {
+    let react = "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc";
+    let narrower = "^18.0.0 || ^19.0.0";
+    let merged = ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0";
+
+    assert_eq!(merge_ranges(&[react, narrower], false).as_deref(), Some(merged));
+
+    let mut repeated = vec![react; 10];
+    repeated.push(narrower);
+
+    assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(merged));
+}
+
+/// Deduplication alone only sees ranges that are spelled identically.
+/// Consumers reach the same peer through spellings that differ, and each
+/// one that survives into the union multiplies the next intersection, so
+/// the merged range has to stay bounded across them too.
+#[test]
+fn differently_spelled_equivalent_ranges_do_not_grow_the_merged_range() {
+    let spellings = [
+        "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+        "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc",
+        ">=16.8 <17 || >=17 <18 || >=18 <19 || >=19 <20 || ^19.0.0-rc",
+        "16.8 - 16.x || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+    ];
+    let merged =
+        ">=16.8.0 <17.0.0-0||>=17.0.0 <18.0.0-0||>=18.0.0 <19.0.0-0||>=19.0.0-rc <20.0.0-0";
+
+    assert_eq!(merge_ranges(&spellings, false).as_deref(), Some(merged));
+
+    let repeated: Vec<&str> = spellings.iter().cycle().copied().take(200).collect();
+
+    assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(merged));
+}
+
+/// A scheme specifier is not a semver range, so intersecting it would
+/// drop the peer instead of hoisting it.
+#[test]
+fn repeated_scheme_specifier_stays_verbatim() {
+    assert_eq!(
+        merge_ranges(&["workspace:^", "workspace:^"], false).as_deref(),
+        Some("workspace:^"),
+    );
+}
+
+/// The `@radix-ui/react-dialog` shape of pnpm/pnpm#13786: four paths
+/// reach the same package, so every branch reports the identical missing
+/// `react` peer again. One narrower declarer turns the merge into a real
+/// intersection, and the stub resolves `react` only through the
+/// deduplicated one — a merge that folds the duplicates back in reaches
+/// a different range and leaves the peer unhoisted.
+#[tokio::test]
+async fn a_peer_reported_once_per_path_is_hoisted_through_one_intersection() {
+    let react_range = "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc";
+    let mut table = HashMap::default();
+    for (name, deps) in [
+        ("dialog", vec!["dismissable-layer", "focus-scope", "portal", "primitive"]),
+        ("dismissable-layer", vec!["primitive"]),
+        ("focus-scope", vec!["primitive"]),
+        ("portal", vec!["primitive"]),
+        ("primitive", vec![]),
+    ] {
+        let dependencies: serde_json::Map<String, serde_json::Value> = deps
+            .into_iter()
+            .map(|dep| (dep.to_string(), serde_json::Value::from("1.0.0")))
+            .collect();
+        table.insert(
+            (name.to_string(), "1.0.0".to_string()),
+            fake_result(
+                name,
+                "1.0.0",
+                serde_json::json!({
+                    "name": name,
+                    "version": "1.0.0",
+                    "dependencies": dependencies,
+                    "peerDependencies": { "react": react_range },
+                }),
+            ),
+        );
+    }
+    table.insert(
+        ("wants-react-18-or-19".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-react-18-or-19",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-react-18-or-19",
+                "version": "1.0.0",
+                "peerDependencies": { "react": "^18.0.0 || ^19.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("react".to_string(), ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0".to_string()),
+        fake_result("react", "19.0.0", serde_json::json!({ "name": "react", "version": "19.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "dialog": "1.0.0",
+        "wants-react-18-or-19": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"react"), "react should be hoisted: {direct:?}");
+    let react_entries: Vec<&DepPath> = result
+        .peers_result
+        .graph
+        .keys()
+        .filter(|dep_path| dep_path.to_string().starts_with("react@"))
+        .collect();
+    assert_eq!(react_entries.len(), 1, "expected one react entry, got: {react_entries:?}");
+    assert!(
+        react_entries[0].to_string().starts_with("react@19.0.0"),
+        "react must resolve through the intersected range: {react_entries:?}",
+    );
 }
 
 #[tokio::test]
@@ -1384,7 +1510,7 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
 
-    let mut catalogs = pacquet_catalogs_types::Catalogs::new();
+    let mut catalogs = pnpm_catalogs_types::Catalogs::new();
     catalogs.insert(
         "default".to_string(),
         std::iter::once(("foo".to_string(), "^1.0.0".to_string())).collect(),
@@ -1570,8 +1696,8 @@ mod resolution_mode {
     use super::{StubResolver, default_opts, fake_manifest, fake_result};
     use crate::resolve_importer;
     use chrono::{DateTime, TimeZone, Utc};
-    use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::{
+    use pnpm_package_manifest::DependencyGroup;
+    use pnpm_resolving_resolver_base::{
         ResolveFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
     };
     use pretty_assertions::assert_eq;
@@ -1619,9 +1745,9 @@ mod resolution_mode {
 
         fn resolve_latest<'a>(
             &'a self,
-            query: &'a pacquet_resolving_resolver_base::LatestQuery,
+            query: &'a pnpm_resolving_resolver_base::LatestQuery,
             opts: &'a ResolveOptions,
-        ) -> pacquet_resolving_resolver_base::ResolveLatestFuture<'a> {
+        ) -> pnpm_resolving_resolver_base::ResolveLatestFuture<'a> {
             self.inner.resolve_latest(query, opts)
         }
     }

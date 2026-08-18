@@ -4,9 +4,9 @@ use super::{
     repo_versions as versions_from_refs, selector_matcher, split_uses_value, update_with_runner,
 };
 use node_semver::Version;
-use pacquet_config::Config;
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
-use pacquet_resolving_git_resolver::{GitCommandRunner, GitRunError};
+use pnpm_config::Config;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_resolving_git_resolver::{GitCommandRunner, GitRunError};
 use std::{collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Mutex};
 
 const SHA_V4_1_0: &str = "1111111111111111111111111111111111111111";

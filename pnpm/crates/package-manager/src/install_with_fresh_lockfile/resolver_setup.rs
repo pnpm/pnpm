@@ -8,28 +8,27 @@
 
 use super::InstallWithFreshLockfileError;
 use crate::{PrefetchContext, PrefetchingResolver};
-use pacquet_config::Config;
-use pacquet_engine_runtime_bun_resolver::BunResolver;
-use pacquet_engine_runtime_deno_resolver::DenoResolver;
-use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_lockfile::{Lockfile, LockfileResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_resolving_default_resolver::DefaultResolver;
-use pacquet_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
-use pacquet_resolving_local_resolver::{
-    LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
-};
-use pacquet_resolving_npm_resolver::{
+use pnpm_config::{Config, NeedsFullMetadataFor};
+use pnpm_engine_pm_yarn_resolver::YarnResolver;
+use pnpm_engine_runtime_bun_resolver::BunResolver;
+use pnpm_engine_runtime_deno_resolver::DenoResolver;
+use pnpm_engine_runtime_node_resolver::NodeResolver;
+use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_resolving_default_resolver::DefaultResolver;
+use pnpm_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
+use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NamedRegistryResolver, NpmResolver, merge_named_registries,
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::Resolver;
-use pacquet_resolving_tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
-use pacquet_store_dir::{
+use pnpm_resolving_resolver_base::Resolver;
+use pnpm_resolving_tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
+use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
     store_index_key,
 };
-use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 /// The store index the resolver chain and the install pass share, plus
@@ -37,7 +36,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 pub(super) struct StoreIndexHandles {
     pub index: Option<SharedReadonlyStoreIndex>,
     pub writer: Arc<StoreIndexWriter>,
-    pub writer_task: tokio::task::JoinHandle<Result<(), pacquet_store_dir::StoreIndexError>>,
+    pub writer_task: tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>,
 }
 
 /// Open the read-only index and spawn the batched writer *before* the
@@ -55,53 +54,9 @@ pub(super) async fn open_store_index_handles(
     config: &Config,
     store_dir: &'static StoreDir,
 ) -> StoreIndexHandles {
-    let open_store_index = if config.frozen_store {
-        StoreIndex::shared_immutable_in
-    } else {
-        StoreIndex::shared_readonly_in
-    };
-    let index = match tokio::task::spawn_blocking(move || open_store_index(store_dir)).await {
-        Ok(index) => index,
-        Err(error) => {
-            tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "store-index open task failed; continuing without a shared cache index",
-            );
-            None
-        }
-    };
-    let (writer, writer_task) = if config.frozen_store {
-        StoreIndexWriter::spawn_disabled()
-    } else {
-        StoreIndexWriter::spawn(store_dir)
-    };
+    let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
+    let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
     StoreIndexHandles { index, writer, writer_task }
-}
-
-/// Wait for the writer's final batch flush after the last handle has
-/// been dropped. Errors are downgraded to `warn!` (see
-/// `create_virtual_store.rs`): the install is complete and a missed
-/// cache write just forces a re-fetch on the next install.
-///
-/// `outcome` is appended to the log line to name the path that drained.
-pub(super) async fn drain_store_index_writer(
-    writer_task: tokio::task::JoinHandle<Result<(), pacquet_store_dir::StoreIndexError>>,
-    outcome: &str,
-) {
-    match writer_task.await {
-        Ok(Ok(())) => {}
-        Ok(Err(error)) => tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "store-index writer task returned an error{}", outcome,
-        ),
-        Err(error) => tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "store-index writer task panicked{}", outcome,
-        ),
-    }
 }
 
 pub(super) struct Registries {
@@ -120,11 +75,11 @@ pub(super) struct Registries {
 pub(super) fn resolve_registries(
     config: &Config,
 ) -> Result<Registries, InstallWithFreshLockfileError> {
-    let user_named_registries: HashMap<String, String> =
-        config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
+    let user_registries_by_prefix: HashMap<String, String> =
+        config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
     Ok(Registries {
         by_scope: config.resolved_registries().into_iter().collect(),
-        named: merge_named_registries(&user_named_registries)
+        named: merge_named_registries(&user_registries_by_prefix)
             .map_err(InstallWithFreshLockfileError::InvalidNamedRegistry)?,
     })
 }
@@ -184,13 +139,16 @@ pub(super) struct ResolverChainInputs<'a> {
     pub meta_cache: &'a Arc<InMemoryPackageMetaCache>,
     pub lockfile_dir: &'a Path,
     pub requester: &'a str,
-    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub registries: &'a HashMap<String, String>,
-    pub named_registries: &'a HashMap<String, String>,
+    pub registries_by_prefix: &'a HashMap<String, String>,
     /// See `NpmResolver::full_metadata` — forced on when `time-based`
     /// resolution or the `no-downgrade` trust policy needs the
     /// per-version `time` field.
     pub full_metadata: bool,
+    /// See `NpmResolver::needs_full_metadata_for` — the same question asked
+    /// of one registry.
+    pub needs_full_metadata_for: NeedsFullMetadataFor,
     pub wanted_lockfile: Option<&'a Lockfile>,
     pub store_index: Option<&'a SharedReadonlyStoreIndex>,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
@@ -201,7 +159,7 @@ pub(super) struct ResolverChainInputs<'a> {
     pub prefetch_downloads: bool,
     /// In-process hooks supplied by an embedder; `None` falls back to
     /// the on-disk `.pnpmfile.cjs` lookup.
-    pub pnpmfile_hook_override: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 
@@ -212,12 +170,11 @@ pub(super) struct ResolverChainInputs<'a> {
 pub(super) struct ResolverChain {
     pub resolver: Box<dyn Resolver>,
     pub npm_resolver: Arc<dyn Resolver>,
-    pub fetch_locker: pacquet_resolving_npm_resolver::PackumentFetchLocker,
-    pub picked_manifest_cache: pacquet_resolving_npm_resolver::PickedManifestCache,
-    pub custom_resolvers: Vec<Arc<dyn pacquet_hooks::CustomResolver>>,
-    pub custom_fetcher_picker:
-        Option<Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub fetch_locker: pnpm_resolving_npm_resolver::PackumentFetchLocker,
+    pub picked_manifest_cache: pnpm_resolving_npm_resolver::PickedManifestCache,
+    pub custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>>,
+    pub custom_fetcher_picker: Option<Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 }
 
 /// Build the fresh-install resolver chain.
@@ -235,7 +192,7 @@ pub(super) struct ResolverChain {
 /// tarball-shaped result fires a background download while the tree walk
 /// continues, and — for the pnpr server only — [`crate::ObservingResolver`]
 /// so each resolution is reported to the client as it lands.
-pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 'static>(
+pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'static>(
     inputs: ResolverChainInputs<'_>,
 ) -> Result<ResolverChain, InstallWithFreshLockfileError> {
     let ResolverChainInputs {
@@ -249,8 +206,9 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
         requester,
         supported_architectures,
         registries,
-        named_registries,
+        registries_by_prefix,
         full_metadata,
+        needs_full_metadata_for,
         wanted_lockfile,
         store_index,
         store_index_writer,
@@ -275,7 +233,7 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
 
     let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
         registries: registries.clone(),
-        named_registries: named_registries.clone(),
+        registries_by_prefix: registries_by_prefix.clone(),
         http_client: Arc::clone(http_client_arc),
         auth_headers: Arc::clone(auth_headers),
         meta_cache: Arc::clone(meta_cache),
@@ -291,7 +249,8 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
         // abbreviated form). When `false`, [`pick_package`] still
         // upgrades per-call where `published_by` / `optional` demand it.
         full_metadata,
-        filter_metadata: full_metadata,
+        needs_full_metadata_for: Some(Arc::clone(&needs_full_metadata_for)),
+        filter_metadata: config.requires_filtered_full_metadata(),
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     });
     // A git dep's specifier names a repo, not a package, so its name —
@@ -345,11 +304,13 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
     let mut node_resolver = NodeResolver::new(Arc::clone(http_client_arc));
     node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
     node_resolver.offline = config.offline;
+    node_resolver.cache_dir = Some(config.cache_dir.clone());
     let deno_resolver = DenoResolver::new(Arc::clone(http_client_arc), Arc::clone(&npm_resolver));
     let bun_resolver = BunResolver::new(Arc::clone(http_client_arc), Arc::clone(&npm_resolver));
+    let yarn_resolver = YarnResolver::new(Arc::clone(http_client_arc));
     let named_registry_resolver = NamedRegistryResolver {
-        named_registries: named_registries.clone(),
-        registry_names: named_registries.keys().cloned().collect(),
+        registries_by_prefix: registries_by_prefix.clone(),
+        registry_names: registries_by_prefix.keys().cloned().collect(),
         http_client: Arc::clone(http_client_arc),
         auth_headers: Arc::clone(auth_headers),
         meta_cache: Arc::clone(meta_cache),
@@ -361,13 +322,15 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         // Same rationale as `NpmResolver.full_metadata` above.
         full_metadata,
-        filter_metadata: full_metadata,
+        needs_full_metadata_for: Some(Arc::clone(&needs_full_metadata_for)),
+        filter_metadata: config.requires_filtered_full_metadata(),
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     };
 
-    let pnpmfile_hook =
-        pnpmfile_hook_override.or_else(|| pacquet_hooks::finder::load_pnpmfile(lockfile_dir));
-    let custom_resolvers: Vec<Arc<dyn pacquet_hooks::CustomResolver>> =
+    let pnpmfile_hook = pnpmfile_hook_override.or_else(|| {
+        (!config.ignore_pnpmfile).then(|| pnpm_hooks::finder::load_pnpmfile(lockfile_dir)).flatten()
+    });
+    let custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>> =
         if let Some(ref hook) = pnpmfile_hook {
             hook.get_custom_resolvers().await.map_err(|err| {
                 tracing::error!(
@@ -392,7 +355,7 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
             InstallWithFreshLockfileError::CustomFetcherHook(err)
         })?;
         (!fetchers.is_empty()).then(|| {
-            Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))
+            Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))
         })
     } else {
         None
@@ -404,7 +367,7 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
             .iter()
             .filter(|custom| custom.has_can_resolve() && custom.has_resolve())
             .map(|custom| {
-                Box::new(pacquet_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
+                Box::new(pnpm_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
                     Arc::clone(custom),
                 )) as Box<dyn Resolver>
             }),
@@ -417,6 +380,7 @@ pub(super) async fn build_resolver_chain<Reporter: pacquet_reporter::Reporter + 
         Box::new(node_resolver),
         Box::new(deno_resolver),
         Box::new(bun_resolver),
+        Box::new(yarn_resolver),
         Box::new(named_registry_resolver),
         Box::new(local_path_resolver),
     ]);

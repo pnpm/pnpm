@@ -11,7 +11,7 @@ mod auth_token;
 mod id_token;
 mod provenance;
 
-use pacquet_reporter::Reporter;
+use pnpm_reporter::Reporter;
 use serde_json::Value;
 use url::Url;
 

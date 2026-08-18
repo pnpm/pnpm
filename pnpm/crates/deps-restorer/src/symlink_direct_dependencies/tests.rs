@@ -1,12 +1,12 @@
 use super::{SymlinkDirectDependencies, SymlinkDirectDependenciesError, validate_importer_id};
 use crate::SkippedSnapshots;
-use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::{
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::{
     AddedRoot, DependencyType, LogEvent, Reporter, RootLog, RootMessage, SilentReporter,
 };
-use pacquet_testing_utils::fs::is_symlink_or_junction;
+use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Mutex};
 use tempfile::tempdir;
 
@@ -77,7 +77,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         "fastify".parse().expect("parse fastify pkg name"),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
         },
     );
     let mut dev = ResolvedDependencyMap::new();
@@ -85,7 +85,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         "@pnpm.e2e/dev-dep".parse().expect("parse dev pkg name"),
         ResolvedDependencySpec {
             specifier: "^1.2.3".to_string(),
-            version: "1.2.3".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "1.2.3".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
         },
     );
 
@@ -207,7 +207,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
         "fastify".parse().expect("parse fastify pkg name"),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
         },
     );
     let mut optional = ResolvedDependencyMap::new();
@@ -215,7 +215,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
         "fastify".parse().expect("parse fastify pkg name"),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
         },
     );
 
@@ -434,7 +434,7 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
         "fastify".parse().expect("parse fastify pkg name"),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
         },
     );
     let project_snapshot =
@@ -522,7 +522,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
         "fastify".parse().unwrap(),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
         },
     );
     let mut beta_deps = ResolvedDependencyMap::new();
@@ -530,7 +530,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
         "react".parse().unwrap(),
         ResolvedDependencySpec {
             specifier: "^18.0.0".to_string(),
-            version: "18.0.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "18.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
         },
     );
 
@@ -688,7 +688,7 @@ fn custom_modules_dir_propagates_to_each_importer() {
         "fastify".parse().unwrap(),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
         },
     );
     let mut importers = HashMap::new();

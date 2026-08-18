@@ -2,8 +2,8 @@ use crate::cli_args::{registry_client::build_registry_client, whoami::fetch_whoa
 use clap::Parser;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{RetryOpts, ThrottledClient, encode_package_name, send_with_retry};
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient, encode_package_name, send_with_retry};
 use serde_json::{Map, Value, json};
 use std::time::Duration;
 

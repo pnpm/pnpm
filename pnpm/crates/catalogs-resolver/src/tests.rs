@@ -2,7 +2,7 @@ use super::{
     CatalogResolution, CatalogResolutionError, CatalogResolutionFound, CatalogResolutionResult,
     WantedDependency, resolve_from_catalog,
 };
-use pacquet_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{Catalog, Catalogs};
 
 fn catalogs_from(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
     entries

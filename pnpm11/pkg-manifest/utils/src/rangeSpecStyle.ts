@@ -1,4 +1,7 @@
 import type { RangeSpecGranularity, RangeSpecStyle } from '@pnpm/types'
+import semver from 'semver'
+
+import { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 
 export function rangeSpecGranularity (style: RangeSpecStyle): RangeSpecGranularity {
   return style === 'exact' ? 'patch' : style
@@ -17,6 +20,33 @@ export function getRangeSpecStyle (opts: { saveExact?: boolean, savePrefix?: str
     case '~': return 'minor'
     default: return 'major'
   }
+}
+
+/**
+ * The manifest range that pins `version` for a dependency the user asked for
+ * as `bareSpecifier` and whose manifest entry, if it already had one, read
+ * `prevSpecifier`.
+ *
+ * The existing entry's range style wins over the requested specifier's, which
+ * wins over the configured default, so a re-add keeps the pinning style the
+ * manifest already used. A prerelease is pinned exactly: no range operator
+ * expresses "this prerelease and later ones".
+ */
+export function calcVersionRange (
+  version: string,
+  opts: {
+    prevSpecifier?: string
+    bareSpecifier?: string
+    defaultRangeSpecStyle?: RangeSpecStyle
+  }
+): string {
+  if (semver.parse(version)?.prerelease.length) {
+    return version
+  }
+  const rangeSpecStyle = (opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined) ??
+    (opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined) ??
+    opts.defaultRangeSpecStyle
+  return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
 }
 
 export function versionWithRangeSpecStyle (version: string, rangeSpecStyle: RangeSpecStyle): string {

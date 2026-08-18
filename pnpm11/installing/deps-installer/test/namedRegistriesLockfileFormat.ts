@@ -9,7 +9,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { testDefaults } from './utils/index.js'
 
 const NAMED_REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const namedRegistries = { work: NAMED_REGISTRY }
+const registriesByPrefix = { work: NAMED_REGISTRY }
 
 function readLockfile (): LockfileFile {
   return readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
@@ -20,7 +20,7 @@ function installFoo (): Promise<unknown> {
     dependencies: {
       '@pnpm.e2e/foo': 'work:1.0.0',
     },
-  }, testDefaults({ namedRegistries }, { namedRegistries }))
+  }, testDefaults({ registriesByPrefix }, { registriesByPrefix }))
 }
 
 test('a named-registry dependency is keyed registry-qualified', async () => {
@@ -62,7 +62,7 @@ test('the same package resolved from two registries gets one entry per registry'
       '@pnpm.e2e/foo': '1.0.0',
       'foo-from-work': 'work:@pnpm.e2e/foo@1.0.0',
     },
-  }, testDefaults({ namedRegistries }, { namedRegistries }))
+  }, testDefaults({ registriesByPrefix }, { registriesByPrefix }))
 
   const lockfile = readLockfile()
   const packageKeys = Object.keys(lockfile.packages ?? {})
@@ -101,9 +101,9 @@ test.each([
       '@pnpm.e2e/peer-c': '1.0.0',
     },
   }, testDefaults({
-    namedRegistries,
+    registriesByPrefix,
     dedupePeers,
-  }, { namedRegistries }))
+  }, { registriesByPrefix }))
 
   const snapshotKeys = Object.keys(readLockfile().snapshots ?? {})
   const abcKey = snapshotKeys.find((key) => key.startsWith('@pnpm.e2e/abc@'))

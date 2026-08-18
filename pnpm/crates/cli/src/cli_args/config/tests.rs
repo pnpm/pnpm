@@ -5,7 +5,7 @@
 
 use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
 use indexmap::IndexMap;
-use pacquet_config::Config;
+use pnpm_config::Config;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -141,19 +141,19 @@ fn set_registries_and_named_registries_global_writes_config_yaml() {
     )
     .unwrap();
 
-    let named_registries = json!({ "work": "https://work.example.com/" });
+    let registries_by_prefix = json!({ "work": "https://work.example.com/" });
     config_set(
         &config,
         tmp.path(),
         flags(true, None, true),
         "named-registries",
-        Some(named_registries.to_string()),
+        Some(registries_by_prefix.to_string()),
     )
     .unwrap();
 
     assert_eq!(
         read_yaml(&config_dir.join("config.yaml")).unwrap(),
-        json!({ "registries": registries, "namedRegistries": named_registries }),
+        json!({ "registries": registries, "namedRegistries": registries_by_prefix }),
     );
 }
 
@@ -461,6 +461,29 @@ fn get_scalar_string_and_camel() {
     assert_eq!(config_get(&config, flags(true, None, false), "storeDir").unwrap(), "~/store");
 }
 
+/// Both spellings of the virtual store's type are `types` keys, so `get`
+/// answers either from the explicit-settings record instead of falling
+/// through to the config record, which carries neither name.
+#[test]
+fn get_virtual_store_type_and_its_boolean_spelling() {
+    let config = config_for_get(
+        &[("virtualStoreType", json!("global")), ("enableGlobalVirtualStore", json!(true))],
+        &[],
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "virtual-store-type").unwrap(),
+        "global",
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "virtualStoreType").unwrap(),
+        "global",
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "enable-global-virtual-store").unwrap(),
+        "true",
+    );
+}
+
 #[test]
 fn get_boolean_and_array_and_object() {
     let config = config_for_get(
@@ -517,7 +540,7 @@ fn get_scoped_registry_from_auth_and_merged() {
     // merged `registries` block wins over the raw .npmrc value (pnpm/pnpm#11492)
     let mut merged = config_for_get(&[], &[("@scope:registry", "https://from-npmrc.example.com/")]);
     merged
-        .registries
+        .registries_by_scope
         .insert("@scope".to_string(), "https://from-workspace-yaml.example.com/".to_string());
     assert_eq!(
         config_get(&merged, flags(false, None, false), "@scope:registry").unwrap(),

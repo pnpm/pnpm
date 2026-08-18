@@ -3,9 +3,9 @@ use super::{
     PnprBenchmarkRegistryOverride, rewrite_resolution_registry,
 };
 use clap::Parser;
-use pacquet_config::NodeLinker;
-use pacquet_lockfile::{LockfileResolution, TarballResolution};
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_config::NodeLinker;
+use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -112,6 +112,16 @@ fn ignore_manifest_check_flag_parses() {
 }
 
 #[test]
+fn ignore_pnpmfile_flag_parses() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert!(!parsed.args.ignore_pnpmfile, "flag absent → false");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--ignore-pnpmfile"])
+        .expect("parses --ignore-pnpmfile");
+    assert!(parsed.args.ignore_pnpmfile, "flag present → true");
+}
+
+#[test]
 fn dry_run_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
     assert!(!parsed.args.dry_run, "flag absent → false");
@@ -136,7 +146,7 @@ fn frozen_store_flag_parses() {
 }
 
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the
-/// canonical `pacquet_config::NodeLinker` enum. Tied to the
+/// canonical `pnpm_config::NodeLinker` enum. Tied to the
 /// `ValueEnum` derive's kebab-case rename — if a future variant
 /// is added, this test starts failing at compile time as a
 /// reminder to update the mapping.
