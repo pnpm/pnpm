@@ -287,7 +287,7 @@ test('recursive update of a pinned transitive dependency updates only the target
 
   let lockfile = readYamlFileSync<LockfileObject>('./pnpm-lock.yaml')
 
-  expect(lockfile.packages?.['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
+  expect(Object.keys(lockfile.packages ?? {})).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'next' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
@@ -307,11 +307,14 @@ test('recursive update of a pinned transitive dependency updates only the target
 
   lockfile = readYamlFileSync<LockfileObject>('./pnpm-lock.yaml')
 
-  expect(lockfile.packages?.['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
-  expect(lockfile.packages?.['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeFalsy()
-  expect(lockfile.packages?.['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0']).toBeFalsy()
-  expect(lockfile.packages?.['@pnpm.e2e/foo@2.0.0']).toBeFalsy()
-  expect(lockfile.packages?.['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
+  const packageKeys = Object.keys(lockfile.packages ?? {})
+
+  expect(packageKeys).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  expect(packageKeys).not.toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
+  expect(packageKeys).not.toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0')
+
+  expect(packageKeys).toContain('@pnpm.e2e/foo@1.0.0')
+  expect(packageKeys).not.toContain('@pnpm.e2e/foo@2.0.0')
 })
 
 test('recursive update --latest foo should only update projects that have foo', async () => {
