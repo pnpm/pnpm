@@ -102,6 +102,21 @@ pub(crate) fn validation_baseline_ms(
         .max()
 }
 
+/// The current time on the filesystem clock, obtained by writing a temporary
+/// file to the workspace directory and reading its modification time. This
+/// guarantees the baseline is on the same clock as the checked files and
+/// represents the exact time the validation finished, allowing repeat runs
+/// to converge to the fast path without hiding subsequent edits.
+pub(crate) fn current_filesystem_time_ms(workspace_root: &Path) -> Option<i64> {
+    let temp_path = workspace_root.join(".pnpm-state-tmp");
+    if std::fs::write(&temp_path, "").is_err() {
+        return None;
+    }
+    let mtime = mtime_ms(&temp_path);
+    let _ = std::fs::remove_file(&temp_path);
+    mtime
+}
+
 /// Whether `<workspace_root>/pnpm-lock.yaml` has an mtime newer than the
 /// last validation. A lockfile-only change leaves every manifest
 /// untouched but must still defeat the manifest-mtime fast path. A
