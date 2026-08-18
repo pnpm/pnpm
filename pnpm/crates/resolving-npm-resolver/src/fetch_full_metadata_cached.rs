@@ -193,6 +193,7 @@ pub async fn fetch_full_metadata_cached(
             let mut meta: Package = serde_json::from_str(&raw_body).map_err(|error| {
                 FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
             })?;
+            meta.drop_incomplete_publish_times();
             if normalize_to_abbreviated {
                 meta = normalize_abbreviated_meta(meta);
             }

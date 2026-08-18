@@ -77,6 +77,37 @@ impl Package {
         self.time.as_ref()?.get(version)?.as_str()
     }
 
+    /// Drop `time` unless it carries a publish timestamp for every
+    /// version this packument lists.
+    ///
+    /// Registries may answer with a partial map: npmmirror adds `time`
+    /// to its abbreviated documents but fills it in only for the
+    /// versions it has synced since it started recording publish times,
+    /// leaving the rest out. A partial map is indistinguishable from a
+    /// complete one at the point of use, so the `minimumReleaseAge`
+    /// filter reads every absent timestamp as "not mature" and silently
+    /// drops the version — resolution then falls back to the lowest
+    /// match.
+    ///
+    /// A map that can't decide maturity is worth nothing to the
+    /// resolver, so it is normalized away where the document is parsed.
+    /// Every packument past that point carries either a complete `time`
+    /// or none at all — the shape the npm registry's own abbreviated
+    /// documents have, and the one the rest of the resolver is written
+    /// against.
+    /// A packument with no versions keeps whatever `time` it has — there
+    /// is nothing for the map to be incomplete about — and a version whose
+    /// entry is an empty string counts as absent.
+    pub fn drop_incomplete_publish_times(&mut self) {
+        let Some(time) = self.time.as_ref() else { return };
+        let complete = self.versions.keys().all(|version| {
+            time.get(version).and_then(serde_json::Value::as_str).is_some_and(|at| !at.is_empty())
+        });
+        if !complete {
+            self.time = None;
+        }
+    }
+
     /// Version under `dist-tags.<tag>`, or `None` when the tag is
     /// absent. The picker reads `latest` (for the version-range fast
     /// path) and any user-supplied tag (e.g. `next`, `beta`) through

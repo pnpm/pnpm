@@ -496,3 +496,46 @@ fn published_at_skips_reserved_unpublished_object() {
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     assert_eq!(pkg.published_at("unpublished"), None, "object value isn't a string");
 }
+
+/// npmmirror answers abbreviated requests with a `time` map covering only
+/// the versions it has synced since it started recording publish times. Such
+/// a map can't decide maturity, and leaving it in place makes the
+/// `minimumReleaseAge` filter read every absent timestamp as "not mature".
+#[test]
+fn drop_incomplete_publish_times_discards_a_partial_map() {
+    let mut pkg = package_with_versions("acme", &["1.0.0", "1.1.0"], "1.1.0");
+    pkg.time = Some(HashMap::from([(
+        "1.1.0".to_string(),
+        serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string()),
+    )]));
+
+    pkg.drop_incomplete_publish_times();
+
+    assert_eq!(pkg.time, None, "a map missing 1.0.0 cannot decide maturity");
+}
+
+#[test]
+fn drop_incomplete_publish_times_keeps_a_complete_map() {
+    let mut pkg = package_with_versions("acme", &["1.0.0", "1.1.0"], "1.1.0");
+    pkg.time = Some(HashMap::from([
+        ("1.0.0".to_string(), serde_json::Value::String("2025-01-01T08:30:00.000Z".to_string())),
+        ("1.1.0".to_string(), serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string())),
+        ("created".to_string(), serde_json::Value::String("2024-12-01T00:00:00.000Z".to_string())),
+    ]));
+
+    pkg.drop_incomplete_publish_times();
+
+    assert!(pkg.time.is_some(), "reserved keys alongside every version are still complete");
+}
+
+/// An empty timestamp is as unusable as an absent one.
+#[test]
+fn drop_incomplete_publish_times_discards_an_empty_timestamp() {
+    let mut pkg = package_with_versions("acme", &["1.0.0"], "1.0.0");
+    pkg.time =
+        Some(HashMap::from([("1.0.0".to_string(), serde_json::Value::String(String::new()))]));
+
+    pkg.drop_incomplete_publish_times();
+
+    assert_eq!(pkg.time, None);
+}

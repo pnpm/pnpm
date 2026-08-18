@@ -20,7 +20,7 @@
 //! the in-memory cache key (`:full` suffix when full), and the
 //! `Accept` header on the registry request. When `published_by` is
 //! active and the picker ends up with abbreviated metadata that
-//! lacks a complete per-version `time` map, the orchestrator transparently
+//! lacks the per-version `time` map, the orchestrator transparently
 //! upgrades to full metadata via a follow-up fetch so the
 //! `minimumReleaseAge` check runs against real timestamps instead of
 //! silently degrading to its warn-and-skip fallback (see
@@ -70,7 +70,7 @@ use crate::{
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, filter_pkg_metadata_versions, has_all_version_publish_times,
+        RegistryPackageSpecType, filter_pkg_metadata_versions,
         pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_version_by_version_range,
     },
@@ -775,6 +775,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     {
         meta = Arc::new(reloaded);
     }
+    if upgrade.upgraded {
+        ctx.fetch_locker.mark_release_age_upgrade_checked(&cache_key, &meta);
+    }
 
     // Worth flagging: a dry-run is meant to gate the on-disk save, but
     // `fetch_full_metadata_cached` already wrote the response body to
@@ -842,6 +845,9 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
             meta = Arc::new(reloaded);
         }
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
+    }
+    if upgrade.upgraded {
+        ctx.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
     }
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
     if picked.is_none() && !ctx.offline && !registry_verified {
@@ -1206,7 +1212,7 @@ struct UpgradeOutcome {
 /// per-version timestamps.
 ///
 /// When the resolver default-fetched abbreviated metadata but
-/// `published_by` is active, the per-version `time` map is incomplete
+/// `published_by` is active, the per-version `time` map is missing
 /// so the maturity check would silently degrade to the warn-and-skip
 /// fallback. This function detects that and re-fetches full metadata
 /// when the package's top-level `modified` field shows it was
@@ -1217,8 +1223,11 @@ struct UpgradeOutcome {
 ///
 /// - `ctx.offline`: no network allowed. Stick with what we have.
 /// - `opts.published_by.is_none()`: maturity check disabled.
-/// - every version has a publish timestamp: the metadata is complete.
-///   Nothing to upgrade.
+/// - `meta.time.is_some()`: the packument carries per-version publish
+///   timestamps. Documents whose `time` could not decide maturity are
+///   normalized to `None` at the parse boundary (see
+///   [`Package::drop_incomplete_publish_times`]), so a map that is here
+///   is complete. Nothing to upgrade.
 /// - this document already got a `304` from an upgrade fetch earlier in
 ///   the install (see [`PackumentFetchState`]): the registry has no
 ///   fuller form of it, so asking again is pure waste.
@@ -1254,9 +1263,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     let Some(cutoff) = opts.published_by else {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     };
-    if has_all_version_publish_times(&meta)
-        || ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta)
-    {
+    if meta.time.is_some() || ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta) {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     if let Some(policy) = opts.published_by_exclude
@@ -1300,9 +1307,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     {
         meta = cached.meta;
     }
-    if ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta)
-        || has_all_version_publish_times(&meta)
-    {
+    if ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta) || meta.time.is_some() {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     let fetch_opts = FetchFullMetadataOptions {
@@ -1321,12 +1326,18 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         // 304: the full-form representation matched the conditional
         // headers, so the abbreviated meta is still the freshest
         // signal we have. Keep it (the downstream picker falls through
-        // to its warn-and-skip path on the incomplete `time` map) and
+        // to its warn-and-skip path on the missing `time` map) and
         // mark it so no later pick in this install repeats the round trip.
         // The 304 also registry-validated the document, so it may enter the
         // shared metadata cache as verified.
         FetchFullMetadataOutcome::NotModified => {
             ctx.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
+            // A `Modified` outcome is marked by the caller instead: it persists
+            // the response to the mirror and may hand back a reloaded document,
+            // so only the caller knows the `Arc` that ends up in the cache.
+            // Both outcomes must be marked — a registry whose full form is no
+            // more complete than its abbreviated one would otherwise be
+            // re-asked once per dependency edge.
             if !opts.dry_run {
                 ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
             }

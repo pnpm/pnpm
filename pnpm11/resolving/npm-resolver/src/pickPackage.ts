@@ -21,12 +21,12 @@ import {
 } from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
-  hasAllVersionPublishTimes,
   pickLowestVersionByVersionRange,
   pickPackageFromMeta,
   type PickPackageFromMetaOptions,
   pickVersionByVersionRange,
 } from './pickPackageFromMeta.js'
+import { dropIncompletePublishTimes } from './publishTimes.js'
 import { toRaw } from './toRaw.js'
 
 export interface PackageMetaCache {
@@ -291,6 +291,7 @@ export async function pickPackage (
   // updateChecksums must reach the conditional registry request below, so it
   // can't be served from the in-memory cache — which may hold a disk-promoted
   // entry rather than a fresh network fetch (see the updateChecksums doc).
+  console.error('[T] pick', spec.name, 'updateChecksums=', opts.updateChecksums === true)
   const cachedMeta = opts.updateChecksums ? undefined : ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
     // The in-memory cache may hold abbreviated metadata from an earlier call
@@ -505,10 +506,11 @@ export async function pickPackage (
       // and most packages won't have been modified recently enough to need the full
       // document. We only upgrade to full metadata when the package's modification
       // date is recent enough that some versions might not yet be "mature."
+      let attemptedReleaseAgeUpgrade = false
       if (
         opts.publishedBy &&
         !fullMetadata &&
-        !hasAllVersionPublishTimes(meta) &&
+        meta.time == null &&
         opts.publishedByExclude?.(spec.name) !== true
       ) {
         const modifiedDate = meta.modified ? new Date(meta.modified) : null
@@ -523,6 +525,8 @@ export async function pickPackage (
           if (!opts.dryRun) {
             saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText))
           }
+          attemptedReleaseAgeUpgrade = true
+          console.error('[T] fresh-path upgrade fetch')
           const fullFetchResult = await ctx.fetch(spec.name, {
             authHeaderValue: opts.authHeaderValue,
             fullMetadata: true,
@@ -536,6 +540,9 @@ export async function pickPackage (
       }
 
       meta = condenseMetaForCache(ctx, meta)
+      if (attemptedReleaseAgeUpgrade) {
+        ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
+      }
       if (!opts.dryRun) {
         // Mirror the raw registry body, unless the retained form is
         // deliberately narrower: `filterMetadata` always mirrors the stripped
@@ -584,10 +591,11 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   },
   meta: PackageMeta
 ): Promise<{ meta: PackageMeta, upgradedFrom?: FetchMetadataResult }> {
+  console.error('[T] maybeUpgrade: time=', meta.time == null ? 'null' : 'set', 'marked=', ctx.releaseAgeUpgradeCheckedPackuments?.has(meta) === true, 'modified=', meta.modified)
   if (
     ctx.offline === true ||
     !opts.publishedBy ||
-    hasAllVersionPublishTimes(meta) ||
+    meta.time != null ||
     ctx.releaseAgeUpgradeCheckedPackuments?.has(meta) === true ||
     opts.publishedByExclude?.(spec.name) === true
   ) {
@@ -633,14 +641,29 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
  * pre-upgrade abbreviated form without `time`, and every future install
  * would re-trigger the upgrade fetch.
  */
+/**
+ * The document to serve and cache after an upgrade attempt, marked so no
+ * later pick in this resolver repeats the request.
+ *
+ * Marking belongs here rather than in
+ * {@link maybeUpgradeAbbreviatedMetaForReleaseAge} because persisting the
+ * response to the mirror can hand back a different object, and only the one
+ * that reaches the cache is worth remembering. A registry whose full form is
+ * no more complete than its abbreviated one answers `200` rather than `304`,
+ * so both outcomes have to be marked — otherwise every dependency edge
+ * re-asks for the same full document.
+ */
 function upgradeMetaForCache (
-  ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
+  ctx: { fullMetadata?: boolean, filterMetadata?: boolean, releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta> },
   upgrade: { meta: PackageMeta, upgradedFrom?: FetchMetadataResult },
   opts: { pkgMirror: string, dryRun: boolean }
 ): PackageMeta {
   if (upgrade.upgradedFrom == null) return upgrade.meta
-  if (opts.dryRun) return condenseMetaForCache(ctx, upgrade.meta)
-  return persistUpgradedMeta(ctx, opts.pkgMirror, upgrade.upgradedFrom)
+  const meta = opts.dryRun
+    ? condenseMetaForCache(ctx, upgrade.meta)
+    : persistUpgradedMeta(ctx, opts.pkgMirror, upgrade.upgradedFrom)
+  ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
+  return meta
 }
 
 // A condensing resolver keeps and mirrors the condensed form — the mirror
@@ -816,6 +839,7 @@ export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> 
     if (newlineIdx === -1) return null
     const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
     const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
+    dropIncompletePublishTimes(meta)
     meta.etag = headers.etag
     return meta
   } catch {

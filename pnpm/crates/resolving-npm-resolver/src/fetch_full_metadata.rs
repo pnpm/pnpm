@@ -252,9 +252,10 @@ pub async fn fetch_full_metadata(
         drop(client);
         let task_url = url.clone();
         let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
-            let meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
+            let mut meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
                 FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
             })?;
+            meta.drop_incomplete_publish_times();
             Ok(if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta })
         })
         .await
