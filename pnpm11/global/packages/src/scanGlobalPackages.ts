@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { readPackageJsonFromDir, readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageManifest } from '@pnpm/types'
 
 const RESERVED_ALIASES = new Set(['node_modules', 'favicon.ico'])
@@ -46,6 +46,11 @@ export interface GlobalPackageInfo {
   hash: string
   installDir: string
   dependencies: Record<string, string>
+}
+
+export interface GlobalPackageBinSnapshot {
+  info: GlobalPackageInfo
+  binNames: string[]
 }
 
 export interface InstalledGlobalPackage {
@@ -154,8 +159,7 @@ export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<st
   await Promise.all(
     aliases.map(async (alias) => {
       const depDir = path.join(modulesDir, alias)
-      const manifest = await safeReadPackageJsonFromDir(depDir)
-      if (!manifest) return
+      const manifest = await readPackageJsonFromDir(depDir)
       const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
       for (const bin of binsOfPkg) {
         bins.add(bin.name)

@@ -1,9 +1,14 @@
 use super::{
-    infer_local_package_alias, is_windows_drive_path, replacement_aliases, resolve_local_param,
-    should_replace_existing_package, split_comma_separated, update_selectors,
+    FsRemoveDirAll, cleanup_failed_global_install, infer_local_package_alias,
+    is_windows_drive_path, replacement_aliases, resolve_local_param,
+    should_replace_existing_package, snapshot_global_package, split_comma_separated,
+    update_selectors,
 };
 use pnpm_global::GlobalPackageInfo;
-use std::path::{Path, PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn comma_splits_into_selectors() {
@@ -162,6 +167,63 @@ fn exact_aliases_still_replace_mixed_groups() {
         &aliases,
         &aliases_to_replace,
     ));
+}
+
+#[test]
+fn ownership_snapshot_preserves_manifest_diagnostic_codes() {
+    struct FailingFreshInstallCleanup;
+
+    impl FsRemoveDirAll for FailingFreshInstallCleanup {
+        fn remove_dir_all(_: &Path) -> io::Result<()> {
+            Err(io::Error::from(io::ErrorKind::PermissionDenied))
+        }
+    }
+
+    let root = tempfile::tempdir().expect("create ownership fixture");
+    let info = GlobalPackageInfo {
+        hash: "hash".to_string(),
+        install_dir: root.path().to_path_buf(),
+        dependencies: vec![("dependency".to_string(), "1.0.0".to_string())],
+    };
+    let manifest_path = root.path().join("node_modules/dependency/package.json");
+
+    let missing = snapshot_global_package(info.clone())
+        .err()
+        .expect("a missing ownership manifest must fail");
+    let missing: &(dyn miette::Diagnostic + Send + Sync) = missing.as_ref();
+    assert_eq!(
+        miette::Diagnostic::code(missing).map(|code| code.to_string()),
+        Some("ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR".to_string()),
+    );
+
+    let missing = snapshot_global_package(info.clone())
+        .err()
+        .expect("a missing ownership manifest must fail");
+    let cleanup_error =
+        cleanup_failed_global_install::<FailingFreshInstallCleanup>(root.path(), missing);
+    let cleanup_diagnostic: &(dyn miette::Diagnostic + Send + Sync) = cleanup_error.as_ref();
+    let install_diagnostic = miette::Diagnostic::diagnostic_source(cleanup_diagnostic)
+        .expect("cleanup failure retains the install diagnostic");
+    assert_eq!(
+        miette::Diagnostic::code(install_diagnostic).map(|code| code.to_string()),
+        Some("ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR".to_string()),
+    );
+    let cleanup_reports = miette::Diagnostic::related(cleanup_diagnostic)
+        .expect("cleanup failure reports the remaining artifact")
+        .collect::<Vec<_>>();
+    assert_eq!(cleanup_reports.len(), 1);
+    assert!(cleanup_reports[0].to_string().contains(&root.path().display().to_string()));
+
+    std::fs::create_dir_all(manifest_path.parent().expect("manifest parent"))
+        .expect("create dependency directory");
+    std::fs::write(manifest_path, "{").expect("write malformed ownership manifest");
+    let malformed =
+        snapshot_global_package(info).err().expect("a malformed ownership manifest must fail");
+    let malformed: &(dyn miette::Diagnostic + Send + Sync) = malformed.as_ref();
+    assert_eq!(
+        miette::Diagnostic::code(malformed).map(|code| code.to_string()),
+        Some("ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR".to_string()),
+    );
 }
 
 fn global_package(aliases: &[&str]) -> GlobalPackageInfo {

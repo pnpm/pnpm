@@ -5,7 +5,6 @@ import util from 'node:util'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import type { GlobalPackageInfo } from '@pnpm/global.packages'
 import type { DependencyManifest } from '@pnpm/types'
 
 type LinkBinsOfPackages = typeof import('@pnpm/bins.linker').linkBinsOfPackages
@@ -26,7 +25,6 @@ const linkedBinNames: string[] = []
 const backupSymlinkTypes: Array<string | null | undefined> = []
 const activationBackupFileContents: Buffer[] = []
 const getHashLink = jest.fn((globalDir: string, hash: string) => path.join(globalDir, hash))
-const getInstalledBinNames = jest.fn<(pkg: GlobalPackageInfo) => Promise<string[]>>()
 const globalWarn = jest.fn<(message: string) => void>()
 const realRm = fs.rm.bind(fs)
 
@@ -125,11 +123,11 @@ jest.spyOn(fs, 'symlink').mockImplementation(async (target, linkPath, type) => {
 
 jest.unstable_mockModule('@pnpm/bins.linker', () => ({ linkBinsOfPackages }))
 jest.unstable_mockModule('@pnpm/bins.remover', () => ({ removeBin }))
-jest.unstable_mockModule('@pnpm/global.packages', () => ({ getHashLink, getInstalledBinNames }))
+jest.unstable_mockModule('@pnpm/global.packages', () => ({ getHashLink }))
 jest.unstable_mockModule('@pnpm/logger', () => ({ globalWarn }))
 jest.unstable_mockModule('symlink-dir', () => ({ symlinkDir }))
 
-const { cleanupReplacedGlobalInstalls, activateGlobalInstall } = await import('../src/globalActivation.js')
+const { cleanupFailedGlobalInstall, cleanupReplacedGlobalInstalls, activateGlobalInstall } = await import('../src/globalActivation.js')
 
 afterEach(async () => {
   const root = testRoot
@@ -150,12 +148,46 @@ afterEach(async () => {
     linkedBinNames.length = 0
     activationBackupFileContents.length = 0
     getHashLink.mockClear()
-    getInstalledBinNames.mockReset()
     globalWarn.mockClear()
     linkBinsOfPackages.mockClear()
     removeBin.mockClear()
     symlinkDir.mockClear()
   }
+})
+
+test('cleanup before activation rethrows the original error after removing the fresh install', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-global-before-activation-cleanup-'))
+  testRoot = root
+  const installDir = path.join(root, 'fresh-install')
+  await fs.mkdir(installDir)
+  const originalError = new Error('ownership preflight failed')
+
+  await expect(cleanupFailedGlobalInstall(installDir, originalError)).rejects.toBe(originalError)
+
+  expect(existsSync(installDir)).toBe(false)
+})
+
+test('cleanup before activation preserves the original and cleanup errors', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-global-before-activation-cleanup-'))
+  testRoot = root
+  const installDir = path.join(root, 'fresh-install')
+  await fs.mkdir(installDir)
+  const originalError = new Error('ownership preflight failed')
+  const cleanupError = new Error('fresh install cleanup failed')
+  freshCleanupFailure = { path: path.resolve(installDir), error: cleanupError }
+
+  let thrown: unknown
+  try {
+    await cleanupFailedGlobalInstall(installDir, originalError)
+  } catch (err) {
+    thrown = err
+  }
+
+  expect(thrown).toBeInstanceOf(AggregateError)
+  const aggregateError = thrown as AggregateError
+  expect(aggregateError.errors).toStrictEqual([originalError, cleanupError])
+  expect(aggregateError.cause).toBe(originalError)
+  expect(existsSync(installDir)).toBe(true)
 })
 
 test('restores exact bin slots when linking fails after a partial write', async () => {
@@ -642,7 +674,6 @@ test('removes an old bin slot when the linker skips a missing source', async () 
   await fs.writeFile(toolSlot, `#!/bin/sh\n${fixture.oldInstallDir}/bin/tool.js\n`)
   await fs.rm(path.join(fixture.packageDir, 'bin/tool.js'))
   skipMissingBinSources = true
-  getInstalledBinNames.mockResolvedValue(['tool'])
 
   const activatedBins = await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
@@ -653,9 +684,12 @@ test('removes an old bin slot when the linker skips a missing source', async () 
   })
   await cleanupReplacedGlobalInstalls({
     groups: [{
-      dependencies: { replacement: '1.0.0' },
-      hash: 'hash-link',
-      installDir: fixture.oldInstallDir,
+      info: {
+        dependencies: { replacement: '1.0.0' },
+        hash: 'hash-link',
+        installDir: fixture.oldInstallDir,
+      },
+      binNames: ['tool'],
     }],
     globalDir: fixture.root,
     globalBinDir: fixture.globalBinDir,
@@ -678,10 +712,11 @@ test('preserves bin slots owned by the activated and surviving groups', async ()
     fs.writeFile(activatedSlot, 'activated\n'),
     fs.writeFile(protectedSlot, 'protected\n'),
   ])
-  getInstalledBinNames.mockResolvedValue(['activated', 'protected'])
-
   await cleanupReplacedGlobalInstalls({
-    groups: [{ dependencies: { old: '1.0.0' }, hash: 'active-hash', installDir: oldInstallDir }],
+    groups: [{
+      info: { dependencies: { old: '1.0.0' }, hash: 'active-hash', installDir: oldInstallDir },
+      binNames: ['activated', 'protected'],
+    }],
     globalDir,
     globalBinDir,
     activeHash: 'active-hash',
@@ -701,10 +736,12 @@ test('removes stale bins and the old install without removing the active hash li
   const staleSlot = path.join(globalBinDir, 'stale')
   await fs.writeFile(staleSlot, 'stale\n')
   await replaceDirectorySymlink(activeInstallDir, hashLink)
-  getInstalledBinNames.mockResolvedValue(['stale'])
 
   await cleanupReplacedGlobalInstalls({
-    groups: [{ dependencies: { old: '1.0.0' }, hash: 'active-hash', installDir: oldInstallDir }],
+    groups: [{
+      info: { dependencies: { old: '1.0.0' }, hash: 'active-hash', installDir: oldInstallDir },
+      binNames: ['stale'],
+    }],
     globalDir,
     globalBinDir,
     activeHash: 'active-hash',
@@ -729,10 +766,12 @@ test('drops the hash link of a group replaced by a different package set, keepin
     fs.writeFile(sharedSlot, 'relinked at the new hash\n'),
     fs.writeFile(droppedSlot, 'dropped\n'),
   ])
-  getInstalledBinNames.mockResolvedValue(['shared', 'dropped'])
 
   await cleanupReplacedGlobalInstalls({
-    groups: [{ dependencies: { old: '1.0.0' }, hash: 'old-hash', installDir: oldInstallDir }],
+    groups: [{
+      info: { dependencies: { old: '1.0.0' }, hash: 'old-hash', installDir: oldInstallDir },
+      binNames: ['shared', 'dropped'],
+    }],
     globalDir,
     globalBinDir,
     activeHash: 'new-hash',
@@ -755,10 +794,12 @@ test('does not delete an install directory outside the global directory', async 
   await fs.mkdir(outsideInstallDir, { recursive: true })
   const marker = path.join(outsideInstallDir, 'marker')
   await fs.writeFile(marker, 'outside\n')
-  getInstalledBinNames.mockResolvedValue([])
 
   await cleanupReplacedGlobalInstalls({
-    groups: [{ dependencies: { old: '1.0.0' }, hash: 'active-hash', installDir: outsideInstallDir }],
+    groups: [{
+      info: { dependencies: { old: '1.0.0' }, hash: 'active-hash', installDir: outsideInstallDir },
+      binNames: [],
+    }],
     globalDir,
     globalBinDir,
     activeHash: 'active-hash',
@@ -769,26 +810,6 @@ test('does not delete an install directory outside the global directory', async 
   expect(await fs.readFile(marker, 'utf8')).toBe('outside\n')
 })
 
-test('keeps a replaced group whose bin names cannot be enumerated', async () => {
-  const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
-  const hashLink = path.join(globalDir, 'old-hash')
-  await replaceDirectorySymlink(oldInstallDir, hashLink)
-  const enumerationError = new Error('cannot read the installed manifest')
-  getInstalledBinNames.mockRejectedValue(enumerationError)
-
-  await expect(cleanupReplacedGlobalInstalls({
-    groups: [{ dependencies: { old: '1.0.0' }, hash: 'old-hash', installDir: oldInstallDir }],
-    globalDir,
-    globalBinDir,
-    activeHash: 'active-hash',
-    activatedBins: new Set(),
-    protectedBins: new Set(),
-  })).rejects.toBe(enumerationError)
-
-  expect(existsSync(oldInstallDir)).toBe(true)
-  expect(existsSync(hashLink)).toBe(true)
-})
-
 test('cleanup removes the other bins but keeps a group whose bin removal failed', async () => {
   const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
   const blockedSlot = path.join(globalBinDir, 'blocked')
@@ -797,12 +818,14 @@ test('cleanup removes the other bins but keeps a group whose bin removal failed'
     fs.writeFile(blockedSlot, 'blocked\n'),
     fs.writeFile(staleSlot, 'stale\n'),
   ])
-  getInstalledBinNames.mockResolvedValue(['blocked', 'stale'])
   const removalError = new Error('bin removal failed')
   removeBinFailure = { name: 'blocked', error: removalError }
 
   await expect(cleanupReplacedGlobalInstalls({
-    groups: [{ dependencies: { old: '1.0.0' }, hash: 'old-hash', installDir: oldInstallDir }],
+    groups: [{
+      info: { dependencies: { old: '1.0.0' }, hash: 'old-hash', installDir: oldInstallDir },
+      binNames: ['blocked', 'stale'],
+    }],
     globalDir,
     globalBinDir,
     activeHash: 'active-hash',

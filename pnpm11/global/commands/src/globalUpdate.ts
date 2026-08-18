@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import type { CommandHandlerMap } from '@pnpm/cli.command'
@@ -12,9 +11,9 @@ import {
 } from '@pnpm/global.packages'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 
-import { getBinNamesOfOtherGroups } from './binOwnership.js'
+import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
+import { activateGlobalInstall, cleanupFailedGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
@@ -134,11 +133,15 @@ async function updateGlobalPackageGroup (
       shouldSkip: (existingPkg) => existingPkg.hash === pkg.hash,
     })
   } catch (err) {
-    await fs.promises.rm(installDir, { recursive: true, force: true })
-    throw err
+    return cleanupFailedGlobalInstall(installDir, err)
   }
 
-  const protectedBins = await getBinNamesOfOtherGroups(globalDir, new Set([pkg.hash]))
+  let ownership: Awaited<ReturnType<typeof getGlobalBinOwnership>>
+  try {
+    ownership = await getGlobalBinOwnership(globalDir, [pkg])
+  } catch (err) {
+    return cleanupFailedGlobalInstall(installDir, err)
+  }
   const hashLink = getHashLink(globalDir, pkg.hash)
   const activatedBins = await activateGlobalInstall({
     installDir,
@@ -148,12 +151,12 @@ async function updateGlobalPackageGroup (
     binsToSkip,
   })
   await cleanupReplacedGlobalInstalls({
-    groups: [pkg],
+    groups: ownership.groups,
     globalDir,
     globalBinDir,
     activeHash: pkg.hash,
     activatedBins,
-    protectedBins,
+    protectedBins: ownership.protectedBins,
   })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }

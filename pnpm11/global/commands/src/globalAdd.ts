@@ -14,9 +14,9 @@ import {
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 
-import { getBinNamesOfOtherGroups } from './binOwnership.js'
+import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
+import { activateGlobalInstall, cleanupFailedGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
@@ -146,15 +146,19 @@ async function installGroup (
       shouldSkip: (pkg) => shouldReplaceExistingGlobalInstall(pkg, aliases, replacementAliases),
     })
   } catch (err) {
-    await fs.promises.rm(installDir, { recursive: true, force: true })
-    throw err
+    return cleanupFailedGlobalInstall(installDir, err)
   }
 
-  const { groupsToReplace, protectedBins } = await collectExistingGlobalInstalls({
-    globalDir,
-    aliases,
-    replacementAliases,
-  })
+  let existingGlobalInstalls: ExistingGlobalInstalls
+  try {
+    existingGlobalInstalls = await collectExistingGlobalInstalls({
+      globalDir,
+      aliases,
+      replacementAliases,
+    })
+  } catch (err) {
+    return cleanupFailedGlobalInstall(installDir, err)
+  }
 
   const cacheHash = createGlobalCacheKey({
     aliases,
@@ -169,12 +173,12 @@ async function installGroup (
     binsToSkip,
   })
   await cleanupReplacedGlobalInstalls({
-    groups: groupsToReplace,
+    groups: existingGlobalInstalls.groups,
     globalDir,
     globalBinDir,
     activeHash: cacheHash,
     activatedBins,
-    protectedBins,
+    protectedBins: existingGlobalInstalls.protectedBins,
   })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }
@@ -252,7 +256,7 @@ function resolveLocalParam (param: string, baseDir: string): string {
 }
 
 interface ExistingGlobalInstalls {
-  groupsToReplace: GlobalPackageInfo[]
+  groups: Array<{ info: GlobalPackageInfo, binNames: string[] }>
   protectedBins: Set<string>
 }
 
@@ -277,6 +281,5 @@ async function collectExistingGlobalInstalls (
     }
   }
 
-  const protectedBins = await getBinNamesOfOtherGroups(globalDir, new Set(groupsToReplace.keys()))
-  return { groupsToReplace: [...groupsToReplace.values()], protectedBins }
+  return getGlobalBinOwnership(globalDir, [...groupsToReplace.values()])
 }
