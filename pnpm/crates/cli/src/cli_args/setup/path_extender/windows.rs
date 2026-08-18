@@ -159,9 +159,16 @@ fn run_capture(program: &str, args: &[&str]) -> Result<String, PathExtenderError
 /// Run `chcp`, attempting `chcp.com` first (the standard executable name on
 /// Windows) with a fallback to `chcp` if `chcp.com` is not found.
 fn run_capture_chcp(args: &[&str]) -> Result<String, PathExtenderError> {
-    match run_capture("chcp.com", args) {
+    run_capture_chcp_with(args, run_capture)
+}
+
+fn run_capture_chcp_with<F>(args: &[&str], mut runner: F) -> Result<String, PathExtenderError>
+where
+    F: FnMut(&str, &[&str]) -> Result<String, PathExtenderError>,
+{
+    match runner("chcp.com", args) {
         Err(PathExtenderError::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
-            run_capture("chcp", args)
+            runner("chcp", args)
         }
         res => res,
     }
