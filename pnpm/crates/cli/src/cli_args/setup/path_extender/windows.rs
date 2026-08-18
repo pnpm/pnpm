@@ -162,9 +162,9 @@ fn run_capture_chcp(args: &[&str]) -> Result<String, PathExtenderError> {
     run_capture_chcp_with(args, run_capture)
 }
 
-fn run_capture_chcp_with<F>(args: &[&str], mut runner: F) -> Result<String, PathExtenderError>
+fn run_capture_chcp_with<Runner>(args: &[&str], mut runner: Runner) -> Result<String, PathExtenderError>
 where
-    F: FnMut(&str, &[&str]) -> Result<String, PathExtenderError>,
+    Runner: FnMut(&str, &[&str]) -> Result<String, PathExtenderError>,
 {
     match runner("chcp.com", args) {
         Err(PathExtenderError::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
