@@ -435,10 +435,8 @@ async function update (
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
     updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
-  } else if (
-    (packageDependencies.length > 0) && packageDependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
-  ) {
-    updateMatching = createMatcher(packageDependencies)
+  } else if (packageDependencies.length > 0 && depth > 0 && !opts.latest) {
+    updateMatching = createMatcher(packageDependencies.map((dependency) => parseUpdateParam(dependency).pattern))
   }
   const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
   const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined

@@ -34,8 +34,8 @@ import {
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
@@ -55,6 +55,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
+import getVersionSelectorType from 'version-selector-type'
 
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
@@ -212,7 +213,10 @@ export async function recursive (
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
     handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
-  }) as InstallOptions
+  }) as InstallOptions & {
+    preferredVersions?: PreferredVersions
+    updateMatching?: UpdateMatchingFunction
+  }
 
   const result: RecursiveSummary = {}
 
@@ -245,6 +249,13 @@ export async function recursive (
   } else {
     updateMatch = null
   }
+  const updateMatching = opts.updateMatching ?? (
+    cmdFullName === 'update' && params.length > 0 && (opts.depth ?? Infinity) > 0 && !opts.latest
+      ? createUpdateMatching(params)
+      : undefined
+  )
+  installOpts.preferredVersions = createPreferredVersionsFromPinnedUpdateSpecs(params, installOpts.preferredVersions)
+  installOpts.updateMatching = updateMatching
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = getImporters(opts)
@@ -312,7 +323,7 @@ export async function recursive (
             rootDir,
             targetDependenciesField,
             update: opts.update,
-            updateMatching: opts.updateMatching,
+            updateMatching,
             updatePackageManifest: opts.updatePackageManifest,
             updateToLatest: opts.latest,
           } as MutatedProject)
@@ -324,7 +335,7 @@ export async function recursive (
             pruneDirectDependencies: opts.pruneDirectDependencies,
             rootDir,
             update: opts.update,
-            updateMatching: opts.updateMatching,
+            updateMatching,
             updatePackageManifest: opts.updatePackageManifest,
             updateToLatest: opts.latest,
           } as MutatedProject)
@@ -595,6 +606,39 @@ export function matchDependencies (
     matchedDeps.push(spec ? `${dep}@${spec}` : dep)
   }
   return matchedDeps
+}
+
+function createUpdateMatching (params: string[]): UpdateMatchingFunction {
+  const patterns = params.map((param) => parseUpdateParam(param).pattern)
+  const matcher = createMatcherWithIndex(patterns)
+  return (pkgName: string) => matcher(pkgName) !== -1
+}
+
+export function createPreferredVersionsFromPinnedUpdateSpecs (
+  params: string[],
+  preferredVersions?: PreferredVersions
+): PreferredVersions | undefined {
+  let mergedPreferredVersions = preferredVersions
+  for (const param of params) {
+    const { pattern, versionSpec } = parseUpdateParam(param)
+    if (
+      versionSpec == null ||
+      pattern[0] === '!' ||
+      pattern.includes('*') ||
+      getVersionSelectorType(versionSpec)?.type !== 'version'
+    ) continue
+
+    if (mergedPreferredVersions == null) {
+      mergedPreferredVersions = Object.create(null) as PreferredVersions
+    } else if (mergedPreferredVersions === preferredVersions) {
+      mergedPreferredVersions = Object.assign(Object.create(null), mergedPreferredVersions)
+    }
+    const nextPreferredVersions = mergedPreferredVersions as PreferredVersions
+    nextPreferredVersions[pattern] = Object.assign(Object.create(null), nextPreferredVersions[pattern], {
+      [versionSpec]: { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1 },
+    })
+  }
+  return mergedPreferredVersions
 }
 
 export type UpdateDepsMatcher = (input: string) => string | null

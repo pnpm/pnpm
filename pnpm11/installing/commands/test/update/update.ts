@@ -139,7 +139,7 @@ test('update transitive dependency when mixed with a direct dependency selector'
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
 })
 
-test('update of a transitive dependency ignores the requested version and resolves like a fresh install', async () => {
+test('update of a transitive dependency applies the requested pinned version when dependents allow it', async () => {
   // @pnpm.e2e/pkg-with-good-optional depends on @pnpm.e2e/dep-of-pkg-with-1-dep via "*".
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
@@ -156,10 +156,11 @@ test('update of a transitive dependency ignores the requested version and resolv
 
   expect(project.readLockfile().packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
 
-  // The update requests 100.1.0, but a transitive dependency has no manifest
-  // entry to carry a version, and updates resolve the target the way a fresh
-  // install would — so the requested version is ignored (with a warning
-  // recommending an override) and the "*" range resolves to the new latest.
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'next' })
+
+  // The update requests 100.1.0. A transitive target keeps its dependents'
+  // ranges, but the named exact version should still be preferred strongly
+  // enough to outrank the old lockfile pin when those ranges admit it.
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
 
   await update.handler({
@@ -169,9 +170,49 @@ test('update of a transitive dependency ignores the requested version and resolv
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeFalsy()
-  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeFalsy()
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0']).toBeFalsy()
+})
+
+test('update with a pinned direct dependency only updates the targeted package', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+      '@pnpm.e2e/peer-a': '^1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    lockfileOnly: true,
+    save: false,
+  }, ['@pnpm.e2e/foo@1.0.1'])
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '^1.0.0',
+    version: '1.0.1',
+  })
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/peer-a']).toStrictEqual({
+    specifier: '^1.0.0',
+    version: '1.0.0',
+  })
+  expect(lockfile.packages['@pnpm.e2e/foo@1.0.1']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeFalsy()
 })
 
 test('update with a version on a crafted package name does not pollute Object.prototype', async () => {
