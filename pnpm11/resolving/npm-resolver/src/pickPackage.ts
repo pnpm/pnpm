@@ -423,6 +423,31 @@ export async function pickPackage (
       const cacheHeaders = diskMeta != null
         ? { etag: diskMeta.etag, modified: diskMeta.modified ?? diskMeta.time?.modified }
         : await limit(async () => loadMetaHeaders(pkgMirror))
+      if (cacheHeaders != null && !cacheHeaders.etag && !cacheHeaders.modified && spec.type !== 'tag' && !opts.includeLatestTag && !opts.updateChecksums) {
+        diskMeta = diskMeta ?? await limit(loadMetaCondensed)
+        if (diskMeta != null) {
+          try {
+            const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, diskMeta)
+            diskMeta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
+            if (upgrade.upgradedFrom != null) {
+              ctx.metaCache.set(cacheKey, diskMeta)
+            }
+            const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
+            if (pickedPackage) {
+              if (upgrade.upgradedFrom == null) {
+                cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
+              }
+              return {
+                meta: diskMeta,
+                pickedPackage,
+              }
+            }
+          } catch {
+            // Swallow fast-path errors (e.g. ERR_PNPM_NO_VERSIONS from empty/outdated cache)
+            // and fall through to the network fetch.
+          }
+        }
+      }
       const conditional = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,

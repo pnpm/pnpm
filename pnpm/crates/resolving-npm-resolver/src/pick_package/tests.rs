@@ -16,7 +16,8 @@ use super::{
 };
 use crate::{
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path,
+        load_meta, save_meta_ndjson,
     },
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
     registry_url::to_registry_url,
@@ -250,6 +251,48 @@ async fn offline_with_mirror_picks_from_disk() {
         fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: true,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn non_etag_mirror_reuses_disk_without_network() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").expect(0).create_async().await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let mut preloaded: pnpm_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    preloaded.modified = None;
+    let mirror_path =
+        get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+            .expect("path");
+    save_meta_ndjson(&mirror_path, &preloaded, None).expect("save mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,

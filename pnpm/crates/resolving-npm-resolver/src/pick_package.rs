@@ -65,8 +65,8 @@ use crate::{
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
-        get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed, save_meta_ndjson,
-        scoped_meta_dir,
+        get_pkg_mirror_path, load_meta, load_meta_async, load_meta_headers_async,
+        save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
@@ -673,6 +673,50 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // stale. Restore the (possibly upgraded) meta for later
             // paths that reuse the in-store load.
             meta_cached_in_store = Some(meta);
+        }
+    }
+
+    if !opts.update_checksums
+        && !opts.include_latest_tag
+        && spec.spec_type != RegistryPackageSpecType::Tag
+        && let Some(mirror_path) = pkg_mirror.as_deref()
+        && let Some(headers) = load_meta_headers_async(Some(mirror_path)).await
+        && headers.etag.is_none()
+        && headers.modified.is_none()
+    {
+        if meta_cached_in_store.is_none() {
+            meta_cached_in_store = load_meta_async(Some(mirror_path)).await.map(Arc::new);
+        }
+        if let Some(meta) = meta_cached_in_store.as_ref() {
+            let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
+                ctx,
+                spec,
+                opts,
+                full_metadata,
+                &cache_key,
+                Arc::clone(meta),
+            )
+            .await;
+            if let Ok(upgrade) = upgrade {
+                let mut meta = upgrade.meta;
+                if upgrade.upgraded && !opts.dry_run {
+                    if let Some(reloaded) =
+                        persist_upgraded_to_mirror(mirror_path, &meta, use_filtered_full_metadata)
+                    {
+                        meta = Arc::new(reloaded);
+                    }
+                    ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
+                }
+                if let Ok((picked_meta, picked)) =
+                    pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)
+                    && picked.is_some()
+                {
+                    if !upgrade.upgraded && !opts.dry_run {
+                        ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
+                    }
+                    return Ok(PickPackageResult { meta: picked_meta, picked_package: picked });
+                }
+            }
         }
     }
 
