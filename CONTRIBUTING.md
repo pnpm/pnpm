@@ -51,7 +51,7 @@ Rust is now the primary language in this repository, so most contributions need 
    just init
    ```
 
-   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`.
+   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov` (via `cargo binstall`), plus `cargo-fixit` (pinned to `0.1.15` via `cargo install cargo-fixit@0.1.15 --locked`, since `cargo-fixit` has no prebuilt binaries). `cargo-fixit` backs the `just fix` task.
 
 3. Install the dylint tools, which `just init` does not cover, **from source**:
 
