@@ -396,7 +396,7 @@ enableGlobalVirtualStore: true
 
 enablePrePostScripts: false
 
-engineStrict: true
+engineStrict: false
 
 gitChecks: false
 
