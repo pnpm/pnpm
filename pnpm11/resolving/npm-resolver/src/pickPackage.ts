@@ -291,7 +291,6 @@ export async function pickPackage (
   // updateChecksums must reach the conditional registry request below, so it
   // can't be served from the in-memory cache — which may hold a disk-promoted
   // entry rather than a fresh network fetch (see the updateChecksums doc).
-  console.error('[T] pick', spec.name, 'updateChecksums=', opts.updateChecksums === true)
   const cachedMeta = opts.updateChecksums ? undefined : ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
     // The in-memory cache may hold abbreviated metadata from an earlier call
@@ -526,7 +525,6 @@ export async function pickPackage (
             saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText))
           }
           attemptedReleaseAgeUpgrade = true
-          console.error('[T] fresh-path upgrade fetch')
           const fullFetchResult = await ctx.fetch(spec.name, {
             authHeaderValue: opts.authHeaderValue,
             fullMetadata: true,
@@ -591,7 +589,6 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   },
   meta: PackageMeta
 ): Promise<{ meta: PackageMeta, upgradedFrom?: FetchMetadataResult }> {
-  console.error('[T] maybeUpgrade: time=', meta.time == null ? 'null' : 'set', 'marked=', ctx.releaseAgeUpgradeCheckedPackuments?.has(meta) === true, 'modified=', meta.modified)
   if (
     ctx.offline === true ||
     !opts.publishedBy ||
