@@ -39,7 +39,7 @@ export function help (): string {
             name: '--init-type <commonjs|module>',
           },
           {
-            description: 'Declare a pnpm version range via "devEngines.packageManager" in package.json and auto-download pnpm when it is missing',
+            description: 'Declare the pnpm version via "devEngines.packageManager" in package.json and auto-download pnpm when it is missing',
             name: '--init-package-manager',
           },
           {
