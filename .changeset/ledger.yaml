@@ -1206,6 +1206,13 @@
   dir: pnpr/npm/pnpr
   intents:
     - secure-catalogs-route
+"@pnpm/pnpr@0.1.0-alpha.7":
+  dir: pnpr/npm/pnpr
+  intents:
+    - pnpr-last-modified
+    - pnpr-registry-declarations
+    - pnpr-resolution-mode
+    - pnpr-resolve-settings
 "@pnpm/prepare-temp-dir@1100.0.1":
   dir: pnpm11/__utils__/prepare-temp-dir
   intents:
@@ -2073,6 +2080,30 @@ pacquet@12.0.0-rc.6:
     - pnpr-skip-server-when-nothing-to-resolve
     - runtime-shasums-cache
     - yarn-third-party-notices
+pacquet@12.0.0-rc.7:
+  dir: pnpm/npm/pnpm
+  intents:
+    - bright-pandas-quote
+    - drop-modules-yaml-registries
+    - fix-dist-tarball-encoded-slashes
+    - fix-version-policy-wildcard-evaluation
+    - global-update-latest-local-specs
+    - gvs-esm-node-path-loader
+    - outdated-resolves-catalog-specifiers
+    - packument-status-before-decode
+    - per-registry-time-field
+    - perf-cold-install-overlap
+    - pnpr-registry-declarations
+    - pnpr-resolution-mode
+    - pnpr-resolve-settings
+    - registries-by-scope-by-prefix
+    - registry-server-type
+    - report-store-integrity-checks
+    - skip-registry-for-preferred-workspace-packages
+    - spicy-hoops-brake
+    - stream-large-tarball-extraction
+    - virtual-store-type
+    - why-list-colored-labels
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:

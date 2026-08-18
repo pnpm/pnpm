@@ -794,16 +794,19 @@ export async function mutateModules (
     // optional config leaves it undefined, and this now runs on every
     // install rather than only when the fast path opens.
     const configuredOverrides = opts.overrides ?? {}
-    // An override whose value is a `catalog:` reference is only meaningful
-    // once the catalog rewrite has settled, and the range-only catalog
-    // rewrite refuses to run under one. Neither resolver-consulting rewrite
-    // composes with that, so both leave the drift to the resolver.
+    // A catalog move can change the effective value of an override whose
+    // configured value is a `catalog:` reference — an effect no catalog
+    // rewrite can express — so catalog drift under such an override goes to
+    // the resolver. Override drift alone composes: override values are
+    // compared catalog-resolved, so a settled `catalog:` override shows no
+    // drift and only the genuinely changed entries reach the override
+    // rewrite.
     const overridesUseCatalogs = Object.values(configuredOverrides)
       .some((specifier) => parseCatalogProtocol(specifier) != null)
     const hasAsyncDrift = changedLockfileSettings.includes('catalogs') ||
       changedLockfileSettings.includes('overrides')
     const allChangedFieldsAreComposable =
-      !(hasAsyncDrift && overridesUseCatalogs) &&
+      !(changedLockfileSettings.includes('catalogs') && overridesUseCatalogs) &&
       changedLockfileSettings.every((field) =>
         isSettingsField(field) || COMPOSABLE_CHANGED_FIELDS.has(field))
     // A changed field nothing can absorb forces a resolution, so the

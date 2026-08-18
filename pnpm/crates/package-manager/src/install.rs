@@ -27,7 +27,7 @@ use pnpm_lockfile_verification::{
     verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{
-    Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
+    Clock, Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
     ReadModulesError, WriteModulesError, write_modules_manifest,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient};
@@ -40,7 +40,7 @@ use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use pnpm_tarball::MemCache;
 use pnpm_workspace_state::{
-    ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, now_millis, update_workspace_state,
+    ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, update_workspace_state,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},

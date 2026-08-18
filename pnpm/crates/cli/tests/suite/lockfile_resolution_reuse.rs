@@ -9,7 +9,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fs::bump_mtime,
+};
 use std::{fs, net::TcpListener, path::Path, process::Command};
 
 const IS_POSITIVE_PATCH: &str = include_str!(
@@ -307,6 +310,70 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
                 "node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive",
             )
             .exists(),
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A changed override is absorbed even though an unchanged override's
+/// configured value is a `catalog:` reference. Override values are
+/// compared catalog-resolved, so with the catalogs settled the
+/// `catalog:` override shows no drift and only the added removal is
+/// applied — which the dead registry proves needs no resolution.
+#[test]
+fn removal_override_composes_with_a_settled_catalog_override() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let manifest_path = workspace.join("package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-good-optional": "1.0.0",
+                "@pnpm.e2e/bar": "catalog:"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}trustLockfile: true\ncatalog:\n  '@pnpm.e2e/bar': 100.0.0\n  '@pnpm.e2e/foo': 1.0.0\noverrides:\n  '@pnpm.e2e/foo': 'catalog:'\n",
+        ),
+    )
+    .expect("write the settled catalog override");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}  is-positive: '-'\n"))
+        .expect("add dependency removal override");
+    let dead_registry = dead_registry_url();
+    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let npmrc = npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let overrides = wanted.overrides.as_ref().expect("recorded overrides");
+    assert_eq!(overrides["@pnpm.e2e/foo"], "1.0.0");
+    assert_eq!(overrides["is-positive"], "-");
+    let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
+    assert!(
+        wanted.snapshots.as_ref().is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
     );
 
     drop((root, mock_instance));
@@ -657,12 +724,7 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
     .expect("write the reuse scenario's initial manifest");
     pacquet_at(&reused.workspace).with_arg("install").assert().success();
     fs::write(&reused_manifest, &both).expect("add the second dep to the reuse scenario");
-    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
-    std::fs::OpenOptions::new()
-        .write(true)
-        .open(&reused_manifest)
-        .and_then(|file| file.set_times(std::fs::FileTimes::new().set_modified(future)))
-        .expect("bump manifest mtime");
+    bump_mtime(&reused_manifest);
     pacquet_at(&reused.workspace).with_arg("install").assert().success();
     let reused_lockfile =
         fs::read_to_string(reused.workspace.join("pnpm-lock.yaml")).expect("read reused lockfile");
@@ -777,12 +839,7 @@ fn an_edge_denied_reuse_keeps_the_subtree_instead_of_reading_the_synthesized_reu
     // pkg-a's (already-walked) edge reused it.
     fs::write(&pkg_b_manifest_path, pkg_b_manifest("100.1.0"))
         .expect("bump dep-of-pkg-with-1-dep in pkg-b");
-    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
-    fs::OpenOptions::new()
-        .write(true)
-        .open(&pkg_b_manifest_path)
-        .and_then(|file| file.set_times(std::fs::FileTimes::new().set_modified(future)))
-        .expect("bump manifest mtime");
+    bump_mtime(&pkg_b_manifest_path);
     pacquet_at(workspace).with_arg("install").assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml after bump");
@@ -1685,6 +1742,113 @@ fn removing_a_workspace_project_prunes_its_importer_without_resolving() {
             .keys()
             .any(|key| key.to_string().starts_with("@pnpm.e2e/bar@")),
         "and so is what only it depended on",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A config drift the fast rewrites cannot absorb (a changed
+/// `packageExtensions`) forces every subtree to re-resolve, but each
+/// edge whose recorded version still satisfies its range keeps it: the
+/// prior lockfile pins per edge even when it cannot seed subtree
+/// reuse. Without the pin, `@pnpm.e2e/foobar`'s open `^100.0.0` edge
+/// would re-pick the highest locked `@pnpm.e2e/foo` (100.1.0, locked
+/// by the other workspace member) and churn the lockfile.
+#[test]
+fn config_drift_full_resolve_keeps_still_satisfied_pins() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}packages:\n  - packages/*\n"))
+        .expect("declare the workspace members");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+    let write_member = |name: &str, dependencies: serde_json::Value| {
+        let dir = workspace.join("packages").join(name);
+        fs::create_dir_all(&dir).expect("create the member directory");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": dependencies,
+            })
+            .to_string(),
+        )
+        .expect("write the member package.json");
+    };
+    // The direct exact dep dedupes foobar's `^100.0.0` edge onto
+    // 100.0.0 while it is the only locked version.
+    write_member(
+        "a",
+        serde_json::json!({ "@pnpm.e2e/foobar": "100.0.0", "@pnpm.e2e/foo": "100.0.0" }),
+    );
+    write_member("b", serde_json::json!({}));
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    let foobar_key = "@pnpm.e2e/foobar@100.0.0".parse().expect("foobar key");
+    let foo_name = "@pnpm.e2e/foo".parse().expect("foo name");
+    let foobar_foo_child = |lockfile: &pnpm_lockfile::Lockfile| {
+        lockfile
+            .snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(&foobar_key))
+            .and_then(|snapshot| snapshot.dependencies.as_ref())
+            .and_then(|dependencies| dependencies.get(&foo_name))
+            .and_then(|dep_ref| dep_ref.resolve(&foo_name))
+            .map(|key| key.to_string())
+    };
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    assert_eq!(foobar_foo_child(&wanted).as_deref(), Some("@pnpm.e2e/foo@100.0.0"));
+
+    // Lock a second, higher foo through the other member; foobar's
+    // subtree is untouched and keeps its recorded 100.0.0 child.
+    write_member("a", serde_json::json!({ "@pnpm.e2e/foobar": "100.0.0" }));
+    write_member("b", serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" }));
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    assert_eq!(foobar_foo_child(&wanted).as_deref(), Some("@pnpm.e2e/foo@100.0.0"));
+
+    // Non-absorbable config drift: a package extension that visibly
+    // changes foobar's dependency set, so the assertion below also
+    // proves the recorded subtree was re-resolved (the extension
+    // applied) rather than reused wholesale under the drift.
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}packageExtensions:\n  '@pnpm.e2e/foobar':\n    dependencies:\n      is-positive: 1.0.0\n",
+        ),
+    )
+    .expect("add a package extension");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    assert_eq!(foobar_foo_child(&wanted).as_deref(), Some("@pnpm.e2e/foo@100.0.0"));
+    let extended_child = wanted
+        .snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&foobar_key))
+        .and_then(|snapshot| snapshot.dependencies.as_ref())
+        .and_then(|dependencies| dependencies.get(&"is-positive".parse().expect("name")))
+        .and_then(|dep_ref| dep_ref.resolve(&"is-positive".parse().expect("name")))
+        .map(|key| key.to_string());
+    assert_eq!(extended_child.as_deref(), Some("is-positive@1.0.0"));
+    let foo_100_1_0 = "@pnpm.e2e/foo@100.1.0".parse().expect("foo 100.1.0 key");
+    assert!(
+        wanted.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(&foo_100_1_0)),
     );
 
     drop((root, mock_instance));

@@ -1,5 +1,7 @@
+use crate::_utils::{with_colors, without_colors};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
+use console::strip_ansi_codes;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, fs, path::Path, process::Command};
@@ -597,6 +599,40 @@ fn listing_specific_package_with_lockfile_only() {
             "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
         ),
     );
+}
+
+/// The project header and a searched package are the bolded labels,
+/// hence the search argument.
+#[test]
+fn list_styles_the_tree_without_corrupting_it() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { PKG: "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    let plain = without_colors(pacquet_in(&workspace, ["list", "--lockfile-only", PKG]))
+        .output()
+        .expect("run pacquet list");
+    assert!(plain.status.success(), "list should succeed: {plain:?}");
+    let colored = with_colors(pacquet_in(&workspace, ["list", "--lockfile-only", PKG]))
+        .output()
+        .expect("run pacquet list with colors");
+    assert!(colored.status.success(), "colored list should succeed: {colored:?}");
+
+    let plain_stdout = String::from_utf8_lossy(&plain.stdout);
+    let colored_stdout = String::from_utf8_lossy(&colored.stdout);
+    eprintln!("PLAIN:\n{plain_stdout}\nCOLORED:\n{colored_stdout}\n");
+    assert!(colored_stdout.contains('\u{1b}'), "colors should be on");
+    assert_eq!(strip_ansi_codes(&colored_stdout), plain_stdout);
 }
 
 /// Port of upstream's `correctly report the value of the private field

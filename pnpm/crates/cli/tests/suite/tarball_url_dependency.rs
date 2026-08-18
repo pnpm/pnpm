@@ -40,8 +40,9 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::minimal_tarball,
+    fs::bump_mtime,
 };
-use std::{fs, path::Path, process::Command, thread::sleep, time::Duration};
+use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -130,10 +131,6 @@ fn remote_tarball_integrity_survives_unrelated_install() {
     // Install an unrelated package. This rewrites the lockfile while the
     // tarball dependency is re-resolved — the exact
     // <https://github.com/pnpm/pnpm/issues/12001> trigger.
-    // Ensure the manifest mtime is observably newer than the first
-    // install's workspace-state validation timestamp; otherwise the
-    // optimistic repeat-install shortcut can legitimately skip resolution.
-    sleep(Duration::from_millis(20));
     fs::write(
         &manifest_path,
         serde_json::json!({
@@ -142,6 +139,7 @@ fn remote_tarball_integrity_survives_unrelated_install() {
         .to_string(),
     )
     .expect("rewrite package.json with an unrelated dependency");
+    bump_mtime(&manifest_path);
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");

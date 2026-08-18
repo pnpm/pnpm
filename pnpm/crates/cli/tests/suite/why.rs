@@ -1,5 +1,7 @@
+use crate::_utils::{with_colors, without_colors};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use console::strip_ansi_codes;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -521,6 +523,27 @@ fn why_marks_importer_dep_field_and_prints_summary() {
             "{PKG}@100.0.0\n\u{2514}\u{2500}\u{2500} project@0.0.0 (devDependencies)\n\nFound 1 version of {PKG}\n"
         ),
     );
+}
+
+#[test]
+fn why_styles_the_tree_without_corrupting_it() {
+    let (_root, workspace, _anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let plain =
+        without_colors(pacquet(&workspace, ["why", PKG])).output().expect("run pacquet why");
+    assert!(plain.status.success(), "why should succeed: {plain:?}");
+    let colored = with_colors(pacquet(&workspace, ["why", PKG]))
+        .output()
+        .expect("run pacquet why with colors");
+    assert!(colored.status.success(), "colored why should succeed: {colored:?}");
+
+    let plain_stdout = String::from_utf8_lossy(&plain.stdout);
+    let colored_stdout = String::from_utf8_lossy(&colored.stdout);
+    eprintln!("PLAIN:\n{plain_stdout}\nCOLORED:\n{colored_stdout}\n");
+    assert!(colored_stdout.contains('\u{1b}'), "colors should be on");
+    assert_eq!(strip_ansi_codes(&colored_stdout), plain_stdout);
 }
 
 fn write_finder_pnpmfile(workspace: &Path, message_expr: &str) {

@@ -287,6 +287,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
         pick_lowest_direct: false,
         time_based: false,
         wanted_lockfile: None,
+        reuse_lockfile_subtrees: true,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         update_depth: UpdateDepth::UNLIMITED,
