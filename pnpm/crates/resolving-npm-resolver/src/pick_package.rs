@@ -138,30 +138,30 @@ pub trait PackageMetaCache: Send + Sync {
     fn set_unverified(&self, key: String, meta: Arc<Package>);
 }
 
-/// Install-scoped state for packument fetching.
+/// The packument-fetching state one install owns, shared across every
+/// [`PickPackageContext`] in it so the npm and named-registry resolvers
+/// coalesce against the same in-flight set.
 ///
-/// Pacquet stores one [`tokio::sync::Semaphore`] (single-permit) per in-memory
-/// cache key; first caller acquires, runs the
-/// disk-then-network flow, releases. Subsequent callers wait on the
-/// same semaphore; after acquiring, they re-check
-/// [`PackageMetaCache`] and short-circuit on a hit so only the first
-/// caller hits the network.
+/// Both maps key on the string [`PackageMetaCache`] uses
+/// (`{registry}\x00{name}` for abbreviated, `{registry}\x00{name}:full` for
+/// full), so two callers asking for different forms of the same packument
+/// don't accidentally serialize — the `metaDir` differentiator is embedded
+/// in the key.
 ///
-/// Shared across every [`PickPackageContext`] in a single install so
-/// the npm and named-registry resolvers coalesce against the same
-/// in-flight set. Keying is on the same string [`PackageMetaCache`]
-/// uses (`{registry}\x00{name}` for abbreviated,
-/// `{registry}\x00{name}:full` for full), so two callers asking for
-/// different forms of the same packument don't accidentally serialize — the
-/// `metaDir` differentiator is embedded in the key. Release-age upgrade 304s
-/// are tracked alongside the limits because they have the same install
-/// lifetime. Each marker retains the exact [`Package`] document that was
-/// revalidated, so a newer abbreviated response under the same cache key is
-/// checked independently. Keeping the marker out of [`Package`] also prevents
-/// a caller-owned metadata cache from leaking it into a later install.
+/// The state is install-scoped rather than hung on [`Package`] because a
+/// caller may hand the same [`PackageMetaCache`] to install after install,
+/// and each of those installs has to make its own decisions.
 #[derive(Debug, Default)]
 pub struct PackumentFetchState {
+    /// One single-permit [`tokio::sync::Semaphore`] per in-memory cache key:
+    /// the first caller acquires it and runs the disk-then-network flow,
+    /// later ones wait, then re-check [`PackageMetaCache`] and short-circuit
+    /// on the hit the winner just wrote, so only the first hits the network.
     limits: DashMap<String, Arc<Semaphore>>,
+    /// The packument each cache key's release-age upgrade last got a `304`
+    /// for. Holding the document itself (compared by [`Arc::ptr_eq`]) rather
+    /// than a bare flag keeps the answer tied to what was revalidated, so a
+    /// newer response under the same key is checked on its own.
     release_age_upgrade_checked: DashMap<String, Arc<Package>>,
 }
 
@@ -1219,6 +1219,9 @@ struct UpgradeOutcome {
 /// - `opts.published_by.is_none()`: maturity check disabled.
 /// - every version has a publish timestamp: the metadata is complete.
 ///   Nothing to upgrade.
+/// - this document already got a `304` from an upgrade fetch earlier in
+///   the install (see [`PackumentFetchState`]): the registry has no
+///   fuller form of it, so asking again is pure waste.
 /// - `opts.published_by_exclude` matches the package: caller has
 ///   opted this package out of the policy.
 /// - `meta.modified.is_some()` and parses as a date `<= cutoff`:
@@ -1288,17 +1291,18 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     );
     let _permit =
         limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
+    // Waiting for the permit may have handed the winner's work to us: pick up
+    // whatever it left in the cache and re-run the guards before spending a
+    // round trip of our own. A checksum refresh skips the cache on purpose —
+    // it is the one caller holding a document fresher than the cached one.
     if !opts.update_checksums
         && let Some(cached) = ctx.meta_cache.get(cache_key)
     {
-        let cached_meta = cached.meta;
-        if has_all_version_publish_times(&cached_meta)
-            || ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &cached_meta)
-        {
-            return Ok(UpgradeOutcome { meta: cached_meta, upgraded: false });
-        }
-        meta = cached_meta;
-    } else if ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta) {
+        meta = cached.meta;
+    }
+    if ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta)
+        || has_all_version_publish_times(&meta)
+    {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     let fetch_opts = FetchFullMetadataOptions {
@@ -1317,11 +1321,10 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         // 304: the full-form representation matched the conditional
         // headers, so the abbreviated meta is still the freshest
         // signal we have. Keep it (the downstream picker falls through
-        // to its warn-and-skip path on the missing `time` map), but
-        // mark it in install-owned state so no later pick repeats the round
-        // trip. The 304 also registry-validated the document, so it may enter
-        // the shared metadata cache as verified without carrying the marker
-        // into a later install.
+        // to its warn-and-skip path on the incomplete `time` map) and
+        // mark it so no later pick in this install repeats the round trip.
+        // The 304 also registry-validated the document, so it may enter the
+        // shared metadata cache as verified.
         FetchFullMetadataOutcome::NotModified => {
             ctx.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
             if !opts.dry_run {

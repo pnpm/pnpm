@@ -252,7 +252,7 @@ export async function pickPackage (
     preferOffline?: boolean
     filterMetadata?: boolean
     ignoreMissingTimeField?: boolean
-    /** Packuments already checked by a full-metadata upgrade in this resolver. */
+    /** Packuments whose release-age upgrade fetch already answered 304 in this resolver. */
     releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta>
   },
   spec: RegistryPackageSpec,
@@ -617,12 +617,10 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     registry: opts.registry,
   })
   if (fullFetchResult.notModified) {
-    // Upgrade fetch came back 304: keep the abbreviated meta. The downstream
-    // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
-    // Remember this registry-validated outcome in the resolver-owned marker
-    // set so another pick in this install does not repeat the request. Do not
-    // attach the marker to the caller-owned metadata cache: that cache may be
-    // shared by a later install, which must get its own upgrade attempt.
+    // Upgrade fetch came back 304: the registry has no fuller form of this
+    // document, so keep it and let `pickMatchingVersionFinal` fall through to
+    // its warn-and-skip path. Remember the outcome against the packument
+    // itself so no other pick in this resolver repeats the request.
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
   }

@@ -52,6 +52,38 @@ const PACKAGE_BODY: &str = r#"{
     }
 }"#;
 
+/// [`PACKAGE_BODY`] with 1.1.0 left out of the `time` map — the shape
+/// registries such as npmmirror serve, where an abbreviated packument
+/// reports publish times for only some of the versions it lists.
+const PARTIAL_TIME_PACKAGE_BODY: &str = r#"{
+    "name": "acme",
+    "dist-tags": { "latest": "1.1.0" },
+    "modified": "2025-01-15T12:00:00.000Z",
+    "time": {
+        "1.0.0": "2024-01-10T08:30:00.000Z"
+    },
+    "versions": {
+        "1.0.0": {
+            "name": "acme",
+            "version": "1.0.0",
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/acme-1.0.0.tgz"
+            }
+        },
+        "1.1.0": {
+            "name": "acme",
+            "version": "1.1.0",
+            "dist": {
+                "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                "shasum": "1111111111111111111111111111111111111111",
+                "tarball": "https://registry/acme-1.1.0.tgz"
+            }
+        }
+    }
+}"#;
+
 /// [`PACKAGE_BODY`] as it looked before 1.1.0 was published — for
 /// seeding a mirror that predates a version the registry has.
 const STALE_PACKAGE_BODY: &str = r#"{
@@ -1077,11 +1109,13 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
     );
 }
 
+/// A `time` map covering only some of the packument's versions can't decide
+/// maturity for the rest: the untimed ones drop out of the filter and
+/// resolution falls back to the lowest match. Upgrade to full metadata first,
+/// so every version is judged on a real publish timestamp.
 #[tokio::test]
 async fn published_by_upgrades_metadata_with_partial_time_map() {
     let mut server = mockito::Server::new_async().await;
-    let partial_time_body =
-        PACKAGE_BODY.replacen(",\n        \"1.1.0\": \"2024-12-10T08:30:00.000Z\"", "", 1);
     let abbrev_mock = server
         .mock("GET", "/acme")
         .match_header(
@@ -1089,7 +1123,7 @@ async fn published_by_upgrades_metadata_with_partial_time_map() {
             "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
-        .with_body(partial_time_body)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
         .expect(1)
         .create_async()
         .await;
@@ -1118,6 +1152,7 @@ async fn published_by_upgrades_metadata_with_partial_time_map() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1257,10 +1292,8 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
     let meta_cache = InMemoryPackageMetaCache::default();
     // The document a prior mirror load would have produced: an incomplete
     // `time` map, carrying the mirror's etag as the upgrade validator.
-    let partial_time_body =
-        PACKAGE_BODY.replacen(",\n        \"1.1.0\": \"2024-12-10T08:30:00.000Z\"", "", 1);
     let mut seeded: pnpm_registry::Package =
-        serde_json::from_str(&partial_time_body).expect("parse fixture");
+        serde_json::from_str(PARTIAL_TIME_PACKAGE_BODY).expect("parse fixture");
     seeded.etag = Some(r#""acme-etag""#.to_string());
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
@@ -1302,6 +1335,7 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -1354,7 +1388,7 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
-    let mut seeded: pacquet_registry::Package =
+    let mut seeded: pnpm_registry::Package =
         serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
     seeded.etag = Some(r#""acme-etag""#.to_string());
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
@@ -1369,6 +1403,7 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };

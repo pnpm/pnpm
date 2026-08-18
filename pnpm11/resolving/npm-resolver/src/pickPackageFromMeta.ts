@@ -42,8 +42,8 @@ export function pickPackageFromMeta (
       if (modifiedDate == null || modifiedDate > publishedBy) {
         // The package was modified after the cutoff (or carries no usable
         // `modified`), so which of its versions are mature is unknowable
-        // from abbreviated metadata. The error tells the caller to refetch.
-        assertMetaHasAllVersionPublishTimes(meta)
+        // from this packument. The error tells the caller to refetch.
+        throw missingTimeError(meta.name)
       }
       // else: `modified` is an upper bound on every per-version timestamp, so
       // `modified <= publishedBy` means they all pass the maturity filter and
@@ -144,10 +144,19 @@ export function applyPublishedByPolicy (
 
 export function assertMetaHasTime (meta: PackageMeta): asserts meta is PackageMetaWithTime {
   if (meta.time == null) {
-    throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
+    throw missingTimeError(meta.name)
   }
 }
 
+/**
+ * Whether `meta.time` carries a publish timestamp for every version the
+ * packument lists.
+ *
+ * Some registries answer with a `time` map that covers only a few of the
+ * versions they serve. Taking such a map at face value makes the
+ * `minimumReleaseAge` filter drop every version whose timestamp is absent,
+ * so the cutoff can only be applied once all of them are known.
+ */
 export function hasAllVersionPublishTimes (meta: PackageMeta): meta is PackageMetaWithTime {
   if (meta.time == null) return false
   for (const version in meta.versions) {
@@ -157,10 +166,8 @@ export function hasAllVersionPublishTimes (meta: PackageMeta): meta is PackageMe
   return true
 }
 
-function assertMetaHasAllVersionPublishTimes (meta: PackageMeta): asserts meta is PackageMetaWithTime {
-  if (!hasAllVersionPublishTimes(meta)) {
-    throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
-  }
+function missingTimeError (pkgName: string): PnpmError {
+  return new PnpmError('MISSING_TIME', `The metadata of ${pkgName} is missing the "time" field`)
 }
 
 function parseModifiedDate (modified: string | undefined): Date | null {

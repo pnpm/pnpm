@@ -250,25 +250,16 @@ test('re-fetch full metadata when abbreviated modified date is recent', async ()
 })
 
 test('re-fetch full metadata when per-version publish times are incomplete', async () => {
-  const partialTimeMeta = {
-    ...isPositiveAbbreviatedMeta,
-    time: {
-      '3.0.0': isPositiveMeta.time['3.0.0'],
-      '3.1.0': isPositiveMeta.time['3.1.0'],
-    },
-    modified: isPositiveMeta.time.modified,
-  }
-
-  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   agent.intercept({ path: '/is-positive', method: 'GET' })
-    .reply(200, partialTimeMeta, { headers: { 'content-type': 'application/json' } })
+    .reply(200, partialTimeMeta(), { headers: { 'content-type': 'application/json' } })
   agent.intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '>=1 <3' }, {
     publishedBy: new Date('2015-07-01T00:00:00.000Z'),
@@ -279,18 +270,9 @@ test('re-fetch full metadata when per-version publish times are incomplete', asy
 })
 
 test('scopes a 304 full-metadata upgrade marker to one resolver', async () => {
-  const partialTimeMeta = {
-    ...isPositiveAbbreviatedMeta,
-    time: {
-      '3.0.0': isPositiveMeta.time['3.0.0'],
-      '3.1.0': isPositiveMeta.time['3.1.0'],
-    },
-    modified: isPositiveMeta.time.modified,
-  }
-
-  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   agent.intercept({ path: '/is-positive', method: 'GET' })
-    .reply(200, partialTimeMeta, { headers: { etag: '"partial-time"' } })
+    .reply(200, partialTimeMeta(), { headers: { etag: '"partial-time"' } })
   agent.intercept({
     path: '/is-positive',
     method: 'GET',
@@ -307,7 +289,7 @@ test('scopes a 304 full-metadata upgrade marker to one resolver', async () => {
   const { clearCache, resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
     ignoreMissingTimeField: true,
     metaCache,
   })
@@ -320,8 +302,9 @@ test('scopes a 304 full-metadata upgrade marker to one resolver', async () => {
   const first = await resolveFromNpm(wantedDependency, {
     publishedBy: new Date('2015-07-01T00:00:00.000Z'),
   })
-  // Drop the request memo without clearing the caller-owned packument cache.
-  // This proves the packument itself records the 304 outcome.
+  // Drop the resolver's fetch memo while keeping the caller-owned packument
+  // cache, so the second pick reaches the release-age upgrade again with the
+  // very packument the first pick got a 304 for.
   clearCache()
   const second = await resolveFromNpm(wantedDependency, {
     publishedBy: new Date('2015-07-01T00:00:00.000Z'),
@@ -332,7 +315,7 @@ test('scopes a 304 full-metadata upgrade marker to one resolver', async () => {
   const nextInstall = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
     ignoreMissingTimeField: true,
     metaCache,
   })
@@ -823,3 +806,19 @@ test('latest is suppressed when all versions are immature (fallback case)', asyn
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
   expect(resolveResult!.latest).toBeUndefined()
 })
+
+/**
+ * The abbreviated packument as a registry that reports publish times for only
+ * some of the versions it serves would answer, with `modified` recent enough
+ * to make the release-age check ask for the full document.
+ */
+function partialTimeMeta (): PackageMeta {
+  return {
+    ...isPositiveAbbreviatedMeta,
+    time: {
+      '3.0.0': isPositiveMeta.time['3.0.0'],
+      '3.1.0': isPositiveMeta.time['3.1.0'],
+    },
+    modified: isPositiveMeta.time.modified,
+  }
+}
