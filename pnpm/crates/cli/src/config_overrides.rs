@@ -84,6 +84,8 @@ pub struct ConfigOverrides {
     registries: BTreeMap<String, String>,
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
+    /// `--config.ignore-scripts=<bool>` CLI override.
+    ignore_scripts: Option<bool>,
     inject_workspace_packages: Option<bool>,
     minimum_release_age: Option<u64>,
     minimum_release_age_exclude: Option<Vec<String>>,
@@ -157,6 +159,10 @@ impl ConfigOverrides {
             self.force_legacy_deploy = parse_bool(value);
             return;
         }
+        if key == "ignore-scripts" {
+            self.ignore_scripts = parse_bool(value);
+            return;
+        }
         if key == "inject-workspace-packages" {
             self.inject_workspace_packages = parse_bool(value);
             return;
@@ -228,6 +234,10 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.force_legacy_deploy {
             config.force_legacy_deploy = value;
+        }
+        // Override ignore_scripts from --config.ignore-scripts=<bool>
+        if let Some(value) = self.ignore_scripts {
+            config.ignore_scripts = value;
         }
         if let Some(value) = self.inject_workspace_packages {
             config.inject_workspace_packages = value;

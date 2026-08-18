@@ -256,6 +256,23 @@ fn node_linker_override_rederives_prefer_symlinked_executables() {
 }
 
 #[test]
+fn extract_applies_ignore_scripts_override() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.ignore-scripts=true", "pack"]));
+    assert_eq!(remaining, argv(["pacquet", "pack"]));
+    let mut config = Config::default();
+    assert!(!config.ignore_scripts);
+    overrides.apply(&mut config);
+    assert!(config.ignore_scripts);
+
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.ignore-scripts=false", "pack"]));
+    let mut config = Config { ignore_scripts: true, ..Config::default() };
+    overrides.apply(&mut config);
+    assert!(!config.ignore_scripts);
+}
+
+#[test]
 fn config_tokens_after_external_command_stay_in_argv() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",
