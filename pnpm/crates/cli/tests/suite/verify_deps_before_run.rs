@@ -152,9 +152,9 @@ fn error_action_follows_the_dependency_state() {
     // An mtime-only rewrite (same content) must still pass: the gate
     // re-checks the content against the lockfile instead of trusting
     // the mtime.
-    std::thread::sleep(std::time::Duration::from_millis(20));
     let manifest = fs::read_to_string(workspace.join("package.json")).expect("read package.json");
     fs::write(workspace.join("package.json"), manifest).expect("rewrite package.json");
+    bump_mtime(&workspace.join("package.json"));
     pacquet_in(&workspace)
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .assert()
@@ -187,7 +187,6 @@ fn error_action_follows_the_dependency_state() {
     )
     .expect("parse package.json");
     manifest["dependencies"] = json!({ "@pnpm.e2e/foo": "100.0.0" });
-    std::thread::sleep(std::time::Duration::from_millis(10));
     fs::write(workspace.join("package.json"), manifest.to_string())
         .expect("write modified package.json");
     bump_mtime(&workspace.join("package.json"));

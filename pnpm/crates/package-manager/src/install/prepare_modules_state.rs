@@ -385,7 +385,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         }
         update_workspace_state(
             workspace_root,
-            &build_workspace_state(
+            &build_workspace_state::<Host>(
                 workspace_root,
                 config,
                 node_linker,
