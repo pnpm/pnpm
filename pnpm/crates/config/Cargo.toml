@@ -42,6 +42,9 @@ url           = { workspace = true }
 [target.'cfg(all(unix, not(target_os = "cygwin")))'.dependencies]
 libc = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+dunce = { workspace = true }
+
 [dev-dependencies]
 pnpm-testing-utils = { workspace = true }
 

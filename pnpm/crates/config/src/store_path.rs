@@ -55,6 +55,11 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(windows)]
+use dunce::canonicalize;
+#[cfg(not(windows))]
+use std::fs::canonicalize;
+
 /// Resolve where to place the default pnpm store given the `SmartDefault`
 /// home-based path and the project root.
 ///
@@ -65,7 +70,7 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
     pnpm_home_dir: &Path,
     pkg_root: &Path,
 ) -> PathBuf {
-    let Ok(pkg_root) = fs::canonicalize(pkg_root) else {
+    let Ok(pkg_root) = canonicalize(pkg_root) else {
         return home_default;
     };
 
