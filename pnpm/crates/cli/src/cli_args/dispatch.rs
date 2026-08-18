@@ -379,7 +379,7 @@ impl CliArgs {
 fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     match command {
         CliCommand::Access(args) => dispatch_query::access(ctx, args),
-        CliCommand::Init => dispatch_script::init(ctx),
+        CliCommand::Init(args) => dispatch_script::init(ctx, &args),
         CliCommand::Recursive => dispatch_query::recursive(ctx),
         CliCommand::Add(args) => dispatch_install::add(ctx, args),
         CliCommand::Install(args) => dispatch_install::install(ctx, args),

@@ -62,7 +62,13 @@ fn save_preserves_the_existing_package_json_permissions() {
 
 #[test]
 fn test_init_package_json_content() {
-    let manifest = PackageManifest::create_init_package_json("test");
+    let manifest = PackageManifest::create_init_package_json("test", None);
+    assert_snapshot!(serde_json::to_string_pretty(&manifest).unwrap());
+}
+
+#[test]
+fn init_package_json_content_with_a_pinned_pnpm_version() {
+    let manifest = PackageManifest::create_init_package_json("test", Some("11.22.0"));
     assert_snapshot!(serde_json::to_string_pretty(&manifest).unwrap());
 }
 
@@ -70,18 +76,30 @@ fn test_init_package_json_content() {
 fn init_should_throw_if_exists() {
     let tmp = NamedTempFile::new().unwrap();
     write!(tmp.as_file(), "hello world").unwrap();
-    PackageManifest::init(tmp.path()).expect_err("package.json already exist");
+    PackageManifest::init(tmp.path(), None).expect_err("package.json already exist");
 }
 
 #[test]
 fn init_should_create_package_json_if_not_exist() {
     let dir = tempdir().unwrap();
     let tmp = dir.path().join("package.json");
-    PackageManifest::init(&tmp).unwrap();
+    PackageManifest::init(&tmp, None).unwrap();
     eprintln!("tmp={tmp:?} exists={} is_file={}", tmp.exists(), tmp.is_file());
     assert!(tmp.exists());
     assert!(tmp.is_file());
     assert_eq!(PackageManifest::from_path(tmp.clone()).unwrap().path, tmp);
+}
+
+/// The scaffold `pnpm add` writes when there is no manifest yet carries no
+/// pin — only `pnpm init` pins the project to a pnpm version.
+#[test]
+fn create_if_needed_does_not_pin_a_package_manager() {
+    let dir = tempdir().unwrap();
+    let tmp = dir.path().join("package.json");
+    PackageManifest::create_if_needed(tmp.clone()).unwrap();
+    let contents = read_to_string(tmp).unwrap();
+    assert!(!contents.contains("packageManager"), "{contents}");
+    assert!(!contents.contains("devEngines"), "{contents}");
 }
 
 #[test]

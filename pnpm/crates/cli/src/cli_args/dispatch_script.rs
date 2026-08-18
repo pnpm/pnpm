@@ -1,6 +1,7 @@
 use super::{
     dispatch::{CommandFuture, RunCtx},
     exec::ExecArgs,
+    init::InitArgs,
     pkg::PkgArgs,
     reporter::{ReporterType, reporter_emit},
     restart::RestartArgs,
@@ -9,11 +10,29 @@ use super::{
     set_script::SetScriptArgs,
 };
 use miette::Context;
+use pnpm_config::{Config, PNPM_VERSION};
 use pnpm_package_manifest::PackageManifest;
+use std::path::Path;
 
-pub(super) fn init<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    let result = PackageManifest::init(ctx.manifest_path).wrap_err("initialize package.json");
+pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<CommandFuture<'a>> {
+    let pin = pinned_pnpm_version(args, (ctx.config)()?, ctx.dir);
+    let result = PackageManifest::init(ctx.manifest_path, pin).wrap_err("initialize package.json");
     Ok(Box::pin(std::future::ready(result)))
+}
+
+/// The pnpm version `pnpm init` records as the new project's pin, or `None`
+/// when the manifest is scaffolded without one.
+///
+/// A manifest created inside an existing workspace becomes a member of it and
+/// follows the pin at the workspace root, so only the root is pinned.
+fn pinned_pnpm_version(args: &InitArgs, config: &Config, init_dir: &Path) -> Option<&'static str> {
+    if !args.effective_init_package_manager(config) {
+        return None;
+    }
+    if config.workspace_dir.as_deref().is_some_and(|root| root != init_dir) {
+        return None;
+    }
+    Some(PNPM_VERSION)
 }
 
 // `set-script` only rewrites `package.json#scripts`; it never touches the

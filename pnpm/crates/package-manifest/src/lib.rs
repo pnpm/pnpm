@@ -103,8 +103,8 @@ pub struct PackageManifest {
 }
 
 impl PackageManifest {
-    fn create_init_package_json(name: &str) -> Value {
-        json!({
+    fn create_init_package_json(name: &str, pinned_pnpm_version: Option<&str>) -> Value {
+        let mut manifest = json!({
             "name": name,
             "version": "1.0.0",
             "description": "",
@@ -115,26 +115,50 @@ impl PackageManifest {
             "keywords": [],
             "author": "",
             "license": "ISC"
-        })
+        });
+        if let Some(version) = pinned_pnpm_version {
+            let fields = manifest.as_object_mut().expect("the scaffold is a JSON object");
+            // The pin is written twice on purpose: pnpm reads
+            // `devEngines.packageManager`, corepack reads only the legacy
+            // `packageManager` field. The two must agree — pnpm warns and
+            // ignores the legacy field when they disagree — and corepack
+            // rejects everything but an exact version, so neither carries a
+            // range.
+            fields.insert(
+                "devEngines".to_string(),
+                json!({
+                    "packageManager": {
+                        "name": "pnpm",
+                        "version": version,
+                        "onFail": "download",
+                    },
+                }),
+            );
+            fields.insert("packageManager".to_string(), json!(format!("pnpm@{version}")));
+        }
+        manifest
     }
 
-    fn write_to_file(path: &Path) -> Result<String, PackageManifestError> {
-        let manifest = PackageManifest::init_value_for(path);
-        let contents = serialize_with_indent(&manifest, DEFAULT_INDENT)?;
+    fn write_to_file(path: &Path, manifest: &Value) -> Result<String, PackageManifestError> {
+        let contents = serialize_with_indent(manifest, DEFAULT_INDENT)?;
         fs::write(path, format!("{contents}\n"))?; // TODO: forbid overwriting existing files
         Ok(contents)
     }
 
     /// The scaffold manifest `pnpm init` (and [`Self::create_if_needed`])
     /// produces for `path`, named after the containing directory.
+    ///
+    /// `pinned_pnpm_version` is the pnpm version to record as the project's
+    /// package-manager pin, or `None` to leave the manifest unpinned. See
+    /// [`Self::init`] for when a pin is written.
     #[must_use]
-    pub fn init_value_for(path: &Path) -> Value {
+    pub fn init_value_for(path: &Path, pinned_pnpm_version: Option<&str>) -> Value {
         let name = path
             .parent()
             .and_then(|folder| folder.file_name())
             .and_then(|file_name| file_name.to_str())
             .unwrap_or("");
-        PackageManifest::create_init_package_json(name)
+        PackageManifest::create_init_package_json(name, pinned_pnpm_version)
     }
 
     /// Write `contents` to `path` atomically: a sibling temp file is written
@@ -177,11 +201,21 @@ impl PackageManifest {
         })
     }
 
-    pub fn init(path: &Path) -> Result<(), PackageManifestError> {
+    /// Scaffold a `package.json` at `path`, failing if one is already there.
+    ///
+    /// `pinned_pnpm_version` pins the project to that pnpm version; the
+    /// caller passes `None` when the `initPackageManager` setting is off, or
+    /// when `path` is a member of an existing workspace and therefore
+    /// inherits the root's pin.
+    pub fn init(
+        path: &Path,
+        pinned_pnpm_version: Option<&str>,
+    ) -> Result<(), PackageManifestError> {
         if path.exists() {
             return Err(PackageManifestError::AlreadyExist);
         }
-        let contents = PackageManifest::write_to_file(path)?;
+        let manifest = PackageManifest::init_value_for(path, pinned_pnpm_version);
+        let contents = PackageManifest::write_to_file(path, &manifest)?;
         println!("Wrote to {path}\n\n{contents}", path = path.display());
         Ok(())
     }
@@ -196,7 +230,7 @@ impl PackageManifest {
 
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
         if !path.exists() {
-            PackageManifest::write_to_file(&path)?;
+            PackageManifest::write_to_file(&path, &PackageManifest::init_value_for(&path, None))?;
         }
         // Read the scaffold back rather than assembling the manifest by
         // hand, so its formatting and no-op-save baseline are derived from

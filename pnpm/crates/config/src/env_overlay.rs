@@ -244,6 +244,7 @@ impl WorkspaceSettings {
         json_field!(trust_lockfile, "TRUST_LOCKFILE");
         enum_field!(trust_policy, "TRUST_POLICY", TrustPolicy);
         enum_field!(pm_on_fail, "PM_ON_FAIL", PmOnFail);
+        json_field!(init_package_manager, "INIT_PACKAGE_MANAGER");
         // pnpm applies this env var on presence alone (`!= null`) and
         // assigns the raw value without validation, so presence always
         // overrides the other config layers: an empty value assigns an

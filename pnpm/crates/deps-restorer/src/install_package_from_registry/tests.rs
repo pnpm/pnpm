@@ -151,6 +151,7 @@ fn create_config(
         minimum_release_age_strict: None,
         trust_lockfile: false,
         trust_policy: Default::default(),
+        init_package_manager: true,
         pm_on_fail: None,
         verify_deps_before_run: Default::default(),
         audit_level: None,

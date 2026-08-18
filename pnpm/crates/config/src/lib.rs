@@ -1912,6 +1912,16 @@ pub struct Config {
     /// [`TrustPolicy`].
     pub trust_policy: TrustPolicy,
 
+    /// `init-package-manager` / `initPackageManager` config: whether
+    /// `pnpm init` pins the running pnpm in the manifest it scaffolds,
+    /// through both `devEngines.packageManager` and the legacy
+    /// `packageManager` field. Only the workspace root is pinned — a
+    /// member of an existing workspace inherits the root's pin.
+    ///
+    /// Defaults to `true`.
+    #[default = true]
+    pub init_package_manager: bool,
+
     /// `pm-on-fail` / `pmOnFail` config: what to do when the project's
     /// `packageManager` / `devEngines.packageManager` pin doesn't match the
     /// running pnpm. See [`PmOnFail`]. Stays optional so the

@@ -75,12 +75,12 @@ test('init a new package.json with init-package-manager=true', async () => {
   await init.handler({ cliOptions: {}, initPackageManager: true })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
-  expect(manifest).not.toHaveProperty('packageManager')
   expect(manifest.devEngines?.packageManager).toEqual({
     name: 'pnpm',
     version: packageManager.version,
     onFail: 'download',
   })
+  expect(manifest.packageManager).toBe(`pnpm@${packageManager.version}`)
 })
 
 test('init a new package.json with init-package-manager=false', async () => {
@@ -92,7 +92,7 @@ test('init a new package.json with init-package-manager=false', async () => {
   expect(manifest).not.toHaveProperty('devEngines')
 })
 
-test('init a new package.json in a workspace subpackage does not add devEngines', async () => {
+test('init a new package.json in a workspace subpackage does not pin pnpm', async () => {
   prepareEmpty()
   const workspaceDir = process.cwd()
   const subpackageDir = path.join(workspaceDir, 'packages/foo')
@@ -108,7 +108,7 @@ test('init a new package.json in a workspace subpackage does not add devEngines'
   expect(manifest).not.toHaveProperty('packageManager')
 })
 
-test('init a new package.json at the workspace root adds devEngines', async () => {
+test('init a new package.json at the workspace root pins pnpm', async () => {
   prepareEmpty()
   const workspaceDir = process.cwd()
   await init.handler({
@@ -122,6 +122,7 @@ test('init a new package.json at the workspace root adds devEngines', async () =
     version: packageManager.version,
     onFail: 'download',
   })
+  expect(manifest.packageManager).toBe(`pnpm@${packageManager.version}`)
 })
 
 test('init a new package.json with init-type=module', async () => {

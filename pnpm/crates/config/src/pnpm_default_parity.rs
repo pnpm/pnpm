@@ -75,7 +75,6 @@ const NOT_PORTED: &[&str] = &[
     "git-branch-lockfile",
     "ignore-workspace-cycles",
     "ignore-workspace-root-check",
-    "init-package-manager",
     "init-type",
     "optional",
     "package-lock",
@@ -129,6 +128,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("force-legacy-deploy", Bool(cfg.force_legacy_deploy)),
         ("hoist", Bool(cfg.hoist)),
         ("hoist-workspace-packages", Bool(cfg.hoist_workspace_packages)),
+        ("init-package-manager", Bool(cfg.init_package_manager)),
         ("inject-workspace-packages", Bool(cfg.inject_workspace_packages)),
         ("lockfile-include-tarball-url", Bool(cfg.lockfile_include_tarball_url)),
         (

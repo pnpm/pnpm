@@ -541,6 +541,13 @@ pub struct WorkspaceSettings {
     /// `trustPolicy` from `pnpm-workspace.yaml`. See [`TrustPolicy`].
     pub trust_policy: Option<TrustPolicy>,
 
+    /// `initPackageManager` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See
+    /// [`Config::init_package_manager`].
+    ///
+    /// [`Config::init_package_manager`]: crate::Config::init_package_manager
+    pub init_package_manager: Option<bool>,
+
     /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
 
@@ -1198,6 +1205,7 @@ impl WorkspaceSettings {
             auto_install_peers, auto_install_peers_from_highest_match,
             exclude_links_from_lockfile,
             optimistic_repeat_install,
+            init_package_manager,
             hoist_workspace_packages,
             extend_node_path,
             hoisting_limits, external_dependencies,
