@@ -75,7 +75,7 @@ fn render_report_lists_changed_variables() {
 fn chcp_prefers_chcp_com_when_available() {
     let mut calls = Vec::new();
     let res = run_capture_chcp_with(&["65001"], |prog, args| {
-        calls.push((prog.to_string(), args.iter().map(|s| s.to_string()).collect::<Vec<_>>()));
+        calls.push((prog.to_string(), args.iter().map(ToString::to_string).collect::<Vec<_>>()));
         Ok("Active code page: 65001\n".to_string())
     });
     assert!(res.is_ok());
@@ -88,7 +88,7 @@ fn chcp_prefers_chcp_com_when_available() {
 fn chcp_falls_back_to_chcp_when_chcp_com_not_found() {
     let mut calls = Vec::new();
     let res = run_capture_chcp_with(&["65001"], |prog, args| {
-        calls.push((prog.to_string(), args.iter().map(|s| s.to_string()).collect::<Vec<_>>()));
+        calls.push((prog.to_string(), args.iter().map(ToString::to_string).collect::<Vec<_>>()));
         if prog == "chcp.com" {
             Err(PathExtenderError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -108,7 +108,7 @@ fn chcp_falls_back_to_chcp_when_chcp_com_not_found() {
 fn chcp_propagates_non_not_found_errors_without_fallback() {
     let mut calls = Vec::new();
     let res = run_capture_chcp_with(&["65001"], |prog, args| {
-        calls.push((prog.to_string(), args.iter().map(|s| s.to_string()).collect::<Vec<_>>()));
+        calls.push((prog.to_string(), args.iter().map(ToString::to_string).collect::<Vec<_>>()));
         Err(PathExtenderError::CommandFailed {
             command: prog.to_string(),
             stderr: "Access denied".to_string(),
