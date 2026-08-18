@@ -84,9 +84,12 @@ use std::{
 /// bare-name selectors (`foo`, `@scope/bar-*`) with `depth > 0` and no
 /// `--latest` match every package of that name **at any depth** (the
 /// match is applied against the lockfile's package names); selectors
-/// carrying a version (`foo@2`) or any selector under `--latest` match
-/// only direct dependencies, and the version (or fetched latest) is
-/// written into the manifest before resolving.
+/// carrying a version (`foo@2`) still rewrite only direct dependencies,
+/// but when no direct dependency matches and `depth > 0`, an exact-name
+/// selector also seeds that transitive package's preferred version in the
+/// resolver. Any selector under `--latest` matches only direct
+/// dependencies, and the fetched latest is written into the manifest
+/// before resolving.
 #[must_use]
 pub struct Update<'a> {
     pub tarball_mem_cache: Arc<MemCache>,
@@ -811,11 +814,21 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             }
             for selector in &selectors {
                 let Some(version) = selector.version.as_deref() else { continue };
+                if selector_has_exact_name_pattern(&selector.pattern)
+                    && drop_names.contains(&selector.pattern)
+                {
+                    crate::install_with_fresh_lockfile::prefer_requested_version(
+                        &mut preferred_versions_override,
+                        &selector.pattern,
+                        version,
+                    );
+                    continue;
+                }
                 tracing::warn!(
                     target: "pnpm_package_manager::update",
                     pattern = selector.pattern,
                     version,
-                    r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: {{ "{}@<declared range>": "{version}" }}"#,
+                    r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force non-exact or globbed transitive selectors to a version, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: {{ "{}@<declared range>": "{version}" }}"#,
                     selector.pattern,
                     selector.pattern,
                     selector.pattern,
@@ -1317,6 +1330,13 @@ fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRangeVerdict {
 /// selector's version is applied to the right dep).
 fn matcher_one(pattern: &str) -> pnpm_config::matcher::Matcher {
     create_matcher(std::slice::from_ref(&pattern.to_string()))
+}
+
+/// `update <name>@<version>` can seed transitive preferred versions only
+/// for exact package-name selectors. Negated and globbed selectors may map
+/// to many names, and each may need a different target.
+fn selector_has_exact_name_pattern(pattern: &str) -> bool {
+    !pattern.starts_with('!') && !pattern.contains('*')
 }
 
 /// The workspace catalogs and the directories needed to read the existing

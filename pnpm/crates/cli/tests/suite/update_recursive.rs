@@ -18,6 +18,7 @@ use tempfile::TempDir;
 /// Published at 100.0.0, 100.1.0, and 101.0.0.
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
+const OPTIONAL_PARENT: &str = "@pnpm.e2e/pkg-with-good-optional";
 
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -95,6 +96,10 @@ fn installed_version(project_dir: &Path, name: &str) -> Option<String> {
     let contents = fs::read_to_string(manifest_path).ok()?;
     let value: Value = serde_json::from_str(&contents).ok()?;
     value["version"].as_str().map(str::to_string)
+}
+
+fn wanted_lockfile_text(workspace: &Path) -> String {
+    fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml")
 }
 
 /// Ports `recursive update`: a versioned selector reaches every project
@@ -208,6 +213,69 @@ fn recursive_update_keeps_an_aliased_workspace_dependency() {
         dep_spec(&project_1, "pkg").as_deref(),
         Some("workspace:project-2@^"),
         "the aliased workspace specifier should survive the update",
+    );
+
+    drop((root, anchor));
+}
+
+/// Ports the recursive pinned-transitive regression: an exact transitive
+/// selector should seed preferred versions strongly enough to beat a stale
+/// lockfile pin, while keeping unrelated packages untouched.
+#[test]
+fn recursive_update_pinned_transitive_prefers_the_requested_version() {
+    let (root, workspace, anchor) = setup();
+
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({ "name": "project-1", "version": "1.0.0", "dependencies": {
+                FOO: "1.0.0",
+                OPTIONAL_PARENT: "1.0.0"
+            }}),
+        )],
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let mut lockfile = wanted_lockfile_text(&workspace);
+    assert!(
+        lockfile.contains(DEP),
+        "expected the transitive dependency to be present after install:\n{lockfile}",
+    );
+
+    pacquet(
+        &workspace,
+        [
+            "-r",
+            "update",
+            "--lockfile-only",
+            "--no-save",
+            &format!("{DEP}@100.1.0"),
+        ],
+    )
+    .assert()
+    .success();
+
+    lockfile = wanted_lockfile_text(&workspace);
+    assert!(
+        lockfile.contains(&format!("{DEP}@100.1.0")),
+        "the requested transitive version should be selected:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains(&format!("{DEP}@100.0.0")),
+        "the stale transitive pin should be replaced:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains(&format!("{DEP}@101.0.0")),
+        "an unrequested newer transitive version should not be chosen:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains(&format!("{FOO}@1.0.0")),
+        "unrelated dependency should keep its existing lockfile entry:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains(&format!("{FOO}@2.0.0")),
+        "unrelated dependency should not be updated by the targeted selector:\n{lockfile}",
     );
 
     drop((root, anchor));
