@@ -70,7 +70,7 @@ fn resolve_store_dir_same_volume_uses_home_default() {
 
 #[test]
 #[cfg_attr(not(windows), ignore = "requires Windows path canonicalization")]
-fn resolve_store_dir_cross_volume_has_no_verbatim_prefix() {
+fn resolve_store_dir_cross_volume_uses_project_drive_without_verbatim_prefix() {
     struct RootProbe;
     impl LinkProbe for RootProbe {
         fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool {
@@ -88,11 +88,15 @@ fn resolve_store_dir_cross_volume_has_no_verbatim_prefix() {
         PathBuf::from(r"C:\pnpm-home")
     };
     let home_default = pnpm_home.join("store");
+    let expected = project_drive.join(".pnpm-store");
 
     let resolved = resolve_store_dir::<RootProbe>(home_default, &pnpm_home, &pkg_root);
+    assert_eq!(resolved, expected);
     let resolved_display = resolved.display().to_string();
-    eprintln!("RESOLVED STORE DIR:\n{resolved_display}\n");
-    assert!(!resolved_display.starts_with(r"\\?\"));
+    assert!(
+        !resolved_display.starts_with(r"\\?\"),
+        "resolved store dir has a verbatim prefix: {resolved_display}",
+    );
 }
 
 // Per-test [`LinkProbe`] fake whose `can_link_between_dirs` accepts a `to_dir`
