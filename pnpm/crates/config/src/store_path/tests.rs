@@ -6,12 +6,9 @@ use std::{
 };
 use tempfile::tempdir;
 
-// The `prefix_probe!` fake below is only used by tests gated on
-// `cfg(unix)` (the cross-volume scenarios construct absolute Unix paths
-// like `/Volumes/src/...`). On Windows, every consumer is excluded, so
-// gate the macro and its imports to keep clippy's `dead_code`/`unused`
-// lints happy under `-D warnings`.
-#[cfg(any(unix, windows))]
+// `LinkProbe` is shared by the Windows regression test and the Unix-only
+// `prefix_probe!` fake below. Only the fake's allowlist needs `Mutex`, so
+// that import remains Unix-gated.
 use crate::api::LinkProbe;
 #[cfg(unix)]
 use std::sync::Mutex;
@@ -72,7 +69,7 @@ fn resolve_store_dir_same_volume_uses_home_default() {
 }
 
 #[test]
-#[cfg(windows)]
+#[cfg_attr(not(windows), ignore = "requires Windows path canonicalization")]
 fn resolve_store_dir_cross_volume_has_no_verbatim_prefix() {
     struct RootProbe;
     impl LinkProbe for RootProbe {

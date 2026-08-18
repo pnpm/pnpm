@@ -55,6 +55,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+// Windows' standard canonicalizer returns `\\?\` verbatim paths;
+// `dunce` resolves the path without leaking that prefix to CLI output.
 #[cfg(windows)]
 use dunce::canonicalize;
 #[cfg(not(windows))]
