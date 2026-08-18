@@ -77,7 +77,7 @@ test('init a new package.json with init-package-manager=true', async () => {
   expect(manifest).not.toHaveProperty('packageManager')
   expect(manifest.devEngines?.packageManager).toEqual({
     name: 'pnpm',
-    version: expect.stringMatching(/^\^\d+\.\d+\.\d+/),
+    version: expect.stringMatching(/^\d+\.\d+\.\d+/),
     onFail: 'download',
   })
 })
@@ -118,7 +118,7 @@ test('init a new package.json at the workspace root adds devEngines', async () =
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest.devEngines?.packageManager).toEqual({
     name: 'pnpm',
-    version: expect.stringMatching(/^\^\d+\.\d+\.\d+/),
+    version: expect.stringMatching(/^\d+\.\d+\.\d+/),
     onFail: 'download',
   })
 })
