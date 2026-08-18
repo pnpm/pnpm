@@ -81,7 +81,7 @@ use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
 use pnpm_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
-use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_modules_yaml::{Host, IncludedDependencies};
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace_state::{
@@ -353,7 +353,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                 // `filtered_install` forward: clearing it would claim every
                 // importer is materialized when a filtered install left the
                 // unselected ones untouched.
-                let new_state = crate::install::build_workspace_state(
+                let new_state = crate::install::build_workspace_state::<Host>(
                     workspace_root,
                     config,
                     node_linker,

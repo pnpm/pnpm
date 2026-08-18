@@ -18,6 +18,7 @@ import {
   HASH_ALGORITHM,
   normalizeBundledManifest,
   type PackageFilesIndex,
+  takeVerifiedFileIntegrity,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
@@ -104,6 +105,7 @@ async function handleMessage (
         if (!pkgFilesIndex) {
           parentPort!.postMessage({
             status: 'success',
+            verifiedFileIntegrity: takeVerifiedFileIntegrity(),
             value: {
               verified: false,
               pkgFilesIndex: null,
@@ -148,6 +150,10 @@ async function handleMessage (
         parentPort!.postMessage({
           status: 'success',
           warnings,
+          // Store verification happens here, in the worker, but the
+          // install reports it from the main thread. Hand this worker's
+          // share back with the answer it belongs to.
+          verifiedFileIntegrity: takeVerifiedFileIntegrity(),
           value: {
             verified: verifyResult.passed,
             bundledManifest,
@@ -174,6 +180,10 @@ async function handleMessage (
   } catch (e: any) { // eslint-disable-line
     parentPort!.postMessage({
       status: 'error',
+      // Drained here too: a request that hashed and then threw would
+      // otherwise leave its share in this worker, to be handed to
+      // whichever install asks next.
+      verifiedFileIntegrity: takeVerifiedFileIntegrity(),
       error: {
         code: e.code,
         message: e.message ?? e.toString(),

@@ -2356,7 +2356,10 @@ fn rebuilds_the_declarations_from_the_lookups() {
         BTreeMap::from([("work".to_owned(), "https://npm.corp.example/".to_owned())]);
     config.registry_options_by_url = BTreeMap::from([(
         "https://npm.corp.example/".to_owned(),
-        RegistryOptions { server_type: Some(RegistryServerType::Artifactory) },
+        RegistryOptions {
+            server_type: Some(RegistryServerType::Artifactory),
+            supports_time_field: None,
+        },
     )]);
 
     let declarations = config.registry_declarations();
@@ -2366,6 +2369,7 @@ fn rebuilds_the_declarations_from_the_lookups() {
             scopes: Some(vec!["@acme".to_owned(), "@acme-internal".to_owned()]),
             prefix: Some("work".to_owned()),
             server_type: Some(RegistryServerType::Artifactory),
+            supports_time_field: None,
             unknown: BTreeMap::new(),
         }),
     );
@@ -2407,4 +2411,87 @@ registries:
         })
         .collect();
     assert_eq!(rebuilt, original);
+}
+
+/// The public registry omits `time` from its abbreviated metadata, so a
+/// time-based resolution reads the full document from it. A registry that
+/// declares otherwise answers for itself, and paying for the full document at
+/// every registry because one of them needs it is the cost this removes.
+#[test]
+fn a_registry_declaring_the_time_field_needs_no_full_metadata() {
+    let yaml = r"
+resolutionMode: time-based
+registries:
+  https://time.example.com/: {supportsTimeField: true}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_registry("https://time.example.com/"));
+    assert!(config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
+    // However either side spelled the trailing slash.
+    assert!(!config.requires_full_metadata_for_registry("https://time.example.com"));
+}
+
+/// A reason that holds whatever the registry serves is not undone by one.
+#[test]
+fn a_declared_time_field_does_not_waive_the_trust_policy() {
+    let yaml = r"
+resolutionMode: time-based
+trustPolicy: no-downgrade
+registries:
+  https://time.example.com/: {supportsTimeField: true}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(config.requires_full_metadata_for_registry("https://time.example.com/"));
+}
+
+/// The setting is the answer for every registry that does not describe itself.
+#[test]
+fn the_time_field_setting_answers_for_an_undeclared_registry() {
+    let yaml = r"
+resolutionMode: time-based
+registrySupportsTimeField: true
+registries:
+  https://old.example.com/: {supportsTimeField: false}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
+    assert!(config.requires_full_metadata_for_registry("https://old.example.com/"));
+}
+
+/// The filtered mirror is chosen once for the whole resolver, so it has to
+/// cover the registry that asks for the most: one the setting exempts but a
+/// declaration does not.
+#[test]
+fn the_filtered_mirror_covers_a_registry_the_setting_exempts() {
+    let yaml = r"
+resolutionMode: time-based
+registrySupportsTimeField: true
+registries:
+  https://old.example.com/: {supportsTimeField: false}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_resolution());
+    assert!(config.requires_full_metadata_for_registry("https://old.example.com/"));
+    assert!(config.requires_filtered_full_metadata());
+}
+
+/// Nothing is filtered when no registry can need full metadata.
+#[test]
+fn no_filtered_mirror_without_a_reason_for_full_metadata() {
+    let mut config = Config::new();
+    assert!(!config.requires_filtered_full_metadata());
+    config.resolution_mode = ResolutionMode::TimeBased;
+    assert!(config.requires_filtered_full_metadata());
 }

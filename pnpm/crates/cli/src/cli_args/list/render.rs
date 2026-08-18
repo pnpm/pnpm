@@ -12,9 +12,9 @@ use crate::cli_args::deps_tree::{
     DependencyNode,
     build::DependenciesHierarchy,
     render::{
-        ColorFn, LongPkgInfo, PeerVariants, TreeNode, TreeNodeGroup, blue, bold, cyan_bright,
-        deduped_label, dim, gray, name_at_version, peer_hash_suffix, plain, read_long_pkg_info,
-        red, render_archy, yellow,
+        ColorFn, LongPkgInfo, PeerVariants, TreeNode, TreeNodeGroup, blue, bold_styled,
+        cyan_bright, deduped_label, dim, gray, name_at_version, peer_hash_suffix, plain,
+        read_long_pkg_info, red, render_archy, yellow,
     },
 };
 
@@ -120,7 +120,7 @@ fn render_tree_for_project(
         });
     }
 
-    let root_label = bold(&label);
+    let root_label = bold_styled(&label);
     if groups.is_empty() {
         return Some(root_label);
     }
@@ -222,7 +222,7 @@ fn print_label(
     if node.deduped {
         label.push_str(&deduped_label());
     }
-    if node.searched { bold(&label) } else { label }
+    if node.searched { bold_styled(&label) } else { label }
 }
 
 fn find_multi_peer_packages(projects: &[ProjectHierarchy]) -> HashMap<String, usize> {

@@ -1055,6 +1055,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
         ignore_manifest_check: link.ignore_manifest_check,
         trust_lockfile: link.trust_lockfile,
+        resolution_mode: state.config.resolution_mode,
         minimum_release_age: state.config.minimum_release_age,
         minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
         minimum_release_age_ignore_missing_time: state

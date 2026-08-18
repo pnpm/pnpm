@@ -269,6 +269,9 @@ impl PackageVersion {
             .send()
             .await
             .map_err(network_error)?
+            // See the same guard in `Package::fetch_from_registry`.
+            .error_for_status()
+            .map_err(network_error)?
             .json::<PackageVersion>()
             .await
             .map_err(network_error)?

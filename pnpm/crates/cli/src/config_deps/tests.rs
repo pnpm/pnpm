@@ -105,11 +105,7 @@ async fn update_config_can_extend_extra_bin_paths() {
 #[tokio::test]
 async fn update_config_can_set_extra_env() {
     let root = tempfile::tempdir().expect("workspace tempdir");
-    // The shared virtual store seeds `extraEnv` with the `NODE_PATH` /
-    // `NODE_OPTIONS` pair that makes hoisted dependencies resolvable, so
-    // turn it off to start the hook from an empty map.
-    fs::write(root.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
-        .expect("write workspace settings");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, npm_config_nodedir: '/brazil/node' }; return config } } }",

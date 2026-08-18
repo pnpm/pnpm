@@ -532,3 +532,58 @@ test('getOptionsFromPnpmSettings() rejects an unknown field in a registry declar
     },
   })).toThrow(/is not a known registry setting/)
 })
+
+test('getOptionsFromPnpmSettings() reads a declared supportsTimeField', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { supportsTimeField: true },
+      'https://artifactory.example/': { serverType: 'artifactory', supportsTimeField: false },
+    },
+  })
+  expect(options.registryOptionsByUrl).toStrictEqual({
+    'https://npm.corp.example/': { supportsTimeField: true },
+    'https://artifactory.example/': { serverType: 'artifactory', supportsTimeField: false },
+  })
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-boolean supportsTimeField', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { supportsTimeField: 'yes' as never },
+    },
+  })).toThrow(/supportsTimeField" setting should be a boolean, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() translates virtualStoreType to enableGlobalVirtualStore', () => {
+  for (const [virtualStoreType, expected] of [['global', true], ['project', false]] as const) {
+    const options = getOptionsFromPnpmSettings(process.cwd(), { virtualStoreType }) as any // eslint-disable-line
+    expect(options.enableGlobalVirtualStore).toBe(expected)
+    expect(options.virtualStoreType).toBeUndefined()
+  }
+})
+
+test('getOptionsFromPnpmSettings() lets virtualStoreType win over enableGlobalVirtualStore', () => {
+  for (const [virtualStoreType, enableGlobalVirtualStore, expected] of [
+    ['project', true, false],
+    ['global', false, true],
+  ] as const) {
+    const options = getOptionsFromPnpmSettings(process.cwd(), {
+      virtualStoreType,
+      enableGlobalVirtualStore,
+    }) as any // eslint-disable-line
+    expect(options.enableGlobalVirtualStore).toBe(expected)
+  }
+})
+
+test('getOptionsFromPnpmSettings() keeps enableGlobalVirtualStore working on its own', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    enableGlobalVirtualStore: true,
+  }) as any // eslint-disable-line
+  expect(options.enableGlobalVirtualStore).toBe(true)
+})
+
+test('getOptionsFromPnpmSettings() rejects an unknown virtualStoreType', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    virtualStoreType: 'shared' as never,
+  })).toThrow(/The "virtualStoreType" setting should be one of global, project, but got "shared"/)
+})

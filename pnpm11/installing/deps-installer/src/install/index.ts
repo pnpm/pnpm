@@ -73,7 +73,7 @@ import {
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
-import { globalInfo, logger, streamParser } from '@pnpm/logger'
+import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
@@ -95,6 +95,7 @@ import type {
   ProjectRootDir,
   ReadPackageHook,
 } from '@pnpm/types'
+import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
@@ -112,6 +113,7 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
 import { type AddedManifests, tryAddLockedVersions } from './tryAddLockedVersions.js'
 import { tryComposeFastUpdates } from './tryComposeFastUpdates.js'
 import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
@@ -354,13 +356,24 @@ export async function mutateModules (
 
   const opts = extendOptions(maybeOpts)
 
+  // Taken before any fetching so the store-verification figures this
+  // install reports are its own. See the tally in `@pnpm/worker` for
+  // the one case this diff cannot separate.
+  const verifiedFileIntegrityBaseline = verifiedFileIntegritySnapshot()
+
   // When a pnpr server is configured, use server-side resolution. The pnpr server
   // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
   // (pnpm remove). Mutations that need full client-side resolution (update
   // flags) still fall through to the normal flow.
   if (opts.pnprServer && canUsePnprForMutations(projects)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
-    if (pnprResult) return pnprResult
+    if (pnprResult) {
+      // This path materializes packages of its own, so it verifies the
+      // store like any other install and returns without reaching the
+      // report below.
+      reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
+      return pnprResult
+    }
   }
 
   const allowBuild = createAllowBuildFunction(opts)
@@ -539,11 +552,7 @@ export async function mutateModules (
 
   const result = await settleInstall(_install(), verifyLockfilePromise)
 
-  // @ts-expect-error
-  if (global['verifiedFileIntegrity'] > 1000) {
-    // @ts-expect-error
-    globalInfo(`The integrity of ${global['verifiedFileIntegrity']} files was checked. This might have caused installation to take longer.`)
-  }
+  reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
   if (opts.mergeGitBranchLockfiles) {
     await cleanGitBranchLockfiles(ctx.lockfileDir)
@@ -785,16 +794,19 @@ export async function mutateModules (
     // optional config leaves it undefined, and this now runs on every
     // install rather than only when the fast path opens.
     const configuredOverrides = opts.overrides ?? {}
-    // An override whose value is a `catalog:` reference is only meaningful
-    // once the catalog rewrite has settled, and the range-only catalog
-    // rewrite refuses to run under one. Neither resolver-consulting rewrite
-    // composes with that, so both leave the drift to the resolver.
+    // A catalog move can change the effective value of an override whose
+    // configured value is a `catalog:` reference — an effect no catalog
+    // rewrite can express — so catalog drift under such an override goes to
+    // the resolver. Override drift alone composes: override values are
+    // compared catalog-resolved, so a settled `catalog:` override shows no
+    // drift and only the genuinely changed entries reach the override
+    // rewrite.
     const overridesUseCatalogs = Object.values(configuredOverrides)
       .some((specifier) => parseCatalogProtocol(specifier) != null)
     const hasAsyncDrift = changedLockfileSettings.includes('catalogs') ||
       changedLockfileSettings.includes('overrides')
     const allChangedFieldsAreComposable =
-      !(hasAsyncDrift && overridesUseCatalogs) &&
+      !(changedLockfileSettings.includes('catalogs') && overridesUseCatalogs) &&
       changedLockfileSettings.every((field) =>
         isSettingsField(field) || COMPOSABLE_CHANGED_FIELDS.has(field))
     // A changed field nothing can absorb forces a resolution, so the
@@ -3079,6 +3091,7 @@ async function installViaPnprServer (
       autoInstallPeers: opts.autoInstallPeers,
       dedupePeers: opts.dedupePeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      resolutionMode: opts.resolutionMode,
       minimumReleaseAge: opts.minimumReleaseAge,
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
@@ -3086,7 +3099,7 @@ async function installViaPnprServer (
       trustPolicyExclude: opts.trustPolicyExclude,
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       trustLockfile: opts.trustLockfile,
-      // Resolution mode. Without these the server always reuse-and-updates,
+      // Lockfile reuse. Without these the server always reuse-and-updates,
       // so `--frozen-lockfile` would silently resolve and rewrite the very
       // lockfile it promises to leave alone.
       frozenLockfile: opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null),

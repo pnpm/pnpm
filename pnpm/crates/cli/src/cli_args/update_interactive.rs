@@ -17,7 +17,10 @@
 
 use crate::{
     cli_args::{
-        outdated::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated_for_importer},
+        outdated::{
+            OutdatedPackage, OutdatedQuery, OutdatedRun, TargetVersion,
+            collect_outdated_for_importer, collect_outdated_for_importer_in_run,
+        },
         pipelines::InstallFamilySelection,
         sanitize::sanitize_inline,
     },
@@ -257,14 +260,16 @@ async fn collect_choices(
         match_names: None,
         include_deprecated: false,
     };
+    let run = OutdatedRun::new(config)?;
     let choices = futures_util::future::join_all(projects.iter().map(|project| {
-        collect_outdated_for_importer(
+        collect_outdated_for_importer_in_run(
             project.manifest,
             lockfile,
             &project.importer_id,
             config,
             http_client,
             &query,
+            &run,
         )
     }))
     .await;

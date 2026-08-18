@@ -210,6 +210,7 @@ async fn resolve_via_mock(
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };

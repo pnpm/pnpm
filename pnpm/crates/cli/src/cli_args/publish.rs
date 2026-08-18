@@ -341,7 +341,7 @@ impl PublishArgs {
             crate::config_deps::load_before_packing_hooks(config, pnpmfile_root);
         let mut options = PackOptions {
             dir: dir.to_path_buf(),
-            catalogs: crate::cli_args::pack::pack_catalogs(config)?,
+            catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
             ignore_scripts: self.should_ignore_scripts(config),
             unsafe_perm: config.unsafe_perm,
             embed_readme: false,

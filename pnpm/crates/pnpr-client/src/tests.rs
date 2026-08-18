@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use pnpm_config::TrustPolicy;
+use pnpm_config::{ResolutionMode, TrustPolicy};
 use serde_json::json;
 
 use super::{
@@ -23,6 +23,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "autoInstallPeers": false,
             "dedupePeers": true,
             "excludeLinksFromLockfile": false,
+            "resolutionMode": "time-based",
             "minimumReleaseAge": 1440,
             "minimumReleaseAgeExclude": ["@acme/*"],
             "minimumReleaseAgeIgnoreMissingTime": false,
@@ -69,6 +70,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         trust_lockfile: true,
+        resolution_mode: ResolutionMode::TimeBased,
         minimum_release_age: Some(1440),
         minimum_release_age_exclude: Some(vec!["@acme/*".to_string()]),
         minimum_release_age_ignore_missing_time: false,

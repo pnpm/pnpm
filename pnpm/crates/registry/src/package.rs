@@ -199,6 +199,10 @@ impl Package {
             .send()
             .await
             .map_err(network_error)?
+            // An unknown package answers with a JSON error body, which
+            // decodes into neither a `Package` nor a useful message.
+            .error_for_status()
+            .map_err(network_error)?
             .json::<Package>()
             .await
             .map_err(network_error)?

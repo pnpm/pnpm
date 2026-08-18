@@ -364,6 +364,7 @@ impl EnvInstallerContext {
             // `minimumReleaseAge` and trust checks need — instead of failing
             // closed on abbreviated metadata that omits `time`.
             full_metadata: config.requires_full_metadata_for_resolution(),
+            needs_full_metadata_for: None,
             filter_metadata: config.requires_full_metadata_for_resolution(),
             retry_opts,
         };

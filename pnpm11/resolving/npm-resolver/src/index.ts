@@ -140,6 +140,13 @@ export interface ResolverFactoryOptions {
   storeDir?: string
   frozenStore?: boolean
   fullMetadata?: boolean
+  /**
+   * Asked instead of {@link ResolverFactoryOptions.fullMetadata} when the
+   * caller can answer per registry — a registry that declares
+   * `supportsTimeField` needs no full metadata for a time-based resolution
+   * even when the others do.
+   */
+  needsFullMetadataFor?: (registry: string) => boolean
   filterMetadata?: boolean
   offline?: boolean
   preferOffline?: boolean
@@ -266,6 +273,7 @@ export function createNpmResolver (
     pickPackage: pickPackage.bind(null, {
       fetch,
       fullMetadata: opts.fullMetadata,
+      needsFullMetadataFor: opts.needsFullMetadataFor,
       filterMetadata: opts.filterMetadata,
       metaCache,
       offline: opts.offline,

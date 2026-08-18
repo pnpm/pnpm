@@ -61,6 +61,21 @@ ignore = [
   # requires ^0.40.1. Revisit when object_store consumes quick-xml 0.41+.
   { id = "RUSTSEC-2026-0194", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
   { id = "RUSTSEC-2026-0195", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
+  # Unbounded queueing of empty HTTP/2 DATA frames (low-severity DoS). Only the
+  # `h2` 0.3 line is left unpatched here: pnpr's own HTTP/2 server surface runs
+  # on axum 0.8 -> hyper 1.x, which is on the fixed h2 0.4.16. The 0.3 copy is
+  # reached solely through libsql's gRPC client stack, whose `tonic` 0.11 and
+  # `hyper` 0.14 both depend on it directly. pnpr uses that client to talk out
+  # to the operator-configured libsql/sqld backend, so the frames it queues
+  # come from that backend rather than from untrusted registry clients. The fix
+  # ships only in h2 0.4.16 and 0.3.27 is the final 0.3 release, so no upgrade
+  # is reachable while the newest stable libsql (0.9.30) is pinned to tonic
+  # 0.11. Revisit when libsql 0.10 leaves prerelease.
+  #
+  # cargo-deny scopes an ignore to an advisory id, never to a version, so this
+  # entry would also silence the advisory on the 0.4 line. The `h2` bans below
+  # hold that line instead.
+  { id = "RUSTSEC-2026-0258", reason = "Temporary risk acceptance: the unpatched h2 0.3 copy is reached only by libsql's outbound gRPC client to the operator-configured backend; pnpr's own server is on the patched h2 0.4.16, and no stable libsql release moves off tonic 0.11." },
 ]
 
 # --- Licenses ------------------------------------------------------------
@@ -120,7 +135,16 @@ highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
 allow = []
-deny = []
+deny = [
+  # RUSTSEC-2026-0258 is ignored above, and cargo-deny can only ignore an
+  # advisory for the whole workspace. These two bans keep that ignore from
+  # covering more than the one copy it was accepted for: a vulnerable `h2` on
+  # the 0.4 line is refused outright, and the unpatched 0.3 line stays reachable
+  # only from libsql's gRPC stack, whose `tonic` and `hyper` are its sole direct
+  # dependents. Drop both once libsql moves off tonic 0.11 and the ignore goes.
+  { name = "h2", version = ">=0.4, <0.4.16" },
+  { name = "h2", version = "<0.4", wrappers = ["hyper", "tonic"] },
+]
 skip = []
 skip-tree = []
 

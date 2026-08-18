@@ -13,6 +13,7 @@ import {
   type RegistryDeclaration,
   type RegistryOptions,
   type SupportedArchitectures,
+  type VirtualStoreType,
 } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { map as mapValues } from 'ramda'
@@ -82,6 +83,7 @@ export function getOptionsFromPnpmSettings (
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
+  translateVirtualStoreType(pnpmSettings, settings)
 
   return settings
 }
@@ -100,7 +102,7 @@ const SECRET_REGISTRY_KEYS = new Set([
 ])
 
 /** The fields a `registries` entry may carry. Anything else is a typo. */
-const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'scopes', 'prefix'])
+const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'supportsTimeField', 'scopes', 'prefix'])
 
 /**
  * Turns the settings that name registries into the three lookups the rest of
@@ -205,13 +207,19 @@ function splitRegistryDeclarations (entries: Array<[string, RegistryDeclaration]
     // resolved from matches its declaration however either one spelled the
     // trailing slash.
     const normalizedRegistry = normalizeRegistryUrl(registry)
-    const { serverType, scopes, prefix } = declaration
-    if (serverType != null) {
-      if (!REGISTRY_SERVER_TYPES.has(serverType)) {
-        throw new PnpmError('INVALID_SETTING',
-          `The "${settingPath}.serverType" setting should be one of ${quoteAndJoin([...REGISTRY_SERVER_TYPES])}, but got ${JSON.stringify(serverType)}`)
+    const { serverType, supportsTimeField, scopes, prefix } = declaration
+    if (serverType != null && !REGISTRY_SERVER_TYPES.has(serverType)) {
+      throw new PnpmError('INVALID_SETTING',
+        `The "${settingPath}.serverType" setting should be one of ${quoteAndJoin([...REGISTRY_SERVER_TYPES])}, but got ${JSON.stringify(serverType)}`)
+    }
+    if (supportsTimeField != null) {
+      assertBoolean(supportsTimeField, `${settingPath}.supportsTimeField`)
+    }
+    if (serverType != null || supportsTimeField != null) {
+      lookups.registryOptionsByUrl[normalizedRegistry] = {
+        ...(serverType != null ? { serverType } : {}),
+        ...(supportsTimeField != null ? { supportsTimeField } : {}),
       }
-      lookups.registryOptionsByUrl[normalizedRegistry] = { serverType }
     }
     if (scopes != null) {
       assertStringArray(scopes, `${settingPath}.scopes`)
@@ -341,6 +349,26 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
   }
 }
 
+/**
+ * Translates the user-facing `virtualStoreType` setting into the internal
+ * `enableGlobalVirtualStore` boolean the rest of pnpm reads, and removes the
+ * raw key from the returned options.
+ *
+ * `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
+ * setting, and a manifest may carry either or both. The canonical one wins,
+ * silently: spelling a setting two ways is not itself a mistake worth
+ * warning about. Same rule as `catalogPrune` over `cleanupUnusedCatalogs`.
+ */
+function translateVirtualStoreType (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
+  delete (settings as { virtualStoreType?: unknown }).virtualStoreType
+  const virtualStoreType = pnpmSettings.virtualStoreType
+  if (virtualStoreType == null) return
+  if (!VIRTUAL_STORE_TYPES.has(virtualStoreType)) {
+    throw new PnpmError('INVALID_SETTING', `The "virtualStoreType" setting should be one of ${Array.from(VIRTUAL_STORE_TYPES).join(', ')}, but got ${JSON.stringify(virtualStoreType)}`)
+  }
+  ;(settings as { enableGlobalVirtualStore?: boolean }).enableGlobalVirtualStore = virtualStoreType === 'global'
+}
+
 function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
@@ -400,6 +428,8 @@ function renderReceivedType (value: unknown): string {
 }
 
 const AUDIT_LEVELS = new Set(['info', 'low', 'moderate', 'high', 'critical'])
+
+const VIRTUAL_STORE_TYPES = new Set<VirtualStoreType>(['global', 'project'])
 
 // The `update`, `audit` and `packageExtensions` sections come from repo-controlled
 // pnpm-workspace.yaml, which is parsed untyped — so their fields are validated

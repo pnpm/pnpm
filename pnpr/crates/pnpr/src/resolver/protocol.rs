@@ -122,6 +122,13 @@ pub struct ResolveRequest {
     /// `trustLockfile` opt-out.
     #[serde(default)]
     pub trust_lockfile: bool,
+    /// The client's `resolutionMode`, which decides how a version is
+    /// picked: highest satisfying, lowest-satisfying direct, or
+    /// time-based (lowest direct, with subdependencies constrained to
+    /// what was published by the newest direct dependency). A client
+    /// that sends none gets the `highest` default.
+    #[serde(default)]
+    pub resolution_mode: pnpm_config::ResolutionMode,
     /// Minimum package age (minutes) before a version is acceptable.
     #[serde(default)]
     pub minimum_release_age: Option<u64>,

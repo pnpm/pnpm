@@ -36,7 +36,7 @@ use super::{
     reuse::{
         ReuseSource, higher_direct_dep_version, is_update_target,
         node_depends_on_changed_direct_dep, real_package_name_of, resolve_reused_node,
-        try_reuse_node, wanted_lockfile_contains_satisfying_entry,
+        try_reuse_node, update_unpins_edge, wanted_lockfile_contains_satisfying_entry,
     },
     tree_ctx::{
         TreeCtx, declaring_manifest_dir, opts_relative_to_declaring_manifest,
@@ -212,7 +212,8 @@ where
     // their manifest ranges where `seed_node_children` can redirect a
     // stale pin onto the higher direct-dep version (reusing the subtree
     // would keep the pin, leaving the lockfile non-convergent).
-    if reuse.allows_reuse()
+    if ctx.workspace.reuse_lockfile_subtrees
+        && reuse.allows_reuse()
         && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
         && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), depth)
     {
@@ -228,6 +229,30 @@ where
         )
         .await
         .map(NodeSeed::Done);
+    }
+
+    // Locked-version pin, the fresh-resolve counterpart of subtree
+    // reuse: a transitive edge whose recorded version still satisfies
+    // its manifest range (`prior_key` is satisfies-gated) resolves to
+    // exactly that version even when its subtree cannot be reused
+    // wholesale. Without it, a re-resolve picks open ranges (`*`)
+    // against the whole preferred-versions pool and lands every such
+    // edge on the highest locked version, churning the lockfile.
+    // Mirrors the TypeScript resolver's `replaceVersionInBareSpecifier`
+    // under `!update`: direct deps (depth 0) keep recomputing their
+    // specifier, and an edge a `pacquet update` reaches keeps
+    // re-picking. Only plain semver ranges pin; aliased (`npm:`),
+    // named-registry, and exotic specifiers keep today's behavior.
+    let mut wanted = wanted;
+    if depth > 0
+        && !update_unpins_edge(ctx.update_scope(), &wanted, depth)
+        && let Some(version) = prior_key.as_ref().and_then(|key| key.suffix.version_semver())
+        && wanted
+            .bare_specifier
+            .as_deref()
+            .is_some_and(|spec| spec.parse::<node_semver::Range>().is_ok())
+    {
+        wanted.bare_specifier = Some(version.to_string());
     }
 
     // Memoise the per-wanted resolve. The first caller for a given

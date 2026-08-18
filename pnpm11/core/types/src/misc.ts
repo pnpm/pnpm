@@ -58,6 +58,16 @@ export type RegistryServerType = 'npm' | 'artifactory'
  */
 export interface RegistryOptions {
   serverType?: RegistryServerType
+  /**
+   * Whether this registry's abbreviated metadata carries the `time` field.
+   *
+   * `registry.npmjs.org` does not, which is why the default is `false` and why
+   * a time-based resolution falls back to the far larger full metadata. A
+   * registry that does carry it — Verdaccio and several proxies — is worth
+   * declaring: the fallback is per registry, so one that needs full metadata
+   * no longer costs it at the others.
+   */
+  supportsTimeField?: boolean
 }
 
 /**

@@ -109,7 +109,7 @@ importers:
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(package_body("foo", &registry))
-        .expect(2)
+        .expect(1)
         .create_async()
         .await;
     let mut config = Config::new();
@@ -169,7 +169,7 @@ importers:
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(package_body("foo", &registry))
-        .expect(2)
+        .expect(1)
         .create_async()
         .await;
     let mut config = Config::new();

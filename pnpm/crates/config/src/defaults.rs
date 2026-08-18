@@ -212,23 +212,15 @@ pub fn default_virtual_store_dir() -> PathBuf {
     env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
 }
 
-/// Default for `enableGlobalVirtualStore`: `true` — one virtual store,
-/// shared by every project on the machine.
+/// Default for `enableGlobalVirtualStore`: `false` — every project keeps
+/// its own virtual store at `<project>/node_modules/.pnpm`.
 ///
-/// This is a pnpm 12 default, and one the TypeScript CLI does not share:
-/// pnpm 11 defaults the setting off and reaches for the shared store only
-/// under `pnpm install --global`. The divergence is deliberate, so a
-/// parity check that flags it is looking at a major-version boundary
-/// rather than at a gap.
-///
-/// The default does not vary by environment. A CI machine gets the same
-/// layout a developer's machine does — under a shared store, package
-/// directories sit outside the project and scripts run with `NODE_PATH`
-/// and the ESM loader set, so a CI-only fallback to the project-local
-/// layout would run every build in a resolution environment nobody
-/// develops against.
+/// The TypeScript CLI defaults it off too, so the shared store stays an
+/// opt-in on both stacks. The flows that always want it — the engine's
+/// own package-manager installs and the runtime shims — turn it on
+/// explicitly rather than relying on the default.
 pub fn default_enable_global_virtual_store() -> bool {
-    true
+    false
 }
 
 #[must_use]
@@ -281,7 +273,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.0.0-rc.6";
+pub const PNPM_VERSION: &str = "12.0.0-rc.7";
 
 pub fn default_fetch_timeout() -> u64 {
     pnpm_network::DEFAULT_FETCH_TIMEOUT_MS

@@ -75,6 +75,7 @@ export const pnpmConfigFileKeys = [
   'verify-store-integrity',
   'virtual-store-dir',
   'virtual-store-dir-max-length',
+  'virtual-store-type',
 ] as const satisfies readonly PnpmKey[]
 export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
 
