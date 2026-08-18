@@ -183,7 +183,7 @@ test('cleanup before activation preserves the original and cleanup errors', asyn
     thrown = err
   }
 
-  expect(thrown).toBeInstanceOf(AggregateError)
+  expect(util.types.isNativeError(thrown)).toBe(true)
   const aggregateError = thrown as AggregateError
   expect(aggregateError.errors).toStrictEqual([originalError, cleanupError])
   expect(aggregateError.cause).toBe(originalError)
