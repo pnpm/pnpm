@@ -463,6 +463,7 @@ export async function resolveRootDependencies (
 
         const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
           ...options,
+          pickLowestVersion: false,
           parentPkgAliases,
           publishedBy,
           updateToLatest: false,
@@ -484,6 +485,7 @@ export async function resolveRootDependencies (
           const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
           const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
             ...options,
+            pickLowestVersion: false,
             parentPkgAliases,
             publishedBy,
             updateToLatest: false,

@@ -793,7 +793,7 @@ async function resolveNpm (
   return {
     id,
     latest,
-    manifest: selectedPackage,
+    manifest: clone(selectedPackage),
     resolution,
     resolvedVia: 'npm-registry',
     publishedAt,
@@ -972,7 +972,7 @@ async function pickFromSimpleRegistry (
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: latestAllowedByPolicy(meta, opts),
-    manifest: selectedPackage,
+    manifest: clone(selectedPackage),
     resolution,
     publishedAt,
     policyViolation: detectMinReleaseAgeViolation({
