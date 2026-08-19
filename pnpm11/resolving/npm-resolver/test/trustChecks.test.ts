@@ -1,7 +1,9 @@
-import { describe, expect, test } from '@jest/globals'
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import { type LogBase, streamParser } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 
+import { warnMissingTimeFieldOnce } from '../src/pickPackage.js'
 import { failIfTrustDowngraded, getTrustEvidence } from '../src/trustChecks.js'
 
 describe('getTrustEvidence', () => {
@@ -832,5 +834,43 @@ describe('failIfTrustDowngraded with ignoreMissingTimeField', () => {
     expect(() => {
       failIfTrustDowngraded(meta, '2.0.0', { ignoreMissingTimeField: true })
     }).toThrow('High-risk trust downgrade')
+  })
+})
+
+// Both time-dependent checks go dark on the same missing field, so the
+// warning must name each one that was skipped rather than letting whichever
+// ran first stand in for both.
+describe('warnMissingTimeFieldOnce', () => {
+  const collectedWarnings: string[] = []
+
+  function collectWarnings (msg: LogBase & { message?: string }): void {
+    if (msg.level === 'warn' && typeof msg.message === 'string') {
+      collectedWarnings.push(msg.message)
+    }
+  }
+
+  beforeEach(() => {
+    collectedWarnings.length = 0
+    streamParser.on('data', collectWarnings as (msg: LogBase) => void)
+  })
+
+  afterEach(() => {
+    streamParser.removeListener('data', collectWarnings as (msg: LogBase) => void)
+  })
+
+  test('warns once per check for the same package, and no more', async () => {
+    warnMissingTimeFieldOnce('dual-policy-pkg', 'minimumReleaseAge')
+    warnMissingTimeFieldOnce('dual-policy-pkg', 'trustPolicy')
+    warnMissingTimeFieldOnce('dual-policy-pkg', 'minimumReleaseAge')
+    warnMissingTimeFieldOnce('dual-policy-pkg', 'trustPolicy')
+    // The log stream delivers on its own turn of the event loop.
+    await new Promise((resolve) => {
+      setImmediate(resolve)
+    })
+
+    expect(collectedWarnings.filter((message) => message.includes('dual-policy-pkg'))).toStrictEqual([
+      'The metadata of dual-policy-pkg is missing the "time" field; skipping the minimumReleaseAge check for this package.',
+      'The metadata of dual-policy-pkg is missing the "time" field; skipping the trustPolicy check for this package.',
+    ])
   })
 })

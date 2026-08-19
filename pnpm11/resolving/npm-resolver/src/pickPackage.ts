@@ -835,23 +835,25 @@ const MAX_WARNED_MISSING_TIME = 1024
 const warnedMissingTimeFor = new Set<string>()
 
 /**
- * At most one warning per package, whichever time-dependent check reaches it
- * first. `minimumReleaseAge` and `trustPolicy` both go dark on the same
- * missing field, and a workspace full of private packages served by a
- * registry that strips `time` would otherwise get a wall of warnings saying
- * the same thing twice per package.
+ * At most one warning per package per check. `minimumReleaseAge` and
+ * `trustPolicy` both go dark on the same missing field, so keying by package
+ * alone would let whichever check ran first silence the other and leave the
+ * user told about only one of the two skips.
  */
 export function warnMissingTimeFieldOnce (
   pkgName: string,
   skippedCheck: 'minimumReleaseAge' | 'trustPolicy'
 ): void {
-  if (warnedMissingTimeFor.has(pkgName)) return
+  // A package name cannot contain ':', so the check name prefix cannot
+  // collide with a name that happens to embed it.
+  const key = `${skippedCheck}:${pkgName}`
+  if (warnedMissingTimeFor.has(key)) return
   if (warnedMissingTimeFor.size >= MAX_WARNED_MISSING_TIME) {
     // Set preserves insertion order, so the first entry is the oldest.
     const oldest = warnedMissingTimeFor.values().next().value
     if (oldest != null) warnedMissingTimeFor.delete(oldest)
   }
-  warnedMissingTimeFor.add(pkgName)
+  warnedMissingTimeFor.add(key)
   globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the ${skippedCheck} check for this package.`)
 }
 

@@ -929,6 +929,92 @@ async fn trust_downgrade_pass_when_no_weaker_evidence() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
+/// Same fixture as [`trust_downgrade_packument`] minus the `time` map:
+/// a downgrade the check cannot see because it has no publish order to
+/// walk.
+fn time_free_trust_packument(name: &str) -> serde_json::Value {
+    let mut body = trust_downgrade_packument(name);
+    body.as_object_mut().expect("packument is an object").remove("time");
+    body
+}
+
+#[tokio::test]
+async fn trust_time_free_packument_fails_closed_by_default() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(time_free_trust_packument("acme").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
+        .await;
+    let ResolutionVerification::Err { code, reason } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TRUST_DOWNGRADE");
+    assert!(reason.contains(r#"missing the "time" field"#), "got reason: {reason}");
+}
+
+/// The same registry deficiency the age check already tolerates under
+/// this opt-in: with no `time` map there is no publish order for the
+/// downgrade walk to read, so the verifier passes the entry rather than
+/// locking the user out of a registry that never serves the field.
+#[tokio::test]
+async fn trust_time_free_packument_passes_when_ignored() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(time_free_trust_packument("acme").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.ignore_missing_time_field = true;
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
+        .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn trust_downgrade_still_reported_when_ignored_and_time_is_complete() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(trust_downgrade_packument("acme").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.ignore_missing_time_field = true;
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
+        .await;
+    let ResolutionVerification::Err { code, reason } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TRUST_DOWNGRADE");
+    assert!(reason.contains("trust downgrade"), "got reason: {reason}");
+}
+
 #[tokio::test]
 async fn verify_routes_via_named_registry_prefix() {
     let mut server = mockito::Server::new_async().await;
@@ -1027,6 +1113,43 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
         policy.get("trustPolicyIgnoreAfter").and_then(serde_json::Value::as_u64),
         Some(60 * 24 * 30),
     );
+    assert_eq!(
+        policy.get("minimumReleaseAgeIgnoreMissingTime").and_then(serde_json::Value::as_bool),
+        Some(false),
+    );
+}
+
+/// Dropping the missing-time tolerance invalidates a cached run that
+/// may have waved entries through on it; adding the tolerance keeps a
+/// stricter cached run trustworthy, since it accepted a subset of what
+/// today's policy accepts.
+#[test]
+fn can_trust_past_check_tracks_ignore_missing_time_field() {
+    let mut tolerant_opts = default_opts("https://registry.example/");
+    tolerant_opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    tolerant_opts.ignore_missing_time_field = true;
+    let tolerant = create_npm_resolution_verifier(tolerant_opts);
+
+    let mut strict_opts = default_opts("https://registry.example/");
+    strict_opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    let strict = create_npm_resolution_verifier(strict_opts);
+
+    assert!(!strict.can_trust_past_check(tolerant.policy()));
+    assert!(tolerant.can_trust_past_check(strict.policy()));
+}
+
+/// A record written before the field existed reads as intolerant, which
+/// is the safe direction: it cannot have passed anything today's
+/// stricter policy would reject.
+#[test]
+fn can_trust_past_check_reads_a_missing_tolerance_field_as_intolerant() {
+    let mut opts = default_opts("https://registry.example/");
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    let verifier = create_npm_resolution_verifier(opts);
+
+    let mut cached = verifier.policy().clone();
+    cached.remove("minimumReleaseAgeIgnoreMissingTime");
+    assert!(verifier.can_trust_past_check(&cached));
 }
 
 /// A previously-cached run with a stricter (larger) cutoff stays
