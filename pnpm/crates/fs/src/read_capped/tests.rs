@@ -34,16 +34,8 @@ fn a_symlink_is_refused_at_open() {
 fn a_fifo_is_refused_without_blocking() {
     let temp = tempfile::tempdir().unwrap();
     let fifo = temp.path().join("fifo");
-    let c_path = std::ffi::CString::new(fifo.to_str().unwrap()).unwrap();
-    assert_eq!(unsafe { libc_mkfifo(c_path.as_ptr()) }, 0, "mkfifo failed");
+    let status = std::process::Command::new("mkfifo").arg(&fifo).status().expect("run mkfifo");
+    assert!(status.success(), "mkfifo failed");
     // The whole point: this returns instead of hanging on the open.
     assert!(read_regular_file_capped(&fifo, 64).is_err());
-}
-
-#[cfg(target_os = "linux")]
-unsafe fn libc_mkfifo(path: *const std::ffi::c_char) -> i32 {
-    unsafe extern "C" {
-        fn mkfifo(path: *const std::ffi::c_char, mode: u32) -> i32;
-    }
-    unsafe { mkfifo(path, 0o644) }
 }
