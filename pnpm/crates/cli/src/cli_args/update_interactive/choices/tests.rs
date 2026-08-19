@@ -130,6 +130,7 @@ fn github_actions_form_their_own_group() {
     let mut action =
         pkg("actions/checkout", "actions/checkout", "4.1.0", "4.2.2", DependencyGroup::Dev);
     action.github_action = true;
+    action.homepage = Some("https://github.com/actions/checkout".to_string());
     let packages = [pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Dev), action];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
@@ -140,6 +141,7 @@ fn github_actions_form_their_own_group() {
         rendered,
         vec![("devDependencies", vec!["foo"]), ("GitHub Actions", vec!["actions/checkout"])],
     );
+    assert!(groups[1].rows[1].label.contains("https://github.com/actions/checkout"));
 }
 
 /// A long version must not wrap the row onto a second line, and both
@@ -257,7 +259,23 @@ fn control_characters_in_registry_metadata_are_stripped() {
     let row = &groups[0].rows[1];
     assert!(!row.label.contains('\u{1b}'), "escape survived: {:?}", row.label);
     assert!(!row.label.contains('\n'), "newline survived: {:?}", row.label);
-    assert!(row.label.contains("https://example.test/"), "url lost: {:?}", row.label);
+    assert!(
+        row.label.contains("https://npmx.dev/package-changelog/") && row.label.contains("/v/2.0.0"),
+        "changelog URL missing: {:?}",
+        row.label,
+    );
+    assert!(!row.label.contains("https://example.test/"), "homepage survived: {:?}", row.label);
+}
+
+#[test]
+fn scoped_packages_link_to_their_npmx_changelog() {
+    let packages = [pkg("@pnpm/config", "@pnpm/config", "1.0.0", "2.0.0", DependencyGroup::Prod)];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    assert!(
+        groups[0].rows[1].label.contains("https://npmx.dev/package-changelog/@pnpm/config/v/2.0.0"),
+    );
 }
 
 /// Inside a workspace the list gains a `Workspace` column naming the
