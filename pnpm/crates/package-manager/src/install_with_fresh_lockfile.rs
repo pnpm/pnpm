@@ -1663,11 +1663,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .map_err(InstallWithFreshLockfileError::BuildPhase)?;
 
         // Drop the orchestration's writer handle so the channel closes
-        // once the build phase's side-effects-cache rows are queued.
-        // The task's final flush and `SQLite` close (a WAL checkpoint,
-        // ~40 ms of pure tail on a cold install) then overlap the
-        // lockfile save below and the caller's `.modules.yaml` writes —
-        // it is returned as `store_index_teardown` and awaited last.
+        // once the build phase's side-effects-cache rows are queued and
+        // the task starts winding down. It is returned as
+        // `store_index_teardown` and awaited by the install driver
+        // after the tail writes it overlaps.
         drop(store_index_writer);
 
         let injected_deps = crate::collect_injected_deps(

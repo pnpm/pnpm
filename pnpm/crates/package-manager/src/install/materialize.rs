@@ -77,11 +77,9 @@ pub(super) struct MaterializationOutput {
     pub(super) install_skipped: crate::SkippedSnapshots,
     pub(super) fresh_lockfile: Option<Lockfile>,
     /// The store-index writer task, already winding down (both install
-    /// paths dropped every writer handle before returning). Its final
-    /// flush and `SQLite` close — a WAL checkpoint, ~40 ms of pure tail
-    /// on a cold install — are still in flight; the caller awaits it
-    /// via [`pnpm_store_dir::StoreIndexWriter::drain`] after the
-    /// `.modules.yaml` / lockfile writes it can overlap with.
+    /// paths dropped every writer handle before returning). The caller
+    /// awaits it after the tail writes it can overlap with — the full
+    /// rationale lives at the await site in `run.rs`.
     pub(super) store_index_teardown: StoreIndexTeardown,
 }
 

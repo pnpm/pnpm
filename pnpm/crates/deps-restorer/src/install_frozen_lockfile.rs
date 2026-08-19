@@ -815,15 +815,12 @@ where
             .map_err(InstallFrozenLockfileError::BuildPhase)?;
 
         // Drop the orchestrator's clone of the writer so the channel
-        // closes once every per-snapshot clone has also been dropped.
-        // The writer task then flushes its final batch and closes its
-        // `SQLite` connection — and that close runs a WAL checkpoint,
-        // measured at ~40 ms of pure install tail for a cold
-        // 1346-package install. Nothing after this point reads the
-        // index, so the task is handed back to the caller as
+        // closes once every per-snapshot clone has also been dropped
+        // and the task starts its final flush and connection close.
+        // Nothing after this point reads the index, so the task is
+        // handed back as
         // [`InstallFrozenLockfileOutput::store_index_teardown`] and
-        // awaited only after the `.modules.yaml` / lockfile writes it
-        // can overlap with.
+        // awaited by the install driver after its own tail writes.
         drop(store_index_writer);
 
         // The injectedDeps payload for `.modules.yaml`: every `file:`
@@ -892,15 +889,12 @@ pub struct InstallFrozenLockfileOutput {
     /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
     /// them into `.modules.yaml.pendingBuilds`.
     pub deferred_builds: Vec<String>,
-    /// The store-index writer task, already winding down: every handle
-    /// was dropped before this output was built, so the task is
-    /// flushing its final batch and closing its `SQLite` connection —
-    /// which runs a WAL checkpoint. Await it via
-    /// [`StoreIndexWriter::drain`] as late as possible so that close
-    /// overlaps the caller's own tail writes instead of extending it.
-    /// (Dropping the handle on an error path is fine too: the task
-    /// keeps running detached, and an interrupted checkpoint is the
-    /// crash case WAL recovery exists for.)
+    /// The store-index writer task, already winding down: every writer
+    /// handle was dropped before this output was built. Await it via
+    /// [`StoreIndexWriter::drain`] after any tail writes it can
+    /// overlap with; dropping it instead (error paths) detaches the
+    /// teardown, which is safe. The full rationale lives at the await
+    /// site in the install driver.
     pub store_index_teardown: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
 }
 
