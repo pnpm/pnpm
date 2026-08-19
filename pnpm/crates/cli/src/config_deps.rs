@@ -438,8 +438,10 @@ pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> 
         ),
         None => Vec::new(),
     };
-    if let Some(root_pnpmfile) = finder::find_pnpmfile(root_dir) {
-        pnpmfiles.push(root_pnpmfile);
+    for pnpmfile in finder::find_pnpmfiles(root_dir, config.pnpmfile.as_deref()) {
+        if !pnpmfiles.contains(&pnpmfile) {
+            pnpmfiles.push(pnpmfile);
+        }
     }
     pnpmfiles
 }

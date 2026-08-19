@@ -17,8 +17,9 @@ use pnpm_lockfile::{Lockfile, PackageKey, SnapshotEntry};
 pub(crate) async fn force_resolve_from_pnpmfile(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
+    config: &pnpm_config::Config,
 ) -> Result<bool, HookError> {
-    let Some(hook) = finder::load_pnpmfile(lockfile_dir) else {
+    let Some(hook) = finder::load_pnpmfiles(lockfile_dir, config.pnpmfile.as_deref()) else {
         return Ok(false);
     };
     let custom_resolvers = hook.get_custom_resolvers().await?;

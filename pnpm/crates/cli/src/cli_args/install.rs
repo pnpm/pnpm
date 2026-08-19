@@ -358,7 +358,8 @@ impl InstallArgs {
             return false;
         }
         let config_root = config.root_project_manifest_dir(dir).to_path_buf();
-        if pnpm_hooks::finder::find_pnpmfile(&config_root).is_some() {
+        if !pnpm_hooks::finder::find_pnpmfiles(&config_root, config.pnpmfile.as_deref()).is_empty()
+        {
             return false;
         }
         let manifest_path = dir.join("package.json");
@@ -868,6 +869,19 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
         state.manifest.path().parent().expect("manifest path always has a parent dir")
     });
+    let prefetch_allowed = if state.config.ignore_pnpmfile {
+        true
+    } else {
+        match pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, state.config.pnpmfile.as_deref()) {
+            Some(hook) => !hook
+                .get_custom_fetchers()
+                .await
+                .map_err(|error| miette::miette!("{error}"))?
+                .iter()
+                .any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()),
+            None => true,
+        }
+    };
     let lockfile_path = link
         .lockfile_path
         .map_or_else(|| lockfile_dir.join(Lockfile::FILE_NAME), std::path::Path::to_path_buf);
@@ -876,7 +890,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         || (link.frozen_lockfile && (selection.is_some() || !link.lockfile_only)))
         && let Some(lockfile) = previous_wanted
     {
-        let prefetcher = if link.lockfile_only {
+        let prefetcher = if link.lockfile_only || !prefetch_allowed {
             None
         } else {
             let selected_prefetch_lockfile =
@@ -1105,7 +1119,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     // ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)); the
     // frozen materialization install below then finds every tarball already
     // in the shared mem cache.
-    let prefetcher = if link.lockfile_only || partial_selection {
+    let prefetcher = if link.lockfile_only || partial_selection || !prefetch_allowed {
         None
     } else {
         Some(

@@ -56,7 +56,7 @@ fn empty_dependencies_yields_none() {
 #[tokio::test]
 async fn load_custom_fetcher_picker_is_none_without_a_pnpmfile() {
     let tmp = tempfile::tempdir().expect("tempdir");
-    let picker = super::load_custom_fetcher_picker(tmp.path())
+    let picker = super::load_custom_fetcher_picker(tmp.path(), &pnpm_config::Config::default())
         .await
         .expect("a missing pnpmfile is not an error");
     assert!(picker.is_none());
@@ -67,7 +67,7 @@ async fn load_custom_fetcher_picker_is_none_when_pnpmfile_exports_no_fetchers() 
     let tmp = tempfile::tempdir().expect("tempdir");
     std::fs::write(tmp.path().join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
         .expect("write pnpmfile");
-    let picker = super::load_custom_fetcher_picker(tmp.path())
+    let picker = super::load_custom_fetcher_picker(tmp.path(), &pnpm_config::Config::default())
         .await
         .expect("a fetchers-less pnpmfile is not an error");
     assert!(picker.is_none());
@@ -81,7 +81,7 @@ async fn load_custom_fetcher_picker_returns_a_picker_for_exported_fetchers() {
         "module.exports = { fetchers: [{ canFetch () { return false }, fetch () { return null } }] }\n",
     )
     .expect("write pnpmfile");
-    let picker = super::load_custom_fetcher_picker(tmp.path())
+    let picker = super::load_custom_fetcher_picker(tmp.path(), &pnpm_config::Config::default())
         .await
         .expect("a well-formed fetchers export must load")
         .expect("one exported fetcher must yield a picker");
@@ -97,7 +97,9 @@ async fn load_custom_fetcher_picker_propagates_a_broken_pnpmfile() {
     let tmp = tempfile::tempdir().expect("tempdir");
     std::fs::write(tmp.path().join(".pnpmfile.cjs"), "throw new Error('pnpmfile exploded')\n")
         .expect("write pnpmfile");
-    let Err(err) = super::load_custom_fetcher_picker(tmp.path()).await else {
+    let Err(err) =
+        super::load_custom_fetcher_picker(tmp.path(), &pnpm_config::Config::default()).await
+    else {
         panic!("a throwing pnpmfile must fail the load");
     };
     assert!(

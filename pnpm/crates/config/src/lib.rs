@@ -57,8 +57,9 @@ use crate::defaults::{
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, UpdateConfig,
+    UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
+    decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
@@ -1630,6 +1631,10 @@ pub struct Config {
     /// generated patch files. `None` means the command default
     /// (`patches`) applies.
     pub patches_dir: Option<String>,
+
+    /// Explicit pnpmfiles resolved against the workspace root. `None`
+    /// discovers the default `.pnpmfile.mjs` or `.pnpmfile.cjs`.
+    pub pnpmfile: Option<Vec<PathBuf>>,
 
     /// `allowUnusedPatches` from `pnpm-workspace.yaml`. When `true`,
     /// configured patches that don't match any installed dependency

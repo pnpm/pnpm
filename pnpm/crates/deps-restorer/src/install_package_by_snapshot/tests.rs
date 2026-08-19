@@ -985,7 +985,7 @@ async fn custom_fetcher_invalid_delegate_fails_the_install() {
 async fn custom_fetcher_custom_typed_delegate_is_rejected() {
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
-    let metadata = registry_metadata();
+    let metadata = custom_resolution_metadata("custom:cdn");
 
     let picker =
         scripted_picker(true, Ok(serde_json::json!({ "delegate": { "type": "custom:other" } })));
@@ -1331,7 +1331,7 @@ async fn a_delegated_directory_resolution_reports_mutable_source() {
     .expect("write the source manifest");
 
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
-    let metadata = registry_metadata();
+    let metadata = custom_resolution_metadata("custom:cdn");
 
     let picker = scripted_picker(
         true,

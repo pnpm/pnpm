@@ -26,6 +26,11 @@ impl CustomFetcherPicker {
         self.fetchers.is_empty()
     }
 
+    /// Whether any complete custom fetcher claims this resolution.
+    pub async fn can_fetch(&self, pkg_id: &str, resolution: &Value) -> Result<bool, HookError> {
+        Ok(self.pick_fetcher(pkg_id, resolution).await?.is_some())
+    }
+
     /// Consult each custom fetcher's `can_fetch` in declared order. Returns
     /// `Some(fetch_result)` from the first fetcher that claims the package,
     /// or `None` if no custom fetcher handles it (the caller falls through to
@@ -36,13 +41,27 @@ impl CustomFetcherPicker {
         resolution: &Value,
         opts: &Value,
     ) -> Result<Option<Value>, HookError> {
+        let Some((fetcher, resolution)) = self.pick_fetcher(pkg_id, resolution).await? else {
+            return Ok(None);
+        };
+        fetcher.fetch(pkg_id, resolution, opts.clone()).await.map(Some)
+    }
+
+    async fn pick_fetcher(
+        &self,
+        pkg_id: &str,
+        resolution: &Value,
+    ) -> Result<Option<(&dyn CustomFetcher, Value)>, HookError> {
+        let mut resolution = resolution.clone();
         for fetcher in &self.fetchers {
             if !fetcher.has_can_fetch() || !fetcher.has_fetch() {
                 continue;
             }
-            if fetcher.can_fetch(pkg_id, resolution.clone()).await? {
-                let result = fetcher.fetch(pkg_id, resolution.clone(), opts.clone()).await?;
-                return Ok(Some(result));
+            let (can_fetch, effective_resolution) =
+                fetcher.can_fetch_with_resolution(pkg_id, resolution).await?;
+            resolution = effective_resolution;
+            if can_fetch {
+                return Ok(Some((fetcher.as_ref(), resolution)));
             }
         }
         Ok(None)

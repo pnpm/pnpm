@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use derive_more::Display;
 use serde_json::Value;
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
+use tokio::sync::{mpsc, oneshot};
 
 pub mod custom_fetcher_adapter;
 pub mod custom_resolver_adapter;
@@ -10,6 +11,46 @@ pub mod node_runtime;
 pub mod worker;
 
 pub use worker::LogFn;
+
+/// A built-in tarball fetch requested by a JavaScript custom fetcher.
+pub struct FetcherCallback {
+    pub method: String,
+    pub resolution: Value,
+    pub options: Value,
+    pub response: oneshot::Sender<Result<Value, FetcherCallbackError>>,
+}
+
+/// Structured callback failures preserve the error fields custom fetchers inspect.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FetcherCallbackError {
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cause: Option<Box<FetcherCallbackError>>,
+}
+
+pub type FetcherCallbackSender = mpsc::UnboundedSender<FetcherCallback>;
+
+tokio::task_local! {
+    static ACTIVE_FETCHER_CALLBACKS: FetcherCallbackSender;
+}
+
+/// Expose the installer's built-in fetchers to every hook called by `future`.
+pub async fn with_fetcher_callbacks<F>(callbacks: FetcherCallbackSender, future: F) -> F::Output
+where
+    F: Future,
+{
+    ACTIVE_FETCHER_CALLBACKS.scope(callbacks, future).await
+}
+
+pub(crate) fn active_fetcher_callbacks() -> Option<FetcherCallbackSender> {
+    ACTIVE_FETCHER_CALLBACKS.try_with(Clone::clone).ok()
+}
 
 /// Represents the results of a `readPackage` hook.
 pub type ReadPackageResult = Arc<Value>;
@@ -177,15 +218,12 @@ pub trait PnpmfileHooks: Send + Sync {
 /// A custom fetcher exported from a pnpmfile's `fetchers` array.
 ///
 /// Custom fetchers are consulted before the built-in fetchers. If `can_fetch`
-/// returns `true`, `fetch` is called. Currently only delegation is supported:
-/// the fetcher returns `{ "delegate": <LockfileResolution> }` to rewrite the
-/// resolution and fall through to the built-in fetch path.
+/// returns `true`, `fetch` is called with the possibly modified resolution.
 ///
 /// The pnpmfile hook is invoked with the same positional arguments as the
 /// TypeScript CLI's `CustomFetcher.fetch(cafs, resolution, opts, fetchers)`
-/// (`pnpm11/hooks/types/src/index.ts`); `cafs` and `fetchers` are `null`
-/// placeholders because they cannot cross the worker IPC boundary, which is
-/// how a portable fetcher knows to delegate instead of fetching directly.
+/// (`pnpm11/hooks/types/src/index.ts`). During installation, built-in tarball
+/// fetches cross the worker IPC boundary and finish before the callback returns.
 #[async_trait]
 pub trait CustomFetcher: Send + Sync {
     fn has_can_fetch(&self) -> bool {
@@ -199,14 +237,23 @@ pub trait CustomFetcher: Send + Sync {
     /// Determines whether this fetcher handles the given package.
     async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError>;
 
+    /// Preserve changes a JavaScript `canFetch` hook makes to its resolution.
+    async fn can_fetch_with_resolution(
+        &self,
+        pkg_id: &str,
+        resolution: Value,
+    ) -> Result<(bool, Value), HookError> {
+        let can_fetch = self.can_fetch(pkg_id, resolution.clone()).await?;
+        Ok((can_fetch, resolution))
+    }
+
     /// Calls the fetcher hook. The returned JSON envelope is interpreted by the
     /// installer:
     ///
     /// - `{ "delegate": <resolution> }` — rewrites the lockfile resolution and
     ///   falls through to the built-in fetch path for the rewritten value.
-    /// - Any other shape fails the install (`custom_fetcher_failed`): a fetcher
-    ///   that claims a package via [`CustomFetcher::can_fetch`] must delegate,
-    ///   because direct content fetch isn't supported yet.
+    /// - A built-in fetch result containing `filesMap` is reused directly.
+    /// - Any other shape fails the install (`custom_fetcher_failed`).
     ///
     /// The built-in fetch path runs with the original resolution unchanged
     /// only when no fetcher claims the package.

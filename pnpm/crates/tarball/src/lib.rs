@@ -349,6 +349,13 @@ impl<'a> DownloadTarballToStore<'a> {
     pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
+        self.run_with_integrity::<Reporter>().await.map(|(_, files)| files)
+    }
+
+    /// Return the verified or computed archive integrity together with its CAFS files.
+    pub async fn run_with_integrity<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<(Integrity, HashMap<String, PathBuf>), TarballError> {
         let &DownloadTarballToStore {
             http_client,
             store_dir,
@@ -405,7 +412,10 @@ impl<'a> DownloadTarballToStore<'a> {
                 "Reusing prefetched CAFS entry — skipping download",
             );
             emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-            return Ok((**cas_paths).clone());
+            return Ok((
+                package_integrity.expect("cached tarball has integrity").clone(),
+                (**cas_paths).clone(),
+            ));
         }
         if let Some(cache_key) = cache_key.clone() {
             let cached = load_cached_cas_paths::<Reporter>(
@@ -420,7 +430,10 @@ impl<'a> DownloadTarballToStore<'a> {
             if let Some(cas_paths) = cached {
                 tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
                 emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-                return Ok(cas_paths);
+                return Ok((
+                    package_integrity.expect("cached tarball has integrity").clone(),
+                    cas_paths,
+                ));
             }
         }
 
@@ -454,7 +467,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // re-fetch instead of aborting the install
         // (<https://github.com/pnpm/pacquet/issues/259>). Only HTTP 401 / 403 / 404 fail fast — see
         // [`is_transient_error`].
-        let (_computed_integrity, mut cas_paths, mut pkg_files_idx) =
+        let (computed_integrity, mut cas_paths, mut pkg_files_idx) =
             fetch_and_extract_with_retry::<Reporter>(
                 http_client,
                 package_url,
@@ -502,7 +515,7 @@ impl<'a> DownloadTarballToStore<'a> {
             ),
         }
 
-        Ok(cas_paths)
+        Ok((computed_integrity, cas_paths))
     }
 }
 

@@ -6,11 +6,21 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+    fixtures::{minimal_tarball, sha512_integrity},
+};
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
+        .with_env("XDG_CONFIG_HOME", workspace.join(".config"))
+        .with_env("NO_PROXY", "127.0.0.1,localhost")
+        .with_env("no_proxy", "127.0.0.1,localhost")
 }
 
 fn write_manifest(workspace: &Path) {
@@ -22,28 +32,48 @@ fn write_manifest(workspace: &Path) {
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 }
 
-/// A resolver that claims `@pnpm.e2e/dep-of-pkg-with-1-dep` and
-/// resolves it to a `custom:e2e` resolution carrying the registry's
-/// real tarball URL and integrity, plus a fetcher that delegates that
-/// resolution back to the built-in tarball path. The fetcher uses the
-/// TS-parity hook signature `fetch(cafs, resolution, opts, fetchers)`.
-fn custom_type_pnpmfile(registry_url: &str, with_fetcher: bool) -> String {
-    let fetchers = if with_fetcher {
-        r"
+#[derive(Clone, Copy)]
+enum CustomTypeFetcher {
+    Absent,
+    Delegate,
+    RemoteTarball,
+}
+
+fn custom_type_pnpmfile(registry_url: &str, fetcher: CustomTypeFetcher) -> String {
+    let (fetch_body, integrity_field) = match fetcher {
+        CustomTypeFetcher::Absent => (None, "integrity"),
+        CustomTypeFetcher::Delegate => (
+            Some(
+                "return { delegate: { tarball: resolution.url, integrity: resolution.integrity } };",
+            ),
+            "integrity",
+        ),
+        CustomTypeFetcher::RemoteTarball => (
+            Some(
+                "if (resolution.integrity !== undefined) throw new Error('resolution already has integrity');\n\
+                 const result = await fetchers.remoteTarball(cafs, { tarball: resolution.url }, opts);\n\
+                 if (result.integrity !== resolution.expectedIntegrity) throw new Error('computed integrity differs from archive');\n\
+                 return result;",
+            ),
+            "expectedIntegrity",
+        ),
+    };
+    let fetchers = fetch_body.map_or_else(String::new, |fetch_body| {
+        format!(
+            r"
   fetchers: [
-    {
-      canFetch (pkgId, resolution) {
+    {{
+      canFetch (pkgId, resolution) {{
         return resolution.type === 'custom:e2e';
-      },
-      fetch (cafs, resolution, opts, fetchers) {
-        return { delegate: { tarball: resolution.url, integrity: resolution.integrity } };
-      },
-    },
+      }},
+      async fetch (cafs, resolution, opts, fetchers) {{
+        {fetch_body}
+      }},
+    }},
   ],
 "
-    } else {
-        ""
-    };
+        )
+    });
     format!(
         r"module.exports = {{
   resolvers: [
@@ -61,7 +91,7 @@ fn custom_type_pnpmfile(registry_url: &str, with_fetcher: bool) -> String {
           resolution: {{
             type: 'custom:e2e',
             url: picked.dist.tarball,
-            integrity: picked.dist.integrity,
+            {integrity_field}: picked.dist.integrity,
           }},
         }};
       }},
@@ -82,46 +112,54 @@ fn installed_version(workspace: &Path) -> String {
 
 #[test]
 fn custom_fetcher_delegates_a_custom_typed_resolution_on_fresh_and_frozen_installs() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    for fetcher in [CustomTypeFetcher::Delegate, CustomTypeFetcher::RemoteTarball] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(&workspace);
-    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
+        write_manifest(&workspace);
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            custom_type_pnpmfile(&mock_instance.url(), fetcher),
+        )
         .expect("write pnpmfile");
 
-    // Fresh resolve: the custom resolver writes the custom-typed
-    // resolution, and the fetcher must delegate it during the same
-    // install's fetch phase.
-    pacquet.with_arg("install").assert().success();
-    assert_eq!(installed_version(&workspace), "100.1.0");
-    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
-    assert!(
-        lockfile.contains("type: custom:e2e"),
-        "lockfile records the custom-typed resolution: {lockfile}",
-    );
+        // Fresh resolve: the custom resolver writes the custom-typed
+        // resolution, and the fetcher must delegate it during the same
+        // install's fetch phase.
+        pacquet_at(&workspace).with_arg("install").assert().success();
+        assert_eq!(installed_version(&workspace), "100.1.0");
+        let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+        assert!(
+            lockfile.contains("type: custom:e2e"),
+            "lockfile records the custom-typed resolution: {lockfile}",
+        );
 
-    // Frozen reinstall: the lockfile is the source of truth now, so the
-    // fetcher (loaded by the frozen path) is the only way to
-    // materialize the custom-typed entry.
-    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet_at(&workspace).with_arg("install").assert().success();
-    assert_eq!(installed_version(&workspace), "100.1.0");
+        // Frozen reinstall: the lockfile is the source of truth now, so the
+        // fetcher (loaded by the frozen path) is the only way to
+        // materialize the custom-typed entry.
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        pacquet_at(&workspace).with_arg("install").assert().success();
+        assert_eq!(installed_version(&workspace), "100.1.0");
 
-    drop((root, mock_instance)); // cleanup
+        drop((root, mock_instance)); // cleanup
+    }
 }
 
 #[test]
 fn custom_typed_resolution_without_a_fetcher_fails_the_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
-    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), false))
-        .expect("write pnpmfile");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        custom_type_pnpmfile(&mock_instance.url(), CustomTypeFetcher::Absent),
+    )
+    .expect("write pnpmfile");
 
-    let output = pacquet.with_arg("install").assert().failure();
+    let output = pacquet_at(&workspace).with_arg("install").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
     assert!(
         stderr.contains(r#"Cannot fetch dependency with custom resolution type "custom:e2e""#),
@@ -138,14 +176,17 @@ fn custom_typed_resolution_without_a_fetcher_fails_the_install() {
 /// missing `fetchers` export produces.
 #[test]
 fn ignore_pnpmfile_skips_the_custom_fetcher_on_fetch() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
-    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
-        .expect("write pnpmfile");
-    pacquet.with_arg("install").assert().success();
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        custom_type_pnpmfile(&mock_instance.url(), CustomTypeFetcher::Delegate),
+    )
+    .expect("write pnpmfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
     let output =
@@ -169,15 +210,18 @@ fn ignore_pnpmfile_skips_the_custom_fetcher_on_fetch() {
 /// substitutes.
 #[test]
 fn ignore_pnpmfile_skips_the_custom_resolver_on_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
-    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
-        .expect("write pnpmfile");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        custom_type_pnpmfile(&mock_instance.url(), CustomTypeFetcher::Delegate),
+    )
+    .expect("write pnpmfile");
 
-    pacquet.with_args(["install", "--ignore-pnpmfile"]).assert().success();
+    pacquet_at(&workspace).with_args(["install", "--ignore-pnpmfile"]).assert().success();
     assert_eq!(installed_version(&workspace), "100.0.0");
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert!(
@@ -193,4 +237,263 @@ fn ignore_pnpmfile_skips_the_custom_resolver_on_install() {
     assert_eq!(installed_version(&workspace), "100.1.0");
 
     drop((root, mock_instance)); // cleanup
+}
+
+fn configure_fetcher_project(workspace: &Path, registry: &str, pnpmfile: &str) {
+    fs::write(workspace.join(".npmrc"), format!("registry={registry}/\n"))
+        .expect("write registry configuration");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "registry: {registry}/\nstoreDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\n\
+             fetchRetries: 0\npnpmfile: {pnpmfile}\n",
+        ),
+    )
+    .expect("write workspace configuration");
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"fetcher-pkg":"1.0.0"}}"#)
+        .expect("write package.json");
+}
+
+fn mock_fetcher_package(
+    registry: &mut mockito::ServerGuard,
+    integrity: &str,
+) -> (mockito::Mock, mockito::Mock) {
+    let metadata = registry
+        .mock("GET", "/fetcher-pkg")
+        .with_header("content-type", "application/json")
+        .with_body(
+            serde_json::json!({
+                "name": "fetcher-pkg",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": {
+                    "1.0.0": {
+                        "name": "fetcher-pkg",
+                        "version": "1.0.0",
+                        "dist": {
+                            "integrity": integrity,
+                            "tarball": format!("{}/original.tgz", registry.url()),
+                        },
+                    },
+                },
+            })
+            .to_string(),
+        )
+        .expect_at_least(1)
+        .create();
+    let original = registry.mock("GET", "/original.tgz").with_status(500).expect(0).create();
+    (metadata, original)
+}
+
+fn fetcher_pnpmfile(body: &str) -> String {
+    format!(
+        r"const fs = require('node:fs');
+const path = require('node:path');
+module.exports = {{ fetchers: [{{
+  canFetch (pkgId) {{ return pkgId === 'fetcher-pkg@1.0.0'; }},
+  async fetch (cafs, resolution, opts, fetchers) {{
+    {body}
+  }},
+}}] }};
+",
+    )
+}
+
+#[test]
+fn configured_fetchers_intercept_fresh_and_frozen_tarball_downloads() {
+    for (pnpmfile, method, expected_calls) in [
+        ("configured.cjs", "localTarball", "fetch\n"),
+        ("[declining.cjs, configured.cjs, unused.cjs]", "remoteTarball", "decline\nfetch\n"),
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        let mut registry = mockito::Server::new();
+        let tarball = minimal_tarball("fetcher-pkg", "1.0.0");
+        let integrity = sha512_integrity(&tarball);
+        let (metadata, original) = mock_fetcher_package(&mut registry, &integrity);
+        let custom = registry
+            .mock("GET", "/custom.tgz")
+            .with_body(tarball.clone())
+            .expect(if method == "remoteTarball" { 2 } else { 0 })
+            .create();
+        let unavailable = registry
+            .mock("GET", "/unavailable.tgz")
+            .with_status(503)
+            .expect(if method == "remoteTarball" { 2 } else { 0 })
+            .create();
+        configure_fetcher_project(&workspace, &registry.url(), pnpmfile);
+        fs::write(workspace.join("fixture.tgz"), tarball).expect("write local tarball fixture");
+        fs::write(
+            workspace.join("declining.cjs"),
+            r"const fs = require('node:fs');
+const path = require('node:path');
+module.exports = { fetchers: [{
+  canFetch (pkgId, resolution) {
+    if (pkgId === 'fetcher-pkg@1.0.0') {
+      fs.appendFileSync(path.join(__dirname, 'calls'), 'decline\n');
+      resolution.fromDecliningFetcher = true;
+    }
+    return false;
+  },
+  fetch () { throw new Error('declining fetcher was called'); },
+}] };
+",
+        )
+        .expect("write declining fetcher");
+        fs::write(
+            workspace.join("unused.cjs"),
+            "module.exports = { fetchers: [{ canFetch () { throw new Error('fetcher order changed'); }, fetch () {} }] };\n",
+        )
+        .expect("write unused fetcher");
+        let body = format!(
+            r"fs.appendFileSync(path.join(__dirname, 'calls'), 'fetch\n');
+    if ('{method}' === 'remoteTarball' && !resolution.fromDecliningFetcher) throw new Error('declining fetcher mutation was lost');
+    if (typeof cafs.storeDir !== 'string') throw new Error('CAFS storeDir is missing');
+    const temporary = '{method}' === 'localTarball' ? await cafs.tempDir() : null;
+    const archive = temporary && path.join(temporary, 'package.tgz');
+    if (archive) fs.copyFileSync(path.join(__dirname, 'fixture.tgz'), archive);
+    const tarball = {tarball};
+    try {{
+      if ('{method}' === 'remoteTarball') {{
+        const server = require('node:https').createServer({{ key: {tls_key}, cert: {tls_cert} }}, (_, response) => response.end());
+        await new Promise((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
+        try {{
+          await fetchers.remoteTarball(cafs, {{ tarball: 'https://127.0.0.1:' + server.address().port + '/package.tgz' }}, opts);
+          throw new Error('expected TLS certificate rejection');
+        }} catch (error) {{
+          if (!/TLS|CERT/.test(error.code || '') || error.status != null || error.response?.status != null) throw error;
+        }} finally {{
+          await new Promise((resolve) => server.close(resolve));
+        }}
+        try {{
+          await fetchers.remoteTarball(cafs, {{ tarball: tarball.replace('custom.tgz', 'unavailable.tgz') }}, opts);
+          throw new Error('expected HTTP 503');
+        }} catch (error) {{
+          if (error.code !== 'ERR_PNPM_FETCH_503' || error.status !== 503 || error.response?.status !== 503) throw error;
+        }}
+      }}
+      const result = await fetchers.{method}(cafs, {{ tarball }}, opts);
+      if (!(result.filesMap instanceof Map)) throw new Error('filesMap must be a Map');
+      const manifest = JSON.parse(fs.readFileSync(result.filesMap.get('package.json'), 'utf8'));
+      if (manifest.version !== '1.0.0') throw new Error('callback returned before extraction');
+      return result;
+    }} finally {{
+      if (temporary) fs.rmSync(temporary, {{ recursive: true, force: true }});
+    }}",
+            tarball = if method == "localTarball" {
+                "'file:' + path.relative(opts.lockfileDir, archive)".to_string()
+            } else {
+                serde_json::to_string(&format!("{}/custom.tgz", registry.url())).unwrap()
+            },
+            tls_key = serde_json::to_string(include_str!(
+                "../../../network/tests/fixtures/test-client-pkcs1.key"
+            ))
+            .unwrap(),
+            tls_cert = serde_json::to_string(include_str!(
+                "../../../network/tests/fixtures/test-client-pkcs1.crt"
+            ))
+            .unwrap(),
+        );
+        fs::write(workspace.join("configured.cjs"), fetcher_pnpmfile(&body))
+            .expect("write configured fetcher");
+
+        for frozen in [false, true] {
+            if frozen {
+                fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+                fs::remove_dir_all(root.path().join("store")).expect("remove store");
+                fs::remove_file(workspace.join("calls")).expect("remove first-install trace");
+            }
+            let args: &[&str] =
+                if frozen { &["install", "--frozen-lockfile"] } else { &["install"] };
+            pacquet_at(&workspace).with_args(args).assert().success();
+            if !frozen {
+                let lockfile =
+                    fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+                assert!(
+                    !lockfile.contains("pnpmfileChecksum:"),
+                    "fetcher-only pnpmfiles must not change the hooks checksum: {lockfile}",
+                );
+            }
+            let installed: serde_json::Value = serde_json::from_slice(
+                &fs::read(workspace.join("node_modules/fetcher-pkg/package.json"))
+                    .expect("read installed package"),
+            )
+            .expect("parse installed package");
+            assert_eq!(installed["version"], "1.0.0", "{method}, frozen={frozen}");
+            assert_eq!(
+                fs::read_to_string(workspace.join("calls")).expect("read fetcher trace"),
+                expected_calls,
+                "{method}, frozen={frozen}",
+            );
+        }
+        metadata.assert();
+        original.assert();
+        custom.assert();
+        unavailable.assert();
+    }
+}
+
+#[test]
+fn custom_fetchers_cannot_replace_locked_integrity_or_return_unverified_files() {
+    let changed_tarball = minimal_tarball("fetcher-pkg", "2.0.0");
+    let changed_integrity = serde_json::to_string(&sha512_integrity(&changed_tarball)).unwrap();
+    for (name, body, error) in [
+        (
+            "callback changes integrity",
+            format!(
+                "return fetchers.remoteTarball(cafs, {{ tarball: resolution.tarball.replace('original.tgz', 'changed.tgz'), integrity: {changed_integrity} }}, opts);",
+            ),
+            "integrity",
+        ),
+        (
+            "callback removes integrity",
+            "return fetchers.remoteTarball(cafs, { tarball: resolution.tarball.replace('original.tgz', 'changed.tgz') }, opts);".to_string(),
+            "integrity",
+        ),
+        (
+            "delegate changes integrity",
+            format!(
+                "return {{ delegate: {{ tarball: resolution.tarball.replace('original.tgz', 'changed.tgz'), integrity: {changed_integrity} }} }};",
+            ),
+            "integrity",
+        ),
+        (
+            "delegate removes integrity",
+            "return { delegate: { tarball: resolution.tarball.replace('original.tgz', 'changed.tgz') } };".to_string(),
+            "integrity",
+        ),
+        (
+            "fabricated map",
+            "return { filesMap: new Map([['package.json', path.join(__dirname, 'package.json')]]), requiresBuild: false };".to_string(),
+            "files",
+        ),
+        (
+            "modified callback map",
+            "const result = await fetchers.remoteTarball(cafs, { ...resolution, tarball: resolution.tarball.replace('original.tgz', 'custom.tgz') }, opts); result.filesMap.set('injected.json', result.filesMap.get('package.json')); return result;".to_string(),
+            "files",
+        ),
+    ] {
+        let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
+        let mut registry = mockito::Server::new();
+        let tarball = minimal_tarball("fetcher-pkg", "1.0.0");
+        let (metadata, original) = mock_fetcher_package(&mut registry, &sha512_integrity(&tarball));
+        let _changed = registry.mock("GET", "/changed.tgz").with_body(changed_tarball.clone()).create();
+        let custom = registry
+            .mock("GET", "/custom.tgz")
+            .with_body(tarball)
+            .expect(usize::from(name == "modified callback map"))
+            .create();
+        configure_fetcher_project(&workspace, &registry.url(), "configured.cjs");
+        fs::write(workspace.join("configured.cjs"), fetcher_pnpmfile(&body))
+            .expect("write rejecting fetcher");
+
+        let output = pacquet_at(&workspace).with_arg("install").assert().failure();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        assert!(stderr.to_ascii_lowercase().contains(error), "{name}: {stderr}");
+        assert!(
+            !workspace.join("node_modules/fetcher-pkg/package.json").exists(),
+            "{name} imported unverified content",
+        );
+        metadata.assert();
+        original.assert();
+        custom.assert();
+    }
 }

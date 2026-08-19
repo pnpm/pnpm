@@ -492,7 +492,10 @@ impl CreateVirtualStore<'_> {
             for (snapshot_key, _snapshot) in &cold {
                 let metadata_key = snapshot_key.without_peer();
                 let Some(metadata) = packages.get(&metadata_key) else { continue };
-                if !matches!(metadata.resolution, LockfileResolution::Registry(_))
+                // A custom fetcher can replace the canonical download, so
+                // its result cannot establish registry-side existence.
+                if custom_fetcher_picker.is_some()
+                    || !matches!(metadata.resolution, LockfileResolution::Registry(_))
                     || metadata.resolution.checkable_integrity().is_none()
                 {
                     continue;

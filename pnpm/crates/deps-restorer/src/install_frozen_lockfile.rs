@@ -604,7 +604,7 @@ where
         let custom_fetcher_picker = if config.ignore_pnpmfile {
             None
         } else {
-            load_custom_fetcher_picker(workspace_root).await?
+            load_custom_fetcher_picker(workspace_root, config).await?
         };
         let create_virtual_store_fut = async {
             CreateVirtualStore {
@@ -930,11 +930,13 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
 /// the custom-resolver load on the fresh-lockfile path.
 async fn load_custom_fetcher_picker(
     lockfile_dir: &Path,
+    config: &Config,
 ) -> Result<
     Option<Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
     InstallFrozenLockfileError,
 > {
-    let Some(hook) = pnpm_hooks::finder::load_pnpmfile(lockfile_dir) else {
+    let Some(hook) = pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, config.pnpmfile.as_deref())
+    else {
         return Ok(None);
     };
     let fetchers = hook.get_custom_fetchers().await.map_err(|err| {

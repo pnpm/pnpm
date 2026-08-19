@@ -25,7 +25,8 @@
 //! That prefetch is speculative, and a run may switch it off
 //! ([`PrefetchContext::prefetch_downloads`]). Hashing a resolution
 //! that carries no integrity is not speculative — the lockfile records
-//! that hash — so it runs either way.
+//! that hash. A custom fetcher must decline an unpinned tarball before
+//! native integrity discovery can download it.
 
 use crate::{
     install_package_from_registry::{extract_tarball, manifest_file_count, manifest_unpacked_size},
@@ -33,6 +34,7 @@ use crate::{
 };
 use dashmap::{DashMap, DashSet};
 use pnpm_config::Config;
+use pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker;
 use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_package_is_installable::{
@@ -75,10 +77,10 @@ pub struct PrefetchContext<'a> {
     /// consults the set so prefetch progress is visible immediately
     /// without being counted again.
     pub progress_reported: &'a SharedReportedProgressKeys,
-    /// Whether a resolved tarball is prefetched. `false` for a run
-    /// whose install pass will never ask for those bytes, so the store
-    /// isn't filled with tarballs nobody installs.
+    /// Whether native speculative tarball downloads are allowed.
     pub prefetch_downloads: bool,
+    /// Consulted before downloading a tarball to learn its missing hash.
+    pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
 }
 
 /// Owned, `'static`-friendly clones of [`PrefetchContext`] stored on
@@ -120,6 +122,7 @@ struct OwnedFetchCtx {
     /// same cell instead of fetching the URL again.
     integrity_cache: Arc<DashMap<String, Arc<OnceCell<Integrity>>>>,
     prefetch_downloads: bool,
+    custom_fetcher_picker: Option<Arc<CustomFetcherPicker>>,
 }
 
 /// Wraps an inner [`Resolver`] and, after each successful resolve that
@@ -161,6 +164,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             supported_architectures,
             progress_reported,
             prefetch_downloads,
+            custom_fetcher_picker,
         } = prefetch_ctx;
         let ctx = OwnedFetchCtx {
             http_client: Arc::clone(http_client),
@@ -183,6 +187,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             spawned_urls: Arc::new(DashSet::new()),
             integrity_cache: Arc::new(DashMap::new()),
             prefetch_downloads,
+            custom_fetcher_picker: custom_fetcher_picker.cloned(),
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
     }
@@ -215,6 +220,19 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             .name_ver
             .as_ref()
             .map_or_else(|| package_url.clone(), |nv| format!("{}@{}", nv.name, nv.suffix));
+        if let Some(picker) = self.ctx.custom_fetcher_picker.as_ref()
+            && picker
+                .can_fetch(&package_id, &serde_json::to_value(&result.resolution)?)
+                .await
+                .map_err(|error| {
+                    Box::new(crate::InstallWithFreshLockfileError::CustomFetcherHook(error))
+                        as ResolveError
+                })?
+        {
+            return Err(Box::new(crate::InstallPackageBySnapshotError::MissingTarballIntegrity {
+                package_key: result.id.to_string(),
+            }) as ResolveError);
+        }
 
         // Singleflight per URL: the same integrity-less tarball can arrive on many edges,
         // so compute its integrity once and share it. Clone the cell's `Arc` out of the map

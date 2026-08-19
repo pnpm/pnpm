@@ -18,6 +18,9 @@ use pnpm_lockfile::{
     select_platform_variant,
 };
 use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{
+    files_include_install_scripts, manifest_requires_build, parse_manifest_bytes,
+};
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_store_dir::{
@@ -31,6 +34,7 @@ use pnpm_tarball::{
 use std::{
     borrow::Cow,
     collections::HashMap,
+    error::Error as _,
     path::{Path, PathBuf},
     sync::{Arc, LazyLock, atomic::AtomicU8},
 };
@@ -214,6 +218,12 @@ pub enum InstallPackageBySnapshotError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CUSTOM_FETCHER_FAILED))]
     CustomFetcher(#[error(not(source))] String),
 
+    #[display(
+        "Custom fetcher delegated package \"{package_id}\" to a resolution that cannot verify its locked integrity"
+    )]
+    #[diagnostic(code(ERR_PNPM_TARBALL_INTEGRITY))]
+    CustomFetcherIntegrityMismatch { package_id: String },
+
     /// A custom-typed resolution reached the built-in dispatch — no
     /// pnpmfile custom fetcher claimed it. Message and code mirror the
     /// TypeScript `pickFetcher` in
@@ -286,6 +296,235 @@ pub struct InstalledPackage {
     pub source_is_mutable: bool,
 }
 
+struct BuiltinFetcherContext<'a> {
+    http_client: &'a ThrottledClient,
+    config: &'static Config,
+    store_index: Option<&'a SharedReadonlyStoreIndex>,
+    store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
+    prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
+    progress_reported: Option<&'a SharedReportedProgressKeys>,
+    verified_files_cache: &'a SharedVerifiedFilesCache,
+    package_key: &'a PackageKey,
+    package_id: &'a str,
+    locked_integrity: Option<&'a ssri::Integrity>,
+    requester: &'a str,
+    workspace_root: &'a Path,
+}
+
+impl BuiltinFetcherContext<'_> {
+    async fn run<Reporter: self::Reporter>(
+        &self,
+        callback: &pnpm_hooks::FetcherCallback,
+    ) -> Result<serde_json::Value, pnpm_hooks::FetcherCallbackError> {
+        if callback.method == "cafsInfo" {
+            return Ok(serde_json::json!({ "storeDir": self.config.store_dir.root() }));
+        }
+        if callback.method == "tempDir" {
+            let root = self.config.store_dir.tmp();
+            tokio::fs::create_dir_all(&root)
+                .await
+                .map_err(|error| callback_error(error.to_string(), None))?;
+            let directory = tempfile::Builder::new()
+                .prefix("fetcher-")
+                .tempdir_in(&root)
+                .map_err(|error| callback_error(error.to_string(), None))?
+                .keep();
+            return Ok(serde_json::json!(directory));
+        }
+        if !matches!(callback.method.as_str(), "localTarball" | "remoteTarball") {
+            return Err(callback_error(
+                format!("unsupported built-in fetcher: {}", callback.method),
+                Some("ERR_PNPM_UNSUPPORTED_FETCHER"),
+            ));
+        }
+        for option in ["ignoreFilePattern", "appendManifest"] {
+            if callback.options.get(option).is_some_and(|value| !value.is_null()) {
+                return Err(callback_error(
+                    format!("the Rust custom-fetcher callback does not support {option}"),
+                    Some("ERR_PNPM_UNSUPPORTED_FETCHER_OPTION"),
+                ));
+            }
+        }
+
+        let mut resolution = serde_json::Map::new();
+        if let Some(tarball) = callback.resolution.get("tarball") {
+            resolution.insert("tarball".to_string(), tarball.clone());
+        }
+        if let Some(integrity) = self.locked_integrity {
+            resolution.insert("integrity".to_string(), serde_json::json!(integrity.to_string()));
+        } else if let Some(integrity) = callback.resolution.get("integrity") {
+            resolution.insert("integrity".to_string(), integrity.clone());
+        }
+        let resolution: LockfileResolution =
+            serde_json::from_value(resolution.into()).map_err(|error| {
+                callback_error(
+                    format!("invalid built-in fetcher resolution: {error}"),
+                    Some("ERR_PNPM_INVALID_FETCHER_RESOLUTION"),
+                )
+            })?;
+        if !matches!(resolution, LockfileResolution::Tarball(_) | LockfileResolution::Registry(_)) {
+            return Err(callback_error(
+                "built-in tarball fetcher requires a tarball resolution",
+                Some("ERR_PNPM_INVALID_FETCHER_RESOLUTION"),
+            ));
+        }
+
+        let (tarball_url, integrity) = match &resolution {
+            LockfileResolution::Tarball(tarball) => {
+                (Cow::Borrowed(tarball.tarball.as_str()), resolution.checkable_integrity())
+            }
+            _ => tarball_url_and_integrity(&resolution, self.package_key, self.config).map_err(
+                |error| pnpm_hooks::FetcherCallbackError {
+                    message: error.to_string(),
+                    name: Some("Error".to_string()),
+                    code: error.code().map(|code| code.to_string()),
+                    status: None,
+                    cause: None,
+                },
+            )?,
+        };
+        let local = tarball_url.starts_with("file:");
+        if (callback.method == "localTarball") != local {
+            return Err(callback_error(
+                format!("{} received an incompatible tarball resolution", callback.method),
+                Some("ERR_PNPM_INVALID_FETCHER_RESOLUTION"),
+            ));
+        }
+        let lockfile_dir = callback
+            .options
+            .get("lockfileDir")
+            .and_then(serde_json::Value::as_str)
+            .map_or(self.workspace_root, Path::new);
+        let tarball_url = local_file_tarball_install_url(tarball_url, lockfile_dir);
+        let (integrity, cas_paths) = DownloadTarballToStore {
+            http_client: self.http_client,
+            store_dir: &self.config.store_dir,
+            store_index: self.store_index.cloned(),
+            store_index_writer: self.store_index_writer.cloned(),
+            verify_store_integrity: self.config.verify_store_integrity,
+            verified_files_cache: Arc::clone(self.verified_files_cache),
+            package_integrity: integrity,
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: &tarball_url,
+            package_id: self.package_id,
+            requester: self.requester,
+            prefetched_cas_paths: self.prefetched_cas_paths,
+            retry_opts: retry_opts_from_config(self.config),
+            auth_headers: &self.config.auth_headers,
+            ignore_file_pattern: None,
+            offline: self.config.offline,
+            progress_reported: self.progress_reported.cloned(),
+            append_manifest: None,
+        }
+        .run_with_integrity::<Reporter>()
+        .await
+        .map_err(|error| tarball_callback_error(&error))?;
+
+        let manifest = if let Some(path) = cas_paths.get("package.json") {
+            tokio::fs::read(path)
+                .await
+                .ok()
+                .and_then(|contents| parse_manifest_bytes(&contents).ok())
+        } else {
+            None
+        };
+
+        let requires_build = manifest.as_ref().is_some_and(manifest_requires_build)
+            || files_include_install_scripts(cas_paths.keys());
+        Ok(serde_json::json!({
+            "filesMap": cas_paths,
+            "integrity": integrity.to_string(),
+            "manifest": manifest,
+            "requiresBuild": requires_build,
+        }))
+    }
+}
+
+fn callback_error(
+    message: impl Into<String>,
+    code: Option<&str>,
+) -> pnpm_hooks::FetcherCallbackError {
+    pnpm_hooks::FetcherCallbackError {
+        message: message.into(),
+        name: Some("Error".to_string()),
+        code: code.map(str::to_string),
+        status: None,
+        cause: None,
+    }
+}
+
+fn preserve_locked_integrity(
+    resolution: &mut LockfileResolution,
+    integrity: &ssri::Integrity,
+) -> bool {
+    match resolution {
+        LockfileResolution::Tarball(resolution) => resolution.integrity = Some(integrity.clone()),
+        LockfileResolution::Registry(resolution) => resolution.integrity = integrity.clone(),
+        LockfileResolution::Binary(resolution) => resolution.integrity = integrity.clone(),
+        _ => return false,
+    }
+    true
+}
+
+fn tarball_callback_error(error: &TarballError) -> pnpm_hooks::FetcherCallbackError {
+    let mut result = pnpm_hooks::FetcherCallbackError {
+        message: error.to_string(),
+        name: Some("Error".to_string()),
+        code: error.code().map(|code| code.to_string()),
+        status: None,
+        cause: None,
+    };
+
+    match error {
+        TarballError::HttpStatus(http) => {
+            result.code = Some(format!("ERR_PNPM_FETCH_{}", http.status));
+            result.status = Some(http.status);
+        }
+        TarballError::FetchTarball(network) => {
+            let message = result.message.to_ascii_lowercase();
+            if message.contains("certificate") || message.contains("tls") || message.contains("ssl")
+            {
+                result.code = Some("ERR_TLS_HANDSHAKE".to_string());
+            } else if network.error.is_timeout() {
+                result.name = Some("TimeoutError".to_string());
+                result.code = Some("ETIMEDOUT".to_string());
+            } else {
+                let mut source = network.error.source();
+                while let Some(error) = source {
+                    if let Some(io_error) = error.downcast_ref::<std::io::Error>() {
+                        let code = match io_error.kind() {
+                            std::io::ErrorKind::ConnectionRefused => "ECONNREFUSED",
+                            std::io::ErrorKind::ConnectionReset => "ECONNRESET",
+                            std::io::ErrorKind::ConnectionAborted => "ECONNABORTED",
+                            std::io::ErrorKind::TimedOut => "ETIMEDOUT",
+                            std::io::ErrorKind::BrokenPipe => "EPIPE",
+                            _ if network.error.is_connect() => "ENETUNREACH",
+                            _ => break,
+                        };
+                        result.code = Some(code.to_string());
+                        result.cause = Some(Box::new(pnpm_hooks::FetcherCallbackError {
+                            message: io_error.to_string(),
+                            name: Some("Error".to_string()),
+                            code: Some(code.to_string()),
+                            status: None,
+                            cause: None,
+                        }));
+                        break;
+                    }
+                    source = error.source();
+                }
+                if result.cause.is_none() && network.error.is_connect() {
+                    result.code = Some("ENETUNREACH".to_string());
+                }
+            }
+        }
+        _ => {}
+    }
+
+    result
+}
+
 impl InstallPackageBySnapshot<'_> {
     /// Execute the subroutine. Returns the fetched package's CAS file
     /// index — the map relative-archive-path → absolute-store-path
@@ -355,6 +594,7 @@ impl InstallPackageBySnapshot<'_> {
             pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
         };
 
+        let mut custom_cas_paths = None;
         let effective_resolution: Option<LockfileResolution> = if let Some(picker) =
             custom_fetcher_picker
         {
@@ -375,19 +615,108 @@ impl InstallPackageBySnapshot<'_> {
                         .unwrap_or_else(|| package_key.suffix.version().to_string()),
                 },
                 "lockfileDir": workspace_root,
+                "readManifest": true,
+                "filesIndexFile": pnpm_store_dir::pick_store_index_key(
+                    metadata.resolution.checkable_integrity().map(ToString::to_string).as_deref(),
+                    false,
+                    &package_id,
+                    !config.ignore_scripts,
+                ),
             });
-            match picker.try_fetch(&package_id, &resolution_value, &opts_value).await {
+            let (callbacks, mut callback_requests) = tokio::sync::mpsc::unbounded_channel();
+            let callback_context = BuiltinFetcherContext {
+                http_client,
+                config,
+                store_index,
+                store_index_writer,
+                prefetched_cas_paths,
+                progress_reported,
+                verified_files_cache,
+                package_key,
+                package_id: &package_id,
+                locked_integrity: metadata.resolution.checkable_integrity(),
+                requester,
+                workspace_root,
+            };
+            let fetch = pnpm_hooks::with_fetcher_callbacks(
+                callbacks,
+                picker.try_fetch(&package_id, &resolution_value, &opts_value),
+            );
+            tokio::pin!(fetch);
+            let mut verified_callback_cas_paths = Vec::<HashMap<String, PathBuf>>::new();
+            let fetch_result = loop {
+                tokio::select! {
+                    result = &mut fetch => break result,
+                    callback = callback_requests.recv() => {
+                        if let Some(callback) = callback {
+                            let result = callback_context.run::<Reporter>(&callback).await;
+                            if let Ok(value) = &result
+                                && let Some(files_map) = value.get("filesMap")
+                                && let Ok(paths) = serde_json::from_value(files_map.clone())
+                            {
+                                verified_callback_cas_paths.push(paths);
+                            }
+                            let _ = callback.response.send(result);
+                        }
+                    }
+                }
+            };
+
+            match fetch_result {
                 Ok(Some(result)) => {
-                    if let Some(delegate) = result.get("delegate") {
-                        Some(serde_json::from_value(delegate.clone()).map_err(|err| {
+                    if let Some(delegate) = result.get("delegate")
+                        && result.get("filesMap").is_none()
+                    {
+                        let mut delegate = delegate.clone();
+                        if let Some(locked_integrity) = metadata.resolution.checkable_integrity()
+                            && let Some(object) = delegate.as_object_mut()
+                            && object
+                                .get("type")
+                                .is_none_or(|kind| kind == "binary" || kind.is_null())
+                        {
+                            object.insert(
+                                "integrity".to_string(),
+                                serde_json::json!(locked_integrity.to_string()),
+                            );
+                        }
+                        let mut resolution: LockfileResolution = serde_json::from_value(delegate)
+                            .map_err(|err| {
                             InstallPackageBySnapshotError::CustomFetcher(format!(
                                 "invalid delegate resolution for {package_id}: {err}",
                             ))
-                        })?)
+                        })?;
+                        if let Some(locked_integrity) = metadata.resolution.checkable_integrity()
+                            && !preserve_locked_integrity(&mut resolution, locked_integrity)
+                        {
+                            return Err(
+                                InstallPackageBySnapshotError::CustomFetcherIntegrityMismatch {
+                                    package_id: package_id.clone(),
+                                },
+                            );
+                        }
+                        Some(resolution)
+                    } else if let Some(files_map) = result.get("filesMap") {
+                        let fetched_cas_paths =
+                            serde_json::from_value(files_map.clone()).map_err(|err| {
+                                InstallPackageBySnapshotError::CustomFetcher(format!(
+                                    "invalid fetched file map for {package_id}: {err}",
+                                ))
+                            })?;
+                        if !verified_callback_cas_paths
+                            .iter()
+                            .any(|verified| verified == &fetched_cas_paths)
+                        {
+                            return Err(InstallPackageBySnapshotError::CustomFetcher(format!(
+                                "custom fetcher returned files not verified by a built-in fetcher \
+                                 for {package_id}",
+                            )));
+                        }
+                        custom_cas_paths = Some(fetched_cas_paths);
+                        None
                     } else {
                         return Err(InstallPackageBySnapshotError::CustomFetcher(format!(
                             "custom fetcher claimed {package_id} but returned an unhandled \
-                             response (expected {{ \"delegate\": ... }})",
+                             response (expected {{ \"delegate\": ... }} or a fetched file map)",
                         )));
                     }
                 }
@@ -407,6 +736,9 @@ impl InstallPackageBySnapshot<'_> {
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
 
         let cas_paths: HashMap<String, PathBuf> = match resolution {
+            _ if custom_cas_paths.is_some() => {
+                custom_cas_paths.expect("custom fetcher supplied its fetched file map")
+            }
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(resolution, package_key, config)?;

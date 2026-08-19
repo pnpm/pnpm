@@ -452,7 +452,16 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
     }
 
     async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError> {
-        let res = self
+        let (can_fetch, _) = self.can_fetch_with_resolution(pkg_id, resolution).await?;
+        Ok(can_fetch)
+    }
+
+    async fn can_fetch_with_resolution(
+        &self,
+        pkg_id: &str,
+        resolution: Value,
+    ) -> Result<(bool, Value), HookError> {
+        let response = self
             .worker
             .call_fetcher(
                 self.index,
@@ -461,7 +470,9 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
                 Arc::new(|_| {}),
             )
             .await?;
-        Ok(is_js_truthy(&res))
+        let can_fetch = response.get("value").is_some_and(is_js_truthy);
+        let resolution = response.get("resolution").cloned().unwrap_or(Value::Null);
+        Ok((can_fetch, resolution))
     }
 
     async fn fetch(
@@ -470,11 +481,6 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
         resolution: Value,
         opts: Value,
     ) -> Result<Value, HookError> {
-        // Positional parity with the TypeScript hook signature
-        // `fetch(cafs, resolution, opts, fetchers)`: `cafs` and
-        // `fetchers` cannot cross the IPC boundary, so they are `null`
-        // placeholders — a portable pnpmfile fetcher detects their
-        // absence and answers with `{ delegate: <resolution> }`.
         self.worker
             .call_fetcher(
                 self.index,
