@@ -50,3 +50,28 @@ fn a_junction_is_refused() {
     junction::create(&target, &link).unwrap();
     assert!(read_regular_file_capped(&link, 64).is_err(), "reparse points must be refused");
 }
+
+/// The junction test alone can't tell no-follow from the regular-file
+/// check (a followed junction still opens a directory). A file symlink
+/// pointing at a small regular file can: if the open followed it, the
+/// read would succeed and return the target's bytes.
+#[test]
+#[cfg(windows)]
+fn a_file_symlink_is_refused_not_followed() {
+    let temp = tempfile::tempdir().unwrap();
+    let target = temp.path().join("target.yaml");
+    fs::write(&target, b"x").unwrap();
+    let link = temp.path().join("link.yaml");
+    // File-symlink creation needs a privilege (or developer mode) the
+    // environment may not grant; a fixture we cannot build is a skip,
+    // not a failure — the junction test above still covers the reparse
+    // rejection itself.
+    if std::os::windows::fs::symlink_file(&target, &link).is_err() {
+        eprintln!("skipping: this environment cannot create file symlinks");
+        return;
+    }
+    assert!(
+        read_regular_file_capped(&link, 64).is_err(),
+        "a followed symlink would have read the target's bytes",
+    );
+}
