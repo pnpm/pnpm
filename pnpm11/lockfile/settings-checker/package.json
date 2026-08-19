@@ -39,7 +39,6 @@
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
-    "p-map-values": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {

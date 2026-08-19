@@ -617,9 +617,6 @@ catalogs:
     p-limit:
       specifier: ^7.3.1
       version: 7.3.1
-    p-map-values:
-      specifier: ^0.1.0
-      version: 0.1.0
     p-queue:
       specifier: ^9.3.3
       version: 9.3.3
@@ -7054,9 +7051,6 @@ importers:
       '@pnpm/lockfile.verification':
         specifier: workspace:*
         version: link:../verification
-      p-map-values:
-        specifier: 'catalog:'
-        version: 0.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -15782,10 +15776,6 @@ packages:
     resolution: {integrity: sha512-wPrq66Llhl7/4AGC6I+cqxT07LhXvWL08LNXz1fENOw0Ap4sRZZ/gZpTTJ5jpurzzzfS2W/Ge9BY3LgLjCShcw==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
-  p-map-values@0.1.0:
-    resolution: {integrity: sha512-IMr3wlbvIFnAIkUiJEZ4gUtMMte1tzDm+mehuFXJT7nXgluGsv6HbHaxuVgTc2D/LmKWOjdZN5IxnjVuudlt1w==}
-    engines: {node: '>=22.13'}
-
   p-map-values@1.0.0:
     resolution: {integrity: sha512-/n8QJM4Os3HLRMSuQWwAocsMExENSQwWTgRi8m3JVEOWQ/4gud14igBcnYvSGQTbiyZbuizxEmwf0w3ITn67gg==}
     engines: {node: '>=14'}
@@ -23907,8 +23897,6 @@ snapshots:
   p-locate@6.0.0:
     dependencies:
       p-limit: 4.0.0
-
-  p-map-values@0.1.0: {}
 
   p-map-values@1.0.0: {}
 
