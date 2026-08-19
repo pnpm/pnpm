@@ -16,6 +16,7 @@ import * as retry from '@zkochan/retry'
 import semver from 'semver'
 
 import { clearMeta } from './clearMeta.js'
+import { dropIncompletePublishTimes } from './publishTimes.js'
 
 /**
  * Content type of an abbreviated (install-oriented) package metadata document.
@@ -214,6 +215,7 @@ export async function fetchMetadataFromFromRegistry (
       try {
         const jsonText = await response.text()
         const meta = JSON.parse(jsonText) as PackageMeta
+        dropIncompletePublishTimes(meta)
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {

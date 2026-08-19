@@ -26,6 +26,7 @@ import {
   type PickPackageFromMetaOptions,
   pickVersionByVersionRange,
 } from './pickPackageFromMeta.js'
+import { dropIncompletePublishTimes } from './publishTimes.js'
 import { toRaw } from './toRaw.js'
 
 export interface PackageMetaCache {
@@ -251,6 +252,8 @@ export async function pickPackage (
     preferOffline?: boolean
     filterMetadata?: boolean
     ignoreMissingTimeField?: boolean
+    /** Packuments whose release-age upgrade fetch already answered 304 in this resolver. */
+    releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta>
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -502,6 +505,7 @@ export async function pickPackage (
       // and most packages won't have been modified recently enough to need the full
       // document. We only upgrade to full metadata when the package's modification
       // date is recent enough that some versions might not yet be "mature."
+      let attemptedReleaseAgeUpgrade = false
       if (
         opts.publishedBy &&
         !fullMetadata &&
@@ -520,6 +524,7 @@ export async function pickPackage (
           if (!opts.dryRun) {
             saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText))
           }
+          attemptedReleaseAgeUpgrade = true
           const fullFetchResult = await ctx.fetch(spec.name, {
             authHeaderValue: opts.authHeaderValue,
             fullMetadata: true,
@@ -533,6 +538,9 @@ export async function pickPackage (
       }
 
       meta = condenseMetaForCache(ctx, meta)
+      if (attemptedReleaseAgeUpgrade) {
+        ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
+      }
       if (!opts.dryRun) {
         // Mirror the raw registry body, unless the retained form is
         // deliberately narrower: `filterMetadata` always mirrors the stripped
@@ -570,6 +578,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, cacheBypass?: boolean, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     offline?: boolean
+    releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta>
   },
   spec: RegistryPackageSpec,
   opts: {
@@ -584,6 +593,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     ctx.offline === true ||
     !opts.publishedBy ||
     meta.time != null ||
+    ctx.releaseAgeUpgradeCheckedPackuments?.has(meta) === true ||
     opts.publishedByExclude?.(spec.name) === true
   ) {
     return { meta }
@@ -612,8 +622,11 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     registry: opts.registry,
   })
   if (fullFetchResult.notModified) {
-    // Upgrade fetch came back 304: keep the abbreviated meta. The downstream
-    // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
+    // Upgrade fetch came back 304: the registry has no fuller form of this
+    // document, so keep it and let `pickMatchingVersionFinal` fall through to
+    // its warn-and-skip path. Remember the outcome against the packument
+    // itself so no other pick in this resolver repeats the request.
+    ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
@@ -625,14 +638,29 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
  * pre-upgrade abbreviated form without `time`, and every future install
  * would re-trigger the upgrade fetch.
  */
+/**
+ * The document to serve and cache after an upgrade attempt, marked so no
+ * later pick in this resolver repeats the request.
+ *
+ * Marking belongs here rather than in
+ * {@link maybeUpgradeAbbreviatedMetaForReleaseAge} because persisting the
+ * response to the mirror can hand back a different object, and only the one
+ * that reaches the cache is worth remembering. A registry whose full form is
+ * no more complete than its abbreviated one answers `200` rather than `304`,
+ * so both outcomes have to be marked — otherwise every dependency edge
+ * re-asks for the same full document.
+ */
 function upgradeMetaForCache (
-  ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
+  ctx: { fullMetadata?: boolean, filterMetadata?: boolean, releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta> },
   upgrade: { meta: PackageMeta, upgradedFrom?: FetchMetadataResult },
   opts: { pkgMirror: string, dryRun: boolean }
 ): PackageMeta {
   if (upgrade.upgradedFrom == null) return upgrade.meta
-  if (opts.dryRun) return condenseMetaForCache(ctx, upgrade.meta)
-  return persistUpgradedMeta(ctx, opts.pkgMirror, upgrade.upgradedFrom)
+  const meta = opts.dryRun
+    ? condenseMetaForCache(ctx, upgrade.meta)
+    : persistUpgradedMeta(ctx, opts.pkgMirror, upgrade.upgradedFrom)
+  ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
+  return meta
 }
 
 // A condensing resolver keeps and mirrors the condensed form — the mirror
@@ -808,6 +836,7 @@ export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> 
     if (newlineIdx === -1) return null
     const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
     const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
+    dropIncompletePublishTimes(meta)
     meta.etag = headers.etag
     return meta
   } catch {

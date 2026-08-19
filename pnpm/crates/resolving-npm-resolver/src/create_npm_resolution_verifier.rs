@@ -1196,7 +1196,6 @@ fn project_trust_meta(meta: &Package) -> Package {
         // bounded by the trust-evidence footprint (see the fn doc).
         homepage: None,
         mutex: std::sync::Arc::new(std::sync::Mutex::new(0)),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }

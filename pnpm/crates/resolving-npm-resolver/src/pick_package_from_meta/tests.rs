@@ -58,7 +58,6 @@ fn make_package(
         etag: None,
         homepage: None,
         mutex: std::sync::Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }

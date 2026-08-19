@@ -1636,6 +1636,7 @@ test('preferWorkspacePackages: still consults the registry under trustPolicy=no-
       'dist-tags': { latest: '3.1.0' },
       time: {
         '1.0.0': '2016-01-01T00:00:00.000Z',
+        '2.0.0': '2016-06-01T00:00:00.000Z',
         '3.0.0': '2017-01-01T00:00:00.000Z',
         '3.1.0': '2018-01-01T00:00:00.000Z',
       },

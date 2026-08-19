@@ -52,6 +52,38 @@ const PACKAGE_BODY: &str = r#"{
     }
 }"#;
 
+/// [`PACKAGE_BODY`] with 1.1.0 left out of the `time` map — the shape
+/// registries such as npmmirror serve, where an abbreviated packument
+/// reports publish times for only some of the versions it lists.
+const PARTIAL_TIME_PACKAGE_BODY: &str = r#"{
+    "name": "acme",
+    "dist-tags": { "latest": "1.1.0" },
+    "modified": "2025-01-15T12:00:00.000Z",
+    "time": {
+        "1.0.0": "2024-01-10T08:30:00.000Z"
+    },
+    "versions": {
+        "1.0.0": {
+            "name": "acme",
+            "version": "1.0.0",
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/acme-1.0.0.tgz"
+            }
+        },
+        "1.1.0": {
+            "name": "acme",
+            "version": "1.1.0",
+            "dist": {
+                "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                "shasum": "1111111111111111111111111111111111111111",
+                "tarball": "https://registry/acme-1.1.0.tgz"
+            }
+        }
+    }
+}"#;
+
 /// [`PACKAGE_BODY`] as it looked before 1.1.0 was published — for
 /// seeding a mirror that predates a version the registry has.
 const STALE_PACKAGE_BODY: &str = r#"{
@@ -1077,6 +1109,63 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
     );
 }
 
+/// A `time` map covering only some of the packument's versions can't decide
+/// maturity for the rest: the untimed ones drop out of the filter and
+/// resolution falls back to the lowest match. Upgrade to full metadata first,
+/// so every version is judged on a real publish timestamp.
+#[tokio::test]
+async fn published_by_upgrades_metadata_with_partial_time_map() {
+    let mut server = mockito::Server::new_async().await;
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.published_by = Some(parse_cutoff("2025-01-01T00:00:00Z"));
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
+
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+}
+
 /// Boundary case: `modified == cutoff`. `modified` is an upper
 /// bound on every version's publish time, so when it equals the
 /// cutoff every version passes the per-version `<=` filter and
@@ -1182,21 +1271,17 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
     abbrev_mock.assert_async().await;
 }
 
-/// A `304 Not Modified` answer to the release-age upgrade means the registry
-/// holds no fuller form than the abbreviated document, so the outcome must be
-/// remembered for the rest of the install: repeat picks of the same package
-/// must not repeat the upgrade round trip. Registries that ignore the
-/// `Accept` representation answered every upgrade with `304`, and a large
-/// workspace re-asked for the same packument hundreds of times per install.
+/// A `304 Not Modified` answer to the release-age upgrade is remembered within
+/// one install, but not by a metadata cache reused by the next install.
 #[tokio::test]
-async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
+async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
     let mut server = mockito::Server::new_async().await;
     let full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
         .match_header("if-none-match", r#""acme-etag""#)
         .with_status(304)
-        .expect(1)
+        .expect(2)
         .create_async()
         .await;
 
@@ -1235,11 +1320,167 @@ async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
 
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second pick");
-    let _ = pick_package(&ctx, &range_spec("acme", "1.0.0"), &opts).await.expect("third pick");
 
-    // Exactly one upgrade attempt — the 304 outcome is stamped into the
-    // shared cache and reused by later picks.
+    // A new install gets fresh fetch state but reuses the caller-owned metadata
+    // cache. It must retry the upgrade instead of inheriting the first
+    // install's marker from the cached Package.
+    let next_install_fetch_locker = shared_packument_fetch_locker();
+    let next_install_ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &next_install_fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: true,
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    let _ = pick_package(&next_install_ctx, &range_spec("acme", "^1.0.0"), &opts)
+        .await
+        .expect("next install pick");
+
+    // One request for each install: the repeat pick in the first install is
+    // the only one suppressed.
     full_mock.assert_async().await;
+}
+
+/// A registry whose full representation is no more complete than its
+/// abbreviated one answers the upgrade with `200`, not `304`. That outcome
+/// has to be remembered too, or every dependency edge re-asks for the same
+/// full document and one package amplifies into a request per edge.
+#[tokio::test]
+async fn published_by_upgrade_answering_200_is_remembered_across_picks() {
+    let mut server = mockito::Server::new_async().await;
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        // The upgraded document is still undecidable, so let the picker take
+        // its warn-and-skip fallback instead of erroring.
+        ignore_missing_time_field: true,
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second pick");
+
+    // One abbreviated fetch and one upgrade, not one upgrade per pick.
+    abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+}
+
+/// A same-install checksum refresh can replace an abbreviated packument while
+/// retaining its cache key. A prior document's `304` marker must not suppress
+/// the full-metadata check for that new response.
+#[tokio::test]
+async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
+    let mut server = mockito::Server::new_async().await;
+    let first_full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("if-none-match", r#""acme-etag""#)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+    let abbreviated_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_header("etag", r#""acme-etag-2""#)
+        .with_body(ABBREVIATED_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let second_full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("if-none-match", r#""acme-etag-2""#)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let mut seeded: pnpm_registry::Package =
+        serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
+    seeded.etag = Some(r#""acme-etag""#.to_string());
+    meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: true,
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
+
+    let update_opts = PickPackageOptions { update_checksums: true, ..opts };
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &update_opts)
+        .await
+        .expect("checksum-refresh pick");
+
+    first_full_mock.assert_async().await;
+    abbreviated_mock.assert_async().await;
+    second_full_mock.assert_async().await;
 }
 
 /// Fully excluded packages (`minimumReleaseAgeExclude: ['acme']`) must bypass
