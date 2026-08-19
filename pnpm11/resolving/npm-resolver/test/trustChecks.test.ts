@@ -762,3 +762,75 @@ describe('failIfTrustDowngraded with trustPolicyIgnoreAfter', () => {
     }).toThrow('High-risk trust downgrade')
   })
 })
+
+describe('failIfTrustDowngraded with ignoreMissingTimeField', () => {
+  const metaWithoutTime = {
+    name: 'timeless',
+    'dist-tags': { latest: '2.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'timeless',
+        version: '1.0.0',
+        dist: {
+          shasum: 'abc123',
+          tarball: 'https://registry.example.com/timeless/-/timeless-1.0.0.tgz',
+          attestations: {
+            provenance: {
+              predicateType: 'https://slsa.dev/provenance/v1',
+            },
+          },
+        },
+      },
+      '2.0.0': {
+        name: 'timeless',
+        version: '2.0.0',
+        dist: {
+          shasum: 'def456',
+          tarball: 'https://registry.example.com/timeless/-/timeless-2.0.0.tgz',
+        },
+      },
+    },
+    // Note: no 'time' field, as served by a registry that strips it
+  }
+
+  test('fails with ERR_PNPM_MISSING_TIME when the flag is off', () => {
+    expect(() => {
+      failIfTrustDowngraded(metaWithoutTime, '2.0.0')
+    }).toThrow('The metadata of timeless is missing the "time" field')
+  })
+
+  test('skips the check when the flag is on', () => {
+    expect(() => {
+      failIfTrustDowngraded(metaWithoutTime, '2.0.0', { ignoreMissingTimeField: true })
+    }).not.toThrow()
+  })
+
+  test('still fails when the time map is present but omits the version', () => {
+    // A registry that dates its other versions is not a registry that strips
+    // `time`, so the gap stays a hard failure no matter how the flag is set.
+    const meta: PackageMetaWithTime = {
+      ...metaWithoutTime,
+      time: {
+        '1.0.0': '2025-01-01T00:00:00.000Z',
+      },
+    }
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '2.0.0', { ignoreMissingTimeField: true })
+    }).toThrow('Missing time for version 2.0.0 of timeless in metadata')
+  })
+
+  test('still reports a downgrade when the time map is complete', () => {
+    const meta: PackageMetaWithTime = {
+      ...metaWithoutTime,
+      time: {
+        '1.0.0': '2025-01-01T00:00:00.000Z',
+        '2.0.0': '2025-02-01T00:00:00.000Z',
+      },
+    }
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '2.0.0', { ignoreMissingTimeField: true })
+    }).toThrow('High-risk trust downgrade')
+  })
+})

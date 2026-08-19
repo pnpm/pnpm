@@ -201,7 +201,7 @@ function pickMatchingVersionFinal (
     return pickMatchingVersionFast(pickerOpts, spec, meta)
   } catch (err: unknown) {
     if (pickerOpts.ignoreMissingTimeField && isMissingTimeError(err)) {
-      warnMissingTimeFieldOnce(meta.name)
+      warnMissingTimeFieldOnce(meta.name, 'minimumReleaseAge')
       return pickMatchingVersionFast({
         ...pickerOpts,
         publishedBy: undefined,
@@ -834,7 +834,17 @@ function isMissingTimeError (err: unknown): boolean {
 const MAX_WARNED_MISSING_TIME = 1024
 const warnedMissingTimeFor = new Set<string>()
 
-export function warnMissingTimeFieldOnce (pkgName: string): void {
+/**
+ * At most one warning per package, whichever time-dependent check reaches it
+ * first. `minimumReleaseAge` and `trustPolicy` both go dark on the same
+ * missing field, and a workspace full of private packages served by a
+ * registry that strips `time` would otherwise get a wall of warnings saying
+ * the same thing twice per package.
+ */
+export function warnMissingTimeFieldOnce (
+  pkgName: string,
+  skippedCheck: 'minimumReleaseAge' | 'trustPolicy'
+): void {
   if (warnedMissingTimeFor.has(pkgName)) return
   if (warnedMissingTimeFor.size >= MAX_WARNED_MISSING_TIME) {
     // Set preserves insertion order, so the first entry is the oldest.
@@ -842,7 +852,7 @@ export function warnMissingTimeFieldOnce (pkgName: string): void {
     if (oldest != null) warnedMissingTimeFor.delete(oldest)
   }
   warnedMissingTimeFor.add(pkgName)
-  globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the minimumReleaseAge check for this package.`)
+  globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the ${skippedCheck} check for this package.`)
 }
 
 async function getFileMtime (filePath: string): Promise<Date | null> {

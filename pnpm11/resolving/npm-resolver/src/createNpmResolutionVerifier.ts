@@ -53,12 +53,12 @@ export interface CreateNpmResolutionVerifierOptions {
   /**
    * When the registry's metadata lacks the per-version `time` field
    * (some self-hosted registries strip it), the verifier can't apply
-   * the maturity cutoff. Set this to `true` to mirror the resolver's
-   * `pickMatchingVersionFinal` warn-and-skip behavior — the verifier
-   * passes the entry with a one-time `globalWarn`, instead of failing
-   * closed. Defaults to `false` so the verifier stays stricter than
-   * the resolver only when the user has explicitly opted in to the
-   * skip on the resolver side.
+   * the maturity cutoff, and the trust check has no publish order to
+   * walk. Set this to `true` to mirror the resolver's warn-and-skip
+   * behavior for both — the verifier passes the entry with a one-time
+   * `globalWarn`, instead of failing closed. Defaults to `false` so
+   * the verifier stays stricter than the resolver only when the user
+   * has explicitly opted in to the skip on the resolver side.
    */
   ignoreMissingTimeField?: boolean
   /**
@@ -166,6 +166,7 @@ export function createNpmResolutionVerifier (
   const minimumReleaseAge = opts.minimumReleaseAge ?? 0
   const trustPolicy = opts.trustPolicy
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
+  const ignoreMissingTimeField = opts.ignoreMissingTimeField === true
 
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion, registryName }) => {
@@ -243,7 +244,7 @@ export function createNpmResolutionVerifier (
     if (!ageApplies && !trustApplies) return { ok: true }
 
     if (ageApplies) {
-      const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff, opts.ignoreMissingTimeField === true)
+      const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff, ignoreMissingTimeField)
       if (ageViolation) return ageViolation
     }
 
@@ -251,6 +252,7 @@ export function createNpmResolutionVerifier (
       const trustViolation = await runTrustCheck(lookupContext, registry, name, version, {
         trustPolicyExclude: trustExcludePolicy,
         trustPolicyIgnoreAfter,
+        ignoreMissingTimeField,
       })
       if (trustViolation) return trustViolation
     }
@@ -291,6 +293,7 @@ export function createNpmResolutionVerifier (
       trustPolicy: trustPolicy ?? null,
       trustPolicyExclude: sortedTrustExcludes,
       trustPolicyIgnoreAfter: trustPolicyIgnoreAfter ?? null,
+      minimumReleaseAgeIgnoreMissingTime: ignoreMissingTimeField,
     },
     canTrustPastCheck: (cached) => {
       // The tarball-URL binding is unconditional today; a cached run that
@@ -338,6 +341,14 @@ export function createNpmResolutionVerifier (
       const todayIgnoreAfter = trustPolicyIgnoreAfter ?? null
       if (pastIgnoreAfter !== todayIgnoreAfter) return false
 
+      // Missing-time tolerance: a cached run that failed closed on an
+      // absent `time` field accepted a subset of what today's tolerant
+      // policy accepts, so it stays trustworthy. Turning the tolerance
+      // off invalidates it — entries the past run waved through are the
+      // ones today's policy exists to reject. Older records (no field)
+      // read as intolerant, which is the safe direction.
+      if (cached.minimumReleaseAgeIgnoreMissingTime === true && !ignoreMissingTimeField) return false
+
       return true
     },
   }
@@ -365,7 +376,7 @@ async function runAgeCheck (
     // fresh resolution. Without the flag we still fail closed — better
     // a false reject than silent bypass when the user hasn't opted in.
     if (ignoreMissingTimeField) {
-      warnMissingTimeFieldOnce(name)
+      warnMissingTimeFieldOnce(name, 'minimumReleaseAge')
       return undefined
     }
     return {
@@ -470,6 +481,7 @@ async function runTrustCheck (
   opts: {
     trustPolicyExclude?: PackageVersionPolicy
     trustPolicyIgnoreAfter?: number
+    ignoreMissingTimeField?: boolean
   }
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
   // A transport failure (auth/network/5xx) propagates the registry's own fetch
