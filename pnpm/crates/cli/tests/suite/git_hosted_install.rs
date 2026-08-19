@@ -920,3 +920,30 @@ fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
 
     drop((root, npmrc_info));
 }
+
+/// A git dependency is packed by pnpm rather than by its publisher, so
+/// the `files` field decides what lands in `node_modules`. Its entries
+/// name paths from the package root: a repository that keeps an example
+/// app under `example/src` publishes its own `src`, not both.
+#[test]
+fn files_field_of_a_git_dependency_does_not_match_at_depth() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "packs-its-own-src");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"packs-its-own-src","version":"1.0.0","main":"src/index.js","files":["src"]}"#,
+    );
+    repo.write_file("src/index.js", "module.exports = true\n");
+    repo.write_file("example/src/App.js", "module.exports = 'example'\n");
+    let commit = repo.commit("init");
+    write_dependencies(&workspace, &[("packs-its-own-src", &repo.git_url_at(&commit))]);
+
+    pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+
+    let installed = workspace.join("node_modules/packs-its-own-src");
+    assert!(installed.join("src/index.js").is_file(), "the published src ships");
+    assert!(!installed.join("example").exists(), "the repository's example app is not published");
+
+    drop((root, npmrc_info));
+}
