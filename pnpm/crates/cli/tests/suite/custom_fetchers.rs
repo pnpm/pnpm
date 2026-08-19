@@ -71,7 +71,7 @@ fn custom_type_pnpmfile(registry_url: &str, fetcher: CustomTypeFetcher) -> Strin
       }},
     }},
   ],
-"
+",
         )
     });
     format!(
