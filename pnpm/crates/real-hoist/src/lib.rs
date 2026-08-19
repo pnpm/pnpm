@@ -287,12 +287,12 @@ impl<Inner> From<Rc<Inner>> for RcByPtr<Inner> {
 /// workspace trees, and `ExternalSoftLink` descendants — are
 /// documented on the private `nm_hoist` driver.
 pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, HoistError> {
-    let mut nodes: HashMap<String, Rc<HoisterTree>> = HashMap::new();
+    let mut cache = TreeBuildCache::default();
 
     let mut root_children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
 
     if let Some(root) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) {
-        collect_importer_deps(root, lockfile, opts, &mut nodes, &mut root_children)?;
+        collect_importer_deps(root, lockfile, opts, &mut cache, &mut root_children)?;
     }
 
     // `externalDependencies` are added as `link:` placeholders at
@@ -338,7 +338,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
 
     for (importer_id, importer) in non_root {
         let mut importer_children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
-        collect_importer_deps(importer, lockfile, opts, &mut nodes, &mut importer_children)?;
+        collect_importer_deps(importer, lockfile, opts, &mut cache, &mut importer_children)?;
         let importer_node = Rc::new(HoisterTree {
             name: percent_encode_path(importer_id),
             ident_name: percent_encode_path(importer_id),
@@ -379,7 +379,7 @@ fn collect_importer_deps(
     importer: &ProjectSnapshot,
     lockfile: &Lockfile,
     opts: &HoistOpts,
-    nodes: &mut HashMap<String, Rc<HoisterTree>>,
+    cache: &mut TreeBuildCache,
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
     // Merge `dependencies + devDependencies + optionalDependencies`
@@ -416,12 +416,25 @@ fn collect_importer_deps(
         let Some(dep_key) = spec.version.resolved_key(alias) else {
             continue;
         };
-        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, nodes)? else {
+        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, cache)? else {
             continue;
         };
         out.insert(RcByPtr(node));
     }
     Ok(())
+}
+
+/// Shared state for one [`HoisterTree`] build.
+///
+/// `reference_by_pkg_id` is pnpm's `depPathByPkgId`: the first dep path
+/// seen for a package id (name, version, and patch hash — everything but
+/// the peer suffix) becomes the reference every peer variant of that
+/// package carries, so the hoister reads them as one package and gives
+/// them one directory instead of nesting an identical copy per variant.
+#[derive(Default)]
+struct TreeBuildCache {
+    nodes: HashMap<String, Rc<HoisterTree>>,
+    reference_by_pkg_id: HashMap<String, String>,
 }
 
 /// Returns `Ok(None)` for an optional edge whose target snapshot is
@@ -436,14 +449,14 @@ fn build_dep_node(
     optional: bool,
     lockfile: &Lockfile,
     opts: &HoistOpts,
-    nodes: &mut HashMap<String, Rc<HoisterTree>>,
+    cache: &mut TreeBuildCache,
 ) -> Result<Option<Rc<HoisterTree>>, HoistError> {
     // Cache key is `<alias>:<dep_key>` — two different aliases
     // pointing at the same package are intentionally different nodes
     // (the node's `name` field differs), so they shouldn't share a
     // cache slot.
     let cache_key = format!("{alias}:{dep_key}");
-    if let Some(existing) = nodes.get(&cache_key) {
+    if let Some(existing) = cache.nodes.get(&cache_key) {
         return Ok(Some(Rc::clone(existing)));
     }
 
@@ -485,19 +498,26 @@ fn build_dep_node(
     // outer call returns the cell holds the populated set, and the
     // shared-by-identity invariant the hoister algorithm relies on
     // survives.
+    let dep_path = dep_key.to_string();
+    let pkg_id = pnpm_deps_path::get_pkg_id_with_patch_hash(&dep_path);
+    let reference = cache
+        .reference_by_pkg_id
+        .entry(pkg_id.to_string())
+        .or_insert_with(|| dep_path.clone())
+        .clone();
     let node = Rc::new(HoisterTree {
         name: alias.to_string(),
         ident_name: dep_key.name.to_string(),
-        reference: dep_key.to_string(),
+        reference,
         peer_names,
         dependency_kind: HoisterDependencyKind::Regular,
         hoist_priority: 0,
         dependencies: RefCell::new(IndexSet::new()),
     });
-    nodes.insert(cache_key, Rc::clone(&node));
+    cache.nodes.insert(cache_key, Rc::clone(&node));
 
     let mut children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
-    collect_snapshot_deps(snapshot, lockfile, opts, nodes, &mut children)?;
+    collect_snapshot_deps(snapshot, lockfile, opts, cache, &mut children)?;
     *node.dependencies.borrow_mut() = children;
     Ok(Some(node))
 }
@@ -506,7 +526,7 @@ fn collect_snapshot_deps(
     snapshot: &SnapshotEntry,
     lockfile: &Lockfile,
     opts: &HoistOpts,
-    nodes: &mut HashMap<String, Rc<HoisterTree>>,
+    cache: &mut TreeBuildCache,
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
     let mut merged: HashMap<&PkgName, (&pnpm_lockfile::SnapshotDepRef, bool)> = HashMap::new();
@@ -533,7 +553,7 @@ fn collect_snapshot_deps(
         let Some(dep_key) = dep_ref.resolve(alias) else {
             continue;
         };
-        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, nodes)? else {
+        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, cache)? else {
             continue;
         };
         out.insert(RcByPtr(node));
@@ -1167,6 +1187,7 @@ fn would_shadow_peer(
 #[derive(Default)]
 struct ConvertContext {
     result_by_tree: HashMap<*const HoisterTree, Rc<HoisterResult>>,
+    result_by_locator: HashMap<(String, String), Rc<HoisterResult>>,
     locator_by_result: HashMap<*const HoisterResult, String>,
 }
 
@@ -1174,6 +1195,14 @@ fn convert(tree: &HoisterTree, context: &mut ConvertContext) -> Rc<HoisterResult
     let ptr = std::ptr::from_ref::<HoisterTree>(tree);
     if let Some(existing) = context.result_by_tree.get(&ptr) {
         return Rc::clone(existing);
+    }
+    let locator = format!("{}@{}", tree.ident_name, tree.reference);
+    let locator_key = (tree.name.clone(), locator.clone());
+    if let Some(existing) = context.result_by_locator.get(&locator_key) {
+        let existing = Rc::clone(existing);
+        existing.references.borrow_mut().insert(tree.reference.clone());
+        context.result_by_tree.insert(ptr, Rc::clone(&existing));
+        return existing;
     }
     // Stash a node with empty `dependencies`, then recurse and
     // populate the cell in place. Anyone reached via a back-edge
@@ -1190,9 +1219,8 @@ fn convert(tree: &HoisterTree, context: &mut ConvertContext) -> Rc<HoisterResult
         dependencies: RefCell::new(IndexSet::new()),
     });
     context.result_by_tree.insert(ptr, Rc::clone(&node));
-    context
-        .locator_by_result
-        .insert(Rc::as_ptr(&node), format!("{}@{}", tree.ident_name, tree.reference));
+    context.result_by_locator.insert(locator_key, Rc::clone(&node));
+    context.locator_by_result.insert(Rc::as_ptr(&node), locator);
 
     // Collect the children before recursing so we can drop the
     // `Ref<'_, IndexSet<...>>` borrow on `tree.dependencies`. The

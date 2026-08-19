@@ -5322,6 +5322,7 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.0",
  "miette 7.6.0",
+ "pnpm-deps-path",
  "pnpm-lockfile",
  "pretty_assertions",
 ]
