@@ -112,10 +112,12 @@ pub fn prepare_package<Reporter: self::Reporter>(
     // identity from it and name-only rules can't approve the build.
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
     let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
-    if !(opts.allow_build)(&format!("{name}@{}", opts.pkg_resolution_id)) {
+    let allow_build_dep_path = format!("{name}@{}", opts.pkg_resolution_id);
+    if !(opts.allow_build)(&allow_build_dep_path) {
         return Err(PreparePackageError::NotAllowed {
             name: name.to_string(),
             version: version.to_string(),
+            dep_path: allow_build_dep_path,
         });
     }
 

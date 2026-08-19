@@ -3,10 +3,16 @@ use super::{
     safe_join_path,
 };
 use crate::error::PreparePackageError;
+use miette::Diagnostic;
 use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_reporter::SilentReporter;
 use serde_json::json;
-use std::{collections::HashMap, fs, path::Path, sync::LazyLock};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    sync::{Arc, LazyLock, Mutex},
+};
 use tempfile::tempdir;
 
 /// A single process-wide empty env map shared across every test
@@ -167,12 +173,49 @@ fn prepare_rejects_when_allow_build_returns_false() {
 
     let err = prepare_package::<SilentReporter>(&opts(false, false), dir.path(), None).unwrap_err();
     match err {
-        PreparePackageError::NotAllowed { name, version } => {
+        PreparePackageError::NotAllowed { name, version, .. } => {
             assert_eq!(name, "naughty");
             assert_eq!(version, "1.0.0");
         }
         other => panic!("expected NotAllowed, got {other:?}"),
     }
+}
+
+#[test]
+fn prepare_rejection_suggests_the_allow_builds_key_the_gate_checked() {
+    // The bare package name cannot approve a git artifact, so an example
+    // built from it sends the reader in a circle: they add the entry the
+    // error asked for and the next install fails the same way.
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "naughty", "version": "1.0.0",
+            "scripts": { "prepare": "tsc" },
+        }),
+    );
+    let checked = Arc::new(Mutex::new(Vec::<String>::new()));
+    let recorder = Arc::clone(&checked);
+    let mut opts = opts(false, false);
+    opts.allow_build = Box::new(move |dep_path| {
+        recorder.lock().unwrap().push(dep_path.to_string());
+        false
+    });
+
+    let err = prepare_package::<SilentReporter>(&opts, dir.path(), None).unwrap_err();
+    let help = err.help().expect("NotAllowed carries a help message").to_string();
+    let checked = checked.lock().unwrap();
+    let [gated_key] = checked.as_slice() else {
+        panic!("expected exactly one allowBuild check, got {checked:?}");
+    };
+    assert!(
+        help.contains(&format!("  {gated_key}: true")),
+        "the help must quote the key the gate checked ({gated_key}), got: {help}",
+    );
+    assert!(
+        !help.contains("  naughty: true"),
+        "a bare-name entry never approves a git artifact, got: {help}",
+    );
 }
 
 #[test]
@@ -190,7 +233,7 @@ fn prepare_rejects_untrusted_manifest_identity() {
         prepare_package::<SilentReporter>(&opts_allow_registry_artifacts_only(), dir.path(), None)
             .unwrap_err();
     match err {
-        PreparePackageError::NotAllowed { name, version } => {
+        PreparePackageError::NotAllowed { name, version, .. } => {
             assert_eq!(name, "naughty");
             assert_eq!(version, "1.0.0");
         }

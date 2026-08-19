@@ -16,10 +16,18 @@ pub enum PreparePackageError {
     #[diagnostic(
         code(ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED),
         help(
-            "Add the package to \"allowBuilds\" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:\nallowBuilds:\n  {name}: true",
+            "Add the package to \"allowBuilds\" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:\nallowBuilds:\n  {dep_path}: true",
         )
     )]
-    NotAllowed { name: String, version: String },
+    NotAllowed {
+        name: String,
+        version: String,
+        /// The identity `allowBuilds` is checked against — the name
+        /// plus the resolution id, not the manifest version. A
+        /// name-only key cannot approve a git artifact, so quoting
+        /// anything else here suggests an entry that never matches.
+        dep_path: String,
+    },
 
     /// A lifecycle script invoked by `preparePackage` failed, stamped
     /// with the `ERR_PNPM_PREPARE_PACKAGE` code.
