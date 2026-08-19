@@ -219,6 +219,34 @@ fn prepare_rejection_suggests_the_allow_builds_key_the_gate_checked() {
 }
 
 #[test]
+fn prepare_rejection_keeps_resolution_id_credentials_out_of_the_diagnostic() {
+    // The suggested key is built from the resolution id, which for a
+    // private repository can carry the credentials git authenticated
+    // with. Rendering it puts them on a terminal and into CI logs.
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "naughty", "version": "1.0.0",
+            "scripts": { "prepare": "tsc" },
+        }),
+    );
+    let mut opts = opts(false, false);
+    opts.pkg_resolution_id =
+        "git+https://s3cr3t-token:hunter2@github.com/foo/bar.git#0123456789abcdef";
+
+    let err = prepare_package::<SilentReporter>(&opts, dir.path(), None).unwrap_err();
+    let rendered = format!("{err}{}", err.help().expect("NotAllowed carries a help message"));
+    for secret in ["s3cr3t-token", "hunter2"] {
+        assert!(!rendered.contains(secret), "{secret:?} leaked into the diagnostic: {rendered}");
+    }
+    assert!(
+        rendered.contains("github.com/foo/bar.git#0123456789abcdef"),
+        "the repository the reader has to allow must survive redaction: {rendered}",
+    );
+}
+
+#[test]
 fn prepare_rejects_untrusted_manifest_identity() {
     let dir = tempdir().unwrap();
     write_manifest(

@@ -26,6 +26,11 @@ pub enum PreparePackageError {
         /// plus the resolution id, not the manifest version. A
         /// name-only key cannot approve a git artifact, so quoting
         /// anything else here suggests an entry that never matches.
+        ///
+        /// Redacted: a resolution id can embed `user:pass@`
+        /// credentials, which must not reach a terminal or a CI log.
+        /// A specifier that carries them therefore needs its own copy
+        /// of the key rather than this example verbatim.
         dep_path: String,
     },
 

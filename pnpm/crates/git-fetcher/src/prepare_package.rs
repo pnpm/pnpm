@@ -14,6 +14,7 @@ use crate::{
 use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
 };
+use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use serde_json::Value;
@@ -117,7 +118,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
         return Err(PreparePackageError::NotAllowed {
             name: name.to_string(),
             version: version.to_string(),
-            dep_path: allow_build_dep_path,
+            dep_path: redact_and_sanitize(&allow_build_dep_path),
         });
     }
 
