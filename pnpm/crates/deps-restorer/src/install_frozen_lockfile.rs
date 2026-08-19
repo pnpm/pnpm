@@ -41,7 +41,7 @@ use pnpm_patching::{
 };
 use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
-use pnpm_store_dir::StoreIndexWriter;
+use pnpm_store_dir::{StoreIndexError, StoreIndexWriter};
 use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
@@ -815,13 +815,16 @@ where
             .map_err(InstallFrozenLockfileError::BuildPhase)?;
 
         // Drop the orchestrator's clone of the writer so the channel
-        // closes once every per-snapshot clone has also been dropped;
-        // then await the task so the final batch flushes before
-        // returning. Swallow any error with `warn!` — the install is
-        // complete and a missed cache write just forces a re-fetch
-        // on the next install.
+        // closes once every per-snapshot clone has also been dropped.
+        // The writer task then flushes its final batch and closes its
+        // `SQLite` connection — and that close runs a WAL checkpoint,
+        // measured at ~40 ms of pure install tail for a cold
+        // 1346-package install. Nothing after this point reads the
+        // index, so the task is handed back to the caller as
+        // [`InstallFrozenLockfileOutput::store_index_teardown`] and
+        // awaited only after the `.modules.yaml` / lockfile writes it
+        // can overlap with.
         drop(store_index_writer);
-        StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
 
         // The injectedDeps payload for `.modules.yaml`: every `file:`
         // snapshot is a materialized copy of an injected workspace
@@ -845,6 +848,7 @@ where
             skipped,
             ignored_builds,
             deferred_builds,
+            store_index_teardown: writer_task,
         })
     }
 }
@@ -888,6 +892,16 @@ pub struct InstallFrozenLockfileOutput {
     /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
     /// them into `.modules.yaml.pendingBuilds`.
     pub deferred_builds: Vec<String>,
+    /// The store-index writer task, already winding down: every handle
+    /// was dropped before this output was built, so the task is
+    /// flushing its final batch and closing its `SQLite` connection —
+    /// which runs a WAL checkpoint. Await it via
+    /// [`StoreIndexWriter::drain`] as late as possible so that close
+    /// overlaps the caller's own tail writes instead of extending it.
+    /// (Dropping the handle on an error path is fine too: the task
+    /// keeps running detached, and an interrupted checkpoint is the
+    /// crash case WAL recovery exists for.)
+    pub store_index_teardown: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
 }
 
 impl From<HoistedLinkerError> for InstallFrozenLockfileError {
