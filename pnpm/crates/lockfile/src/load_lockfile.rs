@@ -142,6 +142,13 @@ impl Lockfile {
         .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
     }
 
+    /// Load a lockfile from an explicit file path. `Ok(None)` when the
+    /// file is absent — a caller reading an optional copy (the cache
+    /// directory's lockfile memo) treats a missing file like an empty one.
+    pub fn load_from_file(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        Self::load_from_path(file_path)
+    }
+
     fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let content = match fs::read_to_string(file_path) {
             Ok(content) => content,

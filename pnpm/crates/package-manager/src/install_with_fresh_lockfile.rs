@@ -1687,6 +1687,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 after_all_resolved_log.clone(),
             )
             .await?;
+            crate::install::lockfile_memo::persist(&config.cache_dir, lockfile_dir);
             (Some(built_lockfile), can_record_lockfile_verification)
         } else {
             // Nothing was persisted, so there is no `pnpm-lock.yaml`
@@ -1932,6 +1933,7 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
             after_all_resolved_log,
         )
         .await?;
+        crate::install::lockfile_memo::persist(&config.cache_dir, lockfile_dir);
         (Some(built_lockfile), can_record_lockfile_verification)
     } else {
         (None, false)

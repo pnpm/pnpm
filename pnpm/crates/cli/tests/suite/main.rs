@@ -62,6 +62,7 @@ mod lifecycle_scripts;
 mod link;
 mod list;
 mod local_tarball_dependency;
+mod lockfile_memo;
 mod lockfile_only;
 mod lockfile_resolution_reuse;
 mod lockfile_verification;

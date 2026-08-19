@@ -604,6 +604,34 @@ where
             }
             _ => None,
         };
+        // The same synthesis, sourced from the cache directory's memo of
+        // the last wanted lockfile written for this workspace, for the
+        // state where `node_modules` is gone too (a CI cache restore, a
+        // deleted-lockfile reinstall). Identical gate and freshness check:
+        // a manifest or settings change falls through to a fresh resolve.
+        let synthesized_lockfile: Option<Lockfile> = match synthesized_lockfile {
+            None if lockfile.is_none() && !frozen_lockfile && prefer_frozen_lockfile => {
+                match super::lockfile_memo::load(&config.cache_dir, &workspace_root) {
+                    Some(memo) => check_lockfile_freshness(
+                        &memo,
+                        &manifest_freshness_inputs,
+                        config,
+                        &catalogs,
+                        pnpmfile_hook.as_ref(),
+                        FreshnessScope {
+                            ignore_manifest_check,
+                            allow_missing_dependency_free_importers: true,
+                            prune_stale_importers,
+                        },
+                    )
+                    .await
+                    .ok()
+                    .map(|()| memo),
+                    None => None,
+                }
+            }
+            synthesized => synthesized,
+        };
         let lockfile_synthesized_from_current = synthesized_lockfile.is_some();
         // The dry-run diff baseline is the actual on-disk `pnpm-lock.yaml`
         // (`None` when it is absent), captured before the synthesized-from-

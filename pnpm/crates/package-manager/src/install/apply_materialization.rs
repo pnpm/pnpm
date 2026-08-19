@@ -456,6 +456,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         updated
             .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
             .map_err(InstallError::SaveWantedLockfile)?;
+        super::lockfile_memo::persist(&config.cache_dir, workspace_root);
     }
 
     Ok(())
