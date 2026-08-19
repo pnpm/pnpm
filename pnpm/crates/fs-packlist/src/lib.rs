@@ -501,7 +501,7 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
     let mut added = 0;
     for entry in entries {
         let Some(raw) = entry.as_str() else { continue };
-        let pattern = normalize_field_path(raw);
+        let pattern = anchor_files_entry(&normalize_field_path(raw));
         if pattern.is_empty() {
             continue;
         }
@@ -530,6 +530,20 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
             None
         }
     }
+}
+
+/// Anchor a `files` entry at the package root, the way npm reads it: a
+/// bare `src` publishes the root `src` directory, not every directory
+/// named `src` in the tree. The matcher is rooted at the package
+/// directory, so the leading slash is what binds the pattern to it.
+///
+/// Exclusions keep gitignore's depth semantics: `npm pack --dry-run`
+/// drops `lib/index.js.map` for `files: ["lib", "!*.map"]`.
+fn anchor_files_entry(pattern: &str) -> String {
+    if pattern.is_empty() || pattern.starts_with('!') || pattern.starts_with('/') {
+        return pattern.to_string();
+    }
+    format!("/{pattern}")
 }
 
 /// `true` when `rel` matches the `files`-field allowlist. The matcher
