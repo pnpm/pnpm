@@ -4735,9 +4735,6 @@ importers:
       lodash.throttle:
         specifier: 'catalog:'
         version: 4.1.1
-      p-map-values:
-        specifier: 'catalog:'
-        version: 0.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
