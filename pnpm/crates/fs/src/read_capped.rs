@@ -41,7 +41,24 @@ pub fn read_regular_file_capped(path: &Path, cap: u64) -> io::Result<Option<Vec<
                 Err(error) => return Err(error),
             }
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            // `FILE_FLAG_OPEN_REPARSE_POINT`: open the reparse point
+            // itself instead of following it — the Windows spelling of
+            // `O_NOFOLLOW`. The handle's metadata then reports the
+            // symlink/junction, and the regular-file check below rejects
+            // it, verdict taken on the handle rather than the pathname.
+            const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+            let mut options = std::fs::OpenOptions::new();
+            options.read(true).custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+            match options.open(path) {
+                Ok(file) => file,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+                Err(error) => return Err(error),
+            }
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             match File::open(path) {
                 Ok(file) => file,
@@ -51,7 +68,7 @@ pub fn read_regular_file_capped(path: &Path, cap: u64) -> io::Result<Option<Vec<
         }
     };
     let metadata = file.metadata()?;
-    if !metadata.is_file() {
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "not a regular file"));
     }
     if metadata.len() > cap {

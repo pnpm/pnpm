@@ -39,3 +39,14 @@ fn a_fifo_is_refused_without_blocking() {
     // The whole point: this returns instead of hanging on the open.
     assert!(read_regular_file_capped(&fifo, 64).is_err());
 }
+
+#[test]
+#[cfg(windows)]
+fn a_junction_is_refused() {
+    let temp = tempfile::tempdir().unwrap();
+    let target = temp.path().join("target-dir");
+    std::fs::create_dir(&target).unwrap();
+    let link = temp.path().join("junction");
+    junction::create(&target, &link).unwrap();
+    assert!(read_regular_file_capped(&link, 64).is_err(), "reparse points must be refused");
+}
