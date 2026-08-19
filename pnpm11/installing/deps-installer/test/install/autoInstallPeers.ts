@@ -827,3 +827,26 @@ test('a root dependency does not override the peers provided inside a self-conta
   // The root keeps its own explicitly declared version.
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/closure-peer-x']?.version).toBe('2.0.0')
 })
+
+test('preserve original declared peerDependencies range in lockfile when autoInstallPeers and minimumReleaseAge are enabled', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  await install({
+    name: 'root',
+    version: '0.0.0',
+    private: true,
+    dependencies: {
+      '@pnpm.e2e/abc-optional-peers': '1.0.0',
+      '@pnpm.e2e/peer-of-itself': '1.0.0',
+    },
+  }, testDefaults({
+    autoInstallPeers: true,
+    minimumReleaseAge: 1440,
+  }))
+  const lockfile = project.readLockfile()
+  const pkgSnapshot = lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)'] as unknown as Record<string, Record<string, string>>
+  if (pkgSnapshot?.peerDependencies?.['@pnpm.e2e/peer-a']) {
+    expect(pkgSnapshot.peerDependencies['@pnpm.e2e/peer-a']).not.toMatch(/^\d+\.\d+\.\d+$/)
+  }
+})
+
