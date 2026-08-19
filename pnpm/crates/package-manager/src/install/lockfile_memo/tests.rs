@@ -35,11 +35,7 @@ fn memo_path_is_keyed_by_workspace_root() {
     let second = memo_path(cache, std::path::Path::new("/proj/b"));
     assert_ne!(first, second, "two projects must not share a memo");
     assert!(first.starts_with("/cache/lockfile-memo/v1"), "got {first:?}");
-    assert_eq!(
-        first,
-        memo_path(cache, std::path::Path::new("/proj/a")),
-        "the key must be stable",
-    );
+    assert_eq!(first, memo_path(cache, std::path::Path::new("/proj/a")), "the key must be stable");
 }
 
 #[test]
