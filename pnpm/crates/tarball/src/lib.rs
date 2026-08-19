@@ -78,8 +78,15 @@ fn post_download_semaphore() -> &'static Semaphore {
 /// every extractor busy — at one core each. A download that finds no
 /// free slot simply buffers its body and extracts eagerly; admission
 /// is `try_acquire`, never a wait.
+///
+/// Sized from [`std::thread::available_parallelism`] so cgroup /
+/// CPU-quota limits are respected — the convention
+/// `pnpm_network::default_network_concurrency` documents.
 fn streaming_extract_semaphore() -> &'static Semaphore {
-    static SEM: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(num_cpus::get().max(2)));
+    static SEM: LazyLock<Semaphore> = LazyLock::new(|| {
+        let cores = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        Semaphore::new(cores.max(2))
+    });
     &SEM
 }
 
