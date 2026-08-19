@@ -5580,7 +5580,6 @@ dependencies = [
 name = "pnpm-tarball"
 version = "0.0.1"
 dependencies = [
- "bytes",
  "dashmap",
  "derive_more",
  "flate2",
