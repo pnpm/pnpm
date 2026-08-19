@@ -1,4 +1,5 @@
 import { parseRegistryQualifiedVersion } from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
@@ -27,6 +28,7 @@ export interface ResolvePackageManagerIntegritiesOpts {
    * resolved pnpm integrity info. Defaults to true.
    */
   save?: boolean
+  frozenLockfile?: boolean
 }
 
 /**
@@ -81,6 +83,13 @@ export async function resolvePackageManagerIntegrities (
 
   if (isPackageManagerResolved(envLockfile, pnpmVersion)) {
     return envLockfile
+  }
+
+  if (opts.frozenLockfile) {
+    throw new PnpmError(
+      'FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
+      'Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date'
+    )
   }
 
   const lockfile = await resolveWantedPnpmPackages(pnpmVersion, opts)
