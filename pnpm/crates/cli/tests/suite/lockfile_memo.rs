@@ -90,6 +90,38 @@ fn a_deleted_lockfile_and_modules_restore_from_the_cache_memo() {
     drop((root, mock_instance));
 }
 
+/// Custom resolvers and fetchers shape resolution but are not covered
+/// by the lockfile's `pnpmfileChecksum`, so a memo written under one
+/// pnpmfile regime can't be attested against another. The memo
+/// therefore refuses to answer whenever a pnpmfile is loaded, and the
+/// no-lockfile install re-resolves — which the dead registry turns
+/// into a failure here.
+#[test]
+fn a_loaded_pnpmfile_disables_the_memo() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/has-optional-peer-with-peer": "^1.0.0" }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    trust_lockfile(&workspace);
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("delete the lockfile");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("delete node_modules");
+    fs::write(workspace.join(".pnpmfile.cjs"), "module.exports = {}\n").expect("write a pnpmfile");
+    point_npmrc_at(&npmrc_path, &dead_registry_url());
+
+    pacquet_at(&workspace).with_arg("install").assert().failure();
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn a_changed_manifest_rejects_the_memo() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
