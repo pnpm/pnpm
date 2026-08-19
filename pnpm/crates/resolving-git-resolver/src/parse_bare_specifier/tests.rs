@@ -141,7 +141,8 @@ fn finalize_hosted_auth_url_keeps_the_committish_in_the_recorded_specifier() {
 // The committish survives on some paths through the resolver and not
 // others only if one of them builds the specifier by hand, so both the
 // credentialed and the plain hosted branch are covered, for every kind
-// of committish. Each row is `(input, expected_normalized_bare_specifier)`.
+// of committish — branch, tag, commit, and semver range. Each row is
+// `(input, expected_normalized_bare_specifier)`.
 #[test]
 fn every_representation_of_a_hosted_specifier_keeps_its_committish() {
     let cases: &[(&str, &str)] = &[
@@ -149,8 +150,16 @@ fn every_representation_of_a_hosted_specifier_keeps_its_committish() {
         ("foo/bar#v1.0.0", "github:foo/bar#v1.0.0"),
         ("foo/bar#semver:^1.0.0", "github:foo/bar#semver:^1.0.0"),
         (
+            "foo/bar#0123456789abcdef0123456789abcdef01234567",
+            "github:foo/bar#0123456789abcdef0123456789abcdef01234567",
+        ),
+        (
             "git+https://token:x-oauth-basic@github.com/foo/bar.git#develop",
             "git+https://token:x-oauth-basic@github.com/foo/bar.git#develop",
+        ),
+        (
+            "git+https://token:x-oauth-basic@github.com/foo/bar.git#0123456789abcdef0123456789abcdef01234567",
+            "git+https://token:x-oauth-basic@github.com/foo/bar.git#0123456789abcdef0123456789abcdef01234567",
         ),
         (
             "git+https://token:x-oauth-basic@github.com/foo/bar.git#semver:^1.0.0",
