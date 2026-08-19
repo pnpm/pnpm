@@ -63,11 +63,20 @@ fn a_file_symlink_is_refused_not_followed() {
     fs::write(&target, b"x").unwrap();
     let link = temp.path().join("link.yaml");
     // File-symlink creation needs a privilege (or developer mode) the
-    // environment may not grant; a fixture we cannot build is a skip,
-    // not a failure — the junction test above still covers the reparse
-    // rejection itself.
-    if std::os::windows::fs::symlink_file(&target, &link).is_err() {
-        eprintln!("skipping: this environment cannot create file symlinks");
+    // environment may not grant. Only that exact refusal
+    // (ERROR_PRIVILEGE_NOT_HELD) is a skip — loudly, so a run that
+    // skipped is visible in the output — and anything else failing the
+    // fixture fails the test. CI's Windows runners grant the privilege,
+    // so the distinguishing assertion always runs there; the junction
+    // test above keeps reparse coverage everywhere else.
+    const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+    if let Err(error) = std::os::windows::fs::symlink_file(&target, &link) {
+        assert_eq!(
+            error.raw_os_error(),
+            Some(ERROR_PRIVILEGE_NOT_HELD),
+            "creating the symlink fixture failed for a reason other than the privilege: {error}",
+        );
+        eprintln!("SKIPPED a_file_symlink_is_refused_not_followed: no symlink privilege");
         return;
     }
     assert!(
