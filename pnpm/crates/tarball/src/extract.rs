@@ -93,10 +93,15 @@ pub(crate) fn should_stream_extract(compressed_len: usize, unpacked_size: Option
 /// for its decompress + CAS writes to ride along chunk by chunk; the
 /// biggest packages are also the ones whose downloads finish last on a
 /// shared link, so extracting them afterwards is pure install tail.
-/// Below the pivot the extract takes single-digit milliseconds and the
-/// dedicated blocking thread the streaming path parks on the body
-/// isn't worth it.
-pub(crate) const STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD: u64 = 1024 * 1024;
+/// The pivot is set where that tail actually lives: a package under it
+/// finishes its download with wire time left behind it and extracts in
+/// the tens of milliseconds, overlapped by the downloads still
+/// draining, while the handful above it are the ones whose last bytes
+/// close the install. Keeping the set small also keeps it inside
+/// [`crate::streaming_extract_semaphore`]'s admission — each streamed
+/// body parks a blocking thread and holds a permit for its whole
+/// transfer, so the pivot and the permit count are sized together.
+pub(crate) const STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD: u64 = 4 * 1024 * 1024;
 
 /// Blocking [`Read`] over a channel of downloaded body chunks: the
 /// bridge that lets [`extract_tarball_entries_streaming`] run on a

@@ -4256,7 +4256,7 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
 #[tokio::test]
 async fn streaming_download_extracts_a_big_pinned_tarball() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
-    let body = incompressible_tarball(2 * 1024 * 1024);
+    let body = incompressible_tarball(5 * 1024 * 1024);
     let pinned = Integrity::from(&body);
 
     let mut server = mockito::Server::new_async().await;
@@ -4324,7 +4324,7 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
 #[tokio::test]
 async fn streaming_download_integrity_mismatch_retries_and_fails() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
-    let body = incompressible_tarball(2 * 1024 * 1024);
+    let body = incompressible_tarball(5 * 1024 * 1024);
     // Real-format integrity of different bytes.
     let wrong = Integrity::from(b"not the body being served");
 
@@ -4361,14 +4361,15 @@ async fn streaming_download_integrity_mismatch_retries_and_fails() {
 }
 
 /// A big body that opens with the gzip magic but is garbage after it
-/// fails the streaming extractor mid-body. The attempt must fail like
-/// the eager path's decode failure does — retried, then surfaced —
-/// rather than hanging the feeder or masking the error.
+/// fails the streaming extractor mid-body. The attempt is retried —
+/// and retries take the buffered path, so the error that exhausts the
+/// budget is the eager path's decode diagnostic, exactly what a
+/// sub-threshold body reports.
 #[tokio::test]
 async fn streaming_download_corrupt_archive_retries_and_fails() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut body = vec![0x1f_u8, 0x8b];
-    body.extend(std::iter::repeat_n(0xa5_u8, 2 * 1024 * 1024));
+    body.extend(std::iter::repeat_n(0xa5_u8, 5 * 1024 * 1024));
     // The integrity pins the garbage itself, so only the archive
     // decode can fail — the failure under test.
     let pinned = Integrity::from(&body);
@@ -4400,8 +4401,55 @@ async fn streaming_download_corrupt_archive_retries_and_fails() {
     .await
     .expect_err("a corrupt archive must exhaust the retry budget");
     assert!(
-        matches!(err, TarballError::ReadTarballEntries(_)),
-        "expected the streaming decode failure, got {err:?}",
+        matches!(err, TarballError::DecodeGzip(_)),
+        "the exhausting attempt is buffered, so the eager decode diagnostic surfaces, got {err:?}",
+    );
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// A body that is both tampered (integrity mismatch) and malformed
+/// must report the integrity diagnostic, not the archive-parse one:
+/// the supply-chain verdict outranks the decode failure on every
+/// path, streaming included.
+#[tokio::test]
+async fn streaming_download_tampered_and_corrupt_body_reports_integrity() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut body = vec![0x1f_u8, 0x8b];
+    body.extend(std::iter::repeat_n(0x5a_u8, 5 * 1024 * 1024));
+    // Integrity of different bytes: both the checksum and the archive
+    // decode fail, and the checksum must win.
+    let wrong = Integrity::from(b"the body the registry was supposed to serve");
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&wrong),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect_err("a tampered body must exhaust the retry budget");
+    assert!(
+        matches!(err, TarballError::Checksum(_)),
+        "the integrity verdict must outrank the decode failure, got {err:?}",
     );
     mock.assert_async().await;
     drop(store_dir_keep);

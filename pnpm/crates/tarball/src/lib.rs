@@ -67,6 +67,22 @@ fn post_download_semaphore() -> &'static Semaphore {
     &SEM
 }
 
+/// Admission cap for the extract-while-downloading path (see
+/// [`download`]): how many downloads may hold a blocking thread that
+/// extracts their body as it arrives. Deliberately separate from
+/// [`post_download_semaphore`] — a streaming extractor holds its slot
+/// for the whole body transfer (mostly parked between chunks), so
+/// sharing the post-download permits would starve the eager
+/// extractions that hold one only for a burst of CPU. `num_cpus`
+/// (floor 2) bounds the worst case — a registry fast enough to keep
+/// every extractor busy — at one core each. A download that finds no
+/// free slot simply buffers its body and extracts eagerly; admission
+/// is `try_acquire`, never a wait.
+fn streaming_extract_semaphore() -> &'static Semaphore {
+    static SEM: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(num_cpus::get().max(2)));
+    &SEM
+}
+
 /// Dedicated rayon pool for the per-file CAS-write phase of extraction
 /// ([`extract_tarball_entries`]).
 ///

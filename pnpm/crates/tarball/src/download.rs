@@ -9,7 +9,7 @@ use super::{
     TarballError, VerifyChecksumError, allocate_tarball_buffer, decompress_gzip,
     extract_tarball_entries, local_file_tarball_path, open_local_tarball, post_download_semaphore,
     read_local_tarball_buffer, should_stream_extract, stream_extract_gzipped_channel,
-    stream_extract_gzipped_tarball,
+    stream_extract_gzipped_tarball, streaming_extract_semaphore,
 };
 use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient};
 use pnpm_reporter::{
@@ -578,25 +578,35 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // the extract is too cheap to be worth parking a blocking thread
     // on the whole body. The integrity gate keeps the paths honest: an
     // unpinned tarball's integrity is *computed* from the buffered
-    // body, which the streaming path never materializes.
+    // body, which the streaming path never materializes. The
+    // first-attempt gate keeps retries maximally diagnosable: a body
+    // that fails an attempt for any reason re-fetches through the
+    // buffered path, so the error that exhausts the retry budget
+    // carries the eager path's exact diagnostics. And admission is
+    // bounded by [`streaming_extract_semaphore`] — a download that
+    // finds no free extractor slot buffers like any other.
     //
-    // Failure semantics match the buffered path at the retry boundary:
-    // a mid-body network error, a malformed archive, and an integrity
-    // mismatch all surface from this attempt and re-fetch. An
-    // integrity mismatch is only known after the body ends, by which
-    // point the extractor has CAS-written entries from the unverified
-    // archive — the same self-consistent, unreferenced files a crash
-    // mid-extract leaves today (each is keyed by its own content
-    // hash, and the store-index row that would make the package reach
-    // them is only queued by the caller after this returns `Ok`).
+    // Failure semantics stay at the retry boundary, verdicts in the
+    // buffered path's order: a mid-body network failure first, then
+    // the integrity verdict, then the extractor's own error — so a
+    // tampered body reports `Checksum` (`ERR_PNPM_TARBALL_INTEGRITY`)
+    // even when it also fails to parse. An integrity mismatch is only
+    // known after the body ends, by which point the extractor has
+    // CAS-written entries from the unverified archive — the same
+    // self-consistent, unreferenced files a crash mid-extract leaves
+    // (each is keyed by its own content hash, and the store-index row
+    // that would make the package reach them is only queued by the
+    // caller after this returns `Ok`).
     //
-    // No `post_download_semaphore` here: that cap exists to bound
-    // whole-archive decompress bursts on the CPU. This path trickles
-    // the same work across the download, bounded by the network
-    // concurrency that gates bodies in the first place.
+    // Memory stays bounded by what the buffered path would hold: the
+    // channel queues at most the not-yet-extracted remainder of the
+    // compressed body — the buffered path holds all of it — and the
+    // extractor's own buffers are bounded (`STREAM_ENTRY_BUFFER_MAX`).
     if is_gzip
+        && attempt == 0
         && expected_size.is_some_and(|size| size >= STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD)
         && let Some(expected) = expected_integrity
+        && let Ok(_streaming_permit) = streaming_extract_semaphore().try_acquire()
     {
         let (chunk_tx, chunk_rx) = std::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>();
         let extractor_ignore = ignore_file_pattern.clone();
@@ -604,27 +614,36 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
             stream_extract_gzipped_channel(chunk_rx, store_dir, extractor_ignore.as_deref())
         });
         let mut checker = IntegrityChecker::new(expected.clone());
-        // A closed channel means the extractor bailed (malformed
-        // archive); stop feeding and let its error surface below. A
-        // body error is remembered and takes precedence over the
-        // truncation artifact the extractor reports for it.
-        let mut body_error: Option<TarballError> = None;
-        let mut extractor_bailed = false;
+        // The body is hashed to its end no matter what the extractor
+        // does: the pinned integrity covers every byte, and the
+        // extractor legitimately finishes early — the tar terminator
+        // (and the gzip trailer behind it) can land while chunks are
+        // still in flight, closing the channel. `feed` only stops the
+        // sends; a send failure is not an error verdict.
+        let mut feed = true;
         for chunk in prefix {
             checker.input(&chunk);
             progress.on_chunk::<Reporter>(chunk.len());
-            extractor_bailed = chunk_tx.send(Ok(chunk)).is_err();
+            if feed && chunk_tx.send(Ok(chunk)).is_err() {
+                feed = false;
+            }
         }
-        while !extractor_bailed && body_error.is_none() {
+        let mut body_error: Option<TarballError> = None;
+        while body_error.is_none() {
             match stream.next().await {
                 Some(Ok(chunk)) => {
                     checker.input(&chunk);
                     progress.on_chunk::<Reporter>(chunk.len());
-                    extractor_bailed = chunk_tx.send(Ok(chunk)).is_err();
+                    if feed && chunk_tx.send(Ok(chunk)).is_err() {
+                        feed = false;
+                    }
                 }
                 Some(Err(error)) => {
-                    let _ = chunk_tx
-                        .send(Err(std::io::Error::other("the tarball body failed mid-download")));
+                    if feed {
+                        let _ = chunk_tx.send(Err(std::io::Error::other(
+                            "the tarball body failed mid-download",
+                        )));
+                    }
                     body_error = Some(network_error(error));
                 }
                 None => break,
@@ -632,8 +651,8 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         }
         // Close the channel so the extractor sees end-of-stream, and
         // release the network permit before waiting on CPU work — the
-        // body is done (or abandoned, on the error paths, where the
-        // dropped connection is the price of the retry either way).
+        // body is done (or abandoned, on the network-error path, where
+        // the dropped connection is the price of the retry either way).
         drop(chunk_tx);
         drop(stream);
         drop(client);
@@ -642,10 +661,10 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         if let Some(error) = body_error {
             return Err(error);
         }
-        let (cas_paths, pkg_files_idx) = extracted?;
         checker.result().map_err(|error| {
             TarballError::Checksum(VerifyChecksumError { url: package_url.to_string(), error })
         })?;
+        let (cas_paths, pkg_files_idx) = extracted?;
         tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
         progress.finish::<Reporter>();
         return Ok((expected.clone(), cas_paths, pkg_files_idx));
