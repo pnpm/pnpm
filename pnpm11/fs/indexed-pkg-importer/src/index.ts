@@ -26,8 +26,7 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
   // this works in the following way:
   // - hardlink: hardlink the packages, no fallback
   // - clone: clone the packages, no fallback
-  // - auto: try the platform's cheap link tiers in order (hardlink first
-  //   on Linux, clone first elsewhere), falling back to copy
+  // - auto: try to clone or hardlink the packages, if it fails, fallback to copy
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod ?? 'auto') {
     case 'clone':
@@ -58,62 +57,9 @@ function createAutoImporter (): ImportIndexedPackage {
     to: string,
     opts: ImportOptions
   ): string | undefined {
-    // On Linux the hardlink tier comes first: a reflink materializes a new
-    // inode and copies extent bookkeeping inside the filesystem's metadata
-    // trees, where a hardlink is one directory entry and an nlink bump — an
-    // install-sized difference on CoW filesystems (btrfs, XFS), and a no-op
-    // on ext4, which refuses reflinks anyway. The Rust engine walks the
-    // same ladder (`next_auto_tier` in deps-restorer's link_file).
-    if (process.platform === 'linux') {
-      let hardlinkError: Error
-      try {
-        if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
-        packageImportMethodLogger.debug({ method: 'hardlink' })
-        auto = hardlinkPkg.bind(null, linkOrCopy)
-        return 'hardlink'
-      } catch (err: unknown) {
-        assert(util.types.isNativeError(err))
-        // A missing source or a permission wall is terminal — no other
-        // tier can fix it, and completing the install by cloning what the
-        // hardlink rung was denied would let the two engines succeed
-        // differently on the same store (the Rust ladder's `is_call_error`
-        // aborts on exactly these). EEXIST is deliberately not in the
-        // list: the Rust caller adopts an existing target as a concurrent
-        // importer's equivalent file, while here existing targets are
-        // handled inside `hardlinkPkg` itself.
-        const code = (err as NodeJS.ErrnoException).code
-        if (code === 'ENOENT' || code === 'EACCES' || code === 'EPERM') throw err
-        hardlinkError = err
-      }
-      try {
-        if (!tryClonePkg(to, opts)) return undefined
-        packageImportMethodLogger.debug({ method: 'clone' })
-        auto = createClonePkg()
-        return 'clone'
-      } catch {
-        // The probe answered whether clones work at all; the terminal
-        // dispatch below is decided by how the hardlink rung failed.
-      }
-      // The ladder only moves forward: the hardlink tier already ran and
-      // failed, so its saved error picks the terminal tier directly
-      // instead of paying for a second full-package hardlink import.
-      if (hardlinkError.message.startsWith('EXDEV: cross-device link not permitted')) {
-        globalWarn(hardlinkError.message)
-        globalInfo('Falling back to copying packages from store')
-        packageImportMethodLogger.debug({ method: 'copy' })
-        auto = copyPkg
-        return auto(to, opts)
-      }
-      // Per-file hardlinks with a copy fallback stay the terminal tier, so
-      // an edge-case refusal on one file cannot fail the whole install.
-      packageImportMethodLogger.debug({ method: 'hardlink' })
-      auto = hardlinkPkg.bind(null, linkOrCopy)
-      return auto(to, opts)
-    }
     // Although reflinks are supported on Windows Dev Drives,
     // they are 10x slower than hard links.
-    // Hence, we prefer reflinks by default only on macOS — on Linux they
-    // are the fallback rung above.
+    // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
       try {
         // Probe with the raw clone function (no ENOTSUP fallback).
