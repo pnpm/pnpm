@@ -47,14 +47,62 @@ pub enum LinkFileError {
 // `createAutoImporter` / `createCloneOrCopyImporter`) has the same
 // coarseness once `pnpm install` has picked an import direction.
 //
-// The state is monotonic (`CLONE` → `HARDLINK` → `COPY`) and updated
-// with `fetch_max`, so concurrent rayon workers racing on the first
-// failure all converge to the same downgraded value without a lock.
-// Worst case cost on startup is `N` stale attempts per tier where `N`
-// is the rayon thread count — bounded, not per-file.
+// The state only ever moves forward along the platform's ladder (see
+// [`next_auto_tier`]), each step taken with a compare-exchange from
+// the exact tier that failed, so concurrent rayon workers racing on
+// the first failure all converge to the same downgraded value without
+// a lock: the loser's exchange fails, it reloads, and it finds the
+// ladder already advanced. Worst case cost on startup is `N` stale
+// attempts per tier where `N` is the rayon thread count — bounded,
+// not per-file.
 const LINK_STATE_CLONE: u8 = 0;
 const LINK_STATE_HARDLINK: u8 = 1;
 const LINK_STATE_COPY: u8 = 2;
+
+/// The tier `Auto` starts at, per platform — the head of
+/// [`next_auto_tier`]'s ladder.
+#[cfg(target_os = "linux")]
+const AUTO_FIRST_TIER: u8 = LINK_STATE_HARDLINK;
+#[cfg(not(target_os = "linux"))]
+const AUTO_FIRST_TIER: u8 = LINK_STATE_CLONE;
+
+/// The tier `Auto` falls to when `tier` fails for capability reasons.
+///
+/// Linux runs hardlink before clone. A reflink is not the cheap tier
+/// there: it materializes a new inode and copies extent bookkeeping
+/// inside the filesystem's metadata trees, where a hardlink is one
+/// directory entry and an nlink bump — measured on the alotta-files
+/// fixture (39k files, warm store, btrfs), the whole install is 0.48s
+/// hardlinked against 0.85s cloned, with kernel time 3.1s against
+/// 5.3s. It is also the default Bun ships (`--backend=hardlink`).
+/// Nothing changes on ext4, where `FICLONE` is unsupported and `Auto`
+/// always ended up hardlinking after one failed reflink. What the old
+/// order bought was store isolation — a clone can't be corrupted by a
+/// package that mutates its own files at runtime — but that isolation
+/// was only ever incidental: every ext4 and Windows install already
+/// runs without it, and the store's real guard is `verify-store-integrity`.
+///
+/// macOS keeps clone-first: APFS `clonefile` is the platform's cheap
+/// primitive, and the established behavior stays.
+fn next_auto_tier(tier: u8) -> u8 {
+    #[cfg(target_os = "linux")]
+    match tier {
+        LINK_STATE_HARDLINK => LINK_STATE_CLONE,
+        _ => LINK_STATE_COPY,
+    }
+    #[cfg(not(target_os = "linux"))]
+    match tier {
+        LINK_STATE_CLONE => LINK_STATE_HARDLINK,
+        _ => LINK_STATE_COPY,
+    }
+}
+
+/// Advance the downgrade cache past `from`, unless another worker
+/// already has.
+fn downgrade_auto_tier(state: &AtomicU8, from: u8) {
+    let _ =
+        state.compare_exchange(from, next_auto_tier(from), Ordering::Relaxed, Ordering::Relaxed);
+}
 
 // One-shot "we picked this import method" log, matching pnpm's
 // `packageImportMethodLogger.debug({ method: 'clone' | 'hardlink' | 'copy' })`
@@ -208,7 +256,7 @@ fn try_import<Reporter: self::Reporter>(
 ) -> io::Result<()> {
     match method {
         PackageImportMethod::Auto => {
-            static AUTO_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
+            static AUTO_STATE: AtomicU8 = AtomicU8::new(AUTO_FIRST_TIER);
             auto_link::<Reporter>(logged, &AUTO_STATE, source_file, target_link)
         }
         // pnpm's explicit `hardlink` method uses `hardlinkPkg(linkOrCopy)`
@@ -303,8 +351,10 @@ fn is_call_error(err: &io::Error) -> bool {
     )
 }
 
-/// `Auto`'s clone → hardlink → copy chain, using `state` to skip tiers
-/// that have already failed in this process. Factored out so tests can
+/// `Auto`'s downgrade chain — hardlink → clone → copy on Linux,
+/// clone → hardlink → copy elsewhere (see [`next_auto_tier`] for the
+/// why) — using `state` to skip tiers that have already failed in this
+/// process. Factored out so tests can
 /// pass their own `AtomicU8` and exercise the downgrade logic in
 /// isolation — the production path uses a `static` declared inside
 /// [`link_file`]. Only capability / cross-device style failures
@@ -322,8 +372,9 @@ fn auto_link<Reporter: self::Reporter>(
             // Match on the reflink result alone: only a reflink failure means the
             // tier is unusable on this FS pair and should downgrade. Restoration
             // runs after reflink created the target, so its error is terminal
-            // (`?`) — downgrading on it would re-attempt hardlink against that
-            // just-created file and mask the real error behind `AlreadyExists`.
+            // (`?`) — downgrading on it would re-attempt the next tier against
+            // that just-created file and mask the real error behind
+            // `AlreadyExists`.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
                     pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
@@ -331,9 +382,7 @@ fn auto_link<Reporter: self::Reporter>(
                     return Ok(());
                 }
                 Err(err) if is_call_error(&err) => return Err(err),
-                Err(_) => {
-                    state.fetch_max(LINK_STATE_HARDLINK, Ordering::Relaxed);
-                }
+                Err(_) => downgrade_auto_tier(state, LINK_STATE_CLONE),
             },
             LINK_STATE_HARDLINK => match fs::hard_link(source, target) {
                 Ok(()) => {
@@ -345,9 +394,7 @@ fn auto_link<Reporter: self::Reporter>(
                     return Ok(());
                 }
                 Err(err) if is_call_error(&err) => return Err(err),
-                Err(_) => {
-                    state.fetch_max(LINK_STATE_COPY, Ordering::Relaxed);
-                }
+                Err(_) => downgrade_auto_tier(state, LINK_STATE_HARDLINK),
             },
             _ => {
                 return copy_file(source, target).inspect(|()| {
