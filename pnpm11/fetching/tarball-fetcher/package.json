@@ -44,7 +44,6 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
     "lodash.throttle": "catalog:",
-    "p-map-values": "catalog:",
     "ramda": "catalog:"
   },
   "peerDependencies": {

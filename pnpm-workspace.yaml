@@ -300,7 +300,6 @@ catalog:
   p-every: ^2.0.0
   p-filter: ^4.1.0
   p-limit: ^7.3.1
-  p-map-values: ^0.1.0
   p-queue: ^9.3.3
   parse-json: ^8.3.0
   parse-npm-tarball-url: ^5.0.0
@@ -427,7 +426,6 @@ minimumReleaseAgeExclude:
   - lodash@4.17.23
   - make-empty-dir
   - normalize-registry-url
-  - p-map-values
   - parse-npm-tarball-url@5.0.0
   - path-absolute
   - path-temp
