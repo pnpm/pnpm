@@ -27,9 +27,12 @@ pub fn read_regular_file_capped(path: &Path, cap: u64) -> io::Result<Option<Vec<
         {
             use std::os::unix::fs::OpenOptionsExt;
             let mut options = std::fs::OpenOptions::new();
-            options.read(true).custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32);
-            #[cfg(target_os = "linux")]
-            options.custom_flags(
+            // Both flags are POSIX, not Linux-isms: `O_NOFOLLOW` refuses a
+            // symlink at the final component, and `O_NONBLOCK` makes a
+            // read-only FIFO open return immediately instead of waiting
+            // for a writer — the fstat below then fails the regular-file
+            // check. On a regular file `O_NONBLOCK` is a no-op.
+            options.read(true).custom_flags(
                 (rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32,
             );
             match options.open(path) {
