@@ -41,9 +41,12 @@ tokio::task_local! {
 }
 
 /// Expose the installer's built-in fetchers to every hook called by `future`.
-pub async fn with_fetcher_callbacks<F>(callbacks: FetcherCallbackSender, future: F) -> F::Output
+pub async fn with_fetcher_callbacks<HookFuture>(
+    callbacks: FetcherCallbackSender,
+    future: HookFuture,
+) -> HookFuture::Output
 where
-    F: Future,
+    HookFuture: Future,
 {
     ACTIVE_FETCHER_CALLBACKS.scope(callbacks, future).await
 }
