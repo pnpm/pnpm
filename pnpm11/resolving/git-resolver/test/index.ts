@@ -707,7 +707,7 @@ test('resolve a private repository using the HTTPS protocol with a commit hash',
   const resolveResult = await resolveFromGit({ bareSpecifier: 'git+https://github.com/foo/bar.git#aabbccddeeff' })
   expect(resolveResult).toStrictEqual({
     id: 'git+https://github.com/foo/bar.git#aabbccddeeff',
-    normalizedBareSpecifier: 'git+https://github.com/foo/bar.git',
+    normalizedBareSpecifier: 'git+https://github.com/foo/bar.git#aabbccddeeff',
     resolution: {
       // cspell:ignore aabbccddeeff
       commit: 'aabbccddeeff',
@@ -716,6 +716,52 @@ test('resolve a private repository using the HTTPS protocol with a commit hash',
     },
     resolvedVia: 'git-repository',
   })
+})
+
+test('a private repository reached over authenticated HTTPS keeps the branch in the recorded specifier', async () => {
+  // The committish is what pins the dependency to a branch. A specifier that
+  // loses it resolves to the default branch on the next update, silently
+  // moving the dependency off the branch that was asked for.
+  mockFetchAsPrivate()
+  mockGit(async (args: string[]) => {
+    if (args.includes('--exit-code')) return { stdout: `${'0'.repeat(40)}\tHEAD` }
+    return { stdout: `${'1'.repeat(40)}\trefs/heads/develop` }
+  })
+  const resolveResult = await resolveFromGit({ bareSpecifier: 'foo/bar#develop' })
+  expect(resolveResult).toStrictEqual({
+    id: `git+https://github.com/foo/bar.git#${'1'.repeat(40)}`,
+    normalizedBareSpecifier: 'git+https://github.com/foo/bar.git#develop',
+    resolution: {
+      commit: '1'.repeat(40),
+      repo: 'https://github.com/foo/bar.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
+test('every representation of a hosted specifier keeps its committish', async () => {
+  // The committish survives on some paths through the resolver and not others
+  // only if one of them builds the specifier by hand, so all of them are
+  // covered: a public repo, a private one reached over HTTPS, and a
+  // credentialed URL.
+  mockGit(async (args: string[]) => {
+    if (args.includes('--exit-code')) return { stdout: `${'0'.repeat(40)}\tHEAD` }
+    return { stdout: `${'1'.repeat(40)}\trefs/heads/develop` }
+  })
+  const publicRepo = await resolveFromGit({ bareSpecifier: 'foo/bar#develop' })
+  mockFetchAsPrivate()
+  const privateRepo = await resolveFromGit({ bareSpecifier: 'foo/bar#develop' })
+  const credentialedRepo = await resolveFromGit({ bareSpecifier: 'git+https://hunter2:x-oauth-basic@github.com/foo/bar.git#develop' })
+  expect([
+    publicRepo?.normalizedBareSpecifier,
+    privateRepo?.normalizedBareSpecifier,
+    credentialedRepo?.normalizedBareSpecifier,
+  ]).toStrictEqual([
+    'github:foo/bar#develop',
+    'git+https://github.com/foo/bar.git#develop',
+    'git+https://hunter2:x-oauth-basic@github.com/foo/bar.git#develop',
+  ])
 })
 
 test('resolve a private repository using the HTTPS protocol and an auth token', async () => {

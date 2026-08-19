@@ -121,6 +121,48 @@ fn finalize_hosted_auth_url_kept_verbatim_without_archive_eligibility() {
     assert!(spec.hosted.is_none(), "credentialed URL must never resolve to a host archive");
 }
 
+#[test]
+fn finalize_hosted_auth_url_keeps_the_committish_in_the_recorded_specifier() {
+    // The committish is what pins the dependency to a branch. A specifier
+    // that loses it resolves to the default branch on the next update,
+    // silently moving the dependency off the branch that was asked for.
+    let kind =
+        parse_bare_specifier("git+https://token:x-oauth-basic@github.com/foo/bar.git#develop")
+            .expect("hosted");
+    let spec = kind.finalize();
+    assert_eq!(spec.fetch_spec, "https://token:x-oauth-basic@github.com/foo/bar.git");
+    assert_eq!(
+        spec.normalized_bare_specifier,
+        "git+https://token:x-oauth-basic@github.com/foo/bar.git#develop",
+    );
+    assert_eq!(spec.git_committish.as_deref(), Some("develop"));
+}
+
+// The committish survives on some paths through the resolver and not
+// others only if one of them builds the specifier by hand, so both the
+// credentialed and the plain hosted branch are covered, for every kind
+// of committish. Each row is `(input, expected_normalized_bare_specifier)`.
+#[test]
+fn every_representation_of_a_hosted_specifier_keeps_its_committish() {
+    let cases: &[(&str, &str)] = &[
+        ("foo/bar#develop", "github:foo/bar#develop"),
+        ("foo/bar#v1.0.0", "github:foo/bar#v1.0.0"),
+        ("foo/bar#semver:^1.0.0", "github:foo/bar#semver:^1.0.0"),
+        (
+            "git+https://token:x-oauth-basic@github.com/foo/bar.git#develop",
+            "git+https://token:x-oauth-basic@github.com/foo/bar.git#develop",
+        ),
+        (
+            "git+https://token:x-oauth-basic@github.com/foo/bar.git#semver:^1.0.0",
+            "git+https://token:x-oauth-basic@github.com/foo/bar.git#semver:^1.0.0",
+        ),
+    ];
+    for (input, expected) in cases {
+        let spec = parse_bare_specifier(input).expect("hosted").finalize();
+        assert_eq!(spec.normalized_bare_specifier, *expected, "input: {input}");
+    }
+}
+
 // Ported `parsePref.test.ts` SCP-style URL repair cases. Each row
 // is `(input, expected_fetch_spec)`.
 #[test]
