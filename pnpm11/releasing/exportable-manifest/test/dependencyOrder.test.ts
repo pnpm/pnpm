@@ -1,6 +1,7 @@
 import path from 'node:path'
+import { setImmediate as tick } from 'node:timers/promises'
 
-import { expect, jest, test } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 import type { ProjectManifest } from '@pnpm/types'
 
 interface Deferred<T> {
@@ -8,7 +9,9 @@ interface Deferred<T> {
   resolve: (value: T) => void
 }
 
-type ManifestRead = { manifest: ProjectManifest }
+interface ManifestRead {
+  manifest: ProjectManifest
+}
 
 const reads = new Map<string, Deferred<ManifestRead>>()
 const completionOrder: string[] = []
@@ -27,6 +30,12 @@ jest.unstable_mockModule('@pnpm/workspace.project-manifest-reader', () => ({
 }))
 
 const { createExportableManifest } = await import('@pnpm/releasing.exportable-manifest')
+
+beforeEach(() => {
+  reads.clear()
+  completionOrder.length = 0
+  tryReadProjectManifest.mockClear()
+})
 
 test('workspace dependencies preserve declaration order when manifest reads resolve out of order', async () => {
   const first = deferred<ManifestRead>()
@@ -47,7 +56,7 @@ test('workspace dependencies preserve declaration order when manifest reads reso
   })
 
   second.resolve({ manifest: { name: 'second', version: '2.0.0' } })
-  await new Promise<void>((resolve) => setImmediate(resolve))
+  await tick()
   expect(completionOrder).toStrictEqual(['second'])
 
   first.resolve({ manifest: { name: 'first', version: '1.0.0' } })

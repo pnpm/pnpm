@@ -9,7 +9,6 @@ import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
-import { pMapValues } from 'p-map-values'
 import { clone, omit } from 'ramda'
 
 import { overridePublishConfig } from './overridePublishConfig.js'
@@ -143,11 +142,12 @@ async function makePublishDependencies (
   { modulesDir, convertDependencyForPublish }: MakePublishDependenciesOpts
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
-  const publishDependencies = await pMapValues(
-    async (depSpec: string, depName: string) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
-    dependencies
+  const publishDependencies = await Promise.all(
+    Object.entries(dependencies).map(async ([depName, depSpec]): Promise<[string, string]> =>
+      [depName, await convertDependencyForPublish(depName, depSpec, dir, modulesDir)]
+    )
   )
-  return Object.fromEntries(Object.keys(dependencies).map((depName) => [depName, publishDependencies[depName]]))
+  return Object.fromEntries(publishDependencies)
 }
 
 async function readAndCheckManifest (depName: string, dependencyDir: string): Promise<ProjectManifest> {
