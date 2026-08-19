@@ -15,11 +15,11 @@ import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/
 import type { DependenciesField, Project, ProjectRootDir } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
-import { pick, without } from 'ramda'
+import { pick, uniq, without } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { getSaveType } from './getSaveType.js'
-import { recursive } from './recursive.js'
+import { createMatcher, matchDependencies, recursive } from './recursive.js'
 import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 
 class RemoveMissingDepsError extends PnpmError {
@@ -219,7 +219,17 @@ export async function handler (
       ? getAllDependenciesFromManifest(currentManifest)
       : currentManifest[targetDependenciesField] ?? {}
   )
-  const nonMatchedDependencies = without(availableDependencies, params)
+  const hasRemovePatterns = params.some(param => param.includes('*') || param.startsWith('!'))
+  const removePatternInclude = targetDependenciesField === undefined
+    ? include
+    : {
+      dependencies: targetDependenciesField === 'dependencies',
+      devDependencies: targetDependenciesField === 'devDependencies',
+      optionalDependencies: targetDependenciesField === 'optionalDependencies',
+    }
+  const dependencyNames = expandRemovePatterns(params, currentManifest, removePatternInclude)
+  if (hasRemovePatterns && dependencyNames.length === 0) return
+  const nonMatchedDependencies = without(availableDependencies, dependencyNames)
   if (nonMatchedDependencies.length !== 0) {
     throw new RemoveMissingDepsError({
       availableDependencies,
@@ -230,7 +240,7 @@ export async function handler (
   const mutationResult = await mutateModulesInSingleProject(
     {
       binsDir: opts.bin,
-      dependencyNames: params,
+      dependencyNames,
       manifest: currentManifest,
       mutation: 'uninstallSome',
       rootDir: opts.dir as ProjectRootDir,
@@ -258,4 +268,22 @@ export async function handler (
     resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, mutationResult.newLockfile),
     allProjects: updatedProjects,
   })
+}
+
+function expandRemovePatterns (
+  params: string[],
+  manifest: Project['manifest'],
+  include: {
+    dependencies: boolean
+    devDependencies: boolean
+    optionalDependencies: boolean
+  }
+): string[] {
+  if (!params.some(param => param.includes('*') || param.startsWith('!'))) return params
+  if (params.every(param => param.startsWith('!'))) return []
+  const explicitDependencies = params.filter(param => !param.includes('*') && !param.startsWith('!'))
+  return uniq([
+    ...explicitDependencies,
+    ...matchDependencies(createMatcher(params), manifest, include),
+  ])
 }
