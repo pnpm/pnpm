@@ -3,6 +3,10 @@ import path from 'node:path'
 
 import { afterAll, beforeEach, expect, jest, test } from '@jest/globals'
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
+// The auto ladder is platform-specific (hardlink first on Linux, clone first
+// elsewhere), so the tests that pin it must not run on the other platforms
+// `testOnLinuxOnly` still admits.
+const testOnLinuxLadder = process.platform === 'linux' ? test : test.skip
 
 jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
   const { access } = jest.requireActual<typeof fs>('fs')
@@ -63,7 +67,7 @@ afterAll(() => {
   fs.rmSync('project2', { recursive: true, force: true })
 })
 
-testOnLinuxOnly('packageImportMethod=auto: hardlink files by default on Linux', () => {
+testOnLinuxLadder('packageImportMethod=auto: hardlink files by default on Linux', () => {
   const importPackage = createIndexedPkgImporter('auto')
   expect(importPackage('project/package', {
     filesMap: new Map([
@@ -79,7 +83,25 @@ testOnLinuxOnly('packageImportMethod=auto: hardlink files by default on Linux', 
   expect(gfs.copyFileSync).not.toHaveBeenCalled()
 })
 
-testOnLinuxOnly('packageImportMethod=auto: clone files if hardlinking fails', () => {
+testOnLinuxLadder('packageImportMethod=auto: a terminal hardlink error aborts instead of cloning', () => {
+  const importPackage = createIndexedPkgImporter('auto')
+  jest.mocked(gfs.linkSync).mockImplementation(() => {
+    throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+  })
+  // A missing source is not a capability refusal: no other tier can fix
+  // it, and cloning past it would let an install succeed here that the
+  // Rust engine aborts.
+  expect(() => importPackage('project/package', {
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+    ]),
+    force: false,
+    resolvedFrom: 'remote',
+  })).toThrow('ENOENT')
+  expect(gfs.copyFileSync).not.toHaveBeenCalled()
+})
+
+testOnLinuxLadder('packageImportMethod=auto: clone files if hardlinking fails', () => {
   const importPackage = createIndexedPkgImporter('auto')
   jest.mocked(gfs.linkSync).mockImplementation(() => {
     throw new Error('this store refuses hardlinks')
@@ -104,7 +126,6 @@ testOnLinuxOnly('packageImportMethod=auto: clone files if hardlinking fails', ()
   )
   jest.mocked(gfs.linkSync).mockClear()
 
-  // The link function will not be called again
   expect(importPackage('project2/package', {
     filesMap: new Map([
       ['index.js', 'hash2'],
@@ -116,7 +137,7 @@ testOnLinuxOnly('packageImportMethod=auto: clone files if hardlinking fails', ()
   expect(gfs.linkSync).not.toHaveBeenCalled()
 })
 
-testOnLinuxOnly('packageImportMethod=auto: settle on hardlinks when one hardlink and the clone probe both fail', () => {
+testOnLinuxLadder('packageImportMethod=auto: settle on hardlinks when one hardlink and the clone probe both fail', () => {
   const importPackage = createIndexedPkgImporter('auto')
   jest.mocked(gfs.copyFileSync).mockImplementation(() => {
     throw new Error('This file system does not support cloning')
@@ -147,7 +168,7 @@ testOnLinuxOnly('packageImportMethod=auto: settle on hardlinks when one hardlink
   expect(gfs.copyFileSync).toHaveBeenCalledTimes(2)
 })
 
-testOnLinuxOnly('packageImportMethod=auto: chooses copying if cloning and hard linking is not possible', () => {
+testOnLinuxLadder('packageImportMethod=auto: chooses copying if cloning and hard linking is not possible', () => {
   const importPackage = createIndexedPkgImporter('auto')
   jest.mocked(gfs.copyFileSync).mockImplementation((src, dest, flags?: number) => {
     if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
@@ -166,11 +187,11 @@ testOnLinuxOnly('packageImportMethod=auto: chooses copying if cloning and hard l
   })).toBe('copy')
   expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
   // 3 calls: the clone probe fails twice (fast path + staging fallback)
-  // between the hardlink attempts, then copy succeeds.
+  // after the hardlink rung, then copy succeeds.
   expect(gfs.copyFileSync).toHaveBeenCalledTimes(3)
-  // Two rungs try to hardlink — the Linux first rung and the terminal
-  // hardlink-or-copy tier — and each burns fast path + staging on EXDEV.
-  expect(gfs.linkSync).toHaveBeenCalledTimes(4)
+  // Only the first rung hardlinks (fast path + staging): its saved EXDEV
+  // picks the copy tier directly, with no second hardlink import.
+  expect(gfs.linkSync).toHaveBeenCalledTimes(2)
 })
 
 testOnLinuxOnly('packageImportMethod=hardlink: fall back to copying if hardlinking fails', () => {
@@ -307,7 +328,7 @@ testOnLinuxOnly('packageImportMethod=copy: falls back to read+write when copyFil
   )
 })
 
-testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone falls through to hardlinks', () => {
+testOnLinuxLadder('packageImportMethod=auto: ENOTSUP on clone falls through to hardlinks', () => {
   const importPackage = createIndexedPkgImporter('auto')
   // On Linux the hardlink rung comes first and only gives up after its
   // fast path and staging fallback both fail, so two refusals are what
@@ -336,7 +357,7 @@ testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone falls through to har
   expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
 })
 
-testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone uses hardlinks for all subsequent packages too', () => {
+testOnLinuxLadder('packageImportMethod=auto: ENOTSUP on clone uses hardlinks for all subsequent packages too', () => {
   // Regression test: the ENOTSUP fallback in createClonePkg() used to silently
   // convert clone failures to copies, so the auto-importer thought cloning
   // worked and selected it for all packages.  On ext4 (no reflink support),

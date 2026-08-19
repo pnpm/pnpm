@@ -65,17 +65,50 @@ function createAutoImporter (): ImportIndexedPackage {
     // on ext4, which refuses reflinks anyway. The Rust engine walks the
     // same ladder (`next_auto_tier` in deps-restorer's link_file).
     if (process.platform === 'linux') {
+      let hardlinkError: Error
       try {
         if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
         packageImportMethodLogger.debug({ method: 'hardlink' })
         auto = hardlinkPkg.bind(null, linkOrCopy)
         return 'hardlink'
-      } catch {
-        // The clone probe below is the next rung, and the hardlink-or-copy
-        // block after it stays the terminal one (it owns the EXDEV → copy
-        // dispatch), so a store that refuses hardlinks walks the same
-        // ladder the Rust engine does.
+      } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
+        // A missing source or a permission wall is terminal — no other
+        // tier can fix it, and completing the install by cloning what the
+        // hardlink rung was denied would let the two engines succeed
+        // differently on the same store (the Rust ladder's `is_call_error`
+        // aborts on exactly these). EEXIST is deliberately not in the
+        // list: the Rust caller adopts an existing target as a concurrent
+        // importer's equivalent file, while here existing targets are
+        // handled inside `hardlinkPkg` itself.
+        const code = (err as NodeJS.ErrnoException).code
+        if (code === 'ENOENT' || code === 'EACCES' || code === 'EPERM') throw err
+        hardlinkError = err
       }
+      try {
+        if (!tryClonePkg(to, opts)) return undefined
+        packageImportMethodLogger.debug({ method: 'clone' })
+        auto = createClonePkg()
+        return 'clone'
+      } catch {
+        // The probe answered whether clones work at all; the terminal
+        // dispatch below is decided by how the hardlink rung failed.
+      }
+      // The ladder only moves forward: the hardlink tier already ran and
+      // failed, so its saved error picks the terminal tier directly
+      // instead of paying for a second full-package hardlink import.
+      if (hardlinkError.message.startsWith('EXDEV: cross-device link not permitted')) {
+        globalWarn(hardlinkError.message)
+        globalInfo('Falling back to copying packages from store')
+        packageImportMethodLogger.debug({ method: 'copy' })
+        auto = copyPkg
+        return auto(to, opts)
+      }
+      // Per-file hardlinks with a copy fallback stay the terminal tier, so
+      // an edge-case refusal on one file cannot fail the whole install.
+      packageImportMethodLogger.debug({ method: 'hardlink' })
+      auto = hardlinkPkg.bind(null, linkOrCopy)
+      return auto(to, opts)
     }
     // Although reflinks are supported on Windows Dev Drives,
     // they are 10x slower than hard links.
