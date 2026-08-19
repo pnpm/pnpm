@@ -87,6 +87,77 @@ pub(crate) fn should_stream_extract(compressed_len: usize, unpacked_size: Option
         || unpacked_size.is_some_and(|size| size >= MAX_UNTRUSTED_PREALLOC_BYTES)
 }
 
+/// `Content-Length` pivot for extracting a registry tarball *while its
+/// body is still arriving* instead of after it ([`crate::download`]'s
+/// streaming path). A body this large spends long enough on the wire
+/// for its decompress + CAS writes to ride along chunk by chunk; the
+/// biggest packages are also the ones whose downloads finish last on a
+/// shared link, so extracting them afterwards is pure install tail.
+/// Below the pivot the extract takes single-digit milliseconds and the
+/// dedicated blocking thread the streaming path parks on the body
+/// isn't worth it.
+pub(crate) const STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD: u64 = 1024 * 1024;
+
+/// Blocking [`Read`] over a channel of downloaded body chunks: the
+/// bridge that lets [`extract_tarball_entries_streaming`] run on a
+/// blocking thread while the async download loop keeps feeding it.
+///
+/// `Ok` items are payload. An `Err` item is the download loop
+/// reporting that the body failed mid-stream — it surfaces as this
+/// reader's error so the extractor unwinds instead of mistaking a
+/// truncated body for a complete archive. A closed channel (sender
+/// dropped after the last chunk) is end-of-stream.
+pub(crate) struct ChannelBytesReader {
+    rx: std::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>,
+    current: bytes::Bytes,
+    offset: usize,
+}
+
+impl ChannelBytesReader {
+    pub(crate) fn new(rx: std::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>) -> Self {
+        Self { rx, current: bytes::Bytes::new(), offset: 0 }
+    }
+}
+
+impl Read for ChannelBytesReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        while self.offset >= self.current.len() {
+            match self.rx.recv() {
+                Ok(Ok(chunk)) => {
+                    self.current = chunk;
+                    self.offset = 0;
+                }
+                Ok(Err(error)) => return Err(error),
+                Err(_) => return Ok(0),
+            }
+        }
+        let take = (self.current.len() - self.offset).min(buf.len());
+        buf[..take].copy_from_slice(&self.current[self.offset..self.offset + take]);
+        self.offset += take;
+        Ok(take)
+    }
+}
+
+/// [`extract_tarball_entries_streaming`] fed from a download in
+/// flight: gunzip and CAS-write the archive as its body chunks arrive
+/// through `rx`. Runs on a blocking thread for the whole download —
+/// mostly parked in the channel `recv`, doing its CPU work in the
+/// gaps between chunks.
+pub(crate) fn stream_extract_gzipped_channel(
+    rx: std::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>,
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    extract_tarball_entries_streaming(
+        flate2::read::GzDecoder::new(ChannelBytesReader::new(rx)),
+        store_dir,
+        ignore_file_pattern,
+    )
+}
+
 /// Pick the `package.json` fields downstream code actually reads — bin
 /// linking, dependency resolution, build-script detection — and discard
 /// the rest, keeping only the three lifecycle hooks pnpm executes out

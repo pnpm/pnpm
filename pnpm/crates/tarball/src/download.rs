@@ -5,9 +5,10 @@
 
 use super::{
     Arc, Duration, HashMap, HttpStatusError, IgnoreEntryFilter, Instant, NetworkError, PathBuf,
-    PrefetchedCasPaths, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
-    allocate_tarball_buffer, decompress_gzip, extract_tarball_entries, local_file_tarball_path,
-    open_local_tarball, post_download_semaphore, read_local_tarball_buffer, should_stream_extract,
+    PrefetchedCasPaths, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SharedReportedProgressKeys,
+    TarballError, VerifyChecksumError, allocate_tarball_buffer, decompress_gzip,
+    extract_tarball_entries, local_file_tarball_path, open_local_tarball, post_download_semaphore,
+    read_local_tarball_buffer, should_stream_extract, stream_extract_gzipped_channel,
     stream_extract_gzipped_tarball,
 };
 use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient};
@@ -19,7 +20,7 @@ use pnpm_store_dir::{
     PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
     StoreIndexWriter, store_index_key,
 };
-use ssri::{Algorithm, Integrity, IntegrityOpts};
+use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
 
 /// This subroutine downloads and extracts a tarball to the store directory.
 ///
@@ -336,6 +337,78 @@ pub(crate) fn verify_tarball_integrity(
     Ok(opts.result())
 }
 
+/// Per-body download-progress emitter shared by both body paths of
+/// [`fetch_and_extract_once`] (buffer-then-extract and
+/// extract-while-downloading).
+///
+/// Mirrors `lodash.throttle(opts.onProgress, 500)` on pnpm's side,
+/// down to the leading and trailing edges. The size gate exists
+/// because the default reporter renders a percent gauge: without a
+/// `Content-Length` there is no denominator, and for a typical
+/// sub-megabyte package the gauge would reach 100% before any UI tick
+/// could show it.
+struct BodyProgress<'a> {
+    /// Whether to emit at all — the body is big enough for a gauge.
+    emit: bool,
+    /// `None` until the leading-edge emit, so the first chunk always
+    /// fires. Subsequent chunks fire only when the previous emit was
+    /// at least the throttle window ago.
+    last_emit: Option<Instant>,
+    last_emitted_downloaded: u64,
+    downloaded: u64,
+    package_id: &'a str,
+}
+
+impl<'a> BodyProgress<'a> {
+    const BIG_TARBALL_SIZE: u64 = 5 * 1024 * 1024;
+    const IN_PROGRESS_THROTTLE: Duration = Duration::from_millis(500);
+
+    fn new(expected_size: Option<u64>, package_id: &'a str) -> Self {
+        Self {
+            emit: expected_size.is_some_and(|size| size >= Self::BIG_TARBALL_SIZE),
+            last_emit: None,
+            last_emitted_downloaded: 0,
+            downloaded: 0,
+            package_id,
+        }
+    }
+
+    fn on_chunk<Reporter: self::Reporter>(&mut self, len: usize) {
+        self.downloaded = self.downloaded.saturating_add(len as u64);
+        let throttle_ready =
+            self.last_emit.is_none_or(|instant| instant.elapsed() >= Self::IN_PROGRESS_THROTTLE);
+        if self.emit && throttle_ready {
+            Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+                level: LogLevel::Debug,
+                message: FetchingProgressMessage::InProgress {
+                    downloaded: self.downloaded,
+                    package_id: self.package_id.to_owned(),
+                },
+            }));
+            self.last_emit = Some(Instant::now());
+            self.last_emitted_downloaded = self.downloaded;
+        }
+    }
+
+    /// Trailing emit: matches `lodash.throttle`'s default
+    /// `{leading: true, trailing: true}`. Without it the last partial
+    /// window is dropped — a download that ends 200ms after the
+    /// previous tick would leave consumers stuck at a stale
+    /// `downloaded` value below the real total.
+    fn finish<Reporter: self::Reporter>(&mut self) {
+        if self.emit && self.downloaded != self.last_emitted_downloaded {
+            Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+                level: LogLevel::Debug,
+                message: FetchingProgressMessage::InProgress {
+                    downloaded: self.downloaded,
+                    package_id: self.package_id.to_owned(),
+                },
+            }));
+            self.last_emitted_downloaded = self.downloaded;
+        }
+    }
+}
+
 /// Run one full tarball-fetch attempt: network, body, integrity hash,
 /// decompress, extract into the CAFS. Returns the cas-paths map and the
 /// [`PackageFilesIndex`] row the caller queues once the retry loop
@@ -472,60 +545,127 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
 
     let expected_size = response_head.content_length();
 
-    let buffer = {
-        use futures_util::StreamExt;
-        let mut buf = allocate_tarball_buffer(expected_size, package_url)?;
-        let mut stream = response_head.bytes_stream();
+    use futures_util::StreamExt;
+    let mut stream = response_head.bytes_stream();
+    let mut progress = BodyProgress::new(expected_size, package_id);
 
-        // Mirrors `lodash.throttle(opts.onProgress, 500)` on pnpm's
-        // side, down to the leading and trailing edges. The size gate
-        // exists because the default reporter renders a percent gauge:
-        // without a `Content-Length` there is no denominator, and for
-        // a typical sub-megabyte package the gauge would reach 100%
-        // before any UI tick could show it.
-        const BIG_TARBALL_SIZE: u64 = 5 * 1024 * 1024;
-        const IN_PROGRESS_THROTTLE: Duration = Duration::from_millis(500);
-        let emit_progress = expected_size.is_some_and(|size| size >= BIG_TARBALL_SIZE);
-        // `None` means the leading-edge emit hasn't happened yet, so
-        // the first chunk always fires. Subsequent chunks fire only
-        // when the previous emit was at least 500ms ago.
-        let mut last_emit: Option<Instant> = None;
-        let mut last_emitted_downloaded: u64 = 0;
-        let mut downloaded: u64 = 0;
+    // Pull chunks until the gzip magic is decidable. The prefix is
+    // handed to whichever body path runs, so nothing is consumed
+    // twice; a body shorter than the magic falls through to the
+    // buffered path, which fails it the same way it always has.
+    let mut prefix: Vec<bytes::Bytes> = Vec::new();
+    let mut prefix_len = 0usize;
+    const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
+    while prefix_len < GZIP_MAGIC.len() {
+        let Some(chunk) = stream.next().await else { break };
+        let chunk = chunk.map_err(network_error)?;
+        prefix_len += chunk.len();
+        prefix.push(chunk);
+    }
+    let is_gzip = {
+        let mut magic = prefix.iter().flat_map(|chunk| chunk.iter().copied());
+        (magic.next(), magic.next()) == (Some(GZIP_MAGIC[0]), Some(GZIP_MAGIC[1]))
+    };
+
+    // A large gzip body with a pinned integrity is extracted *while it
+    // downloads*: every chunk feeds an incremental integrity hash and
+    // a blocking-thread extractor concurrently. The biggest tarballs
+    // finish downloading last on a shared link no matter when they
+    // were requested — their bytes take the longest to arrive — so
+    // extracting them after the fact is pure install tail; interleaved
+    // here, the CPU work rides the gaps between chunks and the tail
+    // shrinks to the final chunk's processing. Below the size pivot
+    // the extract is too cheap to be worth parking a blocking thread
+    // on the whole body. The integrity gate keeps the paths honest: an
+    // unpinned tarball's integrity is *computed* from the buffered
+    // body, which the streaming path never materializes.
+    //
+    // Failure semantics match the buffered path at the retry boundary:
+    // a mid-body network error, a malformed archive, and an integrity
+    // mismatch all surface from this attempt and re-fetch. An
+    // integrity mismatch is only known after the body ends, by which
+    // point the extractor has CAS-written entries from the unverified
+    // archive — the same self-consistent, unreferenced files a crash
+    // mid-extract leaves today (each is keyed by its own content
+    // hash, and the store-index row that would make the package reach
+    // them is only queued by the caller after this returns `Ok`).
+    //
+    // No `post_download_semaphore` here: that cap exists to bound
+    // whole-archive decompress bursts on the CPU. This path trickles
+    // the same work across the download, bounded by the network
+    // concurrency that gates bodies in the first place.
+    if is_gzip
+        && expected_size.is_some_and(|size| size >= STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD)
+        && let Some(expected) = expected_integrity
+    {
+        let (chunk_tx, chunk_rx) = std::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>();
+        let extractor_ignore = ignore_file_pattern.clone();
+        let extract_task = tokio::task::spawn_blocking(move || {
+            stream_extract_gzipped_channel(chunk_rx, store_dir, extractor_ignore.as_deref())
+        });
+        let mut checker = IntegrityChecker::new(expected.clone());
+        // A closed channel means the extractor bailed (malformed
+        // archive); stop feeding and let its error surface below. A
+        // body error is remembered and takes precedence over the
+        // truncation artifact the extractor reports for it.
+        let mut body_error: Option<TarballError> = None;
+        let mut extractor_bailed = false;
+        for chunk in prefix {
+            checker.input(&chunk);
+            progress.on_chunk::<Reporter>(chunk.len());
+            extractor_bailed = chunk_tx.send(Ok(chunk)).is_err();
+        }
+        while !extractor_bailed && body_error.is_none() {
+            match stream.next().await {
+                Some(Ok(chunk)) => {
+                    checker.input(&chunk);
+                    progress.on_chunk::<Reporter>(chunk.len());
+                    extractor_bailed = chunk_tx.send(Ok(chunk)).is_err();
+                }
+                Some(Err(error)) => {
+                    let _ = chunk_tx
+                        .send(Err(std::io::Error::other("the tarball body failed mid-download")));
+                    body_error = Some(network_error(error));
+                }
+                None => break,
+            }
+        }
+        // Close the channel so the extractor sees end-of-stream, and
+        // release the network permit before waiting on CPU work — the
+        // body is done (or abandoned, on the error paths, where the
+        // dropped connection is the price of the retry either way).
+        drop(chunk_tx);
+        drop(stream);
+        drop(client);
+        tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
+        let extracted = extract_task.await.map_err(TarballError::TaskJoin)?;
+        if let Some(error) = body_error {
+            return Err(error);
+        }
+        let (cas_paths, pkg_files_idx) = extracted?;
+        checker.result().map_err(|error| {
+            TarballError::Checksum(VerifyChecksumError { url: package_url.to_string(), error })
+        })?;
+        tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
+        progress.finish::<Reporter>();
+        return Ok((expected.clone(), cas_paths, pkg_files_idx));
+    }
+
+    let buffer = {
+        let mut buf = allocate_tarball_buffer(expected_size, package_url)?;
+        for chunk in prefix {
+            buf.extend_from_slice(&chunk);
+            progress.on_chunk::<Reporter>(chunk.len());
+        }
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(network_error)?;
             buf.extend_from_slice(&chunk);
-            downloaded = downloaded.saturating_add(chunk.len() as u64);
-            let throttle_ready =
-                last_emit.is_none_or(|instant| instant.elapsed() >= IN_PROGRESS_THROTTLE);
-            if emit_progress && throttle_ready {
-                Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
-                    level: LogLevel::Debug,
-                    message: FetchingProgressMessage::InProgress {
-                        downloaded,
-                        package_id: package_id.to_owned(),
-                    },
-                }));
-                last_emit = Some(Instant::now());
-                last_emitted_downloaded = downloaded;
-            }
+            progress.on_chunk::<Reporter>(chunk.len());
         }
-        // Trailing emit: matches `lodash.throttle`'s default
-        // `{leading: true, trailing: true}`. Without it the last
-        // partial window is dropped — a download that ends 200ms
-        // after the previous tick would leave consumers stuck at a
-        // stale `downloaded` value below the real total.
-        if emit_progress && downloaded != last_emitted_downloaded {
-            Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
-                level: LogLevel::Debug,
-                message: FetchingProgressMessage::InProgress {
-                    downloaded,
-                    package_id: package_id.to_owned(),
-                },
-            }));
-        }
+        progress.finish::<Reporter>();
         buf
     };
+    drop(stream);
 
     // Body fully buffered; release the network permit before the
     // CPU-bound work so spawn_blocking doesn't hold one of the

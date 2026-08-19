@@ -8,8 +8,9 @@ mod zip_archive;
 pub use download::*;
 pub use error::*;
 pub(crate) use extract::{
-    allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest, decompress_gzip,
-    extract_tarball_entries, normalize_bundled_manifest, should_stream_extract,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
+    apply_placeholder_manifest, decompress_gzip, extract_tarball_entries,
+    normalize_bundled_manifest, should_stream_extract, stream_extract_gzipped_channel,
     stream_extract_gzipped_tarball, tar_entry_payload,
 };
 pub use local_tarball::*;
