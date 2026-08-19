@@ -255,8 +255,9 @@ impl CreateVirtualDirBySnapshot<'_> {
         // doesn't surface the per-package resolved method past
         // `link_file`'s install-scoped atomic, so we report the
         // optimistic value the configured method would resolve to in
-        // a non-degraded environment (`Auto`/`CloneOrCopy` → `clone`,
-        // explicit settings as-is). Refining to per-package resolution
+        // a non-degraded environment (`Auto` → its platform ladder's
+        // head, `CloneOrCopy` → `clone`, explicit settings as-is).
+        // Refining to per-package resolution
         // would require threading the resolved method back from
         // `link_file`; tracked under <https://github.com/pnpm/pacquet/issues/347>.
         Reporter::emit(&LogEvent::Progress(ProgressLog {
@@ -279,9 +280,8 @@ impl CreateVirtualDirBySnapshot<'_> {
 #[must_use]
 pub fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
     match method {
-        PackageImportMethod::Auto
-        | PackageImportMethod::Clone
-        | PackageImportMethod::CloneOrCopy => WireImportMethod::Clone,
+        PackageImportMethod::Auto => crate::link_file::auto_optimistic_wire_method(),
+        PackageImportMethod::Clone | PackageImportMethod::CloneOrCopy => WireImportMethod::Clone,
         PackageImportMethod::Hardlink => WireImportMethod::Hardlink,
         PackageImportMethod::Copy => WireImportMethod::Copy,
     }
