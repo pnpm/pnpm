@@ -17,9 +17,22 @@
 //! What this buys: reinstalling with a warm cache but no lockfile (a
 //! CI cache restore, a deleted-lockfile reinstall) skips the resolve
 //! pass the way a lockfile-bearing install does.
+//!
+//! The memo's invariant: it records only pnpmfile-free resolutions,
+//! and it only ever answers pnpmfile-free installs. Custom resolvers
+//! and fetchers shape resolution but are invisible to the lockfile's
+//! `pnpmfileChecksum` (only hook-exporting pnpmfiles are recorded), so
+//! nothing in the freshness check can attest a memo across a
+//! pnpmfile-regime change — in either direction. Both sides are
+//! therefore gated on "no pnpmfile loaded": a fresh resolve persists a
+//! memo only when it ran without one, and the synthesis chain consults
+//! the memo only when the current install runs without one. The
+//! regenerate-the-lockfile paths never write the memo at all: what
+//! they save was synthesized, and its provenance is the earlier
+//! install that recorded it, not this one.
 
 use std::{
-    fs, io,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -59,16 +72,16 @@ const MAX_MEMO_BYTES: u64 = 128 * 1024 * 1024;
 /// unparsable, stale version — reads as "no memo": the caller's
 /// fallback is a fresh resolve, which regenerates the memo.
 ///
-/// The metadata gate runs before any read so a cache entry that is not
-/// a regular file (a planted FIFO would block an open-and-read forever)
-/// or is implausibly large is never opened for content at all.
+/// The read is hardened on the descriptor itself
+/// ([`pnpm_fs::read_regular_file_capped`]): symlinks are refused at
+/// open, a planted FIFO fails instead of blocking, and the size bound
+/// holds on the bytes actually read — a stat-then-open pair would be a
+/// race a concurrent writer in the cache directory could win.
 pub(crate) fn load(cache_dir: &Path, workspace_root: &Path) -> Option<Lockfile> {
     let path = memo_path(cache_dir, workspace_root);
-    let metadata = fs::symlink_metadata(&path).ok()?;
-    if !metadata.is_file() || metadata.len() > MAX_MEMO_BYTES {
-        return None;
-    }
-    Lockfile::load_from_file(&path).ok().flatten()
+    let bytes = pnpm_fs::read_regular_file_capped(&path, MAX_MEMO_BYTES).ok()??;
+    let content = String::from_utf8(bytes).ok()?;
+    Lockfile::parse(&content, &path).ok()?
 }
 
 /// Record the wanted lockfile that was just written for
@@ -88,7 +101,8 @@ pub(crate) fn persist(cache_dir: &Path, workspace_root: &Path) {
 
 fn try_persist(cache_dir: &Path, workspace_root: &Path) -> io::Result<()> {
     let source = workspace_root.join(Lockfile::FILE_NAME);
-    let bytes = fs::read(&source)?;
+    let bytes = pnpm_fs::read_regular_file_capped(&source, MAX_MEMO_BYTES)?
+        .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?;
     // `write_atomic` stages through an exclusively-created sibling temp
     // file and renames over the target, so a concurrent install reading
     // the memo sees the old copy or the new one, never a torn write.

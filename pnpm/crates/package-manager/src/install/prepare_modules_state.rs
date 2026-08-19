@@ -382,7 +382,6 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
             wanted_lockfile
                 .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
                 .map_err(InstallError::SaveWantedLockfile)?;
-            super::lockfile_memo::persist(&config.cache_dir, workspace_root);
         }
         update_workspace_state(
             workspace_root,

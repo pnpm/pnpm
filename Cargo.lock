@@ -4765,6 +4765,7 @@ dependencies = [
  "junction",
  "miette 7.6.0",
  "pathdiff",
+ "rustix 1.1.4",
  "sha2",
  "tempfile",
 ]
@@ -5579,6 +5580,7 @@ dependencies = [
 name = "pnpm-tarball"
 version = "0.0.1"
 dependencies = [
+ "bytes",
  "dashmap",
  "derive_more",
  "flate2",

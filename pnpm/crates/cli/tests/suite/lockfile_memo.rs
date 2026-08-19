@@ -122,6 +122,39 @@ fn a_loaded_pnpmfile_disables_the_memo() {
     drop((root, mock_instance));
 }
 
+/// The reverse transition: an install that ran WITH a pnpmfile must
+/// not leave a memo behind, or removing the pnpmfile later would let
+/// the memo answer for a resolution regime the freshness check can't
+/// attest (resolver-only pnpmfiles record no `pnpmfileChecksum`).
+/// With no memo recorded, the pnpmfile-free reinstall has to resolve —
+/// which the dead registry turns into a failure.
+#[test]
+fn an_install_under_a_pnpmfile_records_no_memo() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/has-optional-peer-with-peer": "^1.0.0" }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    trust_lockfile(&workspace);
+    fs::write(workspace.join(".pnpmfile.cjs"), "module.exports = {}\n").expect("write a pnpmfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    fs::remove_file(workspace.join(".pnpmfile.cjs")).expect("remove the pnpmfile");
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("delete the lockfile");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("delete node_modules");
+    point_npmrc_at(&npmrc_path, &dead_registry_url());
+
+    pacquet_at(&workspace).with_arg("install").assert().failure();
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn a_changed_manifest_rejects_the_memo() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =

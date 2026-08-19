@@ -1687,7 +1687,15 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 after_all_resolved_log.clone(),
             )
             .await?;
-            crate::install::lockfile_memo::persist(&config.cache_dir, lockfile_dir);
+            // The memo's invariant: it records only pnpmfile-free
+            // resolutions. Custom resolvers and fetchers are invisible to
+            // `pnpmfileChecksum`, so a memo written under one pnpmfile
+            // regime could answer an install running under another; not
+            // writing one at all whenever a pnpmfile is loaded is what
+            // makes the load-side gate sufficient.
+            if after_all_resolved_hook.is_none() {
+                crate::install::lockfile_memo::persist(&config.cache_dir, lockfile_dir);
+            }
             (Some(built_lockfile), can_record_lockfile_verification)
         } else {
             // Nothing was persisted, so there is no `pnpm-lock.yaml`
@@ -1933,7 +1941,11 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
             after_all_resolved_log,
         )
         .await?;
-        crate::install::lockfile_memo::persist(&config.cache_dir, lockfile_dir);
+        // See the materializing path above: memos record only
+        // pnpmfile-free resolutions.
+        if after_all_resolved_hook.is_none() {
+            crate::install::lockfile_memo::persist(&config.cache_dir, lockfile_dir);
+        }
         (Some(built_lockfile), can_record_lockfile_verification)
     } else {
         (None, false)

@@ -16,6 +16,9 @@ miette      = { workspace = true }
 pathdiff    = { workspace = true }
 tempfile    = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true }
+
 [dev-dependencies]
 sha2 = { workspace = true }
 
