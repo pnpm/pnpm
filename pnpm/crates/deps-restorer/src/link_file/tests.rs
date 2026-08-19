@@ -1,6 +1,7 @@
 use super::{
     AUTO_FIRST_TIER, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
-    clone_or_copy_link, is_call_error, is_cross_device, link_file, next_auto_tier,
+    clone_or_copy_link, downgrade_auto_tier, is_call_error, is_cross_device, link_file,
+    next_auto_tier,
 };
 #[cfg(unix)]
 use super::{LINK_STATE_COPY, import_into_fresh_target};
@@ -386,12 +387,10 @@ fn auto_respects_cached_copy_state() {
     assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY, "state must not drift");
 }
 
-/// The platform ladder itself: Linux runs hardlink before clone —
-/// a reflink is a new inode plus extent bookkeeping where a hardlink
-/// is a directory entry, measured at 0.85s vs 0.48s for a warm-store
-/// install on btrfs — while everywhere else clone stays first. Pinned
-/// here so a refactor of the downgrade machinery can't quietly put
-/// Linux back on the reflink tier.
+/// The platform ladder itself: hardlink before clone on Linux, clone
+/// first everywhere else (`next_auto_tier` carries the why). Pinned so
+/// a refactor of the downgrade machinery can't quietly put Linux back
+/// on the reflink tier.
 #[test]
 fn auto_ladder_order_is_platform_specific() {
     #[cfg(target_os = "linux")]
@@ -406,6 +405,31 @@ fn auto_ladder_order_is_platform_specific() {
         assert_eq!(next_auto_tier(LINK_STATE_CLONE), LINK_STATE_HARDLINK);
         assert_eq!(next_auto_tier(LINK_STATE_HARDLINK), super::LINK_STATE_COPY);
     }
+}
+
+/// The downgrade cache only steps forward from the exact tier that
+/// failed: a worker holding a stale view of the ladder must neither
+/// skip it ahead nor drag it back once another worker has advanced it.
+#[test]
+fn stale_downgrades_neither_skip_nor_regress() {
+    let state = AtomicU8::new(AUTO_FIRST_TIER);
+    let second = next_auto_tier(AUTO_FIRST_TIER);
+
+    // The first failure advances the ladder head to its successor.
+    downgrade_auto_tier(&state, AUTO_FIRST_TIER);
+    assert_eq!(state.load(Ordering::Relaxed), second);
+
+    // A racing worker that still saw the head reports the same failure:
+    // its exchange must lose rather than skip the ladder toward copy.
+    downgrade_auto_tier(&state, AUTO_FIRST_TIER);
+    assert_eq!(state.load(Ordering::Relaxed), second);
+
+    // Only the current tier failing moves the ladder again — and a
+    // last stale report from the head still cannot move it back.
+    downgrade_auto_tier(&state, second);
+    assert_eq!(state.load(Ordering::Relaxed), super::LINK_STATE_COPY);
+    downgrade_auto_tier(&state, AUTO_FIRST_TIER);
+    assert_eq!(state.load(Ordering::Relaxed), super::LINK_STATE_COPY);
 }
 
 /// A fresh `Auto` on Linux hardlinks: same-filesystem tempdir, no

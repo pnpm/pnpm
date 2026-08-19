@@ -26,7 +26,8 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
   // this works in the following way:
   // - hardlink: hardlink the packages, no fallback
   // - clone: clone the packages, no fallback
-  // - auto: try to clone or hardlink the packages, if it fails, fallback to copy
+  // - auto: try the platform's cheap link tiers in order (hardlink first
+  //   on Linux, clone first elsewhere), falling back to copy
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod ?? 'auto') {
     case 'clone':
@@ -57,9 +58,29 @@ function createAutoImporter (): ImportIndexedPackage {
     to: string,
     opts: ImportOptions
   ): string | undefined {
+    // On Linux the hardlink tier comes first: a reflink materializes a new
+    // inode and copies extent bookkeeping inside the filesystem's metadata
+    // trees, where a hardlink is one directory entry and an nlink bump — an
+    // install-sized difference on CoW filesystems (btrfs, XFS), and a no-op
+    // on ext4, which refuses reflinks anyway. The Rust engine walks the
+    // same ladder (`next_auto_tier` in deps-restorer's link_file).
+    if (process.platform === 'linux') {
+      try {
+        if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
+        packageImportMethodLogger.debug({ method: 'hardlink' })
+        auto = hardlinkPkg.bind(null, linkOrCopy)
+        return 'hardlink'
+      } catch {
+        // The clone probe below is the next rung, and the hardlink-or-copy
+        // block after it stays the terminal one (it owns the EXDEV → copy
+        // dispatch), so a store that refuses hardlinks walks the same
+        // ladder the Rust engine does.
+      }
+    }
     // Although reflinks are supported on Windows Dev Drives,
     // they are 10x slower than hard links.
-    // Hence, we prefer reflinks by default only on Linux and macOS.
+    // Hence, we prefer reflinks by default only on macOS — on Linux they
+    // are the fallback rung above.
     if (process.platform !== 'win32') {
       try {
         // Probe with the raw clone function (no ENOTSUP fallback).

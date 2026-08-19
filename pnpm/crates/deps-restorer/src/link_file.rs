@@ -66,6 +66,18 @@ const AUTO_FIRST_TIER: u8 = LINK_STATE_HARDLINK;
 #[cfg(not(target_os = "linux"))]
 const AUTO_FIRST_TIER: u8 = LINK_STATE_CLONE;
 
+/// The wire method `Auto` optimistically resolves to on this platform —
+/// the ladder head as `pnpm:progress` reports it. Progress events are
+/// emitted before per-file resolution settles, so this is what the
+/// `imported` message's `method` field carries for `Auto` installs.
+#[must_use]
+pub fn auto_optimistic_wire_method() -> WireImportMethod {
+    match AUTO_FIRST_TIER {
+        LINK_STATE_HARDLINK => WireImportMethod::Hardlink,
+        _ => WireImportMethod::Clone,
+    }
+}
+
 /// The tier `Auto` falls to when `tier` fails for capability reasons.
 ///
 /// Linux runs hardlink before clone. A reflink is not the cheap tier
@@ -74,16 +86,18 @@ const AUTO_FIRST_TIER: u8 = LINK_STATE_CLONE;
 /// directory entry and an nlink bump — measured on the alotta-files
 /// fixture (39k files, warm store, btrfs), the whole install is 0.48s
 /// hardlinked against 0.85s cloned, with kernel time 3.1s against
-/// 5.3s. It is also the default Bun ships (`--backend=hardlink`).
-/// Nothing changes on ext4, where `FICLONE` is unsupported and `Auto`
-/// always ended up hardlinking after one failed reflink. What the old
-/// order bought was store isolation — a clone can't be corrupted by a
-/// package that mutates its own files at runtime — but that isolation
-/// was only ever incidental: every ext4 and Windows install already
-/// runs without it, and the store's real guard is `verify-store-integrity`.
+/// 5.3s. On ext4 the two orders behave identically, since `FICLONE`
+/// is unsupported and every ladder ends at the hardlink tier. The
+/// cost hardlinks carry is shared inodes: a package that mutates its
+/// own files at runtime reaches the store copy — the same exposure
+/// every ext4 and Windows install runs with, guarded by
+/// `verify-store-integrity`, not by the import tier.
 ///
 /// macOS keeps clone-first: APFS `clonefile` is the platform's cheap
-/// primitive, and the established behavior stays.
+/// primitive.
+///
+/// The TypeScript CLI's `createAutoImporter` walks the same ladder;
+/// the two must stay in step (see `pnpm/AGENTS.md`).
 fn next_auto_tier(tier: u8) -> u8 {
     #[cfg(target_os = "linux")]
     match tier {

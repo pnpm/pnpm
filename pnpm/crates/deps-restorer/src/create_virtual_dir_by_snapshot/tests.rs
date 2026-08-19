@@ -106,7 +106,10 @@ impl Drop for LinkConcurrencyGuard<'_> {
 /// A future change to pacquet's `PackageImportMethod` set must
 /// either extend this match or fail this test.
 #[test]
-fn optimistic_wire_method_collapses_auto_and_clone_or_copy_to_clone() {
+fn optimistic_wire_method_reports_each_platforms_ladder_head() {
+    #[cfg(target_os = "linux")]
+    assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Hardlink);
+    #[cfg(not(target_os = "linux"))]
     assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Clone);
     assert_eq!(optimistic_wire_method(PackageImportMethod::CloneOrCopy), WireImportMethod::Clone);
     assert_eq!(optimistic_wire_method(PackageImportMethod::Clone), WireImportMethod::Clone);

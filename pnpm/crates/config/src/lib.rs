@@ -796,16 +796,10 @@ pub enum CatalogMode {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PackageImportMethod {
-    /// Try the platform's cheap link tiers in order and fall back to
-    /// copying when none is possible. On Linux that is hardlink first,
-    /// then clone: a reflink is a new inode plus extent bookkeeping in
-    /// the filesystem's metadata trees, where a hardlink is one
-    /// directory entry — the difference between 0.48s and 0.85s for a
-    /// warm-store install on btrfs (and a no-op on ext4, which never
-    /// supported cloning). Elsewhere clone stays first — on macOS,
-    /// APFS `clonefile` is the platform's cheap primitive.
-    /// (`deps-restorer::link_file::next_auto_tier` implements the
-    /// ladder.)
+    /// Try the platform's cheap link tiers in order — hardlink first on
+    /// Linux, clone first elsewhere — and fall back to copying when none
+    /// is possible. `deps-restorer::link_file::next_auto_tier` implements
+    /// the ladder and carries the rationale.
     #[default]
     Auto,
 
