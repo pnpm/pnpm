@@ -41,6 +41,7 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
       storeController: store.ctrl,
       storeDir: store.dir,
       save: true,
+      frozenLockfile: config.frozenLockfile,
     })
   } finally {
     await store.ctrl.close()

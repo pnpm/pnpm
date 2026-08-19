@@ -77,7 +77,7 @@ pub(crate) async fn install_engine_to_store<Reporter: self::Reporter + 'static>(
             packages.pinned,
             spec,
             version,
-            false,
+            config.frozen_lockfile.unwrap_or(false),
             force_resync,
         )
         .await?;

@@ -11,7 +11,7 @@ import { tempDir } from '@pnpm/prepare'
 // Simulate what the real resolvePackageManagerIntegrities does that this test
 // cares about: record the resolved pnpm version under
 // packageManagerDependencies and persist the lockfile to disk.
-const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: { envLockfile?: EnvLockfile, registries?: unknown, rootDir: string, save?: boolean }) => Promise<EnvLockfile>>(
+const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: { envLockfile?: EnvLockfile, registries?: unknown, rootDir: string, save?: boolean, frozenLockfile?: boolean }) => Promise<EnvLockfile>>(
   async (version, opts) => {
     const lockfile = opts.envLockfile ?? ({ lockfileVersion: '9.0', importers: { '.': { configDependencies: {} } }, packages: {}, snapshots: {} } as EnvLockfile)
     lockfile.importers['.'].packageManagerDependencies = {
