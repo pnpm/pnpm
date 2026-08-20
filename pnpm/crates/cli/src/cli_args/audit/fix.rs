@@ -47,8 +47,10 @@ pub(crate) struct CleanupIgnoredGhsasResult {
     pub(crate) retained: Vec<String>,
 }
 
-/// Split `ignored_ghsas` into those still present in `report` (`retained`)
-/// and those that aren't (`cleaned`). Mirrors pnpm's `cleanupIgnoredGhsas`.
+/// Split `ignored_ghsas` into those still present in `report` — normalized
+/// to their canonical spelling and deduplicated (`retained`) — and those
+/// that aren't, in their original spelling (`cleaned`). Mirrors pnpm's
+/// `cleanupIgnoredGhsas`.
 pub(crate) fn cleanup_ignored_ghsas(
     ignored_ghsas: &[String],
     report: &AuditReport,
@@ -60,11 +62,15 @@ pub(crate) fn cleanup_ignored_ghsas(
         .map(|advisory| normalize_ghsa_id(&advisory.github_advisory_id))
         .collect::<HashSet<_>>();
 
+    let mut retained_seen = HashSet::new();
     let mut retained = Vec::new();
     let mut cleaned = Vec::new();
     for ghsa in ignored_ghsas {
-        if advisory_ghsa_ids.contains(&normalize_ghsa_id(ghsa)) {
-            retained.push(ghsa.clone());
+        let normalized = normalize_ghsa_id(ghsa);
+        if advisory_ghsa_ids.contains(&normalized) {
+            if retained_seen.insert(normalized.clone()) {
+                retained.push(normalized);
+            }
         } else {
             cleaned.push(ghsa.clone());
         }
