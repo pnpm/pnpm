@@ -2124,3 +2124,88 @@ async fn a_damaged_fragment_behind_a_304_is_replaced_by_a_bypassing_refetch() {
     assert!(reloaded.versions.get("1.1.0").is_some());
     assert!(!reloaded.versions.has_corrupt_mirror_fragment());
 }
+
+/// A registry-served version manifest that isn't shaped like a
+/// [`pnpm_registry::PackageVersion`] (missing the required `dist`
+/// field here) is tolerated the first time: the fresh response's
+/// fragments are [`pnpm_registry::VersionSlot`]-equivalent raw JSON,
+/// and a raw fragment that fails to decode is treated as registry-
+/// served-badly, not as mirror damage. But writing that same raw
+/// text to the indexed mirror and reloading it turns it into a
+/// file-span fragment, whose decode failure *is* mirror damage — so
+/// the very first cold fetch already comes back flagged corrupt.
+/// The bypassing retry re-fetches the identical shape from the same
+/// registry and hits the same wall: unlike a bit-damaged local file,
+/// this can never heal, so the resolver has to error instead of
+/// quietly serving (and caching) a pick made off a document it has
+/// twice found to be corrupt.
+const UNPARSEABLE_VERSION_PACKAGE_BODY: &str = r#"{
+    "name": "acme",
+    "dist-tags": { "latest": "1.1.0" },
+    "modified": "2025-01-15T12:00:00.000Z",
+    "time": {
+        "1.0.0": "2024-01-10T08:30:00.000Z",
+        "1.1.0": "2024-12-10T08:30:00.000Z"
+    },
+    "versions": {
+        "1.0.0": {
+            "name": "acme",
+            "version": "1.0.0",
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/acme-1.0.0.tgz"
+            }
+        },
+        "1.1.0": {
+            "name": "acme",
+            "version": "1.1.0"
+        }
+    }
+}"#;
+
+#[tokio::test]
+async fn registry_shaped_undecodable_version_errors_instead_of_serving_a_corrupt_pick() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("etag", r#"W/"fresh""#)
+        .with_body(UNPARSEABLE_VERSION_PACKAGE_BODY)
+        .expect(2)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        needs_full_metadata_for: None,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let err = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect_err("a twice-undecodable version must error, not silently pick");
+    assert!(matches!(err, PickPackageError::CorruptMetadataMirror { .. }), "got {err:?}");
+    let cache_key =
+        metadata_cache_key(&MetadataCacheScope::Public, &registry, "acme", false, false);
+    assert!(
+        meta_cache.get(&cache_key).is_none(),
+        "a document known to be corrupt must never reach the in-memory cache"
+    );
+    mock.assert_async().await;
+}

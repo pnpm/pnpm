@@ -385,6 +385,27 @@ pub enum PickPackageError {
         spec_fetch_spec: String,
         pkg_mirror: PathBuf,
     },
+    /// `ERR_PNPM_CORRUPT_METADATA_MIRROR`: a bypassing refetch — the
+    /// last available remedy for a mirror fragment that fails to
+    /// decode — rewrote the mirror and the fragment is still
+    /// undecodable. Only reachable when the registry itself serves a
+    /// version manifest the local `PackageVersion` shape can't parse
+    /// (a bit-damaged local file heals on the first bypassing
+    /// refetch, since that always rewrites from a fresh response).
+    /// Surfacing this instead of silently picking from the still-
+    /// damaged document keeps the corrupt-mirror invariant from
+    /// [`pnpm_registry::PackageVersions::has_corrupt_mirror_fragment`]
+    /// intact even on this last retry.
+    #[display(
+        "Metadata mirror for {spec_name}@{spec_fetch_spec} is still unreadable after a bypassing refetch ({pkg_mirror:?})"
+    )]
+    #[diagnostic(code(ERR_PNPM_CORRUPT_METADATA_MIRROR))]
+    CorruptMetadataMirror {
+        #[error(not(source))]
+        spec_name: String,
+        spec_fetch_spec: String,
+        pkg_mirror: PathBuf,
+    },
     /// Underlying picker error (no versions, unpublished, missing
     /// time, etc.). The picker errors are described on
     /// [`PickPackageFromMetaError`].
@@ -819,9 +840,22 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         // whose mirror turns out to be damaged from being cached at all.
         let (picked_meta, picked) =
             pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
-        if picked_meta.versions.has_corrupt_mirror_fragment() && !bypass_cache {
-            bypass_cache = true;
-            continue;
+        if picked_meta.versions.has_corrupt_mirror_fragment() {
+            if !bypass_cache {
+                bypass_cache = true;
+                continue;
+            }
+            // The bypassing refetch above rewrote the mirror from a
+            // fresh response and it is *still* undecodable: the
+            // fragment isn't a locally damaged file (that heals on
+            // the rewrite), so another retry can't help. Surface an
+            // error instead of caching and serving a pick made off a
+            // document already known to be damaged.
+            return Err(PickPackageError::CorruptMetadataMirror {
+                spec_name: spec.name.clone(),
+                spec_fetch_spec: spec.fetch_spec.clone(),
+                pkg_mirror: pkg_mirror.unwrap_or_default(),
+            });
         }
         break (meta, picked_meta, picked);
     };
