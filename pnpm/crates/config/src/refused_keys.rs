@@ -11,10 +11,10 @@ use crate::{
 };
 use std::{collections::HashSet, sync::OnceLock};
 
-/// The camelCase keys a project's `pnpm-workspace.yaml` does not contribute
-/// (pnpm's `PROJECT_MANIFEST_SKIPPED_KEYS`): where the machine keeps what it
-/// holds across runs, the directories the current command reads and writes
-/// in, and which credentials pnpm sends to whom.
+/// The camelCase keys a project's `pnpm-workspace.yaml` does not contribute,
+/// named as in pnpm's `config.reader`: where the machine keeps what it holds
+/// across runs, the directories the current command reads and writes in, and
+/// which credentials pnpm sends to whom.
 const PROJECT_MANIFEST_SKIPPED_KEYS: &[&str] = &[
     "configDir",
     "globalBinDir",
@@ -35,9 +35,8 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: &[&str] = &[
     "packageManagerRegistries",
 ];
 
-/// The reader's own bookkeeping (pnpm's `CONFIG_CONTEXT_KEYS`), which in the
-/// TypeScript CLI shares one object with the settings but is not settable by
-/// anyone.
+/// The reader's own bookkeeping, named as in pnpm's `config.reader`, which
+/// there shares one object with the settings but is not settable by anyone.
 const CONFIG_CONTEXT_KEYS: &[&str] = &[
     "hooks",
     "finders",
