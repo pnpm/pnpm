@@ -170,7 +170,7 @@ async fn resolve_one(
         name.to_string(),
         SpecifierAndResolution { specifier: specifier.to_string(), version: version.clone() },
     );
-    let mut resolution = result.resolution.clone();
+    let mut resolution = result.resolution;
     // A migrated dependency keeps the integrity pinned in pnpm-workspace.yaml,
     // so the registry hands over the tarball URL without loosening the pin.
     if let (Some(pinned), LockfileResolution::Tarball(tarball)) =
