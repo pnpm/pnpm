@@ -62,6 +62,26 @@ test('identifier only', () => {
     type: 'identifier',
     content: '_foo',
   } as Identifier, ''])
+  expect(parseIdentifier('some-package-name')).toStrictEqual([{
+    type: 'identifier',
+    content: 'some-package-name',
+  } as Identifier, ''])
+  expect(parseIdentifier('helloWorld123-456')).toStrictEqual([{
+    type: 'identifier',
+    content: 'helloWorld123-456',
+  } as Identifier, ''])
+  expect(parseIdentifier('_under-score')).toStrictEqual([{
+    type: 'identifier',
+    content: '_under-score',
+  } as Identifier, ''])
+  expect(parseIdentifier('foo--bar')).toStrictEqual([{
+    type: 'identifier',
+    content: 'foo--bar',
+  } as Identifier, ''])
+  expect(parseIdentifier('foo-')).toStrictEqual([{
+    type: 'identifier',
+    content: 'foo-',
+  } as Identifier, ''])
 })
 
 test('identifier and tail', () => {
@@ -73,10 +93,14 @@ test('identifier and tail', () => {
     type: 'identifier',
     content: 'abc',
   } as Identifier, '.def'])
-  expect(parseIdentifier('helloWorld123-456')).toStrictEqual([{
+  expect(parseIdentifier('foo-bar.baz')).toStrictEqual([{
     type: 'identifier',
-    content: 'helloWorld123',
-  } as Identifier, '-456'])
+    content: 'foo-bar',
+  } as Identifier, '.baz'])
+  expect(parseIdentifier('foo-bar[0]')).toStrictEqual([{
+    type: 'identifier',
+    content: 'foo-bar',
+  } as Identifier, '[0]'])
   expect(parseIdentifier('HelloWorld123 456')).toStrictEqual([{
     type: 'identifier',
     content: 'HelloWorld123',
