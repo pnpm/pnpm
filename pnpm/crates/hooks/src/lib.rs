@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use derive_more::Display;
 use serde_json::Value;
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 pub mod custom_fetcher_adapter;
@@ -12,48 +12,24 @@ pub mod worker;
 
 pub use worker::LogFn;
 
-/// A built-in tarball fetch requested by a JavaScript custom fetcher.
+/// A native operation requested by a JavaScript custom fetcher.
 pub struct FetcherCallback {
-    pub method: String,
+    pub method: FetcherMethod,
     pub resolution: Value,
     pub options: Value,
-    pub response: oneshot::Sender<Result<Value, FetcherCallbackError>>,
+    pub response: oneshot::Sender<Result<Value, Value>>,
 }
 
-/// Structured callback failures preserve the error fields custom fetchers inspect.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct FetcherCallbackError {
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub code: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<u16>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cause: Option<Box<FetcherCallbackError>>,
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FetcherMethod {
+    CafsInfo,
+    TempDir,
+    LocalTarball,
+    RemoteTarball,
 }
 
 pub type FetcherCallbackSender = mpsc::UnboundedSender<FetcherCallback>;
-
-tokio::task_local! {
-    static ACTIVE_FETCHER_CALLBACKS: FetcherCallbackSender;
-}
-
-/// Expose the installer's built-in fetchers to every hook called by `future`.
-pub async fn with_fetcher_callbacks<HookFuture>(
-    callbacks: FetcherCallbackSender,
-    future: HookFuture,
-) -> HookFuture::Output
-where
-    HookFuture: Future,
-{
-    ACTIVE_FETCHER_CALLBACKS.scope(callbacks, future).await
-}
-
-pub(crate) fn active_fetcher_callbacks() -> Option<FetcherCallbackSender> {
-    ACTIVE_FETCHER_CALLBACKS.try_with(Clone::clone).ok()
-}
 
 /// Represents the results of a `readPackage` hook.
 pub type ReadPackageResult = Arc<Value>;
@@ -73,6 +49,7 @@ pub enum HookError {
 }
 
 /// Context provided to pnpmfile hooks.
+#[derive(Clone)]
 pub struct HookContext {
     pub log: Arc<dyn Fn(String) + Send + Sync>,
     /// Lockfile-root-relative directory of the resolution, set when the
@@ -87,12 +64,14 @@ pub struct HookContext {
 }
 
 /// Logger for preResolution hook (info/warn methods).
+#[derive(Clone)]
 pub struct PreResolutionHookLogger {
     pub info: Arc<dyn Fn(String) + Send + Sync>,
     pub warn: Arc<dyn Fn(String) + Send + Sync>,
 }
 
 /// Context provided to preResolution hooks.
+#[derive(Clone)]
 pub struct PreResolutionHookContext {
     pub wanted_lockfile: Value,
     pub current_lockfile: Value,
@@ -257,11 +236,19 @@ pub trait CustomFetcher: Send + Sync {
     ///   falls through to the built-in fetch path for the rewritten value.
     /// - A built-in fetch result containing `filesMap` is reused directly.
     /// - Any other shape fails the install (`custom_fetcher_failed`).
-    ///
-    /// The built-in fetch path runs with the original resolution unchanged
-    /// only when no fetcher claims the package.
     async fn fetch(&self, pkg_id: &str, resolution: Value, opts: Value)
     -> Result<Value, HookError>;
+
+    /// Run a fetch with native callbacks supplied by the installer.
+    async fn fetch_with_callbacks(
+        &self,
+        pkg_id: &str,
+        resolution: Value,
+        opts: Value,
+        _callbacks: FetcherCallbackSender,
+    ) -> Result<Value, HookError> {
+        self.fetch(pkg_id, resolution, opts).await
+    }
 }
 
 /// A custom resolver exported from a pnpmfile. The pnpmfile interface's

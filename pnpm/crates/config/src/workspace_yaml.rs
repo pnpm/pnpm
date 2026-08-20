@@ -1608,7 +1608,12 @@ impl WorkspaceSettings {
                 PnpmfileSetting::Single(path) => vec![path],
                 PnpmfileSetting::Multiple(paths) => paths,
             };
-            config.pnpmfile = Some(paths.into_iter().map(|path| base_dir.join(path)).collect());
+            config.pnpmfile = Some(
+                paths
+                    .into_iter()
+                    .map(|path| pnpm_fs::lexical_normalize(&base_dir.join(path)))
+                    .collect(),
+            );
         }
         if let Some(v) = self.config_dependencies {
             config.config_dependencies = Some(v);

@@ -15,6 +15,11 @@ pub struct CustomFetcherPicker {
     fetchers: Vec<Arc<dyn CustomFetcher>>,
 }
 
+pub struct CustomFetcherSelection<'a> {
+    pub fetcher: Option<&'a dyn CustomFetcher>,
+    pub resolution: Value,
+}
+
 impl CustomFetcherPicker {
     #[must_use]
     pub fn new(fetchers: Vec<Arc<dyn CustomFetcher>>) -> Self {
@@ -24,11 +29,6 @@ impl CustomFetcherPicker {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.fetchers.is_empty()
-    }
-
-    /// Whether any complete custom fetcher claims this resolution.
-    pub async fn can_fetch(&self, pkg_id: &str, resolution: &Value) -> Result<bool, HookError> {
-        Ok(self.pick_fetcher(pkg_id, resolution).await?.is_some())
     }
 
     /// Consult each custom fetcher's `can_fetch` in declared order. Returns
@@ -41,17 +41,26 @@ impl CustomFetcherPicker {
         resolution: &Value,
         opts: &Value,
     ) -> Result<Option<Value>, HookError> {
-        let Some((fetcher, resolution)) = self.pick_fetcher(pkg_id, resolution).await? else {
+        let CustomFetcherSelection { fetcher, resolution } =
+            self.pick_fetcher(pkg_id, resolution).await?;
+        let Some(fetcher) = fetcher else {
             return Ok(None);
         };
         fetcher.fetch(pkg_id, resolution, opts.clone()).await.map(Some)
     }
 
-    async fn pick_fetcher(
+    pub async fn pick_fetcher(
         &self,
         pkg_id: &str,
         resolution: &Value,
-    ) -> Result<Option<(&dyn CustomFetcher, Value)>, HookError> {
+    ) -> Result<CustomFetcherSelection<'_>, HookError> {
+        let locked_integrity = resolution
+            .get("type")
+            .is_none_or(|kind| kind.is_null() || kind == "binary")
+            .then(|| resolution.get("integrity"))
+            .flatten()
+            .filter(|value| value.as_str().is_some_and(|value| !value.is_empty()))
+            .cloned();
         let mut resolution = resolution.clone();
         for fetcher in &self.fetchers {
             if !fetcher.has_can_fetch() || !fetcher.has_fetch() {
@@ -60,11 +69,16 @@ impl CustomFetcherPicker {
             let (can_fetch, effective_resolution) =
                 fetcher.can_fetch_with_resolution(pkg_id, resolution).await?;
             resolution = effective_resolution;
+            if let Some(integrity) = &locked_integrity
+                && let Some(object) = resolution.as_object_mut()
+            {
+                object.insert("integrity".to_owned(), integrity.clone());
+            }
             if can_fetch {
-                return Ok(Some((fetcher.as_ref(), resolution)));
+                return Ok(CustomFetcherSelection { fetcher: Some(fetcher.as_ref()), resolution });
             }
         }
-        Ok(None)
+        Ok(CustomFetcherSelection { fetcher: None, resolution })
     }
 }
 

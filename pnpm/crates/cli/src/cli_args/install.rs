@@ -869,18 +869,17 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
         state.manifest.path().parent().expect("manifest path always has a parent dir")
     });
-    let prefetch_allowed = if state.config.ignore_pnpmfile {
-        true
-    } else {
-        match pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, state.config.pnpmfile.as_deref()) {
-            Some(hook) => !hook
-                .get_custom_fetchers()
-                .await
-                .map_err(|error| miette::miette!("{error}"))?
-                .iter()
-                .any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()),
-            None => true,
-        }
+    let pnpmfile_hook = (!state.config.ignore_pnpmfile)
+        .then(|| pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, state.config.pnpmfile.as_deref()))
+        .flatten();
+    let prefetch_allowed = match pnpmfile_hook.as_ref() {
+        Some(hook) => !hook
+            .get_custom_fetchers()
+            .await
+            .map_err(|error| miette::miette!("{error}"))?
+            .iter()
+            .any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()),
+        None => true,
     };
     let lockfile_path = link
         .lockfile_path
@@ -1035,7 +1034,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             deps_requiring_build_sink: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
+            pnpmfile_hook_override: pnpmfile_hook,
             workspace_projects_override: None,
         };
 
@@ -1265,7 +1264,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
+        pnpmfile_hook_override: pnpmfile_hook,
         workspace_projects_override: None,
     };
     match selection {

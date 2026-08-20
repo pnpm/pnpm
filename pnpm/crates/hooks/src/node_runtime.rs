@@ -468,6 +468,7 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
                 "canFetch",
                 serde_json::json!([pkg_id, resolution]),
                 Arc::new(|_| {}),
+                None,
             )
             .await?;
         let can_fetch = response.get("value").is_some_and(is_js_truthy);
@@ -487,6 +488,25 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
                 "fetch",
                 serde_json::json!([Value::Null, resolution, opts, Value::Null]),
                 Arc::new(|_| {}),
+                None,
+            )
+            .await
+    }
+
+    async fn fetch_with_callbacks(
+        &self,
+        _pkg_id: &str,
+        resolution: Value,
+        opts: Value,
+        callbacks: crate::FetcherCallbackSender,
+    ) -> Result<Value, HookError> {
+        self.worker
+            .call_fetcher(
+                self.index,
+                "fetch",
+                serde_json::json!([Value::Null, resolution, opts, Value::Null]),
+                Arc::new(|_| {}),
+                Some(callbacks),
             )
             .await
     }

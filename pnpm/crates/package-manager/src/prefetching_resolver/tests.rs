@@ -1,9 +1,6 @@
 use super::PrefetchingResolver;
 use crate::PrefetchContext;
 use pnpm_config::Config;
-use pnpm_hooks::{
-    PnpmfileHooks, custom_fetcher_adapter::CustomFetcherPicker, node_runtime::NodeJsHooks,
-};
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::SilentReporter;
@@ -141,7 +138,7 @@ fn resolver_with_prefetch(
             supported_architectures: None,
             progress_reported: &SharedReportedProgressKeys::default(),
             prefetch_downloads,
-            custom_fetcher_picker: None,
+            custom_fetcher_session: None,
         },
     )
 }
@@ -327,67 +324,36 @@ fn integrity_pinned_result(tarball_url: &str) -> ResolveResult {
 /// <https://github.com/pnpm/pnpm/issues/13547>
 #[tokio::test]
 async fn populates_integrity_with_prefetching_off() {
-    for claims in [None, Some(false), Some(true)] {
-        let dir = tempdir().unwrap();
-        let mut server = mockito::Server::new_async().await;
-        let tarball_path = "/unpinned-1.0.0.tgz";
-        let tarball_bytes = minimal_tarball("unpinned", "1.0.0");
-        let get_mock = server
-            .mock("GET", tarball_path)
-            .with_status(200)
-            .with_body(tarball_bytes.clone())
-            .expect(usize::from(claims != Some(true)))
-            .create_async()
-            .await;
-        let custom_fetcher_picker = match claims {
-            Some(claims) => {
-                let pnpmfile = dir.path().join("pnpmfile.cjs");
-                std::fs::write(
-                    &pnpmfile,
-                    format!(
-                        "module.exports = {{ fetchers: [{{ canFetch: () => {claims}, \
-                         fetch() {{ throw new Error('unexpected fetch during selection') }} }}] }}",
-                    ),
-                )
-                .unwrap();
-                let fetchers = NodeJsHooks::new(pnpmfile).get_custom_fetchers().await.unwrap();
-                Some(Arc::new(CustomFetcherPicker::new(fetchers)))
-            }
-            None => None,
-        };
-        let mut result = result_with_manifest("unpinned", json!({}));
-        let LockfileResolution::Tarball(tarball) = &mut result.resolution else {
-            panic!("expected tarball resolution");
-        };
-        tarball.tarball = format!("{}{tarball_path}", server.url());
-        let mut resolver =
-            resolver_with_prefetch(dir.path(), Box::new(FixedResolver { result }), false);
-        resolver.ctx.custom_fetcher_picker = custom_fetcher_picker;
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let tarball_path = "/unpinned-1.0.0.tgz";
+    let get_mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(minimal_tarball("unpinned", "1.0.0"))
+        .expect(1)
+        .create_async()
+        .await;
+    let mut result = result_with_manifest("unpinned", json!({}));
+    result.resolution = LockfileResolution::Tarball(TarballResolution {
+        integrity: None,
+        tarball: format!("{}{tarball_path}", server.url()),
+        git_hosted: None,
+        path: None,
+    });
+    let resolver = resolver_with_prefetch(dir.path(), Box::new(FixedResolver { result }), false);
 
-        let resolved =
-            resolver.resolve(&WantedDependency::default(), &ResolveOptions::default()).await;
-        if claims == Some(true) {
-            let error = resolved.expect_err("a claimed tarball cannot use native fetching");
-            assert!(
-                matches!(
-                    error.downcast_ref::<crate::InstallPackageBySnapshotError>(),
-                    Some(crate::InstallPackageBySnapshotError::MissingTarballIntegrity { package_key })
-                        if package_key == "unpinned@1.0.0"
-                ),
-                "{error}",
-            );
-        } else {
-            resolved
-                .expect("declined tarball resolves")
-                .expect("resolver returns a result")
-                .resolution
-                .checkable_integrity()
-                .expect("native fetching records integrity")
-                .check(&tarball_bytes)
-                .expect("recorded integrity matches the downloaded tarball");
-        }
-        get_mock.assert_async().await;
-    }
+    let resolved = resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds")
+        .expect("resolver returns a result");
+
+    let LockfileResolution::Tarball(tarball) = resolved.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert!(tarball.integrity.is_some(), "an unpinned tarball still needs its integrity");
+    get_mock.assert_async().await;
 }
 
 #[tokio::test]

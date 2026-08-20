@@ -14,7 +14,7 @@
 //! - success:  `{"id": N, "ok": <value>}`
 //! - failure:  `{"id": N, "err": "message"}`
 
-use crate::{FetcherCallback, FetcherCallbackError, FetcherCallbackSender, HookError};
+use crate::{FetcherCallback, FetcherCallbackSender, HookError};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -250,17 +250,19 @@ impl NodeWorker {
         method: &str,
         payload: Value,
         log: LogFn,
+        callbacks: Option<FetcherCallbackSender>,
     ) -> Result<Value, HookError> {
-        self.request(
+        self.request_with_callbacks(
             method,
             serde_json::json!({
                 "target": "fetcher",
                 "index": index,
                 "method": method,
                 "payload": payload,
-                "callbacks": crate::active_fetcher_callbacks().is_some(),
+                "callbacks": callbacks.is_some(),
             }),
             log,
+            callbacks,
         )
         .await
     }
@@ -301,12 +303,21 @@ impl NodeWorker {
     /// Waits for one of the worker's [`MAX_IN_FLIGHT_REQUESTS`] slots
     /// first, so a request's timeout window covers only the time the
     /// worker had it, not the time its caller's fan-out spent queued.
-    async fn request(&self, label: &str, mut body: Value, log: LogFn) -> Result<Value, HookError> {
+    async fn request(&self, label: &str, body: Value, log: LogFn) -> Result<Value, HookError> {
+        self.request_with_callbacks(label, body, log, None).await
+    }
+
+    async fn request_with_callbacks(
+        &self,
+        label: &str,
+        mut body: Value,
+        log: LogFn,
+        callbacks: Option<FetcherCallbackSender>,
+    ) -> Result<Value, HookError> {
         let _in_flight = self.in_flight.acquire().await.expect("the semaphore is never closed");
 
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
-        let callbacks = crate::active_fetcher_callbacks();
         let callback_timeout = label == "fetch" && callbacks.is_some();
         self.pending.lock().unwrap().insert(id, Pending { log, done, callbacks });
         let _pending_guard = PendingEntryGuard { pending: Arc::clone(&self.pending), id };
@@ -352,29 +363,22 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
 
     if let Some(callback) = message.get("callback") {
         let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
-        let Some(method) = callback.get("method").and_then(Value::as_str) else { return };
+        let Some(method) = callback.get("method").cloned() else { return };
+        let Ok(method) = serde_json::from_value(method) else { return };
         let resolution = callback.get("resolution").cloned().unwrap_or(Value::Null);
         let options = callback.get("options").cloned().unwrap_or(Value::Null);
         let callbacks = pending.lock().unwrap().get(&id).and_then(|entry| entry.callbacks.clone());
         let (response, receiver) = oneshot::channel();
         if let Some(callbacks) = callbacks {
-            let _ = callbacks.send(FetcherCallback {
-                method: method.to_string(),
-                resolution,
-                options,
-                response,
-            });
+            let _ = callbacks.send(FetcherCallback { method, resolution, options, response });
         }
         let stdin = Arc::clone(stdin);
         tokio::spawn(async move {
             let result = receiver.await.unwrap_or_else(|_| {
-                Err(FetcherCallbackError {
-                    message: "built-in fetcher callback is unavailable".to_string(),
-                    name: None,
-                    code: Some("ERR_PNPM_FETCHER_CALLBACK_UNAVAILABLE".to_string()),
-                    status: None,
-                    cause: None,
-                })
+                Err(serde_json::json!({
+                    "message": "built-in fetcher callback is unavailable",
+                    "code": "ERR_PNPM_FETCHER_CALLBACK_UNAVAILABLE",
+                }))
             });
             let reply = match result {
                 Ok(value) => serde_json::json!({ "callbackResponse": callback_id, "ok": value }),
@@ -428,18 +432,9 @@ rl.on('line', (line) => {{
     if (!pending) return;
     pendingCallbacks.delete(req.callbackResponse);
     if (req.err) {{
-      const restoreError = (details) => {{
-        const error = new Error(details.message || 'Built-in fetcher failed');
-        if (details.name) error.name = details.name;
-        if (details.code) error.code = details.code;
-        if (details.status != null) {{
-          error.status = details.status;
-          error.response = {{ status: details.status }};
-        }}
-        if (details.cause) error.cause = restoreError(details.cause);
-        return error;
-      }};
-      pending.reject(restoreError(req.err));
+      const error = Object.assign(new Error(req.err.message), req.err);
+      if (req.err.status != null) error.response = {{ status: req.err.status }};
+      pending.reject(error);
     }} else {{
       const result = req.ok;
       if (result && result.filesMap && !(result.filesMap instanceof Map)) {{
@@ -529,16 +524,9 @@ async function handle(req) {{
             send({{ callback: {{ id: callbackId, method, resolution, options }} }});
           }});
         }};
-        const unsupportedCafs = (method) => () => {{
-          const error = new Error('The Rust CLI does not support cafs.' + method + '(); use the native tarball fetchers');
-          error.code = 'ERR_PNPM_UNSUPPORTED_CAFS_METHOD';
-          throw error;
-        }};
         const cafs = Object.freeze({{
           ...(await callNative('cafsInfo')),
           tempDir: () => callNative('tempDir'),
-          ...Object.fromEntries(['addFile', 'addFilesFromDir', 'addFilesFromTarball',
-            'getFilePathByModeInCafs', 'importPackage'].map((name) => [name, unsupportedCafs(name)])),
         }});
         const callBuiltin = (method, providedCafs, resolution, options) => {{
           if (providedCafs !== cafs) {{

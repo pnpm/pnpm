@@ -902,8 +902,7 @@ where
                             || config.ignore_pnpmfile
                             || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
                                 lockfile,
-                                &workspace_root,
-                                config,
+                                pnpmfile_hook.as_deref(),
                             )
                             .await
                             .map_err(InstallError::CustomResolverForceResolve)?

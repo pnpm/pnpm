@@ -246,6 +246,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         let frozen_result = InstallFrozenLockfile {
             http_client,
             config,
+            pnpmfile_hook: pnpmfile_hook.as_ref(),
             importers,
             packages: packages.as_ref(),
             snapshots: snapshots.as_ref(),

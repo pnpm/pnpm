@@ -50,24 +50,17 @@ pub fn load_pnpmfiles(
     root: &Path,
     configured: Option<&[PathBuf]>,
 ) -> Option<Arc<dyn PnpmfileHooks>> {
-    let mut paths = find_pnpmfiles(root, configured).into_iter();
-    let first = paths.next()?;
-    let first = load_pnpmfile_at(first);
-    let Some(second) = paths.next() else {
-        return Some(first);
-    };
-
-    let mut hooks = vec![first, load_pnpmfile_at(second)];
-    hooks.extend(paths.map(load_pnpmfile_at));
-    Some(Arc::new(CombinedPnpmfileHooks { hooks }))
+    let mut hooks: Vec<_> =
+        find_pnpmfiles(root, configured).into_iter().map(load_pnpmfile_at).collect();
+    match hooks.len() {
+        0 => None,
+        1 => hooks.pop(),
+        _ => Some(Arc::new(CombinedPnpmfileHooks { hooks })),
+    }
 }
 
 struct CombinedPnpmfileHooks {
     hooks: Vec<Arc<dyn PnpmfileHooks>>,
-}
-
-fn clone_context(ctx: &HookContext) -> HookContext {
-    HookContext { log: Arc::clone(&ctx.log), dir: ctx.dir.clone() }
 }
 
 #[async_trait]
@@ -78,7 +71,7 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
         ctx: HookContext,
     ) -> Result<ReadPackageResult, HookError> {
         for hook in &self.hooks {
-            pkg = (*hook.read_package(pkg, clone_context(&ctx)).await?).clone();
+            pkg = (*hook.read_package(pkg, ctx.clone()).await?).clone();
         }
         Ok(Arc::new(pkg))
     }
@@ -90,7 +83,7 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
     ) -> Result<Value, HookError> {
         let mut changed = false;
         for hook in &self.hooks {
-            let result = hook.after_all_resolved(lockfile.clone(), clone_context(&ctx)).await?;
+            let result = hook.after_all_resolved(lockfile.clone(), ctx.clone()).await?;
             if !result.is_null() {
                 lockfile = result;
                 changed = true;
@@ -99,49 +92,15 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
         Ok(if changed { lockfile } else { Value::Null })
     }
 
-    async fn update_config(&self, mut config: Value, ctx: HookContext) -> Result<Value, HookError> {
-        for hook in &self.hooks {
-            config = hook.update_config(config, clone_context(&ctx)).await?;
-        }
-        Ok(config)
-    }
-
-    async fn before_packing(
-        &self,
-        mut manifest: Value,
-        dir: &Path,
-        ctx: HookContext,
-    ) -> Result<Value, HookError> {
-        for hook in &self.hooks {
-            manifest = hook.before_packing(manifest, dir, clone_context(&ctx)).await?;
-        }
-        Ok(manifest)
-    }
-
     async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
         for hook in &self.hooks {
-            hook.pre_resolution(
-                PreResolutionHookContext {
-                    wanted_lockfile: ctx.wanted_lockfile.clone(),
-                    current_lockfile: ctx.current_lockfile.clone(),
-                    exists_current_lockfile: ctx.exists_current_lockfile,
-                    exists_non_empty_wanted_lockfile: ctx.exists_non_empty_wanted_lockfile,
-                    lockfile_dir: ctx.lockfile_dir.clone(),
-                    store_dir: ctx.store_dir.clone(),
-                    registries: ctx.registries.clone(),
-                },
-                PreResolutionHookLogger {
-                    info: Arc::clone(&logger.info),
-                    warn: Arc::clone(&logger.warn),
-                },
-            )
-            .await;
+            hook.pre_resolution(ctx.clone(), logger.clone()).await;
         }
     }
 
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {
         for hook in &self.hooks {
-            if !hook.filter_log(log.clone(), clone_context(&ctx)).await {
+            if !hook.filter_log(log.clone(), ctx.clone()).await {
                 return false;
             }
         }
@@ -182,23 +141,6 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
             fetchers.extend(hook.get_custom_fetchers().await?);
         }
         Ok(fetchers)
-    }
-
-    async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
-        let mut names = Vec::new();
-        for hook in &self.hooks {
-            names.extend(hook.get_finder_names().await?);
-        }
-        Ok(names)
-    }
-
-    async fn run_finder(&self, finder_name: &str, ctx: Value) -> Result<Value, HookError> {
-        for hook in &self.hooks {
-            if hook.get_finder_names().await?.iter().any(|name| name == finder_name) {
-                return hook.run_finder(finder_name, ctx).await;
-            }
-        }
-        Ok(Value::Bool(false))
     }
 }
 

@@ -5,4 +5,4 @@
 "pacquet": patch
 ---
 
-Honor configured pnpmfiles in the Rust CLI and provide native local and remote tarball callbacks to custom fetchers. Preserve locked integrity when custom fetchers rewrite tarball resolutions, and reject unverified file maps in the Rust CLI.
+Load configured pnpmfiles and provide native local and remote tarball callbacks to custom fetchers in the Rust CLI, including fresh installs that need to compute tarball integrity. Preserve locked integrity through custom-fetcher rewrites and reject unverified file maps in the Rust CLI.
