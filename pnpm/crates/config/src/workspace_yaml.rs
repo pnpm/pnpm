@@ -968,9 +968,7 @@ impl WorkspaceSettings {
     }
 
     /// Warn about the keys of the global `config.yaml` that never reach the
-    /// settings, in the three messages pnpm emits for that file: movable to a
-    /// project's `pnpm-workspace.yaml`, settable nowhere, and spelled in
-    /// kebab-case.
+    /// settings, in the three messages pnpm emits for that file.
     ///
     /// What survived is read back off `self` rather than off a second list of
     /// key names, which would drift from the struct: a key serde did not

@@ -3559,9 +3559,8 @@ pub fn global_config_yaml_keys_settable_nowhere_are_reported_with_their_route() 
     );
 }
 
-/// A camelCase key pnpm honors in this file stays silent even where pacquet
-/// does not read it yet: the warning output must match pnpm's on the same
-/// file, and the fix for such a key is to honor it, not to report it.
+/// A dropped key pnpm honors in this file gets no warning; the rationale
+/// lives on `warn_about_dropped_keys`.
 #[test]
 pub fn global_config_yaml_key_pnpm_honors_stays_silent() {
     let config_dir = tempdir().expect("config tempdir");
