@@ -42,4 +42,3 @@ export const BUILTIN_REGISTRIES_BY_PREFIX: Readonly<Record<string, string>> = Ob
 export const ABBREVIATED_META_DIR = 'v12/metadata'
 export const FULL_META_DIR = 'v12/metadata-full'
 export const FULL_FILTERED_META_DIR = 'v12/metadata-full-filtered'
-
