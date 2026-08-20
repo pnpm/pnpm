@@ -846,6 +846,122 @@ fn audit_fix_override_with_no_fixable_vulnerabilities_makes_no_changes() {
 }
 
 #[test]
+fn audit_fix_cleanup_removes_unused_ignored_ghsas() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    // GHSA-test-1111-2222 exists in the report; GHSA-test-9999-9999 doesn't.
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  cleanupUnusedIgnoredGhsas: true\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    - GHSA-test-9999-9999\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert!(
+        stdout(&output).contains("Removed 1 unused ignored GHSA(s): GHSA-test-9999-9999"),
+        "stdout should report the removed GHSA:\n{}",
+        stdout(&output),
+    );
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        manifest.contains("GHSA-test-1111-2222") && !manifest.contains("GHSA-test-9999-9999"),
+        "manifest should retain the still-relevant GHSA and drop the unused one:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_cleanup_disabled_by_default_keeps_all_ignored_ghsas() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    - GHSA-test-9999-9999\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert!(!stdout(&output).contains("unused ignored GHSA"));
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        manifest.contains("GHSA-test-9999-9999"),
+        "manifest should keep the unused GHSA since cleanup is disabled:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_cleanup_normalizes_ghsa_casing() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  cleanupUnusedIgnoredGhsas: true\n  ignoreGhsas:\n    - ghsa-test-1111-2222\n    - GHSA-TEST-9999-9999\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        manifest.to_lowercase().contains("ghsa-test-1111-2222")
+            && !manifest.to_lowercase().contains("ghsa-test-9999-9999"),
+        "manifest should retain the lowercase-but-matching GHSA and drop the unmatched one:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_cleanup_removes_all_when_none_are_relevant() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  cleanupUnusedIgnoredGhsas: true\n  ignoreGhsas:\n    - GHSA-test-9999-0001\n    - GHSA-test-9999-0002\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        !manifest.contains("ignoreGhsas:"),
+        "manifest should drop ignoreGhsas once every entry is cleaned up:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
 fn audit_fix_rejects_invalid_method() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();

@@ -40,6 +40,38 @@ pub(crate) fn filter_advisories_for_fix(
         .collect()
 }
 
+/// `auditConfig.ignoreGhsas` entries split by whether their GHSA id still
+/// appears in the audit report.
+pub(crate) struct CleanupIgnoredGhsasResult {
+    pub(crate) cleaned: Vec<String>,
+    pub(crate) retained: Vec<String>,
+}
+
+/// Split `ignored_ghsas` into those still present in `report` (`retained`)
+/// and those that aren't (`cleaned`). Mirrors pnpm's `cleanupIgnoredGhsas`.
+pub(crate) fn cleanup_ignored_ghsas(
+    ignored_ghsas: &[String],
+    report: &AuditReport,
+) -> CleanupIgnoredGhsasResult {
+    let advisory_ghsa_ids = report
+        .advisories
+        .values()
+        .filter(|advisory| !advisory.github_advisory_id.is_empty())
+        .map(|advisory| normalize_ghsa_id(&advisory.github_advisory_id))
+        .collect::<HashSet<_>>();
+
+    let mut retained = Vec::new();
+    let mut cleaned = Vec::new();
+    for ghsa in ignored_ghsas {
+        if advisory_ghsa_ids.contains(&normalize_ghsa_id(ghsa)) {
+            retained.push(ghsa.clone());
+        } else {
+            cleaned.push(ghsa.clone());
+        }
+    }
+    CleanupIgnoredGhsasResult { cleaned, retained }
+}
+
 /// Build the `name@vulnerable_versions → ^patched` override map from the
 /// fixable advisories (those with an inferred patched range). Keyed by a
 /// `BTreeMap` so the output is sorted, mirroring pnpm's `sortDirectKeys`.

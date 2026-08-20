@@ -508,6 +508,12 @@ pub struct AuditConfig {
     /// GHSA identifiers that `pnpm audit` should suppress in the rendered
     /// report.
     pub ignore_ghsas: Vec<String>,
+
+    /// When `true`, `pnpm audit --fix` removes entries from
+    /// [`Self::ignore_ghsas`] that no longer appear in the audit report,
+    /// so a re-introduced vulnerability under the same GHSA id gets
+    /// re-evaluated instead of staying silently suppressed.
+    pub cleanup_unused_ignored_ghsas: bool,
 }
 
 /// Tri-state mirror of `pnpm_executor::ScriptsPrependNodePath`
