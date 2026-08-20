@@ -993,6 +993,34 @@ fn audit_fix_cleanup_removes_all_when_none_are_relevant() {
 }
 
 #[test]
+fn audit_fix_cleanup_reports_the_write_error_for_an_inline_audit_config() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    // A flow-style auditConfig can't be edited entry by entry; the writer
+    // refuses rather than risk corrupting it.
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-test-1111-2222, GHSA-test-9999-9999] }\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_failure(&output);
+    assert!(
+        stderr(&output).contains("inline (flow) YAML value"),
+        "stderr should report the write failure:\n{}",
+        stderr(&output),
+    );
+    mock.assert();
+}
+
+#[test]
 fn audit_fix_rejects_invalid_method() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
