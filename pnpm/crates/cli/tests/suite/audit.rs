@@ -932,6 +932,32 @@ fn audit_fix_cleanup_normalizes_ghsa_casing() {
 }
 
 #[test]
+fn audit_fix_cleanup_persists_canonical_form_even_when_nothing_is_removed() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    // Both entries match the same advisory (a differently-cased duplicate)
+    // — nothing gets removed, but the stored list should still collapse to
+    // the single canonical entry.
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  cleanupUnusedIgnoredGhsas: true\n  ignoreGhsas:\n    - ghsa-test-1111-2222\n    - GHSA-TEST-1111-2222\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert!(!stdout(&output).contains("unused ignored GHSA"));
+    assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-1111-2222".to_string()]);
+    mock.assert();
+}
+
+#[test]
 fn audit_fix_cleanup_removes_a_comment_attached_to_the_removed_entry() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();

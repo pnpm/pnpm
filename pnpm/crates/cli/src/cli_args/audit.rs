@@ -252,14 +252,20 @@ impl AuditArgs {
             if state.config.audit_config.cleanup_unused_ignored_ghsas
                 && !state.config.audit_config.ignore_ghsas.is_empty()
             {
-                let cleanup =
-                    cleanup_ignored_ghsas(&state.config.audit_config.ignore_ghsas, &report);
+                let configured_ghsas = &state.config.audit_config.ignore_ghsas;
+                let cleanup = cleanup_ignored_ghsas(configured_ghsas, &report);
                 if !cleanup.cleaned.is_empty() {
                     println!(
                         "Removed {} unused ignored GHSA(s): {}",
                         cleanup.cleaned.len(),
                         cleanup.cleaned.join(", "),
                     );
+                }
+                // Persist even when nothing was removed: `retained` may
+                // still differ from the configured list (deduplicated or
+                // case-normalized), and the file should always reflect the
+                // canonical form.
+                if &cleanup.retained != configured_ghsas {
                     pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(
                         &settings_dir,
                         &cleanup.retained,
