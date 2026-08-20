@@ -924,15 +924,10 @@ fn audit_fix_cleanup_normalizes_ghsa_casing() {
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
 
     assert_success(&output);
-    let manifest =
-        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
     // Retained entries are rewritten to their canonical spelling regardless
-    // of the casing the user originally ignored them with.
-    assert!(
-        manifest.contains("GHSA-test-1111-2222")
-            && !manifest.to_lowercase().contains("ghsa-test-9999-9999"),
-        "manifest should retain the matching GHSA in canonical form and drop the unmatched one:\n{manifest}",
-    );
+    // of the casing the user originally ignored them with, and deduplicated
+    // — the exact list must be just the one canonical, still-relevant id.
+    assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-1111-2222".to_string()],);
     mock.assert();
 }
 
@@ -1287,6 +1282,28 @@ fn advisory_response(
   ]
 }}"#,
     )
+}
+
+/// Parse `workspace`'s `pnpm-workspace.yaml` and return the exact
+/// `auditConfig.ignoreGhsas` list (empty when the key is absent).
+fn audit_config_ignore_ghsas(workspace: &Path) -> Vec<String> {
+    #[derive(serde::Deserialize, Default)]
+    #[serde(rename_all = "camelCase", default)]
+    struct OnlyAuditConfig {
+        audit_config: AuditConfig,
+    }
+    #[derive(serde::Deserialize, Default)]
+    #[serde(rename_all = "camelCase", default)]
+    struct AuditConfig {
+        ignore_ghsas: Vec<String>,
+    }
+
+    let text =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    serde_saphyr::from_str::<OnlyAuditConfig>(&text)
+        .expect("parse pnpm-workspace.yaml")
+        .audit_config
+        .ignore_ghsas
 }
 
 fn write_audit_workspace(workspace: &Path, registry_url: &str, workspace_yaml: &str) {
