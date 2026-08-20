@@ -457,9 +457,12 @@ impl ReporterState {
     /// streams (progress, stats, lifecycle, summary, `Done in ...`) need
     /// `info`, and the `pnpm` / `pnpm:global` misc streams filter per
     /// message level in [`Self::on_pnpm`], so errors always pass.
+    /// Dedupe-check issues always pass too — upstream reports them as an
+    /// error-level log (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in
+    /// `reportError.ts`).
     fn level_permits(&self, event: &LogEvent) -> bool {
         match event {
-            LogEvent::Pnpm(_) | LogEvent::Global(_) => true,
+            LogEvent::Pnpm(_) | LogEvent::Global(_) | LogEvent::DedupeCheck(_) => true,
             LogEvent::RequestRetry(_) | LogEvent::Deprecation(_) => {
                 self.max_log_level >= MaxLogLevel::Warn
             }
@@ -1178,7 +1181,9 @@ impl ReporterState {
 
     fn on_pnpm(&mut self, level: LogLevel, message: &str, prefix: &str) {
         match level {
-            LogLevel::Debug => {}
+            LogLevel::Debug if self.max_log_level >= MaxLogLevel::Debug => {
+                self.push_block(message.to_string());
+            }
             LogLevel::Warn if self.max_log_level >= MaxLogLevel::Warn => {
                 self.push_warning(message);
             }
@@ -1192,7 +1197,7 @@ impl ReporterState {
                     }
                 }
             }
-            LogLevel::Warn | LogLevel::Info => {}
+            LogLevel::Debug | LogLevel::Warn | LogLevel::Info => {}
         }
     }
 

@@ -10,13 +10,14 @@ use pnpm_default_reporter::{
     state::{Output, ReporterOptions, ReporterState},
 };
 use pnpm_reporter::{
-    AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog, FetchingProgressLog,
-    FetchingProgressMessage, GlobalLog, HookLog, LifecycleLog, LifecycleMessage, LifecycleStdio,
-    LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
-    PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog,
-    ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
-    StatsLog, StatsMessage, SummaryLog,
+    AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
+    FetchingProgressLog, FetchingProgressMessage, GlobalLog, HookLog, LifecycleLog,
+    LifecycleMessage, LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage,
+    LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
+    PackageManifestMessage, PnpmErrorLog, PnpmLog, ProgressLog, ProgressMessage, RootLog,
+    RootMessage, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
+    SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -926,6 +927,48 @@ fn loglevel_error_still_renders_errors() {
     });
     let frame = render(&mut reporter, vec![pnpm_log(LogLevel::Error, "ERR_PNPM_FETCH_404")]);
     assert_eq!(frame, "ERR_PNPM_FETCH_404");
+}
+
+#[test]
+fn loglevel_debug_renders_debug_messages() {
+    let mut reporter = state_with_options(ReporterOptions {
+        max_log_level: MaxLogLevel::Debug,
+        ..ReporterOptions::default()
+    });
+    let frame = render(&mut reporter, vec![pnpm_log(LogLevel::Debug, "resolution details")]);
+    assert_eq!(frame, "resolution details");
+}
+
+#[test]
+fn debug_messages_stay_hidden_at_the_default_loglevel() {
+    let mut reporter = state(false);
+    let frame = render(&mut reporter, vec![pnpm_log(LogLevel::Debug, "resolution details")]);
+    assert_eq!(frame, "");
+}
+
+/// Dedupe-check issues are an error-level log upstream
+/// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`), so they render
+/// even at the `error` ceiling.
+#[test]
+fn loglevel_error_still_renders_dedupe_check_issues() {
+    let mut reporter = state_with_options(ReporterOptions {
+        max_log_level: MaxLogLevel::Error,
+        ..ReporterOptions::default()
+    });
+    let frame = render(
+        &mut reporter,
+        vec![LogEvent::DedupeCheck(DedupeCheckLog {
+            level: LogLevel::Error,
+            message: "dedupe check issues".to_string(),
+            err: PnpmErrorLog {
+                code: "ERR_PNPM_DEDUPE_CHECK_ISSUES".to_string(),
+                message: "dedupe check issues".to_string(),
+            },
+            dedupe_check_issues: serde_json::Value::Null,
+            rendered: "resolution changes".to_string(),
+        })],
+    );
+    assert_eq!(frame, "\nresolution changes");
 }
 
 #[test]
