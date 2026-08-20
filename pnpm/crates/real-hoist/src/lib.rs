@@ -680,6 +680,14 @@ fn node_locator(node: &HoisterResult) -> String {
     format!("{}@{}", node.ident_name, node_ident(node))
 }
 
+/// Whether two nodes are the same package — equal locators — without
+/// building the locator strings. Decoupled copies of one package
+/// compare equal; different versions under one name do not.
+fn same_locator(a: &HoisterResult, b: &HoisterResult) -> bool {
+    a.ident_name == b.ident_name
+        && a.references.borrow().iter().next() == b.references.borrow().iter().next()
+}
+
 /// Return a single-parent copy of `child` that is safe to mutate on
 /// the current path, replacing `parent`'s edge with it (in place, so
 /// sibling order is preserved). A node already decoupled has exactly
@@ -709,12 +717,8 @@ fn decouple_child(
     }));
     let mut deps = parent.dependencies.borrow_mut();
     let index = deps.get_index_of(child).expect("decoupled edge exists in its parent");
-    let replaced: IndexSet<RcByPtr<HoisterResult>> = deps
-        .iter()
-        .enumerate()
-        .map(|(dep_index, dep)| if dep_index == index { clone.clone() } else { dep.clone() })
-        .collect();
-    *deps = replaced;
+    deps.shift_remove_index(index);
+    deps.shift_insert(index, clone.clone());
     clone
 }
 
@@ -1049,8 +1053,6 @@ fn hoist_subtree(
     // nested.
     let mut path_for_children: Vec<Rc<HoisterResult>> = ancestor_path.to_vec();
     path_for_children.push(Rc::clone(node));
-    let path_locators: Vec<String> =
-        path_for_children.iter().map(|ancestor| node_locator(ancestor)).collect();
 
     for child in children {
         // Cycle (or self-reference) edge: a package with this
@@ -1062,8 +1064,7 @@ fn hoist_subtree(
         // / `aliasedLocatorPath` guards); pacquet removes them
         // outright because its layout walkers require the result to
         // be a DAG. `node` is decoupled, so the cut is per-path.
-        let child_locator = node_locator(&child.0);
-        if path_locators.contains(&child_locator) {
+        if path_for_children.iter().any(|ancestor| same_locator(ancestor, &child.0)) {
             node.dependencies.borrow_mut().shift_remove(&child);
             changed_in_subtree = true;
             continue;
@@ -1080,9 +1081,7 @@ fn hoist_subtree(
             match root_index.get(&child.0.name) {
                 None if is_preferred_ident(&child.0, hoist_ident_map) => AbsorbDecision::Free,
                 None => AbsorbDecision::Defer,
-                Some(existing) if node_locator(&existing.0) == child_locator => {
-                    AbsorbDecision::SameNode
-                }
+                Some(existing) if same_locator(&existing.0, &child.0) => AbsorbDecision::SameNode,
                 Some(_) => AbsorbDecision::Conflict,
             }
         };
@@ -1227,7 +1226,7 @@ fn would_shadow_peer(
                 // distinct allocations) against root's current
                 // slot for the same name.
                 match root_index.get(peer_name) {
-                    Some(at_root) if node_locator(&at_root.0) == node_locator(&provider) => {
+                    Some(at_root) if same_locator(&at_root.0, &provider) => {
                         // Root already carries this exact
                         // provider — promoting the candidate
                         // doesn't change resolution. Move to
