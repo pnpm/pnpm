@@ -1085,7 +1085,7 @@ fn nested_hoist_keeps_conflicting_dep_reachable_from_every_parent_of_a_shared_no
         assert!(
             d_under_b || d_under_parent,
             "d@2 is unreachable from {parent_name}'s subtree, so its b@2 would \
-             resolve d to the root's d@1: {parent:#?}"
+             resolve d to the root's d@1: {parent:#?}",
         );
         b_under_parents.push(nested_b);
     }
@@ -1094,7 +1094,7 @@ fn nested_hoist_keeps_conflicting_dep_reachable_from_every_parent_of_a_shared_no
     // steal the other's subtree.
     assert!(
         !Rc::ptr_eq(&b_under_parents[0], &b_under_parents[1]),
-        "each parent gets its own decoupled b@2 copy"
+        "each parent gets its own decoupled b@2 copy",
     );
 }
 
@@ -1164,7 +1164,7 @@ fn conflict_nested_shared_cycle_is_cut() {
             !path.contains(&Rc::as_ptr(node)),
             "cycle in hoister output through {}@{:?}",
             node.name,
-            node.references.borrow()
+            node.references.borrow(),
         );
         path.push(Rc::as_ptr(node));
         let children: Vec<Rc<HoisterResult>> =
