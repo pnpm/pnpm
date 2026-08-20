@@ -4,8 +4,8 @@ use super::{
     LogLevel, Modules, NodeLinker, PackageManifest, Path, PathBuf, ProjectMutation,
     ProjectScriptsInputs, RebuildOptions, Reporter, SummaryLog, SystemTime,
     WorkspaceInstallSelection, build_modules_manifest, build_workspace_state,
-    drain_settled_projects, merge_filtered_modules_metadata, merge_pending_builds,
-    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    current_contains_dep_path, drain_settled_projects, merge_filtered_modules_metadata,
+    merge_pending_builds, order_project_lifecycle_groups, project_requires_lifecycle_scripts,
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
@@ -376,14 +376,18 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     // selected, approved dependency always runs (force-rebuild
     // bypasses the side-effects cache gate), so policy approval is a
     // faithful stand-in for "was rebuilt".
-    let rebuild_build_policy =
-        rebuild.as_ref().and_then(|_| crate::AllowBuildPolicy::from_config(config).ok());
+    let allow_build_policy = (rebuild.is_some()
+        || (prior_modules.is_some() && materialized_current_lockfile.is_some()))
+    .then(|| crate::AllowBuildPolicy::from_config(config))
+    .transpose()
+    .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
+    .map_err(InstallError::WithFreshLockfile)?;
     let pending_builds = merge_pending_builds(
         previous_pending_builds,
         deferred_projects.into_iter().flatten().chain(deferred_builds),
         materialized_current_lockfile,
         rebuild,
-        rebuild_build_policy.as_ref(),
+        allow_build_policy.as_ref(),
     );
 
     // Rebuild reads hoisted locations from `.modules.yaml` and reports
@@ -400,6 +404,11 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         pending_builds,
         pruned_at,
     );
+    if let (Some(previous), Some(current), Some(policy)) =
+        (prior_modules, materialized_current_lockfile, allow_build_policy.as_ref())
+    {
+        retain_current_ignored_builds(&mut next_modules, previous, current, policy);
+    }
     if filtered_install
         && !matches!(node_linker, NodeLinker::Hoisted)
         && !is_inconsistent
@@ -459,6 +468,22 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     }
 
     Ok(())
+}
+
+fn retain_current_ignored_builds(
+    next: &mut Modules,
+    previous: &pnpm_modules_yaml::ModulesLayout,
+    current: &Lockfile,
+    allow_build_policy: &crate::AllowBuildPolicy,
+) {
+    let Some(previous_ignored) = previous.ignored_builds.as_ref() else { return };
+    for dep_path in previous_ignored {
+        if current_contains_dep_path(current, dep_path.as_str())
+            && allow_build_policy.check(dep_path.as_str()).is_none()
+        {
+            next.ignored_builds.get_or_insert_default().insert(dep_path.clone());
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
