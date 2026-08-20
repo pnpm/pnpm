@@ -1032,10 +1032,39 @@ fn audit_fix_cleanup_normalizes_ghsa_casing() {
     assert_success(&output);
     let manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    // Retained entries are rewritten to their canonical spelling regardless
+    // of the casing the user originally ignored them with.
     assert!(
-        manifest.to_lowercase().contains("ghsa-test-1111-2222")
+        manifest.contains("GHSA-test-1111-2222")
             && !manifest.to_lowercase().contains("ghsa-test-9999-9999"),
-        "manifest should retain the lowercase-but-matching GHSA and drop the unmatched one:\n{manifest}",
+        "manifest should retain the matching GHSA in canonical form and drop the unmatched one:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_cleanup_removes_a_comment_attached_to_the_removed_entry() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  cleanupUnusedIgnoredGhsas: true\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    # Expired GHSA, should not be ignored\n    - GHSA-test-9999-9999\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        !manifest.contains("Expired GHSA"),
+        "manifest should drop the comment along with the entry it was attached to:\n{manifest}",
     );
     mock.assert();
 }
