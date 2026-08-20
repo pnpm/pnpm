@@ -33,6 +33,76 @@ test('update <dep>', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^101.0.0')
 })
 
+test('update <pkg>@<version> updates only the selected package', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/pkg-with-1-dep', '100.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest'),
+  ])
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm(['update', '--no-save', '@pnpm.e2e/pkg-with-1-dep@100.0.0', '--lockfile-only'])
+
+  expect(Object.keys(project.readLockfile().packages ?? {})).toStrictEqual([
+    '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ])
+})
+
+test('update <alias>@npm:<pkg>@<version> updates the aliased package', async () => {
+  await addDistTag('@pnpm.e2e/qar', '100.0.0', 'latest')
+
+  const project = prepare({
+    dependencies: {
+      alias: 'npm:@pnpm.e2e/qar@^100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  await addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest')
+
+  await execPnpm(['update', 'alias@npm:@pnpm.e2e/qar@^100.0.0', '--lockfile-only'])
+
+  expect(Object.keys(project.readLockfile().packages ?? {})).toStrictEqual(['@pnpm.e2e/qar@100.1.0'])
+})
+
+test('an ignored <alias>@npm:<pkg> selector keeps the aliased package too', async () => {
+  await Promise.all([
+    addDistTag('@pnpm.e2e/qar', '100.0.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.0.0', 'latest'),
+  ])
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+      alias: 'npm:@pnpm.e2e/qar@^100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  await Promise.all([
+    addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest'),
+    addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest'),
+  ])
+
+  await execPnpm(['update', '--no-save', '*', '!alias@npm:@pnpm.e2e/qar@^100.0.0', '--lockfile-only'])
+
+  expect(Object.keys(project.readLockfile().packages ?? {})).toStrictEqual([
+    '@pnpm.e2e/foo@100.1.0',
+    '@pnpm.e2e/qar@100.0.0',
+  ])
+})
+
 test('update --no-save', async () => {
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
   const project = prepare({
