@@ -305,8 +305,191 @@ fn missing_cas_for_optional_dep_skips_silently() {
     assert!(!dir.exists(), "optional dir with no CAS not created");
 }
 
+/// An install interrupted before the current lockfile and
+/// `.modules.yaml` are written leaves nested copies on disk that the
+/// previous-graph diff can never see, because the next install starts
+/// without a previous graph. They go to `.ignored` rather than being
+/// deleted: pnpm has no record of installing them, so they may hold work
+/// someone did by hand. See <https://github.com/pnpm/pnpm/issues/13676>.
 #[test]
-fn no_prev_graph_skips_orphan_pass() {
+fn unplanned_directory_in_importer_modules_is_quarantined() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let modules = lockfile_dir.join("node_modules");
+
+    let unplanned = modules.join("stale");
+    let scoped_unplanned = modules.join("@scope/stale");
+    for dir in [&unplanned, &scoped_unplanned] {
+        fs::create_dir_all(dir).expect("create unplanned dir");
+        fs::write(dir.join("package.json"), r#"{"name":"stale","version":"1.0.0"}"#)
+            .expect("write unplanned manifest");
+        fs::write(dir.join("hand-edit.js"), "work someone did by hand").expect("write hand edit");
+    }
+
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"hi")])],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &logged,
+        requester: lockfile_dir.to_str().expect("requester"),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+
+    assert!(!unplanned.exists(), "unplanned dir at {unplanned:?}");
+    assert!(!scoped_unplanned.exists(), "unplanned scoped dir at {scoped_unplanned:?}");
+    for pkg_name in ["stale", "@scope/stale"] {
+        let quarantined = modules.join(".ignored").join(pkg_name).join("hand-edit.js");
+        assert_eq!(
+            fs::read_to_string(&quarantined).expect("quarantined hand edit"),
+            "work someone did by hand",
+        );
+    }
+    assert!(modules.join("a").join("package").join("index.js").exists());
+}
+
+/// Symlinks are how workspace packages and `link:` dependencies are
+/// attached, dot-directories hold `.bin`, `.pnpm`, and third-party tool
+/// caches, and a directory without a `package.json` is not a package at
+/// all. None is a hoisted package directory, so the orphan scan must
+/// leave all three alone.
+#[test]
+fn entries_that_are_not_packages_are_preserved() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let modules = lockfile_dir.join("node_modules");
+
+    let link_target = tmp.path().join("sibling");
+    fs::create_dir_all(&link_target).expect("create link target");
+    fs::create_dir_all(&modules).expect("create modules dir");
+    let linked_dep = modules.join("linked");
+    pnpm_fs::symlink_dir(&link_target, &linked_dep).expect("create symlink");
+    let tool_cache = modules.join(".cache");
+    fs::create_dir_all(&tool_cache).expect("create tool cache");
+    let build_output = modules.join("build-output");
+    fs::create_dir_all(&build_output).expect("create non-package dir");
+    fs::write(build_output.join("bundle.js"), "").expect("write non-package file");
+
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"hi")])],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &logged,
+        requester: lockfile_dir.to_str().expect("requester"),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+
+    assert!(fs::symlink_metadata(&linked_dep).is_ok(), "symlink at {linked_dep:?}");
+    assert!(link_target.exists(), "symlink target at {link_target:?}");
+    assert!(tool_cache.exists(), "tool cache at {tool_cache:?}");
+    assert!(build_output.exists(), "non-package dir at {build_output:?}");
+}
+
+/// `.ignored` is a write destination, so a symlink there redirects the
+/// move out of the project — and `rename_overwrite` clears an occupied
+/// destination before retrying, which would delete on the way.
+#[test]
+fn quarantine_does_not_follow_a_symlinked_ignored_dir() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let modules = lockfile_dir.join("node_modules");
+
+    let unplanned = modules.join("stale");
+    fs::create_dir_all(&unplanned).expect("create unplanned dir");
+    fs::write(unplanned.join("package.json"), r#"{"name":"stale","version":"1.0.0"}"#)
+        .expect("write unplanned manifest");
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(&outside).expect("create outside dir");
+    pnpm_fs::symlink_dir(&outside, &modules.join(".ignored")).expect("create .ignored symlink");
+
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"hi")])],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &logged,
+        requester: lockfile_dir.to_str().expect("requester"),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+
+    assert!(
+        fs::read_dir(&outside).expect("read outside").next().is_none(),
+        "nothing may land outside the project at {outside:?}",
+    );
+    assert!(unplanned.exists(), "the package stays put when it cannot be quarantined");
+}
+
+/// A name below a symlinked scope container is lexically inside the
+/// install root while its target is not, and the confinement check is
+/// lexical, so removal would follow the symlink straight out of it.
+#[test]
+fn orphan_scan_does_not_delete_through_a_symlinked_scope() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let modules = lockfile_dir.join("node_modules");
+
+    let outside = tmp.path().join("outside");
+    let outside_pkg = outside.join("child");
+    fs::create_dir_all(&outside_pkg).expect("create outside package");
+    fs::create_dir_all(&modules).expect("create modules dir");
+    pnpm_fs::symlink_dir(&outside, &modules.join("@scope")).expect("create scope symlink");
+
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"hi")])],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &logged,
+        requester: lockfile_dir.to_str().expect("requester"),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+
+    assert!(outside_pkg.exists(), "package outside the install root at {outside_pkg:?}");
+}
+
+#[test]
+fn no_prev_graph_still_installs() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let cas_root = tmp.path().join("cas");
     let lockfile_dir = tmp.path().join("repo");

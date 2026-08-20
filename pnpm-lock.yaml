@@ -6144,6 +6144,9 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/fs.read-modules-dir':
+        specifier: workspace:*
+        version: link:../../fs/read-modules-dir
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
@@ -6213,6 +6216,9 @@ importers:
       realpath-missing:
         specifier: 'catalog:'
         version: 2.0.0
+      rename-overwrite:
+        specifier: 'catalog:'
+        version: 7.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

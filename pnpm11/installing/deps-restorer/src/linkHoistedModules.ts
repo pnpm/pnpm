@@ -1,4 +1,6 @@
+import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import {
@@ -11,6 +13,7 @@ import type {
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { logger } from '@pnpm/logger'
 import type {
   PackageFilesResponse,
@@ -19,9 +22,19 @@ import type {
 import type { AllowBuild, SupportedArchitectures } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
+import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
+import { renameOverwrite } from 'rename-overwrite'
 
 const limitLinking = pLimit(16)
+
+/** A package directory on disk that the hoisting plan does not place. */
+interface UnplannedDir {
+  dir: string
+  modulesDir: string
+  /** `dir` relative to `modulesDir`, so scoped packages keep their `@scope/` prefix. */
+  pkgName: string
+}
 
 export async function linkHoistedModules (
   storeController: StoreController,
@@ -45,13 +58,22 @@ export async function linkHoistedModules (
     Object.keys(prevGraph),
     Object.keys(graph)
   )
+  // A directory the previous install recorded is pnpm's to delete. One that only
+  // the on-disk scan found is not: pnpm has no record of putting it there, so it
+  // is quarantined instead, the way an alien package directory already is.
+  const recordedDirs = new Set(dirsToRemove)
+  const dirsToQuarantine = (await findUnplannedDirs(hierarchy))
+    .filter(({ dir }) => !recordedDirs.has(dir))
   statsLogger.debug({
     prefix: opts.lockfileDir,
-    removed: dirsToRemove.length,
+    removed: dirsToRemove.length + dirsToQuarantine.length,
   })
   // We should avoid removing unnecessary directories while simultaneously adding new ones.
   // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
-  await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
+  await Promise.all([
+    ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
+    ...dirsToQuarantine.map((unplanned) => quarantineDir(unplanned, opts.lockfileDir)),
+  ])
   // Resolve the project's pinned runtime Node version once, before
   // the recursive walk. The graph is keyed by install directory in
   // this module, so scanning `Object.keys(graph)` would miss every
@@ -77,6 +99,70 @@ export async function linkHoistedModules (
         })
       })
   )
+}
+
+/**
+ * Move a package directory pnpm has no record of installing into the
+ * `node_modules/.ignored` sibling of wherever it sits.
+ *
+ * Deleting is reserved for what the previous install recorded placing. Anything
+ * else may hold work someone did by hand, so it is displaced rather than
+ * destroyed — the treatment `safeIsInnerLink` already gives a package directory
+ * that pnpm did not put there. Getting it out of `node_modules` is what makes
+ * the tree correct; the bytes are incidental.
+ */
+async function quarantineDir ({ dir, modulesDir, pkgName }: UnplannedDir, lockfileDir: string): Promise<void> {
+  const ignoredDir = path.join(modulesDir, '.ignored', pkgName)
+  removalLogger.debug(dir)
+  try {
+    if (!await makeIgnoredParent(modulesDir, pkgName)) {
+      logger.warn({
+        message: `Not moving ${pkgName} to "node_modules/.ignored": the destination leads outside "${modulesDir}"`,
+        prefix: lockfileDir,
+      })
+      return
+    }
+    await renameOverwrite(dir, ignoredDir)
+  } catch (err: unknown) {
+    logger.warn({
+      error: err as Error,
+      message: `Failed to move "${dir}" to "${ignoredDir}"`,
+      prefix: lockfileDir,
+    })
+    return
+  }
+  logger.warn({
+    message: `Moving ${pkgName} to "node_modules/.ignored". It is not in the dependency tree and pnpm has no record of installing it.`,
+    prefix: path.dirname(modulesDir),
+  })
+}
+
+/**
+ * Create `.ignored`, and the scope directory under it when `pkgName` is scoped,
+ * refusing to descend through a level that already exists as anything but a
+ * real directory.
+ *
+ * `mkdir -p` traverses a symlink it finds on the way, so a `.ignored` link
+ * would redirect the move — and `renameOverwrite` deletes an occupied
+ * destination before retrying — outside the tree pnpm is allowed to touch.
+ */
+async function makeIgnoredParent (modulesDir: string, pkgName: string): Promise<boolean> {
+  const ignoredDir = await makeRealDir(modulesDir, '.ignored')
+  if (ignoredDir == null) return false
+  const [scope] = pkgName.split('/')
+  if (scope === pkgName) return true
+  return await makeRealDir(ignoredDir, scope) != null
+}
+
+async function makeRealDir (parent: string, name: string): Promise<string | null> {
+  const dir = path.join(parent, name)
+  try {
+    await fs.mkdir(dir)
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    if (!await isRealDir(dir)) return null
+  }
+  return dir
 }
 
 async function tryRemoveDir (dir: string): Promise<void> {
@@ -176,4 +262,59 @@ async function linkAllPkgsInOrder (
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     warn: opts.warn,
   })
+}
+
+/**
+ * Package directories that physically exist inside the projects' `node_modules`
+ * but that the new hoisting plan does not place there.
+ *
+ * The `prevGraph`/`graph` difference cannot see them: an install that is
+ * interrupted before the current lockfile and `.modules.yaml` are written
+ * leaves nested copies on disk while the next install starts from an empty
+ * `prevGraph`, so nothing ever reclaims them
+ * (https://github.com/pnpm/pnpm/issues/13676).
+ *
+ * Symlinks are skipped: that is how workspace packages and `link:` dependencies
+ * are attached, and they are absent from the graph by design.
+ */
+async function findUnplannedDirs (hierarchy: DepHierarchy): Promise<UnplannedDir[]> {
+  const unplannedDirs = await Promise.all(
+    Object.entries(hierarchy).map(async ([projectDir, plannedDeps]) => {
+      const modulesDir = path.join(projectDir, 'node_modules')
+      const pkgNames = await readModulesDir(modulesDir)
+      if (pkgNames == null) return []
+      const plannedDirs = new Set(Object.keys(plannedDeps))
+      const candidates = pkgNames
+        .map((pkgName) => ({ dir: path.join(modulesDir, pkgName), modulesDir, pkgName }))
+        .filter(({ dir }) => !plannedDirs.has(dir))
+      const checked = await Promise.all(
+        candidates.map(async (candidate) => await isPackageDir(candidate.dir) ? candidate : null)
+      )
+      return checked.filter((candidate) => candidate != null)
+    })
+  )
+  return unplannedDirs.flat()
+}
+
+/**
+ * Whether `dir` holds a package rather than something else that happens to sit
+ * in a `node_modules`.
+ *
+ * `package.json` is the marker [`importIndexedDir`] writes last, so a directory
+ * carrying one is a package that was materialized in full. A directory without
+ * one is not a package, and pruning is not entitled to remove it however little
+ * the hoisting plan has to say about it.
+ */
+async function isPackageDir (dir: string): Promise<boolean> {
+  if (!await isRealDir(dir)) return false
+  return pathExists(path.join(dir, 'package.json'))
+}
+
+async function isRealDir (dir: string): Promise<boolean> {
+  try {
+    return (await fs.lstat(dir)).isDirectory()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
 }
