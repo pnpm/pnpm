@@ -556,6 +556,36 @@ test('global self-update respects minimumReleaseAge: skips immature latest, no-o
   expect(fs.readdirSync(opts.globalPkgDir).sort()).toStrictEqual(globalEntriesBefore)
 })
 
+test('self-update by dist-tag does not downgrade below the active version', async () => {
+  // Reproduces pnpm/pnpm#13883: `next-9` points at the version already
+  // running, but it is younger than minimumReleaseAge, so the maturity
+  // filter moved the tag back to the previous mature release and switched
+  // the user to it.
+  mockPackageManager.version = '9.1.0'
+  const opts = prepare()
+  seedGlobalPnpm(opts, '9.1.0')
+  const globalEntriesBefore = fs.readdirSync(opts.globalPkgDir).sort()
+  const now = Date.now()
+  const metadata = {
+    ...createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
+      '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+      '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+    }),
+    'dist-tags': { latest: '9.0.0', 'next-9': '9.1.0' },
+  }
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata)
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+  }, ['next-9'])
+
+  expect(output).toBe('The currently active pnpm v9.1.0 is already "next-9" and doesn\'t need an update')
+  expect(fs.readdirSync(opts.globalPkgDir).sort()).toStrictEqual(globalEntriesBefore)
+})
+
 test('self-update respects minimumReleaseAgeExclude for implicit latest resolution', async () => {
   const opts = prepare({
     packageManager: 'pnpm@8.0.0',
