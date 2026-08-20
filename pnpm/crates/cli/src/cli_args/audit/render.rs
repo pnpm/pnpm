@@ -78,7 +78,12 @@ pub(crate) fn render_advisory(advisory: &AuditAdvisory) -> String {
         .push_record(vec!["Vulnerable versions".to_string(), advisory.vulnerable_versions.clone()]);
     builder.push_record(vec![
         "Patched versions".to_string(),
-        advisory.patched_versions.clone().unwrap_or_else(|| "(unknown)".to_string()),
+        advisory.patched_versions.clone().unwrap_or_else(|| {
+            match advisory.patched_versions_unpublished {
+                Some(true) => "None".to_string(),
+                _ => "(unknown)".to_string(),
+            }
+        }),
     ]);
     builder.push_record(vec!["Paths".to_string(), rendered_paths]);
     builder.push_record(vec!["More info".to_string(), advisory.url.clone()]);

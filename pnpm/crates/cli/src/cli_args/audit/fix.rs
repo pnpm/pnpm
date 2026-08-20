@@ -5,9 +5,9 @@ use super::{
     DependencyGroup, Deserialize, HashMap, HashSet, IntoDiagnostic, Lockfile, MultiSelect,
     PackageVersionGuard, Range, Reporter, ResolutionObserver, State, Update, Utc, Version, blue,
     caret_range_for_patched, color_severity, encode_package_name, green, normalize_ghsa_id,
-    normalize_registry, parse_packument_timestamp, pick_registry_for_package, red,
-    redact_url_userinfo, retry_opts_from_config, satisfies_including_prerelease, send_with_retry,
-    severity_name, severity_number,
+    normalize_registry, parse_packument_timestamp, red, redact_url_userinfo,
+    retry_opts_from_config, satisfies_including_prerelease, send_with_retry, severity_name,
+    severity_number,
 };
 
 /// Filter `report`'s advisories down to the set both fix methods and the
@@ -57,11 +57,13 @@ pub(crate) fn create_overrides(
 
 /// Write the override-method fixes to `pnpm-workspace.yaml` and return the
 /// user-facing summary. Mirrors the override branch of pnpm's audit handler.
+/// `publish_infos` reuses the packument data the report validation already
+/// fetched so the age-gate check doesn't request it again.
 pub(crate) async fn fix_override(
     advisories: &BTreeMap<String, AuditAdvisory>,
     settings_dir: &std::path::Path,
     config: &Config,
-    http_client: &pnpm_network::ThrottledClient,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
 ) -> miette::Result<String> {
     let overrides = create_overrides(advisories);
     if overrides.is_empty() {
@@ -77,13 +79,8 @@ pub(crate) async fn fix_override(
         overrides.len(),
     );
     if let Some(minimum_release_age) = config.resolved_minimum_release_age() {
-        let added = resolve_minimum_release_age_excludes(
-            advisories,
-            config,
-            http_client,
-            minimum_release_age,
-        )
-        .await?;
+        let added =
+            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
         if !added.is_empty() {
             write_age_excludes(settings_dir, config, &added)?;
             let note = format!(
@@ -97,20 +94,64 @@ pub(crate) async fn fix_override(
     Ok(output)
 }
 
-/// The packument `time` map of one package: version to raw publish timestamp,
-/// or `None` when the publish times are unknown — the request failed, the
-/// registry answered non-200, or the packument carries no usable `time` field.
-/// Ports pnpm's `createPublishTimesFetcher`; `None` must read as "no
-/// information", not "old", so a genuinely fresh fix keeps its exclusion.
-async fn fetch_publish_times(
+/// The packument publish info of one package: the `time` map plus the set of
+/// deprecated versions.
+#[derive(Debug, Clone)]
+pub(crate) struct PackumentPublishInfo {
+    /// The packument `time` map: version → raw publish timestamp. Includes
+    /// the `created` and `modified` metadata keys alongside version keys.
+    pub(crate) time: HashMap<String, String>,
+    /// Versions the packument marks as deprecated. Deprecated versions are
+    /// excluded from patched-version validation — a deprecated release is
+    /// not a viable fix even though it exists on the registry. Parsed rather
+    /// than kept as raw keys, because the `time` and `versions` maps may spell
+    /// the same release differently (`v1.2.3` vs `1.2.3`).
+    pub(crate) deprecated: HashSet<Version>,
+}
+
+impl PackumentPublishInfo {
+    /// The lowest non-deprecated published version satisfying `range` — the
+    /// version an inferred patched range actually resolves to — paired with
+    /// its `time` key, which the registry may spell in a non-normalized form
+    /// (e.g. `v1.2.3`) that the parsed version drops. `None` when no published
+    /// version satisfies the range, whether it was never published, skipped,
+    /// yanked, or deprecated.
+    ///
+    /// Stable releases outrank prereleases regardless of order, so a
+    /// `4.18.0-beta.1` published before `4.18.0` is never advertised as the
+    /// fix. A prerelease still wins when nothing else satisfies the range.
+    pub(crate) fn lowest_non_deprecated_version(&self, range: &Range) -> Option<(&str, Version)> {
+        self.time
+            .keys()
+            .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
+            .filter_map(|key| Some((key.as_str(), key.parse::<Version>().ok()?)))
+            .filter(|(_, version)| !self.deprecated.contains(version))
+            .filter(|(_, version)| satisfies_including_prerelease(version, range))
+            .min_by(|(_, a), (_, b)| {
+                a.is_prerelease().cmp(&b.is_prerelease()).then_with(|| a.cmp(b))
+            })
+    }
+}
+
+/// The packument publish info of one package, or `None` when the packument
+/// could not be fetched or carries no usable `time` field. Ports pnpm's
+/// `createPublishTimesFetcher`; `None` must read as "no information", not
+/// "old", so a genuinely fresh fix keeps its exclusion.
+pub(crate) async fn fetch_publish_times(
     name: &str,
     registry: &str,
     config: &Config,
     http_client: &pnpm_network::ThrottledClient,
-) -> Option<HashMap<String, String>> {
+) -> Option<PackumentPublishInfo> {
     #[derive(Deserialize)]
     struct PackumentTimes {
         time: Option<HashMap<String, String>>,
+        versions: Option<HashMap<String, PackumentVersion>>,
+    }
+
+    #[derive(Deserialize)]
+    struct PackumentVersion {
+        deprecated: Option<String>,
     }
 
     let registry = normalize_registry(registry);
@@ -134,17 +175,25 @@ async fn fetch_publish_times(
     if response.status().as_u16() != 200 {
         return None;
     }
-    response.json::<PackumentTimes>().await.ok()?.time
+    let body = response.json::<PackumentTimes>().await.ok()?;
+    let time = body.time?;
+    let deprecated = body
+        .versions
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(_, manifest)| manifest.deprecated.is_some())
+        .filter_map(|(version, _)| version.parse::<Version>().ok())
+        .collect();
+    Some(PackumentPublishInfo { time, deprecated })
 }
 
-/// Compute the age-gate exclusions for `advisories`, consulting the
-/// packuments of the affected packages so a patched version published long
-/// before the cutoff gets no pointless `minimumReleaseAgeExclude` entry.
+/// Compute the age-gate exclusions for `advisories` using the publish-time
+/// maps the report validation already fetched, so a patched version published
+/// long before the cutoff gets no pointless `minimumReleaseAgeExclude` entry.
 /// Ports the publish-time lookup of pnpm's `createMinimumReleaseAgeExcludes`.
-async fn resolve_minimum_release_age_excludes(
+fn resolve_minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
-    config: &Config,
-    http_client: &pnpm_network::ThrottledClient,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
     minimum_release_age: u64,
 ) -> miette::Result<Vec<String>> {
     // On overflow leave the cutoff uncomputable, as `PickPolicy::from_config`
@@ -156,33 +205,21 @@ async fn resolve_minimum_release_age_excludes(
     else {
         return Ok(Vec::new());
     };
-    // One fetch per package name, however many advisories it carries. The
-    // name comes from the registry's advisory feed, so normalize it like
-    // `classify_for_update` does before using it in requests and config.
-    let names: HashSet<&str> = advisories
-        .values()
-        .filter(|advisory| advisory.patched_versions.is_some())
-        .map(|advisory| advisory.module_name.trim())
-        .collect();
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
-    let mut publish_times = HashMap::new();
-    for name in names {
-        let registry = pick_registry_for_package(&registries, name, None);
-        let times = fetch_publish_times(name, &registry, config, http_client).await;
-        publish_times.insert(name.to_string(), times);
-    }
-    minimum_release_age_excludes(advisories, &publish_times, cutoff)
+    minimum_release_age_excludes(advisories, publish_infos, cutoff)
 }
 
 /// The `minimumReleaseAgeExclude` entries needed to keep the age gate from
-/// blocking the patched versions: one `name@minVersion` spec per fixable
-/// advisory whose minimum patched version is younger than `cutoff`. A version
-/// published at or before the cutoff doesn't need a bypass, and a version
-/// whose publish time is unknown keeps its entry so a genuinely fresh fix
-/// stays installable. Ports pnpm's `createMinimumReleaseAgeExcludes`.
+/// blocking the patched versions: one `name@version` spec per fixable
+/// advisory whose fix — the version
+/// [`PackumentPublishInfo::lowest_non_deprecated_version`] resolves the
+/// patched range to — is younger than `cutoff`. A version published at or
+/// before the cutoff doesn't need a bypass, and a version whose publish time
+/// is unknown keeps its entry so a genuinely fresh fix stays installable. An
+/// advisory the packument offers no fix for gets no entry. Ports pnpm's
+/// `createMinimumReleaseAgeExcludes`.
 pub(crate) fn minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
-    publish_times: &HashMap<String, Option<HashMap<String, String>>>,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
     cutoff: DateTime<Utc>,
 ) -> miette::Result<Vec<String>> {
     let specs: Vec<String> = advisories
@@ -193,14 +230,16 @@ pub(crate) fn minimum_release_age_excludes(
                 .strip_prefix(">=")
                 .and_then(|version| version.trim().parse::<Version>().ok())?;
             let name = advisory.module_name.trim();
-            let published_at = publish_times
-                .get(name)
-                .and_then(Option::as_ref)
-                .and_then(|times| times.get(min.to_string().as_str()))
-                .and_then(|raw| parse_packument_timestamp(raw));
-            match published_at {
+            let Some(info) = publish_infos.get(name).and_then(Option::as_ref) else {
+                return Some(format!("{name}@{min}"));
+            };
+            let range = patched.parse::<Range>().ok()?;
+            let (key, lowest) = info.lowest_non_deprecated_version(&range)?;
+            match info.time.get(key).and_then(|raw| parse_packument_timestamp(raw)) {
                 Some(published_at) if published_at <= cutoff => None,
-                _ => Some(format!("{name}@{min}")),
+                // A present-but-unparsable timestamp fails open like unknown
+                // publish times.
+                _ => Some(format!("{name}@{lowest}")),
             }
         })
         .collect();
@@ -413,6 +452,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     advisories: &BTreeMap<String, AuditAdvisory>,
     lockfile_dir: &std::path::Path,
     settings_dir: &std::path::Path,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
 ) -> miette::Result<(Vec<u64>, Vec<u64>, Vec<String>)> {
     let UpdateClassification { vulnerabilities, unfixable, unparsable } =
         classify_for_update(advisories);
@@ -421,22 +461,18 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     // fresher than the cutoff; record the ones that actually are as
     // exclusions (persisted to config and injected into this resolve) so the
     // picker may install them.
-    let age_excludes =
-        if let Some(minimum_release_age) = state.config.resolved_minimum_release_age() {
-            let added = resolve_minimum_release_age_excludes(
-                advisories,
-                state.config,
-                state.http_client.as_ref(),
-                minimum_release_age,
-            )
-            .await?;
-            if !added.is_empty() {
-                write_age_excludes(settings_dir, state.config, &added)?;
-            }
-            added
-        } else {
-            Vec::new()
-        };
+    let age_excludes = if let Some(minimum_release_age) =
+        state.config.resolved_minimum_release_age()
+    {
+        let added =
+            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
+        if !added.is_empty() {
+            write_age_excludes(settings_dir, state.config, &added)?;
+        }
+        added
+    } else {
+        Vec::new()
+    };
 
     let guard_ranges: HashMap<String, Vec<Range>> = vulnerabilities
         .iter()

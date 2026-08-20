@@ -95,7 +95,7 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
   // can install them even when minimumReleaseAge would otherwise block them.
   const addedAgeExcludes = opts.minimumReleaseAge
     ? await createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories), {
-      getPublishTimes: createPublishTimesFetcher(opts),
+      getPublishTimes: opts.getPublishTimes ?? createPublishTimesFetcher(opts),
       minimumReleaseAge: opts.minimumReleaseAge,
     })
     : []
