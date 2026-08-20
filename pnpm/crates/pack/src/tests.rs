@@ -290,6 +290,20 @@ fn files_field_restricts_the_tarball_contents() {
 }
 
 #[test]
+fn files_field_entries_do_not_match_at_depth() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "files": ["src"],
+    }));
+    touch(dir.path(), "src/index.js", "x\n");
+    touch(dir.path(), "example/src/App.js", "x\n");
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    assert_eq!(result.contents, vec!["package.json".to_string(), "src/index.js".into()]);
+}
+
+#[test]
 fn missing_name_is_rejected() {
     let (_dir, opts) = fixture(&json!({ "version": "1.0.0" }));
     assert!(matches!(api::<SilentReporter, Host>(&opts), Err(PackError::PackageNameNotFound)));
