@@ -1180,6 +1180,68 @@ fn conflict_nested_shared_cycle_is_cut() {
     }
 }
 
+/// An npm-alias edge that exposes the same underlying package as an
+/// ancestor under a *different* alias is not a cycle: it is the only
+/// `node_modules/<alias>` entry for its name, so cutting it would
+/// break `require('<alias>')`. Only an edge repeating an ancestor's
+/// alias *and* locator is cut, mirroring upstream's
+/// `aliasedLocatorPath` guard (which compares `name@locator`).
+/// Regression shape: `b@1` exposes itself under the alias `c`
+/// (`"c": "npm:b@1.0.0"`).
+#[test]
+fn self_alias_keeps_its_entry_and_only_the_alias_repeat_is_cut() {
+    let mut importers = HashMap::new();
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("b"), resolved_dep("1.0.0"));
+    importers.insert(
+        Lockfile::ROOT_IMPORTER_KEY.to_string(),
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
+    );
+
+    let mut snapshots = HashMap::new();
+    let mut b_deps = HashMap::new();
+    b_deps.insert(pkg_name("c"), SnapshotDepRef::Alias(dep_key("b", "1.0.0")));
+    snapshots.insert(
+        dep_key("b", "1.0.0"),
+        SnapshotEntry { dependencies: Some(b_deps), ..SnapshotEntry::default() },
+    );
+
+    let lockfile = Lockfile {
+        lockfile_version: lockfile_version(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers,
+        packages: None,
+        snapshots: Some(snapshots),
+        time: None,
+    };
+
+    let result = hoist(&lockfile, &HoistOpts::default()).expect("self-alias hoist should succeed");
+    let root_children = result.dependencies.borrow();
+    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(
+        names,
+        ["b", "c"],
+        "the alias keeps its own node_modules entry instead of being cut as a cycle",
+    );
+
+    // The alias copy's own self-alias edge repeats both the alias
+    // name and the locator, so that one *is* cut — the result must
+    // not retain the cycle.
+    for child in root_children.iter() {
+        assert!(
+            child.0.dependencies.borrow().is_empty(),
+            "the alias-repeat back-edge is cut: {child:#?}",
+        );
+    }
+}
+
 #[test]
 fn self_dependency_does_not_loop() {
     let mut importers = HashMap::new();

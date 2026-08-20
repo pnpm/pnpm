@@ -1055,16 +1055,23 @@ fn hoist_subtree(
     path_for_children.push(Rc::clone(node));
 
     for child in children {
-        // Cycle (or self-reference) edge: a package with this
-        // locator already materializes as an ancestor of this
-        // position, so requiring it here resolves to that ancestor
-        // — the edge carries no additional layout and would send
-        // the walkers into unbounded recursion. Cut it. Upstream
-        // skips descending into such edges (its `rootNodePathLocators`
-        // / `aliasedLocatorPath` guards); pacquet removes them
-        // outright because its layout walkers require the result to
-        // be a DAG. `node` is decoupled, so the cut is per-path.
-        if path_for_children.iter().any(|ancestor| same_locator(ancestor, &child.0)) {
+        // Cycle (or self-reference) edge: a package with this alias
+        // *and* locator already materializes as an ancestor of this
+        // position, so requiring the alias here resolves to that
+        // ancestor — the edge carries no additional layout and would
+        // send the walkers into unbounded recursion. Cut it. The
+        // alias name must match too: an edge exposing the same
+        // package under a *different* alias is the only
+        // `node_modules/<alias>` entry for that name and stays, just
+        // like upstream, whose `aliasedLocatorPath` guard compares
+        // `name@locator`. Upstream merely skips descending into
+        // cycle edges; pacquet removes them outright because its
+        // layout walkers require the result to be a DAG. `node` is
+        // decoupled, so the cut is per-path.
+        if path_for_children
+            .iter()
+            .any(|ancestor| ancestor.name == child.0.name && same_locator(ancestor, &child.0))
+        {
             node.dependencies.borrow_mut().shift_remove(&child);
             changed_in_subtree = true;
             continue;
