@@ -361,6 +361,38 @@ test('cleanupUnusedIgnoredGhsas handles case normalization', async () => {
   expect(manifest.auditConfig?.ignoreGhsas).toEqual(['GHSA-42xw-2xvc-qx8m'])
 })
 
+test('cleanupUnusedIgnoredGhsas persists the canonical form even when nothing is removed', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // Both entries match the same advisory (a differently-cased duplicate) —
+  // nothing gets removed, but the stored list should still collapse to the
+  // single canonical entry.
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'ghsa-42xw-2xvc-qx8m',
+        'GHSA-42XW-2XVC-QX8M',
+      ],
+      cleanupUnusedIgnoredGhsas: true,
+    },
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(collectedInfos.some((message) => message.includes('unused ignored GHSA'))).toBe(false)
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toEqual(['GHSA-42xw-2xvc-qx8m'])
+})
+
 test('cleanupUnusedIgnoredGhsas cleans up all when none are relevant', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 

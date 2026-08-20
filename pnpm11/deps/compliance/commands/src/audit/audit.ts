@@ -275,24 +275,31 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
   if (fixMethod != null) {
     // Cleanup unused ignored GHSAs if enabled
     if (opts.auditConfig?.cleanupUnusedIgnoredGhsas && opts.auditConfig?.ignoreGhsas?.length) {
-      const { cleaned, retained } = cleanupIgnoredGhsas(opts.auditConfig.ignoreGhsas, auditReport)
+      const configuredGhsas = opts.auditConfig.ignoreGhsas
+      const { cleaned, retained } = cleanupIgnoredGhsas(configuredGhsas, auditReport)
       if (cleaned.length > 0) {
         globalInfo(`Removed ${cleaned.length} unused ignored GHSA(s): ${cleaned.join(', ')}`)
-        const retainedNormalized = retained.map(normalizeGhsaId)
+      }
+      // Persist even when nothing was removed: `retained` may still differ
+      // from the configured list (deduplicated or case-normalized), and the
+      // file should always reflect the canonical form.
+      const retainedDiffers = retained.length !== configuredGhsas.length ||
+        retained.some((ghsa, index) => ghsa !== configuredGhsas[index])
+      if (retainedDiffers) {
         await writeSettings({
           ...opts,
           workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
           updatedSettings: {
             auditConfig: {
               ...opts.auditConfig,
-              ignoreGhsas: retainedNormalized.length > 0 ? retainedNormalized : undefined,
+              ignoreGhsas: retained.length > 0 ? retained : undefined,
             },
           },
         })
         // Update opts for subsequent operations
         opts.auditConfig = {
           ...opts.auditConfig,
-          ignoreGhsas: retainedNormalized.length > 0 ? retainedNormalized : undefined,
+          ignoreGhsas: retained.length > 0 ? retained : undefined,
         }
       }
     }
