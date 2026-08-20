@@ -1104,6 +1104,7 @@ fn allow_builds_clearing_legacy_drops_every_legacy_key_in_the_same_write() {
     let original = "packages:\n  - '*'\nonlyBuiltDependencies:\n  - esbuild\nonlyBuiltDependenciesFile: allowed.json\nneverBuiltDependencies:\n  - fsevents\nignoredBuiltDependencies:\n  - foo\n";
     let out =
         run_allow_builds_clearing_legacy(Some(original), &[("esbuild", true)]).expect("file kept");
+    eprintln!("MANIFEST:\n{out}\n");
     assert_eq!(out, "packages:\n  - '*'\nallowBuilds:\n  esbuild: true\n");
 }
 
@@ -1117,6 +1118,7 @@ fn allow_builds_clearing_legacy_deletes_the_file_when_nothing_remains() {
 fn allow_builds_clearing_legacy_is_a_noop_when_no_legacy_key_is_present() {
     let original = "packages:\n  - '*'\nallowBuilds:\n  esbuild: true\n";
     let out = run_allow_builds_clearing_legacy(Some(original), &[]).expect("file kept");
+    eprintln!("MANIFEST:\n{out}\n");
     assert_eq!(out, original);
 }
 
