@@ -893,6 +893,46 @@ fn write_workspace(workspace: &Path, inject_workspace_packages: bool) {
     );
 }
 
+/// `deploy` copies a project through the directory fetcher's packlist
+/// mode, which reads the `files` field. Those entries name paths from
+/// the package root, so a project that keeps an example app under
+/// `example/src` deploys its own `src` and leaves the example behind.
+#[test]
+fn deployed_files_field_does_not_match_at_depth() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_project(
+        &workspace,
+        "packs-its-own-src",
+        &serde_json::json!({
+            "name": "packs-its-own-src",
+            "version": "1.0.0",
+            "main": "src/index.js",
+            "files": ["src"],
+        }),
+    );
+    let project = workspace.join("packages/packs-its-own-src");
+    for path in ["src/index.js", "example/src/App.js"] {
+        let file = project.join(path);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, "").unwrap();
+    }
+
+    pacquet.with_arg("install").assert().success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "packs-its-own-src", "deploy", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(deploy_dir.join("src/index.js").exists(), "the published src is deployed");
+    assert!(!deploy_dir.join("example").exists(), "the example app is not deployed");
+
+    drop((root, mock_instance));
+}
+
 fn write_reachability_workspace(workspace: &Path) {
     write_workspace(workspace, true);
     write_project(
