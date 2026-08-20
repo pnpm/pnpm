@@ -4,6 +4,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
+import { redactAndSanitize } from '@pnpm/error'
 import type { GlobalPackageInfo } from '@pnpm/global.packages'
 
 const cleanOrphanedInstallDirs = jest.fn()
@@ -25,7 +26,9 @@ const cleanupFailedGlobalInstall = jest.fn(async (installDir: string, originalEr
   } catch (cleanupError) {
     throw new AggregateError(
       [originalError, cleanupError],
-      'Failed to clean up after global install failed before activation.',
+      'Failed to clean up after global install failed before activation. ' +
+        `Original error: ${formatErrorForMessage(originalError)}. ` +
+        `Cleanup error: ${formatErrorForMessage(cleanupError)}.`,
       { cause: originalError } // eslint-disable-line preserve-caught-error -- Matches the production contract: the failure before activation is primary.
     )
   }
@@ -291,6 +294,11 @@ test('global update preserves ownership state and both errors when fresh install
     const aggregateError = thrown as AggregateError
     expect(aggregateError.errors).toStrictEqual([enumerationError, cleanupError])
     expect(aggregateError.cause).toBe(enumerationError)
+    expect(aggregateError.message).toBe(
+      'Failed to clean up after global install failed before activation. ' +
+      'Original error: target package.json is missing. ' +
+      'Cleanup error: fresh install cleanup failed.'
+    )
     expect(snapshot()).toStrictEqual(before)
     expect(rmSpy).toHaveBeenCalledWith(freshInstallDir, { recursive: true, force: true })
     expect(activateGlobalInstall).not.toHaveBeenCalled()
@@ -300,6 +308,21 @@ test('global update preserves ownership state and both errors when fresh install
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
+
+function formatErrorForMessage (err: unknown): string {
+  if (util.types.isNativeError(err)) return sanitizeSingleLineErrorMessage(err.message)
+  try {
+    return sanitizeSingleLineErrorMessage(String(err))
+  } catch {
+    return 'Unknown error'
+  }
+}
+
+function sanitizeSingleLineErrorMessage (message: string): string {
+  return redactAndSanitize(message)
+    .replaceAll('\u2028', '')
+    .replaceAll('\u2029', '')
+}
 
 test('global update only updates interactively selected groups', async () => {
   createInstallDir.mockReturnValue('/global/v11/install-1')

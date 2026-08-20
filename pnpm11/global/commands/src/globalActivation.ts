@@ -5,7 +5,7 @@ import util from 'node:util'
 import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest } from '@pnpm/types'
@@ -105,7 +105,9 @@ export async function cleanupFailedGlobalInstall (
   } catch (cleanupError) {
     throw new AggregateError(
       [originalError, cleanupError],
-      'Failed to clean up after global install failed before activation.',
+      'Failed to clean up after global install failed before activation. ' +
+        `Original error: ${getSingleLineErrorMessage(originalError)}. ` +
+        `Cleanup error: ${getSingleLineErrorMessage(cleanupError)}.`,
       { cause: originalError } // eslint-disable-line preserve-caught-error -- The failure before activation is primary; both errors remain in AggregateError.errors.
     )
   }
@@ -396,4 +398,10 @@ function getErrorMessage (err: unknown): string {
   } catch {
     return 'Unknown error'
   }
+}
+
+function getSingleLineErrorMessage (err: unknown): string {
+  return redactAndSanitize(getErrorMessage(err))
+    .replaceAll('\u2028', '')
+    .replaceAll('\u2029', '')
 }

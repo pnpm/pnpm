@@ -4,6 +4,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
+import { redactAndSanitize } from '@pnpm/error'
 import type { GlobalPackageInfo } from '@pnpm/global.packages'
 import type { DependencyManifest } from '@pnpm/types'
 
@@ -38,7 +39,9 @@ const cleanupFailedGlobalInstall = jest.fn(async (installDir: string, originalEr
   } catch (cleanupError) {
     throw new AggregateError(
       [originalError, cleanupError],
-      'Failed to clean up after global install failed before activation.',
+      'Failed to clean up after global install failed before activation. ' +
+        `Original error: ${formatErrorForMessage(originalError)}. ` +
+        `Cleanup error: ${formatErrorForMessage(cleanupError)}.`,
       { cause: originalError } // eslint-disable-line preserve-caught-error -- Matches the production contract: the failure before activation is primary.
     )
   }
@@ -368,6 +371,11 @@ test('global add preserves ownership state and both errors when fresh install cl
     const aggregateError = thrown as AggregateError
     expect(aggregateError.errors).toStrictEqual([enumerationError, cleanupError])
     expect(aggregateError.cause).toBe(enumerationError)
+    expect(aggregateError.message).toBe(
+      'Failed to clean up after global install failed before activation. ' +
+      'Original error: replacement package.json is missing. ' +
+      'Cleanup error: fresh install cleanup failed.'
+    )
     expect(snapshot()).toStrictEqual(before)
     expect(rmSpy).toHaveBeenCalledWith(freshInstallDir, { recursive: true, force: true })
     expect(activateGlobalInstall).not.toHaveBeenCalled()
@@ -377,6 +385,21 @@ test('global add preserves ownership state and both errors when fresh install cl
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
+
+function formatErrorForMessage (err: unknown): string {
+  if (util.types.isNativeError(err)) return sanitizeSingleLineErrorMessage(err.message)
+  try {
+    return sanitizeSingleLineErrorMessage(String(err))
+  } catch {
+    return 'Unknown error'
+  }
+}
+
+function sanitizeSingleLineErrorMessage (message: string): string {
+  return redactAndSanitize(message)
+    .replaceAll('\u2028', '')
+    .replaceAll('\u2029', '')
+}
 
 test('global add does not clean up or persist policy when activation fails', async () => {
   const activationError = new Error('activation failed')

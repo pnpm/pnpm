@@ -172,8 +172,8 @@ test('cleanup before activation preserves the original and cleanup errors', asyn
   testRoot = root
   const installDir = path.join(root, 'fresh-install')
   await fs.mkdir(installDir)
-  const originalError = new Error('ownership preflight failed')
-  const cleanupError = new Error('fresh install cleanup failed')
+  const originalError = new Error('ownership preflight failed \nfor https://user:pass@example.com/global \u2028manifest unreadable')
+  const cleanupError = new Error('fresh install cleanup failed \r\nwith EACCES \u2029at the fresh install')
   freshCleanupFailure = { path: path.resolve(installDir), error: cleanupError }
 
   let thrown: unknown
@@ -187,6 +187,12 @@ test('cleanup before activation preserves the original and cleanup errors', asyn
   const aggregateError = thrown as AggregateError
   expect(aggregateError.errors).toStrictEqual([originalError, cleanupError])
   expect(aggregateError.cause).toBe(originalError)
+  expect(aggregateError.message).toBe(
+    'Failed to clean up after global install failed before activation. ' +
+    'Original error: ownership preflight failed for https://example.com/global manifest unreadable. ' +
+    'Cleanup error: fresh install cleanup failed with EACCES at the fresh install.'
+  )
+  expect(aggregateError.message).not.toMatch(/[\r\n\u2028\u2029]/)
   expect(existsSync(installDir)).toBe(true)
 })
 
