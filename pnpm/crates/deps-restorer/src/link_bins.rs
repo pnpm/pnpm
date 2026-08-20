@@ -320,6 +320,10 @@ pub struct LinkVirtualStoreBins<'a> {
     /// each slot's children from its `dependencies` /
     /// `optionalDependencies` lists without touching the filesystem.
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    /// When present, limit the lockfile-driven pass to these slots.
+    /// Install paths pass the snapshots materialized in the current run;
+    /// rebuild and filesystem-discovery callers leave it unrestricted.
+    pub selected_snapshots: Option<&'a [PackageKey]>,
     /// Lockfile `packages:` section, indexed by `PkgNameVerPeer`
     /// (without peer suffix). Used to filter children by
     /// `hasBin == true` *before* any per-child IO.
@@ -372,6 +376,7 @@ impl LinkVirtualStoreBins<'_> {
         let LinkVirtualStoreBins {
             layout,
             snapshots,
+            selected_snapshots,
             packages,
             package_manifests,
             skipped,
@@ -383,6 +388,7 @@ impl LinkVirtualStoreBins<'_> {
             run_lockfile_driven::<Sys>(
                 layout,
                 snapshots,
+                selected_snapshots,
                 BinSlotSets { has_bin: has_bin_set.as_ref(), bundling: &bundling_set },
                 package_manifests,
                 skipped,
@@ -479,6 +485,7 @@ struct BinSlotSets<'a> {
 fn run_lockfile_driven<Sys>(
     layout: &crate::VirtualStoreLayout,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    selected_snapshots: Option<&[PackageKey]>,
     sets: BinSlotSets<'_>,
     package_manifests: &PackageManifests,
     skipped: &SkippedSnapshots,
@@ -517,8 +524,15 @@ where
     // `<slot>/node_modules/<alias>` (returning `None` harmlessly but
     // wasting work) or — worse — create a `<slot>/.../node_modules/.bin`
     // directory under a slot that doesn't exist on disk.
-    let slot_entries: Vec<(&PackageKey, &SnapshotEntry)> =
-        snapshots.iter().filter(|(slot_key, _)| !skipped.contains(slot_key)).collect();
+    let selected_snapshots: Option<HashSet<&PackageKey>> =
+        selected_snapshots.map(|keys| keys.iter().collect());
+    let slot_entries: Vec<(&PackageKey, &SnapshotEntry)> = snapshots
+        .iter()
+        .filter(|(slot_key, _)| {
+            !skipped.contains(slot_key)
+                && selected_snapshots.as_ref().is_none_or(|keys| keys.contains(slot_key))
+        })
+        .collect();
     slot_entries.par_iter().try_for_each(|(slot_key, snapshot)| {
         let children = snapshot
             .dependencies

@@ -9,7 +9,7 @@ use pnpm_lockfile::{
 };
 use pnpm_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     sync::{Arc, Mutex, atomic::AtomicU8},
 };
@@ -210,6 +210,10 @@ async fn cold_batch_links_slots_in_parallel() {
     let cold_b = key("cold-b", "1.0.0");
     assert_eq!(output.requires_build_by_snapshot.get(&cold_a), Some(&true));
     assert_eq!(output.requires_build_by_snapshot.get(&cold_b), Some(&false));
+    assert_eq!(
+        output.materialized_snapshots.into_iter().collect::<HashSet<_>>(),
+        HashSet::from([cold_a, cold_b, key("cold-c", "1.0.0"), key("cold-d", "1.0.0"),]),
+    );
 }
 
 const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -331,6 +335,7 @@ async fn shared_store_context_materializes_a_warm_package() {
     writer_task.await.expect("join store-index writer").expect("flush store-index writer");
 
     assert_eq!(output.requires_build_by_snapshot.get(&package_key), Some(&false));
+    assert_eq!(output.materialized_snapshots.as_slice(), std::slice::from_ref(&package_key));
     let installed_body = layout
         .slot_dir(&package_key)
         .join("node_modules")

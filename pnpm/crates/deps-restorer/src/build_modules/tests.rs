@@ -1,6 +1,7 @@
 use super::{
     BuildModules,
     allow_build_policy::{AllowBuildPolicy, allow_build_key_from_ignored_build},
+    deferred_builds,
     slots::{is_contained_descendant, parse_name_version_from_key},
 };
 // Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
@@ -33,6 +34,18 @@ use tempfile::tempdir;
 /// to it through the side-effects re-materialization path; tests don't
 /// assert on it, so one shared static is enough.
 static TEST_LOGGED_METHODS: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+#[test]
+fn deferred_builds_uses_only_the_supplied_snapshots() {
+    let first = key("first", "1.0.0");
+    let second = key("second", "1.0.0");
+    let requires_build = HashMap::from([(first.clone(), true), (second, true)]);
+
+    assert_eq!(
+        deferred_builds(requires_build.iter().filter(|(key, _)| *key == &first), true),
+        [first.to_string()],
+    );
+}
 
 /// Build an [`AllowBuildPolicy`] from a list of `(spec, allowed)`
 /// pairs, mirroring how `pnpm-workspace.yaml`'s `allowBuilds` map
