@@ -719,3 +719,5 @@ fn deprecate(
 mod dependency_paths;
 
 mod remediation;
+
+mod peer_satisfaction;
