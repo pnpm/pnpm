@@ -982,7 +982,9 @@ fn filter_peer_issues(
         }
 
         for (peer_name, peer_issues) in &project_issues.bad {
-            if allow_any_matcher_rule.matches(peer_name) {
+            if allow_any_matcher_rule.matches(peer_name)
+                || ignore_missing_matcher.matches(peer_name)
+            {
                 continue;
             }
             let remaining: Vec<BadPeerIssue> = peer_issues

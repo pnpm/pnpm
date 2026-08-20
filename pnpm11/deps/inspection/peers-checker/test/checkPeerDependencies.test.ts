@@ -99,6 +99,20 @@ test('respects peerDependencyRules.ignoreMissing', async () => {
   expect(Object.keys(projectIssues.missing)).toHaveLength(0)
 })
 
+test('peerDependencyRules.ignoreMissing also suppresses bad (version-mismatch) peer issues', async () => {
+  const fixture = f.find('with-unmet-peers')
+  const issues = await checkPeerDependencies([fixture], {
+    lockfileDir: fixture,
+    checkWantedLockfileOnly: true,
+    peerDependencyRules: {
+      ignoreMissing: ['react'],
+    },
+  })
+
+  const projectIssues = issues['.']
+  expect(Object.keys(projectIssues.bad)).toHaveLength(0)
+})
+
 test('detects conflicting missing peer dependencies', async () => {
   const fixture = f.find('with-conflicting-peers')
   const issues = await checkPeerDependencies([fixture], {
