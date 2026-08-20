@@ -502,6 +502,8 @@ fn first_project_missing_modules_dir(
     node_linker: NodeLinker,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> Option<String> {
+    let root_modules_dir_exists = config.modules_dir.exists();
+
     project_manifests.iter().find_map(|(root_dir, manifest)| {
         if !manifest_has_runtime_deps(manifest) {
             return None;
@@ -510,27 +512,21 @@ fn first_project_missing_modules_dir(
         // their own `<root>/node_modules`. Matches the isolated-linker
         // default — `config.modules_dir` is `<workspace_root>/node_modules`
         // unless the user overrode it explicitly.
-        let modules_dir = match node_linker {
-            NodeLinker::Hoisted => {
-                // Every project's dependencies land in the root modules
-                // directory, so that is what each one is checked against.
-                config.modules_dir.clone()
-            }
+        let modules_dir_exists = match node_linker {
+            NodeLinker::Hoisted => root_modules_dir_exists,
             NodeLinker::Isolated | NodeLinker::Pnp => {
                 if *root_dir == workspace_dir_of(config, root_dir) {
-                    config.modules_dir.clone()
+                    root_modules_dir_exists
                 } else {
-                    root_dir.join("node_modules")
+                    root_dir.join("node_modules").exists()
                 }
             }
         };
-        if modules_dir.exists() {
-            return None;
-        }
-        Some(
+
+        (!modules_dir_exists).then(|| {
             manifest_string_field(manifest, "name")
-                .unwrap_or_else(|| root_dir.to_string_lossy().into_owned()),
-        )
+                .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
+        })
     })
 }
 
