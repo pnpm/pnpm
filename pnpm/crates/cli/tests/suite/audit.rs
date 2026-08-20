@@ -1033,7 +1033,7 @@ fn audit_fix_cleanup_normalizes_ghsa_casing() {
     // Retained entries are rewritten to their canonical spelling regardless
     // of the casing the user originally ignored them with, and deduplicated
     // — the exact list must be just the one canonical, still-relevant id.
-    assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-1111-2222".to_string()],);
+    assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-1111-2222".to_string()]);
     mock.assert();
 }
 
@@ -1392,12 +1392,12 @@ fn advisory_response(
 /// Parse `workspace`'s `pnpm-workspace.yaml` and return the exact
 /// `auditConfig.ignoreGhsas` list (empty when the key is absent).
 fn audit_config_ignore_ghsas(workspace: &Path) -> Vec<String> {
-    #[derive(serde::Deserialize, Default)]
+    #[derive(Default, serde::Deserialize)]
     #[serde(rename_all = "camelCase", default)]
     struct OnlyAuditConfig {
         audit_config: AuditConfig,
     }
-    #[derive(serde::Deserialize, Default)]
+    #[derive(Default, serde::Deserialize)]
     #[serde(rename_all = "camelCase", default)]
     struct AuditConfig {
         ignore_ghsas: Vec<String>,
