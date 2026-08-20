@@ -113,10 +113,7 @@ export function getHoistableOptionalPeers (
     // yields `*` and leaves them unbounded.
     const rootBareSpecifier = findWorkspaceRootDep(workspaceRootDeps, missingOptionalPeerName)?.normalizedBareSpecifier
     const rootSpecifierRange = rootBareSpecifier != null ? semver.validRange(getPeerVersionRange(rootBareSpecifier)) : null
-    // A root specifier disjoint from the wanted ranges bounds the candidates
-    // down to none, and the importer then falls back to the root's own
-    // out-of-range version. Such a specifier has nothing to say about this
-    // peer, so leave the candidates unbounded instead.
+    // A disjoint specifier would bound them down to none, and the importer would then fall back to the root's own out-of-range version.
     const rootRange = rootSpecifierRange != null && ranges.every(range => semver.validRange(range) != null && semver.intersects(rootSpecifierRange, range))
       ? rootSpecifierRange
       : null

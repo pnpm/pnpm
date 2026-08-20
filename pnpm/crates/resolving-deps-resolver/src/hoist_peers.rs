@@ -202,11 +202,9 @@ pub(crate) fn get_hoistable_optional_peers_with_locked_versions(
         else {
             continue;
         };
-        // A root specifier disjoint from the wanted ranges bounds the
-        // candidates down to none, and the importer then falls back to
-        // the root's own out-of-range version. Such a specifier has
-        // nothing to say about this peer, so leave the candidates
-        // unbounded instead.
+        // A disjoint specifier would bound the candidates down to none, and
+        // the importer would then fall back to the root's own out-of-range
+        // version.
         let root_range =
             root_range.filter(|root| parsed_ranges.iter().all(|parsed| root.allows_any(parsed)));
         let mut max_satisfying_version: Option<Version> = None;
