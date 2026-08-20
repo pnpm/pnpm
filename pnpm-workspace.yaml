@@ -112,7 +112,7 @@ catalog:
   '@commitlint/prompt-cli': ^21.2.2
   '@cyclonedx/cyclonedx-library': 10.2.0
   '@eslint/js': ^10.0.1
-  '@inquirer/prompts': ^8.5.2
+  '@inquirer/prompts': ^8.6.0
   '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
@@ -258,7 +258,7 @@ catalog:
   isexe: 4.0.0
   jest: ^30.4.2
   jest-diff: ^30.4.1
-  human-id: ^4.2.0
+  human-id: ^4.2.1
   js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
   keyv: 5.6.0
