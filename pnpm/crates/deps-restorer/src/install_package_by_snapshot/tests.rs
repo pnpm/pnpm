@@ -232,18 +232,45 @@ fn host_platform_selector_omits_libc_on_non_linux_hosts() {
 }
 
 #[test]
-fn runtime_platform_selector_uses_the_first_configured_target() {
+fn runtime_platform_selector_falls_back_to_the_first_configured_target_the_host_is_absent_from() {
     let supported = SupportedArchitectures {
-        os: Some(vec!["win32".to_string(), "linux".to_string()]),
-        cpu: Some(vec!["x64".to_string(), "arm64".to_string()]),
+        os: Some(vec!["freebsd".to_string(), "openbsd".to_string()]),
+        cpu: Some(vec!["ppc64".to_string(), "s390x".to_string()]),
         libc: Some(vec!["current".to_string(), "musl".to_string()]),
     };
 
     let selector = runtime_platform_selector(Some(&supported));
 
-    assert_eq!(selector.os, "win32");
-    assert_eq!(selector.cpu, "x64");
+    assert_eq!(selector.os, "freebsd");
+    assert_eq!(selector.cpu, "ppc64");
     assert_eq!(selector.libc, host_platform_selector().libc);
+}
+
+#[test]
+fn runtime_platform_selector_prefers_the_host_over_the_other_configured_targets() {
+    let host = host_platform_selector();
+    let supported = SupportedArchitectures {
+        os: Some(vec!["freebsd".to_string(), host.os.clone()]),
+        cpu: Some(vec!["ppc64".to_string(), host.cpu.clone()]),
+        libc: None,
+    };
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector, host);
+}
+
+#[test]
+fn runtime_platform_selector_expands_current_to_the_host() {
+    let supported = SupportedArchitectures {
+        os: Some(vec!["freebsd".to_string(), "current".to_string()]),
+        cpu: Some(vec!["current".to_string()]),
+        libc: Some(vec!["current".to_string()]),
+    };
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector, host_platform_selector());
 }
 
 #[test]

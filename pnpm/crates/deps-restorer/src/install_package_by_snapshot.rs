@@ -843,33 +843,42 @@ pub fn host_platform_selector() -> PlatformSelector {
     PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
 }
 
-/// Resolve the runtime archive selector from `supportedArchitectures`, using
-/// the first requested value on each axis and expanding `current` to the host.
+/// Resolve the runtime archive selector from `supportedArchitectures`.
+///
+/// Exactly one archive is installed per runtime, so each axis prefers
+/// the host's own value: an archive built for another platform cannot
+/// run here.
+///
+/// <https://github.com/pnpm/pnpm/issues/13898>
 #[must_use]
 pub fn runtime_platform_selector(
     supported: Option<&pnpm_package_is_installable::SupportedArchitectures>,
 ) -> PlatformSelector {
     let host = host_platform_selector();
-    let pick = |values: Option<&Vec<String>>, current: &str| {
-        values.and_then(|values| values.first()).map_or_else(
-            || current.to_string(),
-            |value| {
-                if value == "current" { current.to_string() } else { value.clone() }
-            },
-        )
+    let (requested_os, requested_cpu, requested_libc) = match supported {
+        Some(supported) => {
+            (supported.os.as_deref(), supported.cpu.as_deref(), supported.libc.as_deref())
+        }
+        None => (None, None, None),
     };
     PlatformSelector {
-        os: pick(supported.and_then(|value| value.os.as_ref()), &host.os),
-        cpu: pick(supported.and_then(|value| value.cpu.as_ref()), &host.cpu),
-        libc: match supported
-            .and_then(|value| value.libc.as_ref())
-            .and_then(|values| values.first())
-        {
-            None => host.libc,
-            Some(value) if value == "current" => host.libc,
-            Some(value) => Some(value.clone()),
-        },
+        os: pick_supported(requested_os, Some(&host.os)).unwrap_or(&host.os).to_string(),
+        cpu: pick_supported(requested_cpu, Some(&host.cpu)).unwrap_or(&host.cpu).to_string(),
+        libc: pick_supported(requested_libc, host.libc.as_deref()).map(str::to_string),
     }
+}
+
+fn pick_supported<'a>(
+    requested: Option<&'a [String]>,
+    host_value: Option<&'a str>,
+) -> Option<&'a str> {
+    let Some(requested) = requested.filter(|requested| !requested.is_empty()) else {
+        return host_value;
+    };
+    if requested.iter().any(|value| value == "current" || Some(value.as_str()) == host_value) {
+        return host_value;
+    }
+    requested.first().map(String::as_str)
 }
 
 /// Hand-coded matcher for the

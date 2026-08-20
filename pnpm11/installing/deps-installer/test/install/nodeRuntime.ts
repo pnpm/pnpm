@@ -419,6 +419,28 @@ test('installing Node.js runtime for the given supported architecture', async ()
   project.has(expectedBinLocation)
 })
 
+test('installing Node.js runtime for the host, when it is not the first supported architecture', async () => {
+  const isWindows = process.platform === 'win32'
+  const supportedArchitectures = {
+    os: [isWindows ? 'linux' : 'win32', process.platform],
+    cpu: [process.arch === 'x64' ? 'arm64' : 'x64', process.arch],
+  }
+  const expectedBinLocation = isWindows ? 'node/node.exe' : 'node/bin/node'
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['node@runtime:22.0.0'],
+    testDefaults({
+      fastUnpack: false,
+      supportedArchitectures,
+    })
+  )
+  project.has(expectedBinLocation)
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({ frozenLockfile: true, supportedArchitectures }))
+  project.has(expectedBinLocation)
+})
+
 test('installing Node.js runtime, when it is set via the engines field of a dependency', async () => {
   prepareEmpty()
   await addDependenciesToPackage(

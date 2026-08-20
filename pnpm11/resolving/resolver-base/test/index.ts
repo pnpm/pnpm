@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { classifyResolution, isGitHostedTarballUrl, type Resolution } from '@pnpm/resolving.resolver-base'
+import { classifyResolution, isGitHostedTarballUrl, type Resolution, resolvePlatformSelector } from '@pnpm/resolving.resolver-base'
 
 const GIT_COMMIT = '0123456789abcdef0123456789abcdef01234567'
 
@@ -36,6 +36,20 @@ test('classifyResolution() treats a YAML `type: null` as a tarball, not custom',
 test('classifyResolution() does not crash on a non-string tarball from a tampered lockfile', () => {
   expect(classifyResolution({ tarball: ['https://attacker.example/foo.tgz'] } as unknown as Resolution)).toBe('remoteTarball')
   expect(classifyResolution({ tarball: 42 } as unknown as Resolution)).toBe('remoteTarball')
+})
+
+test('resolvePlatformSelector() prefers the host over the other supported architectures', () => {
+  const host = { platform: 'darwin', arch: 'arm64', libc: 'glibc' }
+  expect(resolvePlatformSelector({ os: ['darwin', 'linux'], cpu: ['x64', 'arm64'], libc: ['musl', 'glibc'] }, host))
+    .toStrictEqual({ os: 'darwin', cpu: 'arm64', libc: 'glibc' })
+  expect(resolvePlatformSelector({ os: ['linux', 'current'], cpu: ['current'], libc: ['current'] }, host))
+    .toStrictEqual({ os: 'darwin', cpu: 'arm64', libc: 'glibc' })
+})
+
+test('resolvePlatformSelector() falls back to the first architecture the host is absent from', () => {
+  const host = { platform: 'darwin', arch: 'arm64', libc: null }
+  expect(resolvePlatformSelector({ os: ['linux', 'win32'], cpu: ['x64'], libc: ['musl'] }, host))
+    .toStrictEqual({ os: 'linux', cpu: 'x64', libc: 'musl' })
 })
 
 test('isGitHostedTarballUrl() recognizes git provider archive URLs (case-insensitive)', () => {

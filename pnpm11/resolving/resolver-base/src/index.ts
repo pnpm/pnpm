@@ -270,19 +270,19 @@ export interface PlatformSelector {
 
 /**
  * Resolve a {@link PlatformSelector} from the user's supportedArchitectures config
- * and the host's own platform/arch/libc. When `supportedArchitectures.xxx` is set
- * and its first entry is not `"current"`, that entry wins; otherwise the host's
- * value is used. Additional entries beyond the first are ignored — variant
- * selection picks exactly one (os, cpu, libc) triplet per install.
+ * and the host's own platform/arch/libc. Exactly one (os, cpu, libc) triplet is
+ * installed, so each axis prefers the host's own value: a variant built for
+ * another platform cannot run here.
+ * @see https://github.com/pnpm/pnpm/issues/13898
  */
 export function resolvePlatformSelector (
   supportedArchitectures: SupportedArchitectures | undefined,
   host: { platform: string, arch: string, libc: string | null | undefined }
 ): PlatformSelector {
   return {
-    os: pickFirstNonCurrent(supportedArchitectures?.os) ?? host.platform,
-    cpu: pickFirstNonCurrent(supportedArchitectures?.cpu) ?? host.arch,
-    libc: pickFirstNonCurrent(supportedArchitectures?.libc) ?? host.libc,
+    os: pickSupported(supportedArchitectures?.os, host.platform),
+    cpu: pickSupported(supportedArchitectures?.cpu, host.arch),
+    libc: pickSupported(supportedArchitectures?.libc, host.libc),
   }
 }
 
@@ -312,11 +312,10 @@ function libcMatches (variantLibc: string | undefined, requestedLibc: string | n
   return variantLibc === requestedLibc
 }
 
-function pickFirstNonCurrent (requirements: string[] | undefined): string | undefined {
-  if (requirements?.length && requirements[0] !== 'current') {
-    return requirements[0]
-  }
-  return undefined
+function pickSupported<T extends string | null | undefined> (requirements: string[] | undefined, hostValue: T): string | T {
+  if (!requirements?.length) return hostValue
+  if (requirements.some((requirement) => requirement === 'current' || requirement === hostValue)) return hostValue
+  return requirements[0]
 }
 
 export interface ResolveResult {
