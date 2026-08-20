@@ -41,7 +41,7 @@ use pnpm_patching::{
 };
 use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
-use pnpm_store_dir::StoreIndexWriter;
+use pnpm_store_dir::{StoreIndexError, StoreIndexWriter};
 use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
@@ -815,13 +815,13 @@ where
             .map_err(InstallFrozenLockfileError::BuildPhase)?;
 
         // Drop the orchestrator's clone of the writer so the channel
-        // closes once every per-snapshot clone has also been dropped;
-        // then await the task so the final batch flushes before
-        // returning. Swallow any error with `warn!` — the install is
-        // complete and a missed cache write just forces a re-fetch
-        // on the next install.
+        // closes once every per-snapshot clone has also been dropped
+        // and the task starts its final flush and connection close.
+        // Nothing after this point reads the index, so the task is
+        // handed back as
+        // [`InstallFrozenLockfileOutput::store_index_teardown`] and
+        // awaited by the install driver after its own tail writes.
         drop(store_index_writer);
-        StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
 
         // The injectedDeps payload for `.modules.yaml`: every `file:`
         // snapshot is a materialized copy of an injected workspace
@@ -845,6 +845,7 @@ where
             skipped,
             ignored_builds,
             deferred_builds,
+            store_index_teardown: writer_task,
         })
     }
 }
@@ -888,6 +889,13 @@ pub struct InstallFrozenLockfileOutput {
     /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
     /// them into `.modules.yaml.pendingBuilds`.
     pub deferred_builds: Vec<String>,
+    /// The store-index writer task, already winding down: every writer
+    /// handle was dropped before this output was built. Await it via
+    /// [`StoreIndexWriter::drain`] after any tail writes it can
+    /// overlap with; dropping it instead (error paths) detaches the
+    /// teardown, which is safe. The full rationale lives at the await
+    /// site in the install driver.
+    pub store_index_teardown: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
 }
 
 impl From<HoistedLinkerError> for InstallFrozenLockfileError {

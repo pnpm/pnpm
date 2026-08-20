@@ -687,6 +687,13 @@ pub struct InstallWithFreshLockfileResult {
     /// Installability-skipped optional snapshots. The outer install
     /// writer persists these into `.modules.yaml.skipped`.
     pub skipped: SkippedSnapshots,
+    /// The store-index writer task, already winding down — see
+    /// [`pnpm_deps_restorer::InstallFrozenLockfileOutput::store_index_teardown`]:
+    /// every handle was dropped, the task is flushing its final batch
+    /// and closing its `SQLite` connection (a WAL checkpoint). Await it
+    /// via [`pnpm_store_dir::StoreIndexWriter::drain`] as late as
+    /// possible so the close overlaps the caller's tail writes.
+    pub store_index_teardown: tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>,
 }
 
 impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
@@ -1655,15 +1662,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             )
             .map_err(InstallWithFreshLockfileError::BuildPhase)?;
 
-        // Drop the orchestration's writer handle so the channel closes,
-        // then wait for the final batch flush — now including any
-        // side-effects-cache rows the build phase queued. Errors are
-        // downgraded to `warn!` (see `create_virtual_store.rs`): the
-        // install is complete and a missed cache write just forces a
-        // re-fetch on the next install.
+        // Drop the orchestration's writer handle so the channel closes
+        // once the build phase's side-effects-cache rows are queued and
+        // the task starts winding down. It is returned as
+        // `store_index_teardown` and awaited by the install driver
+        // after the tail writes it overlaps.
         drop(store_index_writer);
-        pnpm_store_dir::StoreIndexWriter::drain(writer_task, "; some rows may not be persisted")
-            .await;
 
         let injected_deps = crate::collect_injected_deps(
             &layout,
@@ -1703,6 +1707,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             ignored_builds,
             deferred_builds,
             skipped,
+            store_index_teardown: writer_task,
         })
     }
 }
@@ -1938,9 +1943,9 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
     };
 
     // Close the writer cleanly even though no rows were written,
-    // mirroring the drain at the tail of the materializing path.
+    // mirroring the materializing path: drop closes the channel, the
+    // caller awaits the returned task after its own tail writes.
     drop(store_index_writer);
-    pnpm_store_dir::StoreIndexWriter::drain(writer_task, " during a lockfile-only install").await;
 
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
@@ -1956,6 +1961,7 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
         ignored_builds: Vec::new(),
         deferred_builds: Vec::new(),
         skipped: SkippedSnapshots::new(),
+        store_index_teardown: writer_task,
     })
 }
 

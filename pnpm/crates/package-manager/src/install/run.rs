@@ -956,6 +956,7 @@ where
             hoisted_locations,
             install_skipped,
             fresh_lockfile,
+            store_index_teardown,
         } = materialize::<Reporter>(MaterializationInputs {
             tarball_mem_cache,
             resolved_packages,
@@ -1046,7 +1047,22 @@ where
             catalogs,
             verified_file_integrity_baseline,
         })
-        .await
+        .await?;
+
+        // Only now wait out the store-index writer's teardown — its
+        // final flush and the WAL checkpoint `SQLite` runs when the
+        // connection closes (~40 ms of otherwise pure tail on a cold
+        // install) have been overlapping every write above since the
+        // install paths dropped their writer handles. An error path
+        // that returned before this point dropped the handle instead,
+        // detaching the task: an interrupted checkpoint is exactly the
+        // crash case WAL recovery exists for.
+        pnpm_store_dir::StoreIndexWriter::drain(
+            store_index_teardown,
+            "; some rows may not be persisted",
+        )
+        .await;
+        Ok(())
     }
 }
 
