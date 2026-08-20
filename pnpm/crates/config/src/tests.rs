@@ -3535,14 +3535,60 @@ pub fn global_config_yaml_keys_it_cannot_set_are_reported() {
     );
 }
 
-/// An explicit null sets nothing, so it is not reported. A file carrying
-/// both kinds of dropped key gets both warnings, in pnpm's order.
+/// A key no configuration file may set is reported with the route pnpm
+/// offers for it, not with the move-to-workspace advice.
 #[test]
-pub fn global_config_yaml_null_key_is_silent_and_both_warnings_are_ordered() {
+pub fn global_config_yaml_keys_settable_nowhere_are_reported_with_their_route() {
     let config_dir = tempdir().expect("config tempdir");
     let config_file = config_dir.path().join("config.yaml");
-    fs::write(&config_file, "scriptShell: null\nstore-dir: /kebab-store\nnodeLinker: hoisted\n")
+    fs::write(&config_file, "configDir: /elsewhere\nbin: /usr/local/bin\ndir: /work\n")
         .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+    });
+
+    assert_eq!(
+        warnings,
+        [format!(
+            r#"The following settings cannot be set in the global config file ("{}") and were ignored: "configDir" (This is not a pnpm setting), "bin" (Set it for the machine instead: pnpm config set --global global-bin-dir), "dir" (Pass --dir on the command line instead)."#,
+            config_file.display(),
+        )],
+    );
+}
+
+/// A camelCase key pnpm honors in this file stays silent even where pacquet
+/// does not read it yet: the warning output must match pnpm's on the same
+/// file, and the fix for such a key is to honor it, not to report it.
+#[test]
+pub fn global_config_yaml_key_pnpm_honors_stays_silent() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "globalBinDir: /usr/local/pnpm-bin\n")
+        .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+    });
+
+    assert_eq!(warnings, Vec::<String>::new());
+}
+
+/// An explicit null sets nothing, so it is not reported. A file carrying
+/// every kind of dropped key gets all three warnings, in pnpm's order.
+#[test]
+pub fn global_config_yaml_null_key_is_silent_and_the_warnings_are_ordered() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(
+        &config_file,
+        "scriptShell: null\nstore-dir: /kebab-store\nconfigDir: /elsewhere\nnodeLinker: hoisted\n",
+    )
+    .expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
         WorkspaceSettings::load_global(config_dir.path())
@@ -3555,6 +3601,10 @@ pub fn global_config_yaml_null_key_is_silent_and_both_warnings_are_ordered() {
         [
             format!(
                 r#"The following settings cannot be set in the global config file ("{}") and were ignored: "nodeLinker". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+                config_file.display(),
+            ),
+            format!(
+                r#"The following settings cannot be set in the global config file ("{}") and were ignored: "configDir" (This is not a pnpm setting)."#,
                 config_file.display(),
             ),
             format!(

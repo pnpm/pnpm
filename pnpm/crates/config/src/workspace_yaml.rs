@@ -7,6 +7,7 @@ use crate::{
     config_types::is_config_file_key,
     naming_cases::{is_camel_case, to_camel_case, to_kebab_case},
     proxy_keys::{ProxyKeys, ProxyValue},
+    refused_keys::{is_refused_by_a_project_manifest, where_refused_key_belongs},
     resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
@@ -967,12 +968,18 @@ impl WorkspaceSettings {
     }
 
     /// Warn about the keys of the global `config.yaml` that never reach the
-    /// settings, in the two messages pnpm emits for that file.
+    /// settings, in the three messages pnpm emits for that file: movable to a
+    /// project's `pnpm-workspace.yaml`, settable nowhere, and spelled in
+    /// kebab-case.
     ///
     /// What survived is read back off `self` rather than off a second list of
     /// key names, which would drift from the struct: a key serde did not
     /// recognize is absent from the serialized settings, and one
     /// [`Self::clear_workspace_only_fields`] zeroed is null there.
+    ///
+    /// A dropped camelCase key pnpm's `isConfigFileKey` accepts stays silent:
+    /// pnpm honors it in this file, so the fix is to honor it too, and until
+    /// then a warning would diverge from pnpm's output on the same file.
     fn warn_about_dropped_keys(&self, text: &str, path: &Path) {
         let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
         else {
@@ -982,25 +989,40 @@ impl WorkspaceSettings {
             return;
         };
 
-        let mut ignored = Vec::new();
+        let mut movable = Vec::new();
+        let mut nowhere = Vec::new();
         let mut kebab_case = Vec::new();
         for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
-            match kept.get(key) {
-                Some(value) if !value.is_null() => {}
-                Some(_) => ignored.push(format!(r#""{key}""#)),
-                None if !is_camel_case(key) && is_config_file_key(&to_kebab_case(key)) => {
-                    kebab_case.push(format!(r#""{key}" (use "{}")"#, to_camel_case(key)));
+            if matches!(kept.get(key), Some(value) if !value.is_null()) {
+                continue;
+            }
+            if !is_config_file_key(&to_kebab_case(key)) {
+                if is_refused_by_a_project_manifest(key) {
+                    nowhere.push(format!(
+                        r#""{key}" ({})"#,
+                        where_refused_key_belongs(&to_camel_case(key)),
+                    ));
+                } else {
+                    movable.push(format!(r#""{key}""#));
                 }
-                None => ignored.push(format!(r#""{key}""#)),
+            } else if !is_camel_case(key) {
+                kebab_case.push(format!(r#""{key}" (use "{}")"#, to_camel_case(key)));
             }
         }
 
         let path = path.display();
-        if !ignored.is_empty() {
-            let ignored = ignored.join(", ");
+        if !movable.is_empty() {
+            let movable = movable.join(", ");
             tracing::warn!(
                 target: "pacquet::config",
-                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {ignored}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {movable}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+            );
+        }
+        if !nowhere.is_empty() {
+            let nowhere = nowhere.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {nowhere}."#,
             );
         }
         if !kebab_case.is_empty() {

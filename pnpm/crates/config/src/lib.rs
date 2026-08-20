@@ -11,6 +11,7 @@ mod override_version_references;
 pub mod property_path;
 pub mod protected_settings;
 pub mod proxy_keys;
+pub mod refused_keys;
 mod store_path;
 pub mod version_policy;
 mod workspace_yaml;
