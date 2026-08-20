@@ -1214,6 +1214,19 @@ const CREDENTIAL_KEYS = [
 ] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
 
 /**
+ * Which scope a `pnpm login` claims for the machine.
+ *
+ * The granted token is recorded as a `@scope:registry` route in the global
+ * `auth.ini`, which outranks the user's own `~/.npmrc` in every project on the
+ * machine from then on — so the scope is the user's to choose, not a
+ * repository's.
+ * See https://github.com/pnpm/pnpm/issues/13557
+ */
+const LOGIN_TARGET_KEYS = [
+  'scope',
+] as const satisfies ReadonlyArray<keyof Config>
+
+/**
  * Keys a project's `pnpm-workspace.yaml` does not contribute.
  *
  * `cacheDir` and `storeDir` are deliberately absent: those name caches a
@@ -1223,6 +1236,7 @@ type ProjectManifestSkippedKey =
   | typeof MACHINE_LOCATION_KEYS[number]
   | typeof CURRENT_RUN_LOCATION_KEYS[number]
   | typeof CREDENTIAL_KEYS[number]
+  | typeof LOGIN_TARGET_KEYS[number]
 
 /** Every key a caller of {@link addSettingsFromWorkspaceManifestToConfig} may skip. */
 type SkippableKey =
@@ -1234,6 +1248,7 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = ne
   ...MACHINE_LOCATION_KEYS,
   ...CURRENT_RUN_LOCATION_KEYS,
   ...CREDENTIAL_KEYS,
+  ...LOGIN_TARGET_KEYS,
 ])
 
 /**

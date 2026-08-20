@@ -1,5 +1,6 @@
 use super::{
     cli_command::{CliArgs, CliCommand},
+    config_warnings::drain_config_warnings,
     dispatch_install, dispatch_query, dispatch_script,
     reporter::{ReporterType, configure_default_reporter, reporter_emit},
 };
@@ -118,6 +119,7 @@ impl CliArgs {
         let Ok(mut config) = loaded else {
             return false;
         };
+        drain_config_warnings(&mut config);
         config_overrides.apply(&mut config);
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
@@ -242,6 +244,7 @@ impl CliArgs {
         // including `self-update`'s.
         let finalize_config =
             |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
+                drain_config_warnings(&mut cfg);
                 config_overrides.apply(&mut cfg);
                 cfg.apply_proxy_cli_overrides(
                     https_proxy.as_deref(),

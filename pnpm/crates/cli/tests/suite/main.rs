@@ -24,6 +24,7 @@ mod ci_frozen_lockfile;
 mod clean;
 mod completion;
 mod config_dependencies;
+mod config_warnings;
 mod convergence_overrides;
 mod create;
 mod current_lockfile;

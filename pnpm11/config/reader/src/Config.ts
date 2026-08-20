@@ -138,6 +138,7 @@ export interface Config extends OptionsFromRootManifest {
   nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
+  scope?: string
   optional?: boolean
   unsafePerm?: boolean
   loglevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug'

@@ -1,7 +1,8 @@
-use super::unmatched_registry_options_warning;
+use super::{take_unemitted, unmatched_registry_options_warning};
 use pnpm_config::Config;
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use pretty_assertions::assert_eq;
+use std::collections::HashSet;
 
 fn config_with(registries: &[(&str, &str)], registry_options_by_url: &[&str]) -> Config {
     let mut config = Config::new();
@@ -75,4 +76,21 @@ fn redacts_credentials_in_the_warning() {
     assert!(!received.contains("hunter2"), "the password must not be echoed: {received}");
     assert!(!received.contains("ci-user-6e42"), "the username must not be echoed: {received}");
     assert!(received.contains("npm.example.com"), "the host is still named: {received}");
+}
+
+#[test]
+fn a_repeated_config_load_reports_each_warning_once() {
+    let mut emitted = HashSet::new();
+
+    let mut first = Config { config_warnings: vec![warn("a"), warn("b")], ..Config::new() };
+    assert_eq!(take_unemitted(&mut emitted, &mut first), vec![warn("a"), warn("b")]);
+    assert!(first.config_warnings.is_empty(), "the drained config keeps no warnings");
+
+    let mut reload =
+        Config { config_warnings: vec![warn("a"), warn("b"), warn("c")], ..Config::new() };
+    assert_eq!(take_unemitted(&mut emitted, &mut reload), vec![warn("c")]);
+}
+
+fn warn(id: &str) -> String {
+    format!("warning {id}")
 }

@@ -54,9 +54,10 @@ use crate::defaults::{
     default_virtual_store_dir,
 };
 pub use workspace_yaml::{
-    AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds,
+    AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, IGNORED_SCOPE_WARNING,
+    LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta, PeerDependencyRules,
+    UpdateConfig, UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
@@ -1188,6 +1189,9 @@ pub struct Config {
     /// The default package scope for `pnpm login` and `pnpm adduser`: the
     /// granted token is associated with this scope and the scope-to-registry
     /// mapping is recorded. Overridden by `--scope`.
+    ///
+    /// No repo-committed config file can set it — see
+    /// [`WorkspaceSettings::clear_repo_scope`].
     pub scope: Option<String>,
 
     /// Scoped registry routes keyed by `@scope`, populated from
@@ -2103,6 +2107,18 @@ pub struct Config {
     /// raw value. The `config` command turns this into the record it prints.
     pub explicit_settings: serde_json::Map<String, serde_json::Value>,
 
+    /// Warnings raised while loading config, in the order they were raised.
+    ///
+    /// pnpm's `getConfig` returns the same list and its CLI prints every entry
+    /// to stderr before running the command; pacquet's CLI drains this field at
+    /// the same point. A message a user must act on belongs here rather than in
+    /// `tracing::warn!`, which is silent unless `TRACE` is set.
+    ///
+    /// One divergence, following from pacquet loading config lazily where pnpm
+    /// loads it for every command: a subcommand that never reads config (`pnpm
+    /// init`) raises nothing to drain, so its warnings go unsaid.
+    pub config_warnings: Vec<String>,
+
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`] holds: `registry`, `@scope:registry`,
     /// `//host/:_authToken`, `username`, `ca`, ...), post-`${VAR}` substitution
@@ -2928,6 +2944,7 @@ impl Config {
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
                 store_dir_explicit |= settings.store_dir.is_some();
                 settings.substitute_env_untrusted::<Sys>();
+                settings.clear_repo_scope(&mut self.config_warnings);
                 if for_self_update {
                     settings.clear_self_update_policy();
                 }

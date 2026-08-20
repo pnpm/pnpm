@@ -1,4 +1,5 @@
-//! The stderr channel for config-load warnings.
+//! The stderr channel for config-load warnings, and the once-per-command rule
+//! it enforces.
 //!
 //! pnpm collects the warnings raised while reading config and prints them
 //! with `console.warn` — to stderr, outside the reporter, on every command
@@ -11,9 +12,47 @@ use pnpm_default_reporter::colors::Colors;
 use pnpm_network::redact_and_sanitize;
 use pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashSet},
     io::{IsTerminal, Write},
+    sync::{LazyLock, Mutex, PoisonError},
 };
+
+/// Config-load warnings already written this process.
+///
+/// One command can load `Config` several times — the install fast path falls
+/// through to `run`, and a handler may call its `config` / `state` closure more
+/// than once — and every load re-reads the same files and re-collects the same
+/// warnings. pnpm reads config once per command and prints each warning once,
+/// so the second and later copies are suppressed here.
+static EMITTED_CONFIG_WARNINGS: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+/// Emit every warning [`Config`] collected while loading, skipping any already
+/// written this process, and clear them off the config.
+pub(crate) fn drain_config_warnings(config: &mut Config) {
+    let unemitted = {
+        // A poisoned lock means another thread panicked mid-insert; showing a
+        // warning twice beats aborting the command over it. The guard is
+        // dropped before emitting so a slow stderr holds it no longer than the
+        // set update itself.
+        let mut emitted = EMITTED_CONFIG_WARNINGS.lock().unwrap_or_else(PoisonError::into_inner);
+        take_unemitted(&mut emitted, config)
+    };
+    for warning in unemitted {
+        emit_config_warning(&warning);
+    }
+}
+
+/// Take the warnings off `config` and return the ones `emitted` has not seen,
+/// recording them there.
+// The set is a parameter rather than the process global so the emit-once rule
+// can be asserted against a local one.
+fn take_unemitted(emitted: &mut HashSet<String>, config: &mut Config) -> Vec<String> {
+    std::mem::take(&mut config.config_warnings)
+        .into_iter()
+        .filter(|warning| emitted.insert(warning.clone()))
+        .collect()
+}
 
 /// Write a `[WARN]`-labelled config-load warning to stderr. Best-effort:
 /// a warning must never abort the command, so a failed write (a closed
