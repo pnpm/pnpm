@@ -567,11 +567,11 @@ export async function getConfig (opts: {
     pnpmConfig.registry = pnpmConfig.registriesByScope.default
   }
 
-  // omit some schema that the custom parser can't yet handle
   const envPnpmTypes = omit([
-    'init-version', // the type is a private function named 'semver'
-    'node-version', // the type is a private function named 'semver'
-    'umask', // the type is a private function named 'Umask'
+    // Keep pnpm and pacquet's init behavior aligned until pacquet reads init config.
+    'init-version',
+    // npm interprets leading-zero values as octal, while the Number schema does not.
+    'umask',
   ], types)
 
   let virtualStoreTypeFromEnv: VirtualStoreType | undefined
