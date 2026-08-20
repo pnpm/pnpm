@@ -8,8 +8,9 @@ mod zip_archive;
 pub use download::*;
 pub use error::*;
 pub(crate) use extract::{
-    allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest, decompress_gzip,
-    extract_tarball_entries, normalize_bundled_manifest, should_stream_extract,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
+    apply_placeholder_manifest, decompress_gzip, extract_tarball_entries,
+    normalize_bundled_manifest, should_stream_extract, stream_extract_gzipped_channel,
     stream_extract_gzipped_tarball, tar_entry_payload,
 };
 pub use local_tarball::*;
@@ -63,6 +64,24 @@ const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
 fn post_download_semaphore() -> &'static Semaphore {
     static SEM: LazyLock<Semaphore> =
         LazyLock::new(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)));
+    &SEM
+}
+
+/// Admission cap for the extract-while-downloading path (see
+/// [`download`]): how many downloads may hold a blocking thread that
+/// extracts their body as it arrives. Deliberately separate from
+/// [`post_download_semaphore`] because a streaming extractor holds its slot
+/// for the whole body transfer (mostly parked between chunks), so
+/// sharing the post-download permits would starve the eager
+/// extractions that hold one only for a burst of CPU. The cap uses
+/// [`std::thread::available_parallelism`] with a minimum of two permits
+/// so cgroup and CPU-quota limits are respected. Admission uses
+/// `try_acquire`; a download with no free slot buffers its body instead.
+fn streaming_extract_semaphore() -> &'static Semaphore {
+    static SEM: LazyLock<Semaphore> = LazyLock::new(|| {
+        let cores = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        Semaphore::new(cores.max(2))
+    });
     &SEM
 }
 

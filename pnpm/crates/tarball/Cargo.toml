@@ -18,6 +18,7 @@ pnpm-package-manifest = { workspace = true }
 pnpm-reporter         = { workspace = true }
 pnpm-store-dir        = { workspace = true }
 
+bytes        = { workspace = true }
 dashmap      = { workspace = true }
 derive_more  = { workspace = true }
 flate2       = { workspace = true }

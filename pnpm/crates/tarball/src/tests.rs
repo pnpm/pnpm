@@ -4248,6 +4248,189 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
     drop(store_dir_keep);
 }
 
+#[tokio::test]
+async fn streaming_download_extracts_a_big_pinned_tarball() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = incompressible_tarball(5 * 1024 * 1024);
+    let pinned = Integrity::from(&body);
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body.clone())
+        .expect(1)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let (verified, cas_paths, files_idx) = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&pinned),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect("a well-formed pinned tarball must download and extract");
+    mock.assert_async().await;
+
+    assert_eq!(verified.to_string(), pinned.to_string(), "the pinned integrity is what verifies");
+
+    let (reference_keep, reference_store) = tempdir_with_leaked_path();
+    let (reference_paths, reference_idx) =
+        super::stream_extract_gzipped_tarball(&body, reference_store, None)
+            .expect("the reference extraction of the same bytes must succeed");
+    assert_eq!(
+        cas_paths.keys().collect::<std::collections::BTreeSet<_>>(),
+        reference_paths.keys().collect::<std::collections::BTreeSet<_>>(),
+        "the streaming path must materialize the same entries",
+    );
+    // `checked_at` is stamped at write time; everything else must match.
+    let strip_checked_at = |mut idx: PackageFilesIndex| {
+        for info in idx.files.values_mut() {
+            info.checked_at = None;
+        }
+        idx
+    };
+    assert_eq!(
+        strip_checked_at(files_idx),
+        strip_checked_at(reference_idx),
+        "the streaming path must index the same file hashes",
+    );
+
+    drop(reference_keep);
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_integrity_mismatch_retries_and_fails() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = incompressible_tarball(5 * 1024 * 1024);
+    let wrong = Integrity::from(b"not the body being served");
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&wrong),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect_err("an integrity mismatch must exhaust the retry budget");
+    assert!(matches!(err, TarballError::Checksum(_)), "expected Checksum error, got {err:?}");
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_corrupt_archive_retries_and_fails() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut body = vec![0x1f_u8, 0x8b];
+    body.extend(std::iter::repeat_n(0xa5_u8, 5 * 1024 * 1024));
+    // The integrity pins the garbage itself, so only the archive
+    // decode can produce the failure under test.
+    let pinned = Integrity::from(&body);
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&pinned),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect_err("a corrupt archive must exhaust the retry budget");
+    assert!(
+        matches!(err, TarballError::DecodeGzip(_)),
+        "the exhausting attempt is buffered, so the eager decode diagnostic surfaces, got {err:?}",
+    );
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_tampered_and_corrupt_body_reports_integrity() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut body = vec![0x1f_u8, 0x8b];
+    body.extend(std::iter::repeat_n(0x5a_u8, 5 * 1024 * 1024));
+    let wrong = Integrity::from(b"the body the registry was supposed to serve");
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&wrong),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect_err("a tampered body must exhaust the retry budget");
+    assert!(
+        matches!(err, TarballError::Checksum(_)),
+        "the integrity verdict must outrank the decode failure, got {err:?}",
+    );
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
 /// Only regular files reach the CAFS. A symlink's zero-byte body would
 /// otherwise be stored as though it were the file it points at.
 #[test]
