@@ -1,5 +1,5 @@
 import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
-import type { RegistriesByPrefix, RegistriesByScope, RegistryContext, RegistryDeclaration, RegistryServerType } from '@pnpm/types'
+import { DEFAULT_REGISTRY_SCOPE, type RegistriesByPrefix, type RegistriesByScope, type RegistryContext, type RegistryDeclaration, type RegistryServerType } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { map as mapValues } from 'ramda'
 
@@ -86,6 +86,40 @@ export function toRegistryDeclarations (context: Partial<RegistryContext>): Reco
     if (options.supportsTimeField != null) declarationFor(registry).supportsTimeField = options.supportsTimeField
   }
   return declarations
+}
+
+/**
+ * The registries the CLI resolves from, merged across every source, in the
+ * shape the `registries` setting is written in — the view `pnpm config get
+ * registries` prints.
+ *
+ * On top of {@link toRegistryDeclarations}, the default registry is declared
+ * too, as the bare `@` scope. Registry keys, declaration fields, and scope
+ * lists come out in one canonical order so both CLI implementations print
+ * identical JSON.
+ */
+export function toResolvedRegistryDeclarations (context: Partial<RegistryContext>): Record<string, RegistryDeclaration> {
+  const declarations = toRegistryDeclarations(context)
+  const defaultRegistry = context.registriesByScope?.default
+  if (defaultRegistry != null) {
+    const declaration = declarations[defaultRegistry] ??= {}
+    declaration.scopes = [DEFAULT_REGISTRY_SCOPE, ...declaration.scopes ?? []]
+  }
+  return sortRegistryDeclarations(declarations)
+}
+
+function sortRegistryDeclarations (declarations: Record<string, RegistryDeclaration>): Record<string, RegistryDeclaration> {
+  const sorted: Record<string, RegistryDeclaration> = {}
+  for (const registry of Object.keys(declarations).sort()) {
+    const { serverType, supportsTimeField, scopes, prefix } = declarations[registry]
+    sorted[registry] = {
+      ...(serverType != null ? { serverType } : {}),
+      ...(supportsTimeField != null ? { supportsTimeField } : {}),
+      ...(scopes != null ? { scopes: [...scopes].sort() } : {}),
+      ...(prefix != null ? { prefix } : {}),
+    }
+  }
+  return sorted
 }
 
 /**

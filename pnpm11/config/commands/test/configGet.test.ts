@@ -257,6 +257,102 @@ test('config get with scoped registry returns the merged value from pnpm-workspa
   expect(getOutputString(getResult)).toBe('https://from-workspace-yaml.example.com/')
 })
 
+test('config get registries returns the registries the CLI resolves from', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    registriesByScope: {
+      default: 'https://registry.example.com/',
+      '@jsr': 'https://npm.jsr.io/',
+      '@corp': 'https://work.example.com/',
+    },
+    registriesByPrefix: {
+      work: 'https://work.example.com/',
+    },
+    registryOptionsByUrl: {
+      'https://work.example.com/': { serverType: 'artifactory' },
+    },
+  }), ['get', 'registries'])
+
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
+    'https://registry.example.com/': { scopes: ['@'] },
+    'https://work.example.com/': {
+      serverType: 'artifactory',
+      scopes: ['@corp'],
+      prefix: 'work',
+    },
+  })
+})
+
+test('config list re-joins the registry lookups under `registries`', async () => {
+  const listResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    registriesByScope: {
+      default: 'https://registry.example.com/',
+    },
+    registryOptionsByUrl: {
+      'https://registry.example.com/': { supportsTimeField: true },
+    },
+  }), ['list'])
+
+  const record = JSON.parse(getOutputString(listResult))
+  expect(record.registries).toStrictEqual({
+    'https://registry.example.com/': {
+      supportsTimeField: true,
+      scopes: ['@'],
+    },
+  })
+  expect(record).not.toHaveProperty('registriesByScope')
+  expect(record).not.toHaveProperty('registryOptionsByUrl')
+})
+
+test('config get update and audit return the settings the CLI acts on, under the documented names', async () => {
+  const baseOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    updateConfig: {
+      ignoreDependencies: ['webpack'],
+      changeset: true,
+    },
+    auditConfig: {
+      ignoreGhsas: ['GHSA-xxxx-yyyy-zzzz'],
+    },
+    auditLevel: 'high',
+  }
+
+  const updateResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'update'])
+  expect(JSON.parse(getOutputString(updateResult))).toStrictEqual({
+    ignoreDeps: ['webpack'],
+    changeset: true,
+  })
+
+  const auditResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'audit'])
+  expect(JSON.parse(getOutputString(auditResult))).toStrictEqual({
+    level: 'high',
+    ignore: ['GHSA-xxxx-yyyy-zzzz'],
+  })
+
+  // The deprecated internal spellings are no longer part of the record.
+  const deprecatedResults = await Promise.all(['updateConfig', 'auditConfig'].map(
+    async (deprecatedKey) => config.handler(createConfigCommandOpts(baseOpts), ['get', deprecatedKey])
+  ))
+  for (const result of deprecatedResults) {
+    expect(getOutputString(result)).toBe('undefined')
+  }
+  const listResult = await config.handler(createConfigCommandOpts(baseOpts), ['list'])
+  expect(JSON.parse(getOutputString(listResult))).not.toHaveProperty('auditLevel')
+})
+
 test('config get with scoped registry key that does not exist', async () => {
   const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),

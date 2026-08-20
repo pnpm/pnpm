@@ -146,9 +146,10 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 /// (or the hard-coded default).
 ///
 /// See <https://pnpm.io/settings> for the canonical key list.
-/// Non-config keys in a real pnpm-workspace.yaml (`packages`, `catalog`,
-/// `catalogs`, `onlyBuiltDependencies`, `allowBuilds`, ...) are silently
-/// ignored — serde drops them since the struct doesn't use
+/// Workspace-structural keys (`packages`, `catalog`, `catalogs`, the build
+/// allowlists) are carried only for `pnpm config get` / `list` — see
+/// [`Self::packages`]. Anything else that is not a field is silently
+/// ignored — serde drops it since the struct doesn't use
 /// `deny_unknown_fields`.
 ///
 /// pnpm v11 also reads `patchedDependencies` (and the other install
@@ -358,6 +359,23 @@ pub struct WorkspaceSettings {
     /// pnpm 10+ moved `allowBuilds` out of `package.json#pnpm` into
     /// `pnpm-workspace.yaml` alongside other install settings.
     pub allow_builds: Option<HashMap<String, AllowBuild>>,
+
+    /// The workspace-structural keys of `pnpm-workspace.yaml`, carried so
+    /// `pnpm config get` / `pnpm config list` can show them. Installs read
+    /// them from the workspace-manifest layer, not from [`Config`], so
+    /// [`Self::apply_to`] leaves them alone and the global `config.yaml`
+    /// refuses them.
+    pub packages: Option<Vec<String>>,
+    /// See [`Self::packages`].
+    pub catalog: Option<IndexMap<String, String>>,
+    /// See [`Self::packages`].
+    pub catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
+    /// See [`Self::packages`].
+    pub only_built_dependencies: Option<Vec<String>>,
+    /// See [`Self::packages`].
+    pub never_built_dependencies: Option<Vec<String>>,
+    /// See [`Self::packages`].
+    pub ignored_built_dependencies: Option<Vec<String>>,
 
     /// Bypass the [`allow_builds`] gate entirely — every package may
     /// run lifecycle scripts. Same `pnpm-workspace.yaml` migration
@@ -1078,6 +1096,12 @@ impl WorkspaceSettings {
             }
         }
         self.versioning = None;
+        self.packages = None;
+        self.catalog = None;
+        self.catalogs = None;
+        self.only_built_dependencies = None;
+        self.never_built_dependencies = None;
+        self.ignored_built_dependencies = None;
         self.hoist = None;
         self.hoist_pattern = None;
         self.public_hoist_pattern = None;

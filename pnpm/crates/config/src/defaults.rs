@@ -228,6 +228,10 @@ pub fn default_registry() -> String {
     "https://registry.npmjs.org/".to_string()
 }
 
+/// The registry the built-in `@jsr` scope routes to when the user has not
+/// pointed it elsewhere.
+pub const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
+
 pub fn default_modules_cache_max_age() -> u64 {
     10080
 }

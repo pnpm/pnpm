@@ -58,7 +58,7 @@ export { types }
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
-export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export { getOptionsFromPnpmSettings, type OptionsFromRootManifest, toAuditSettings, toUpdateSettings } from './getOptionsFromRootManifest.js'
 export {
   getPackageManagerBootstrapConfig,
   getPackageManagerRegistries,

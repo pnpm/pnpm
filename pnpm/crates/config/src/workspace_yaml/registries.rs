@@ -60,18 +60,18 @@ pub enum RegistryEntry {
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegistryDeclaration {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_type: Option<RegistryServerType>,
     /// See [`RegistryOptions::supports_time_field`].
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supports_time_field: Option<bool>,
     /// The scopes routed here, `@`-prefixed. A bare `@` is the scope-less
     /// default registry, the one the `registry` setting names.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scopes: Option<Vec<String>>,
     /// The bare-specifier prefix this registry answers to, as in
     /// `"foo": "work:^1.0.0"`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
     #[serde(flatten)]
     pub unknown: BTreeMap<String, serde_json::Value>,
@@ -311,6 +311,25 @@ pub fn to_declarations(lookups: &RegistryLookups) -> BTreeMap<String, RegistryDe
         let declaration = declarations.entry(registry.clone()).or_default();
         declaration.server_type = options.server_type;
         declaration.supports_time_field = options.supports_time_field;
+    }
+    declarations
+}
+
+/// [`to_declarations`] plus the default registry declared as the bare `@`
+/// scope — the resolved view `pnpm config get registries` prints, where
+/// nothing travels separately.
+#[must_use]
+pub fn to_resolved_declarations(
+    lookups: &RegistryLookups,
+) -> BTreeMap<String, RegistryDeclaration> {
+    let mut declarations = to_declarations(lookups);
+    if let Some(default_registry) = &lookups.default_registry {
+        declarations
+            .entry(default_registry.clone())
+            .or_default()
+            .scopes
+            .get_or_insert_with(Vec::new)
+            .insert(0, DEFAULT_REGISTRY_SCOPE.to_string());
     }
     declarations
 }

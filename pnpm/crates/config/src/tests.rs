@@ -2150,6 +2150,25 @@ pub fn explicit_settings_report_the_spelling_that_won() {
     }
 }
 
+/// `audit.level` supersedes the deprecated `auditLevel` spelling, and
+/// `pnpm config get audit-level` reads the explicit-settings record — so the
+/// record has to carry the level under the deprecated name too, whichever
+/// spelling the file was written in.
+#[test]
+pub fn explicit_settings_mirror_audit_level_from_the_audit_section() {
+    for yaml in ["audit:\n  level: high\n", "audit:\n  level: high\nauditLevel: low\n"] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(
+            config.explicit_settings.get("auditLevel").and_then(serde_json::Value::as_str),
+            Some("high"),
+            "yaml: {yaml}",
+        );
+    }
+}
+
 #[test]
 pub fn gvs_disabled_keeps_project_local_virtual_store() {
     let tmp = tempdir().unwrap();

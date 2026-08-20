@@ -554,6 +554,154 @@ fn get_scoped_registry_from_auth_and_merged() {
     );
 }
 
+/// npm-conf seeds `registry` and `@jsr:registry` into pnpm's raw auth
+/// config, so pnpm answers the built-in defaults rather than `undefined`.
+#[test]
+fn get_registry_and_jsr_fall_back_to_the_builtin_defaults() {
+    let config = config_for_get(&[], &[]);
+    assert_eq!(
+        config_get(&config, flags(false, None, false), "registry").unwrap(),
+        "https://registry.npmjs.org/",
+    );
+    assert_eq!(
+        config_get(&config, flags(false, None, false), "@jsr:registry").unwrap(),
+        "https://npm.jsr.io/",
+    );
+
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(listed["registry"], json!("https://registry.npmjs.org/"));
+    assert_eq!(listed["@jsr:registry"], json!("https://npm.jsr.io/"));
+
+    // A raw `.npmrc` value wins over the built-in default.
+    let overridden = config_for_get(&[], &[("registry", "https://from-npmrc.example.com/")]);
+    assert_eq!(
+        config_get(&overridden, flags(false, None, false), "registry").unwrap(),
+        "https://from-npmrc.example.com/",
+    );
+}
+
+#[test]
+fn get_registries_returns_resolved_declarations() {
+    let mut config = config_for_get(&[], &[]);
+    config.registry = "https://registry.example.com/".to_string();
+    config.registries_by_scope.insert("@corp".to_string(), "https://work.example.com/".to_string());
+    config.registries_by_prefix.insert("work".to_string(), "https://work.example.com/".to_string());
+    config.registry_options_by_url.insert(
+        "https://work.example.com/".to_string(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Artifactory),
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &config_get(&config, flags(false, None, false), "registries").unwrap()
+        )
+        .unwrap(),
+        json!({
+            "https://registry.example.com/": { "scopes": ["@"] },
+            "https://work.example.com/": {
+                "serverType": "artifactory",
+                "scopes": ["@corp"],
+                "prefix": "work",
+            },
+        }),
+    );
+}
+
+/// The record shows the resolved registries view in place of the raw
+/// `registries` / `namedRegistries` values a source set.
+#[test]
+fn list_rejoins_registry_lookups_under_registries() {
+    let mut config = config_for_get(
+        &[
+            ("registries", json!({ "default": "https://registry.example.com/" })),
+            ("namedRegistries", json!({ "work": "https://work.example.com/" })),
+        ],
+        &[],
+    );
+    config.registry = "https://registry.example.com/".to_string();
+    config.registries_by_prefix.insert("work".to_string(), "https://work.example.com/".to_string());
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(
+        listed["registries"],
+        json!({
+            "https://registry.example.com/": { "scopes": ["@"] },
+            "https://work.example.com/": { "prefix": "work" },
+        }),
+    );
+    assert_eq!(listed.get("namedRegistries"), None);
+}
+
+#[test]
+fn get_update_and_audit_return_resolved_settings() {
+    let mut config = config_for_get(
+        &[
+            ("update", json!({ "ignoreDeps": ["webpack"], "changeset": true })),
+            ("updateConfig", json!({ "ignoreDependencies": ["webpack"] })),
+            ("auditConfig", json!({ "ignoreGhsas": ["GHSA-xxxx-yyyy-zzzz"] })),
+            ("auditLevel", json!("high")),
+        ],
+        &[],
+    );
+    config.update_config.ignore_dependencies = Some(vec!["webpack".to_string()]);
+    config.update_config.changeset = Some(true);
+    config.audit_level = Some(pnpm_config::AuditLevel::High);
+    config.audit_config.ignore_ghsas = vec!["GHSA-xxxx-yyyy-zzzz".to_string()];
+
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &config_get(&config, flags(false, None, false), "update").unwrap()
+        )
+        .unwrap(),
+        json!({ "ignoreDeps": ["webpack"], "changeset": true }),
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &config_get(&config, flags(false, None, false), "audit").unwrap()
+        )
+        .unwrap(),
+        json!({ "level": "high", "ignore": ["GHSA-xxxx-yyyy-zzzz"] }),
+    );
+
+    // The deprecated internal spellings are no longer part of the record;
+    // `audit-level` still answers because it is a `types` key.
+    for deprecated_key in ["updateConfig", "auditConfig"] {
+        assert_eq!(
+            config_get(&config, flags(false, None, false), deprecated_key).unwrap(),
+            "undefined",
+            "{deprecated_key}",
+        );
+    }
+    assert_eq!(config_get(&config, flags(false, None, false), "audit-level").unwrap(), "high");
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(listed.get("auditLevel"), None);
+}
+
+#[test]
+fn list_merges_the_default_catalog_into_catalogs() {
+    let config = config_for_get(
+        &[
+            ("packages", json!(["."])),
+            ("catalog", json!({ "react": "^19.0.0" })),
+            ("catalogs", json!({ "react17": { "react": "^17.0.0" } })),
+            ("onlyBuiltDependencies", json!(["esbuild"])),
+        ],
+        &[],
+    );
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(listed["packages"], json!(["."]));
+    assert_eq!(listed["catalog"], json!({ "react": "^19.0.0" }));
+    assert_eq!(
+        listed["catalogs"],
+        json!({
+            "default": { "react": "^19.0.0" },
+            "react17": { "react": "^17.0.0" },
+        }),
+    );
+    assert_eq!(listed["onlyBuiltDependencies"], json!(["esbuild"]));
+}
+
 #[test]
 fn get_globalconfig_path() {
     let config = config_for_get(&[], &[]);

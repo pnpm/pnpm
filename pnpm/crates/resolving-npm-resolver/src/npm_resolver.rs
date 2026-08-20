@@ -27,7 +27,9 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pnpm_config::{NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_config::{
+    DEFAULT_JSR_REGISTRY, NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy,
+};
 use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
@@ -56,12 +58,6 @@ use crate::{
     trust_checks::{TrustCheckOptions, fail_if_trust_downgraded},
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
-
-/// Default `@jsr` registry URL. The `registries` map always populates
-/// `@jsr`, so the dispatcher can read it unconditionally; this constant
-/// is the fallback for pacquet callers that haven't routed the `@jsr`
-/// entry through their `registries` map yet.
-const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
 
 /// Provenance tag for [`ResolveResult::resolved_via`] when the picker
 /// drove a JSR-prefixed specifier through the `@jsr` registry.
