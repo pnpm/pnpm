@@ -307,7 +307,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   })
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
-  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(?:\..+)?/i.test(file))) {
+  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /^LICEN[CS]E(?:\..+)?$/i.test(path.basename(file)))) {
     const { workspaceDir } = opts
     const licenses = await glob([LICENSE_GLOB], { cwd: workspaceDir, expandDirectories: false })
     await Promise.all(licenses.map(async (license) => {

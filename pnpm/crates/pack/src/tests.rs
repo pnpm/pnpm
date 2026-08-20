@@ -403,6 +403,12 @@ fn workspace_license_is_injected_into_a_sub_package() {
         serde_json::to_string(&json!({ "name": "foo", "version": "1.0.0" })).unwrap(),
     )
     .unwrap();
+    std::fs::write(pkg_dir.join("sublicense.txt"), "this is not a license").unwrap();
+    std::fs::write(
+        pkg_dir.join("licenseX.json"),
+        serde_json::to_string(&json!({ "foo": "content" })).unwrap(),
+    )
+    .unwrap();
 
     let opts = PackOptions {
         dir: pkg_dir.clone(),
@@ -425,9 +431,14 @@ fn workspace_license_is_injected_into_a_sub_package() {
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
+    dbg!(&result.contents);
     assert!(result.contents.contains(&"LICENSE".to_string()));
+    assert!(result.contents.contains(&"sublicense.txt".to_string()));
+    assert!(result.contents.contains(&"licenseX.json".to_string()));
     let names = tarball_entry_names(&pkg_dir.join("foo-1.0.0.tgz"));
     assert!(names.contains(&"package/LICENSE".to_string()));
+    assert!(names.contains(&"package/sublicense.txt".to_string()));
+    assert!(names.contains(&"package/licenseX.json".to_string()));
 }
 
 /// A symlinked workspace-root `LICENSE` must not be injected: following
