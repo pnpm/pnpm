@@ -37,7 +37,7 @@ import type {
   VerifyDepsBeforeRun,
   WantedPackageManager,
 } from './Config.js'
-import { isConfigFileKey } from './configFileKey.js'
+import { isConfigFileKey, isNeverAFileSetting } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getCacheDir, getConfigDir, getDataDir, getGlobalConfigPath, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
@@ -79,7 +79,7 @@ export {
 } from './projectConfig.js'
 export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun, WantedPackageManager }
 
-export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
+export { type ConfigFileKey, isConfigFileKey, isNeverAFileSetting } from './configFileKey.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
@@ -1277,7 +1277,7 @@ export function isProjectManifestSkippedKey (camelKey: string): boolean {
  */
 function isRefusedByAProjectManifest (key: string): boolean {
   const camelKey = camelcase(key, { locale: 'en-US' })
-  return isProjectManifestSkippedKey(camelKey) || CONFIG_CONTEXT_KEY_SET.has(camelKey)
+  return isProjectManifestSkippedKey(camelKey) || CONFIG_CONTEXT_KEY_SET.has(camelKey) || isNeverAFileSetting(kebabCase(camelKey))
 }
 
 /**
@@ -1336,6 +1336,9 @@ const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
  */
 export function whereRefusedKeyBelongs (camelKey: string): string {
   if (camelKey === 'dir') return 'Pass --dir on the command line instead'
+  if (isNeverAFileSetting(kebabCase(camelKey))) {
+    return `Pass it per run instead: --${kebabCase(camelKey)} on the command line, or PNPM_CONFIG_${kebabCase(camelKey).replaceAll('-', '_').toUpperCase()}`
+  }
   const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelKey] ?? kebabCase(camelKey)
   if (isConfigFileKey(kebabKey)) {
     return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
@@ -1372,6 +1375,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
+    if (isNeverAFileSetting(kebabCase(key))) continue
     if (skipped?.has(key)) continue
 
     // @ts-expect-error

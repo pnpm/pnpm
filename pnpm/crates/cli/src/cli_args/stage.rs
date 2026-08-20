@@ -396,7 +396,7 @@ impl StageArgs {
                 min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
                 max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
             },
-            otp: resolve_otp_from_env::<Host>(self.flags.otp.clone()),
+            otp: resolve_otp_from_env::<Host>(self.flags.resolved_otp(config)),
             web_auth_fetch_options: WebAuthFetchOptions {
                 timeout: Some(config.fetch_timeout),
                 retry: Some(WebAuthRetryOptions {

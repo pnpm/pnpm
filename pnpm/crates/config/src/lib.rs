@@ -1637,6 +1637,65 @@ pub struct Config {
     #[default(true)]
     pub git_checks: bool,
 
+    /// `publishBranch` (`--publish-branch`): the single branch
+    /// `pnpm publish`'s git checks accept. Unset means the built-in
+    /// `master` / `main` pair. Overridden by `--publish-branch`.
+    ///
+    /// Workspace-only: pnpm's `excludedPnpmKeys` keeps it out of the global
+    /// `config.yaml`, so of the file layers only `pnpm-workspace.yaml` reaches
+    /// [`Config`] — alongside `PNPM_CONFIG_PUBLISH_BRANCH` and
+    /// `--config.publish-branch=`.
+    pub publish_branch: Option<String>,
+
+    /// `access` (`--access`): the access level `pnpm publish` records for the
+    /// package, `public` or `restricted`. Unset leaves it to the manifest's
+    /// `publishConfig.access` and then to the registry default.
+    ///
+    /// Kept as the raw string because pnpm assigns a configured `access`
+    /// unchecked and sends whatever it finds to the registry — see
+    /// `pnpm_publish::resolve_access`, which forwards this value verbatim
+    /// and validates only the manifest's `publishConfig.access` against the
+    /// closed set in `pnpm_publish::Access`.
+    ///
+    /// One layer is an exception: `PNPM_CONFIG_ACCESS` is constrained to that
+    /// set in the env overlay, mirroring pnpm's typed env pass.
+    pub access: Option<String>,
+
+    /// `tag` (`--tag`): the dist-tag `pnpm publish` registers the published
+    /// version under. Unset means the publish command's `latest` default.
+    /// Overridden by `--tag`.
+    ///
+    /// pnpm also threads this setting into resolution as the installer's
+    /// `defaultTag`, so `tag: next` makes `pnpm add foo` resolve `foo@next`.
+    /// Pacquet's resolvers still hardcode `latest`; wiring them up is tracked
+    /// separately because it changes which versions an install picks.
+    pub tag: Option<String>,
+
+    /// `provenance` (`--provenance`): whether `pnpm publish` attaches a
+    /// provenance attestation. `None` leaves the decision to the OIDC
+    /// exchange; an explicit `false` suppresses provenance even when the
+    /// exchange offers it. Overridden by `--provenance` / `--no-provenance`.
+    pub provenance: Option<bool>,
+
+    /// `otp` (`--otp`): the one-time password for a two-factor-authenticated
+    /// registry. Overridden by `--otp`.
+    ///
+    /// Deliberately not a config-file setting, unlike its four publish
+    /// neighbours: the value is valid for about thirty seconds, so it
+    /// describes a single invocation rather than a project or a machine, and
+    /// a committed `pnpm-workspace.yaml` is the wrong place for a credential.
+    /// `--otp` and `PNPM_CONFIG_OTP` are the channels; `pnpm config set otp`
+    /// is refused rather than writing an entry the loader would ignore.
+    ///
+    /// `PNPM_CONFIG_OTP` reaches this field through the ordinary env overlay,
+    /// so it is normally already resolved by the time
+    /// `pnpm_publish::resolve_otp_from_env` runs. That second read is kept
+    /// because pnpm applies the same one in `optionsWithOtpEnv`, and it is not
+    /// dead: both treat an empty value as unset, so an env var holding only an
+    /// unset `${VAR}` collapses to `""` here and the raw, unexpanded variable
+    /// is what reaches the registry — in both stacks.
+    pub otp: Option<String>,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls
     /// whether `dirname(node_execpath)` is prepended to `PATH` when
     /// running lifecycle scripts. Default `Never` (`scriptsPrependNodePath:

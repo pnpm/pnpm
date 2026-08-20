@@ -1,7 +1,9 @@
 use super::{PublishArgs, PublishFlags, run_publish_scripts};
+use crate::cli_args::{CliArgs, cli_command::CliCommand};
+use clap::Parser;
 use pnpm_config::Config;
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_publish::{Access, PublishNetwork};
+use pnpm_publish::PublishNetwork;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -16,6 +18,13 @@ fn publish_args_with(flags: PublishFlags) -> PublishArgs {
     PublishArgs { package: None, flags }
 }
 
+fn parsed_publish_flags(argv: &[&str]) -> PublishFlags {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Publish(publish) => publish.flags,
+        other => panic!("expected publish, got {other:?}"),
+    }
+}
+
 fn publish_flags() -> PublishFlags {
     PublishFlags {
         dry_run: false,
@@ -23,6 +32,7 @@ fn publish_flags() -> PublishFlags {
         tag: None,
         access: None,
         provenance: false,
+        no_provenance: false,
         ignore_scripts: false,
         skip_manifest_obfuscation: false,
         otp: None,
@@ -69,10 +79,117 @@ fn publish_options_applies_tag_access_provenance_and_dry_run() {
     });
     let options = args.publish_options(&Config::default(), None, false);
     assert_eq!(options.tag, "next");
-    assert_eq!(options.access, Some(Access::Restricted));
+    assert_eq!(options.access.as_deref(), Some("restricted"));
     assert_eq!(options.provenance, Some(true));
     assert!(options.dry_run);
     assert_eq!(options.otp, None);
+}
+
+#[test]
+fn publish_options_falls_back_to_the_configured_settings() {
+    let config = Config {
+        access: Some("restricted".to_owned()),
+        tag: Some("next".to_owned()),
+        provenance: Some(true),
+        ..Default::default()
+    };
+    let options = publish_args().publish_options(&config, None, false);
+    assert_eq!(options.access.as_deref(), Some("restricted"));
+    assert_eq!(options.tag, "next");
+    assert_eq!(options.provenance, Some(true));
+}
+
+#[test]
+fn publish_flags_outrank_the_configured_settings() {
+    let config = Config {
+        access: Some("restricted".to_owned()),
+        tag: Some("next".to_owned()),
+        ..Default::default()
+    };
+    let args = publish_args_with(PublishFlags {
+        tag: Some("from-flag".to_owned()),
+        access: Some("public".to_owned()),
+        ..publish_flags()
+    });
+    let options = args.publish_options(&config, None, false);
+    assert_eq!(options.access.as_deref(), Some("public"));
+    assert_eq!(options.tag, "from-flag");
+}
+
+/// A configured `provenance: false` has to reach the publish options as an
+/// explicit `false` — that is what suppresses the attestation the OIDC
+/// exchange would otherwise turn on.
+#[test]
+fn configured_provenance_false_reaches_the_publish_options() {
+    let config = Config { provenance: Some(false), ..Default::default() };
+    assert_eq!(publish_args().publish_options(&config, None, false).provenance, Some(false));
+}
+
+#[test]
+fn provenance_flag_outranks_a_configured_false() {
+    let config = Config { provenance: Some(false), ..Default::default() };
+    let args = publish_args_with(PublishFlags { provenance: true, ..publish_flags() });
+    assert_eq!(args.publish_options(&config, None, false).provenance, Some(true));
+}
+
+#[test]
+fn provenance_pair_resolves_last_one_wins() {
+    assert!(parsed_publish_flags(&["pacquet", "publish", "--provenance"]).provenance);
+    assert!(parsed_publish_flags(&["pacquet", "publish", "--no-provenance"]).no_provenance);
+
+    // Both spellings in one argv must not error (pnpm forwards raw tokens);
+    // mutual `overrides_with` collapses them to the last-specified.
+    let last_off = parsed_publish_flags(&["pacquet", "publish", "--provenance", "--no-provenance"]);
+    assert!(last_off.no_provenance && !last_off.provenance, "--no-provenance wins when last");
+    let last_on = parsed_publish_flags(&["pacquet", "publish", "--no-provenance", "--provenance"]);
+    assert!(last_on.provenance && !last_on.no_provenance, "--provenance wins when last");
+}
+
+#[test]
+fn no_provenance_flag_outranks_a_configured_true() {
+    let config = Config { provenance: Some(true), ..Default::default() };
+    let args = publish_args_with(PublishFlags { no_provenance: true, ..publish_flags() });
+    assert_eq!(args.publish_options(&config, None, false).provenance, Some(false));
+}
+
+/// See [`pnpm_publish::resolve_access`] for why an unrecognized value is
+/// not dropped.
+#[test]
+fn an_unrecognized_configured_access_is_kept_verbatim() {
+    let config = Config { access: Some("everyone".to_owned()), ..Default::default() };
+    assert_eq!(
+        publish_args().publish_options(&config, None, false).access.as_deref(),
+        Some("everyone"),
+    );
+}
+
+/// `""` resolves to `None`, but whitespace does not: upstream's
+/// `opts.publishBranch ? … : ['master','main']` is a truthiness test, and
+/// `"  "` is truthy there, so the git checks reject every real branch.
+#[test]
+fn resolved_publish_branch_treats_only_an_empty_value_as_unset() {
+    let configured = Config { publish_branch: Some("release".to_owned()), ..Default::default() };
+    assert_eq!(publish_flags().resolved_publish_branch(&configured), Some("release"));
+    assert_eq!(publish_flags().resolved_publish_branch(&Config::default()), None);
+
+    let flagged = PublishFlags { publish_branch: Some("from-flag".to_owned()), ..publish_flags() };
+    assert_eq!(flagged.resolved_publish_branch(&configured), Some("from-flag"));
+
+    let empty = Config { publish_branch: Some(String::new()), ..Default::default() };
+    assert_eq!(publish_flags().resolved_publish_branch(&empty), None);
+    let blank = Config { publish_branch: Some("  ".to_owned()), ..Default::default() };
+    assert_eq!(publish_flags().resolved_publish_branch(&blank), Some("  "));
+}
+
+#[test]
+fn resolved_otp_prefers_the_flag_then_the_config() {
+    let config = Config { otp: Some("from-config".to_owned()), ..Default::default() };
+    assert_eq!(publish_flags().resolved_otp(&config), Some("from-config".to_owned()));
+
+    let flags = PublishFlags { otp: Some("from-flag".to_owned()), ..publish_flags() };
+    assert_eq!(flags.resolved_otp(&config), Some("from-flag".to_owned()));
+    assert_eq!(flags.resolved_otp(&Config::default()), Some("from-flag".to_owned()));
+    assert_eq!(publish_flags().resolved_otp(&Config::default()), None);
 }
 
 #[tokio::test]

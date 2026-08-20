@@ -184,6 +184,64 @@ fn apply_scope_overrides_an_earlier_layer() {
 }
 
 #[test]
+fn parses_and_applies_the_publish_settings_from_yaml() {
+    let yaml = "\
+access: restricted
+tag: next
+provenance: true
+publishBranch: release
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert_eq!(config.access.as_deref(), Some("restricted"));
+    assert_eq!(config.tag.as_deref(), Some("next"));
+    assert_eq!(config.provenance, Some(true));
+    assert_eq!(config.publish_branch.as_deref(), Some("release"));
+}
+
+/// `provenance: false` has to survive as `Some(false)`: it is what suppresses
+/// the attestation the OIDC exchange would otherwise turn on, so collapsing it
+/// to `None` would silently re-enable provenance.
+#[test]
+fn provenance_false_applies_as_an_explicit_false() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("provenance: false\n").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.provenance, Some(false));
+}
+
+/// `access`, `tag`, and `provenance` are `npmConfigTypes` keys that
+/// pnpm's `isConfigFileKey` accepts, so they must survive the workspace-only
+/// stripping that runs on the global `config.yaml`.
+#[test]
+fn npm_publish_settings_survive_workspace_only_field_clearing() {
+    let yaml = "\
+access: public
+tag: beta
+provenance: true
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+
+    assert_eq!(settings.access.as_deref(), Some("public"));
+    assert_eq!(settings.tag.as_deref(), Some("beta"));
+    assert_eq!(settings.provenance, Some(true));
+}
+
+/// `publish-branch` is in pnpm's `excludedPnpmKeys`, so the global
+/// `config.yaml` may not set it — only `pnpm-workspace.yaml` and
+/// `PNPM_CONFIG_PUBLISH_BRANCH` may.
+#[test]
+fn publish_branch_cleared_as_workspace_only_field() {
+    let mut settings: WorkspaceSettings =
+        serde_saphyr::from_str("publishBranch: release\n").unwrap();
+    settings.clear_workspace_only_fields();
+    assert_eq!(settings.publish_branch, None);
+}
+
+#[test]
 fn apply_resolves_relative_paths_against_base_dir() {
     let yaml = "storeDir: ../shared-store\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
@@ -381,6 +439,59 @@ namedRegistries:
         Some("https://registry.example.com/${/npm/"),
     );
     assert_eq!(config.registries_by_prefix.get("work"), None);
+}
+
+/// `otp` is not a config-file setting: the value is valid for about thirty
+/// seconds, so no file can carry a useful one. Neither a literal nor a
+/// placeholder reaches the settings, which also removes the exfiltration
+/// channel a repo-controlled `otp: ${VAR}` would otherwise have opened.
+#[test]
+fn a_workspace_otp_is_not_read_from_yaml_at_all() {
+    struct EnvWithToken;
+    impl EnvVar for EnvWithToken {
+        fn var(name: &str) -> Option<String> {
+            (name == "NPM_TOKEN").then(|| "s3cret".to_owned())
+        }
+    }
+
+    for yaml in ["otp: ${NPM_TOKEN}\n", "otp: '123456'\n"] {
+        let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        settings.substitute_env_untrusted::<EnvWithToken>();
+        assert_eq!(settings.otp, None, "{yaml:?} must not supply an otp");
+
+        let mut trusted: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        trusted.substitute_env_trusted::<EnvWithToken>();
+        assert_eq!(trusted.otp, None, "{yaml:?} must not supply an otp to a trusted layer either");
+    }
+}
+
+/// The publish settings a file *may* carry keep expanding `${VAR}`. They reach
+/// the registry as fields of the publish document, but a placeholder in them
+/// has legitimate uses in release automation (`tag: ${RELEASE_CHANNEL}`), and
+/// `SECURITY.md` scopes the suppression to request destinations and auth
+/// values. `otp` was the one auth value in reach, and it is no longer a file
+/// setting at all — see [`a_workspace_otp_is_not_read_from_yaml_at_all`].
+#[test]
+fn the_other_publish_settings_still_expand_from_the_untrusted_layer() {
+    struct EnvWithChannel;
+    impl EnvVar for EnvWithChannel {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CHANNEL" => Some("beta".to_owned()),
+                "LEVEL" => Some("restricted".to_owned()),
+                "BRANCH" => Some("release".to_owned()),
+                _ => None,
+            }
+        }
+    }
+
+    let yaml = "tag: ${CHANNEL}\naccess: ${LEVEL}\npublishBranch: ${BRANCH}\n";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_untrusted::<EnvWithChannel>();
+
+    assert_eq!(settings.tag.as_deref(), Some("beta"));
+    assert_eq!(settings.access.as_deref(), Some("restricted"));
+    assert_eq!(settings.publish_branch.as_deref(), Some("release"));
 }
 
 #[test]

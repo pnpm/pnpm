@@ -21,8 +21,8 @@ use pnpm_config::Config;
 use pnpm_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
 use pnpm_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
 use pnpm_publish::{
-    Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
-    PublishSummary, extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
+    Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions, PublishSummary,
+    extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
     resolve_otp_from_env, run_git_checks,
 };
 use pnpm_reporter::Reporter;
@@ -60,8 +60,13 @@ pub struct PublishFlags {
     pub access: Option<String>,
 
     /// Generate a provenance attestation for the published package.
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_provenance")]
     pub provenance: bool,
+
+    /// Publish without a provenance attestation even when the configuration
+    /// asks for one, and without letting the OIDC exchange turn it on.
+    #[clap(long = "no-provenance", overrides_with = "provenance")]
+    pub no_provenance: bool,
 
     /// Don't run publish-related lifecycle scripts.
     #[clap(long = "ignore-scripts")]
@@ -96,6 +101,42 @@ pub struct PublishFlags {
     /// packages that were published.
     #[clap(long = "report-summary")]
     pub report_summary: bool,
+}
+
+impl PublishFlags {
+    /// The one-time password: `--otp` wins, then [`Config::otp`] — which no
+    /// file may set, so in practice `PNPM_CONFIG_OTP` or `--config.otp=`.
+    ///
+    /// Lives on the flags rather than on [`PublishArgs`] because `pnpm stage`
+    /// flattens the same flags and has to resolve the OTP the same way for
+    /// its non-publish subcommands.
+    pub(super) fn resolved_otp(&self, config: &Config) -> Option<String> {
+        self.otp.clone().or_else(|| config.otp.clone())
+    }
+
+    /// The single branch `pnpm publish`'s git checks accept: `--publish-branch`
+    /// wins, then the `publishBranch` config setting, and `None` leaves the
+    /// built-in `master` / `main` pair in place.
+    ///
+    /// An empty value resolves to `None`: upstream gates on
+    /// `opts.publishBranch ? [opts.publishBranch] : ...`, where `''` is falsy.
+    /// Taking it as a branch name would pin publishing to one that cannot
+    /// exist.
+    fn resolved_publish_branch<'a>(&'a self, config: &'a Config) -> Option<&'a str> {
+        self.publish_branch
+            .as_deref()
+            .or(config.publish_branch.as_deref())
+            .filter(|branch| !branch.is_empty())
+    }
+
+    /// Whether to attach a provenance attestation: `--provenance` /
+    /// `--no-provenance` wins, then the `provenance` config setting.
+    fn resolved_provenance(&self, config: &Config) -> Option<bool> {
+        if self.no_provenance {
+            return Some(false);
+        }
+        self.provenance.then_some(true).or(config.provenance)
+    }
 }
 
 /// What one `publish` / `stage publish` invocation published: the single
@@ -164,9 +205,9 @@ impl PublishArgs {
             ));
         }
 
+        let publish_branch = self.flags.resolved_publish_branch(config);
         // Upstream gates on `opts.gitChecks !== false`, which folds together
         // the `git-checks` config setting and the `--no-git-checks` flag.
-        let publish_branch = self.flags.publish_branch.as_deref();
         let git_checks = config.git_checks && !self.flags.no_git_checks;
         run_git_checks::<Host>(dir, git_checks, publish_branch)?;
 
@@ -175,7 +216,7 @@ impl PublishArgs {
             return Ok(PublishedPackages::Recursive(published));
         }
 
-        let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
+        let otp = resolve_otp_from_env::<Host>(self.flags.resolved_otp(config));
         let opts = self.publish_options(config, otp, stage);
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
@@ -325,6 +366,11 @@ impl PublishArgs {
     }
 
     /// Map the CLI flags and resolved [`Config`] onto the publish options.
+    ///
+    /// The settings `pnpm publish` declares as rc options — `access`, `tag`,
+    /// `provenance` — resolve as `flag ?? config`, and `tag` then adds
+    /// `pnpm publish`'s `latest` default at the end of that chain. `otp`
+    /// arrives already resolved; the rest are read straight off [`Config`].
     fn publish_options(
         &self,
         config: &Config,
@@ -334,11 +380,10 @@ impl PublishArgs {
         PublishPackedPkgOptions {
             default_registry: config.registry.clone(),
             scoped_registries: config.registries_by_scope.clone(),
-            access: self.flags.access.as_deref().and_then(Access::parse),
-            tag: self.flags.tag.clone().unwrap_or_else(|| "latest".to_owned()),
+            access: self.flags.access.as_deref().or(config.access.as_deref()).map(str::to_owned),
+            tag: self.flags.tag.as_deref().or(config.tag.as_deref()).unwrap_or("latest").to_owned(),
             otp,
-            // An absent `--provenance` leaves the decision to the OIDC flow.
-            provenance: self.flags.provenance.then_some(true),
+            provenance: self.flags.resolved_provenance(config),
             dry_run: self.flags.dry_run,
             stage,
             http: OidcHttpOptions {

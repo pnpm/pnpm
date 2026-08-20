@@ -143,6 +143,13 @@ pub enum ConfigError {
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY), help("Try {camel:?}"))]
     SetUnsupportedWorkspaceKey { key: String, camel: String },
 
+    #[display("The key {key:?} holds a per-invocation value, so no config file can carry it")]
+    #[diagnostic(
+        code(ERR_PNPM_CONFIG_SET_NOT_A_FILE_SETTING),
+        help("Pass it per run instead: `--{key}` on the command line, or PNPM_CONFIG_{env}")
+    )]
+    SetNotAFileSetting { key: String, env: String },
+
     #[display("The key {key:?} isn't supported by the global config.yaml file")]
     #[diagnostic(
         code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY),
@@ -422,6 +429,7 @@ fn segment_to_string(segment: &Segment) -> String {
 /// `validateWorkspaceKey`: a known `types` key becomes camelCase; otherwise it
 /// must already be camelCase.
 fn validate_workspace_key(key: &str) -> Result<String, ConfigError> {
+    reject_non_file_setting(key)?;
     if config_types::is_type_key(key) || config_types::is_config_file_key(key) {
         return Ok(naming_cases::to_camel_case(key));
     }
@@ -432,6 +440,19 @@ fn validate_workspace_key(key: &str) -> Result<String, ConfigError> {
         });
     }
     Ok(key.to_string())
+}
+
+/// Refuse a key whose value is per-invocation. Writing it would produce a file
+/// entry every loader ignores, so the write fails instead of misleading.
+fn reject_non_file_setting(key: &str) -> Result<(), ConfigError> {
+    let kebab = naming_cases::to_kebab_case(key);
+    if config_types::is_never_a_file_setting(&kebab) {
+        return Err(ConfigError::SetNotAFileSetting {
+            env: kebab.to_uppercase().replace('-', "_"),
+            key: kebab,
+        });
+    }
+    Ok(())
 }
 
 /// `validateIniConfigKey`: the kebab-case key must be a known `types` key.
@@ -449,6 +470,7 @@ fn validate_ini_config_key(key: &str) -> Result<String, ConfigError> {
 /// `validateYamlConfigKey`: the kebab-case key must be valid in the global
 /// `config.yaml`.
 fn validate_yaml_config_key(key: &str) -> Result<String, ConfigError> {
+    reject_non_file_setting(key)?;
     let kebab = naming_cases::to_kebab_case(key);
     if config_types::is_config_file_key(&kebab) {
         return Ok(kebab);

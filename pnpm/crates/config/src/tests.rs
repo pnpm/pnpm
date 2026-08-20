@@ -2022,6 +2022,138 @@ pub fn npmrc_scope_alone_never_reaches_the_config() {
 }
 
 #[test]
+pub fn pnpm_workspace_yaml_supplies_the_publish_settings() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "\
+access: restricted
+tag: next
+provenance: true
+publishBranch: release
+",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+
+    assert_eq!(config.access.as_deref(), Some("restricted"));
+    assert_eq!(config.tag.as_deref(), Some("next"));
+    assert_eq!(config.provenance, Some(true));
+    assert_eq!(config.publish_branch.as_deref(), Some("release"));
+}
+
+/// The full chain for "`otp` is not a file setting": whatever a project's own
+/// `pnpm-workspace.yaml` says, literal or placeholder, no `otp` reaches
+/// `Config` from it. `PNPM_CONFIG_OTP` still does.
+#[test]
+pub fn a_workspace_yaml_otp_never_reaches_the_config() {
+    fake_env!(load_with_fake_env);
+    for yaml in ["otp: ${NPM_TOKEN}\n", "otp: '123456'\n"] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+
+        set_fake_env(&[("NPM_TOKEN", "s3cret")]);
+        assert_eq!(load_with_fake_env(tmp.path()).otp, None, "{yaml:?} must not supply an otp");
+    }
+
+    let tmp = tempdir().unwrap();
+    set_fake_env(&[("PNPM_CONFIG_OTP", "135791")]);
+    assert_eq!(load_with_fake_env(tmp.path()).otp.as_deref(), Some("135791"));
+}
+
+/// pnpm's `readAndFilterNpmrc` keeps only auth and network keys, so none of
+/// the publish settings may come from an `.npmrc`.
+#[test]
+pub fn npmrc_publish_settings_never_reach_the_config() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join(".npmrc"),
+        "\
+access=restricted
+tag=next
+provenance=true
+otp=123456
+publish-branch=release
+",
+    )
+    .expect("write to .npmrc");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
+
+    assert_eq!(config.access, None);
+    assert_eq!(config.tag, None);
+    assert_eq!(config.provenance, None);
+    assert_eq!(config.otp, None);
+    assert_eq!(config.publish_branch, None);
+}
+
+/// The global `config.yaml` may set the `npmConfigTypes` publish settings, but
+/// not `publishBranch` (pnpm lists it in `excludedPnpmKeys`) and not `otp`
+/// (no file carries a per-invocation value).
+#[test]
+pub fn global_config_yaml_supplies_the_npm_publish_settings_but_not_publish_branch() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "\
+access: public
+tag: beta
+provenance: true
+otp: '246810'
+publishBranch: release
+",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.access.as_deref(), Some("public"));
+    assert_eq!(config.tag.as_deref(), Some("beta"));
+    assert_eq!(config.provenance, Some(true));
+    // `otp` joins `publishBranch` in being ignored here, for a different
+    // reason: no file may carry it at all.
+    assert_eq!(config.otp, None);
+    assert_eq!(config.publish_branch, None);
+}
+
+/// Env vars are applied after `pnpm-workspace.yaml`, so `PNPM_CONFIG_*` wins.
+#[test]
+pub fn pnpm_config_env_publish_settings_override_the_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "\
+access: public
+tag: beta
+provenance: false
+publishBranch: from-yaml
+",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    set_fake_env(&[
+        ("PNPM_CONFIG_ACCESS", "restricted"),
+        ("PNPM_CONFIG_TAG", "next"),
+        ("PNPM_CONFIG_PROVENANCE", "true"),
+        ("PNPM_CONFIG_OTP", "222222"),
+        ("PNPM_CONFIG_PUBLISH_BRANCH", "from-env"),
+    ]);
+    let config = load_with_fake_env(tmp.path());
+
+    assert_eq!(config.access.as_deref(), Some("restricted"));
+    assert_eq!(config.tag.as_deref(), Some("next"));
+    assert_eq!(config.provenance, Some(true));
+    assert_eq!(config.otp.as_deref(), Some("222222"));
+    assert_eq!(config.publish_branch.as_deref(), Some("from-env"));
+}
+
+#[test]
 pub fn pnpm_workspace_yaml_found_by_walking_up() {
     let tmp = tempdir().unwrap();
     let nested = tmp.path().join("packages/inner");
