@@ -97,7 +97,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   }
   const untypedManifest = manifest as Record<string, unknown>
   for (const key of opts.deletedLegacyKeys ?? []) {
-    if (key in untypedManifest) {
+    if (Object.hasOwn(untypedManifest, key)) {
       delete untypedManifest[key]
       shouldBeUpdated = true
     }

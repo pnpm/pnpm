@@ -490,6 +490,8 @@ test('clears legacy build settings when writing allowBuilds', async () => {
   writeYamlFileSync(workspaceManifestFile, {
     packages: ['packages/*'],
     onlyBuiltDependencies: ['@pnpm.e2e/existing-package'],
+    onlyBuiltDependenciesFile: 'allowed.json',
+    neverBuiltDependencies: ['fsevents'],
     ignoredBuiltDependencies: ['esbuild'],
   })
 

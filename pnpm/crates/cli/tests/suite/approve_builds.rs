@@ -478,6 +478,36 @@ fn approve_builds_preserves_existing_allow_builds_entries() {
 }
 
 #[test]
+fn approve_builds_clears_legacy_build_settings() {
+    let (harness, workspace) = install_two_with_ignored_builds();
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str(concat!(
+        "onlyBuiltDependencies:\n  - esbuild\n",
+        "onlyBuiltDependenciesFile: allowed.json\n",
+        "neverBuiltDependencies:\n  - fsevents\n",
+        "ignoredBuiltDependencies:\n  - nan\n",
+    ));
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet(&workspace).with_args(["approve-builds", PREPOST]).assert().success();
+
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    for key in [
+        "onlyBuiltDependencies",
+        "onlyBuiltDependenciesFile",
+        "neverBuiltDependencies",
+        "ignoredBuiltDependencies",
+    ] {
+        assert!(!yaml.contains(key), "legacy setting {key} must be cleared: {yaml}");
+    }
+    assert_eq!(allow_builds(&workspace).get(PREPOST), Some(&true), "approved package recorded");
+
+    drop(harness);
+}
+
+#[test]
 fn approve_builds_all_with_args_is_rejected() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");

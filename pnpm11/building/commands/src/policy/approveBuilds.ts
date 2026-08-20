@@ -28,7 +28,7 @@ export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allo
 
 export const commandNames = ['approve-builds']
 
-// Superseded by allowBuilds in v11; a leftover copy is dead config, so approve-builds clears it out.
+// pnpm-workspace.yaml settings that allowBuilds replaced in pnpm 11.
 const LEGACY_BUILD_SETTINGS = ['onlyBuiltDependencies', 'onlyBuiltDependenciesFile', 'neverBuiltDependencies', 'ignoredBuiltDependencies']
 
 export const recursiveByDefault = true

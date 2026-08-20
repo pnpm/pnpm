@@ -36,9 +36,16 @@ test('updateWorkspaceManifest removes an existing setting', async () => {
 test('updateWorkspaceManifest deletes legacy keys not part of WorkspaceManifest', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFileSync(filePath, { packages: ['*'], onlyBuiltDependencies: ['esbuild'], allowBuilds: { esbuild: true } })
+  writeYamlFileSync(filePath, {
+    packages: ['*'],
+    onlyBuiltDependencies: ['esbuild'],
+    onlyBuiltDependenciesFile: 'allowed.json',
+    neverBuiltDependencies: ['fsevents'],
+    ignoredBuiltDependencies: ['nan'],
+    allowBuilds: { esbuild: true },
+  })
   await updateWorkspaceManifest(dir, {
-    deletedLegacyKeys: ['onlyBuiltDependencies', 'neverBuiltDependencies'],
+    deletedLegacyKeys: ['onlyBuiltDependencies', 'onlyBuiltDependenciesFile', 'neverBuiltDependencies', 'ignoredBuiltDependencies'],
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
     packages: ['*'],

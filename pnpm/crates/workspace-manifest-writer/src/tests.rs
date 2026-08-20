@@ -747,15 +747,17 @@ fn run_remove_overrides(original: Option<&str>, selectors: &[&str]) -> Option<St
     fs::read_to_string(&path).ok()
 }
 
-/// Run `remove_legacy_build_settings` against `original` and return the
-/// resulting file contents, or `None` when no file exists afterward.
-fn run_remove_legacy_build_settings(original: Option<&str>) -> Option<String> {
+fn run_allow_builds_clearing_legacy(
+    original: Option<&str>,
+    entries: &[(&str, bool)],
+) -> Option<String> {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
     if let Some(text) = original {
         fs::write(&path, text).expect("seed manifest");
     }
-    crate::remove_legacy_build_settings(dir.path()).expect("remove succeeds");
+    crate::set_allow_builds_clearing_legacy(dir.path(), entries.iter().copied())
+        .expect("update succeeds");
     fs::read_to_string(&path).ok()
 }
 
@@ -1098,28 +1100,29 @@ fn remove_overrides_keeps_block_when_only_non_string_entry_remains() {
 }
 
 #[test]
-fn remove_legacy_build_settings_drops_every_known_key() {
-    let original = "packages:\n  - '*'\nonlyBuiltDependencies:\n  - esbuild\nignoredBuiltDependencies:\n  - foo\nallowBuilds:\n  esbuild: true\n";
-    let out = run_remove_legacy_build_settings(Some(original)).expect("file kept");
+fn allow_builds_clearing_legacy_drops_every_legacy_key_in_the_same_write() {
+    let original = "packages:\n  - '*'\nonlyBuiltDependencies:\n  - esbuild\nonlyBuiltDependenciesFile: allowed.json\nneverBuiltDependencies:\n  - fsevents\nignoredBuiltDependencies:\n  - foo\n";
+    let out =
+        run_allow_builds_clearing_legacy(Some(original), &[("esbuild", true)]).expect("file kept");
     assert_eq!(out, "packages:\n  - '*'\nallowBuilds:\n  esbuild: true\n");
 }
 
 #[test]
-fn remove_legacy_build_settings_deletes_the_file_when_nothing_remains() {
+fn allow_builds_clearing_legacy_deletes_the_file_when_nothing_remains() {
     let original = "onlyBuiltDependencies:\n  - esbuild\n";
-    assert_eq!(run_remove_legacy_build_settings(Some(original)), None);
+    assert_eq!(run_allow_builds_clearing_legacy(Some(original), &[]), None);
 }
 
 #[test]
-fn remove_legacy_build_settings_is_a_noop_when_absent() {
+fn allow_builds_clearing_legacy_is_a_noop_when_no_legacy_key_is_present() {
     let original = "packages:\n  - '*'\nallowBuilds:\n  esbuild: true\n";
-    let out = run_remove_legacy_build_settings(Some(original)).expect("file kept");
+    let out = run_allow_builds_clearing_legacy(Some(original), &[]).expect("file kept");
     assert_eq!(out, original);
 }
 
 #[test]
-fn remove_legacy_build_settings_is_a_noop_when_the_manifest_is_missing() {
-    assert_eq!(run_remove_legacy_build_settings(None), None);
+fn allow_builds_clearing_legacy_is_a_noop_when_the_manifest_is_missing() {
+    assert_eq!(run_allow_builds_clearing_legacy(None, &[]), None);
 }
 
 #[test]
