@@ -169,16 +169,15 @@ fn fast_fail_client() -> ThrottledClient {
 /// which is what triggered the original "what's actually failing?"
 /// debugging round on this branch.
 ///
-/// Uses `127.0.0.1:1` (port 1 is reserved; connect always fails
-/// with a deterministic ECONNREFUSED on every host I've tried)
-/// and [`fast_fail_client`]'s 1 s bounds, so the test stays
-/// hermetic and quick.
+/// Uses `127.0.0.1:1` and [`fast_fail_client`]'s 1 s bounds. A
+/// firewalled runner may time out instead of refusing the connection.
 #[tokio::test]
 async fn network_error_display_includes_reqwest_inner_chain() {
     let url = "http://127.0.0.1:1/ssl-package.tgz";
     let client = fast_fail_client();
     let err =
         client.acquire().await.get(url).send().await.expect_err("connecting to port 1 must fail");
+    let expected_code = if err.is_timeout() { "ETIMEDOUT" } else { "ECONNREFUSED" };
     let net_err = NetworkError { url: url.to_string(), error: err };
 
     let rendered = net_err.to_string();
@@ -213,7 +212,7 @@ async fn network_error_display_includes_reqwest_inner_chain() {
         "NetworkError should expose its reqwest::Error as source",
     );
     let details = TarballError::FetchTarball(net_err).fetch_error_details();
-    assert_eq!(details.code.as_deref(), Some("ECONNREFUSED"));
+    assert_eq!(details.code.as_deref(), Some(expected_code));
     assert_eq!(details.status, None);
 }
 
