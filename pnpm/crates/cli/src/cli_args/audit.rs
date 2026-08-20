@@ -36,9 +36,9 @@ mod request;
 mod version_ranges;
 
 pub(crate) use fix::{
-    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, fetch_publish_times,
-    filter_advisories_for_fix, fix_override, fix_with_update, format_fix_with_update_output,
-    ignore_vulnerabilities, interactive_select,
+    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, cleanup_ignored_ghsas,
+    fetch_publish_times, filter_advisories_for_fix, fix_override, fix_with_update,
+    format_fix_with_update_output, ignore_vulnerabilities, interactive_select,
 };
 pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
 pub(crate) use render::{
@@ -260,6 +260,30 @@ impl AuditArgs {
         .await;
 
         if let Some(fix_method) = fix_method {
+            // Remove ignored GHSAs that no longer appear in the report before
+            // filtering. Mirrors pnpm's `cleanupUnusedIgnoredGhsas` handling
+            // in the `audit` command handler.
+            if state.config.audit_config.cleanup_unused_ignored_ghsas
+                && !state.config.audit_config.ignore_ghsas.is_empty()
+            {
+                let cleanup =
+                    cleanup_ignored_ghsas(&state.config.audit_config.ignore_ghsas, &report);
+                if !cleanup.cleaned.is_empty() {
+                    println!(
+                        "Removed {} unused ignored GHSA(s): {}",
+                        cleanup.cleaned.len(),
+                        cleanup.cleaned.join(", "),
+                    );
+                    pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(
+                        &settings_dir,
+                        &cleanup.retained,
+                    )
+                    .map_err(|err| {
+                        miette::Report::new(err)
+                            .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
+                    })?;
+                }
+            }
             // Pre-filter by audit-level and ignored GHSAs so the interactive
             // prompt and both fix methods see the same advisory set the
             // override path's fixable filter would.
