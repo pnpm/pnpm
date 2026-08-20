@@ -639,7 +639,7 @@ fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
 }
 
 /// Hoist eligible descendants onto `root`, then recurse into every
-/// child that stayed (a conflict-nested loser, a border, …) using it
+/// child that stayed (a conflict-nested loser, a border, ...) using it
 /// as the next hoist root, so its own subtree flattens onto it.
 /// `path_locators` carries the locators of every root on the current
 /// recursion path; a child whose locator is already on it is a cycle
