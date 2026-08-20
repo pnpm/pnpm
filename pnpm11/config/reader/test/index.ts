@@ -3922,6 +3922,13 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   expect(config.registriesByScope.default).toBe('https://registry.example.com/')
 })
 
+// The two boolean rows only pin down parsing, not runtime meaning. `false` turns the
+// check off. Bare `true` turns the check on but selects none of the four actions, because
+// `runDepsStatusCheck` switches on the string modes alone. That is the behavior pnpm has
+// always had for this setting, and `VerifyDepsBeforeRun` in `Config.ts` keeps `true` out of
+// the type on purpose. The Rust config crate models it the same way, as a `True` variant that
+// maps to no action (`pnpm/crates/config/src/lib.rs`). Keep these rows as a record of what the
+// parser returns; do not read them as a promise that bare `true` does an install.
 test.each([
   ['install', 'install'],
   ['warn', 'warn'],
