@@ -1020,3 +1020,49 @@ fn a_directory_dependency_is_recopied_under_the_hoisted_linker() {
 
     drop((root, mock_instance));
 }
+
+/// Two projects on the same `@pnpm.e2e/abc@1.0.0` but on different
+/// `peer-a` versions give the lockfile two peer variants of one package
+/// version. pnpm hoists such variants into a single root copy; nesting
+/// a second, identical copy under the project only costs disk and
+/// install time.
+#[test]
+fn peer_variants_of_one_version_share_the_root_slot() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    let deps_with_peer_a_1_0_0 = [
+        ("@pnpm.e2e/abc", "1.0.0"),
+        ("@pnpm.e2e/peer-a", "1.0.0"),
+        ("@pnpm.e2e/peer-b", "1.0.0"),
+        ("@pnpm.e2e/peer-c", "1.0.0"),
+    ];
+    let deps_with_peer_a_1_0_1 = [
+        ("@pnpm.e2e/abc", "1.0.0"),
+        ("@pnpm.e2e/peer-a", "1.0.1"),
+        ("@pnpm.e2e/peer-b", "1.0.0"),
+        ("@pnpm.e2e/peer-c", "1.0.0"),
+    ];
+    let on_peer_a_1_0_0 = fixture.project(
+        "a",
+        "a",
+        ManifestDeps { prod: &deps_with_peer_a_1_0_0, ..Default::default() },
+    );
+    let on_peer_a_1_0_1 = fixture.project(
+        "b",
+        "b",
+        ManifestDeps { prod: &deps_with_peer_a_1_0_1, ..Default::default() },
+    );
+
+    fixture.run(["install"]);
+
+    assert!(
+        is_real_dir(&fixture.workspace, "node_modules/@pnpm.e2e/abc"),
+        "the shared version holds the root slot",
+    );
+    for project in [&on_peer_a_1_0_0, &on_peer_a_1_0_1] {
+        assert!(
+            !project.join("node_modules/@pnpm.e2e/abc").exists(),
+            "a peer variant of the root version must not nest its own copy: {project:?}",
+        );
+    }
+}

@@ -11,7 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-lockfile = { workspace = true }
+pnpm-deps-path = { workspace = true }
+pnpm-lockfile  = { workspace = true }
 
 derive_more = { workspace = true }
 indexmap    = { workspace = true }
