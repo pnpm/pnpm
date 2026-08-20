@@ -996,6 +996,192 @@ fn nested_hoist_uses_the_nested_root_locator() {
     assert_eq!(b_names, ["c"], "the workspace's b border keeps c below b");
 }
 
+/// A conflict-nested node shared by several parents must keep its own
+/// conflicting dependencies reachable from *every* parent. The nested
+/// hoist pass must not steal a child out of the shared node into one
+/// parent's subtree: the other parents' materialized copies would then
+/// resolve the name to the root's (wrong-version) slot.
+///
+/// Regression shape (from `@teambit/bit`'s lockfile): root holds `b@1`
+/// and `d@1`; `c1` and `c2` share one `b@2` node whose dependency `d@2`
+/// conflicts with the root's `d@1`.
+#[test]
+fn nested_hoist_keeps_conflicting_dep_reachable_from_every_parent_of_a_shared_node() {
+    let mut importers = HashMap::new();
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("b"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("d"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("c1"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("c2"), resolved_dep("1.0.0"));
+    importers.insert(
+        Lockfile::ROOT_IMPORTER_KEY.to_string(),
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
+    );
+
+    let mut snapshots = HashMap::new();
+    for parent in ["c1", "c2"] {
+        let mut parent_deps = HashMap::new();
+        parent_deps.insert(pkg_name("b"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+        snapshots.insert(
+            dep_key(parent, "1.0.0"),
+            SnapshotEntry { dependencies: Some(parent_deps), ..SnapshotEntry::default() },
+        );
+    }
+    let mut b_two_deps = HashMap::new();
+    b_two_deps.insert(pkg_name("d"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    snapshots.insert(
+        dep_key("b", "2.0.0"),
+        SnapshotEntry { dependencies: Some(b_two_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("b", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("d", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("d", "2.0.0"), SnapshotEntry::default());
+
+    let lockfile = Lockfile {
+        lockfile_version: lockfile_version(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers,
+        packages: None,
+        snapshots: Some(snapshots),
+        time: None,
+    };
+
+    let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
+    let root_children = result.dependencies.borrow();
+    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["b", "c1", "c2", "d"], "root keeps its direct b@1 and d@1");
+
+    let mut b_under_parents: Vec<Rc<HoisterResult>> = Vec::new();
+    for parent_name in ["c1", "c2"] {
+        let parent =
+            Rc::clone(&root_children.iter().find(|dep| dep.0.name == parent_name).unwrap().0);
+        let parent_kids = parent.dependencies.borrow();
+        let nested_b = Rc::clone(
+            &parent_kids
+                .iter()
+                .find(|dep| dep.0.name == "b")
+                .unwrap_or_else(|| panic!("{parent_name} keeps its conflicting b@2: {parent:#?}"))
+                .0,
+        );
+        assert!(nested_b.references.borrow().contains("b@2.0.0"));
+
+        // `d@2` must resolve from this parent's copy of `b@2`: either
+        // nested under `b@2` itself or as a sibling inside the parent.
+        let d_under_b = nested_b
+            .dependencies
+            .borrow()
+            .iter()
+            .any(|dep| dep.0.name == "d" && dep.0.references.borrow().contains("d@2.0.0"));
+        let d_under_parent = parent_kids
+            .iter()
+            .any(|dep| dep.0.name == "d" && dep.0.references.borrow().contains("d@2.0.0"));
+        assert!(
+            d_under_b || d_under_parent,
+            "d@2 is unreachable from {parent_name}'s subtree, so its b@2 would \
+             resolve d to the root's d@1: {parent:#?}"
+        );
+        b_under_parents.push(nested_b);
+    }
+    // The copies are per-path (decoupled), never one shared
+    // allocation — a shared node would let one parent's hoisting
+    // steal the other's subtree.
+    assert!(
+        !Rc::ptr_eq(&b_under_parents[0], &b_under_parents[1]),
+        "each parent gets its own decoupled b@2 copy"
+    );
+}
+
+/// A cycle inside a conflict-nested shared cluster must still be cut.
+/// The shared-chain guard refuses the moves that used to dissolve such
+/// cycles, so the nested pass cuts the back-edge instead — a cycle
+/// that survives into the result sends the layout walkers into
+/// unbounded recursion.
+#[test]
+fn conflict_nested_shared_cycle_is_cut() {
+    let mut importers = HashMap::new();
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("x"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("y"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("c1"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("c2"), resolved_dep("1.0.0"));
+    importers.insert(
+        Lockfile::ROOT_IMPORTER_KEY.to_string(),
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
+    );
+
+    let mut snapshots = HashMap::new();
+    for parent in ["c1", "c2"] {
+        let mut parent_deps = HashMap::new();
+        parent_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+        snapshots.insert(
+            dep_key(parent, "1.0.0"),
+            SnapshotEntry { dependencies: Some(parent_deps), ..SnapshotEntry::default() },
+        );
+    }
+    let mut x_two_deps = HashMap::new();
+    x_two_deps.insert(pkg_name("y"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    snapshots.insert(
+        dep_key("x", "2.0.0"),
+        SnapshotEntry { dependencies: Some(x_two_deps), ..SnapshotEntry::default() },
+    );
+    let mut y_two_deps = HashMap::new();
+    y_two_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    snapshots.insert(
+        dep_key("y", "2.0.0"),
+        SnapshotEntry { dependencies: Some(y_two_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("x", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("y", "1.0.0"), SnapshotEntry::default());
+
+    let lockfile = Lockfile {
+        lockfile_version: lockfile_version(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers,
+        packages: None,
+        snapshots: Some(snapshots),
+        time: None,
+    };
+
+    let result = hoist(&lockfile, &HoistOpts::default()).expect("cyclic hoist should succeed");
+
+    // Walk every path; a node reappearing on its own ancestor path
+    // means a cycle survived.
+    fn assert_acyclic(node: &Rc<HoisterResult>, path: &mut Vec<*const HoisterResult>) {
+        assert!(
+            !path.contains(&Rc::as_ptr(node)),
+            "cycle in hoister output through {}@{:?}",
+            node.name,
+            node.references.borrow()
+        );
+        path.push(Rc::as_ptr(node));
+        let children: Vec<Rc<HoisterResult>> =
+            node.dependencies.borrow().iter().map(|dep| Rc::clone(&dep.0)).collect();
+        for child in children {
+            assert_acyclic(&child, path);
+        }
+        path.pop();
+    }
+    let root_children: Vec<Rc<HoisterResult>> =
+        result.dependencies.borrow().iter().map(|dep| Rc::clone(&dep.0)).collect();
+    let mut path = Vec::new();
+    for child in &root_children {
+        assert_acyclic(child, &mut path);
+    }
+}
+
 #[test]
 fn self_dependency_does_not_loop() {
     let mut importers = HashMap::new();
@@ -1186,6 +1372,7 @@ fn result_node(
         references: RefCell::new(BTreeSet::from([reference.to_string()])),
         peer_names: peer_names.iter().map(|&peer| peer.to_string()).collect(),
         dependencies: RefCell::new(dependencies.into_iter().map(RcByPtr).collect::<IndexSet<_>>()),
+        decoupled: std::cell::Cell::new(false),
     })
 }
 
