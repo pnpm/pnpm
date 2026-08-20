@@ -1239,56 +1239,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .await;
         }
 
-        // Warm-cache batched prefetch: collect every `(integrity,
-        // pkg_id)` pair the resolver produced, run one batched SQL
-        // `SELECT ... WHERE key IN (...)` against the store index,
-        // then verify each row's files on rayon. Mirrors what
-        // `create_virtual_store::run` already does for the frozen-
-        // lockfile path. The store_index, store_index_writer, and
-        // verified_files_cache are opened earlier (above the resolver
-        // chain) so the [`PrefetchingResolver`][crate::PrefetchingResolver] can share them; this
-        // batched prefetch reuses the same handles to fold the
-        // per-package SQL lookups the install pass would otherwise
-        // serialize on `Arc<Mutex<StoreIndex>>` for warm packages
-        // that weren't reached by the resolve-time prefetch (e.g.
-        // resolutions without a structured `name@version`).
-        let cache_keys: Vec<String> = if filtered_isolated {
-            Vec::new()
-        } else {
-            collect_prefetch_cache_keys_from_graph(&merged_graph)
-        };
-        let cache_keys_len = cache_keys.len();
-        let phase_start = std::time::Instant::now();
-        let prefetch = pnpm_tarball::prefetch_cas_paths(
-            store_index_ref.cloned(),
-            store_dir,
-            cache_keys,
-            config.verify_store_integrity,
-            SharedVerifiedFilesCache::clone(&verified_files_cache),
-        )
-        .await;
-        // `side_effects_maps` is intentionally dropped: the fresh-
-        // lockfile path skips the build phase today (see the
-        // `importing_done` emit at the tail of this function), so
-        // there is no `is_built` gate to feed. Keep the binding name
-        // explicit so a future port that wires builds in does not
-        // miss the source.
-        let pnpm_tarball::PrefetchResult {
-            cas_paths: prefetched_cas_paths,
-            manifests: prefetched_manifests,
-            side_effects_maps: _,
-            requires_build: _,
-        } = prefetch;
-        tracing::info!(
-            target: "pacquet::install::phase",
-            phase = "prefetch_cas_paths",
-            elapsed_ms = phase_start.elapsed().as_millis() as u64,
-            cache_keys = cache_keys_len,
-            hits = prefetched_cas_paths.len(),
-            manifest_hits = prefetched_manifests.len(),
-            "phase complete",
-        );
-
         let allow_build_policy = AllowBuildPolicy::from_config(config)
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
         // Built unconditionally: the layout and the bin-link pass both
@@ -1474,6 +1424,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             logged_methods,
             requester,
             store_index_writer: &store_index_writer,
+            store_context: Some(pnpm_deps_restorer::CreateVirtualStoreStoreContext {
+                index: store_index_ref,
+                verified_files_cache: &verified_files_cache,
+            }),
             allow_build_policy: &allow_build_policy,
             skipped: &skipped,
             include_optional_dependencies: include_transitive_optional_dependencies,
@@ -1727,48 +1681,6 @@ fn include_transitive_optional_dependencies(
     dependency_groups: &[DependencyGroup],
 ) -> bool {
     !is_full_install || dependency_groups.contains(&DependencyGroup::Optional)
-}
-
-/// Walk the merged resolver graph and emit the `{integrity}\t{pkg_id}`
-/// cache keys [`pnpm_tarball::prefetch_cas_paths`] uses for its
-/// batched `SELECT ... WHERE key IN (...)` against the store index.
-/// Mirrors the equivalent collection loop in
-/// [`crate::CreateVirtualStore::run`] for the frozen-lockfile path —
-/// same key shape, same dedup, so the fresh-lockfile path's warm
-/// batch hits the same rows pnpm or pacquet wrote on the prior
-/// install.
-///
-/// Skips nodes whose resolver result isn't a non-git-hosted tarball
-/// with an `integrity`: git-hosted tarballs and directory / git /
-/// binary resolutions use a different key shape (`pkg_id`-only) and
-/// route through the cold path.
-fn collect_prefetch_cache_keys_from_graph(
-    graph: &pnpm_resolving_deps_resolver::DependenciesGraph,
-) -> Vec<String> {
-    let mut keys: Vec<String> = graph
-        .values()
-        .filter_map(|node| {
-            let pnpm_lockfile::LockfileResolution::Tarball(tarball) =
-                &node.resolve_result.resolution
-            else {
-                return None;
-            };
-            if tarball.git_hosted == Some(true) {
-                return None;
-            }
-            let integrity = tarball.integrity.as_ref()?.to_string();
-            // The node's dep path carries the same `name@<id>` shape the
-            // lockfile records, so stripping it yields the `pkg_id` the
-            // install pass and the resolve-time fetch address the row by
-            // — `name@version` for a registry package, the bare URL for a
-            // remote tarball.
-            let pkg_id = pnpm_deps_path::try_get_package_id(node.dep_path.as_str());
-            Some(pnpm_store_dir::store_index_key(&integrity, &pkg_id))
-        })
-        .collect();
-    keys.sort_unstable();
-    keys.dedup();
-    keys
 }
 
 /// Build the `context.log(...)` sink a pnpmfile hook forwards to: each

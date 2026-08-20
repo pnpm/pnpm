@@ -618,6 +618,7 @@ where
                 logged_methods,
                 requester,
                 store_index_writer: &store_index_writer,
+                store_context: None,
                 allow_build_policy: &allow_build_policy,
                 skipped: &skipped,
                 include_optional_dependencies: include_optional,
