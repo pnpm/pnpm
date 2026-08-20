@@ -1123,6 +1123,35 @@ fn update_latest_no_save_catalog_bumps_lockfile_only() {
     drop((root, anchor));
 }
 
+/// A versioned `npm:` selector targets the package the alias installs, not
+/// the alias it is written at: update targets are keyed by the resolved
+/// package name, so keying them by the alias leaves the pin in place.
+#[test]
+fn update_npm_alias_selector_targets_the_aliased_package() {
+    let (root, workspace, anchor) = setup();
+
+    // Pin the aliased package at 100.0.0 through a direct exact entry,
+    // then drop the entry so the alias is the only thing holding it — its
+    // ^100.0.0 range a fresh resolve answers with 100.1.0.
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "dep-alias": "npm:{DEP}@^100.0.0", "{DEP}": "100.0.0" }}"#),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+    write_manifest(&workspace, &format!(r#"{{ "dep-alias": "npm:{DEP}@^100.0.0" }}"#));
+
+    pacquet(&workspace, ["update", &format!("dep-alias@npm:{DEP}@^100.0.0")]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "the selector should have withheld the aliased package's pin",
+    );
+
+    drop((root, anchor));
+}
+
 /// The alias name does not exist in the mock registry.
 #[test]
 fn update_latest_npm_alias_resolves_aliased_package() {

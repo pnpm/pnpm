@@ -95,7 +95,7 @@ pub use resolve_dependency_tree::{
     Deprecation, DeprecationLogFn, ManifestHook, ResolveDependencyTreeError,
     ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,
     SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, extend_tree,
-    resolve_dependency_tree,
+    real_package_name_of, resolve_dependency_tree,
 };
 pub use resolve_importer::{
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,

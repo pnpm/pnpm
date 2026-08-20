@@ -37,7 +37,7 @@ use pnpm_reporter::{
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
 };
 use pnpm_resolving_default_resolver::DefaultResolver;
-use pnpm_resolving_deps_resolver::UpdateDepth;
+use pnpm_resolving_deps_resolver::{UpdateDepth, real_package_name_of};
 use pnpm_resolving_npm_resolver::{
     DeclaredSpecifiers, InMemoryPackageMetaCache, NpmResolver, calc_specifier_for_workspace_dep,
     merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
@@ -977,7 +977,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         requested
                     }
                 };
-                drop_names.insert(name.clone());
+                drop_names.insert(update_target_name(&selectors, name));
                 if let Some(specifier) = rewrite {
                     rewrites.push((name.clone(), *group, specifier));
                 }
@@ -1395,6 +1395,23 @@ fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRangeVerdict {
         return KeptRangeVerdict::Undecided;
     };
     if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
+}
+
+/// The name an update target for `matched` is keyed by. A manifest keys a
+/// dependency by its alias, but the resolver matches update targets — and
+/// [`UpdateSeedPolicy::DropOnly`] keys them — by the package name the edge
+/// resolves under, which an `npm:` or `jsr:` selector states separately from
+/// the alias. Falls back to the alias, which is the name for every other
+/// selector shape.
+fn update_target_name(selectors: &[ParsedSelector], matched: &str) -> String {
+    selectors
+        .iter()
+        .filter(|selector| matcher_one(&selector.pattern).matches(matched))
+        .filter_map(|selector| {
+            real_package_name_of(Some(matched), Some(selector.version.as_deref()?))
+        })
+        .find(|name| name.as_ref() != matched)
+        .map_or_else(|| matched.to_string(), std::borrow::Cow::into_owned)
 }
 
 /// Compile a single pattern into a matcher. Used to map a matched direct

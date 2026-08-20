@@ -1,7 +1,7 @@
 use super::{
     KeptRangeVerdict, apply_bumped_manifest_specs, is_workspace_local_path_specifier,
     judge_against_kept_range, parse_update_param, persist_selected_manifests,
-    prepare_selected_manifests, selected_project_indices,
+    prepare_selected_manifests, selected_project_indices, update_target_name,
 };
 use pnpm_config::{CatalogMode, Config};
 use pnpm_network::ThrottledClient;
@@ -59,6 +59,38 @@ fn negated_unscoped_pattern_without_version() {
     let parsed = parse_update_param("!foo");
     assert_eq!(parsed.pattern, "!foo");
     assert_eq!(parsed.version, None);
+}
+
+#[test]
+fn an_npm_alias_selector_targets_the_aliased_package_name() {
+    let selectors = vec![parse_update_param("alias@npm:@scope/real@^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "alias"), "@scope/real");
+}
+
+#[test]
+fn a_versioned_selector_without_an_alias_targets_the_name_it_names() {
+    let selectors = vec![parse_update_param("foo@^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "foo"), "foo");
+}
+
+#[test]
+fn an_npm_selector_carrying_only_a_range_keeps_the_alias() {
+    let selectors = vec![parse_update_param("foo@npm:^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "foo"), "foo");
+}
+
+#[test]
+fn a_bare_selector_targets_the_name_it_names() {
+    let selectors = vec![parse_update_param("foo")];
+    assert_eq!(update_target_name(&selectors, "foo"), "foo");
+}
+
+#[test]
+fn a_wildcard_selector_does_not_shadow_an_alias_selector_that_also_matches() {
+    let selectors =
+        vec![parse_update_param("*"), parse_update_param("alias@npm:@scope/real@^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "alias"), "@scope/real");
+    assert_eq!(update_target_name(&selectors, "other"), "other");
 }
 
 #[test]
