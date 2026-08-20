@@ -57,6 +57,19 @@ fn install_test_is_left_alone() {
 }
 
 #[test]
+fn a_package_name_after_the_separator_becomes_add() {
+    assert_eq!(
+        rewritten(&["pnpm", "install", "--lockfile-only", "--", "valibot"]),
+        ["pnpm", "add", "--lockfile-only", "--", "valibot"],
+    );
+}
+
+#[test]
+fn a_trailing_separator_alone_stays_install() {
+    assert_eq!(rewritten(&["pnpm", "install", "--"]), ["pnpm", "install", "--"]);
+}
+
+#[test]
 fn a_recursive_install_with_a_package_name_becomes_add() {
     assert_eq!(
         rewritten(&["pnpm", "recursive", "install", "valibot"]),
@@ -72,4 +85,14 @@ fn the_rewritten_invocation_parses_as_add() {
         panic!("expected add");
     };
     assert_eq!(add.package_names, ["valibot", "vitest"]);
+}
+
+#[test]
+fn the_separator_spelling_parses_as_add() {
+    let args = parse(&["pnpm", "install", "--", "valibot"]);
+
+    let CliCommand::Add(add) = args.command else {
+        panic!("expected add");
+    };
+    assert_eq!(add.package_names, ["valibot"]);
 }
