@@ -121,6 +121,10 @@ pub struct BuildPhaseInputs<'a> {
     pub allow_build_policy: &'a AllowBuildPolicy,
     pub side_effects_maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
     pub requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
+    /// Snapshot keys materialized by this install. Under
+    /// `ignoreScripts`, only these can add new `pendingBuilds`; the
+    /// install orchestrator separately carries forward existing entries.
+    pub materialized_snapshots: &'a [PackageKey],
     pub engine_name: Option<&'a str>,
     pub extra_env: &'a HashMap<String, String>,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
@@ -167,6 +171,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         allow_build_policy,
         side_effects_maps_by_snapshot,
         requires_build_by_snapshot,
+        materialized_snapshots,
         engine_name,
         extra_env,
         store_index_writer,
@@ -195,39 +200,54 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // Under isolated, the directories live under the virtual-store slot
     // layout; under hoisted, they live at the project-tree paths the
     // walker assigned — threaded in via `pkg_roots_by_key`.
-    let build_output = BuildModules {
-        layout,
-        modules_dir: &config.modules_dir,
-        lockfile_dir: workspace_root,
-        snapshots,
-        packages,
-        importers,
-        allow_build_policy,
-        side_effects_maps_by_snapshot: Some(side_effects_maps_by_snapshot),
-        requires_build_by_snapshot: Some(requires_build_by_snapshot),
-        engine_name,
-        side_effects_cache: config.side_effects_cache_read(),
-        side_effects_cache_write: config.side_effects_cache_write(),
-        store_dir: Some(&config.store_dir),
-        store_index_writer: Some(store_index_writer),
-        patches: patches.as_ref(),
-        scripts_prepend_node_path,
-        script_shell: config.script_shell.as_deref().map(Path::new),
-        extra_env,
-        user_agent: &config.user_agent,
-        unsafe_perm: config.unsafe_perm,
-        child_concurrency: config.child_concurrency,
-        skipped,
-        pkg_roots_by_key: hoisted_pkg_roots_by_key,
-        gather_ancestor_bin_paths: is_hoisted,
-        frozen_store: config.frozen_store,
-        ignore_scripts: config.ignore_scripts,
-        import_method: config.package_import_method,
-        logged_methods,
-        rebuild,
-    }
-    .run::<Reporter>()
-    .map_err(BuildPhaseError::BuildModules)?;
+    let can_defer_without_build_modules = config.ignore_scripts
+        && rebuild.is_none()
+        && patches.as_ref().is_none_or(HashMap::is_empty)
+        && (!config.side_effects_cache_read() || side_effects_maps_by_snapshot.is_empty());
+    let build_output = if can_defer_without_build_modules {
+        let newly_deferred = materialized_snapshots
+            .iter()
+            .filter(|snapshot_key| !skipped.contains(snapshot_key))
+            .filter_map(|snapshot_key| requires_build_by_snapshot.get_key_value(snapshot_key));
+        crate::BuildModulesOutput {
+            ignored_builds: Vec::new(),
+            deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
+        }
+    } else {
+        BuildModules {
+            layout,
+            modules_dir: &config.modules_dir,
+            lockfile_dir: workspace_root,
+            snapshots,
+            packages,
+            importers,
+            allow_build_policy,
+            side_effects_maps_by_snapshot: Some(side_effects_maps_by_snapshot),
+            requires_build_by_snapshot: Some(requires_build_by_snapshot),
+            engine_name,
+            side_effects_cache: config.side_effects_cache_read(),
+            side_effects_cache_write: config.side_effects_cache_write(),
+            store_dir: Some(&config.store_dir),
+            store_index_writer: Some(store_index_writer),
+            patches: patches.as_ref(),
+            scripts_prepend_node_path,
+            script_shell: config.script_shell.as_deref().map(Path::new),
+            extra_env,
+            user_agent: &config.user_agent,
+            unsafe_perm: config.unsafe_perm,
+            child_concurrency: config.child_concurrency,
+            skipped,
+            pkg_roots_by_key: hoisted_pkg_roots_by_key,
+            gather_ancestor_bin_paths: is_hoisted,
+            frozen_store: config.frozen_store,
+            ignore_scripts: config.ignore_scripts,
+            import_method: config.package_import_method,
+            logged_methods,
+            rebuild,
+        }
+        .run::<Reporter>()
+        .map_err(BuildPhaseError::BuildModules)?
+    };
 
     // Always emit the `pnpm:ignored-scripts` event with the package
     // names, unconditionally, so structured / NDJSON consumers always

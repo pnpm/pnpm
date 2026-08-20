@@ -6,7 +6,7 @@ use pnpm_cmd_shim::is_shim_pointing_at;
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PackageMetadata, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
-    VariationsResolution,
+    SnapshotEntry, VariationsResolution,
 };
 use serde_json::json;
 use std::{
@@ -53,6 +53,7 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
@@ -106,6 +107,7 @@ fn skips_slot_own_package_when_walking_children() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
@@ -135,6 +137,7 @@ fn link_virtual_store_bins_no_op_when_dir_missing() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
@@ -177,6 +180,7 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
@@ -231,6 +235,7 @@ fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
@@ -285,6 +290,7 @@ fn link_virtual_store_bins_handles_unscoped_name_with_plus() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
@@ -314,6 +320,7 @@ fn link_virtual_store_bins_skips_slot_without_node_modules() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
@@ -345,6 +352,7 @@ fn link_virtual_store_bins_skips_slot_without_own_package_dir() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
@@ -352,6 +360,74 @@ fn link_virtual_store_bins_skips_slot_without_own_package_dir() {
     }
     .run()
     .expect("missing own-package dir is skipped silently");
+}
+
+#[test]
+fn lockfile_driven_linking_only_visits_selected_snapshots() {
+    let tmp = tempdir().unwrap();
+    let virtual_dir = tmp.path().join(".pacquet");
+    let layout = VirtualStoreLayout::legacy(
+        virtual_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let selected: PackageKey = "selected@1.0.0".parse().expect("parse selected key");
+    let unchanged: PackageKey = "unchanged@1.0.0".parse().expect("parse unchanged key");
+    let snapshots = HashMap::from([
+        (selected.clone(), SnapshotEntry::default()),
+        (unchanged.clone(), SnapshotEntry::default()),
+    ]);
+    let packages = HashMap::from([
+        (
+            selected.clone(),
+            metadata_with_resolution(
+                LockfileResolution::Directory(DirectoryResolution { directory: "selected".into() }),
+                Some(true),
+            ),
+        ),
+        (
+            unchanged.clone(),
+            metadata_with_resolution(
+                LockfileResolution::Directory(DirectoryResolution {
+                    directory: "unchanged".into(),
+                }),
+                Some(true),
+            ),
+        ),
+    ]);
+    for key in [&selected, &unchanged] {
+        let package_dir = layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+        create_dir_all(&package_dir).unwrap();
+        write_file(
+            package_dir.join("package.json"),
+            json!({ "name": key.name.to_string(), "bin": "cli.js" }).to_string(),
+        )
+        .unwrap();
+        write_file(package_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    }
+    let selected_snapshots = [selected.clone()];
+
+    LinkVirtualStoreBins {
+        layout: &layout,
+        snapshots: Some(&snapshots),
+        selected_snapshots: Some(&selected_snapshots),
+        packages: Some(&packages),
+        package_manifests: &HashMap::default(),
+        skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
+    }
+    .run()
+    .unwrap();
+
+    let bin_path = |key: &PackageKey| {
+        layout
+            .slot_dir(key)
+            .join("node_modules")
+            .join(key.name.to_string())
+            .join("node_modules/.bin")
+            .join(key.name.bare.as_str())
+    };
+    assert!(bin_path(&selected).exists());
+    assert!(!bin_path(&unchanged).exists());
 }
 
 /// [`link_direct_dep_bins`] walks the project's `node_modules/<dep>`
@@ -500,6 +576,7 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),

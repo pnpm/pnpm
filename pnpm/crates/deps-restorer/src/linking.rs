@@ -94,6 +94,9 @@ pub struct LinkPhaseInputs<'a> {
     pub lockfile: &'a Lockfile,
     pub current_lockfile: Option<&'a Lockfile>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    /// Restricts per-slot bin linking to this install's materialized
+    /// snapshots. `None` keeps rebuild's all-slot behavior.
+    pub materialized_snapshots: Option<&'a [PackageKey]>,
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
     pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
@@ -166,6 +169,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         lockfile,
         current_lockfile,
         snapshots,
+        materialized_snapshots,
         packages,
         importers,
         project_manifests,
@@ -310,6 +314,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         LinkVirtualStoreBins {
             layout,
             snapshots,
+            selected_snapshots: materialized_snapshots,
             packages,
             package_manifests,
             skipped,

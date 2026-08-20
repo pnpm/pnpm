@@ -1403,6 +1403,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // `requiresBuild` decision per snapshot.
             side_effects_maps_by_snapshot,
             requires_build_by_snapshot,
+            materialized_snapshots,
             // Optional snapshots whose fetch was swallowed. Folded into
             // the live skip set below so the symlink, bin-link, and build
             // phases observe them as absent — matching the frozen path
@@ -1521,6 +1522,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 lockfile: materialization_lockfile,
                 current_lockfile,
                 snapshots: materialization_lockfile.snapshots.as_ref(),
+                materialized_snapshots: Some(&materialized_snapshots),
                 packages: materialization_lockfile.packages.as_ref(),
                 importers: &materialization_lockfile.importers,
                 project_manifests: &project_manifests_for_link,
@@ -1600,6 +1602,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     allow_build_policy: &allow_build_policy,
                     side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
                     requires_build_by_snapshot: &requires_build_by_snapshot,
+                    materialized_snapshots: &materialized_snapshots,
                     engine_name: engine_name.as_deref(),
                     extra_env: &build_extra_env,
                     store_index_writer: &store_index_writer,

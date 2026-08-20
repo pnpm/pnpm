@@ -648,6 +648,7 @@ where
             package_manifests,
             side_effects_maps_by_snapshot,
             requires_build_by_snapshot,
+            materialized_snapshots,
             fetch_failed,
             cas_paths_by_pkg_id,
         } = {
@@ -726,6 +727,9 @@ where
                 lockfile,
                 current_lockfile,
                 snapshots,
+                materialized_snapshots: rebuild
+                    .is_none()
+                    .then_some(materialized_snapshots.as_slice()),
                 packages,
                 importers,
                 project_manifests,
@@ -802,6 +806,7 @@ where
                 allow_build_policy: &allow_build_policy,
                 side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
                 requires_build_by_snapshot: &requires_build_by_snapshot,
+                materialized_snapshots: &materialized_snapshots,
                 engine_name: engine_name.as_deref(),
                 extra_env: &build_extra_env,
                 store_index_writer: &store_index_writer,

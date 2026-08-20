@@ -101,6 +101,11 @@ pub struct CreateVirtualStoreOutput {
     pub package_manifests: PackageManifests,
     pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
     pub requires_build_by_snapshot: RequiresBuildBySnapshot,
+    /// Snapshot keys whose package directories this run materialized.
+    /// The build phase uses this list to record only newly deferred
+    /// builds under `ignoreScripts`; earlier debt is retained from
+    /// `.modules.yaml` by the install orchestrator.
+    pub materialized_snapshots: Vec<PackageKey>,
     pub fetch_failed: HashSet<PackageKey>,
     /// Per-package CAS index, populated only when
     /// [`CreateVirtualStore::node_linker`] is
@@ -288,6 +293,7 @@ impl CreateVirtualStore<'_> {
                 package_manifests: PackageManifests::new(),
                 side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot::new(),
                 requires_build_by_snapshot: RequiresBuildBySnapshot::new(),
+                materialized_snapshots: Vec::new(),
                 fetch_failed: HashSet::new(),
                 cas_paths_by_pkg_id: is_hoisted.then(CasPathsByPkgId::new),
             });
@@ -417,6 +423,8 @@ impl CreateVirtualStore<'_> {
             ignore_scripts: config.ignore_scripts,
             runtime_platform_selector: &runtime_platform_selector,
         })?;
+        let materialized_snapshots =
+            snapshot_entries.iter().map(|(snapshot_key, _, _)| (*snapshot_key).clone()).collect();
 
         // `pnpm:stats added` fires one event per project once the
         // orchestrator has decided how many packages will land in the
@@ -835,6 +843,7 @@ impl CreateVirtualStore<'_> {
             package_manifests,
             side_effects_maps_by_snapshot,
             requires_build_by_snapshot,
+            materialized_snapshots,
             fetch_failed,
             cas_paths_by_pkg_id,
         })
