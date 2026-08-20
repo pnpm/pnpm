@@ -7,6 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
+import type { TrustPolicy } from '@pnpm/types'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -21,9 +22,11 @@ import {
 } from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
+  getDominantLockfileVersion,
   pickLowestVersionByVersionRange,
   pickPackageFromMeta,
   type PickPackageFromMetaOptions,
+  pickStableCachedRangeVersion,
   pickVersionByVersionRange,
 } from './pickPackageFromMeta.js'
 import { dropIncompletePublishTimes } from './publishTimes.js'
@@ -83,6 +86,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   dryRun: boolean
   includeLatestTag?: boolean
   optional?: boolean
+  trustPolicy?: TrustPolicy
   /**
    * When true, force a conditional registry request so a stale on-disk
    * packument can't satisfy the call: the on-disk exact-version fast
@@ -100,6 +104,19 @@ interface PickerOptions extends PickPackageFromMetaOptions {
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
   ignoreMissingTimeField?: boolean
+}
+
+function canReuseStableCachedRange (
+  spec: RegistryPackageSpec,
+  opts: PickPackageOptions
+): boolean {
+  return (
+    spec.type === 'range' &&
+    !opts.includeLatestTag &&
+    !opts.updateChecksums &&
+    opts.publishedBy == null &&
+    opts.trustPolicy !== 'no-downgrade'
+  )
 }
 
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
@@ -303,7 +320,22 @@ export async function pickPackage (
       ctx.metaCache.set(cacheKey, metaForCache)
     }
     const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
-    if (pickedPackage != null || ctx.offline === true || !unverifiedDiskPackuments.has(metaForCache)) {
+    const unverified = unverifiedDiskPackuments.has(metaForCache)
+    const stableCachedRangeVersion =
+      unverified &&
+      canReuseStableCachedRange(spec, opts)
+        ? getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
+        : null
+    const unverifiedPickIsSafe =
+      ctx.preferOffline === true ||
+      opts.pickLowestVersion === true ||
+      spec.type === 'version' ||
+      (pickedPackage != null && pickedPackage.version === stableCachedRangeVersion)
+    const cacheResultCanReturn =
+      ctx.offline === true ||
+      !unverified ||
+      (pickedPackage != null && unverifiedPickIsSafe)
+    if (cacheResultCanReturn) {
       return {
         meta: metaForCache,
         pickedPackage,
@@ -396,6 +428,34 @@ export async function pickPackage (
           // abbreviated meta) and fall through to the network fetch, which
           // can upgrade to full metadata and run the maturity check on
           // real `time` data.
+        }
+      }
+    }
+    const dominantLockfileVersion = canReuseStableCachedRange(spec, opts)
+      ? getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
+      : null
+    if (dominantLockfileVersion != null) {
+      diskMeta = diskMeta ?? await limit(loadMetaCondensed)
+      if (diskMeta != null) {
+        try {
+          const stableVersion = pickStableCachedRangeVersion({
+            meta: diskMeta,
+            preferredVersionSelectors: opts.preferredVersionSelectors,
+            versionRange: spec.fetchSpec,
+          })
+          if (stableVersion != null) {
+            // Strict dominance makes the preferred tier a singleton, so the
+            // highest-version picker used by the proof and the normal picker
+            // agree even if pickLowestVersion reaches this code in the future.
+            const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
+            if (pickedPackage?.version === stableVersion) {
+              cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
+              return { meta: diskMeta, pickedPackage }
+            }
+          }
+        } catch {
+          // Any malformed cached metadata falls through to normal online
+          // resolution, matching the neighboring disk fast paths.
         }
       }
     }

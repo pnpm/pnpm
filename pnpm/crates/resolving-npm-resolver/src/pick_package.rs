@@ -54,7 +54,10 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_config::{
+    TrustPolicy,
+    version_policy::{PackageVersionPolicy, PolicyMatch},
+};
 use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 use pnpm_registry::{Package, PackageVersion};
 use pnpm_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
@@ -70,9 +73,9 @@ use crate::{
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, filter_pkg_metadata_versions,
+        RegistryPackageSpecType, dominant_lockfile_version, filter_pkg_metadata_versions,
         pick_lowest_version_by_version_range, pick_package_from_meta,
-        pick_version_by_version_range,
+        pick_stable_cached_range_version, pick_version_by_version_range,
     },
     registry_url::to_registry_url,
 };
@@ -341,6 +344,8 @@ pub struct PickPackageOptions<'a> {
     /// resolver it might be disk-sourced, which would short-circuit the
     /// revalidation. Backs the `--update-checksums` flag.
     pub update_checksums: bool,
+    /// Trust-policy validation requires current registry metadata.
+    pub trust_policy: Option<TrustPolicy>,
     /// Concrete versions to ignore while picking. Used by callers that
     /// apply an external resolver-time guard: after the guard rejects a
     /// candidate, the caller asks the normal picker to try again over
@@ -563,6 +568,41 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 }
                 return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
             }
+        }
+    }
+
+    let dominant_lockfile_version = if matches!(spec.spec_type, RegistryPackageSpecType::Range)
+        && !ctx.offline
+        && !ctx.prefer_offline
+        && !opts.pick_lowest_version
+        && !opts.include_latest_tag
+        && !opts.update_checksums
+        && opts.published_by.is_none()
+        && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+        && opts.blocked_versions.is_none()
+    {
+        dominant_lockfile_version(&spec.fetch_spec, opts.preferred_version_selectors)
+    } else {
+        None
+    };
+    if dominant_lockfile_version.is_some() {
+        if meta_cached_in_store.is_none() {
+            meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
+        }
+        if let Some(ref meta) = meta_cached_in_store
+            && let Some(stable_version) = pick_stable_cached_range_version(
+                meta,
+                &spec.fetch_spec,
+                opts.preferred_version_selectors,
+            )
+            && let Ok((picked_meta, Some(picked))) =
+                pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), None)
+            && picked.version.to_string() == stable_version
+        {
+            if !opts.dry_run {
+                ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(meta));
+            }
+            return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
         }
     }
 
@@ -850,8 +890,34 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         ctx.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
     }
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
-    if picked.is_none() && !ctx.offline && !registry_verified {
-        return Ok(None);
+    if !ctx.offline && !registry_verified {
+        let stable_cached_range_version =
+            if matches!(spec.spec_type, RegistryPackageSpecType::Range)
+                && !opts.include_latest_tag
+                && !opts.update_checksums
+                && opts.published_by.is_none()
+                && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+                && opts.blocked_versions.is_none()
+            {
+                pick_stable_cached_range_version(
+                    &meta,
+                    &spec.fetch_spec,
+                    opts.preferred_version_selectors,
+                )
+            } else {
+                None
+            };
+        let unverified_pick_is_safe = ctx.prefer_offline
+            || opts.pick_lowest_version
+            || matches!(spec.spec_type, RegistryPackageSpecType::Version)
+            || picked.as_ref().is_some_and(|picked| {
+                stable_cached_range_version
+                    .as_deref()
+                    .is_some_and(|stable| picked.version.to_string() == stable)
+            });
+        if picked.is_none() || !unverified_pick_is_safe {
+            return Ok(None);
+        }
     }
     Ok(Some(PickPackageResult { meta, picked_package: picked }))
 }

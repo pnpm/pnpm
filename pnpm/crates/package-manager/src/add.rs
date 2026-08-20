@@ -1097,6 +1097,7 @@ async fn resolve_explicit_registry_spec(
         dry_run: false,
         optional: false,
         update_checksums: false,
+        trust_policy: Some(config.trust_policy),
         blocked_versions: None,
     };
 

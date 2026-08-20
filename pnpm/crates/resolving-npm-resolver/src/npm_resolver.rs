@@ -439,6 +439,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 dry_run: opts.dry_run,
                 optional,
                 update_checksums: opts.update_checksums,
+                trust_policy: opts.trust_policy,
                 package_version_guard: opts.package_version_guard.as_ref(),
             },
         )
@@ -647,6 +648,7 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub dry_run: bool,
     pub optional: bool,
     pub update_checksums: bool,
+    pub trust_policy: Option<TrustPolicy>,
     pub package_version_guard:
         Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
 }
@@ -673,6 +675,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             dry_run: opts.dry_run,
             optional: opts.optional,
             update_checksums: opts.update_checksums,
+            trust_policy: opts.trust_policy,
             blocked_versions: (!blocked_versions.is_empty()).then_some(&blocked_versions),
         };
         let pick_result = pick_package(ctx, opts.spec, &pick_opts)

@@ -254,6 +254,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                 dry_run: opts.dry_run,
                 optional,
                 update_checksums: opts.update_checksums,
+                trust_policy: opts.trust_policy,
                 package_version_guard: opts.package_version_guard.as_ref(),
             },
         )
