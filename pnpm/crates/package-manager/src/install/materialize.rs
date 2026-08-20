@@ -24,6 +24,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) derived_lockfile_path: Option<PathBuf>,
     pub(super) dependency_groups: Vec<DependencyGroup>,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(super) lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
     pub(super) workspace_projects: Option<&'a [pnpm_workspace::Project]>,
     pub(super) requested_importer_ids: Option<&'a HashSet<String>>,
     pub(super) real_importer_ids: &'a HashSet<String>,
@@ -100,6 +101,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         derived_lockfile_path,
         dependency_groups,
         project_manifests,
+        lockfile_specifier_project_manifests,
         workspace_projects,
         requested_importer_ids,
         real_importer_ids,
@@ -342,6 +344,18 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
                 (pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir), *manifest)
             })
             .collect();
+        let lockfile_specifier_manifests =
+            lockfile_specifier_project_manifests.map(|project_manifests| {
+                project_manifests
+                    .into_iter()
+                    .map(|(project_dir, manifest)| {
+                        (
+                            pnpm_workspace::importer_id_from_root_dir(workspace_root, &project_dir),
+                            manifest,
+                        )
+                    })
+                    .collect()
+            });
         let fresh_result = InstallWithFreshLockfile {
             tarball_mem_cache,
             resolved_packages,
@@ -349,6 +363,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             http_client_arc: Arc::clone(&http_client_arc),
             config,
             importer_manifests,
+            lockfile_specifier_manifests,
             dependency_groups,
             logged_methods,
             requester: prefix,

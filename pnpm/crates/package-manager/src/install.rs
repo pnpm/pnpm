@@ -827,6 +827,19 @@ struct InstallRunOptions<'install, 'selection> {
     rebuild: Option<RebuildOptions>,
     selection: Option<WorkspaceInstallSelection<'selection>>,
     root_manifest_as_workspace_root: bool,
+    /// Project manifests used only as the source for lockfile importer
+    /// specifiers. `pacquet update --no-save` resolves against an in-memory
+    /// manifest rewrite but must serialize importer specifiers from the
+    /// manifest the user kept on disk. Supplied already
+    /// `readPackage`-transformed.
+    lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
+    /// Manifest paths `pacquet update --no-save` already ran `readPackage`
+    /// over before preparing its in-memory resolution rewrite. The hook must
+    /// observe each project manifest exactly once, so the install layer skips
+    /// these and still hooks every project manifest outside the set — the
+    /// workspace projects the non-selected update path never loads. Dependency
+    /// manifests always flow through the resolver's hook path.
+    read_package_hooked_manifest_paths: HashSet<PathBuf>,
     /// pnpm's `saveLockfile`: whether the resolved graph may be written
     /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
     /// whose resolution belongs to a project other than the one that
@@ -846,6 +859,8 @@ impl Default for InstallRunOptions<'_, '_> {
             rebuild: None,
             selection: None,
             root_manifest_as_workspace_root: false,
+            lockfile_specifier_project_manifests: None,
+            read_package_hooked_manifest_paths: HashSet::new(),
             save_lockfile: true,
             manifest_spec_bumps: None,
             prompt_eligibility_override: None,
@@ -860,6 +875,21 @@ where
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions::default())).await
+    }
+
+    pub(crate) async fn run_with_lockfile_specifier_project_manifests<
+        Reporter: self::Reporter + 'static,
+    >(
+        self,
+        lockfile_specifier_project_manifests: Vec<(PathBuf, PackageManifest)>,
+        read_package_hooked_manifest_paths: HashSet<PathBuf>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            lockfile_specifier_project_manifests: Some(lockfile_specifier_project_manifests),
+            read_package_hooked_manifest_paths,
+            ..Default::default()
+        }))
+        .await
     }
 
     #[cfg(test)]
@@ -891,6 +921,23 @@ where
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             selection: Some(selection),
+            ..Default::default()
+        }))
+        .await
+    }
+
+    pub(crate) async fn run_selected_with_lockfile_specifier_project_manifests<
+        Reporter: self::Reporter + 'static,
+    >(
+        self,
+        selection: WorkspaceInstallSelection<'_>,
+        lockfile_specifier_project_manifests: Vec<(PathBuf, PackageManifest)>,
+        read_package_hooked_manifest_paths: HashSet<PathBuf>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            selection: Some(selection),
+            lockfile_specifier_project_manifests: Some(lockfile_specifier_project_manifests),
+            read_package_hooked_manifest_paths,
             ..Default::default()
         }))
         .await

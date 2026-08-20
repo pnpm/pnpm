@@ -91,6 +91,11 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// non-workspace install this carries a single `"."` entry
     /// pointing at the only project.
     pub importer_manifests: BTreeMap<String, &'a PackageManifest>,
+    /// Optional per-importer manifest source used only when serializing
+    /// importer specifiers into the lockfile. `update --no-save` resolves
+    /// against an in-memory manifest rewrite, while the lockfile importer
+    /// entry must still reflect the kept on-disk manifest.
+    pub lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
     pub dependency_groups: DependencyGroupList,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
@@ -716,6 +721,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             http_client_arc,
             config,
             importer_manifests,
+            lockfile_specifier_manifests,
             dependency_groups,
             // No longer consulted: `CreateVirtualStore`'s warm/cold-batch
             // shape dedups by snapshot key inside the rayon pass. Kept on
@@ -1208,6 +1214,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
                 config,
                 importer_manifests: &importer_manifests,
+                lockfile_specifier_manifests: lockfile_specifier_manifests.as_ref(),
                 graph: &merged_graph,
                 direct_by_importer: &direct_by_importer,
                 resolved_overrides: resolved_overrides.clone(),
@@ -1249,6 +1256,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
             config,
             importer_manifests: &importer_manifests,
+            lockfile_specifier_manifests: lockfile_specifier_manifests.as_ref(),
             graph: &merged_graph,
             direct_by_importer: &direct_by_importer,
             resolved_overrides: resolved_overrides.clone(),
@@ -1976,6 +1984,7 @@ fn compose_manifest_hooks(
 struct FreshLockfileBuildOptions<'a> {
     config: &'a Config,
     importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
+    lockfile_specifier_manifests: Option<&'a BTreeMap<String, PackageManifest>>,
     graph: &'a pnpm_resolving_deps_resolver::DependenciesGraph,
     direct_by_importer:
         &'a BTreeMap<String, BTreeMap<String, pnpm_resolving_deps_resolver::DepPath>>,
@@ -2055,6 +2064,7 @@ fn build_fresh_lockfile(
         resolved_time,
         config,
         importer_manifests,
+        lockfile_specifier_manifests,
         graph,
         direct_by_importer,
         resolved_overrides,
@@ -2069,6 +2079,9 @@ fn build_fresh_lockfile(
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
         let direct = direct_by_importer.get(id).cloned().unwrap_or_default();
+        let manifest = lockfile_specifier_manifests
+            .and_then(|manifests| manifests.get(id))
+            .unwrap_or(*manifest);
         importers.insert(
             id.clone(),
             ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },

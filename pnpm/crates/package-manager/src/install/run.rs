@@ -33,6 +33,8 @@ where
             rebuild,
             selection,
             root_manifest_as_workspace_root,
+            lockfile_specifier_project_manifests,
+            read_package_hooked_manifest_paths,
             save_lockfile,
             manifest_spec_bumps,
             prompt_eligibility_override,
@@ -491,37 +493,47 @@ where
                     .map(|(project_dir, manifest)| (project_dir.clone(), manifest))
                     .collect()
             };
-        let hooked_project_manifests: Vec<(PathBuf, PackageManifest)> = match pnpmfile_hook.as_ref()
-        {
-            Some(hook) => {
-                let log = hook.source_path().map_or_else(
-                    || Arc::new(|_| {}) as pnpm_hooks::LogFn,
-                    |from| {
-                        crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
-                            &workspace_root,
-                            from,
-                            "readPackage",
-                        )
-                    },
-                );
-                futures_util::future::try_join_all(project_manifests.iter().map(
-                    |(project_dir, manifest)| {
-                        let ctx = pnpm_hooks::HookContext { log: Arc::clone(&log), dir: None };
-                        async move {
-                            let value = hook
-                                .read_package(manifest.value().clone(), ctx)
-                                .await
-                                .map_err(InstallError::ReadPackageHook)?;
-                            let mut hooked = (*manifest).clone();
-                            *hooked.value_mut() = (*value).clone();
-                            Ok::<_, InstallError>((project_dir.clone(), hooked))
-                        }
-                    },
-                ))
-                .await?
-            }
-            None => Vec::new(),
-        };
+        let read_package_log = pnpmfile_hook.as_ref().map(|hook| {
+            hook.source_path().map_or_else(
+                || Arc::new(|_| {}) as pnpm_hooks::LogFn,
+                |from| {
+                    crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+                        &workspace_root,
+                        from,
+                        "readPackage",
+                    )
+                },
+            )
+        });
+        let every_project_manifest_is_pre_hooked = project_manifests
+            .iter()
+            .all(|(_, manifest)| read_package_hooked_manifest_paths.contains(manifest.path()));
+        let hooked_project_manifests: Vec<(PathBuf, PackageManifest)> =
+            match (pnpmfile_hook.as_ref(), read_package_log.as_ref()) {
+                (Some(hook), Some(log)) if !every_project_manifest_is_pre_hooked => {
+                    futures_util::future::try_join_all(project_manifests.iter().map(
+                        |(project_dir, manifest)| {
+                            let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
+                            let pre_hooked =
+                                read_package_hooked_manifest_paths.contains(manifest.path());
+                            async move {
+                                if pre_hooked {
+                                    return Ok((project_dir.clone(), (*manifest).clone()));
+                                }
+                                let value = hook
+                                    .read_package(manifest.value().clone(), ctx)
+                                    .await
+                                    .map_err(InstallError::ReadPackageHook)?;
+                                let mut hooked = (*manifest).clone();
+                                *hooked.value_mut() = (*value).clone();
+                                Ok::<_, InstallError>((project_dir.clone(), hooked))
+                            }
+                        },
+                    ))
+                    .await?
+                }
+                _ => Vec::new(),
+            };
         let project_manifests: Vec<(PathBuf, &PackageManifest)> =
             if hooked_project_manifests.is_empty() {
                 project_manifests
@@ -971,6 +983,7 @@ where
             derived_lockfile_path,
             dependency_groups,
             project_manifests: &project_manifests,
+            lockfile_specifier_project_manifests,
             workspace_projects,
             requested_importer_ids: requested_importer_ids.as_ref(),
             real_importer_ids: &real_importer_ids,
