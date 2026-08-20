@@ -2104,6 +2104,28 @@ pacquet@12.0.0-rc.7:
     - stream-large-tarball-extraction
     - virtual-store-type
     - why-list-colored-labels
+pacquet@12.0.0-rc.8:
+  dir: pnpm/npm/pnpm
+  intents:
+    - approve-builds-clears-legacy-settings
+    - audit-fix-age-excludes-unpublished-versions
+    - auto-import-hardlinks-first-on-linux
+    - complete-version-publish-times
+    - config-dep-tarball-from-packument
+    - early-rings-mix
+    - faster-pacquet-post-resolve
+    - fix-init-dev-engines-semver
+    - hoisted-shared-node-keeps-conflicting-deps
+    - keep-no-save-importer-specifier
+    - orange-rats-jam
+    - overlap-store-index-teardown
+    - pacquet-global-config-yaml-ignored-keys
+    - proud-taxis-shave
+    - quick-otters-resolve
+    - reuse-store-read-context
+    - runtime-matches-the-host-architecture
+    - self-update-tag-no-downgrade
+    - stream-extract-during-download
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
