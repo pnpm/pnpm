@@ -1,11 +1,11 @@
 use super::{
-    BuildPhaseInputs, Config, HashMap, PackageKey, SkippedSnapshots, resolve_snapshot_patches,
-    run_build_phase,
+    BuildPhaseInputs, Config, HashMap, PackageKey, SkippedSnapshots, needs_top_level_bin_link,
+    resolve_snapshot_patches, run_build_phase,
 };
 use crate::{AllowBuildPolicy, VirtualStoreLayout};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_lockfile::{
-    GitResolution, LockfileResolution, PackageMetadata, ProjectSnapshot, SnapshotEntry,
+    GitResolution, Lockfile, LockfileResolution, PackageMetadata, ProjectSnapshot, SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRecord};
@@ -123,4 +123,15 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
     assert_eq!(output.deferred_builds, [materialized.to_string()]);
     drop(store_index_writer);
     writer_task.await.expect("join writer task").expect("drain writer task");
+}
+
+#[test]
+fn top_level_bin_link_only_runs_when_post_materialization_work_can_change_bins() {
+    let public_hoisted = ["public-cli".to_string()];
+
+    assert!(!needs_top_level_bin_link(Lockfile::ROOT_IMPORTER_KEY, false, false, &[]));
+    assert!(needs_top_level_bin_link(Lockfile::ROOT_IMPORTER_KEY, false, false, &public_hoisted));
+    assert!(!needs_top_level_bin_link("packages/app", false, false, &public_hoisted));
+    assert!(needs_top_level_bin_link("packages/app", false, true, &[]));
+    assert!(needs_top_level_bin_link("packages/app", true, false, &[]));
 }
