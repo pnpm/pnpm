@@ -329,6 +329,36 @@ fn explicit_node_version_takes_priority_over_the_manifest_runtime() {
     command(&workspace).with_arg("install").assert().success();
 }
 
+#[test]
+fn node_version_from_the_environment_takes_priority_over_the_manifest_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    let dependency = workspace.join("dependency");
+    fs::create_dir(&dependency).unwrap();
+    fs::write(
+        dependency.join("package.json"),
+        json!({ "name": "dependency", "version": "1.0.0", "engines": { "node": "<21" } })
+            .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "dependencies": { "dependency": "file:dependency" },
+            "devEngines": {
+                "runtime": { "name": "node", "version": "^22.0.0", "onFail": "ignore" },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    command(&workspace)
+        .with_env("PNPM_CONFIG_NODE_VERSION", "20.0.0")
+        .with_arg("install")
+        .assert()
+        .success();
+}
+
 fn assert_runtime_missing_offline(name: &'static str, version: &'static str) {
     let root = tempfile::tempdir().unwrap();
     let workspace = prepare_workspace(&root, "");

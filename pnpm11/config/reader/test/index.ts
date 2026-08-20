@@ -111,7 +111,7 @@ test('nodeVersion from config takes priority over devEngines.runtime', async () 
   expect(config.nodeVersion).toBe('20.0.0')
 })
 
-test('nodeVersion is read from pnpm_config_* environment variables', async () => {
+test('nodeVersion is read from the PNPM_CONFIG_NODE_VERSION environment variable', async () => {
   const { config } = await getConfig({
     cliOptions: {},
     env: {
@@ -126,7 +126,7 @@ test('nodeVersion is read from pnpm_config_* environment variables', async () =>
   expect(config.nodeVersion).toBe('20.0.0')
 })
 
-test('nodeVersion from pnpm_config_* environment variables takes priority over devEngines.runtime', async () => {
+test('nodeVersion from PNPM_CONFIG_NODE_VERSION takes priority over devEngines.runtime', async () => {
   prepare({
     devEngines: {
       runtime: {
@@ -151,7 +151,7 @@ test('nodeVersion from pnpm_config_* environment variables takes priority over d
   expect(config.nodeVersion).toBe('20.0.0')
 })
 
-test('nodeVersion from config takes priority over pnpm_config_* environment variables', async () => {
+test('nodeVersion from config takes priority over PNPM_CONFIG_NODE_VERSION', async () => {
   const { config } = await getConfig({
     cliOptions: {
       'node-version': '20.0.0',

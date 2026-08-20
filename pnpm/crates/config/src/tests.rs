@@ -3043,6 +3043,19 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
 }
 
 #[test]
+pub fn node_version_from_pnpm_config_env_overrides_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeVersion: 18.20.4\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    set_fake_env(&[("PNPM_CONFIG_NODE_VERSION", "20.0.0")]);
+    let config = load_with_fake_env(tmp.path());
+
+    assert_eq!(config.node_version.as_deref(), Some("20.0.0"));
+}
+
+#[test]
 pub fn catalog_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
