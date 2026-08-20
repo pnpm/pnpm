@@ -118,3 +118,17 @@ function envLockfile (packageManagerDependencies: Record<string, string>): EnvLo
     snapshots: {},
   } as unknown as EnvLockfile
 }
+
+test('throws an error if the lockfile is out of sync and frozenLockfile is true', async () => {
+  await expect(
+    resolvePackageManagerIntegrities('12.0.0', {
+      envLockfile: envLockfile({ pnpm: '11.0.0' }),
+      registriesByScope: { default: 'https://mirror.example.com/' },
+      rootDir: '/repo',
+      storeController: {} as never,
+      storeDir: '/store',
+      save: false,
+      frozenLockfile: true,
+    })
+  ).rejects.toThrow('Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date')
+})
