@@ -616,6 +616,10 @@ fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
     fs::create_dir_all(stale.parent().expect("scope dir")).expect("create the scope dir");
     std::os::unix::fs::symlink(fixture.workspace.join("node_modules").join(SCRIPTS), &stale)
         .expect("plant a stale link");
+    // The repeat-install short-circuit would report the unchanged
+    // workspace up to date without ever reaching the linker.
+    fs::remove_file(fixture.workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+        .expect("remove the workspace state");
     fixture.run(["install"]);
 
     assert!(!stale.exists(), "a stale project-local link must not survive a reinstall");
