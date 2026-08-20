@@ -25,58 +25,6 @@ function createOpts (registryUrl: string = registry) {
   }
 }
 
-// Stands up a registry that serves its tarballs from a path pnpm cannot derive
-// from the package name, version, and registry URL — the shape of GitLab's npm
-// registry. Packuments are proxied from pnpr with their `dist.tarball` pointed
-// at a `/tarballs/` prefix, and the derivable URL is answered with a 404.
-async function withNonDerivableTarballRegistry (run: (registryUrl: string) => Promise<void>): Promise<void> {
-  const upstreamBase = `http://localhost:${REGISTRY_MOCK_PORT}`
-  let proxyBase = ''
-  const server = http.createServer((req, res) => {
-    void (async () => {
-      const tarballPath = req.url!.startsWith('/tarballs/') ? req.url!.slice('/tarballs'.length) : undefined
-      if (tarballPath == null && req.url!.endsWith('.tgz')) {
-        res.writeHead(404)
-        res.end('Not Found')
-        return
-      }
-      const upstream = await fetch(`${upstreamBase}${tarballPath ?? req.url!}`, {
-        headers: { accept: req.headers.accept ?? '*/*' },
-      })
-      const contentType = upstream.headers.get('content-type') ?? ''
-      if (contentType.includes('json')) {
-        const body = (await upstream.text()).split(upstreamBase).join(`${proxyBase}/tarballs`)
-        res.writeHead(upstream.status, { 'content-type': 'application/json' })
-        res.end(body)
-      } else {
-        res.writeHead(upstream.status, { 'content-type': contentType })
-        res.end(Buffer.from(await upstream.arrayBuffer()))
-      }
-    })().catch((err: unknown) => {
-      res.writeHead(500)
-      res.end(String(err))
-    })
-  })
-  await new Promise<void>((resolve) => {
-    server.listen(0, resolve)
-  })
-  proxyBase = `http://localhost:${(server.address() as AddressInfo).port}`
-  try {
-    await run(`${proxyBase}/`)
-  } finally {
-    server.closeAllConnections()
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err == null) {
-          resolve()
-        } else {
-          reject(err)
-        }
-      })
-    })
-  }
-}
-
 interface InstallingConfigDepsEvent { status: string, deps?: Array<{ name: string, version: string }> }
 
 // `streamParser` is a `split2` Transform stream that buffers writes until the
@@ -273,6 +221,58 @@ test('takes the tarball of an old-format config dep from the packument', async (
     tarball: advertisedTarball,
   })
 })
+
+// Stands up a registry that serves its tarballs from a path pnpm cannot derive
+// from the package name, version, and registry URL — the shape of GitLab's npm
+// registry. Packuments are proxied from pnpr with their `dist.tarball` pointed
+// at a `/tarballs/` prefix, and the derivable URL is answered with a 404.
+async function withNonDerivableTarballRegistry (run: (registryUrl: string) => Promise<void>): Promise<void> {
+  const upstreamBase = `http://localhost:${REGISTRY_MOCK_PORT}`
+  let proxyBase = ''
+  const server = http.createServer((req, res) => {
+    void (async () => {
+      const tarballPath = req.url!.startsWith('/tarballs/') ? req.url!.slice('/tarballs'.length) : undefined
+      if (tarballPath == null && req.url!.endsWith('.tgz')) {
+        res.writeHead(404)
+        res.end('Not Found')
+        return
+      }
+      const upstream = await fetch(`${upstreamBase}${tarballPath ?? req.url!}`, {
+        headers: { accept: req.headers.accept ?? '*/*' },
+      })
+      const contentType = upstream.headers.get('content-type') ?? ''
+      if (contentType.includes('json')) {
+        const body = (await upstream.text()).split(upstreamBase).join(`${proxyBase}/tarballs`)
+        res.writeHead(upstream.status, { 'content-type': 'application/json' })
+        res.end(body)
+      } else {
+        res.writeHead(upstream.status, { 'content-type': contentType })
+        res.end(Buffer.from(await upstream.arrayBuffer()))
+      }
+    })().catch((err: unknown) => {
+      res.writeHead(500)
+      res.end(String(err))
+    })
+  })
+  await new Promise<void>((resolve) => {
+    server.listen(0, resolve)
+  })
+  proxyBase = `http://localhost:${(server.address() as AddressInfo).port}`
+  try {
+    await run(`${proxyBase}/`)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err == null) {
+          resolve()
+        } else {
+          reject(err)
+        }
+      })
+    })
+  }
+}
 
 test('keeps optional subdeps of a pinned config dep out of the lockfile', async () => {
   prepareEmpty()
