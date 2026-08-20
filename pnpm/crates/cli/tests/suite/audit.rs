@@ -948,7 +948,7 @@ fn audit_fix_cleanup_removes_a_comment_attached_to_the_removed_entry() {
     write_audit_workspace(
         &workspace,
         &registry.url(),
-        "auditConfig:\n  cleanupUnusedIgnoredGhsas: true\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    # Expired GHSA, should not be ignored\n    - GHSA-test-9999-9999\n",
+        "auditConfig:\n  cleanupUnusedIgnoredGhsas: true\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    # Expired GHSA, should not be ignored\n    - GHSA-test-9999-9999 # trailing comment, should also go\n",
     );
 
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
@@ -956,9 +956,11 @@ fn audit_fix_cleanup_removes_a_comment_attached_to_the_removed_entry() {
     assert_success(&output);
     let manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    // Both the preceding comment and the trailing same-line comment attached
+    // to the removed entry must go with it.
     assert!(
-        !manifest.contains("Expired GHSA"),
-        "manifest should drop the comment along with the entry it was attached to:\n{manifest}",
+        !manifest.contains("Expired GHSA") && !manifest.contains("trailing comment"),
+        "manifest should drop the comments along with the entry they were attached to:\n{manifest}",
     );
     mock.assert();
 }
