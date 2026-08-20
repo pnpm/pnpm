@@ -28,6 +28,9 @@ export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allo
 
 export const commandNames = ['approve-builds']
 
+// pnpm-workspace.yaml settings that allowBuilds replaced in pnpm 11.
+const LEGACY_BUILD_SETTINGS = ['onlyBuiltDependencies', 'onlyBuiltDependenciesFile', 'neverBuiltDependencies', 'ignoredBuiltDependencies']
+
 export const recursiveByDefault = true
 
 export function help (): string {
@@ -190,6 +193,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     ...opts,
     workspaceDir: opts.settingsDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir,
     updatedSettings: { allowBuilds },
+    deletedLegacyKeys: LEGACY_BUILD_SETTINGS,
   })
   if (modulesManifest?.ignoredBuilds) {
     if (params.length) {

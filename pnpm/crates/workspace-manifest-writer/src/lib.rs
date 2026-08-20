@@ -283,6 +283,40 @@ pub fn set_allow_builds<'a, Entries>(
 where
     Entries: IntoIterator<Item = (&'a str, bool)>,
 {
+    update_allow_builds(dir, entries, false)
+}
+
+/// Top-level `pnpm-workspace.yaml` settings that `allowBuilds:` replaced in
+/// pnpm v11.
+pub const LEGACY_BUILD_SETTINGS: &[&str] = &[
+    "onlyBuiltDependencies",
+    "onlyBuiltDependenciesFile",
+    "neverBuiltDependencies",
+    "ignoredBuiltDependencies",
+];
+
+/// Same as [`set_allow_builds`], but also deletes the
+/// [`LEGACY_BUILD_SETTINGS`] in the same write. Used by `pnpm
+/// approve-builds` so a workspace migrated from pnpm v10 is not left with
+/// dead build settings next to the `allowBuilds:` it writes.
+pub fn set_allow_builds_clearing_legacy<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, bool)>,
+{
+    update_allow_builds(dir, entries, true)
+}
+
+fn update_allow_builds<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+    clear_legacy_settings: bool,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, bool)>,
+{
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
     let original = match fs::read_to_string(&path) {
@@ -306,6 +340,11 @@ where
             });
         }
         changed |= edit::add_allow_build(&mut manifest, name, value);
+    }
+    if clear_legacy_settings {
+        for key in LEGACY_BUILD_SETTINGS {
+            changed |= edit::remove_top_level_field(&mut manifest, key);
+        }
     }
     if !changed {
         return Ok(());

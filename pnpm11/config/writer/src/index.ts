@@ -5,6 +5,7 @@ export interface WriteSettingsOptions {
   updatedSettings?: PnpmSettings
   updatedOverrides?: Record<string, string>
   addedMinimumReleaseAgeExcludes?: string[]
+  deletedLegacyKeys?: string[]
   rootProjectManifest?: ProjectManifest
   rootProjectManifestDir: string
   workspaceDir: string
@@ -15,5 +16,6 @@ export async function writeSettings (opts: WriteSettingsOptions): Promise<void> 
     updatedFields: opts.updatedSettings,
     updatedOverrides: opts.updatedOverrides,
     addedMinimumReleaseAgeExcludes: opts.addedMinimumReleaseAgeExcludes,
+    deletedLegacyKeys: opts.deletedLegacyKeys,
   })
 }
