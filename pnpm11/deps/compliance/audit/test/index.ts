@@ -30,6 +30,32 @@ describe('audit', () => {
     expect(result.devDependencies).toBe(0)
   })
 
+  test('lockfileToAuditRequest() does not treat a dependency named after an Object.prototype property as a peer-satisfaction edge', () => {
+    // Peer-satisfaction detection must check own properties only. Checking
+    // via `in` would match inherited Object.prototype names — `constructor`
+    // is both one of them and a syntactically valid npm package name — and
+    // wrongly exclude this real, non-peer dependency from every reachable
+    // set even though `foo` declares no peerDependencies at all.
+    const result = lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['constructor@1.0.0' as DepPath]: { resolution: { integrity: 'constructor-integrity' } },
+        ['foo@1.0.0' as DepPath]: {
+          dependencies: { constructor: '1.0.0' },
+          resolution: { integrity: 'foo-integrity' },
+        },
+      },
+    }, {})
+
+    expect(result.request).toEqual({ foo: ['1.0.0'], constructor: ['1.0.0'] })
+  })
+
   test('buildAuditPathIndex() records install paths for vulnerable packages', () => {
     const lockfile = {
       importers: {
@@ -186,6 +212,191 @@ describe('audit', () => {
     // With devDependencies excluded the only remaining way to reach shared-pkg
     // is through opt-root, so the dep becomes optional-only.
     expect(prodOnly['shared-pkg']!.get('1.0.0')!.optional).toBe(true)
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a prod dependency\'s optional peer via an excluded devDependency', () => {
+    // https://github.com/pnpm/pnpm/issues/13605 — hookform (a prod dependency)
+    // declares an optional peer on valibot; valibot is only otherwise present
+    // as a devDependency. Peer resolution mixes all dependency types, so the
+    // lockfile bakes valibot into hookform's snapshot regardless of --prod.
+    // A real --prod-only resolve would never have seen valibot to satisfy the
+    // peer with, so `pnpm audit --prod` must not report it at all.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { hookform: '1.0.0(valibot@1.2.0)' },
+          devDependencies: { valibot: '1.2.0' },
+          specifiers: { hookform: '^1.0.0', valibot: '^1.2.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['hookform@1.0.0(valibot@1.2.0)' as DepPath]: {
+          optionalDependencies: { valibot: '1.2.0' },
+          peerDependencies: { valibot: '^1.0.0' },
+          peerDependenciesMeta: { valibot: { optional: true as const } },
+          resolution: { integrity: 'hookform-integrity' },
+        },
+        ['valibot@1.2.0' as DepPath]: { resolution: { integrity: 'valibot-integrity' } },
+      },
+    }
+
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({ hookform: ['1.0.0'], valibot: ['1.2.0'] })
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ hookform: ['1.0.0'] })
+    expect(prodOnly.request).not.toHaveProperty('valibot')
+  })
+
+  test('buildAuditPathIndex() classifies a peer-satisfied-by-devDependency package as dev, not optional', () => {
+    // Same shape as the lockfileToAuditRequest test above. Path building never
+    // follows the peer-satisfaction edge either — a peer-satisfaction edge
+    // isn't a real install path any more than it's real reachability — so
+    // valibot's only path is its own devDependency root, and it must be
+    // dev: true, optional: false: it's a real devDependency, not something
+    // reachable only through an optional edge.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { hookform: '1.0.0(valibot@1.2.0)' },
+          devDependencies: { valibot: '1.2.0' },
+          specifiers: { hookform: '^1.0.0', valibot: '^1.2.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['hookform@1.0.0(valibot@1.2.0)' as DepPath]: {
+          optionalDependencies: { valibot: '1.2.0' },
+          peerDependencies: { valibot: '^1.0.0' },
+          peerDependenciesMeta: { valibot: { optional: true as const } },
+          resolution: { integrity: 'hookform-integrity' },
+        },
+        ['valibot@1.2.0' as DepPath]: { resolution: { integrity: 'valibot-integrity' } },
+      },
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['valibot']), {})
+
+    expect(result['valibot']!.get('1.2.0')).toEqual({
+      paths: ['.>valibot'],
+      dev: true,
+      optional: false,
+    })
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a devDependency\'s optional peer via an excluded prod dependency (--dev mirror)', () => {
+    // Mirror of the --prod case above, for --dev (include: {dependencies:
+    // false, optionalDependencies: false}). dev-tool (a devDependency)
+    // declares an optional peer on helper-lib, which is only otherwise
+    // present as a prod dependency. --dev must not report helper-lib. Note
+    // this specific scenario (an *optional* peer) doesn't discriminate the
+    // fix on its own — --dev already excludes all optionalDependencies edges
+    // globally, so it was correctly excluded before the fix too. The
+    // required-peer --dev test below does discriminate, since a required
+    // peer's satisfaction edge lands in `dependencies`, which was always
+    // followed unconditionally regardless of `include`.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'helper-lib': '1.0.0' },
+          devDependencies: { 'dev-tool': '1.0.0(helper-lib@1.0.0)' },
+          specifiers: { 'dev-tool': '^1.0.0', 'helper-lib': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['dev-tool@1.0.0(helper-lib@1.0.0)' as DepPath]: {
+          optionalDependencies: { 'helper-lib': '1.0.0' },
+          peerDependencies: { 'helper-lib': '^1.0.0' },
+          peerDependenciesMeta: { 'helper-lib': { optional: true as const } },
+          resolution: { integrity: 'dev-tool-integrity' },
+        },
+        ['helper-lib@1.0.0' as DepPath]: { resolution: { integrity: 'helper-lib-integrity' } },
+      },
+    }
+
+    // helper-lib is a genuine prod dependency (independent of the peer edge),
+    // so it must still be reported under the default/full include.
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({ 'dev-tool': ['1.0.0'], 'helper-lib': ['1.0.0'] })
+
+    const devOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+    })
+    expect(devOnly.request).toEqual({ 'dev-tool': ['1.0.0'] })
+    expect(devOnly.request).not.toHaveProperty('helper-lib')
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a required (non-optional) peer via an excluded devDependency', () => {
+    // Same bug class as the optional-peer case, but for a required peer —
+    // required-peer satisfaction edges land in `dependencies`, not
+    // `optionalDependencies`, but are still keyed by the parent's own
+    // peerDependencies, so the fix (skip any alias present in
+    // peerDependencies) covers this without extra logic.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'needs-react': '1.0.0(react@18.0.0)' },
+          devDependencies: { react: '18.0.0' },
+          specifiers: { 'needs-react': '^1.0.0', react: '^18.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-react@1.0.0(react@18.0.0)' as DepPath]: {
+          dependencies: { react: '18.0.0' },
+          peerDependencies: { react: '^18.0.0' },
+          resolution: { integrity: 'needs-react-integrity' },
+        },
+        ['react@18.0.0' as DepPath]: { resolution: { integrity: 'react-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-react': ['1.0.0'] })
+    expect(prodOnly.request).not.toHaveProperty('react')
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a devDependency\'s required peer via an excluded prod dependency (--dev mirror)', () => {
+    // Required-peer mirror of the --dev optional-peer test above. Unlike an
+    // optional-peer edge (which lives in optionalDependencies and was always
+    // gated by include.optionalDependencies), a required-peer edge lives in
+    // `dependencies`, which the walker followed unconditionally regardless of
+    // `include` — so, unlike the optional case, this scenario does exercise
+    // the fix under --dev.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'ui-lib': '2.0.0' },
+          devDependencies: { 'needs-ui-lib': '1.0.0(ui-lib@2.0.0)' },
+          specifiers: { 'needs-ui-lib': '^1.0.0', 'ui-lib': '^2.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-ui-lib@1.0.0(ui-lib@2.0.0)' as DepPath]: {
+          dependencies: { 'ui-lib': '2.0.0' },
+          peerDependencies: { 'ui-lib': '^2.0.0' },
+          resolution: { integrity: 'needs-ui-lib-integrity' },
+        },
+        ['ui-lib@2.0.0' as DepPath]: { resolution: { integrity: 'ui-lib-integrity' } },
+      },
+    }
+
+    // ui-lib is a genuine prod dependency (independent of the peer edge), so
+    // it must still be reported under the default/full include.
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({ 'needs-ui-lib': ['1.0.0'], 'ui-lib': ['2.0.0'] })
+
+    const devOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+    })
+    expect(devOnly.request).toEqual({ 'needs-ui-lib': ['1.0.0'] })
+    expect(devOnly.request).not.toHaveProperty('ui-lib')
   })
 
   test('buildAuditPathIndex() flags findings reached only through optional edges', () => {

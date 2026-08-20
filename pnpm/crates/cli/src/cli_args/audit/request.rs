@@ -1,8 +1,9 @@
 //! Turning a lockfile into the dependency graph the registry audits.
 
 use super::{
-    BTreeMap, EnvLockfile, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageKey, PkgName,
-    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, package_version,
+    BTreeMap, EnvLockfile, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageKey,
+    PackageMetadata, PkgName, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
+    SpecifierAndResolution, package_version,
 };
 
 #[derive(Debug, Default)]
@@ -43,12 +44,20 @@ pub(crate) struct GraphImporter {
 pub(crate) struct AuditGraph<'a> {
     pub(crate) importers: Vec<GraphImporter>,
     pub(crate) snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    pub(crate) packages: &'a HashMap<PackageKey, PackageMetadata>,
 }
 
 pub(crate) fn empty_snapshots() -> &'static HashMap<PackageKey, SnapshotEntry> {
     use std::sync::OnceLock;
 
     static EMPTY: OnceLock<HashMap<PackageKey, SnapshotEntry>> = OnceLock::new();
+    EMPTY.get_or_init(HashMap::new)
+}
+
+pub(crate) fn empty_packages() -> &'static HashMap<PackageKey, PackageMetadata> {
+    use std::sync::OnceLock;
+
+    static EMPTY: OnceLock<HashMap<PackageKey, PackageMetadata>> = OnceLock::new();
     EMPTY.get_or_init(HashMap::new)
 }
 
@@ -83,12 +92,33 @@ pub(crate) fn env_roots(deps: &BTreeMap<String, SpecifierAndResolution>) -> Vec<
         .collect()
 }
 
+/// Appends `deps`' edges, skipping a peer-satisfaction edge — an entry
+/// whose alias is also one of `peer_dependencies` (the snapshot's own
+/// package's declared peers, looked up by the caller via the peer-stripped
+/// key since peer declarations live on the `packages:` entry, not the
+/// `snapshots:` entry). That entry doesn't exist because the package
+/// depends on it; it exists because that's the concrete package pnpm's peer
+/// resolution picked to satisfy the peer. Peer resolution only ever picks a
+/// package that's independently present via a genuine (non-peer) edge
+/// somewhere in the whole workspace tree, so a peer-satisfaction edge never
+/// needs to contribute reachability or appear as an install path — if the
+/// satisfying package is really available, it's already reachable via its
+/// own genuine edge; if it isn't (e.g. it's only a devDependency and
+/// `--prod` excludes devDependencies), the peer edge shouldn't make it
+/// "available" either. Without this, `pnpm audit --prod` would report a
+/// package that only exists in the resolved graph because an excluded
+/// dependency type (typically a devDependency) happened to satisfy another
+/// package's optional peer.
 pub(crate) fn append_snapshot_edges(
     children: &mut Vec<Edge>,
     deps: Option<&HashMap<PkgName, SnapshotDepRef>>,
+    peer_dependencies: Option<&HashMap<String, String>>,
 ) {
     let Some(deps) = deps else { return };
     for (name, dep_ref) in deps {
+        if peer_dependencies.is_some_and(|peers| peers.contains_key(&name.to_string())) {
+            continue;
+        }
         if let Some(key) = dep_ref.resolve(name) {
             children.push(Edge { key });
         }
