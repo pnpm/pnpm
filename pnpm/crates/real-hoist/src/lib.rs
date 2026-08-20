@@ -683,9 +683,9 @@ fn node_locator(node: &HoisterResult) -> String {
 /// Whether two nodes are the same package — equal locators — without
 /// building the locator strings. Decoupled copies of one package
 /// compare equal; different versions under one name do not.
-fn same_locator(a: &HoisterResult, b: &HoisterResult) -> bool {
-    a.ident_name == b.ident_name
-        && a.references.borrow().iter().next() == b.references.borrow().iter().next()
+fn same_locator(left: &HoisterResult, right: &HoisterResult) -> bool {
+    left.ident_name == right.ident_name
+        && left.references.borrow().iter().next() == right.references.borrow().iter().next()
 }
 
 /// Return a single-parent copy of `child` that is safe to mutate on
