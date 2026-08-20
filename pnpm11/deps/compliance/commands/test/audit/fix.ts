@@ -17,12 +17,6 @@ const f = fixtures(import.meta.dirname)
 
 const collectedInfos: string[] = []
 
-function collectInfos (msg: LogBase & { message?: string }): void {
-  if (msg.level === 'info' && typeof msg.message === 'string') {
-    collectedInfos.push(msg.message)
-  }
-}
-
 beforeEach(async () => {
   collectedInfos.length = 0
   streamParser.on('data', collectInfos as (msg: LogBase) => void)
@@ -33,6 +27,12 @@ afterEach(async () => {
   streamParser.removeListener('data', collectInfos as (msg: LogBase) => void)
   await teardownMockAgent()
 })
+
+function collectInfos (msg: LogBase & { message?: string }): void {
+  if (msg.level === 'info' && typeof msg.message === 'string') {
+    collectedInfos.push(msg.message)
+  }
+}
 
 test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
