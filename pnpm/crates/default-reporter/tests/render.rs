@@ -4,7 +4,7 @@
 //! plain-text assertions and on for the ANSI-specific ones.
 
 use pnpm_default_reporter::{
-    SummaryScope,
+    MaxLogLevel, SummaryScope,
     colors::Colors,
     format::pretty_bytes,
     state::{Output, ReporterOptions, ReporterState},
@@ -890,6 +890,58 @@ fn full_install_frame_orders_blocks_like_pnpm() {
          Progress: resolved 1, reused 1, downloaded 0, added 1, done\n\
          Done in 1.2s using pnpm v0.0.1",
     );
+}
+
+fn pnpm_log(level: LogLevel, message: &str) -> LogEvent {
+    LogEvent::Pnpm(PnpmLog { level, message: message.to_string(), prefix: CWD.to_string() })
+}
+
+#[test]
+fn loglevel_error_suppresses_warnings_and_the_visual_streams() {
+    let mut reporter = state_with_options(ReporterOptions {
+        max_log_level: MaxLogLevel::Error,
+        ..ReporterOptions::default()
+    });
+    let frame = render(
+        &mut reporter,
+        vec![
+            pnpm_log(LogLevel::Warn, "deprecated package"),
+            pnpm_log(LogLevel::Info, "Already up to date"),
+            progress("resolved"),
+            LogEvent::ExecutionTime(ExecutionTimeLog {
+                level: LogLevel::Debug,
+                started_at: 0,
+                ended_at: 1200,
+            }),
+        ],
+    );
+    assert_eq!(frame, "");
+}
+
+#[test]
+fn loglevel_error_still_renders_errors() {
+    let mut reporter = state_with_options(ReporterOptions {
+        max_log_level: MaxLogLevel::Error,
+        ..ReporterOptions::default()
+    });
+    let frame = render(&mut reporter, vec![pnpm_log(LogLevel::Error, "ERR_PNPM_FETCH_404")]);
+    assert_eq!(frame, "ERR_PNPM_FETCH_404");
+}
+
+#[test]
+fn loglevel_warn_renders_warnings_but_not_info() {
+    let mut reporter = state_with_options(ReporterOptions {
+        max_log_level: MaxLogLevel::Warn,
+        ..ReporterOptions::default()
+    });
+    let frame = render(
+        &mut reporter,
+        vec![
+            pnpm_log(LogLevel::Info, "Already up to date"),
+            pnpm_log(LogLevel::Warn, "deprecated package"),
+        ],
+    );
+    assert_eq!(frame, "[WARN] deprecated package");
 }
 
 #[test]
