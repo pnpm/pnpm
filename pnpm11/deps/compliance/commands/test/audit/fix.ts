@@ -292,8 +292,11 @@ test('cleanupUnusedIgnoredGhsas removes GHSAs that are no longer in the report',
   expect(manifest.auditConfig?.ignoreGhsas).toContain('GHSA-42xw-2xvc-qx8m')
   expect(manifest.auditConfig?.ignoreGhsas).not.toContain('GHSA-xxxx-xxxx-xxxx')
 
+  // The preceding comment and the trailing same-line comment attached to
+  // the removed entry must both go with it.
   const rawContent = fs.readFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'utf8')
   expect(rawContent).not.toContain('Expired GHSA')
+  expect(rawContent).not.toContain('trailing comment')
 
   expect(collectedInfos).toContain('Removed 1 unused ignored GHSA(s): GHSA-xxxx-xxxx-xxxx')
 })
