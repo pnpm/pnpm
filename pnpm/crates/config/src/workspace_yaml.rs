@@ -4,7 +4,10 @@ use crate::{
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType,
     api::EnvVar,
+    config_types::is_config_file_key,
+    naming_cases::{is_camel_case, to_camel_case, to_kebab_case},
     proxy_keys::{ProxyKeys, ProxyValue},
+    refused_keys::{is_refused_by_a_project_manifest, where_refused_key_belongs},
     resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
@@ -17,7 +20,7 @@ use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::ConfigDependency;
 use registries::RegistryEntry;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de::IgnoredAny};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
@@ -945,9 +948,10 @@ impl WorkspaceSettings {
         };
         let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
             .map_err(Box::new)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
         settings.clear_workspace_only_fields();
+        settings.warn_about_dropped_keys(&text, &path);
         Ok(Some(settings))
     }
 
@@ -961,6 +965,71 @@ impl WorkspaceSettings {
     fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)
+    }
+
+    /// Warn about the keys of the global `config.yaml` that never reach the
+    /// settings, in the three messages pnpm emits for that file.
+    ///
+    /// What survived is read back off `self` rather than off a second list of
+    /// key names, which would drift from the struct: a key serde did not
+    /// recognize is absent from the serialized settings, and one
+    /// [`Self::clear_workspace_only_fields`] zeroed is null there.
+    ///
+    /// A dropped camelCase key pnpm's `isConfigFileKey` accepts stays silent:
+    /// pnpm honors it in this file, so the fix is to honor it too, and until
+    /// then a warning would diverge from pnpm's output on the same file.
+    fn warn_about_dropped_keys(&self, text: &str, path: &Path) {
+        let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
+        else {
+            return;
+        };
+        let Ok(serde_json::Value::Object(kept)) = serde_json::to_value(self) else {
+            return;
+        };
+
+        let mut movable = Vec::new();
+        let mut nowhere = Vec::new();
+        let mut kebab_case = Vec::new();
+        for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
+            if matches!(kept.get(key), Some(value) if !value.is_null()) {
+                continue;
+            }
+            if !is_config_file_key(&to_kebab_case(key)) {
+                if is_refused_by_a_project_manifest(key) {
+                    nowhere.push(format!(
+                        r#""{key}" ({})"#,
+                        where_refused_key_belongs(&to_camel_case(key)),
+                    ));
+                } else {
+                    movable.push(format!(r#""{key}""#));
+                }
+            } else if !is_camel_case(key) {
+                kebab_case.push(format!(r#""{key}" (use "{}")"#, to_camel_case(key)));
+            }
+        }
+
+        let path = path.display();
+        if !movable.is_empty() {
+            let movable = movable.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {movable}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+            );
+        }
+        if !nowhere.is_empty() {
+            let nowhere = nowhere.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {nowhere}."#,
+            );
+        }
+        if !kebab_case.is_empty() {
+            let kebab_case = kebab_case.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings in the global config file ("{path}") were ignored because they are not written in camelCase: {kebab_case}."#,
+            );
+        }
     }
 
     /// Zero out the release-age and trust policies for `self-update`.
