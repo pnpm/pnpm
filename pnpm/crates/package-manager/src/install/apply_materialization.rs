@@ -469,7 +469,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
 
 fn retain_current_ignored_builds(
     next: &mut Modules,
-    previous: &pacquet_modules_yaml::ModulesLayout,
+    previous: &pnpm_modules_yaml::ModulesLayout,
     current: &Lockfile,
     allow_build_policy: &crate::AllowBuildPolicy,
 ) {
