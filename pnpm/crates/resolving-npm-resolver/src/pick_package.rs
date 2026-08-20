@@ -1182,7 +1182,7 @@ fn get_file_mtime(path: &Path) -> Option<DateTime<Utc>> {
 /// takes down. `minimumReleaseAge` and `trustPolicy` both read that one
 /// field, so a registry that strips it disables both, and each names
 /// itself in the warning it emits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum SkippedTimeCheck {
     #[display("minimumReleaseAge")]
     MinimumReleaseAge,
