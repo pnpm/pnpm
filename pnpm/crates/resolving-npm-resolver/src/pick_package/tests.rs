@@ -2045,6 +2045,7 @@ async fn offline_over_a_damaged_mirror_fragment_errors() {
         ignore_missing_time_field: false,
         full_metadata: false,
         filter_metadata: false,
+        needs_full_metadata_for: None,
         retry_opts: RetryOpts::default(),
     };
 
@@ -2104,6 +2105,7 @@ async fn a_damaged_fragment_behind_a_304_is_replaced_by_a_bypassing_refetch() {
         ignore_missing_time_field: false,
         full_metadata: false,
         filter_metadata: false,
+        needs_full_metadata_for: None,
         retry_opts: RetryOpts::default(),
     };
 

@@ -195,8 +195,7 @@ fn should_omit_a_package_whose_cache_file_is_damaged() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
     let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
-    let registry_name =
-        pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
 
     let meta: pnpm_registry::Package = serde_json::from_str(
