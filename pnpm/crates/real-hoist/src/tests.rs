@@ -1098,11 +1098,9 @@ fn nested_hoist_keeps_conflicting_dep_reachable_from_every_parent_of_a_shared_no
     );
 }
 
-/// A cycle inside a conflict-nested shared cluster must still be cut.
-/// The shared-chain guard refuses the moves that used to dissolve such
-/// cycles, so the nested pass cuts the back-edge instead — a cycle
-/// that survives into the result sends the layout walkers into
-/// unbounded recursion.
+/// A cycle inside a conflict-nested shared cluster must be cut by the
+/// locator path guard in `hoist_subtree` — a cycle that survives into
+/// the result sends the layout walkers into unbounded recursion.
 #[test]
 fn conflict_nested_shared_cycle_is_cut() {
     let mut importers = HashMap::new();
