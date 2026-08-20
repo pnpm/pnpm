@@ -494,17 +494,29 @@ fn absolutize_patch_paths(result: &mut Map<String, Value>, config: &Config) {
     }
 }
 
-/// The singular `catalog` block is the `default` catalog, so when the record
-/// carries a `catalogs` map it is shown merged, the way the resolver reads it.
+/// `catalogs` shows the complete resolved catalog set — the singular
+/// `catalog` block is its `default` entry, listed first — whichever spelling
+/// declared it.
 fn merge_default_catalog(result: &mut Map<String, Value>) {
-    let Some(Value::Object(named)) = result.get("catalogs") else { return };
-    let Some(default) = result.get("catalog") else { return };
+    let named = match result.get("catalogs") {
+        Some(Value::Object(named)) => named.clone(),
+        _ => Map::new(),
+    };
+    let default = result.get("catalog").or_else(|| named.get("default")).cloned();
     let mut merged = Map::new();
-    merged.insert("default".to_string(), default.clone());
-    for (name, catalog) in named {
-        merged.insert(name.clone(), catalog.clone());
+    if let Some(default) = default {
+        merged.insert("default".to_string(), default);
     }
-    result.insert("catalogs".to_string(), Value::Object(merged));
+    for (name, catalog) in named {
+        if name != "default" {
+            merged.insert(name, catalog);
+        }
+    }
+    if merged.is_empty() {
+        result.remove("catalogs");
+    } else {
+        result.insert("catalogs".to_string(), Value::Object(merged));
+    }
 }
 
 /// `configList`: the full config record as pretty JSON. Port of `configList`.
@@ -544,6 +556,12 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
     } else {
         key.to_string()
     };
+    // The merged default is what resolvers use, so `registry` answers the
+    // same URL the resolved `registries` view declares as the bare `@`
+    // scope — a raw `.npmrc` value would contradict it.
+    if kebab == "registry" {
+        return Some(Value::String(config.registry.clone()));
+    }
     if config_types::is_type_key(&kebab) {
         let camel = naming_cases::to_camel_case(&kebab);
         if let Some(value) = config.explicit_settings.get(&camel) {
@@ -551,11 +569,6 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
         }
         if let Some(value) = config.raw_auth_config.get(&kebab) {
             return Some(Value::String(value.clone()));
-        }
-        // npm-conf seeds `registry` into pnpm's raw auth config, so pnpm
-        // answers the built-in default rather than `undefined`.
-        if kebab == "registry" {
-            return Some(Value::String(pnpm_config::default_registry()));
         }
         return Some(Value::Null);
     }
@@ -665,11 +678,15 @@ fn config_to_record(config: &Config) -> Map<String, Value> {
     for (key, value) in &config.raw_auth_config {
         result.entry(key.clone()).or_insert_with(|| Value::String(value.clone()));
     }
-    // npm-conf seeds these two into pnpm's raw auth config, so its record
-    // always carries them.
-    result
-        .entry("registry".to_string())
-        .or_insert_with(|| Value::String(pnpm_config::default_registry()));
+    // The `registry` / `@scope:registry` rows show the merged routes — the
+    // values `config get` answers — so a raw `.npmrc` row cannot contradict
+    // the resolved `registries` view.
+    result.insert("registry".to_string(), Value::String(config.registry.clone()));
+    for (scope, url) in &config.registries_by_scope {
+        if scope != "default" {
+            result.insert(format!("{scope}:registry"), Value::String(url.clone()));
+        }
+    }
     result
         .entry("@jsr:registry".to_string())
         .or_insert_with(|| Value::String(DEFAULT_JSR_REGISTRY.to_string()));

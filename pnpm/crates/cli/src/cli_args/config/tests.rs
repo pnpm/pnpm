@@ -554,10 +554,10 @@ fn get_scoped_registry_from_auth_and_merged() {
     );
 }
 
-/// npm-conf seeds `registry` and `@jsr:registry` into pnpm's raw auth
-/// config, so pnpm answers the built-in defaults rather than `undefined`.
+/// `registry` and `@jsr:registry` answer the merged routes — the built-in
+/// defaults when nothing routes them elsewhere — rather than `undefined`.
 #[test]
-fn get_registry_and_jsr_fall_back_to_the_builtin_defaults() {
+fn get_registry_and_jsr_answer_the_merged_routes() {
     let config = config_for_get(&[], &[]);
     assert_eq!(
         config_get(&config, flags(false, None, false), "registry").unwrap(),
@@ -572,12 +572,17 @@ fn get_registry_and_jsr_fall_back_to_the_builtin_defaults() {
     assert_eq!(listed["registry"], json!("https://registry.npmjs.org/"));
     assert_eq!(listed["@jsr:registry"], json!("https://npm.jsr.io/"));
 
-    // A raw `.npmrc` value wins over the built-in default.
-    let overridden = config_for_get(&[], &[("registry", "https://from-npmrc.example.com/")]);
+    // The resolved default — wherever it was routed from — wins over a raw
+    // `.npmrc` row, so `get` and `list` cannot contradict the `registries`
+    // view.
+    let mut routed = config_for_get(&[], &[("registry", "https://from-npmrc.example.com/")]);
+    routed.registry = "https://from-workspace-yaml.example.com/".to_string();
     assert_eq!(
-        config_get(&overridden, flags(false, None, false), "registry").unwrap(),
-        "https://from-npmrc.example.com/",
+        config_get(&routed, flags(false, None, false), "registry").unwrap(),
+        "https://from-workspace-yaml.example.com/",
     );
+    let listed: Value = serde_json::from_str(&config_list(&routed)).unwrap();
+    assert_eq!(listed["registry"], json!("https://from-workspace-yaml.example.com/"));
 }
 
 #[test]
@@ -610,6 +615,11 @@ fn get_registries_returns_resolved_declarations() {
             },
         }),
     );
+
+    // The npm-compat rows agree with the resolved view.
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(listed["registry"], json!("https://registry.example.com/"));
+    assert_eq!(listed["@corp:registry"], json!("https://work.example.com/"));
 }
 
 /// The record shows the resolved registries view in place of the raw
@@ -706,6 +716,23 @@ fn list_merges_the_default_catalog_into_catalogs() {
         }),
     );
     assert_eq!(listed["onlyBuiltDependencies"], json!(["esbuild"]));
+}
+
+/// The resolved `catalogs` view answers whichever spelling declared a
+/// catalog: the singular `catalog` block alone still shows up as `default`.
+#[test]
+fn catalogs_resolve_from_the_singular_catalog_alone() {
+    let config = config_for_get(&[("catalog", json!({ "react": "^19.0.0" }))], &[]);
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &config_get(&config, flags(false, None, false), "catalogs").unwrap()
+        )
+        .unwrap(),
+        json!({ "default": { "react": "^19.0.0" } }),
+    );
+
+    let empty = config_for_get(&[], &[]);
+    assert_eq!(config_get(&empty, flags(false, None, false), "catalogs").unwrap(), "undefined");
 }
 
 #[test]

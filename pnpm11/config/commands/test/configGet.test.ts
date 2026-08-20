@@ -317,6 +317,78 @@ test('config list re-joins the registry lookups under `registries`', async () =>
   })
   expect(record).not.toHaveProperty('registriesByScope')
   expect(record).not.toHaveProperty('registryOptionsByUrl')
+  // The npm-compat row agrees with the resolved view.
+  expect(record.registry).toBe('https://registry.example.com/')
+})
+
+test('config get registry and @jsr:registry answer the merged routes', async () => {
+  const baseOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {
+      registry: 'https://from-npmrc.example.com/',
+    },
+    registriesByScope: {
+      default: 'https://from-workspace-yaml.example.com/',
+      '@jsr': 'https://npm.jsr.io/',
+    },
+  }
+
+  // The resolved default — wherever it was routed from — wins over a raw
+  // `.npmrc` row, so `get` and `list` cannot contradict the `registries`
+  // view.
+  const registryResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'registry'])
+  expect(getOutputString(registryResult)).toBe('https://from-workspace-yaml.example.com/')
+  const jsrResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', '@jsr:registry'])
+  expect(getOutputString(jsrResult)).toBe('https://npm.jsr.io/')
+  const listResult = await config.handler(createConfigCommandOpts(baseOpts), ['list'])
+  const record = JSON.parse(getOutputString(listResult))
+  expect(record.registry).toBe('https://from-workspace-yaml.example.com/')
+  expect(record['@jsr:registry']).toBe('https://npm.jsr.io/')
+})
+
+test('config get audit-level still answers the deprecated types key', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    auditLevel: 'high',
+  }), ['get', 'audit-level'])
+  expect(getOutputString(getResult)).toBe('high')
+})
+
+test('config get catalogs prints the resolved catalog set, whichever spelling declared it', async () => {
+  // The reader merges the singular `catalog` block into `catalogs` as its
+  // `default` entry; the record shows that merged set, named catalogs
+  // preserved.
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    catalog: { react: '^19.0.0' },
+    catalogs: { default: { react: '^19.0.0' }, react17: { react: '^17.0.0' } },
+  }), ['get', 'catalogs'])
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
+    default: { react: '^19.0.0' },
+    react17: { react: '^17.0.0' },
+  })
+
+  // A catalogs map holding no catalog reads as unset.
+  const emptyResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    catalogs: { default: undefined },
+  }), ['get', 'catalogs'])
+  expect(getOutputString(emptyResult)).toBe('undefined')
 })
 
 test('config get update and audit return the settings the CLI acts on, under the documented names', async () => {

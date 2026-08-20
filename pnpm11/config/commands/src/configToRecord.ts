@@ -5,14 +5,15 @@ import camelcase from 'camelcase'
 
 import { censorProtectedSettings } from './protectedSettings.js'
 
-// Config fields that are internal objects or internal spellings, not user
-// settings: the three lookups the `registries` setting is split into and the
-// deprecated `update` / `audit` spellings are shown re-joined under the
-// documented setting names instead.
+// Config fields the record does not copy verbatim: internal objects, the
+// lookups and spellings the `registries` / `update` / `audit` settings are
+// split into (shown re-joined under the documented names instead), and
+// `catalogs`, which is re-added below as the resolved catalog set.
 const NON_SETTING_CONFIG_KEYS = new Set([
   'authConfig', 'configByUri',
   'registriesByScope', 'registriesByPrefix', 'registryOptionsByUrl',
   'updateConfig', 'auditConfig', 'auditLevel',
+  'catalogs',
 ])
 
 /**
@@ -49,6 +50,12 @@ export function configToRecord (config: Config, explicitlySetKeys: Set<string>):
       result[key] = value
     }
   }
+  // The `registry` / `@scope:registry` rows show the merged routes — the
+  // values `config get` answers — so a raw `.npmrc` row cannot contradict
+  // the resolved `registries` view.
+  for (const [scope, url] of Object.entries(config.registriesByScope ?? {})) {
+    result[scope === 'default' ? 'registry' : `${scope}:registry`] = url
+  }
   // Always include user-agent for debugging connectivity issues
   if (config.userAgent) {
     result.userAgent = config.userAgent
@@ -61,6 +68,11 @@ export function configToRecord (config: Config, explicitlySetKeys: Set<string>):
   const audit = toAuditSettings(config)
   if (audit != null) {
     result.audit = audit
+  }
+  // `catalogs` shows the complete resolved catalog set — the singular
+  // `catalog` block is its `default` entry — whichever spelling declared it.
+  if (config.catalogs != null && Object.values(config.catalogs).some((catalog) => catalog != null)) {
+    result.catalogs = config.catalogs
   }
   return censorProtectedSettings(sortDirectKeys(result))
 }
