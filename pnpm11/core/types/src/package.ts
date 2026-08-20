@@ -153,6 +153,10 @@ export interface DependencyManifest extends BaseManifest {
 export type PackageExtension = Pick<BaseManifest, 'dependencies' | 'optionalDependencies' | 'peerDependencies' | 'peerDependenciesMeta'>
 
 export interface PeerDependencyRules {
+  /**
+   * Peer name patterns for which pnpm should not report peer dependency issues,
+   * whether the peer is absent or resolves to a version outside its wanted range.
+   */
   ignoreMissing?: string[]
   allowAny?: string[]
   allowedVersions?: Record<string, string>
