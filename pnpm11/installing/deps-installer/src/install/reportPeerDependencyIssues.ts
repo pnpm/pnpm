@@ -52,7 +52,7 @@ export function filterPeerDependencyIssues (
       newPeerDependencyIssuesByProjects[projectId].missing[peerName] = issues
     }
     for (const [peerName, issues] of Object.entries(bad)) {
-      if (allowAnyMatcher(peerName)) continue
+      if (allowAnyMatcher(peerName) || ignoreMissingMatcher(peerName)) continue
       const filteredIssues: BadPeerDependencyIssue[] = []
       for (const issue of issues) {
         if (allowedVersionsMatchAll[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) continue
