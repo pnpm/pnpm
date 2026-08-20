@@ -10,6 +10,9 @@ use super::{
     link_top_level_bins,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Error type of [`run_build_phase`] and [`resolve_snapshot_patches`].
 ///
 /// Each variant is `#[diagnostic(transparent)]` so the surfaced
