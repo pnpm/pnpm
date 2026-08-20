@@ -4765,7 +4765,6 @@ dependencies = [
  "junction",
  "miette 7.6.0",
  "pathdiff",
- "rustix 1.1.4",
  "sha2",
  "tempfile",
 ]

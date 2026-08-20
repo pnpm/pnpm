@@ -604,50 +604,7 @@ where
             }
             _ => None,
         };
-        let lockfile_synthesized_from_virtual_store = synthesized_lockfile.is_some();
-        // The same synthesis, sourced from the cache directory's memo of
-        // the last wanted lockfile written for this workspace, for the
-        // state where `node_modules` is gone too (a CI cache restore, a
-        // deleted-lockfile reinstall). Identical gate and freshness check:
-        // a manifest or settings change falls through to a fresh resolve.
-        //
-        // A loaded pnpmfile disables the memo outright. Custom resolvers
-        // and fetchers shape resolution but are not covered by the
-        // lockfile's `pnpmfileChecksum` (only hook-exporting pnpmfiles
-        // are), so a memo written under a different pnpmfile regime —
-        // `--ignore-pnpmfile`, an edited resolver — could restore picks
-        // the current resolvers would not make, and nothing in the
-        // freshness check would notice. The memo is a cache: where its
-        // validity can't be attested, it must not answer.
-        let synthesized_lockfile: Option<Lockfile> = match synthesized_lockfile {
-            None if lockfile.is_none()
-                && !frozen_lockfile
-                && prefer_frozen_lockfile
-                && pnpmfile_hook.is_none() =>
-            {
-                match super::lockfile_memo::load(&config.cache_dir, &workspace_root) {
-                    Some(memo) => check_lockfile_freshness(
-                        &memo,
-                        &manifest_freshness_inputs,
-                        config,
-                        &catalogs,
-                        pnpmfile_hook.as_ref(),
-                        FreshnessScope {
-                            ignore_manifest_check,
-                            allow_missing_dependency_free_importers: true,
-                            prune_stale_importers,
-                        },
-                    )
-                    .await
-                    .ok()
-                    .map(|()| memo),
-                    None => None,
-                }
-            }
-            synthesized => synthesized,
-        };
-        let lockfile_synthesized_from_memo =
-            !lockfile_synthesized_from_virtual_store && synthesized_lockfile.is_some();
+        let lockfile_synthesized_from_current = synthesized_lockfile.is_some();
         // The dry-run diff baseline is the actual on-disk `pnpm-lock.yaml`
         // (`None` when it is absent), captured before the synthesized-from-
         // current fallback below. Diffing against the synthesized lockfile
@@ -889,7 +846,7 @@ where
                     // check (it only gates on a non-empty wanted
                     // lockfile). A throwing hook aborts the install.
                     Ok(()) => {
-                        lockfile_synthesized_from_virtual_store
+                        lockfile_synthesized_from_current
                             || config.ignore_pnpmfile
                             || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
                                 lockfile,
@@ -975,8 +932,7 @@ where
             resolution_verifiers: &resolution_verifiers,
             derived_lockfile_path: derived_lockfile_path.as_deref(),
             lockfile_verification_override,
-            lockfile_synthesized_from_current: lockfile_synthesized_from_virtual_store
-                || lockfile_synthesized_from_memo,
+            lockfile_synthesized_from_current,
             lockfile_was_fast_updated,
             save_lockfile,
             catalogs: &catalogs,
@@ -1080,8 +1036,7 @@ where
             modules_manifest: old_modules,
             rebuild,
             take_frozen_path,
-            lockfile_synthesized_from_current: lockfile_synthesized_from_virtual_store
-                || lockfile_synthesized_from_memo,
+            lockfile_synthesized_from_current,
             lockfile_was_fast_updated,
             save_lockfile,
             mutation,

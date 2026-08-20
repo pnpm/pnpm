@@ -414,15 +414,11 @@ impl BenchmarkScenario {
             // short-circuit skip resolution entirely ("Already up to
             // date"), and the timed runs would measure a no-op. The warm
             // `cache-dir` / `store-dir` the pre-warm populated are the
-            // scenario's contract and survive — except the lockfile memo
-            // inside `cache-dir`: it restores the just-deleted lockfile
-            // without resolving anything, which is exactly the resolver
-            // bypass these resolution scenarios exist to *not* measure.
+            // scenario's contract and survive.
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
-            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml", "cache-dir/lockfile-memo"],
-                restore: &[],
-            },
+            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline => {
+                Cleanup { remove: &["node_modules", "pnpm-lock.yaml"], restore: &[] }
+            }
         }
     }
 

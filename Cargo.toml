@@ -145,7 +145,6 @@ owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }
 junction = { version = "2.0.0" }
 libc = { version = "0.2.186" }
-rustix = { version = "1.1.4", features = ["fs"] }
 reqwest = { version = "0.13", default-features = false, features = [
   "gzip",
   "hickory-dns",

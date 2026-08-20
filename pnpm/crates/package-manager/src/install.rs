@@ -53,7 +53,6 @@ use std::{
 mod apply_materialization;
 mod lifecycle;
 mod lockfile_freshness;
-pub(crate) mod lockfile_memo;
 mod materialize;
 mod modules_state;
 mod prepare_modules_state;

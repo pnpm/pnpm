@@ -39,7 +39,7 @@ struct DeprecatedProbe {
 
 #[derive(Debug, Default, Clone)]
 pub struct PackageVersions {
-    slots: HashMap<String, VersionSlot>,
+    slots: Vec<(String, VersionSlot)>,
 }
 
 #[derive(Debug)]
@@ -223,13 +223,13 @@ impl PackageVersions {
     /// fragment fails to decode.
     #[must_use]
     pub fn get(&self, version: &str) -> Option<Arc<PackageVersion>> {
-        self.slots.get(version)?.hydrate(version)
+        self.slot(version)?.hydrate(version)
     }
 
     /// Whether the packument lists `version`. Never hydrates.
     #[must_use]
     pub fn contains_key(&self, version: &str) -> bool {
-        self.slots.contains_key(version)
+        self.slot(version).is_some()
     }
 
     /// Whether `version` is marked deprecated, equivalent to
@@ -245,7 +245,7 @@ impl PackageVersions {
     /// dominated warm-resolve CPU.
     #[must_use]
     pub fn is_deprecated(&self, version: &str) -> bool {
-        let Some(slot) = self.slots.get(version) else { return false };
+        let Some(slot) = self.slot(version) else { return false };
         if let Some(parsed) = slot.parsed.get() {
             return parsed.as_ref().is_some_and(|manifest| manifest.deprecated.is_some());
         }
@@ -256,9 +256,9 @@ impl PackageVersions {
         serde_json::from_str::<DeprecatedProbe>(&json).is_ok_and(|probe| probe.deprecated.is_some())
     }
 
-    /// Version strings, in `HashMap` order. Never hydrates.
+    /// Version strings in lexical order. Never hydrates.
     pub fn keys(&self) -> impl Iterator<Item = &String> {
-        self.slots.keys()
+        self.slots.iter().map(|(version, _)| version)
     }
 
     #[must_use]
@@ -294,6 +294,19 @@ impl PackageVersions {
                 .collect(),
         }
     }
+
+    fn slot(&self, version: &str) -> Option<&VersionSlot> {
+        let index =
+            self.slots.binary_search_by(|(candidate, _)| candidate.as_str().cmp(version)).ok()?;
+        Some(&self.slots[index].1)
+    }
+
+    fn from_slots(mut slots: Vec<(String, VersionSlot)>) -> Self {
+        if !slots.is_sorted_by(|left, right| left.0 <= right.0) {
+            slots.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        }
+        PackageVersions { slots }
+    }
 }
 
 /// Constructors and accessors for the indexed on-disk mirror format
@@ -312,8 +325,8 @@ impl PackageVersions {
         file: &Arc<MirrorFile>,
         spans: impl IntoIterator<Item = (String, u64, u32)>,
     ) -> Self {
-        PackageVersions {
-            slots: spans
+        PackageVersions::from_slots(
+            spans
                 .into_iter()
                 .map(|(version, offset, len)| {
                     (
@@ -329,7 +342,7 @@ impl PackageVersions {
                     )
                 })
                 .collect(),
-        }
+        )
     }
 
     /// Build a map from already-extracted raw JSON fragments. The
@@ -341,8 +354,8 @@ impl PackageVersions {
     pub fn from_raw_fragments(
         fragments: impl IntoIterator<Item = (String, Box<RawValue>)>,
     ) -> Self {
-        PackageVersions {
-            slots: fragments
+        PackageVersions::from_slots(
+            fragments
                 .into_iter()
                 .map(|(version, raw)| {
                     (
@@ -354,7 +367,7 @@ impl PackageVersions {
                     )
                 })
                 .collect(),
-        }
+        )
     }
 
     /// Iterate every version's JSON fragment text, for the mirror
@@ -389,12 +402,12 @@ impl PackageVersions {
 
 impl From<HashMap<String, PackageVersion>> for PackageVersions {
     fn from(versions: HashMap<String, PackageVersion>) -> Self {
-        PackageVersions {
-            slots: versions
+        PackageVersions::from_slots(
+            versions
                 .into_iter()
                 .map(|(version, manifest)| (version, VersionSlot::from_parsed(manifest)))
                 .collect(),
-        }
+        )
     }
 }
 
@@ -407,8 +420,8 @@ impl FromIterator<(String, PackageVersion)> for PackageVersions {
 impl<'de> Deserialize<'de> for PackageVersions {
     fn deserialize<Deser: Deserializer<'de>>(deserializer: Deser) -> Result<Self, Deser::Error> {
         let raw_map = HashMap::<String, Box<RawValue>>::deserialize(deserializer)?;
-        Ok(PackageVersions {
-            slots: raw_map
+        Ok(PackageVersions::from_slots(
+            raw_map
                 .into_iter()
                 .map(|(version, raw)| {
                     (
@@ -420,7 +433,7 @@ impl<'de> Deserialize<'de> for PackageVersions {
                     )
                 })
                 .collect(),
-        })
+        ))
     }
 }
 
