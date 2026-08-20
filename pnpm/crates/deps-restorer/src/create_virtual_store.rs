@@ -341,7 +341,7 @@ impl CreateVirtualStore<'_> {
             };
 
         let store_index = match store_context.as_ref().and_then(|context| context.index) {
-            Some(index) => Some(SharedReadonlyStoreIndex::clone(index)),
+            Some(index) => Some(Arc::clone(index)),
             None => StoreIndex::open_shared(store_dir, config.frozen_store).await,
         };
         let store_index_ref = store_index.as_ref();
@@ -363,7 +363,7 @@ impl CreateVirtualStore<'_> {
         // / re-hash cost.
         let verified_files_cache = store_context
             .map_or_else(SharedVerifiedFilesCache::default, |context| {
-                SharedVerifiedFilesCache::clone(context.verified_files_cache)
+                Arc::clone(context.verified_files_cache)
             });
 
         // Batch every cache lookup the per-snapshot futures would otherwise

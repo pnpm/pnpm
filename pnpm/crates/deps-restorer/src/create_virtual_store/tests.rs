@@ -1,6 +1,6 @@
 use super::{
-    CreateVirtualStore, emit_warm_snapshot_progress, integrity_equal, removed_child_aliases,
-    snapshot_cache_key, snapshot_deps_equal,
+    CreateVirtualStore, CreateVirtualStoreStoreContext, emit_warm_snapshot_progress,
+    integrity_equal, removed_child_aliases, snapshot_cache_key, snapshot_deps_equal,
 };
 use crate::install_package_by_snapshot::host_platform_selector;
 use pnpm_lockfile::{
@@ -213,6 +213,131 @@ async fn cold_batch_links_slots_in_parallel() {
 }
 
 const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
+#[tokio::test]
+async fn shared_store_context_materializes_a_warm_package() {
+    use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+    use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+    use pnpm_store_dir::{
+        CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+        StoreIndexWriter, store_index_key,
+    };
+    use pnpm_tarball::SharedReportedProgressKeys;
+
+    let root = tempfile::tempdir().expect("create temp dir");
+    let workspace_root = root.path().join("workspace");
+    fs::create_dir_all(&workspace_root).expect("create workspace root");
+    let modules_dir = workspace_root.join("node_modules");
+
+    let mut config = Config::new();
+    config.registry = "https://registry.test".to_string();
+    config.store_dir = root.path().join("materialization-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.package_import_method = PackageImportMethod::Copy;
+    config.offline = true;
+
+    let package_key = key("from-shared-context", "1.0.0");
+    let package_metadata = metadata_with_integrity(DUMMY_SHA512);
+    let mut files = HashMap::new();
+    for (path, content) in [
+        ("package.json", br#"{"name":"from-shared-context","version":"1.0.0"}"#.as_slice()),
+        ("index.js", b"module.exports = true\n".as_slice()),
+    ] {
+        let (_, digest) = config
+            .store_dir
+            .write_cas_file(content, false)
+            .expect("write package file to materialization store");
+        files.insert(
+            path.to_string(),
+            CafsFileInfo {
+                digest: format!("{digest:x}"),
+                mode: 0o644,
+                size: content.len() as u64,
+                checked_at: None,
+            },
+        );
+    }
+
+    let context_store = StoreDir::new(root.path().join("context-store"));
+    let index_key = store_index_key(DUMMY_SHA512, &package_key.without_peer().pkg_id());
+    StoreIndex::open_in(&context_store)
+        .expect("open context store index")
+        .set(
+            &index_key,
+            &PackageFilesIndex {
+                manifest: None,
+                requires_build: Some(false),
+                algo: "sha512".to_string(),
+                files,
+                side_effects: None,
+            },
+        )
+        .expect("seed context store index");
+    let shared_index =
+        StoreIndex::shared_readonly_in(&context_store).expect("open shared context store index");
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+
+    let config = config.leak();
+    let snapshots = HashMap::from([(package_key.clone(), SnapshotEntry::default())]);
+    let packages = HashMap::from([(package_key.without_peer(), package_metadata)]);
+    let allow_build_policy = AllowBuildPolicy::default();
+    let layout = VirtualStoreLayout::new(
+        config,
+        None,
+        Some(&snapshots),
+        Some(&packages),
+        Some(&allow_build_policy),
+        None,
+    );
+    let skipped = SkippedSnapshots::new();
+    let logged_methods = AtomicU8::new(0);
+    let progress_reported = SharedReportedProgressKeys::default();
+    let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
+    let requester = workspace_root.to_string_lossy().into_owned();
+
+    let output = CreateVirtualStore {
+        http_client: &pnpm_network::ThrottledClient::default(),
+        config,
+        packages: Some(&packages),
+        snapshots: Some(&snapshots),
+        current_snapshots: None,
+        current_packages: None,
+        layout: &layout,
+        logged_methods: &logged_methods,
+        requester: &requester,
+        store_index_writer: &store_index_writer,
+        store_context: Some(CreateVirtualStoreStoreContext {
+            index: Some(&shared_index),
+            verified_files_cache: &verified_files_cache,
+        }),
+        allow_build_policy: &allow_build_policy,
+        skipped: &skipped,
+        include_optional_dependencies: true,
+        supported_architectures: None,
+        workspace_root: &workspace_root,
+        node_linker: NodeLinker::Isolated,
+        progress_reported: &progress_reported,
+        tarball_mem_cache: None,
+        custom_fetcher_picker: None,
+        planned_canonical_fetches: None,
+        link_concurrency_probe: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("shared store context should satisfy the offline install");
+
+    drop(store_index_writer);
+    writer_task.await.expect("join store-index writer").expect("flush store-index writer");
+
+    assert_eq!(output.requires_build_by_snapshot.get(&package_key), Some(&false));
+    let installed_body = layout
+        .slot_dir(&package_key)
+        .join("node_modules")
+        .join("from-shared-context")
+        .join("index.js");
+    assert!(installed_body.is_file(), "warm package must be materialized: {installed_body:?}");
+}
 
 /// Under the global virtual store, peer variants hashing to one slot
 /// directory must produce one link task through the whole
