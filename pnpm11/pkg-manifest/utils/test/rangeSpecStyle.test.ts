@@ -30,6 +30,11 @@ test('calcVersionRange() preserves an existing prerelease range style', () => {
   expect(calcVersionRange('3.0.0-rc.11', {})).toBe('3.0.0-rc.11')
 })
 
+test('calcVersionRange() ignores the requested specifier range style for a prerelease', () => {
+  expect(calcVersionRange('3.0.0-rc.11', { bareSpecifier: '~3.0.0-rc.8' })).toBe('3.0.0-rc.11')
+  expect(calcVersionRange('3.1.0', { bareSpecifier: '~3.0.0' })).toBe('~3.1.0')
+})
+
 test('rangeSpecGranularity() collapses exact to patch', () => {
   expect(rangeSpecGranularity('exact')).toBe('patch')
   expect(rangeSpecGranularity('patch')).toBe('patch')

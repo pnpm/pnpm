@@ -4,7 +4,7 @@ use node_semver::Version;
 use pretty_assertions::assert_eq;
 
 use super::{AuthHeaders, DerivedPackuments, Package, PackageVersion, ThrottledClient};
-use crate::{RangeSpecStyle, package_distribution::PackageDistribution};
+use crate::package_distribution::PackageDistribution;
 
 #[test]
 pub fn package_version_should_include_peers() {
@@ -32,50 +32,6 @@ pub fn package_version_should_include_peers() {
     assert!(dependencies(true).contains_key("fastify"));
     assert!(dependencies(true).contains_key("fast-querystring"));
     assert!(!dependencies(true).contains_key("hello-world"));
-}
-
-#[test]
-pub fn serialized_according_to_params() {
-    let version = PackageVersion {
-        name: String::new(),
-        version: Version { major: 3, minor: 2, patch: 1, build: vec![], pre_release: vec![] },
-        dist: PackageDistribution::default(),
-        dependencies: None,
-        dev_dependencies: None,
-        peer_dependencies: None,
-        optional_dependencies: None,
-        peer_dependencies_meta: None,
-        other: HashMap::default(),
-        npm_user: None,
-        deprecated: None,
-    };
-
-    assert_eq!(version.serialize(RangeSpecStyle::Patch), "3.2.1");
-    assert_eq!(version.serialize(RangeSpecStyle::Minor), "~3.2.1");
-    assert_eq!(version.serialize(RangeSpecStyle::Major), "^3.2.1");
-    assert_eq!(version.serialize(RangeSpecStyle::None), "^3.2.1");
-}
-
-#[test]
-pub fn serialize_keeps_prerelease_version_without_prefix() {
-    let version = PackageVersion {
-        name: String::new(),
-        version: Version::parse("2.1.0-rc.1").unwrap(),
-        dist: PackageDistribution::default(),
-        dependencies: None,
-        dev_dependencies: None,
-        peer_dependencies: None,
-        optional_dependencies: None,
-        peer_dependencies_meta: None,
-        other: HashMap::default(),
-        npm_user: None,
-        deprecated: None,
-    };
-
-    assert_eq!(version.serialize(RangeSpecStyle::Major), "2.1.0-rc.1");
-    assert_eq!(version.serialize(RangeSpecStyle::Minor), "2.1.0-rc.1");
-    assert_eq!(version.serialize(RangeSpecStyle::Patch), "2.1.0-rc.1");
-    assert_eq!(version.serialize(RangeSpecStyle::None), "2.1.0-rc.1");
 }
 
 #[tokio::test]

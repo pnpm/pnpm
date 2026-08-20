@@ -3,13 +3,41 @@
 //! `add` and `update` rewrite `package.json` from what the resolver
 //! picked. What that text should look like is the resolver's business,
 //! not the command's: only the npm resolver knows that an npm alias
-//! round-trips as `npm:<real name>@<range>`, or that a prerelease pick
-//! is written without a range operator.
+//! round-trips as `npm:<real name>@<range>`, or how a prerelease pick
+//! is pinned.
 
-use node_semver::Range;
+use node_semver::{Range, Version};
 use pnpm_registry::{PackageVersion, RangeSpecStyle};
 
 use crate::infer_range_spec_style::infer_range_spec_style;
+
+/// The manifest range that pins `version` for a dependency whose existing
+/// manifest entry, if it already had one, pins `prev_style`, and whose
+/// requested specifier pins `spec_style`.
+///
+/// The existing entry's style wins over the requested specifier's, which
+/// wins over `default_style`, so a re-add keeps the pinning style the
+/// manifest already used. A prerelease keeps the existing entry's style and
+/// is otherwise pinned exactly — neither the requested specifier nor
+/// `default_style` widens a prerelease the manifest did not already widen.
+///
+/// Mirrors the TypeScript `calcVersionRange`.
+#[must_use]
+pub fn calc_version_range(
+    version: &Version,
+    prev_style: Option<RangeSpecStyle>,
+    spec_style: Option<RangeSpecStyle>,
+    default_style: RangeSpecStyle,
+) -> String {
+    if !version.pre_release.is_empty() {
+        return match prev_style {
+            Some(style) => format!("{}{version}", style.range_prefix()),
+            None => version.to_string(),
+        };
+    }
+    let style = prev_style.or(spec_style).unwrap_or(default_style);
+    format!("{}{version}", style.range_prefix())
+}
 
 /// The specifier to write for `picked` when the dependency currently
 /// declares `bare_specifier` under the install name `alias`.
@@ -28,7 +56,12 @@ pub fn calc_specifier(
     picked: &PackageVersion,
     default_pin: RangeSpecStyle,
 ) -> String {
-    let range = picked.serialize(infer_range_spec_style(bare_specifier).unwrap_or(default_pin));
+    let range = calc_version_range(
+        &picked.version,
+        infer_range_spec_style(bare_specifier),
+        None,
+        default_pin,
+    );
     match npm_alias_target(bare_specifier, alias) {
         Some(real_name) => format!("npm:{real_name}@{range}"),
         None => range,
@@ -55,7 +88,12 @@ pub fn calc_prefixed_specifier(
     picked: &PackageVersion,
     default_pin: RangeSpecStyle,
 ) -> String {
-    let range = picked.serialize(infer_range_spec_style(bare_specifier).unwrap_or(default_pin));
+    let range = calc_version_range(
+        &picked.version,
+        infer_range_spec_style(bare_specifier),
+        None,
+        default_pin,
+    );
     match alias {
         Some(alias) if !alias.is_empty() && alias != pkg_name => {
             format!("{prefix}{pkg_name}@{range}")
