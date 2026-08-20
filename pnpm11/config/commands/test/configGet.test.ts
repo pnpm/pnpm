@@ -278,7 +278,10 @@ test('config get registries returns the registries the CLI resolves from', async
   }), ['get', 'registries'])
 
   expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
+    'https://npm.jsr.io/': { scopes: ['@jsr'] },
+    'https://npm.pkg.github.com/': { prefix: 'gh' },
     'https://registry.example.com/': { scopes: ['@'] },
+    'https://registry.npmjs.org/': { prefix: 'npmjs' },
     'https://work.example.com/': {
       serverType: 'artifactory',
       scopes: ['@corp'],
@@ -304,10 +307,13 @@ test('config list re-joins the registry lookups under `registries`', async () =>
 
   const record = JSON.parse(getOutputString(listResult))
   expect(record.registries).toStrictEqual({
+    'https://npm.jsr.io/': { scopes: ['@jsr'] },
+    'https://npm.pkg.github.com/': { prefix: 'gh' },
     'https://registry.example.com/': {
       supportsTimeField: true,
       scopes: ['@'],
     },
+    'https://registry.npmjs.org/': { prefix: 'npmjs' },
   })
   expect(record).not.toHaveProperty('registriesByScope')
   expect(record).not.toHaveProperty('registryOptionsByUrl')

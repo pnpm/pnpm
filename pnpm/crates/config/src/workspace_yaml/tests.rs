@@ -2303,20 +2303,47 @@ fn rebuilds_the_declarations_from_the_lookups() {
     assert!(!declarations.contains_key("https://registry.npmjs.org/"), "{declarations:?}");
 }
 
-/// The resolved view declares every route, so the default registry appears as
-/// the bare `@` scope — first in the scope list it shares with real scopes.
+/// The resolved view declares every route: the default registry appears as
+/// the bare `@` scope — first in the scope list it shares with real scopes —
+/// and the built-in `@jsr` scope and `gh` / `npmjs` prefixes are declared
+/// unless the user pointed them elsewhere.
 #[test]
-fn resolved_declarations_declare_the_default_registry_as_the_bare_scope() {
+fn resolved_declarations_declare_every_route() {
     let mut config = Config::new();
     config.registry = "https://npm.corp.example/".to_owned();
     config.registries_by_scope =
         BTreeMap::from([("@acme".to_owned(), "https://npm.corp.example/".to_owned())]);
+    config.registries_by_prefix =
+        BTreeMap::from([("gh".to_owned(), "https://github.corp.example/".to_owned())]);
 
     let declarations = config.resolved_registry_declarations();
     assert_eq!(
         declarations.get("https://npm.corp.example/"),
         Some(&RegistryDeclaration {
             scopes: Some(vec!["@".to_owned(), "@acme".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    assert_eq!(
+        declarations.get("https://npm.jsr.io/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@jsr".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    // The user's `gh` route wins over the built-in of the same name.
+    assert_eq!(
+        declarations.get("https://github.corp.example/"),
+        Some(&RegistryDeclaration {
+            prefix: Some("gh".to_owned()),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    assert_eq!(declarations.get("https://npm.pkg.github.com/"), None);
+    assert_eq!(
+        declarations.get("https://registry.npmjs.org/"),
+        Some(&RegistryDeclaration {
+            prefix: Some("npmjs".to_owned()),
             ..RegistryDeclaration::default()
         }),
     );

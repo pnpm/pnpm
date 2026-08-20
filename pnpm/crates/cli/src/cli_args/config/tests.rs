@@ -599,7 +599,10 @@ fn get_registries_returns_resolved_declarations() {
         )
         .unwrap(),
         json!({
+            "https://npm.jsr.io/": { "scopes": ["@jsr"] },
+            "https://npm.pkg.github.com/": { "prefix": "gh" },
             "https://registry.example.com/": { "scopes": ["@"] },
+            "https://registry.npmjs.org/": { "prefix": "npmjs" },
             "https://work.example.com/": {
                 "serverType": "artifactory",
                 "scopes": ["@corp"],
@@ -626,7 +629,10 @@ fn list_rejoins_registry_lookups_under_registries() {
     assert_eq!(
         listed["registries"],
         json!({
+            "https://npm.jsr.io/": { "scopes": ["@jsr"] },
+            "https://npm.pkg.github.com/": { "prefix": "gh" },
             "https://registry.example.com/": { "scopes": ["@"] },
+            "https://registry.npmjs.org/": { "prefix": "npmjs" },
             "https://work.example.com/": { "prefix": "work" },
         }),
     );

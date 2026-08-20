@@ -41,8 +41,8 @@ use std::{
 };
 
 pub use crate::defaults::{
-    DEFAULT_JSR_REGISTRY, GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism,
-    default_cache_dir, default_config_dir, default_git_shallow_hosts,
+    BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, GLOBAL_LAYOUT_VERSION, PNPM_VERSION,
+    available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
     default_peers_suffix_max_length, default_pnpm_home_dir, default_registry, default_state_dir,
     default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
     is_unsafe_perm_posix, resolve_child_concurrency,
@@ -2170,11 +2170,24 @@ impl Config {
     /// The registries this config resolves from, merged across every source,
     /// in the shape the `registries` setting is written in — the view
     /// `pnpm config get registries` prints. Unlike
-    /// [`Self::registry_declarations`], the default registry is declared too,
-    /// as the bare `@` scope.
+    /// [`Self::registry_declarations`], nothing is omitted: the default
+    /// registry is declared as the bare `@` scope, and the built-in routes —
+    /// the `@jsr` scope and the [`BUILTIN_REGISTRIES_BY_PREFIX`] prefixes —
+    /// are declared too, unless the user pointed them elsewhere.
     #[must_use]
     pub fn resolved_registry_declarations(&self) -> BTreeMap<String, RegistryDeclaration> {
-        registries::to_resolved_declarations(&self.registry_lookups(Some(self.registry.clone())))
+        let mut lookups = self.registry_lookups(Some(self.registry.clone()));
+        lookups
+            .registries_by_scope
+            .entry("@jsr".to_string())
+            .or_insert_with(|| DEFAULT_JSR_REGISTRY.to_string());
+        for (prefix, registry) in BUILTIN_REGISTRIES_BY_PREFIX {
+            lookups
+                .registries_by_prefix
+                .entry((*prefix).to_string())
+                .or_insert_with(|| (*registry).to_string());
+        }
+        registries::to_resolved_declarations(&lookups)
     }
 
     fn registry_lookups(&self, default_registry: Option<String>) -> RegistryLookups {
