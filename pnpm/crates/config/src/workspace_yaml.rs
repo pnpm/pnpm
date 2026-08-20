@@ -754,7 +754,9 @@ pub struct UpdateConfig {
 /// peer-dependency issues.
 ///
 /// - `ignoreMissing` / `allowAny` are glob/negation pattern lists
-///   (matched against the peer package name).
+///   (matched against the peer package name). `ignoreMissing` suppresses
+///   issues for a matched peer whether it's absent or resolves to a
+///   version outside its wanted range.
 /// - `allowedVersions` maps a peer selector (`name`, or the override
 ///   form `parent>name` / `parent@range>name`) to an extra semver range
 ///   that should be accepted.
