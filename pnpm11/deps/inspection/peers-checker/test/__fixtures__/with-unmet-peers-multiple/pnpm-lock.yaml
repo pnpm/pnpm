@@ -1,0 +1,55 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      needs-react-18:
+        specifier: 1.0.0
+        version: 1.0.0(react@17.0.0)
+      needs-vue-3:
+        specifier: 1.0.0
+        version: 1.0.0(vue@2.0.0)
+      react:
+        specifier: 17.0.0
+        version: 17.0.0
+      vue:
+        specifier: 2.0.0
+        version: 2.0.0
+
+packages:
+
+  needs-react-18@1.0.0:
+    resolution: {integrity: sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==}
+    peerDependencies:
+      react: ^18.0.0
+
+  needs-vue-3@1.0.0:
+    resolution: {integrity: sha512-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb==}
+    peerDependencies:
+      vue: ^3.0.0
+
+  react@17.0.0:
+    resolution: {integrity: sha512-RcdM0Qe4NK6Hfm+7+fOv0WTLO02H8LFu8Aa3dWtfI3G5QFxedoR9NBsDXm7Z+y0LHGQ3gJ+w3JkdNZyDrWOA==}
+    engines: {node: '>=0.10.0'}
+
+  vue@2.0.0:
+    resolution: {integrity: sha512-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc==}
+
+snapshots:
+
+  needs-react-18@1.0.0(react@17.0.0):
+    dependencies:
+      react: 17.0.0
+
+  needs-vue-3@1.0.0(vue@2.0.0):
+    dependencies:
+      vue: 2.0.0
+
+  react@17.0.0: {}
+
+  vue@2.0.0: {}

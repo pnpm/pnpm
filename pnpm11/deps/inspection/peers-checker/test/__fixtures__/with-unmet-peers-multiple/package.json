@@ -1,0 +1,10 @@
+{
+  "name": "with-unmet-peers-multiple",
+  "version": "1.0.0",
+  "dependencies": {
+    "needs-react-18": "1.0.0",
+    "needs-vue-3": "1.0.0",
+    "react": "17.0.0",
+    "vue": "2.0.0"
+  }
+}
