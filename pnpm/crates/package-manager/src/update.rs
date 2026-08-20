@@ -287,32 +287,20 @@ impl Update<'_> {
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;
 
-        let workspace_root_for_hooks = config.workspace_dir.as_ref().map_or_else(
-            || {
-                manifest
-                    .path()
-                    .parent()
-                    .expect("manifest path always has a parent dir")
-                    .to_path_buf()
-            },
-            Clone::clone,
-        );
-        let read_package_hook = (!save)
-            .then(|| update_read_package_hook::<Reporter>(&workspace_root_for_hooks))
+        let manifest_dir =
+            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+        let workspace_root = crate::install::lockfile_root_dir(config, &manifest_dir)
+            .map_err(UpdateError::FindWorkspaceDir)?;
+        let read_package_hook = (!save && !config.ignore_pnpmfile)
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root))
             .flatten();
+        let mut read_package_hooked_manifest_paths = HashSet::new();
         if let Some((hook, log)) = read_package_hook.as_ref() {
             apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
+            read_package_hooked_manifest_paths.insert(manifest.path().to_path_buf());
         }
-        let lockfile_specifier_project_manifests = (!save).then(|| {
-            vec![(
-                manifest
-                    .path()
-                    .parent()
-                    .expect("manifest path always has a parent dir")
-                    .to_path_buf(),
-                manifest.clone(),
-            )]
-        });
+        let lockfile_specifier_project_manifests =
+            (!save).then(|| vec![(manifest_dir.clone(), manifest.clone())]);
         let mut latest_chain = None;
         let Some(prepared) = prepare_manifest::<Reporter>(
             manifest,
@@ -357,13 +345,7 @@ impl Update<'_> {
             bump_targets,
             ..
         } = prepared;
-        let manifest_dir =
-            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
-        let importer_id = pnpm_workspace::importer_id_from_root_dir(
-            &crate::install::lockfile_root_dir(config, &manifest_dir)
-                .map_err(UpdateError::FindWorkspaceDir)?,
-            &manifest_dir,
-        );
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(&workspace_root, &manifest_dir);
         let bumps = (!bump_targets.is_empty()).then(|| ManifestSpecBumps {
             targets: BTreeMap::from([(importer_id.clone(), bump_targets)]),
             range_spec_style: RangeSpecStyle::from_save_options(save_exact, None),
@@ -411,7 +393,12 @@ impl Update<'_> {
         };
         match lockfile_specifier_project_manifests {
             Some(manifests) => {
-                install.run_with_lockfile_specifier_project_manifests::<Reporter>(manifests).await
+                install
+                    .run_with_lockfile_specifier_project_manifests::<Reporter>(
+                        manifests,
+                        read_package_hooked_manifest_paths,
+                    )
+                    .await
             }
             None => match bumps.as_ref() {
                 Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
@@ -495,17 +482,19 @@ impl Update<'_> {
             manifest.path().parent().expect("manifest path always has a parent dir"),
         )
         .map_err(UpdateError::FindWorkspaceDir)?;
-        let read_package_hook =
-            (!save).then(|| update_read_package_hook::<Reporter>(&workspace_root)).flatten();
+        let read_package_hook = (!save && !config.ignore_pnpmfile)
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root))
+            .flatten();
+        let mut read_package_hooked_manifest_paths = HashSet::new();
         if let Some((hook, log)) = read_package_hook.as_ref() {
-            let mut hooked_manifest_paths = HashSet::new();
             for project in projects.iter_mut() {
-                if hooked_manifest_paths.insert(project.manifest.path().to_path_buf()) {
+                if read_package_hooked_manifest_paths.insert(project.manifest.path().to_path_buf())
+                {
                     apply_read_package_hook_to_update_manifest(&mut project.manifest, hook, log)
                         .await?;
                 }
             }
-            if hooked_manifest_paths.insert(manifest.path().to_path_buf()) {
+            if read_package_hooked_manifest_paths.insert(manifest.path().to_path_buf()) {
                 apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
             }
         }
@@ -602,7 +591,9 @@ impl Update<'_> {
             Some(manifests) => {
                 install
                     .run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
-                        selection, manifests,
+                        selection,
+                        manifests,
+                        read_package_hooked_manifest_paths,
                     )
                     .await
             }

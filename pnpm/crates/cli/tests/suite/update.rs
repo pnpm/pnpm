@@ -1621,6 +1621,61 @@ fn update_no_save_runs_read_package_once_for_kept_importer_specifier() {
     drop((root, anchor));
 }
 
+/// A root `update --no-save` in a workspace pre-hooks only the root manifest,
+/// so the install layer must still run `readPackage` over the workspace
+/// projects it discovers itself — exactly once each. Regression test for the
+/// review finding on <https://github.com/pnpm/pnpm/pull/13812>.
+#[test]
+fn update_no_save_applies_read_package_to_workspace_projects() {
+    let (root, workspace, anchor) = setup();
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        format!(r#"{{ "name": "@test/a", "version": "1.0.0", "dependencies": {{ "{DEP}": "100.0.0" }} }}"#),
+    )
+    .expect("write packages/a/package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            "const fs = require('fs');\nconst path = require('path');\nmodule.exports = {{ hooks: {{ readPackage (pkg) {{\n  if (pkg.name === 'test-update' || pkg.name === '@test/a') {{\n    fs.appendFileSync(path.join(__dirname, 'read-package.log'), `${{pkg.name}}:${{pkg.dependencies && pkg.dependencies[{DEP:?}]}}\\n`);\n  }}\n  if (pkg.name === '@test/a' && pkg.dependencies && pkg.dependencies[{DEP:?}]) {{\n    pkg.dependencies[{DEP:?}] = '100.1.0';\n  }}\n  return pkg;\n}} }} }}\n",
+        ),
+    )
+    .expect("write pnpmfile");
+
+    let output =
+        pacquet(&workspace, ["update", "--no-save", "--lockfile-only", &format!("{DEP}@100.1.0")])
+            .output()
+            .expect("run update --no-save");
+    assert!(output.status.success(), "update --no-save failed: {output:?}");
+
+    let hook_log =
+        fs::read_to_string(workspace.join("read-package.log")).expect("read readPackage log");
+    let mut hook_inputs = hook_log.lines().collect::<Vec<_>>();
+    hook_inputs.sort_unstable();
+    assert_eq!(
+        hook_inputs,
+        vec!["@test/a:100.0.0", "test-update:^100.0.0"],
+        "readPackage should see each project manifest exactly once",
+    );
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lock.contains("specifier: 100.1.0"),
+        "the workspace project's importer entry must follow readPackage's rewrite: {lock}",
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
 /// A requested range names no version until resolution runs, so the specifier
 /// the manifest keeps decides — `>=101.0.0` cannot pull the lockfile past
 /// `^100.0.0`. Regression test for

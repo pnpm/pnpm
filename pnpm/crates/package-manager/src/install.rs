@@ -830,13 +830,16 @@ struct InstallRunOptions<'install, 'selection> {
     /// Project manifests used only as the source for lockfile importer
     /// specifiers. `pacquet update --no-save` resolves against an in-memory
     /// manifest rewrite but must serialize importer specifiers from the
-    /// manifest the user kept on disk.
+    /// manifest the user kept on disk. Supplied already
+    /// `readPackage`-transformed.
     lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
-    /// `pacquet update --no-save` applies `readPackage` before preparing its
-    /// in-memory resolution rewrite, so the install layer must not run the
-    /// project-manifest hook again. Dependency manifests still flow through the
-    /// resolver's hook path.
-    project_manifests_are_read_package_hooked: bool,
+    /// Manifest paths `pacquet update --no-save` already ran `readPackage`
+    /// over before preparing its in-memory resolution rewrite. The hook must
+    /// observe each project manifest exactly once, so the install layer skips
+    /// these and still hooks every project manifest outside the set — the
+    /// workspace projects the non-selected update path never loads. Dependency
+    /// manifests always flow through the resolver's hook path.
+    read_package_hooked_manifest_paths: HashSet<PathBuf>,
     /// pnpm's `saveLockfile`: whether the resolved graph may be written
     /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
     /// whose resolution belongs to a project other than the one that
@@ -857,7 +860,7 @@ impl Default for InstallRunOptions<'_, '_> {
             selection: None,
             root_manifest_as_workspace_root: false,
             lockfile_specifier_project_manifests: None,
-            project_manifests_are_read_package_hooked: false,
+            read_package_hooked_manifest_paths: HashSet::new(),
             save_lockfile: true,
             manifest_spec_bumps: None,
             prompt_eligibility_override: None,
@@ -879,10 +882,11 @@ where
     >(
         self,
         lockfile_specifier_project_manifests: Vec<(PathBuf, PackageManifest)>,
+        read_package_hooked_manifest_paths: HashSet<PathBuf>,
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             lockfile_specifier_project_manifests: Some(lockfile_specifier_project_manifests),
-            project_manifests_are_read_package_hooked: true,
+            read_package_hooked_manifest_paths,
             ..Default::default()
         }))
         .await
@@ -928,11 +932,12 @@ where
         self,
         selection: WorkspaceInstallSelection<'_>,
         lockfile_specifier_project_manifests: Vec<(PathBuf, PackageManifest)>,
+        read_package_hooked_manifest_paths: HashSet<PathBuf>,
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             selection: Some(selection),
             lockfile_specifier_project_manifests: Some(lockfile_specifier_project_manifests),
-            project_manifests_are_read_package_hooked: true,
+            read_package_hooked_manifest_paths,
             ..Default::default()
         }))
         .await

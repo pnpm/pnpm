@@ -350,10 +350,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
                     .into_iter()
                     .map(|(project_dir, manifest)| {
                         (
-                            pnpm_workspace::importer_id_from_root_dir(
-                                workspace_root,
-                                &project_dir,
-                            ),
+                            pnpm_workspace::importer_id_from_root_dir(workspace_root, &project_dir),
                             manifest,
                         )
                     })
