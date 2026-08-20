@@ -376,14 +376,18 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     // selected, approved dependency always runs (force-rebuild
     // bypasses the side-effects cache gate), so policy approval is a
     // faithful stand-in for "was rebuilt".
-    let rebuild_build_policy =
-        rebuild.as_ref().and_then(|_| crate::AllowBuildPolicy::from_config(config).ok());
+    let allow_build_policy = (rebuild.is_some()
+        || (prior_modules.is_some() && materialized_current_lockfile.is_some()))
+    .then(|| crate::AllowBuildPolicy::from_config(config))
+    .transpose()
+    .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
+    .map_err(InstallError::WithFreshLockfile)?;
     let pending_builds = merge_pending_builds(
         previous_pending_builds,
         deferred_projects.into_iter().flatten().chain(deferred_builds),
         materialized_current_lockfile,
         rebuild,
-        rebuild_build_policy.as_ref(),
+        allow_build_policy.as_ref(),
     );
 
     // Rebuild reads hoisted locations from `.modules.yaml` and reports
@@ -400,11 +404,10 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         pending_builds,
         pruned_at,
     );
-    if let (Some(previous), Some(current)) = (prior_modules, materialized_current_lockfile) {
-        let allow_build_policy = crate::AllowBuildPolicy::from_config(config)
-            .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
-            .map_err(InstallError::WithFreshLockfile)?;
-        retain_current_ignored_builds(&mut next_modules, previous, current, &allow_build_policy);
+    if let (Some(previous), Some(current), Some(policy)) =
+        (prior_modules, materialized_current_lockfile, allow_build_policy.as_ref())
+    {
+        retain_current_ignored_builds(&mut next_modules, previous, current, policy);
     }
     if filtered_install
         && !matches!(node_linker, NodeLinker::Hoisted)
