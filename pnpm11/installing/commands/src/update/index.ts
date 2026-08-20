@@ -482,7 +482,8 @@ async function update (
 function updateTargetPatterns (selector: string): string[] {
   const { pattern, versionSpec } = parseUpdateParam(selector)
   if (versionSpec?.startsWith('npm:') !== true) return [pattern]
-  return [pattern, parseUpdateParam(versionSpec.slice('npm:'.length)).pattern]
+  const aliased = parseUpdateParam(versionSpec.slice('npm:'.length)).pattern
+  return [pattern, pattern.startsWith('!') ? `!${aliased}` : aliased]
 }
 
 function shouldUpdateGitHubActions (opts: UpdateCommandOptions, include: IncludedDependencies): boolean {
