@@ -192,7 +192,7 @@ ignoredBuiltDependencies: [core-js]
     assert_eq!(settings.packages.as_deref(), Some(&[".".to_owned()][..]));
     assert_eq!(
         settings.catalog.as_ref().and_then(|c| c.get("react")).map(String::as_str),
-        Some("^19.0.0")
+        Some("^19.0.0"),
     );
     assert_eq!(
         settings
