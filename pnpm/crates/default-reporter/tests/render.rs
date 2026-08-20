@@ -948,27 +948,30 @@ fn debug_messages_stay_hidden_at_the_default_loglevel() {
 
 /// Dedupe-check issues are an error-level log upstream
 /// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`), so they render
-/// even at the `error` ceiling.
+/// at every ceiling, including `error`.
 #[test]
-fn loglevel_error_still_renders_dedupe_check_issues() {
-    let mut reporter = state_with_options(ReporterOptions {
-        max_log_level: MaxLogLevel::Error,
-        ..ReporterOptions::default()
-    });
-    let frame = render(
-        &mut reporter,
-        vec![LogEvent::DedupeCheck(DedupeCheckLog {
-            level: LogLevel::Error,
-            message: "dedupe check issues".to_string(),
-            err: PnpmErrorLog {
-                code: "ERR_PNPM_DEDUPE_CHECK_ISSUES".to_string(),
+fn dedupe_check_issues_render_at_every_loglevel_ceiling() {
+    for max_log_level in
+        [MaxLogLevel::Error, MaxLogLevel::Warn, MaxLogLevel::Info, MaxLogLevel::Debug]
+    {
+        let mut reporter =
+            state_with_options(ReporterOptions { max_log_level, ..ReporterOptions::default() });
+        let frame = render(
+            &mut reporter,
+            vec![LogEvent::DedupeCheck(DedupeCheckLog {
+                level: LogLevel::Error,
                 message: "dedupe check issues".to_string(),
-            },
-            dedupe_check_issues: serde_json::Value::Null,
-            rendered: "resolution changes".to_string(),
-        })],
-    );
-    assert_eq!(frame, "\nresolution changes");
+                err: PnpmErrorLog {
+                    code: "ERR_PNPM_DEDUPE_CHECK_ISSUES".to_string(),
+                    message: "dedupe check issues".to_string(),
+                },
+                dedupe_check_issues: serde_json::Value::Null,
+                rendered: "resolution changes".to_string(),
+            })],
+        );
+        println!("ceiling: {max_log_level:?}");
+        assert_eq!(frame, "\nresolution changes");
+    }
 }
 
 #[test]
