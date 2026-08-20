@@ -21,6 +21,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
+use pnpm_modules_yaml::HoistKind;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use std::{
@@ -215,6 +216,9 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     let public_hoist_targets: Option<BTreeMap<String, PathBuf>> = pre_hoist
         .as_ref()
         .map(|plan| collect_public_hoist_targets(&plan.result, &plan.graph, layout, &plan.skipped));
+    let has_publicly_hoisted_workspace_package = pre_hoist.as_ref().is_some_and(|plan| {
+        includes_publicly_hoisted_workspace_package(&plan.result.hoisted_workspace_aliases)
+    });
 
     // Reconcile before linking: stale direct-dep links and
     // orphaned hoist links must vacate their slots so the relink +
@@ -478,7 +482,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     // is what shims a publicly-hoisted *workspace package*'s bin: those
     // are recorded in the hoist result's `hoisted_workspace_aliases`,
     // which the post-build top-level link never sees.
-    {
+    if has_publicly_hoisted_workspace_package {
         let modules_basename = config.modules_dir.file_name().map_or_else(
             || std::ffi::OsString::from("node_modules"),
             std::ffi::OsStr::to_os_string,
@@ -504,3 +508,12 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         publicly_hoisted_for_post_build,
     })
 }
+
+fn includes_publicly_hoisted_workspace_package(
+    hoisted_workspace_aliases: &[(String, HoistKind, PathBuf)],
+) -> bool {
+    hoisted_workspace_aliases.iter().any(|(_, kind, _)| *kind == HoistKind::Public)
+}
+
+#[cfg(test)]
+mod tests;

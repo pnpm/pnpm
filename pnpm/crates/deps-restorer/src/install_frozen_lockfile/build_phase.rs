@@ -207,6 +207,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         && rebuild.is_none()
         && patches.as_ref().is_none_or(HashMap::is_empty)
         && (!config.side_effects_cache_read() || side_effects_maps_by_snapshot.is_empty());
+    let build_modules_ran = !can_defer_without_build_modules;
     let build_output = if can_defer_without_build_modules {
         let newly_deferred = materialized_snapshots
             .iter()
@@ -277,10 +278,18 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // Post-`BuildModules` per-importer top-level bin link
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
     // shims lifecycle-script-created bins that didn't exist at extract
-    // time. Idempotent for unchanged shims. Runs after `buildModules`.
+    // time. When no build ran, the link phase already handled direct
+    // bins; only the root's public-hoist candidates still need this pass.
     let modules_dir_basename: &OsStr =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
     for (importer_id, importer_snapshot) in importers {
+        if !needs_top_level_bin_link(
+            importer_id,
+            build_modules_ran,
+            publicly_hoisted_for_post_build,
+        ) {
+            continue;
+        }
         let project_dir = importer_root_dir(top_level_bin_root, importer_id);
         let modules_dir = project_dir.join(modules_dir_basename);
         // Same filter the symlink phase used so the post-build pass sees
@@ -305,4 +314,13 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     }
 
     Ok(build_output)
+}
+
+fn needs_top_level_bin_link(
+    importer_id: &str,
+    build_modules_ran: bool,
+    publicly_hoisted: &[String],
+) -> bool {
+    build_modules_ran
+        || (importer_id == Lockfile::ROOT_IMPORTER_KEY && !publicly_hoisted.is_empty())
 }
