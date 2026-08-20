@@ -70,18 +70,13 @@ fn post_download_semaphore() -> &'static Semaphore {
 /// Admission cap for the extract-while-downloading path (see
 /// [`download`]): how many downloads may hold a blocking thread that
 /// extracts their body as it arrives. Deliberately separate from
-/// [`post_download_semaphore`] — a streaming extractor holds its slot
+/// [`post_download_semaphore`] because a streaming extractor holds its slot
 /// for the whole body transfer (mostly parked between chunks), so
 /// sharing the post-download permits would starve the eager
-/// extractions that hold one only for a burst of CPU. `num_cpus`
-/// (floor 2) bounds the worst case — a registry fast enough to keep
-/// every extractor busy — at one core each. A download that finds no
-/// free slot simply buffers its body and extracts eagerly; admission
-/// is `try_acquire`, never a wait.
-///
-/// Sized from [`std::thread::available_parallelism`] so cgroup /
-/// CPU-quota limits are respected — the convention
-/// `pnpm_network::default_network_concurrency` documents.
+/// extractions that hold one only for a burst of CPU. The cap uses
+/// [`std::thread::available_parallelism`] with a minimum of two permits
+/// so cgroup and CPU-quota limits are respected. Admission uses
+/// `try_acquire`; a download with no free slot buffers its body instead.
 fn streaming_extract_semaphore() -> &'static Semaphore {
     static SEM: LazyLock<Semaphore> = LazyLock::new(|| {
         let cores = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);

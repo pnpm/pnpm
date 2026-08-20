@@ -4248,11 +4248,6 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
     drop(store_dir_keep);
 }
 
-/// A large gzip body with a pinned integrity takes the
-/// extract-while-downloading path. Its outputs must be
-/// indistinguishable from the eager path's: the pinned integrity comes
-/// back verified, and the CAS paths and files index match what
-/// extracting the same bytes after the fact produces.
 #[tokio::test]
 async fn streaming_download_extracts_a_big_pinned_tarball() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -4289,8 +4284,6 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
 
     assert_eq!(verified.to_string(), pinned.to_string(), "the pinned integrity is what verifies");
 
-    // Eager reference extraction of the same bytes into a separate
-    // store: same entries, same per-file hashes.
     let (reference_keep, reference_store) = tempdir_with_leaked_path();
     let (reference_paths, reference_idx) =
         super::stream_extract_gzipped_tarball(&body, reference_store, None)
@@ -4317,19 +4310,13 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
     drop(store_dir_keep);
 }
 
-/// An integrity mismatch on the streaming path is only known once the
-/// body has fully arrived — it must still fail the attempt, burn the
-/// retry budget, and surface as the same `Checksum` error the eager
-/// path reports.
 #[tokio::test]
 async fn streaming_download_integrity_mismatch_retries_and_fails() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let body = incompressible_tarball(5 * 1024 * 1024);
-    // Real-format integrity of different bytes.
     let wrong = Integrity::from(b"not the body being served");
 
     let mut server = mockito::Server::new_async().await;
-    // 2 retries + 1 initial = 3 attempts, all rejected the same way.
     let mock = server
         .mock("GET", "/pkg.tgz")
         .with_status(200)
@@ -4360,18 +4347,13 @@ async fn streaming_download_integrity_mismatch_retries_and_fails() {
     drop(store_dir_keep);
 }
 
-/// A big body that opens with the gzip magic but is garbage after it
-/// fails the streaming extractor mid-body. The attempt is retried —
-/// and retries take the buffered path, so the error that exhausts the
-/// budget is the eager path's decode diagnostic, exactly what a
-/// sub-threshold body reports.
 #[tokio::test]
 async fn streaming_download_corrupt_archive_retries_and_fails() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut body = vec![0x1f_u8, 0x8b];
     body.extend(std::iter::repeat_n(0xa5_u8, 5 * 1024 * 1024));
     // The integrity pins the garbage itself, so only the archive
-    // decode can fail — the failure under test.
+    // decode can produce the failure under test.
     let pinned = Integrity::from(&body);
 
     let mut server = mockito::Server::new_async().await;
@@ -4408,17 +4390,11 @@ async fn streaming_download_corrupt_archive_retries_and_fails() {
     drop(store_dir_keep);
 }
 
-/// A body that is both tampered (integrity mismatch) and malformed
-/// must report the integrity diagnostic, not the archive-parse one:
-/// the supply-chain verdict outranks the decode failure on every
-/// path, streaming included.
 #[tokio::test]
 async fn streaming_download_tampered_and_corrupt_body_reports_integrity() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut body = vec![0x1f_u8, 0x8b];
     body.extend(std::iter::repeat_n(0x5a_u8, 5 * 1024 * 1024));
-    // Integrity of different bytes: both the checksum and the archive
-    // decode fail, and the checksum must win.
     let wrong = Integrity::from(b"the body the registry was supposed to serve");
 
     let mut server = mockito::Server::new_async().await;

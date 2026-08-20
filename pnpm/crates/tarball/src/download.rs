@@ -337,9 +337,7 @@ pub(crate) fn verify_tarball_integrity(
     Ok(opts.result())
 }
 
-/// Per-body download-progress emitter shared by both body paths of
-/// [`fetch_and_extract_once`] (buffer-then-extract and
-/// extract-while-downloading).
+/// Emits download progress for both body paths of [`fetch_and_extract_once`].
 ///
 /// Mirrors `lodash.throttle(opts.onProgress, 500)` on pnpm's side,
 /// down to the leading and trailing edges. The size gate exists
@@ -348,11 +346,7 @@ pub(crate) fn verify_tarball_integrity(
 /// sub-megabyte package the gauge would reach 100% before any UI tick
 /// could show it.
 struct BodyProgress<'a> {
-    /// Whether to emit at all — the body is big enough for a gauge.
     emit: bool,
-    /// `None` until the leading-edge emit, so the first chunk always
-    /// fires. Subsequent chunks fire only when the previous emit was
-    /// at least the throttle window ago.
     last_emit: Option<Instant>,
     last_emitted_downloaded: u64,
     downloaded: u64,
@@ -390,12 +384,9 @@ impl<'a> BodyProgress<'a> {
         }
     }
 
-    /// Trailing emit: matches `lodash.throttle`'s default
-    /// `{leading: true, trailing: true}`. Without it the last partial
-    /// window is dropped — a download that ends 200ms after the
-    /// previous tick would leave consumers stuck at a stale
-    /// `downloaded` value below the real total.
     fn finish<Reporter: self::Reporter>(&mut self) {
+        // Match the trailing edge of `lodash.throttle` so consumers
+        // observe the final byte count when the last window is partial.
         if self.emit && self.downloaded != self.last_emitted_downloaded {
             Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
                 level: LogLevel::Debug,
@@ -549,10 +540,9 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     let mut stream = response_head.bytes_stream();
     let mut progress = BodyProgress::new(expected_size, package_id);
 
-    // Pull chunks until the gzip magic is decidable. The prefix is
-    // handed to whichever body path runs, so nothing is consumed
-    // twice; a body shorter than the magic falls through to the
-    // buffered path, which fails it the same way it always has.
+    // Pull chunks until the gzip magic is decidable. The selected body
+    // path receives the prefix so no bytes are consumed twice. A shorter
+    // body falls through to the buffered path and reports its decode error.
     let mut prefix: Vec<bytes::Bytes> = Vec::new();
     let mut prefix_len = 0usize;
     const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
@@ -567,41 +557,12 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         (magic.next(), magic.next()) == (Some(GZIP_MAGIC[0]), Some(GZIP_MAGIC[1]))
     };
 
-    // A large gzip body with a pinned integrity is extracted *while it
-    // downloads*: every chunk feeds an incremental integrity hash and
-    // a blocking-thread extractor concurrently. The biggest tarballs
-    // finish downloading last on a shared link no matter when they
-    // were requested — their bytes take the longest to arrive — so
-    // extracting them after the fact is pure install tail; interleaved
-    // here, the CPU work rides the gaps between chunks and the tail
-    // shrinks to the final chunk's processing. Below the size pivot
-    // the extract is too cheap to be worth parking a blocking thread
-    // on the whole body. The integrity gate keeps the paths honest: an
-    // unpinned tarball's integrity is *computed* from the buffered
-    // body, which the streaming path never materializes. The
-    // first-attempt gate keeps retries maximally diagnosable: a body
-    // that fails an attempt for any reason re-fetches through the
-    // buffered path, so the error that exhausts the retry budget
-    // carries the eager path's exact diagnostics. And admission is
-    // bounded by [`streaming_extract_semaphore`] — a download that
-    // finds no free extractor slot buffers like any other.
-    //
-    // Failure semantics stay at the retry boundary, verdicts in the
-    // buffered path's order: a mid-body network failure first, then
-    // the integrity verdict, then the extractor's own error — so a
-    // tampered body reports `Checksum` (`ERR_PNPM_TARBALL_INTEGRITY`)
-    // even when it also fails to parse. An integrity mismatch is only
-    // known after the body ends, by which point the extractor has
-    // CAS-written entries from the unverified archive — the same
-    // self-consistent, unreferenced files a crash mid-extract leaves
-    // (each is keyed by its own content hash, and the store-index row
-    // that would make the package reach them is only queued by the
-    // caller after this returns `Ok`).
-    //
-    // Memory stays bounded by what the buffered path would hold: the
-    // channel queues at most the not-yet-extracted remainder of the
-    // compressed body — the buffered path holds all of it — and the
-    // extractor's own buffers are bounded (`STREAM_ENTRY_BUFFER_MAX`).
+    // Unpinned bodies need the full buffer to compute their integrity.
+    // Retries also stay buffered so their terminal errors retain the eager
+    // path's diagnostics. Streaming may CAS-write entries before integrity
+    // is known, but the caller only makes them reachable after this returns
+    // `Ok`. The channel can queue no more compressed data than the buffered
+    // path would retain, while extractor buffers remain bounded.
     if is_gzip
         && attempt == 0
         && expected_size.is_some_and(|size| size >= STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD)
@@ -615,11 +576,10 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         });
         let mut checker = IntegrityChecker::new(expected.clone());
         // The body is hashed to its end no matter what the extractor
-        // does: the pinned integrity covers every byte, and the
-        // extractor legitimately finishes early — the tar terminator
-        // (and the gzip trailer behind it) can land while chunks are
-        // still in flight, closing the channel. `feed` only stops the
-        // sends; a send failure is not an error verdict.
+        // does because the pinned integrity covers every byte. The
+        // extractor can legitimately finish early when the tar terminator
+        // and gzip trailer arrive while chunks are still in flight. `feed`
+        // only stops the sends; a send failure is not an error verdict.
         let mut feed = true;
         for chunk in prefix {
             checker.input(&chunk);
@@ -649,10 +609,9 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
                 None => break,
             }
         }
-        // Close the channel so the extractor sees end-of-stream, and
-        // release the network permit before waiting on CPU work — the
-        // body is done (or abandoned, on the network-error path, where
-        // the dropped connection is the price of the retry either way).
+        // Close the channel so the extractor sees end-of-stream. Release
+        // the network permit before waiting on CPU work because the body is
+        // done or abandoned after a network error.
         drop(chunk_tx);
         drop(stream);
         drop(client);

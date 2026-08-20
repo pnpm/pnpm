@@ -87,20 +87,9 @@ pub(crate) fn should_stream_extract(compressed_len: usize, unpacked_size: Option
         || unpacked_size.is_some_and(|size| size >= MAX_UNTRUSTED_PREALLOC_BYTES)
 }
 
-/// `Content-Length` pivot for extracting a registry tarball *while its
-/// body is still arriving* instead of after it ([`crate::download`]'s
-/// streaming path). A body this large spends long enough on the wire
-/// for its decompress + CAS writes to ride along chunk by chunk; the
-/// biggest packages are also the ones whose downloads finish last on a
-/// shared link, so extracting them afterwards is pure install tail.
-/// The pivot is set where that tail actually lives: a package under it
-/// finishes its download with wire time left behind it and extracts in
-/// the tens of milliseconds, overlapped by the downloads still
-/// draining, while the handful above it are the ones whose last bytes
-/// close the install. Keeping the set small also keeps it inside
-/// [`crate::streaming_extract_semaphore`]'s admission — each streamed
-/// body parks a blocking thread and holds a permit for its whole
-/// transfer, so the pivot and the permit count are sized together.
+/// Minimum known compressed size for extracting a registry tarball while its
+/// body is still arriving. This reserves long-lived blocking tasks for archives
+/// whose post-download extraction is likely to extend the install tail.
 pub(crate) const STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD: u64 = 4 * 1024 * 1024;
 
 /// Blocking [`Read`] over a channel of downloaded body chunks: the
@@ -108,7 +97,7 @@ pub(crate) const STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD: u64 = 4 * 1024 * 1024
 /// blocking thread while the async download loop keeps feeding it.
 ///
 /// `Ok` items are payload. An `Err` item is the download loop
-/// reporting that the body failed mid-stream — it surfaces as this
+/// reporting that the body failed mid-stream. It surfaces as this
 /// reader's error so the extractor unwinds instead of mistaking a
 /// truncated body for a complete archive. A closed channel (sender
 /// dropped after the last chunk) is end-of-stream.
@@ -146,11 +135,8 @@ impl Read for ChannelBytesReader {
     }
 }
 
-/// [`extract_tarball_entries_streaming`] fed from a download in
-/// flight: gunzip and CAS-write the archive as its body chunks arrive
-/// through `rx`. Runs on a blocking thread for the whole download —
-/// mostly parked in the channel `recv`, doing its CPU work in the
-/// gaps between chunks.
+/// Gunzips and CAS-writes a download delivered in chunks through `rx`.
+/// This runs on a blocking thread for the lifetime of the download.
 pub(crate) fn stream_extract_gzipped_channel(
     rx: std::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>,
     store_dir: &StoreDir,
