@@ -8,7 +8,7 @@
     "prepare-fixtures": "pn --dir=pnpm11/__fixtures__ prepareFixtures",
     "lint": "pn spellcheck && pn lint:meta && pn lint:ts",
     "spellcheck": "cspell \"**/*.ts\" \"**/README.md\" \".changeset/*.md\" --no-progress",
-    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\" --cache",
+    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\" --cache --concurrency auto",
     "test-all": "pn pretest && pn lint && pn test-pkgs-all",
     "ci:test-all": "pn prepare-fixtures && pn test-pkgs-all-report-summary",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
