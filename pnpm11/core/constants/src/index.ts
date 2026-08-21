@@ -35,8 +35,10 @@ export const BUILTIN_REGISTRIES_BY_PREFIX: Readonly<Record<string, string>> = Ob
 // about all the packages published by the same name, not just the manifest
 // of one package/version
 //
-// Cache files use NDJSON format: line 1 is cache headers (etag, modified),
-// line 2 is the registry metadata JSON.
-export const ABBREVIATED_META_DIR = 'v11/metadata'
-export const FULL_META_DIR = 'v11/metadata-full'
-export const FULL_FILTERED_META_DIR = 'v11/metadata-full-filtered'
+// The version prefix is bumped whenever the file format changes, so a pnpm
+// version that predates the change never reads files it cannot parse (and
+// never overwrites them with the format it knows). `v12` is the indexed
+// layout in `resolving/npm-resolver`'s mirror module; `v11` was NDJSON.
+export const ABBREVIATED_META_DIR = 'v12/metadata'
+export const FULL_META_DIR = 'v12/metadata-full'
+export const FULL_FILTERED_META_DIR = 'v12/metadata-full-filtered'

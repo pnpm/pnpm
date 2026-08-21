@@ -88,20 +88,21 @@ test('a full document served for an abbreviated request is normalized before cac
   expect(savedVersion.dist).toBeDefined()
 })
 
-test('a document served with the abbreviated content type is cached verbatim (registry honored the Accept header)', async () => {
+test('a document served with the abbreviated content type is cached without stripping version fields (registry honored the Accept header)', async () => {
   const cacheDir = temporaryDirectory()
 
-  // The abbreviated document a spec-compliant registry (e.g. npm) returns. It
-  // also carries a custom top-level field to prove the body is stored verbatim
-  // (no re-serialization / stripping) on the happy path.
+  // The abbreviated document a spec-compliant registry (e.g. npm) returns. A
+  // version manifest carries a custom field to prove the mirror preserves
+  // version data it doesn't know about (only top-level fields outside the
+  // indexed layout's records are dropped).
   const abbreviatedDoc = {
     name: 'foo',
     'dist-tags': { latest: '1.0.0' },
-    _cacheUntouchedMarker: 'kept-verbatim',
     versions: {
       '1.0.0': {
         name: 'foo',
         version: '1.0.0',
+        _cacheUntouchedMarker: 'kept-verbatim',
         dependencies: { bar: '^1.0.0' },
         dist: {
           tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
@@ -126,8 +127,8 @@ test('a document served with the abbreviated content type is cached verbatim (re
   expect(res!.id).toBe('foo@1.0.0')
 
   const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/foo.jsonl`)
-  // The registry body is stored untouched: no field stripping and no
-  // re-serialization on the honored-header happy path.
-  const saved = await retryLoadJsonFile<{ _cacheUntouchedMarker?: string }>(cachePath)
-  expect(saved._cacheUntouchedMarker).toBe('kept-verbatim')
+  // Version manifests are mirrored without field stripping on the
+  // honored-header happy path.
+  const saved = await retryLoadJsonFile<{ versions: Record<string, { _cacheUntouchedMarker?: string }> }>(cachePath)
+  expect(saved.versions['1.0.0']._cacheUntouchedMarker).toBe('kept-verbatim')
 })
