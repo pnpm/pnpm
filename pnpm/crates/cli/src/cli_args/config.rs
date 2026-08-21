@@ -498,8 +498,8 @@ fn absolutize_patch_paths(result: &mut Map<String, Value>, config: &Config) {
 /// `catalog` block is its `default` entry, listed first — whichever spelling
 /// declared it.
 fn merge_default_catalog(result: &mut Map<String, Value>) {
-    let named = match result.get("catalogs") {
-        Some(Value::Object(named)) => named.clone(),
+    let named = match result.remove("catalogs") {
+        Some(Value::Object(named)) => named,
         _ => Map::new(),
     };
     let default = result.get("catalog").or_else(|| named.get("default")).cloned();
@@ -512,9 +512,7 @@ fn merge_default_catalog(result: &mut Map<String, Value>) {
             merged.insert(name, catalog);
         }
     }
-    if merged.is_empty() {
-        result.remove("catalogs");
-    } else {
+    if !merged.is_empty() {
         result.insert("catalogs".to_string(), Value::Object(merged));
     }
 }
