@@ -75,6 +75,19 @@ fn registry_is_a_universal_global_option() {
 }
 
 #[test]
+fn progress_is_a_universal_global_option() {
+    let disabled = CliArgs::try_parse_from(["pacquet", "install", "--no-progress"])
+        .expect("parses --no-progress");
+    assert!(disabled.no_progress);
+    assert!(!disabled.progress);
+
+    let enabled = CliArgs::try_parse_from(["pacquet", "install", "--no-progress", "--progress"])
+        .expect("parses --progress");
+    assert!(enabled.progress);
+    assert!(!enabled.no_progress);
+}
+
+#[test]
 fn add_allow_build_collects_repeated_values() {
     let args =
         add_args(&["pacquet", "add", "foo", "--allow-build=esbuild", "--allow-build", "sharp"]);

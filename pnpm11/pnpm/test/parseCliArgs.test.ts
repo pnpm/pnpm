@@ -11,3 +11,12 @@ test('the "issues" alias resolves to the "bugs" command', async () => {
   const { cmd } = await parseCliArgs(['issues', 'is-positive'])
   expect(cmd).toBe('bugs')
 })
+
+test('progress is a global option', async () => {
+  const [before, after] = await Promise.all([
+    parseCliArgs(['--no-progress', 'install']),
+    parseCliArgs(['install', '--no-progress']),
+  ])
+  expect(before.options.progress).toBe(false)
+  expect(after.options.progress).toBe(false)
+})

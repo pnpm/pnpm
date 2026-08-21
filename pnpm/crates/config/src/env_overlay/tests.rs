@@ -74,6 +74,18 @@ fn parity_settings_read_from_the_environment() {
     assert_eq!(settings.use_beta_cli, Some(true));
 }
 
+#[test]
+fn progress_reads_from_the_environment() {
+    struct EnvProgress;
+    impl EnvVar for EnvProgress {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_PROGRESS").then(|| "false".to_owned())
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvProgress>();
+    assert_eq!(settings.progress, Some(false));
+}
+
 /// An exported-but-empty `PNPM_CONFIG_STORE_DIR=` shouldn't clobber
 /// the configured store path.
 #[test]

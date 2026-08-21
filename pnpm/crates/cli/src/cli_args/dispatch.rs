@@ -66,9 +66,10 @@ impl CliArgs {
     /// `--color` / `--no-color` on the command line is seeded here for
     /// that reason; the `color` *setting* can only be read once the
     /// configuration is loaded, and reaches the reporter in
-    /// [`Self::run`].
-    /// [`Self::run`] and the install fast path call it again so a direct
-    /// in-process caller is configured too; the repeat calls are no-ops.
+    /// [`Self::run`]. Structural settings retain their first value, while
+    /// progress may be updated after lazy config loading. [`Self::run`] and
+    /// the install fast path call this again so a direct in-process caller is
+    /// configured too.
     ///
     /// A `--dir` that cannot be canonicalized is left as given: the same
     /// path fails with a proper diagnostic in [`Self::run`], and the
@@ -78,6 +79,7 @@ impl CliArgs {
             configure_color(color);
         }
         let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
+        pnpm_default_reporter::set_progress(self.progress_override().unwrap_or(true));
         configure_default_reporter(&DefaultReporterSetup {
             reporter: self.effective_reporter(),
             dir: &dir,
@@ -91,6 +93,16 @@ impl CliArgs {
             hide_lifecycle_prefix: self.reporter_hide_prefix,
         });
         configure_max_log_level(self.loglevel);
+    }
+
+    fn progress_override(&self) -> Option<bool> {
+        if self.no_progress {
+            Some(false)
+        } else if self.progress {
+            Some(true)
+        } else {
+            None
+        }
     }
 
     pub fn run_completion_if_requested(&self) -> miette::Result<bool> {
@@ -128,6 +140,7 @@ impl CliArgs {
         if !self.filter.is_empty() || !self.filter_prod.is_empty() {
             return false;
         }
+        self.configure_reporter();
         let Ok(dir) = dunce::canonicalize(&self.dir) else {
             return false;
         };
@@ -154,7 +167,11 @@ impl CliArgs {
             apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
         }
         install_args.lockfile_dir.apply_to(&mut config, &dir);
+        if let Some(progress) = self.progress_override() {
+            config.progress = progress;
+        }
         self.configure_reporter();
+        pnpm_default_reporter::set_progress(config.progress);
         let emit = reporter_emit(self.effective_reporter());
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
@@ -196,6 +213,8 @@ impl CliArgs {
             recursive,
             reporter: _,
             loglevel: _,
+            progress,
+            no_progress,
             filter,
             filter_prod,
             workspace_root,
@@ -312,6 +331,12 @@ impl CliArgs {
                 if let Some(state_dir) = state_dir.as_deref() {
                     apply_state_dir_override::<Host>(&mut cfg, state_dir, anchor);
                 }
+                if no_progress {
+                    cfg.progress = false;
+                } else if progress {
+                    cfg.progress = true;
+                }
+                pnpm_default_reporter::set_progress(cfg.progress);
                 // `--recursive` / `--filter` / `--filter-prod` /
                 // `--workspace-root` / `--fail-if-no-match` are CLI-only
                 // upstream (not `.npmrc` / yaml keys), so the global flags
