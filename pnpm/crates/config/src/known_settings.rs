@@ -149,6 +149,9 @@ pub fn is_known_setting_key(key: &str) -> bool {
 
 /// Render an unrecognized key for a warning or error, appending the closest
 /// known setting name when one is close enough to look like a typo.
+///
+/// `key` must already be sanitized for display: it comes from a config file a
+/// repository may control, and the rendering reaches a terminal or a CI log.
 #[must_use]
 pub fn annotate_unknown_setting(key: &str) -> String {
     let camel = to_camel_case(key);

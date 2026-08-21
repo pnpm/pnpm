@@ -132,7 +132,8 @@ pub(crate) fn report_workspace_key_issues(
 fn refused_workspace_keys_warning(keys: &[String]) -> String {
     let keys = keys
         .iter()
-        .map(|key| format!(r#""{key}" ({})"#, where_refused_key_belongs(&to_camel_case(key))))
+        .map(|key| redact_and_sanitize(key))
+        .map(|key| format!(r#""{key}" ({})"#, where_refused_key_belongs(&to_camel_case(&key))))
         .collect::<Vec<_>>()
         .join(", ");
     format!(
@@ -144,13 +145,19 @@ fn annotate_unknown_settings(keys: &[String]) -> Option<String> {
     if keys.is_empty() {
         return None;
     }
-    Some(keys.iter().map(|key| annotate_unknown_setting(key)).collect::<Vec<_>>().join(", "))
+    Some(
+        keys.iter()
+            .map(|key| annotate_unknown_setting(&redact_and_sanitize(key)))
+            .collect::<Vec<_>>()
+            .join(", "),
+    )
 }
 
 fn non_camel_case_workspace_keys_warning(keys: &[String]) -> String {
     let keys = keys
         .iter()
-        .map(|key| format!(r#""{key}" (use "{}")"#, to_camel_case(key)))
+        .map(|key| redact_and_sanitize(key))
+        .map(|key| format!(r#""{key}" (use "{}")"#, to_camel_case(&key)))
         .collect::<Vec<_>>()
         .join(", ");
     format!(

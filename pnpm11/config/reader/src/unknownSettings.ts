@@ -1,3 +1,4 @@
+import { redactAndSanitize } from '@pnpm/error'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import camelcase from 'camelcase'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
@@ -151,12 +152,18 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
 
 const KNOWN_SETTING_KEYS_LIST = [...KNOWN_SETTING_KEYS]
 
+/**
+ * Renders unrecognized keys for a warning. The key comes from a config file a
+ * repository may control, so it is sanitized before it reaches a terminal or a
+ * CI log; the suggestion is one of pnpm's own setting names.
+ */
 export function quoteAndAnnotateUnknown (keys: string[]): string {
   return keys.map((key) => {
-    const camelKey = camelcase(key, { locale: 'en-US' })
+    const sanitized = redactAndSanitize(key)
+    const camelKey = camelcase(sanitized, { locale: 'en-US' })
     const otherVersion = SETTINGS_OF_OTHER_PNPM_VERSIONS[camelKey]
-    if (otherVersion) return `"${key}" (a ${otherVersion} setting)`
+    if (otherVersion) return `"${sanitized}" (a ${otherVersion} setting)`
     const suggestion = didYouMean(camelKey, KNOWN_SETTING_KEYS_LIST, { returnType: ReturnTypeEnums.FIRST_CLOSEST_MATCH })
-    return suggestion ? `"${key}" (did you mean "${suggestion}"?)` : `"${key}"`
+    return suggestion ? `"${sanitized}" (did you mean "${suggestion}"?)` : `"${sanitized}"`
   }).join(', ')
 }

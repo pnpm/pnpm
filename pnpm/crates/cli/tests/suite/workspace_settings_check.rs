@@ -57,8 +57,7 @@ fn a_kebab_case_spelling_of_a_known_setting_warns() {
     );
 }
 
-/// `pnpm config get <key>` prints one value for a script to capture, so even
-/// a pinned project with a broken `pnpm-workspace.yaml` answers it silently.
+/// Single-key reads are consumed by scripts, so nothing may join the value.
 #[test]
 fn config_get_of_one_key_stays_quiet_and_succeeds() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -74,8 +73,7 @@ fn config_get_of_one_key_stays_quiet_and_succeeds() {
     assert!(!stderr.contains("not recognized"), "expected no unrecognized report; got:\n{stderr}");
 }
 
-/// The other `pnpm config` subcommands are how a user inspects and repairs
-/// the config, so a satisfied pin downgrades the error back to a warning.
+/// A broken config file must stay inspectable and repairable.
 #[test]
 fn config_list_warns_but_succeeds_under_a_satisfied_pin() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -89,6 +87,54 @@ fn config_list_warns_but_succeeds_under_a_satisfied_pin() {
         &stderr(&output),
         r#"[WARN] The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?)."#,
     );
+}
+
+/// A `--global` command does not act on the project, so the project's pin
+/// does not harden the report into an error.
+#[test]
+fn a_global_command_warns_under_a_satisfied_pin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_yaml(&workspace, "minimumReleaseAg: 100\n");
+    write_package_manager_pin(&workspace);
+
+    let global_bin = root.path().join("pnpm-home");
+    fs::create_dir_all(&global_bin).expect("create the global bin dir");
+    let mut pacquet = pacquet;
+    pacquet.env("PATH", prepend_to_path(&global_bin));
+    let output = run_with_switch_disabled(pacquet, root.path(), &["list", "--global"]);
+
+    assert_success(&output);
+    assert_contains(
+        &stderr(&output),
+        r#"[WARN] The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?)."#,
+    );
+}
+
+/// A key carrying terminal escapes reaches stderr and any CI log, so the
+/// report must not let it move the cursor or repaint the screen.
+#[test]
+fn a_key_with_control_characters_is_sanitized() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+    write_workspace_yaml(&workspace, "\"nope\\e[31mRED\\r\": 1\npackages:\n  - .\n");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "not recognized by this version of pnpm");
+    assert!(!stderr.contains('\u{1b}'), "an escape reached the output: {stderr:?}");
+    assert!(!stderr.contains('\r'), "a carriage return reached the output: {stderr:?}");
+}
+
+/// `pnpm list --global` refuses to run when the global bin directory is not
+/// on `PATH`, which is about the environment rather than this file.
+fn prepend_to_path(dir: &Path) -> std::ffi::OsString {
+    let mut entries = vec![dir.to_path_buf()];
+    if let Some(path) = std::env::var_os("PATH") {
+        entries.extend(std::env::split_paths(&path));
+    }
+    std::env::join_paths(entries).expect("join PATH entries")
 }
 
 fn write_plain_manifest(workspace: &Path) {

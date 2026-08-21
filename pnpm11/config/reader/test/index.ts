@@ -870,7 +870,42 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(unrecognized).not.toContain('"packages"')
     expect(unrecognized).not.toContain('"overrides"')
     expect(unrecognized).not.toContain('$schema')
-    expect((config as unknown as Record<string, unknown>)['zzzNotASettingZzz']).toBeUndefined()
+    // Reported, not dropped: `pnpm config list` still prints this file's
+    // unknown camelCase keys, which `test/config/list.ts` pins.
+    expect((config as unknown as Record<string, unknown>)['zzzNotASettingZzz']).toBe(true)
+  })
+
+  test('a null-valued key sets nothing, so it is not reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { zzzNotASettingZzz: null, configDir: null, 'store-dir': null })
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).not.toContainEqual(expect.stringContaining('zzzNotASettingZzz'))
+    expect(warnings).not.toContainEqual(expect.stringContaining('configDir'))
+    expect(warnings).not.toContainEqual(expect.stringContaining('store-dir'))
+  })
+
+  test('a key carrying terminal escapes is sanitized before it is reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { 'nope\u001b[31mRED\r': true })
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    const unrecognized = warnings.find((warning) => warning.includes('are not recognized by this version of pnpm'))
+    expect(unrecognized).toContain('nope[31mRED')
+    expect(unrecognized).not.toContain('\u001b')
+    expect(unrecognized).not.toContain('\r')
   })
 
   test('a kebab-case spelling of a known setting in pnpm-workspace.yaml is reported', async () => {

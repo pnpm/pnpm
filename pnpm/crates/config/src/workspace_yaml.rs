@@ -1042,6 +1042,11 @@ impl WorkspaceSettings {
             if matches!(kept.get(key), Some(value) if !value.is_null()) {
                 continue;
             }
+            // The key comes from a file the machine's user controls, but the
+            // same rendering serves the project file, so it is sanitized here
+            // too rather than only where it must be.
+            let key = redact_and_sanitize(key);
+            let key = key.as_str();
             if !is_config_file_key(&to_kebab_case(key)) {
                 if is_refused_by_a_project_manifest(key) {
                     nowhere.push(format!(
