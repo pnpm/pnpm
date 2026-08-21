@@ -17,6 +17,13 @@ import type { WorkspaceState } from '@pnpm/workspace.state'
   }))
 }
 {
+  const original = await import('@pnpm/workspace.projects-reader')
+  jest.unstable_mockModule('@pnpm/workspace.projects-reader', () => ({
+    ...original,
+    findWorkspaceProjectsNoCheck: jest.fn(original.findWorkspaceProjectsNoCheck),
+  }))
+}
+{
   const original = await import('../lib/safeStat.js')
   jest.unstable_mockModule('../lib/safeStat', () => ({
     ...original,
@@ -42,6 +49,7 @@ import type { WorkspaceState } from '@pnpm/workspace.state'
 }
 
 const { checkDepsStatus } = await import('@pnpm/deps.status')
+const { findWorkspaceProjectsNoCheck } = await import('@pnpm/workspace.projects-reader')
 const { loadWorkspaceState } = await import('@pnpm/workspace.state')
 const lockfileFs = await import('@pnpm/lockfile.fs')
 const fsUtils = await import('../lib/safeStat.js')
@@ -1699,5 +1707,39 @@ describe('checkDepsStatus - missing workspace state', () => {
 
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe('Cannot check whether dependencies are outdated')
+  })
+})
+
+describe('checkDepsStatus - workspace discovery', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  it('uses the workspace root when the workspace manifest has no packages field', async () => {
+    const settings = {
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      preferWorkspacePackages: true,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue({
+      lastValidatedTimestamp: Date.now(),
+      pnpmfiles: [],
+      settings,
+      projects: {},
+      filteredInstall: false,
+    })
+    jest.mocked(findWorkspaceProjectsNoCheck).mockRejectedValueOnce(new Error('stop after workspace discovery'))
+
+    await checkDepsStatus({
+      workspaceDir: '/workspace',
+      rootProjectManifestDir: '/workspace',
+      pnpmfile: [],
+      ...settings,
+    })
+
+    expect(findWorkspaceProjectsNoCheck).toHaveBeenCalledWith('/workspace', {
+      patterns: ['.'],
+    })
   })
 })
