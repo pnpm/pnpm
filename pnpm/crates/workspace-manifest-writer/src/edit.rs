@@ -6,8 +6,7 @@
 //! format-preserving edits are expressed as targeted text splices for inserts
 //! and a [`yamlpatch`] `Op::Replace` for value updates.
 
-use std::collections::HashSet;
-use std::fmt::Write as _;
+use std::{collections::HashSet, fmt::Write as _};
 
 use indexmap::IndexMap;
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
