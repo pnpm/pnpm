@@ -1397,43 +1397,45 @@ fn has_blank_before(all: &[Line<'_>], idx: usize) -> bool {
     false
 }
 
+/// Drop undecided placeholder entries whose package is provably absent from
+/// `resolved`. Explicit decisions, keys with no provable package name, and
+/// entries for still-resolved packages always stay.
 pub(crate) fn prune_allow_builds(
     manifest: &mut Manifest,
-    resolved: &pacquet_config::version_policy::ResolvedPackageVersions,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
 ) -> bool {
     const BLOCK: &str = "allowBuilds";
     let Some(allow_builds) = manifest.allow_builds.as_ref() else {
         return false;
     };
 
-    let present: Vec<String> = allow_builds
+    let prunable: Vec<String> = allow_builds
         .iter()
-        .filter_map(|(name, value)| {
-            if let AllowBuildValue::String(val) = value
-                && val == crate::UNDECIDED_ALLOW_BUILD
-                && !resolved.contains_key(name)
-            {
-                return Some(name.clone());
+        .filter_map(|(key, value)| {
+            let AllowBuildValue::String(val) = value else {
+                return None;
+            };
+            if val != crate::UNDECIDED_ALLOW_BUILD {
+                return None;
             }
-            None
+            let name = allow_build_key_package_name(key)?;
+            (!resolved.contains_key(name)).then(|| key.clone())
         })
         .collect();
 
-    if present.is_empty() {
+    if prunable.is_empty() {
         return false;
     }
 
+    // The decoded map came from this same text, so an empty key list means
+    // the narrow re-parse failed; without it surviving entries can't be
+    // told apart from prunable ones, so the block must stay untouched.
     let all_keys = allow_builds_keys_in_text(manifest.text());
-    let remaining_keys: Vec<&String> =
-        all_keys.iter().filter(|key| !present.contains(key)).collect();
-
-    if let Some(builds) = manifest.allow_builds.as_mut() {
-        for name in &present {
-            builds.shift_remove(name);
-        }
+    if all_keys.is_empty() {
+        return false;
     }
 
-    if remaining_keys.is_empty() {
+    if all_keys.iter().all(|key| prunable.contains(key)) {
         manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
         manifest.allow_builds = None;
         manifest.top_level_keys.retain(|key| key != BLOCK);
@@ -1442,16 +1444,43 @@ pub(crate) fn prune_allow_builds(
 
     let line_based =
         locate(manifest.text(), &[BLOCK]).is_some_and(|mapping| !mapping.entries.is_empty());
-
-    if line_based {
-        manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &present));
-        true
-    } else if manifest.allow_builds.as_ref().map_or(0, IndexMap::len) == remaining_keys.len() {
-        rerender_allow_builds_block(manifest, BLOCK);
-        true
-    } else {
-        false
+    // A flow-style block can hold entries the decoded view dropped
+    // (values that are neither booleans nor strings); rerendering from
+    // that view would lose them, so leave such a block untouched.
+    if !line_based && allow_builds.len() != all_keys.len() {
+        return false;
     }
+
+    if let Some(builds) = manifest.allow_builds.as_mut() {
+        for key in &prunable {
+            builds.shift_remove(key);
+        }
+    }
+    if line_based {
+        manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &prunable));
+    } else {
+        rerender_allow_builds_block(manifest, BLOCK);
+    }
+    true
+}
+
+/// The package name an `allowBuilds` key identifies — the key itself for a
+/// bare name, the name half of a `name@version` dep-path key — or `None`
+/// for keys carrying no single package name (hashless git-repo keys,
+/// malformed shapes). The key shapes mirror
+/// `allow_build_key_from_ignored_build` in the deps-restorer crate, which
+/// this crate cannot depend on.
+fn allow_build_key_package_name(key: &str) -> Option<&str> {
+    if !key.contains('#') && (key.starts_with("git+") || key.contains("@git+")) {
+        return None;
+    }
+    let name = match key.get(1..).and_then(|rest| rest.find('@')) {
+        // The version part after the `@` separator must be non-empty.
+        Some(off) if off + 2 < key.len() => &key[..=off],
+        Some(_) => return None,
+        None => key,
+    };
+    (!name.is_empty() && !name.contains(':')).then_some(name)
 }
 
 fn allow_builds_keys_in_text(text: &str) -> Vec<String> {

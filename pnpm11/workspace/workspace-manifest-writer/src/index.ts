@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { packageNameFromAllowBuildKey, UNDECIDED_ALLOW_BUILD } from '@pnpm/building.policy'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
 import { mergePackageVersionSpecs, parseVersionPolicyRule } from '@pnpm/config.version-policy'
@@ -470,24 +471,27 @@ function propagateBlankLinesToNewPairs (document: yaml.Document, originalTopLeve
   }
 }
 
+// Drops undecided placeholder entries whose package is provably absent from
+// the resolved lockfile. Explicit decisions, keys with no provable package
+// name, and entries for still-resolved packages always stay.
 function pruneAllowBuilds (
   manifest: Partial<WorkspaceManifest>,
   resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
 ): boolean {
   const allowBuilds = manifest.allowBuilds
-  if (allowBuilds == null || Object.keys(allowBuilds).length === 0) {
+  if (allowBuilds == null) {
     return false
   }
   let changed = false
   for (const [key, value] of Object.entries(allowBuilds)) {
-    if (value === 'set this to true or false' && !resolvedPackageVersions.has(key)) {
-      delete allowBuilds[key]
-      changed = true
-    }
+    if (value !== UNDECIDED_ALLOW_BUILD) continue
+    const packageName = packageNameFromAllowBuildKey(key)
+    if (packageName == null || resolvedPackageVersions.has(packageName)) continue
+    delete allowBuilds[key]
+    changed = true
   }
   if (changed && Object.keys(allowBuilds).length === 0) {
     delete manifest.allowBuilds
   }
   return changed
 }
-

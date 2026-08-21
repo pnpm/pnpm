@@ -71,11 +71,48 @@ test('flow-style allowBuilds: undecided entry is pruned, decided entries are kep
   // exercises the rerender path. The retained entries are written back as block style.
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  fs.writeFileSync(filePath, "allowBuilds: {foo: true, bar: 'set this to true or false'}\n")
+  await fs.promises.writeFile(filePath, "allowBuilds: {foo: true, bar: 'set this to true or false'}\n")
   await updateWorkspaceManifest(dir, {
     resolvedPackageVersions: resolvedPackageVersions({}),
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
     allowBuilds: { foo: true },
+  })
+})
+
+test('a dep-path key is pruned by its package name', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    allowBuilds: {
+      'foo@git+https://github.com/org/foo.git#0000000000000000000000000000000000000000': 'set this to true or false',
+      'bar@git+https://github.com/org/bar.git#0000000000000000000000000000000000000000': 'set this to true or false',
+    },
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: [] }),
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    allowBuilds: {
+      'foo@git+https://github.com/org/foo.git#0000000000000000000000000000000000000000': 'set this to true or false',
+    },
+  })
+})
+
+test('keys with no provable package name are kept', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    allowBuilds: {
+      'foo@git+https://github.com/org/foo.git': 'set this to true or false',
+    },
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    allowBuilds: {
+      'foo@git+https://github.com/org/foo.git': 'set this to true or false',
+    },
   })
 })

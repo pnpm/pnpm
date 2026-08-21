@@ -1587,3 +1587,25 @@ fn prune_allow_builds_handles_flow_style_and_converts_to_block_style() {
     let out = run_prune_allow_builds(Some(original), &[]);
     assert_eq!(out.as_deref(), Some("allowBuilds:\n  foo: true\n"));
 }
+
+#[test]
+fn prune_allow_builds_prunes_a_dep_path_key_by_its_package_name() {
+    let original = "allowBuilds:\n  \
+         foo@git+https://github.com/org/foo.git#0000000000000000000000000000000000000000: set this to true or false\n  \
+         bar@git+https://github.com/org/bar.git#0000000000000000000000000000000000000000: set this to true or false\n";
+    let out = run_prune_allow_builds(Some(original), &["foo"]);
+    assert_eq!(
+        out.as_deref(),
+        Some(
+            "allowBuilds:\n  foo@git+https://github.com/org/foo.git#0000000000000000000000000000000000000000: set this to true or false\n"
+        )
+    );
+}
+
+#[test]
+fn prune_allow_builds_keeps_keys_with_no_provable_package_name() {
+    let original =
+        "allowBuilds:\n  foo@git+https://github.com/org/foo.git: set this to true or false\n";
+    let out = run_prune_allow_builds(Some(original), &[]);
+    assert_eq!(out.as_deref(), Some(original));
+}

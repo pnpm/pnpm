@@ -1,5 +1,6 @@
 ---
 "@pnpm/workspace.workspace-manifest-writer": patch
+"@pnpm/building.policy": patch
 "@pnpm/installing.commands": patch
 "pacquet": patch
 "pnpm": patch

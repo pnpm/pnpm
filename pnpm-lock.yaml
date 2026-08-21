@@ -10185,6 +10185,9 @@ importers:
 
   pnpm11/workspace/workspace-manifest-writer:
     dependencies:
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
