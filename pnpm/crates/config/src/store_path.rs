@@ -55,13 +55,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-// Windows' standard canonicalizer returns `\\?\` verbatim paths;
-// `dunce` resolves the path without leaking that prefix to CLI output.
-#[cfg(windows)]
-use dunce::canonicalize;
-#[cfg(not(windows))]
-use std::fs::canonicalize;
-
 /// Resolve where to place the default pnpm store given the `SmartDefault`
 /// home-based path and the project root.
 ///
@@ -72,7 +65,9 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
     pnpm_home_dir: &Path,
     pkg_root: &Path,
 ) -> PathBuf {
-    let Ok(pkg_root) = canonicalize(pkg_root) else {
+    // `dunce` keeps the Windows result free of the `\\?\` verbatim prefix,
+    // which would otherwise leak into the user-visible store path.
+    let Ok(pkg_root) = dunce::canonicalize(pkg_root) else {
         return home_default;
     };
 
