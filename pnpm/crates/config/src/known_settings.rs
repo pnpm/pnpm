@@ -165,17 +165,24 @@ pub fn annotate_unknown_setting(key: &str) -> String {
 /// threshold `didyoumean2` (pnpm's suggester) applies by default:
 /// `1 - distance / max_len >= 0.4`, compared case-insensitively.
 fn did_you_mean<'a>(input: &str, candidates: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
-    let input_lower = input.to_lowercase();
+    let input_chars: Vec<char> = input.to_lowercase().chars().collect();
+    let mut candidate_chars = Vec::new();
+    let mut rows = LevenshteinRows::default();
     let mut best: Option<(&str, f64)> = None;
     for candidate in candidates {
-        let candidate_lower = candidate.to_lowercase();
-        let input_chars: Vec<char> = input_lower.chars().collect();
-        let candidate_chars: Vec<char> = candidate_lower.chars().collect();
+        candidate_chars.clear();
+        candidate_chars.extend(candidate.chars().flat_map(char::to_lowercase));
         let max_len = input_chars.len().max(candidate_chars.len());
         if max_len == 0 {
             continue;
         }
-        let distance = levenshtein(&input_chars, &candidate_chars);
+        // The distance is at least the length difference, so a candidate whose
+        // length alone puts it past the threshold cannot clear it, and the
+        // matrix does not have to be filled to find that out.
+        if input_chars.len().abs_diff(candidate_chars.len()) > max_len * 3 / 5 {
+            continue;
+        }
+        let distance = rows.levenshtein(&input_chars, &candidate_chars);
         #[expect(clippy::cast_precision_loss, reason = "setting names are far shorter than 2^52")]
         let similarity = 1.0 - distance as f64 / max_len as f64;
         if similarity >= 0.4 && best.is_none_or(|(_, best_similarity)| similarity > best_similarity)
@@ -186,19 +193,32 @@ fn did_you_mean<'a>(input: &str, candidates: impl IntoIterator<Item = &'a str>) 
     best.map(|(candidate, _)| candidate)
 }
 
-fn levenshtein(left: &[char], right: &[char]) -> usize {
-    let mut previous_row: Vec<usize> = (0..=right.len()).collect();
-    for (row, left_char) in left.iter().enumerate() {
-        let mut current_row = vec![row + 1];
-        for (column, right_char) in right.iter().enumerate() {
-            let substitution = previous_row[column] + usize::from(left_char != right_char);
-            let insertion = current_row[column] + 1;
-            let deletion = previous_row[column + 1] + 1;
-            current_row.push(substitution.min(insertion).min(deletion));
+/// The two rows a Levenshtein pass needs, kept across the candidates so the
+/// suggestion for one key allocates a bounded number of times rather than
+/// twice per candidate.
+#[derive(Default)]
+struct LevenshteinRows {
+    previous: Vec<usize>,
+    current: Vec<usize>,
+}
+
+impl LevenshteinRows {
+    fn levenshtein(&mut self, left: &[char], right: &[char]) -> usize {
+        self.previous.clear();
+        self.previous.extend(0..=right.len());
+        for (row, left_char) in left.iter().enumerate() {
+            self.current.clear();
+            self.current.push(row + 1);
+            for (column, right_char) in right.iter().enumerate() {
+                let substitution = self.previous[column] + usize::from(left_char != right_char);
+                let insertion = self.current[column] + 1;
+                let deletion = self.previous[column + 1] + 1;
+                self.current.push(substitution.min(insertion).min(deletion));
+            }
+            std::mem::swap(&mut self.previous, &mut self.current);
         }
-        previous_row = current_row;
+        self.previous[right.len()]
     }
-    previous_row[right.len()]
 }
 
 #[cfg(test)]

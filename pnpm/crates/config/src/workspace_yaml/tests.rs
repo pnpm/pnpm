@@ -2502,3 +2502,36 @@ fn no_filtered_mirror_without_a_reason_for_full_metadata() {
     config.resolution_mode = ResolutionMode::TimeBased;
     assert!(config.requires_filtered_full_metadata());
 }
+
+/// The scan that decides whether the file is worth re-reading must never
+/// answer "nothing here" for a key there is something to say about, so a
+/// top-level key written in a shape it cannot classify still gets collected.
+#[test]
+fn load_at_collects_issues_from_a_key_it_cannot_scan() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "{zzzNotASettingZzz: 1}\n").unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// A `$schema` line is what an editor adds to an otherwise correct file, so
+/// it must not be what makes every command re-read it.
+#[test]
+fn load_at_collects_no_issues_from_a_clean_file_carrying_a_schema_line() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "$schema: https://json.schemastore.org/pnpm-workspace.json\nnodeLinker: hoisted\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
+}

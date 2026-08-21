@@ -1221,6 +1221,9 @@ impl WorkspaceSettings {
     /// depends on whether the running pnpm is the project's pinned version,
     /// which only the CLI layer knows.
     pub fn collect_key_issues(&mut self, text: &str) {
+        if !Self::may_have_key_issues(text) {
+            return;
+        }
         let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
         else {
             return;
@@ -1239,6 +1242,31 @@ impl WorkspaceSettings {
             }
         }
         self.key_issues = issues;
+    }
+
+    /// Whether `text` may carry a key [`WorkspaceSettings::collect_key_issues`]
+    /// would report, answered without parsing the file a second time.
+    ///
+    /// Serde keeps no record of the keys it dropped, so collecting them means
+    /// re-reading the document — which costs as much as the parse that produced
+    /// the settings, on every command, to find nothing in the overwhelmingly
+    /// common case of a file that is simply correct. Every top-level key begins a
+    /// line, so a line walk answers "is there anything to look at" first.
+    ///
+    /// A line this cannot classify counts as one to look at, so the answer errs
+    /// only towards doing the work, never towards missing a key.
+    fn may_have_key_issues(text: &str) -> bool {
+        text.lines().any(|line| {
+            if line.is_empty() || line.starts_with([' ', '\t', '#']) {
+                return false;
+            }
+            let Some((key, _)) = line.split_once(':') else { return true };
+            let key = key.trim_end();
+            key != SCHEMA_DIRECTIVE_KEY
+                && (!is_camel_case(key)
+                    || !is_known_setting_key(key)
+                    || is_refused_by_a_project_manifest(key))
+        })
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
