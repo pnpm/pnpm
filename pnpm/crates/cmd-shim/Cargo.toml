@@ -21,6 +21,7 @@ pipe-trait  = { workspace = true }
 rayon       = { workspace = true }
 same-file   = { workspace = true }
 serde_json  = { workspace = true }
+tracing     = { workspace = true }
 walkdir     = { workspace = true }
 
 [dev-dependencies]

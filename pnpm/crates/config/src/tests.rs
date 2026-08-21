@@ -2242,9 +2242,9 @@ pub fn prefer_symlinked_executables_exports_the_virtual_store_node_path() {
     );
 }
 
-/// The pnpm/pnpm#13912 regression: run from a workspace package,
-/// `NODE_PATH` must point at the workspace root's virtual store — the
-/// one that exists — not at the package directory's.
+/// Run from a workspace package, `NODE_PATH` must point at the
+/// workspace root's virtual store — the one that exists — not at the
+/// package directory's (pnpm/pnpm#13912).
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 pub fn prefer_symlinked_executables_node_path_anchors_at_the_workspace_root() {

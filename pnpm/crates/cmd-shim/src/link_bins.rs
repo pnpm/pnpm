@@ -463,7 +463,14 @@ where
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
     chosen.par_iter().try_for_each(|(bin_name, (command, pkg))| {
-        let node_path = shim_node_path(pkg, &options.extra_node_paths);
+        // On Unix the symlink branch never writes a shim, so no bin
+        // needs a NODE_PATH — skip `shim_node_path`'s per-package
+        // canonicalize entirely.
+        let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
+            Vec::new()
+        } else {
+            shim_node_path(pkg, &options.extra_node_paths)
+        };
         write_shim::<Sys>(
             &command.path,
             &bins_dir.join(bin_name),
@@ -687,10 +694,8 @@ where
 /// 0o755 without rewriting CRLF shebangs. Targets shipped by npm
 /// already use LF in practice, so the simpler chmod-only path is
 /// enough for the install tests this PR ports. `NotFound` is swallowed
-/// because the target may legitimately be missing — removed by an
-/// unrelated process between extraction and shim linking, or (on the
-/// symlink path) a bin that dangles until a later step materializes
-/// the file, which pnpm downgrades to a warning too.
+/// because the target may legitimately have been removed by an
+/// unrelated process between extraction and bin linking.
 fn ensure_target_executable<Sys>(target_path: &Path) -> Result<(), LinkBinsError>
 where
     Sys: FsEnsureExecutableBits,
@@ -813,9 +818,8 @@ fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsE
 /// node runtime handled by [`link_node_bin`] keeps its absolute link,
 /// also like pnpm). The target file — not the link — gets its
 /// executable bits raised, and a dangling target is tolerated: the
-/// symlink is created anyway and the chmod's `NotFound` is swallowed
-/// by [`ensure_target_executable`], the same outcome as pnpm's
-/// warning-and-continue.
+/// symlink is created anyway with a warning, pnpm's
+/// warn-and-continue.
 ///
 /// Returns `Ok(true)` when the symlink path handled the bin, `Ok(false)`
 /// when the caller must fall through to the shim path (Windows, where
@@ -845,7 +849,23 @@ where
         dst: shim_path.to_path_buf(),
         error,
     })?;
-    ensure_target_executable::<Sys>(target_path)?;
+    match Sys::ensure_executable_bits(target_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            // pnpm's `Failed to create bin at ...` globalWarn: the
+            // symlink dangles until a later step materializes the
+            // target, which is worth telling the user about but not
+            // worth failing the install over.
+            tracing::warn!(
+                "Failed to create bin at {}. The target {} does not exist",
+                shim_path.display(),
+                target_path.display(),
+            );
+        }
+        Err(error) => {
+            return Err(LinkBinsError::Chmod { path: target_path.to_path_buf(), error });
+        }
+    }
     Ok(true)
 }
 
