@@ -911,10 +911,10 @@ test('should bump caret/tilde devEngines.packageManager range when the resolved 
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('8.5.0', opts.registries.default)).persist()
-  mockExeMetadata(opts.registries.default, '8.5.0')
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default)).persist()
+  mockExeMetadata(opts.registriesByScope.default, '8.5.0')
 
   const output = await selfUpdate.handler({
     ...opts,
