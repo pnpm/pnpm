@@ -6,14 +6,17 @@
 //! format-preserving edits are expressed as targeted text splices for inserts
 //! and a [`yamlpatch`] `Op::Replace` for value updates.
 
-use std::fmt::Write as _;
+use std::{collections::HashSet, fmt::Write as _};
 
 use indexmap::IndexMap;
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use yamlpatch::{Op, Patch};
 use yamlpath::{Component, Document, Route};
 
-use crate::{model::Manifest, render};
+use crate::{
+    model::{AllowBuildValue, Manifest},
+    render,
+};
 
 /// Merge `updated` into `manifest`'s catalog blocks. Returns whether anything
 /// changed.
@@ -577,7 +580,9 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
         if mapping.entries.iter().any(|entry| entry.key == name) {
             // Already present with the same value — a true no-op, so don't
             // rewrite the file (which would bump its mtime).
-            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name)) == Some(&value) {
+            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name))
+                == Some(&AllowBuildValue::Bool(value))
+            {
                 return false;
             }
             let new_text = replace_bool_value_at(text, &[BLOCK], name, value);
@@ -597,7 +602,10 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
     };
     // Keep the decoded view in sync so later upserts in the same write see
     // this entry (for both no-op detection and block-presence checks).
-    manifest.allow_builds.get_or_insert_with(IndexMap::new).insert(name.to_string(), value);
+    manifest
+        .allow_builds
+        .get_or_insert_with(IndexMap::new)
+        .insert(name.to_string(), AllowBuildValue::Bool(value));
     changed
 }
 
@@ -622,6 +630,10 @@ pub(crate) fn add_undecided_allow_build(
         manifest.set_text(new_text);
         manifest.top_level_keys =
             render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        manifest
+            .allow_builds
+            .get_or_insert_with(IndexMap::new)
+            .insert(name.to_string(), AllowBuildValue::String(placeholder.to_string()));
         return true;
     };
     if mapping.entries.iter().any(|entry| entry.key == name) {
@@ -630,6 +642,10 @@ pub(crate) fn add_undecided_allow_build(
     let new_text =
         insert_rendered_entry_at(text, &[BLOCK], name, &render::render_value(placeholder));
     manifest.set_text(new_text);
+    manifest
+        .allow_builds
+        .get_or_insert_with(IndexMap::new)
+        .insert(name.to_string(), AllowBuildValue::String(placeholder.to_string()));
     true
 }
 
@@ -1379,4 +1395,247 @@ fn has_blank_before(all: &[Line<'_>], idx: usize) -> bool {
         return false;
     }
     false
+}
+
+/// Drop undecided placeholder entries whose package is provably absent from
+/// `resolved`. Explicit decisions, keys with no provable package name, and
+/// entries for still-resolved packages always stay.
+pub(crate) fn prune_allow_builds(
+    manifest: &mut Manifest,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    const BLOCK: &str = "allowBuilds";
+    let Some(allow_builds) = manifest.allow_builds.as_ref() else {
+        return false;
+    };
+
+    let prunable: HashSet<String> = allow_builds
+        .iter()
+        .filter_map(|(key, value)| {
+            let AllowBuildValue::String(val) = value else {
+                return None;
+            };
+            if val != crate::UNDECIDED_ALLOW_BUILD {
+                return None;
+            }
+            let name = allow_build_key_package_name(key)?;
+            (!resolved.contains_key(name)).then(|| key.clone())
+        })
+        .collect();
+
+    if prunable.is_empty() {
+        return false;
+    }
+
+    // The decoded map came from this same text, so an empty key list means
+    // the narrow re-parse failed; without it surviving entries can't be
+    // told apart from prunable ones, so the block must stay untouched.
+    let all_keys = allow_builds_keys_in_text(manifest.text());
+    if all_keys.is_empty() {
+        return false;
+    }
+
+    if all_keys.iter().all(|key| prunable.contains(key)) {
+        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.allow_builds = None;
+        manifest.top_level_keys.retain(|key| key != BLOCK);
+        return true;
+    }
+
+    let entries = locate(manifest.text(), &[BLOCK]).map(|mapping| mapping.entries);
+    let new_text = match entries.as_deref() {
+        Some(entries) if !entries.is_empty() => {
+            // Entries are removed by pairing each text line with its decoded
+            // key — the raw key text can differ from the decoded form
+            // (quoting, escapes). A count mismatch means the two views
+            // disagree (e.g. duplicate keys), so leave the block untouched.
+            if entries.len() != all_keys.len() {
+                return false;
+            }
+            let mut out = manifest.text().to_string();
+            for (entry, key) in entries.iter().zip(&all_keys).rev() {
+                if prunable.contains(key) {
+                    out.replace_range(entry.line_start..entry.block_end, "");
+                }
+            }
+            Some(out)
+        }
+        _ => {
+            let flow_edit = remove_flow_entries(manifest.text(), BLOCK, &all_keys, &prunable);
+            // The fallback rerenders the block from the decoded view, which
+            // would lose entries that view dropped (values that are neither
+            // booleans nor strings) — leave such a block untouched.
+            if flow_edit.is_none() && allow_builds.len() != all_keys.len() {
+                return false;
+            }
+            flow_edit
+        }
+    };
+
+    if let Some(builds) = manifest.allow_builds.as_mut() {
+        for key in &prunable {
+            builds.shift_remove(key);
+        }
+    }
+    match new_text {
+        Some(new_text) => manifest.set_text(new_text),
+        None => rerender_allow_builds_block(manifest, BLOCK),
+    }
+    true
+}
+
+/// The package name an `allowBuilds` key identifies — the key itself for a
+/// bare name, the name half of a `name@version` dep-path key — or `None`
+/// for keys carrying no single package name (hashless git-repo keys,
+/// malformed shapes). The key shapes mirror
+/// `allow_build_key_from_ignored_build` in the deps-restorer crate, which
+/// this crate cannot depend on.
+fn allow_build_key_package_name(key: &str) -> Option<&str> {
+    if !key.contains('#') && (key.starts_with("git+") || key.contains("@git+")) {
+        return None;
+    }
+    let name = match key.get(1..).and_then(|rest| rest.find('@')) {
+        // The version part after the `@` separator must be non-empty.
+        Some(off) if off + 2 < key.len() => &key[..=off],
+        Some(_) => return None,
+        None => key,
+    };
+    (!name.is_empty() && !name.contains(':')).then_some(name)
+}
+
+/// Rewrite `block_name`'s single-line flow mapping in place, dropping the
+/// entries whose decoded key is in `prunable`. `decoded_keys` pairs the
+/// mapping's entries positionally. Surviving entries keep their original
+/// text and everything outside the braces (indentation, trailing comment)
+/// stays, matching what the TypeScript writer's yaml library emits. Returns
+/// `None` when the text does not have that shape.
+fn remove_flow_entries(
+    text: &str,
+    block_name: &str,
+    decoded_keys: &[String],
+    prunable: &HashSet<String>,
+) -> Option<String> {
+    let span = top_level_span(text, block_name)?;
+    let block = &text[span.key_line_start..span.block_end];
+    let open = block.find('{')?;
+    let interior_and_rest = &block[open + 1..];
+    let close_in_interior = flow_mapping_close(interior_and_rest)?;
+    let interior = &interior_and_rest[..close_in_interior];
+    if interior.contains('\n') {
+        return None;
+    }
+    let segments = split_flow_entries(interior)?;
+    if segments.len() != decoded_keys.len() {
+        return None;
+    }
+    let surviving: Vec<&str> = segments
+        .iter()
+        .zip(decoded_keys)
+        .filter(|&(_, key)| !prunable.contains(key))
+        .map(|(segment, _)| segment.trim())
+        .collect();
+    let rendered = format!("{{ {} }}", surviving.join(", "));
+    let start = span.key_line_start + open;
+    let end = span.key_line_start + open + 1 + close_in_interior + 1;
+    let mut out = text.to_string();
+    out.replace_range(start..end, &rendered);
+    Some(out)
+}
+
+/// Byte offset of the `}` closing a flow mapping whose `{` precedes `text`,
+/// skipping quoted scalars. `None` when unterminated or when a nested flow
+/// collection appears (the entries here hold only scalars).
+fn flow_mapping_close(text: &str) -> Option<usize> {
+    let mut idx = 0;
+    while idx < text.len() {
+        match text.as_bytes()[idx] {
+            b'}' => return Some(idx),
+            b'{' | b'[' | b']' => return None,
+            b'\'' | b'"' => idx = skip_quoted_scalar(text, idx)?,
+            _ => idx += 1,
+        }
+    }
+    None
+}
+
+/// Split a flow mapping's interior on its entry-separating commas, skipping
+/// commas inside quoted scalars. `None` on an unterminated quote or a
+/// nested flow collection.
+fn split_flow_entries(interior: &str) -> Option<Vec<&str>> {
+    let mut segments = Vec::new();
+    let mut start = 0;
+    let mut idx = 0;
+    while idx < interior.len() {
+        match interior.as_bytes()[idx] {
+            b',' => {
+                segments.push(&interior[start..idx]);
+                start = idx + 1;
+                idx += 1;
+            }
+            b'{' | b'[' | b'}' | b']' => return None,
+            b'\'' | b'"' => idx = skip_quoted_scalar(interior, idx)?,
+            _ => idx += 1,
+        }
+    }
+    segments.push(&interior[start..]);
+    Some(segments)
+}
+
+/// Byte offset just past the quoted scalar starting at `open` (a `'` or `"`
+/// byte), honoring the style's escape (`''` doubling, `\"`/`\\`). `None`
+/// when unterminated.
+fn skip_quoted_scalar(text: &str, open: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let quote = bytes[open];
+    let mut idx = open + 1;
+    while idx < bytes.len() {
+        match bytes[idx] {
+            b'\\' if quote == b'"' => idx += 2,
+            byte if byte == quote => {
+                if quote == b'\'' && bytes.get(idx + 1) == Some(&b'\'') {
+                    idx += 2;
+                } else {
+                    return Some(idx + 1);
+                }
+            }
+            _ => idx += 1,
+        }
+    }
+    None
+}
+
+fn allow_builds_keys_in_text(text: &str) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct OnlyAllowBuilds {
+        #[serde(default, rename = "allowBuilds")]
+        allow_builds: Option<IndexMap<String, serde::de::IgnoredAny>>,
+    }
+    serde_saphyr::from_str::<OnlyAllowBuilds>(text)
+        .ok()
+        .and_then(|parsed| parsed.allow_builds)
+        .map(|map| map.into_keys().collect())
+        .unwrap_or_default()
+}
+
+fn rerender_allow_builds_block(manifest: &mut Manifest, block_name: &str) {
+    let block = {
+        let allow_builds = manifest.allow_builds.as_ref().expect("non-empty allowBuilds above");
+        let mut block = format!("{block_name}:\n");
+        for (name, value) in allow_builds {
+            let rendered_val = match value {
+                AllowBuildValue::Bool(b) => render_bool(*b).to_string(),
+                AllowBuildValue::String(s) => render::render_value(s),
+                AllowBuildValue::Other(_) => String::new(),
+            };
+            writeln!(block, "  {}: {}", render::render_value(name), rendered_val)
+                .expect("writing to a String never fails");
+        }
+        block
+    };
+    manifest.set_text(remove_top_level_block(manifest.text(), block_name));
+    manifest.top_level_keys.retain(|key| key != block_name);
+    let new_text = insert_top_level_block(manifest, block_name, &block);
+    manifest.set_text(new_text);
+    manifest.top_level_keys =
+        render::target_order(&manifest.top_level_keys, &[block_name.to_string()]);
 }

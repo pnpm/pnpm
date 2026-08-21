@@ -1384,6 +1384,7 @@ mod minimum_release_age_exclude_prune {
         run_with(
             original,
             &UpdateWorkspaceManifestOptions {
+                prune_minimum_release_age_excludes: true,
                 resolved_package_versions: resolved,
                 ..Default::default()
             },
@@ -1534,4 +1535,94 @@ fn allow_builds_replaces_a_value_with_a_doubled_single_quote() {
         &[("esbuild", true)],
     );
     assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # real\n"));
+}
+
+fn run_prune_allow_builds(original: Option<&str>, resolved: &[&str]) -> Option<String> {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("pnpm-workspace.yaml");
+    if let Some(text) = original {
+        std::fs::write(&path, text).expect("write manifest");
+    }
+    let mut resolved_map = std::collections::BTreeMap::new();
+    for name in resolved {
+        resolved_map.insert(name.to_string(), std::collections::BTreeSet::new());
+    }
+    crate::update_workspace_manifest(
+        dir.path(),
+        &crate::UpdateWorkspaceManifestOptions {
+            prune_allow_builds: true,
+            resolved_package_versions: Some(&resolved_map),
+            ..Default::default()
+        },
+    )
+    .expect("update succeeds");
+    path.exists().then(|| std::fs::read_to_string(&path).expect("read manifest"))
+}
+
+#[test]
+fn prune_allow_builds_removes_undecided_entry_whose_package_is_not_resolved() {
+    let original =
+        "allowBuilds:\n  foo: set this to true or false\n  bar: set this to true or false\n";
+    let out = run_prune_allow_builds(Some(original), &["foo"]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  foo: set this to true or false\n"));
+}
+
+#[test]
+fn prune_allow_builds_keeps_decided_entries() {
+    let original = "allowBuilds:\n  foo: true\n  bar: false\n  baz: set this to true or false\n";
+    let out = run_prune_allow_builds(Some(original), &[]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  foo: true\n  bar: false\n"));
+}
+
+#[test]
+fn prune_allow_builds_deletes_block_and_file_when_empty() {
+    let original = "allowBuilds:\n  foo: set this to true or false\n";
+    let out = run_prune_allow_builds(Some(original), &[]);
+    assert_eq!(out, None);
+}
+
+#[test]
+fn prune_allow_builds_edits_a_flow_mapping_in_place() {
+    let original = "allowBuilds: {foo: true, bar: set this to true or false}\n";
+    let out = run_prune_allow_builds(Some(original), &[]);
+    assert_eq!(out.as_deref(), Some("allowBuilds: { foo: true }\n"));
+}
+
+#[test]
+fn prune_allow_builds_keeps_a_flow_mapping_comment_and_quoting() {
+    let original = "allowBuilds: {foo: 'set this to true or false', bar: true, baz: 'set this to true or false'} # hey\n";
+    let out = run_prune_allow_builds(Some(original), &["foo"]);
+    assert_eq!(
+        out.as_deref(),
+        Some("allowBuilds: { foo: 'set this to true or false', bar: true } # hey\n"),
+    );
+}
+
+#[test]
+fn prune_allow_builds_prunes_a_dep_path_key_by_its_package_name() {
+    let original = "allowBuilds:\n  \
+         foo@git+https://github.com/org/foo.git#0000000000000000000000000000000000000000: set this to true or false\n  \
+         bar@git+https://github.com/org/bar.git#0000000000000000000000000000000000000000: set this to true or false\n";
+    let out = run_prune_allow_builds(Some(original), &["foo"]);
+    assert_eq!(
+        out.as_deref(),
+        Some(
+            "allowBuilds:\n  foo@git+https://github.com/org/foo.git#0000000000000000000000000000000000000000: set this to true or false\n"
+        ),
+    );
+}
+
+#[test]
+fn prune_allow_builds_keeps_keys_with_no_provable_package_name() {
+    let original =
+        "allowBuilds:\n  foo@git+https://github.com/org/foo.git: set this to true or false\n";
+    let out = run_prune_allow_builds(Some(original), &[]);
+    assert_eq!(out.as_deref(), Some(original));
+}
+
+#[test]
+fn prune_allow_builds_prunes_an_escaped_quoted_key() {
+    let original = "allowBuilds:\n  \"\\u0066oo\": set this to true or false\n  bar: true\n";
+    let out = run_prune_allow_builds(Some(original), &[]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  bar: true\n"));
 }

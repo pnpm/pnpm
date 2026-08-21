@@ -2,6 +2,12 @@ import { expandPackageVersionSpecs } from '@pnpm/config.version-policy'
 import * as dp from '@pnpm/deps.path'
 import type { AllowBuild, AllowBuildContext, DepPath } from '@pnpm/types'
 
+/**
+ * The placeholder value written to `allowBuilds` for a package whose build
+ * was ignored and still awaits an explicit `true`/`false` decision.
+ */
+export const UNDECIDED_ALLOW_BUILD = 'set this to true or false'
+
 export function isBuildExplicitlyDisallowed (depPath: DepPath, allowBuild?: AllowBuild): boolean {
   return allowBuild?.(depPath) === false
 }
@@ -96,6 +102,20 @@ export function allowBuildKeyFromIgnoredBuild (depPath: DepPath): string {
   const parsed = dp.parse(pkgIdWithPatchHash)
   if (parsed.nonSemverVersion != null || parsed.name == null) return pkgIdWithPatchHash
   return parsed.name
+}
+
+/**
+ * The package name an `allowBuilds` key identifies — the key itself for a
+ * bare name, the name half of a `name@version` dep-path key — or
+ * `undefined` for keys carrying no single package name (hashless git-repo
+ * keys, malformed shapes). Cleanup may only drop an entry whose package
+ * this proves absent from a resolved-name index.
+ */
+export function packageNameFromAllowBuildKey (key: string): string | undefined {
+  if (isGitRepoAllowBuildKey(key)) return undefined
+  const name = key.indexOf('@', 1) === -1 ? key : dp.parse(key).name
+  if (!name || name.includes(':')) return undefined
+  return name
 }
 
 function addAllowBuildRule (

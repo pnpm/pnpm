@@ -132,15 +132,12 @@ fn derive_workspace_dir(
 /// persistence is disabled (`lockfile: false` — the on-disk lockfile
 /// would be stale), and when no lockfile exists, mirroring the
 /// `all_projects` guard of the catalog cleanup.
-pub(crate) fn prune_minimum_release_age_excludes(
+pub(crate) fn post_install_prune(
     config: &Config,
     workspace_dir: Option<&Path>,
     current_manifest: &PackageManifest,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
-    if !config.minimum_release_age_exclude_prune
-        || !config.lockfile
-        || !config.shared_workspace_lockfile
-    {
+    if !config.lockfile || !config.shared_workspace_lockfile {
         return Ok(());
     }
     let workspace_dir = match workspace_dir {
@@ -156,6 +153,8 @@ pub(crate) fn prune_minimum_release_age_excludes(
     update_workspace_manifest(
         &workspace_dir,
         &UpdateWorkspaceManifestOptions {
+            prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,
+            prune_allow_builds: true,
             resolved_package_versions: Some(&resolved),
             ..Default::default()
         },

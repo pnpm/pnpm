@@ -25,7 +25,7 @@ pub(crate) struct Manifest {
     /// `allowBuilds:` boolean entries. Consulted to detect a no-op write
     /// of an already-present value (and kept in sync as entries are
     /// upserted during a single `pnpm approve-builds` write).
-    pub(crate) allow_builds: Option<IndexMap<String, bool>>,
+    pub(crate) allow_builds: Option<IndexMap<String, AllowBuildValue>>,
     /// `patchedDependencies:` entries, keyed by `name[@version]`.
     pub(crate) patched_dependencies: Option<IndexMap<String, String>>,
     /// `overrides:` clean string entries, keyed by package selector.
@@ -75,10 +75,11 @@ struct AuditConfigData {
 /// (a version spec) so decoding a manifest that uses it doesn't fail. Only
 /// the boolean shape is retained — the only shape `pnpm approve-builds`
 /// writes.
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
-enum AllowBuildValue {
+pub(crate) enum AllowBuildValue {
     Bool(bool),
+    String(String),
     Other(serde::de::IgnoredAny),
 }
 
@@ -144,7 +145,8 @@ impl Manifest {
             entries
                 .into_iter()
                 .filter_map(|(name, value)| match value {
-                    AllowBuildValue::Bool(allowed) => Some((name, allowed)),
+                    AllowBuildValue::Bool(allowed) => Some((name, AllowBuildValue::Bool(allowed))),
+                    AllowBuildValue::String(s) => Some((name, AllowBuildValue::String(s))),
                     AllowBuildValue::Other(_) => None,
                 })
                 .collect()

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { packageNameFromAllowBuildKey, UNDECIDED_ALLOW_BUILD } from '@pnpm/building.policy'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
 import { mergePackageVersionSpecs, parseVersionPolicyRule } from '@pnpm/config.version-policy'
@@ -54,11 +55,12 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   allProjects?: Project[]
   /**
    * Package name → the versions the freshly resolved lockfile records.
-   * Present only under `minimumReleaseAgeExcludePrune`, and only when the
-   * lockfile covers every project `minimumReleaseAgeExclude` governs;
-   * absent, the cleanup pass does not run.
+   * Supplied when a freshly resolved shared lockfile is available.
+   * `minimumReleaseAgeExcludePrune` gates only minimum-release-age cleanup;
+   * `allowBuilds` cleanup runs whenever this map is present.
    */
   resolvedPackageVersions?: ReadonlyMap<string, ReadonlySet<string>>
+  minimumReleaseAgeExcludePrune?: boolean
 }): Promise<void> {
   const fileName = opts.fileName ?? DEFAULT_FILENAME
 
@@ -112,7 +114,10 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     }
   }
   if (opts.resolvedPackageVersions != null) {
-    shouldBeUpdated = pruneMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+    if (opts.minimumReleaseAgeExcludePrune) {
+      shouldBeUpdated = pruneMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+    }
+    shouldBeUpdated = pruneAllowBuilds(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
   }
   // Merged after the cleanup pass so entries approved during this install
   // are never pruned by it in the same write.
@@ -464,4 +469,29 @@ function propagateBlankLinesToNewPairs (document: yaml.Document, originalTopLeve
       key.spaceBefore = true
     }
   }
+}
+
+// Drops undecided placeholder entries whose package is provably absent from
+// the resolved lockfile. Explicit decisions, keys with no provable package
+// name, and entries for still-resolved packages always stay.
+function pruneAllowBuilds (
+  manifest: Partial<WorkspaceManifest>,
+  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
+): boolean {
+  const allowBuilds = manifest.allowBuilds
+  if (allowBuilds == null) {
+    return false
+  }
+  let changed = false
+  for (const [key, value] of Object.entries(allowBuilds)) {
+    if (value !== UNDECIDED_ALLOW_BUILD) continue
+    const packageName = packageNameFromAllowBuildKey(key)
+    if (packageName == null || resolvedPackageVersions.has(packageName)) continue
+    delete allowBuilds[key]
+    changed = true
+  }
+  if (changed && Object.keys(allowBuilds).length === 0) {
+    delete manifest.allowBuilds
+  }
+  return changed
 }

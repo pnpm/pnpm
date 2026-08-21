@@ -1,4 +1,4 @@
-use super::{prune_minimum_release_age_excludes, resolved_package_versions};
+use super::{post_install_prune, resolved_package_versions};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
@@ -71,8 +71,7 @@ fn skips_the_pass_when_the_workspace_lockfile_is_not_shared() {
     config.minimum_release_age_exclude_prune = true;
     config.shared_workspace_lockfile = false;
 
-    prune_minimum_release_age_excludes(&config, Some(workspace_dir), &manifest)
-        .expect("cleanup runs");
+    post_install_prune(&config, Some(workspace_dir), &manifest).expect("cleanup runs");
 
     assert_eq!(
         std::fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml"),
@@ -103,8 +102,7 @@ fn prunes_against_the_shared_workspace_lockfile() {
     let mut config = Config::new();
     config.minimum_release_age_exclude_prune = true;
 
-    prune_minimum_release_age_excludes(&config, Some(workspace_dir), &manifest)
-        .expect("cleanup runs");
+    post_install_prune(&config, Some(workspace_dir), &manifest).expect("cleanup runs");
 
     assert!(
         !workspace_dir.join("pnpm-workspace.yaml").exists(),
