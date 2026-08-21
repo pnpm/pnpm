@@ -215,7 +215,7 @@ function mergePreferredVersions (
   const mergedPreferredVersions = Object.assign(Object.create(null), basePreferredVersions) as PreferredVersions
   for (const [packageName, selectors] of Object.entries(nextPreferredVersions)) {
     mergedPreferredVersions[packageName] = Object.assign(
-
+      Object.create(null),
       mergedPreferredVersions[packageName],
       selectors
     )
