@@ -25,6 +25,17 @@ test('createUpdateMatching() keeps 0.x selectors scoped by minor line', () => {
   expect(updateMatching('foo', '1.0.0')).toBeFalsy()
 })
 
+test('createUpdateMatching() evaluates all matching selectors for the same dependency', () => {
+  const updateMatching = createUpdateMatching([
+    'foo@npm:bar@1.0.0',
+    'bar@1.0.0',
+    'bar@2.0.0',
+  ])
+
+  expect(updateMatching('bar', '2.3.0')).toBeTruthy()
+  expect(updateMatching('bar', '3.0.0')).toBeFalsy()
+})
+
 test('createPreferredVersionsFromPinnedUpdateSpecs() seeds exact and cap selectors', () => {
   const preferredVersions = createPreferredVersionsFromPinnedUpdateSpecs(['js-yaml@3.15.1'])
 
