@@ -36,6 +36,13 @@ test('createUpdateMatching() evaluates all matching selectors for the same depen
   expect(updateMatching('bar', '3.0.0')).toBeFalsy()
 })
 
+test('createUpdateMatching() does not apply version-line scoping for negated selectors', () => {
+  const updateMatching = createUpdateMatching(['!foo@1.2.3'])
+
+  expect(updateMatching('bar', '5.0.0')).toBeTruthy()
+  expect(updateMatching('foo', '1.2.3')).toBeFalsy()
+})
+
 test('createPreferredVersionsFromPinnedUpdateSpecs() seeds exact and cap selectors', () => {
   const preferredVersions = createPreferredVersionsFromPinnedUpdateSpecs(['js-yaml@3.15.1'])
 

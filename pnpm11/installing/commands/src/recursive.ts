@@ -614,12 +614,17 @@ export function matchDependencies (
 
 export function createUpdateMatching (params: string[]): UpdateMatchingFunction {
   const parsed = params.map(parseUpdateParam)
-  const matcherByParam = parsed.map(({ pattern }) => createMatcherWithIndex([pattern]))
+  const combinedMatcher = createMatcherWithIndex(parsed.map(({ pattern }) => pattern))
+  const nonNegated = parsed
+    .filter(({ pattern }) => !pattern.startsWith('!'))
+    .map(entry => ({ ...entry, matcher: createMatcherWithIndex([entry.pattern]) }))
   return (pkgName: string, version?: string) => {
-    for (let index = 0; index < matcherByParam.length; index++) {
-      if (matcherByParam[index](pkgName) === -1) continue
+    if (combinedMatcher(pkgName) === -1) return false
+    if (nonNegated.length === 0) return true
 
-      const versionSpec = parsed[index].versionSpec
+    for (const { matcher, versionSpec } of nonNegated) {
+      if (matcher(pkgName) === -1) continue
+
       if (versionSpec == null || version == null) return true
       if (getVersionSelectorType(versionSpec)?.type !== 'version') return true
       if (versionSpec === version) return true
