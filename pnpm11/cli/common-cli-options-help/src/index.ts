@@ -3,6 +3,14 @@ export const OPTIONS = {
     description: 'Specify a custom directory to store global packages',
     name: '--global-dir',
   },
+  minimumReleaseAge: {
+    description: 'Reject packages published within the specified number of minutes. Overrides the minimumReleaseAge config setting',
+    name: '--minimum-release-age <minutes>',
+  },
+  minimumReleaseAgeExclude: {
+    description: 'Exclude specific packages from the minimum release age check',
+    name: '--minimum-release-age-exclude <package-spec>',
+  },
   ignoreScripts: {
     description: "Don't run lifecycle scripts",
     name: '--ignore-scripts',

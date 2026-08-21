@@ -9,6 +9,7 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { rimrafSync } from '@zkochan/rimraf'
 import delay from 'delay'
 import { loadJsonFileSync } from 'load-json-file'
+import { writeJsonFile } from 'write-json-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -175,6 +176,51 @@ test('do not install Node.js when devEngines runtime is not set to onFail=downlo
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].devDependencies).toBeUndefined()
+})
+
+test('install respects --minimum-release-age passed as a CLI option', async () => {
+  prepareEmpty()
+
+  await writeJsonFile('package.json', {
+    dependencies: {
+      'is-odd': '0.1.1',
+    },
+  })
+
+  const isOdd011ReleaseDate = new Date('2016-12-07T07:18:01.205Z')
+  const diffMinutes = (Date.now() - isOdd011ReleaseDate.getTime()) / (60 * 1000)
+  // Add a small buffer so the computed cutoff is guaranteed to be before the known publish time.
+  const minimumReleaseAge = Math.ceil(diffMinutes) + 1
+  await expect(install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    minimumReleaseAge,
+    minimumReleaseAgeStrict: true,
+  })).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
+})
+
+test('install respects --minimum-release-age-exclude passed as a CLI option', async () => {
+  prepareEmpty()
+
+  await writeJsonFile('package.json', {
+    dependencies: {
+      'is-odd': '0.1.1',
+    },
+  })
+
+  const isOdd011ReleaseDate = new Date('2016-12-07T07:18:01.205Z')
+  const diff = Date.now() - isOdd011ReleaseDate.getTime()
+  const minimumReleaseAge = diff / (60 * 1000)
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    minimumReleaseAge,
+    minimumReleaseAgeStrict: true,
+    minimumReleaseAgeExclude: ['is-odd'],
+  })
+
+  expect(fs.existsSync(path.resolve('node_modules/is-odd/package.json'))).toBe(true)
 })
 
 test('install restores a deleted pnpm-lock.yaml from the current lockfile without resolution', async () => {
