@@ -1460,19 +1460,16 @@ pub(crate) fn prune_allow_builds(
             }
             Some(out)
         }
-        _ => match remove_flow_entries(manifest.text(), BLOCK, &all_keys, &prunable) {
-            Some(out) => Some(out),
-            None => {
-                // The fallback rerenders the block from the decoded view,
-                // which would lose entries that view dropped (values that
-                // are neither booleans nor strings) — leave such a block
-                // untouched.
-                if allow_builds.len() != all_keys.len() {
-                    return false;
-                }
-                None
+        _ => {
+            let flow_edit = remove_flow_entries(manifest.text(), BLOCK, &all_keys, &prunable);
+            // The fallback rerenders the block from the decoded view, which
+            // would lose entries that view dropped (values that are neither
+            // booleans nor strings) — leave such a block untouched.
+            if flow_edit.is_none() && allow_builds.len() != all_keys.len() {
+                return false;
             }
-        },
+            flow_edit
+        }
     };
 
     if let Some(builds) = manifest.allow_builds.as_mut() {
