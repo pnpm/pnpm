@@ -121,34 +121,8 @@ fn finalize_hosted_auth_url_kept_verbatim_without_archive_eligibility() {
     assert!(spec.hosted.is_none(), "credentialed URL must never resolve to a host archive");
 }
 
-#[test]
-fn finalize_hosted_auth_url_keeps_the_committish_in_the_recorded_specifier() {
-    // The committish is what pins the dependency to a branch. A specifier
-    // that loses it resolves to the default branch on the next update,
-    // silently moving the dependency off the branch that was asked for.
-    let kind =
-        parse_bare_specifier("git+https://token:x-oauth-basic@github.com/foo/bar.git#develop")
-            .expect("hosted");
-    let spec = kind.finalize();
-    assert_eq!(spec.fetch_spec, "https://token:x-oauth-basic@github.com/foo/bar.git");
-    assert_eq!(
-        spec.normalized_bare_specifier,
-        "git+https://token:x-oauth-basic@github.com/foo/bar.git#develop",
-    );
-    assert_eq!(spec.git_committish.as_deref(), Some("develop"));
-}
-
-// The committish survives on some paths through the resolver and not
-// others only if one of them builds the specifier by hand, so both the
-// credentialed and the plain hosted branch are covered, for every kind
-// of committish — branch, tag, commit, and semver range.
-//
-// The resolved committish is asserted next to the specifier because the
-// two are written from different sources: dropping the specifier's
-// suffix leaves resolution correct on its own, and it is the pair
-// agreeing that keeps a re-resolve on the ref the caller asked for.
-// Each row is `(input, normalized_bare_specifier, git_committish,
-// git_range)`.
+// [pnpm/pnpm#13999](https://github.com/pnpm/pnpm/issues/13999). Each row
+// is `(input, normalized_bare_specifier, git_committish, git_range)`.
 #[test]
 fn every_representation_of_a_hosted_specifier_keeps_its_committish() {
     const SHA: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -171,6 +145,7 @@ fn every_representation_of_a_hosted_specifier_keeps_its_committish() {
     ];
     for (input, expected_specifier, expected_committish, expected_range) in &cases {
         let spec = parse_bare_specifier(input).expect("hosted").finalize();
+        assert!(!spec.fetch_spec.contains('#'), "ls-remote target keeps a committish: {input}");
         assert_eq!(
             (
                 spec.normalized_bare_specifier.as_str(),

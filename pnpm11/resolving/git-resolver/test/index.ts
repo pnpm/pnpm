@@ -718,10 +718,8 @@ test('resolve a private repository using the HTTPS protocol with a commit hash',
   })
 })
 
-test('a private repository reached over authenticated HTTPS keeps the branch in the recorded specifier', async () => {
-  // The committish is what pins the dependency to a branch. A specifier that
-  // loses it resolves to the default branch on the next update, silently
-  // moving the dependency off the branch that was asked for.
+// [pnpm/pnpm#13999](https://github.com/pnpm/pnpm/issues/13999)
+test('a private repository reached over HTTPS keeps the branch in the recorded specifier', async () => {
   mockFetchAsPrivate()
   mockGit(async (args: string[]) => {
     if (args.includes('--exit-code')) return { stdout: `${'0'.repeat(40)}\tHEAD` }
@@ -741,10 +739,6 @@ test('a private repository reached over authenticated HTTPS keeps the branch in 
 })
 
 test('every representation of a hosted specifier keeps its committish', async () => {
-  // The committish survives on some paths through the resolver and not others
-  // only if one of them builds the specifier by hand, so all of them are
-  // covered: a public repo, a private one reached over HTTPS, and a
-  // credentialed URL.
   mockGit(async (args: string[]) => {
     if (args.includes('--exit-code')) return { stdout: `${'0'.repeat(40)}\tHEAD` }
     return { stdout: `${'1'.repeat(40)}\trefs/heads/develop` }
