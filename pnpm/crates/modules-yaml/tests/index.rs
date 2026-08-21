@@ -213,7 +213,7 @@ fn write_and_read_manifest_with_long_dependency_path() {
 }
 
 #[test]
-fn long_json_keys_keep_duplicate_key_validation() {
+fn duplicate_json_keys_resolve_to_the_last_value() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
     let modules_dir = temp_dir.path();
     let dependency_path = format!("package@1.0.0({})", "p".repeat(1010));
@@ -222,24 +222,24 @@ fn long_json_keys_keep_duplicate_key_validation() {
     );
     fs::write(modules_dir.join(".modules.yaml"), content).expect("write manifest");
 
-    for result in [
-        read_modules_manifest::<Host>(modules_dir).map(drop),
-        read_modules_layout::<Host>(modules_dir).map(drop),
-    ] {
-        let error = result.expect_err("duplicate keys must be rejected");
-        assert!(error.to_string().to_lowercase().contains("duplicate"), "{error}");
-    }
+    let manifest = read_modules_manifest::<Host>(modules_dir)
+        .expect("read manifest")
+        .expect("manifest exists");
+    assert_eq!(
+        manifest.hoisted_dependencies,
+        IndexMap::from([(
+            dependency_path,
+            IndexMap::from([("package".to_string(), HoistKind::Public)]),
+        )]),
+    );
 }
 
 #[test]
-fn long_json_keys_keep_yaml_depth_budget() {
+fn yaml_fallback_keeps_depth_budget() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
     let modules_dir = temp_dir.path();
-    let dependency_path = format!("package@1.0.0({})", "p".repeat(1010));
     let nested_value = format!("{}null{}", "[".repeat(65), "]".repeat(65));
-    let content = format!(
-        r#"{{"hoistedDependencies":{{"{dependency_path}":{{"package":"private"}}}},"extra":{nested_value}}}"#,
-    );
+    let content = format!("extra: {nested_value}\n");
     fs::write(modules_dir.join(".modules.yaml"), content).expect("write manifest");
 
     for result in [

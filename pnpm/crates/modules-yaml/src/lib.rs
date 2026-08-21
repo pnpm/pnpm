@@ -2,8 +2,9 @@
 //!
 //! The manifest is stored at `<modules_dir>/.modules.yaml`, where
 //! `modules_dir` is the path of a `node_modules` directory. The on-disk
-//! format is JSON (which YAML accepts), so reads use a YAML parser and writes
-//! emit [`serde_json::to_string_pretty`] output to match pnpm exactly.
+//! format is JSON: writes emit [`serde_json::to_string_pretty`] output to
+//! match pnpm exactly, and reads parse JSON first, falling back to a YAML
+//! parser for manifests written by old pnpm versions.
 
 use derive_more::{Display, Error, From, Into};
 use indexmap::{IndexMap, IndexSet};
@@ -382,83 +383,18 @@ pub enum WriteModulesError {
     WriteFile { path: PathBuf, source: io::Error },
 }
 
+/// Parse the manifest as JSON first (the format every current pnpm writes),
+/// falling back to the YAML parser for manifests written by old pnpm
+/// versions. JSON parsing also accepts object keys longer than YAML's
+/// 1,024-character simple-key limit, which long dependency paths can exceed.
 fn deserialize_modules<Manifest>(content: &str) -> Result<Manifest, serde_saphyr::Error>
 where
     Manifest: DeserializeOwned,
 {
-    match serde_saphyr::from_str(content) {
+    match serde_json::from_str(content) {
         Ok(manifest) => Ok(manifest),
-        Err(source) => {
-            let Some(content) = make_long_json_keys_explicit(content) else { return Err(source) };
-            serde_saphyr::from_str(&content)
-        }
+        Err(_) => serde_saphyr::from_str(content),
     }
-}
-
-/// Rewrite JSON object keys that exceed YAML's 1,024-character simple-key
-/// limit to the equivalent explicit-key form before retrying the YAML parser.
-fn make_long_json_keys_explicit(content: &str) -> Option<String> {
-    const YAML_MAX_INPUT_BYTES: usize = 256 * 1024 * 1024;
-    const YAML_SIMPLE_KEY_LIMIT: usize = 1024;
-
-    if content.len() > YAML_MAX_INPUT_BYTES || !content.trim_start().starts_with('{') {
-        return None;
-    }
-
-    let bytes = content.as_bytes();
-    let mut long_key_starts = Vec::new();
-    let mut index = 0;
-
-    while index < bytes.len() {
-        if bytes[index] != b'"' {
-            index += 1;
-            continue;
-        }
-
-        let key_start = index;
-        index += 1;
-        while index < bytes.len() {
-            match bytes[index] {
-                b'\\' => index = (index + 2).min(bytes.len()),
-                b'"' => {
-                    index += 1;
-                    let mut colon = index;
-                    while colon < bytes.len()
-                        && matches!(bytes[colon], b' ' | b'\t' | b'\r' | b'\n')
-                    {
-                        colon += 1;
-                    }
-                    if colon < bytes.len()
-                        && bytes[colon] == b':'
-                        && colon - key_start > YAML_SIMPLE_KEY_LIMIT
-                    {
-                        long_key_starts.push(key_start);
-                    }
-                    break;
-                }
-                _ => index += 1,
-            }
-        }
-    }
-
-    if long_key_starts.is_empty() {
-        return None;
-    }
-
-    let rewritten_len = content.len().checked_add(long_key_starts.len().checked_mul(2)?)?;
-    if rewritten_len > YAML_MAX_INPUT_BYTES {
-        return None;
-    }
-    let mut rewritten = String::new();
-    rewritten.try_reserve_exact(rewritten_len).ok()?;
-    let mut copied_until = 0;
-    for key_start in long_key_starts {
-        rewritten.push_str(&content[copied_until..key_start]);
-        rewritten.push_str("? ");
-        copied_until = key_start;
-    }
-    rewritten.push_str(&content[copied_until..]);
-    Some(rewritten)
 }
 
 /// Read `<modules_dir>/.modules.yaml` and return the normalized manifest.
