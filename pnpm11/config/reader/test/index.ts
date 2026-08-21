@@ -891,6 +891,40 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(warnings).not.toContainEqual(expect.stringContaining('store-dir'))
   })
 
+  // `pnprServer` is typed `[null, String]`, so a null is a value the setting
+  // takes, not an absent one. Asserted through `explicitlySetKeys` because the
+  // merge is what the null has to survive; what each setting then does with it
+  // is its own business.
+  test('a null a setting accepts still reaches the config', async () => {
+    prepareEmpty()
+
+    const xdgConfigHome = process.cwd()
+    const configDir = path.join(xdgConfigHome, 'pnpm')
+    fs.mkdirSync(configDir, { recursive: true })
+    writeYamlFileSync(path.join(configDir, 'config.yaml'), { pnprServer: null })
+
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = xdgConfigHome
+    let context: { explicitlySetKeys: Set<string> }
+    let warnings: string[]
+    try {
+      ;({ context, warnings } = await getConfig({
+        cliOptions: {},
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      if (previousXdgConfigHome == null) {
+        delete process.env.XDG_CONFIG_HOME
+      } else {
+        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      }
+    }
+
+    expect(context.explicitlySetKeys.has('pnprServer')).toBe(true)
+    expect(warnings).not.toContainEqual(expect.stringContaining('pnprServer'))
+  })
+
   test('a key carrying terminal escapes is sanitized before it is reported', async () => {
     prepareEmpty()
 

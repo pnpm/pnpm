@@ -333,14 +333,18 @@ export async function getConfig (opts: {
     // The gate below is kebab-based, but only camelCase keys are picked up later.
     const kebabKeys: string[] = []
     for (const key in globalYamlConfig) {
-      // An explicit null sets nothing, so it is not reported.
-      if (key === SCHEMA_DIRECTIVE_KEY || globalYamlConfig[key as keyof typeof globalYamlConfig] == null) {
+      // A key set to null is dropped like any other the file may not set, but
+      // it is not reported: it chose nothing, so there is nothing to correct.
+      // A null a setting accepts (`httpProxy`, `pnprServer`, ...) is a value
+      // like any other and passes through both branches untouched.
+      const setsNothing = globalYamlConfig[key as keyof typeof globalYamlConfig] == null
+      if (key === SCHEMA_DIRECTIVE_KEY) {
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       } else if (!isConfigFileKey(kebabCase(key))) {
-        ignoredKeys.push(key)
+        if (!setsNothing) ignoredKeys.push(key)
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       } else if (!isCamelCase(key)) {
-        kebabKeys.push(key)
+        if (!setsNothing) kebabKeys.push(key)
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       }
     }
