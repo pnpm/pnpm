@@ -471,7 +471,7 @@ The fixed vulnerabilities are:
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
-    const { exitCode, output } = await audit.handler({
+    const auditOptions = {
       ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       rootProjectManifestDir: tmp,
@@ -486,7 +486,18 @@ The fixed vulnerabilities are:
           },
         },
       },
-    })
+    } as Parameters<typeof audit.handler>[0] & {
+      preferredVersions: {
+        '@pnpm.e2e/bar': {
+          '100.0.0': {
+            selectorType: 'version'
+            weight: number
+          }
+        }
+      }
+    }
+
+    const { exitCode, output } = await audit.handler(auditOptions)
 
     expect(exitCode).toBe(0)
     expect(output).toContain(`${chalk.green(1)} vulnerability was fixed`)
