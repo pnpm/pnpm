@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
 import { isValidPeerRange } from '@pnpm/deps.peer-range'
-import type { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
+import { type Dependencies, DEPENDENCIES_OR_PEER_FIELDS, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import { partition } from 'ramda'
 import semver from 'semver'
@@ -67,12 +67,20 @@ export function createVersionsOverrider (
         (!parentPkg.bareSpecifier || semver.satisfies(manifest.version, parentPkg.bareSpecifier))
       )
     })
-    overrideDepsOfPkg({ manifest, dir }, versionOverridesWithParent, genericVersionOverrides, {
+    // The manifest may come from a shared cache, so the fields the overrides
+    // rewrite are cloned instead of mutated in place.
+    const clonedManifest = { ...manifest }
+    for (const depsField of DEPENDENCIES_OR_PEER_FIELDS) {
+      if (manifest[depsField] != null) {
+        clonedManifest[depsField] = { ...manifest[depsField] }
+      }
+    }
+    overrideDepsOfPkg({ manifest: clonedManifest, dir }, versionOverridesWithParent, genericVersionOverrides, {
       convergeVersions,
       convergeDeclaredRanges: opts?.convergeDeclaredRanges,
     })
 
-    return manifest
+    return clonedManifest
   }) as ReadPackageHook
 }
 
