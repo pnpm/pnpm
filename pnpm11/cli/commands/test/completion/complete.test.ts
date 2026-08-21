@@ -71,6 +71,42 @@ test('complete workspace packages from the root when the workspace manifest has 
   }
 })
 
+test('complete nested packages when there is no workspace manifest', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-completion-'))
+  const initialCwd = process.cwd()
+  try {
+    await fs.mkdir(path.join(workspaceDir, 'nested'), { recursive: true })
+    await Promise.all([
+      fs.writeFile(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' })),
+      fs.writeFile(path.join(workspaceDir, 'nested/package.json'), JSON.stringify({ name: 'nested' })),
+    ])
+    process.chdir(workspaceDir)
+
+    const completions = await complete(
+      {
+        cliOptionsTypesByCommandName: {},
+        completionByCommandName: {},
+        initialCompletion: () => [],
+        shorthandsByCommandName: {},
+        universalOptionsTypes: {},
+        universalShorthands: {},
+      },
+      {
+        cmd: 'run',
+        currentTypedWordType: 'value',
+        lastOption: '--filter',
+        options: {},
+        params: [],
+      }
+    )
+
+    expect(completions).toStrictEqual([{ name: 'root' }, { name: 'nested' }])
+  } finally {
+    process.chdir(initialCwd)
+    await fs.rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
 test('complete a command', async () => {
   const ctx = {
     cliOptionsTypesByCommandName: {

@@ -1711,35 +1711,69 @@ describe('checkDepsStatus - missing workspace state', () => {
 })
 
 describe('checkDepsStatus - workspace discovery', () => {
+  const settings = {
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    preferWorkspacePackages: true,
+  }
+
   beforeEach(() => {
     jest.resetModules()
     jest.clearAllMocks()
   })
 
   it('uses the workspace root when the workspace manifest has no packages field', async () => {
-    const settings = {
-      excludeLinksFromLockfile: false,
-      linkWorkspacePackages: true,
-      preferWorkspacePackages: true,
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-deps-status-'))
+    try {
+      await fs.writeFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'minimumReleaseAge: 0\n')
+      jest.mocked(loadWorkspaceState).mockReturnValue({
+        lastValidatedTimestamp: Date.now(),
+        pnpmfiles: [],
+        settings,
+        projects: {},
+        filteredInstall: false,
+      })
+      jest.mocked(findWorkspaceProjectsNoCheck).mockRejectedValueOnce(new Error('stop after workspace discovery'))
+
+      await checkDepsStatus({
+        workspaceDir,
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        ...settings,
+      })
+
+      expect(findWorkspaceProjectsNoCheck).toHaveBeenCalledWith(workspaceDir, {
+        patterns: ['.'],
+      })
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true })
     }
-    jest.mocked(loadWorkspaceState).mockReturnValue({
-      lastValidatedTimestamp: Date.now(),
-      pnpmfiles: [],
-      settings,
-      projects: {},
-      filteredInstall: false,
-    })
-    jest.mocked(findWorkspaceProjectsNoCheck).mockRejectedValueOnce(new Error('stop after workspace discovery'))
+  })
 
-    await checkDepsStatus({
-      workspaceDir: '/workspace',
-      rootProjectManifestDir: '/workspace',
-      pnpmfile: [],
-      ...settings,
-    })
+  it('preserves recursive discovery when there is no workspace manifest', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-deps-status-'))
+    try {
+      jest.mocked(loadWorkspaceState).mockReturnValue({
+        lastValidatedTimestamp: Date.now(),
+        pnpmfiles: [],
+        settings,
+        projects: {},
+        filteredInstall: false,
+      })
+      jest.mocked(findWorkspaceProjectsNoCheck).mockRejectedValueOnce(new Error('stop after workspace discovery'))
 
-    expect(findWorkspaceProjectsNoCheck).toHaveBeenCalledWith('/workspace', {
-      patterns: ['.'],
-    })
+      await checkDepsStatus({
+        workspaceDir,
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        ...settings,
+      })
+
+      expect(findWorkspaceProjectsNoCheck).toHaveBeenCalledWith(workspaceDir, {
+        patterns: undefined,
+      })
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true })
+    }
   })
 })

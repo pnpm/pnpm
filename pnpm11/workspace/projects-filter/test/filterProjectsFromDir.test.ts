@@ -22,3 +22,20 @@ test('does not discover nested projects when the workspace manifest has no packa
     await fs.rm(workspaceDir, { recursive: true, force: true })
   }
 })
+
+test('discovers nested projects when there is no workspace manifest', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-workspace-filter-'))
+  try {
+    await fs.mkdir(path.join(workspaceDir, 'nested'), { recursive: true })
+    await Promise.all([
+      fs.writeFile(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' })),
+      fs.writeFile(path.join(workspaceDir, 'nested/package.json'), JSON.stringify({ name: 'nested' })),
+    ])
+
+    const result = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+    expect(result.allProjects.map(({ manifest }) => manifest.name)).toStrictEqual(['root', 'nested'])
+  } finally {
+    await fs.rm(workspaceDir, { recursive: true, force: true })
+  }
+})
