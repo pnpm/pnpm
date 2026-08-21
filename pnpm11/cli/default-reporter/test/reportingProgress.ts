@@ -197,6 +197,47 @@ test('prints progress beginning when appendOnly is true', async () => {
   expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
 })
 
+test('does not print dependency or download progress when hidden', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: '/src/project' } as ReporterPnpmConfig,
+    },
+    reportingOptions: {
+      hideProgress: true,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'resolution_started',
+  })
+  progressLogger.debug({
+    packageId: 'registry.npmjs.org/foo/1.0.0',
+    requester: '/src/project',
+    status: 'resolved',
+  })
+  fetchingProgressLogger.debug({
+    attempt: 1,
+    packageId: 'registry.npmjs.org/foo/1.0.0',
+    size: 1024 * 1024 * 10,
+    status: 'started',
+  })
+  fetchingProgressLogger.debug({
+    downloaded: 1024 * 1024 * 5,
+    packageId: 'registry.npmjs.org/foo/1.0.0',
+    status: 'in_progress',
+  })
+  statsLogger.debug({ added: 0, prefix: '/src/project' })
+  statsLogger.debug({ removed: 0, prefix: '/src/project' })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe('Already up to date')
+})
+
 test('prints progress beginning during recursive install', async () => {
   const output$ = toOutput$({
     context: {
