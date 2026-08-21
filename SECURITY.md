@@ -61,6 +61,19 @@ In particular:
   untrusted repository can influence what pnpm executes — in that starting
   position, code execution is already available to the attacker by design.
 
+- **The workspace's extent is defined by `pnpm-workspace.yaml` and may reach
+  outside the repository checkout.** `packages:` patterns may be
+  parent-relative (`../shared`), and pnpm treats the directories they name as
+  workspace projects: it reads their manifests, records them as lockfile
+  importers, and creates `node_modules` inside them. Those directories are part
+  of the project trust domain **by declaration**. A hostile edit to
+  `pnpm-workspace.yaml` that points the workspace outside the checkout is the
+  same starting position as the previous bullet: whoever can change that file
+  can already achieve code execution at install time through the configuration
+  it carries, so this is not an escalation. The lockfile does not define the
+  workspace — an importer entry for a path that no declared pattern matches
+  does not cause pnpm to install into that path.
+
 - **Some restrictions are hardening, not boundaries.** Environment variable
   expansion in repository-controlled configuration is suppressed for request
   destinations (`registry`, `proxy`, `pnprServer`) and for auth values. That
