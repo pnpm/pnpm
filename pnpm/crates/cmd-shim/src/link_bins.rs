@@ -856,10 +856,10 @@ where
             // symlink dangles until a later step materializes the
             // target, which is worth telling the user about but not
             // worth failing the install over.
+            let shim_path = shim_path.display();
+            let target_path = target_path.display();
             tracing::warn!(
-                "Failed to create bin at {}. The target {} does not exist",
-                shim_path.display(),
-                target_path.display(),
+                "Failed to create bin at {shim_path}. The target {target_path} does not exist",
             );
         }
         Err(error) => {
