@@ -1460,16 +1460,19 @@ pub(crate) fn prune_allow_builds(
             }
             Some(out)
         }
-        _ => {
-            // A flow-style block can hold entries the decoded view dropped
-            // (values that are neither booleans nor strings); rerendering
-            // from that view would lose them, so leave such a block
-            // untouched.
-            if allow_builds.len() != all_keys.len() {
-                return false;
+        _ => match remove_flow_entries(manifest.text(), BLOCK, &all_keys, &prunable) {
+            Some(out) => Some(out),
+            None => {
+                // The fallback rerenders the block from the decoded view,
+                // which would lose entries that view dropped (values that
+                // are neither booleans nor strings) — leave such a block
+                // untouched.
+                if allow_builds.len() != all_keys.len() {
+                    return false;
+                }
+                None
             }
-            None
-        }
+        },
     };
 
     if let Some(builds) = manifest.allow_builds.as_mut() {
@@ -1501,6 +1504,107 @@ fn allow_build_key_package_name(key: &str) -> Option<&str> {
         None => key,
     };
     (!name.is_empty() && !name.contains(':')).then_some(name)
+}
+
+/// Rewrite `block_name`'s single-line flow mapping in place, dropping the
+/// entries whose decoded key is in `prunable`. `decoded_keys` pairs the
+/// mapping's entries positionally. Surviving entries keep their original
+/// text and everything outside the braces (indentation, trailing comment)
+/// stays, matching what the TypeScript writer's yaml library emits. Returns
+/// `None` when the text does not have that shape.
+fn remove_flow_entries(
+    text: &str,
+    block_name: &str,
+    decoded_keys: &[String],
+    prunable: &[String],
+) -> Option<String> {
+    let span = top_level_span(text, block_name)?;
+    let block = &text[span.key_line_start..span.block_end];
+    let open = block.find('{')?;
+    let interior_and_rest = &block[open + 1..];
+    let close_in_interior = flow_mapping_close(interior_and_rest)?;
+    let interior = &interior_and_rest[..close_in_interior];
+    if interior.contains('\n') {
+        return None;
+    }
+    let segments = split_flow_entries(interior)?;
+    if segments.len() != decoded_keys.len() {
+        return None;
+    }
+    let surviving: Vec<&str> = segments
+        .iter()
+        .zip(decoded_keys)
+        .filter(|(_, key)| !prunable.contains(key))
+        .map(|(segment, _)| segment.trim())
+        .collect();
+    let rendered = format!("{{ {} }}", surviving.join(", "));
+    let start = span.key_line_start + open;
+    let end = span.key_line_start + open + 1 + close_in_interior + 1;
+    let mut out = text.to_string();
+    out.replace_range(start..end, &rendered);
+    Some(out)
+}
+
+/// Byte offset of the `}` closing a flow mapping whose `{` precedes `text`,
+/// skipping quoted scalars. `None` when unterminated or when a nested flow
+/// collection appears (the entries here hold only scalars).
+fn flow_mapping_close(text: &str) -> Option<usize> {
+    let mut idx = 0;
+    while idx < text.len() {
+        match text.as_bytes()[idx] {
+            b'}' => return Some(idx),
+            b'{' | b'[' | b']' => return None,
+            b'\'' | b'"' => idx = skip_quoted_scalar(text, idx)?,
+            _ => idx += 1,
+        }
+    }
+    None
+}
+
+/// Split a flow mapping's interior on its entry-separating commas, skipping
+/// commas inside quoted scalars. `None` on an unterminated quote or a
+/// nested flow collection.
+fn split_flow_entries(interior: &str) -> Option<Vec<&str>> {
+    let mut segments = Vec::new();
+    let mut start = 0;
+    let mut idx = 0;
+    while idx < interior.len() {
+        match interior.as_bytes()[idx] {
+            b',' => {
+                segments.push(&interior[start..idx]);
+                start = idx + 1;
+                idx += 1;
+            }
+            b'{' | b'[' | b'}' | b']' => return None,
+            b'\'' | b'"' => idx = skip_quoted_scalar(interior, idx)?,
+            _ => idx += 1,
+        }
+    }
+    segments.push(&interior[start..]);
+    Some(segments)
+}
+
+/// Byte offset just past the quoted scalar starting at `open` (a `'` or `"`
+/// byte), honoring the style's escape (`''` doubling, `\"`/`\\`). `None`
+/// when unterminated.
+fn skip_quoted_scalar(text: &str, open: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let quote = bytes[open];
+    let mut idx = open + 1;
+    while idx < bytes.len() {
+        match bytes[idx] {
+            b'\\' if quote == b'"' => idx += 2,
+            byte if byte == quote => {
+                if quote == b'\'' && bytes.get(idx + 1) == Some(&b'\'') {
+                    idx += 2;
+                } else {
+                    return Some(idx + 1);
+                }
+            }
+            _ => idx += 1,
+        }
+    }
+    None
 }
 
 fn allow_builds_keys_in_text(text: &str) -> Vec<String> {

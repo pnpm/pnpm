@@ -1582,10 +1582,20 @@ fn prune_allow_builds_deletes_block_and_file_when_empty() {
 }
 
 #[test]
-fn prune_allow_builds_handles_flow_style_and_converts_to_block_style() {
+fn prune_allow_builds_edits_a_flow_mapping_in_place() {
     let original = "allowBuilds: {foo: true, bar: set this to true or false}\n";
     let out = run_prune_allow_builds(Some(original), &[]);
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  foo: true\n"));
+    assert_eq!(out.as_deref(), Some("allowBuilds: { foo: true }\n"));
+}
+
+#[test]
+fn prune_allow_builds_keeps_a_flow_mapping_comment_and_quoting() {
+    let original = "allowBuilds: {foo: 'set this to true or false', bar: true, baz: 'set this to true or false'} # hey\n";
+    let out = run_prune_allow_builds(Some(original), &["foo"]);
+    assert_eq!(
+        out.as_deref(),
+        Some("allowBuilds: { foo: 'set this to true or false', bar: true } # hey\n"),
+    );
 }
 
 #[test]

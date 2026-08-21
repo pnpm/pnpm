@@ -66,18 +66,24 @@ test('delete the allowBuilds block if it becomes empty', async () => {
   expect(fs.existsSync(filePath)).toBe(false)
 })
 
-test('flow-style allowBuilds: undecided entry is pruned, decided entries are kept', async () => {
-  // A flow-style mapping (allowBuilds: {foo: true, bar: 'set this to true or false'})
-  // exercises the rerender path. The retained entries are written back as block style.
+test('flow-style allowBuilds: undecided entry is pruned, the mapping stays flow-style', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   await fs.promises.writeFile(filePath, "allowBuilds: {foo: true, bar: 'set this to true or false'}\n")
   await updateWorkspaceManifest(dir, {
     resolvedPackageVersions: resolvedPackageVersions({}),
   })
-  expect(readYamlFileSync(filePath)).toStrictEqual({
-    allowBuilds: { foo: true },
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('allowBuilds: { foo: true }\n')
+})
+
+test('flow-style allowBuilds: a trailing comment and original quoting survive the prune', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  await fs.promises.writeFile(filePath, "allowBuilds: {foo: 'set this to true or false', bar: true, baz: 'set this to true or false'} # hey\n")
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: [] }),
   })
+  expect(fs.readFileSync(filePath, 'utf8')).toBe("allowBuilds: { foo: 'set this to true or false', bar: true } # hey\n")
 })
 
 test('a dep-path key is pruned by its package name', async () => {
