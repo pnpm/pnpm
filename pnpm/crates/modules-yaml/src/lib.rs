@@ -2,15 +2,16 @@
 //!
 //! The manifest is stored at `<modules_dir>/.modules.yaml`, where
 //! `modules_dir` is the path of a `node_modules` directory. The on-disk
-//! format is JSON (which YAML accepts), so reads use a YAML parser and
-//! writes emit [`serde_json::to_string_pretty`] output to match pnpm exactly.
+//! format is JSON: writes emit [`serde_json::to_string_pretty`] output to
+//! match pnpm exactly, and reads parse JSON first, falling back to a YAML
+//! parser for manifests written by old pnpm versions.
 
 use derive_more::{Display, Error, From, Into};
 use indexmap::{IndexMap, IndexSet};
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_fs::lexical_normalize;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     collections::BTreeMap,
     fs, io, iter,
@@ -382,6 +383,20 @@ pub enum WriteModulesError {
     WriteFile { path: PathBuf, source: io::Error },
 }
 
+/// Parse the manifest as JSON first (the format every current pnpm writes),
+/// falling back to the YAML parser for manifests written by old pnpm
+/// versions. JSON parsing also accepts object keys longer than YAML's
+/// 1,024-character simple-key limit, which long dependency paths can exceed.
+fn deserialize_modules<Manifest>(content: &str) -> Result<Manifest, serde_saphyr::Error>
+where
+    Manifest: DeserializeOwned,
+{
+    match serde_json::from_str(content) {
+        Ok(manifest) => Ok(manifest),
+        Err(_) => serde_saphyr::from_str(content),
+    }
+}
+
 /// Read `<modules_dir>/.modules.yaml` and return the normalized manifest.
 ///
 /// Returns `Ok(None)` when the file does not exist or contains a YAML
@@ -403,10 +418,9 @@ where
             return Err(ReadModulesError::ReadFile { path: manifest_path, source });
         }
     };
-    let parsed: Option<Modules> =
-        content.pipe_as_ref(serde_saphyr::from_str).map_err(|source| {
-            ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
-        })?;
+    let parsed: Option<Modules> = content.pipe_as_ref(deserialize_modules).map_err(|source| {
+        ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
+    })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
     apply_legacy_shamefully_hoist(&mut manifest);
     resolve_virtual_store_dir(&mut manifest, modules_dir);
@@ -436,8 +450,9 @@ where
         }
     };
     let parsed: Option<ModulesLayout> =
-        content.pipe_as_ref(serde_saphyr::from_str).map_err(|source| {
-            ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
+        content.pipe_as_ref(deserialize_modules).map_err(|source| ReadModulesError::ParseYaml {
+            path: manifest_path.clone(),
+            source: Box::new(source),
         })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
 
