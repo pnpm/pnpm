@@ -15,22 +15,7 @@ use miette::Diagnostic;
 pub use pnpm_lockfile::pick_registry_for_package;
 use reqwest::Url;
 
-/// Built-in named-registry aliases the resolver recognizes
-/// out of the box.
-///
-/// `npmjs` is here so a dependency can be pinned to the public
-/// registry even when `registry` points somewhere else, such as an
-/// internal proxy. The `npm` prefix cannot serve that purpose: it is
-/// reserved for the alias protocol (`npm:<name>@<range>`), which
-/// resolves through the default registry.
-///
-/// These URLs are also the prefixes
-/// [`named_registry_tarball_prefixes`] matches a recorded tarball URL
-/// against, so an org that proxies
-/// npmjs should point `npmjs` at their proxy to keep verification
-/// going there rather than to the public host.
-pub const BUILTIN_REGISTRIES_BY_PREFIX: &[(&str, &str)] =
-    &[("gh", "https://npm.pkg.github.com/"), ("npmjs", "https://registry.npmjs.org/")];
+pub use pnpm_config::BUILTIN_REGISTRIES_BY_PREFIX;
 
 /// Failure from [`merge_named_registries`], surfaced with the
 /// `ERR_PNPM_INVALID_NAMED_REGISTRY_URL` code.

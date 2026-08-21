@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",

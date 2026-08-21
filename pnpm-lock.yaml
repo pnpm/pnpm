@@ -2278,6 +2278,9 @@ importers:
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../normalize-registries
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../reader

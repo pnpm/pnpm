@@ -172,6 +172,45 @@ fn scope_survives_workspace_only_field_clearing() {
     assert_eq!(settings.scope.as_deref(), Some("@from-global"));
 }
 
+/// The workspace-structural keys are parsed so `pnpm config get` / `list`
+/// can show them, but only from the workspace yaml: the global `config.yaml`
+/// refuses them.
+#[test]
+fn structural_keys_are_parsed_and_are_workspace_only() {
+    let yaml = "
+packages: ['.']
+catalog:
+  react: ^19.0.0
+catalogs:
+  react17:
+    react: ^17.0.0
+onlyBuiltDependencies: [esbuild]
+neverBuiltDependencies: [fsevents]
+ignoredBuiltDependencies: [core-js]
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.packages.as_deref(), Some(&[".".to_owned()][..]));
+    assert_eq!(
+        settings.catalog.as_ref().and_then(|c| c.get("react")).map(String::as_str),
+        Some("^19.0.0"),
+    );
+    assert_eq!(
+        settings
+            .catalogs
+            .as_ref()
+            .and_then(|c| c.get("react17"))
+            .and_then(|c| c.get("react"))
+            .map(String::as_str),
+        Some("^17.0.0"),
+    );
+    assert_eq!(settings.only_built_dependencies.as_deref(), Some(&["esbuild".to_owned()][..]));
+    assert_eq!(settings.never_built_dependencies.as_deref(), Some(&["fsevents".to_owned()][..]));
+    assert_eq!(settings.ignored_built_dependencies.as_deref(), Some(&["core-js".to_owned()][..]));
+
+    settings.clear_workspace_only_fields();
+    assert_eq!(settings, WorkspaceSettings::default());
+}
+
 #[test]
 fn apply_scope_overrides_an_earlier_layer() {
     // The workspace yaml is applied over the global `config.yaml`, so the
@@ -2262,6 +2301,52 @@ fn rebuilds_the_declarations_from_the_lookups() {
     );
     // The default registry travels as the request's own `registry` field.
     assert!(!declarations.contains_key("https://registry.npmjs.org/"), "{declarations:?}");
+}
+
+/// The resolved view declares every route: the default registry appears as
+/// the bare `@` scope — first in the scope list it shares with real scopes —
+/// and the built-in `@jsr` scope and `gh` / `npmjs` prefixes are declared
+/// unless the user pointed them elsewhere.
+#[test]
+fn resolved_declarations_declare_every_route() {
+    let mut config = Config::new();
+    config.registry = "https://npm.corp.example/".to_owned();
+    config.registries_by_scope =
+        BTreeMap::from([("@acme".to_owned(), "https://npm.corp.example/".to_owned())]);
+    config.registries_by_prefix =
+        BTreeMap::from([("gh".to_owned(), "https://github.corp.example/".to_owned())]);
+
+    let declarations = config.resolved_registry_declarations();
+    assert_eq!(
+        declarations.get("https://npm.corp.example/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@".to_owned(), "@acme".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    assert_eq!(
+        declarations.get("https://npm.jsr.io/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@jsr".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    // The user's `gh` route wins over the built-in of the same name.
+    assert_eq!(
+        declarations.get("https://github.corp.example/"),
+        Some(&RegistryDeclaration {
+            prefix: Some("gh".to_owned()),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    assert_eq!(declarations.get("https://npm.pkg.github.com/"), None);
+    assert_eq!(
+        declarations.get("https://registry.npmjs.org/"),
+        Some(&RegistryDeclaration {
+            prefix: Some("npmjs".to_owned()),
+            ..RegistryDeclaration::default()
+        }),
+    );
 }
 
 /// A declaration map survives the round trip through the lookups it is split
