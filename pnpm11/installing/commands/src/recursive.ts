@@ -35,7 +35,11 @@ import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
-import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
+import {
+  DIRECT_DEP_SELECTOR_WEIGHT,
+  EXISTING_VERSION_SELECTOR_WEIGHT,
+  type PreferredVersions,
+} from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
@@ -649,7 +653,8 @@ export function createPreferredVersionsFromPinnedUpdateSpecs (
     }
     const nextPreferredVersions = mergedPreferredVersions as PreferredVersions
     nextPreferredVersions[pattern] = Object.assign(Object.create(null), nextPreferredVersions[pattern], {
-      [versionSpec]: { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1 },
+      [versionSpec]: { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + DIRECT_DEP_SELECTOR_WEIGHT + 1 },
+      [`<=${versionSpec}`]: { selectorType: 'range', weight: DIRECT_DEP_SELECTOR_WEIGHT + 1 },
     })
   }
   return mergedPreferredVersions
