@@ -32,9 +32,9 @@ use pnpm_resolving_git_resolver::{
 };
 use pnpm_resolving_npm_resolver::{
     DeclaredSpecifiers, InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError,
-    PickPackageOptions, calc_specifier_for_workspace_dep, infer_range_spec_style,
-    parse_bare_specifier, pick_matching_local_version_or_null, pick_package,
-    pick_registry_for_package, shared_packument_fetch_locker,
+    PickPackageOptions, calc_specifier_for_workspace_dep, calc_version_range,
+    infer_range_spec_style, parse_bare_specifier, pick_matching_local_version_or_null,
+    pick_package, pick_registry_for_package, shared_packument_fetch_locker,
 };
 use pnpm_resolving_resolver_base::{GitResolveError, PreferredVersions, WorkspacePackages};
 use pnpm_tarball::MemCache;
@@ -928,7 +928,7 @@ async fn resolve_added_dependency<'a>(
                         name: package_name.to_string(),
                         error,
                     })?;
-                latest.serialize(range_spec_style)
+                calc_version_range(&latest.version, None, None, range_spec_style)
             }
         }
     };
@@ -1117,8 +1117,12 @@ async fn resolve_explicit_registry_spec(
     let prev_pin = prev_specifier
         .filter(|prev| is_registry_style_specifier(prev, package_name, &registry))
         .and_then(infer_range_spec_style);
-    let pin = prev_pin.or_else(|| infer_range_spec_style(spec)).unwrap_or(range_spec_style);
-    Ok(Some(picked.serialize(pin)))
+    Ok(Some(calc_version_range(
+        &picked.version,
+        prev_pin,
+        infer_range_spec_style(spec),
+        range_spec_style,
+    )))
 }
 
 /// Whether `specifier` is a plain registry range/tag/version for

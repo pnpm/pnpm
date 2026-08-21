@@ -1,6 +1,8 @@
+use node_semver::Version;
 use pnpm_registry::{PackageVersion, RangeSpecStyle};
 
-use super::{calc_prefixed_specifier, calc_specifier};
+use super::{calc_prefixed_specifier, calc_specifier, calc_version_range};
+use crate::infer_range_spec_style;
 
 fn picked(version: &str) -> PackageVersion {
     serde_json::from_value(serde_json::json!({
@@ -67,14 +69,50 @@ fn an_alias_that_names_the_install_name_round_trips_as_a_bare_range() {
     }
 }
 
-/// A prerelease has no meaningful range operator, so it is pinned exactly
-/// whatever the declared specifier or the default asks for.
 #[test]
-fn a_prerelease_pick_is_written_exactly() {
+fn a_prerelease_pick_keeps_the_declared_range_operator() {
     assert_eq!(
         calc_specifier("^1.0.0", Some("foo"), &picked("5.0.0-rc.1"), RangeSpecStyle::Major),
+        "^5.0.0-rc.1",
+    );
+    // A tag pins no operator, so the prerelease is pinned exactly rather
+    // than widened to the default pin.
+    assert_eq!(
+        calc_specifier("latest", Some("foo"), &picked("5.0.0-rc.1"), RangeSpecStyle::Major),
         "5.0.0-rc.1",
     );
+}
+
+#[test]
+fn calc_version_range_preserves_an_existing_prerelease_range_style() {
+    let version = Version::parse("3.0.0-rc.11").expect("parse prerelease version");
+    for (prev, expected) in [
+        ("^3.0.0-rc.8", "^3.0.0-rc.11"),
+        ("~3.0.0-rc.8", "~3.0.0-rc.11"),
+        ("3.0.0-rc.8", "3.0.0-rc.11"),
+        ("=3.0.0-rc.8", "=3.0.0-rc.11"),
+        (">=3.0.0-rc.8", "3.0.0-rc.11"),
+        ("2 || 3", "3.0.0-rc.11"),
+    ] {
+        assert_eq!(
+            calc_version_range(&version, infer_range_spec_style(prev), None, RangeSpecStyle::Major),
+            expected,
+            "range for previous specifier {prev}",
+        );
+    }
+    assert_eq!(calc_version_range(&version, None, None, RangeSpecStyle::Major), "3.0.0-rc.11");
+}
+
+#[test]
+fn calc_version_range_ignores_the_requested_specifier_style_for_a_prerelease() {
+    let prerelease = Version::parse("3.0.0-rc.11").expect("parse prerelease version");
+    let spec_style = infer_range_spec_style("~3.0.0-rc.8");
+    assert_eq!(
+        calc_version_range(&prerelease, None, spec_style, RangeSpecStyle::Major),
+        "3.0.0-rc.11",
+    );
+    let release = Version::parse("3.1.0").expect("parse release version");
+    assert_eq!(calc_version_range(&release, None, spec_style, RangeSpecStyle::Major), "~3.1.0");
 }
 
 #[test]

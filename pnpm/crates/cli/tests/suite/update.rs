@@ -14,6 +14,7 @@ use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
+const HAS_PRERELEASE: &str = "@pnpm.e2e/has-prerelease";
 /// Depends on `dep-of-pkg-with-1-dep@^100.0.0`, used to exercise
 /// indirect-dependency update behavior when the direct dep is ignored.
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
@@ -172,6 +173,32 @@ fn update_preserves_the_declared_range_operator() {
     assert_eq!(dep_spec(&workspace, "@pnpm.e2e/bravo-dep").as_deref(), Some("~1.0.1"));
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("1.0.0"));
     assert_eq!(dep_spec(&workspace, PARENT).as_deref(), Some("^100.1.0"));
+
+    drop((root, anchor));
+}
+
+#[test]
+fn update_preserves_an_existing_prerelease_range_operator() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{HAS_PRERELEASE}": "3.0.0-rc.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+has-prerelease@3.0.0-rc.0"),
+        "virtual store entries: {:?}",
+        list_virtual_store(&workspace),
+    );
+
+    write_manifest(&workspace, &format!(r#"{{ "{HAS_PRERELEASE}": "^3.0.0-rc.0" }}"#));
+    pacquet(&workspace, ["update"]).assert().success();
+
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+has-prerelease@3.0.0-rc.1"),
+        "virtual store entries: {:?}",
+        list_virtual_store(&workspace),
+    );
+    assert_eq!(dep_spec(&workspace, HAS_PRERELEASE).as_deref(), Some("^3.0.0-rc.1"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, anchor));
 }
