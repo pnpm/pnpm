@@ -904,7 +904,37 @@ test('should update pnpm entry in devEngines.packageManager array', async () => 
   expect(pkgJson.packageManager).toBeUndefined()
 })
 
-test('should not modify devEngines.packageManager range when resolved version still satisfies it', async () => {
+test.each([
+  ['^8.0.0', '8.5.0', '^8.5.0'],
+  ['~8.0.0', '8.0.5', '~8.0.5'],
+])('should bump devEngines.packageManager range %s when the resolved version still satisfies it', async (currentRange, resolvedVersion, expectedRange) => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: currentRange },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata(resolvedVersion, opts.registriesByScope.default)).persist()
+  mockExeMetadata(opts.registriesByScope.default, resolvedVersion)
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: currentRange,
+    },
+  }, [])
+
+  expect(output).toBe(`The current project has been updated to use pnpm v${resolvedVersion}`)
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager.version).toBe(expectedRange)
+  const lockfile = fs.readFileSync(path.join(opts.dir, 'pnpm-lock.yaml'), 'utf8')
+  expect(lockfile).toContain(resolvedVersion)
+})
+
+test('should not modify complex devEngines.packageManager range when resolved version still satisfies it', async () => {
   const opts = prepare({
     devEngines: {
       packageManager: { name: 'pnpm', version: '>=8.0.0' },

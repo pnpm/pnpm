@@ -473,18 +473,18 @@ fn package_manager_pin_specifier(
 }
 
 /// Returns the updated `devEngines.packageManager` version constraint.
-/// A constraint that still satisfies the new version is left as-is (the
+/// Exact pins and simple ranges (`^`, `~`) are rewritten to the new version
+/// while keeping the operator, matching `pnpm update` / `pnpm runtime set`.
+/// Complex ranges that still satisfy the new version are left as-is (the
 /// lockfile pins the exact version); otherwise the new version is written
-/// with the constraint's pinning style, falling back to a caret range.
+/// as a caret range.
 fn update_version_constraint(current: Option<&str>, new_version: &str) -> String {
     let Some(current) = current else {
         return new_version.to_string();
     };
-    if range_satisfies(current, new_version) {
-        return current.to_string();
-    }
     match infer_range_spec_style(current) {
         Some(pinned) => format!("{}{new_version}", pinned.range_prefix()),
+        None if range_satisfies(current, new_version) => current.to_string(),
         None => format!("^{new_version}"),
     }
 }
