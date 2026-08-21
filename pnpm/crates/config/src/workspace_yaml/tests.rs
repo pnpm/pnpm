@@ -131,6 +131,48 @@ packages:
 }
 
 #[test]
+fn load_at_buckets_the_problem_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        concat!(
+            "$schema: https://json.schemastore.org/pnpm-workspace.json\n",
+            "configDir: /elsewhere\n",
+            "minimumReleaseAg: 100\n",
+            "store-dir: /some-store\n",
+            "nodeLinker: hoisted\n",
+            "globalShims:\n  node: true\n",
+            "packages:\n  - apps/*\n",
+        ),
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.refused, ["configDir"]);
+    assert_eq!(settings.key_issues.unrecognized, ["minimumReleaseAg"]);
+    assert_eq!(settings.key_issues.non_camel_case, ["store-dir"]);
+}
+
+#[test]
+fn load_at_collects_no_issues_from_a_clean_file() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "nodeLinker: hoisted\npackages:\n  - apps/*\ncatalog:\n  react: ^18\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
+}
+
+#[test]
 fn apply_overrides_npmrc_defaults() {
     let yaml = r"
 storeDir: /absolute/store
@@ -2459,4 +2501,87 @@ fn no_filtered_mirror_without_a_reason_for_full_metadata() {
     assert!(!config.requires_filtered_full_metadata());
     config.resolution_mode = ResolutionMode::TimeBased;
     assert!(config.requires_filtered_full_metadata());
+}
+
+/// The scan that decides whether the file is worth re-reading must never
+/// answer "nothing here" for a key there is something to say about, so a
+/// top-level key written in a shape it cannot classify still gets collected.
+#[test]
+fn load_at_collects_issues_from_a_key_it_cannot_scan() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "{zzzNotASettingZzz: 1}\n").unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// A `$schema` line is what an editor adds to an otherwise correct file, so
+/// it must not be what makes every command re-read it.
+#[test]
+fn load_at_collects_no_issues_from_a_clean_file_carrying_a_schema_line() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "$schema: https://json.schemastore.org/pnpm-workspace.json\nnodeLinker: hoisted\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
+}
+
+/// A root mapping may itself be indented, and the whole file is then more
+/// indented than column zero without a single key being nested.
+#[test]
+fn load_at_collects_issues_from_an_indented_root_mapping() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "  zzzNotASettingZzz: 1\n  nodeLinker: hoisted\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// Indentation is not measurable where a tab stands in for it, so such a file
+/// is read rather than judged by its shape.
+#[test]
+fn load_at_collects_issues_from_a_tab_indented_file() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "\tzzzNotASettingZzz: 1\n").unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// A nested key is not a setting of this file, so a catalog naming a package
+/// after nothing pnpm knows is not something to report.
+#[test]
+fn load_at_ignores_keys_nested_under_a_setting() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "catalog:\n  zzzNotASettingZzz: ^1\noverrides:\n  alsoNotASetting: 2\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
 }

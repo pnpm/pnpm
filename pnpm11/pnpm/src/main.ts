@@ -28,7 +28,7 @@ import { checkForUpdates } from './checkForUpdates.js'
 import { checkSudo } from './checkSudo.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
-import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
+import { getConfig, installConfigDepsAndLoadHooks, isSingleSettingRead } from './getConfig.js'
 import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
@@ -113,6 +113,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       workspaceDir,
       onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
       forSelfUpdate: cmd === 'self-update',
+      printWarnings: !isSingleSettingRead(cmd, cliParams),
     }) as { config: typeof config, context: ConfigContext })
     if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams)) {
       if (context.wantedPackageManager != null) {

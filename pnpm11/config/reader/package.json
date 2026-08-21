@@ -53,6 +53,7 @@
     "camelcase-keys": "catalog:",
     "can-write-to-dir": "catalog:",
     "ci-info": "catalog:",
+    "didyoumean2": "catalog:",
     "is-subdir": "catalog:",
     "is-windows": "catalog:",
     "lodash.kebabcase": "catalog:",

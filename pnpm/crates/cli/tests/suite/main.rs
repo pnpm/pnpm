@@ -125,3 +125,4 @@ mod whoami;
 mod why;
 mod with;
 mod workspace_install;
+mod workspace_settings_check;

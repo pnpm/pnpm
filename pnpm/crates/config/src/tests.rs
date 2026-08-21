@@ -3697,6 +3697,51 @@ pub fn global_config_yaml_keys_settable_nowhere_are_reported_with_their_route() 
     );
 }
 
+/// A key that names no setting of any supported pnpm gets the
+/// "not recognized by this version" warning — with the closest real setting
+/// when the key looks like a typo of one — instead of the move-to-workspace
+/// advice, which would send the user to a file that ignores it too.
+#[test]
+pub fn global_config_yaml_unrecognized_keys_are_reported_with_a_suggestion() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "minimumReleaseAg: 100\nzzzNotASettingZzz: true\n")
+        .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+    });
+
+    assert_eq!(
+        warnings,
+        [format!(
+            r#"The following settings in the global config file ("{}") are not recognized by this version of pnpm and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?), "zzzNotASettingZzz"."#,
+            config_file.display(),
+        )],
+    );
+}
+
+/// A `$schema` key is an editor's schema association, not a setting.
+#[test]
+pub fn global_config_yaml_schema_directive_is_silent() {
+    let config_dir = tempdir().expect("config tempdir");
+    fs::write(
+        config_dir.path().join("config.yaml"),
+        "$schema: https://json.schemastore.org/pnpm-workspace.json\n",
+    )
+    .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+    });
+
+    assert_eq!(warnings, Vec::<String>::new());
+}
+
 /// A dropped key pnpm honors in this file gets no warning; the rationale
 /// lives on `warn_about_dropped_keys`.
 #[test]
@@ -3723,7 +3768,7 @@ pub fn global_config_yaml_null_key_is_silent_and_the_warnings_are_ordered() {
     let config_file = config_dir.path().join("config.yaml");
     fs::write(
         &config_file,
-        "scriptShell: null\nstore-dir: /kebab-store\nconfigDir: /elsewhere\nnodeLinker: hoisted\n",
+        "scriptShell: null\nstore-dir: /kebab-store\nzzzNotASettingZzz: true\nconfigDir: /elsewhere\nnodeLinker: hoisted\n",
     )
     .expect("write global config.yaml");
 
@@ -3738,6 +3783,10 @@ pub fn global_config_yaml_null_key_is_silent_and_the_warnings_are_ordered() {
         [
             format!(
                 r#"The following settings cannot be set in the global config file ("{}") and were ignored: "nodeLinker". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+                config_file.display(),
+            ),
+            format!(
+                r#"The following settings in the global config file ("{}") are not recognized by this version of pnpm and were ignored: "zzzNotASettingZzz"."#,
                 config_file.display(),
             ),
             format!(

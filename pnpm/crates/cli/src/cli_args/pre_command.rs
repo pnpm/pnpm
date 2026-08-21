@@ -23,6 +23,7 @@ use super::{
     with::{PackageManagerCheck, spawn_pnpm},
 };
 use crate::{
+    cli_args::config_warnings::report_workspace_key_issues,
     config_deps,
     config_overrides::ConfigOverrides,
     engine_pm::{
@@ -65,6 +66,7 @@ pub(crate) fn pre_command_plan(
             check_runtimes: true,
             syncs_env_lockfile_in_pipeline: syncs_env_lockfile_in_pipeline(&args.command),
             emit: reporter_emit(args.reporter),
+            key_issues: key_issue_reporting(&args.command),
         },
         config_overrides,
         SwitchProcessState::current(),
@@ -88,6 +90,9 @@ pub(crate) fn pre_command_plan_for_version_flag(
             // would record the pin.
             syncs_env_lockfile_in_pipeline: false,
             emit: DefaultReporter::emit,
+            // Printing the version must work in a project whose
+            // `pnpm-workspace.yaml` is broken, like the runtime checks above.
+            key_issues: KeyIssueReporting::WarnOnly,
         },
         config_overrides,
         SwitchProcessState::current(),
@@ -204,9 +209,14 @@ fn pre_command_plan_from_input(
     let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
     let manifest = read_manifest_json(&root_dir.join("package.json"))?;
 
+    let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
+    let running_matches_pin = wanted_pm.as_ref().is_some_and(|pm| {
+        pm.name == "pnpm"
+            && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
+    });
     let mut package_manager_to_sync = None;
     if let Some(root_manifest) = manifest.as_ref()
-        && let Some(pm) = wanted_package_manager(root_manifest)
+        && let Some(pm) = wanted_pm
     {
         let on_fail = effective_on_fail(&config, &pm);
         let switch_wanted = pm.name == "pnpm" && on_fail == PmOnFail::Download;
@@ -253,6 +263,14 @@ fn pre_command_plan_from_input(
                 )?;
             }
         }
+    }
+
+    if input.key_issues != KeyIssueReporting::Skip {
+        // A `--global` invocation does not act on the project, so a satisfied
+        // pin does not harden its unrecognized-key report into an error.
+        let strict =
+            input.key_issues == KeyIssueReporting::Enforce && running_matches_pin && !input.global;
+        report_workspace_key_issues(&config.workspace_key_issues, strict)?;
     }
 
     if input.check_runtimes
@@ -529,6 +547,33 @@ struct PreCommandInput {
     check_runtimes: bool,
     syncs_env_lockfile_in_pipeline: bool,
     emit: fn(&LogEvent),
+    key_issues: KeyIssueReporting,
+}
+
+/// What to do about the problem keys of the project's `pnpm-workspace.yaml`
+/// (see [`report_workspace_key_issues`]), decided per invocation.
+#[derive(Clone, Copy, PartialEq)]
+enum KeyIssueReporting {
+    /// `pnpm config get <key>` prints one value for a script to capture, so
+    /// config-load warnings stay off it entirely, as pnpm keeps them off.
+    Skip,
+    /// The other `pnpm config` subcommands are how a user inspects and
+    /// repairs the config, so they must keep working on a broken file:
+    /// unrecognized keys warn even under a satisfied pin.
+    WarnOnly,
+    /// Unrecognized keys warn, or fail the command when the running pnpm is
+    /// the version the project pins (no version-skew excuse remains).
+    Enforce,
+}
+
+fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
+    match command {
+        CliCommand::Config(args) => match &args.command {
+            ConfigSubcommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
+            _ => KeyIssueReporting::WarnOnly,
+        },
+        _ => KeyIssueReporting::Enforce,
+    }
 }
 
 /// The install-family commands that sync `packageManagerDependencies` from

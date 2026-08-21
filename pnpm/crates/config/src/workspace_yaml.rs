@@ -5,6 +5,7 @@ use crate::{
     VirtualStoreType,
     api::EnvVar,
     config_types::is_config_file_key,
+    known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
     naming_cases::{is_camel_case, to_camel_case, to_kebab_case},
     proxy_keys::{ProxyKeys, ProxyValue},
     refused_keys::{is_refused_by_a_project_manifest, where_refused_key_belongs},
@@ -690,6 +691,31 @@ pub struct WorkspaceSettings {
     /// `peerDependencyRules` from `pnpm-workspace.yaml`. See
     /// [`PeerDependencyRules`].
     pub peer_dependency_rules: Option<PeerDependencyRules>,
+
+    /// The problem keys [`Self::collect_key_issues`] found in the file this
+    /// was parsed from. Not a setting: carried here so the CLI can report
+    /// them at the point where it knows how severe they are (see the
+    /// warnings/error in `pnpm-cli`'s `config_warnings`).
+    #[serde(skip)]
+    pub key_issues: WorkspaceKeyIssues,
+}
+
+/// The keys of a project's `pnpm-workspace.yaml` that set nothing, bucketed
+/// by why: refused values a project may not contribute, keys naming no
+/// setting any supported pnpm reads, and kebab-case spellings of keys pnpm
+/// only reads in camelCase.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct WorkspaceKeyIssues {
+    pub refused: Vec<String>,
+    pub unrecognized: Vec<String>,
+    pub non_camel_case: Vec<String>,
+}
+
+impl WorkspaceKeyIssues {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.refused.is_empty() && self.unrecognized.is_empty() && self.non_camel_case.is_empty()
+    }
 }
 
 /// `audit` entry: settings that tune `pnpm audit`. Supersedes the
@@ -1009,20 +1035,31 @@ impl WorkspaceSettings {
         };
 
         let mut movable = Vec::new();
+        let mut unrecognized = Vec::new();
         let mut nowhere = Vec::new();
         let mut kebab_case = Vec::new();
         for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
+            if key == SCHEMA_DIRECTIVE_KEY {
+                continue;
+            }
             if matches!(kept.get(key), Some(value) if !value.is_null()) {
                 continue;
             }
+            // The key comes from a file the machine's user controls, but the
+            // same rendering serves the project file, so it is sanitized here
+            // too rather than only where it must be.
+            let key = redact_and_sanitize(key);
+            let key = key.as_str();
             if !is_config_file_key(&to_kebab_case(key)) {
                 if is_refused_by_a_project_manifest(key) {
                     nowhere.push(format!(
                         r#""{key}" ({})"#,
                         where_refused_key_belongs(&to_camel_case(key)),
                     ));
-                } else {
+                } else if is_known_setting_key(key) {
                     movable.push(format!(r#""{key}""#));
+                } else {
+                    unrecognized.push(annotate_unknown_setting(key));
                 }
             } else if !is_camel_case(key) {
                 kebab_case.push(format!(r#""{key}" (use "{}")"#, to_camel_case(key)));
@@ -1035,6 +1072,13 @@ impl WorkspaceSettings {
             tracing::warn!(
                 target: "pacquet::config",
                 r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {movable}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+            );
+        }
+        if !unrecognized.is_empty() {
+            let unrecognized = unrecognized.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings in the global config file ("{path}") are not recognized by this version of pnpm and were ignored: {unrecognized}."#,
             );
         }
         if !nowhere.is_empty() {
@@ -1164,12 +1208,87 @@ impl WorkspaceSettings {
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
         };
-        let settings: WorkspaceSettings = text
+        let mut settings: WorkspaceSettings = text
             .pipe_as_ref(serde_saphyr::from_str)
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
         settings.validate_registries()?;
+        settings.collect_key_issues(&text);
         Ok(Some(settings))
+    }
+
+    /// Bucket the file's keys that set nothing into [`Self::key_issues`],
+    /// under the project-file rules: refused values, keys naming no setting
+    /// any supported pnpm reads, and kebab-case spellings of known settings.
+    /// Reporting is the caller's job — how severe an unrecognized key is
+    /// depends on whether the running pnpm is the project's pinned version,
+    /// which only the CLI layer knows.
+    pub fn collect_key_issues(&mut self, text: &str) {
+        if !Self::may_have_key_issues(text) {
+            return;
+        }
+        let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
+        else {
+            return;
+        };
+        let mut issues = WorkspaceKeyIssues::default();
+        for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
+            if key == SCHEMA_DIRECTIVE_KEY {
+                continue;
+            }
+            if is_refused_by_a_project_manifest(key) {
+                issues.refused.push(key.clone());
+            } else if !is_known_setting_key(key) {
+                issues.unrecognized.push(key.clone());
+            } else if !is_camel_case(key) {
+                issues.non_camel_case.push(key.clone());
+            }
+        }
+        self.key_issues = issues;
+    }
+
+    /// Whether `text` may carry a key [`WorkspaceSettings::collect_key_issues`]
+    /// would report, answered without parsing the file a second time.
+    ///
+    /// Serde keeps no record of the keys it dropped, so collecting them means
+    /// re-reading the document — which costs as much as the parse that
+    /// produced the settings, on every command, to find nothing in the
+    /// overwhelmingly common case of a file that is simply correct.
+    ///
+    /// The top-level keys are the least indented lines of the document, since
+    /// everything a key nests under it is indented further; the root mapping
+    /// may itself be indented, so what marks a top-level key is the smallest
+    /// indentation the file uses rather than column zero. A line this cannot
+    /// measure or classify counts as one to look at, so the answer errs only
+    /// towards re-reading, never towards missing a key.
+    fn may_have_key_issues(text: &str) -> bool {
+        let content_lines = text.lines().filter(|line| {
+            let trimmed = line.trim_start();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        });
+        let mut root_indent = usize::MAX;
+        for line in content_lines.clone() {
+            let indent = line.len() - line.trim_start().len();
+            // YAML forbids a tab as indentation, so a file that uses one is
+            // not worth measuring against.
+            if line[..indent].bytes().any(|byte| byte != b' ') {
+                return true;
+            }
+            root_indent = root_indent.min(indent);
+        }
+        if root_indent == usize::MAX {
+            return false;
+        }
+        content_lines.filter(|line| line.len() - line.trim_start().len() == root_indent).any(
+            |line| {
+                let Some((key, _)) = line.trim_start().split_once(':') else { return true };
+                let key = key.trim_end();
+                key != SCHEMA_DIRECTIVE_KEY
+                    && (!is_camel_case(key)
+                        || !is_known_setting_key(key)
+                        || is_refused_by_a_project_manifest(key))
+            },
+        )
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
