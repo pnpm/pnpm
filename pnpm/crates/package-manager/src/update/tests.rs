@@ -68,6 +68,12 @@ fn an_npm_alias_selector_targets_the_aliased_package_name() {
 }
 
 #[test]
+fn a_jsr_alias_selector_targets_the_npm_package_name_it_installs() {
+    let selectors = vec![parse_update_param("bar-from-jsr@jsr:@pnpm-e2e/bar@^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "bar-from-jsr"), "@jsr/pnpm-e2e__bar");
+}
+
+#[test]
 fn a_versioned_selector_without_an_alias_targets_the_name_it_names() {
     let selectors = vec![parse_update_param("foo@^1.0.0")];
     assert_eq!(update_target_name(&selectors, "foo"), "foo");
