@@ -30,6 +30,7 @@ mod workspace_ctx;
 #[cfg(test)]
 mod test_support;
 
+pub use reuse::real_package_name_of;
 pub use tree_ctx::TreeCtx;
 pub use workspace_ctx::WorkspaceTreeCtx;
 

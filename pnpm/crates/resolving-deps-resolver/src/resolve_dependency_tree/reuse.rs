@@ -372,7 +372,7 @@ pub(crate) fn unwrap_package_name<'a>(
 ///
 /// `None` when no name can be recovered; the caller reads that as "not
 /// a targeted update", since update targets are keyed by package name.
-pub(super) fn real_package_name_of<'edge>(
+pub fn real_package_name_of<'edge>(
     alias: Option<&'edge str>,
     bare_specifier: Option<&'edge str>,
 ) -> Option<Cow<'edge, str>> {
