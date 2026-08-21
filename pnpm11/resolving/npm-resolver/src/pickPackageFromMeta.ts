@@ -345,21 +345,38 @@ function nonDeprecatedPick (
   versionRange: string
 ): string | null {
   if (!meta.versions[picked]?.deprecated || candidates.length <= 1) return null
-  const nonDeprecatedVersions = candidates.filter((version) => !meta.versions[version]?.deprecated)
-  if (versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)) {
-    const pickedParsed = parseSemverLoose(picked)
-    if (pickedParsed != null) {
-      const sameReleasePrereleases = nonDeprecatedVersions.filter((version) => {
-        const parsed = parseSemverLoose(version)
-        return parsed != null &&
-          parsed.major === pickedParsed.major &&
-          parsed.minor === pickedParsed.minor &&
-          parsed.patch === pickedParsed.patch
-      })
-      const sameRelease = maxVersionLoose(sameReleasePrereleases)
-      if (sameRelease != null) return sameRelease
-    }
+  const isNonDeprecated = (version: string): boolean => {
+    if (version === picked) return false
+    const manifest = meta.versions[version]
+    return manifest != null && !manifest.deprecated
   }
-
+  if (versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)) {
+    const sameRelease = pickSameReleaseVersion(candidates, picked, isNonDeprecated)
+    if (sameRelease != null) return sameRelease
+  }
+  // Filter by the range before touching manifests, so a lazily-loaded
+  // packument hydrates only the actual candidates instead of every version.
+  const nonDeprecatedVersions = candidates.filter((version) =>
+    semverSatisfiesLoose(version, versionRange) && isNonDeprecated(version)
+  )
   return maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
+}
+
+function pickSameReleaseVersion (
+  candidates: string[],
+  picked: string,
+  isNonDeprecated: (version: string) => boolean
+): string | null {
+  const pickedParsed = parseSemverLoose(picked)
+  if (pickedParsed == null) return null
+  return maxVersionLoose(candidates.filter((version) =>
+    isSameRelease(parseSemverLoose(version), pickedParsed) && isNonDeprecated(version)
+  ))
+}
+
+function isSameRelease (parsed: semver.SemVer | null, other: semver.SemVer): boolean {
+  return parsed != null &&
+    parsed.major === other.major &&
+    parsed.minor === other.minor &&
+    parsed.patch === other.patch
 }

@@ -9,6 +9,7 @@ import {
   fetchAbbreviatedMetadataCached,
   fetchFullMetadataCached,
 } from './fetchFullMetadataCached.js'
+import { isMalformedMirrorFragmentError } from './metaMirror.js'
 import type { PackageMetaCache } from './pickPackage.js'
 import { getPkgMetaCacheKey, getPkgMirrorPath, loadMeta } from './pickPackage.js'
 
@@ -324,8 +325,9 @@ export function fetchAbbreviatedMeta (
     // Fast path: the resolver's per-install LRU already holds this
     // packument from its own pickPackage pass — abbreviated or full.
     const shared = readSharedMeta(context.sharedMetaCache, registry, name)
-    if (shared != null) {
-      cachedPromise = Promise.resolve({ meta: projectAbbreviatedMeta(shared) })
+    const sharedProjection = shared != null ? projectSharedMeta(shared) : undefined
+    if (sharedProjection != null) {
+      cachedPromise = Promise.resolve({ meta: sharedProjection })
     } else {
       cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
         registry,
@@ -340,6 +342,19 @@ export function fetchAbbreviatedMeta (
     context.abbreviatedMetaCache.set(cacheKey, cachedPromise)
   }
   return cachedPromise
+}
+
+/**
+ * `undefined` when the shared packument holds a corrupt mirror fragment, so
+ * the lookup falls through to its own fetch, which repairs the mirror.
+ */
+function projectSharedMeta (meta: PackageMeta): ReturnType<typeof projectAbbreviatedMeta> | undefined {
+  try {
+    return projectAbbreviatedMeta(meta)
+  } catch (err: unknown) {
+    if (isMalformedMirrorFragmentError(err)) return undefined
+    throw err
+  }
 }
 
 function readSharedMeta (

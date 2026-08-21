@@ -115,9 +115,9 @@ pub enum FetchMetadataError {
 #[must_use]
 pub fn legacy_mirror_hint(legacy_mirror: &std::path::Path) -> String {
     format!(
-        "The cache layout for registry metadata changed in pnpm 11.27 and 12.4. {} holds a mirror \
-         from an older pnpm version, which this offline install cannot read. Run one online install \
-         to repopulate the cache under the new layout, then retry offline.",
+        "The cache layout for registry metadata has changed. {} holds a mirror from an older pnpm \
+         version, which this offline install cannot read. Run one online install to repopulate \
+         the cache under the new layout, then retry offline.",
         legacy_mirror.display(),
     )
 }

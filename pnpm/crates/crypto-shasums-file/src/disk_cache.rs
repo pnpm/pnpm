@@ -47,7 +47,7 @@ use std::{
 
 /// Directory under the pnpm cache dir holding the cached SHASUMS
 /// bodies. The `v11/` prefix groups it with the registry metadata
-/// mirror dirs (`v11/metadata`, ...), which share the cache dir's
+/// mirror dirs (`v12/metadata`, ...), which share the cache dir's
 /// versioning story.
 pub const RUNTIME_SHASUMS_CACHE_DIR: &str = "v11/runtime-shasums";
 

@@ -62,6 +62,8 @@ mod state;
 
 mod mirror_pick;
 
+mod fetch_pick;
+
 mod mirror_persistence;
 use mirror_persistence::{get_file_mtime, metadata_cache_key, validate_package_name};
 

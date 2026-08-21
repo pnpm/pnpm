@@ -8,7 +8,7 @@ use pnpm_network::MetadataCacheScope;
 
 use super::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, decode_registry_name,
-    encode_pkg_name, get_legacy_pkg_mirror_path, get_legacy_registry_name, get_pkg_mirror_path,
+    encode_pkg_name, get_legacy_pkg_mirror_paths, get_legacy_registry_name, get_pkg_mirror_path,
     get_registry_name, load_meta, load_meta_headers, load_meta_with_hold_cap, save_meta_indexed,
     scoped_meta_dir,
 };
@@ -27,12 +27,12 @@ fn scoped_meta_dir_private_namespaces_by_descriptor() {
     let scope = MetadataCacheScope::Private { descriptor_id: "abc123".to_string() };
     assert_eq!(
         scoped_meta_dir(&scope, ABBREVIATED_META_DIR),
-        "v11/metadata-private/abc123/metadata",
+        "v12/metadata-private/abc123/metadata",
     );
-    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v11/metadata-private/abc123/metadata-full");
+    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v12/metadata-private/abc123/metadata-full");
     assert_eq!(
         scoped_meta_dir(&scope, FULL_FILTERED_META_DIR),
-        "v11/metadata-private/abc123/metadata-full-filtered",
+        "v12/metadata-private/abc123/metadata-full-filtered",
     );
     // Distinct descriptors never share a directory.
     let other = MetadataCacheScope::Private { descriptor_id: "def456".to_string() };
@@ -185,36 +185,26 @@ fn get_legacy_registry_name_none_for_a_hostless_url() {
 }
 
 #[test]
-fn get_legacy_pkg_mirror_path_sits_next_to_the_current_mirror() {
+fn get_legacy_pkg_mirror_paths_cover_both_registry_keys_of_the_legacy_layout() {
     let cache_dir = TempDir::new().expect("tempdir");
-    let current = get_pkg_mirror_path(
-        cache_dir.path(),
-        ABBREVIATED_META_DIR,
-        "https://registry.npmjs.org/",
-        "acme",
-    )
-    .expect("current path");
-    let legacy = get_legacy_pkg_mirror_path(
-        cache_dir.path(),
-        ABBREVIATED_META_DIR,
-        "https://registry.npmjs.org/",
-        "acme",
-    )
-    .expect("legacy path");
-    assert_eq!(legacy.file_name(), current.file_name(), "same package, same file name");
-    assert_ne!(legacy, current, "legacy and current mirrors never collide");
+    let registry = "https://registry.npmjs.org/";
+    let current = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, registry, "acme")
+        .expect("current path");
+    let legacy =
+        get_legacy_pkg_mirror_paths(cache_dir.path(), ABBREVIATED_META_DIR, registry, "acme");
+    let legacy_root = cache_dir.path().join("v11/metadata");
     assert_eq!(
         legacy,
-        cache_dir
-            .path()
-            .join(ABBREVIATED_META_DIR)
-            .join("registry.npmjs.org")
-            .join("acme.jsonl"),
+        [
+            legacy_root
+                .join(get_registry_name(registry).expect("registry key"))
+                .join("acme.jsonl"),
+            legacy_root.join("registry.npmjs.org").join("acme.jsonl"),
+        ],
     );
+    assert!(!legacy.contains(&current), "legacy and current mirrors never collide");
 }
 
-/// `http` metadata can be rewritten in transit and must never be handed to
-/// a resolution configured for `https`.
 #[test]
 fn get_registry_name_separates_schemes() {
     assert_ne!(
@@ -459,7 +449,7 @@ fn get_pkg_mirror_path_composes_full_path() {
         .expect("compose");
     assert_eq!(
         got,
-        PathBuf::from("/cache/v11/metadata-full/https%3A+registry.npmjs.org/lodash.jsonl"),
+        PathBuf::from("/cache/v12/metadata-full/https%3A+registry.npmjs.org/lodash.jsonl"),
     );
 }
 
@@ -467,9 +457,9 @@ fn get_pkg_mirror_path_composes_full_path() {
 /// Any drift would silently fork the cache layout from pnpm's.
 #[test]
 fn constants_match_upstream() {
-    assert_eq!(FULL_META_DIR, "v11/metadata-full");
-    assert_eq!(FULL_FILTERED_META_DIR, "v11/metadata-full-filtered");
-    assert_eq!(ABBREVIATED_META_DIR, "v11/metadata");
+    assert_eq!(FULL_META_DIR, "v12/metadata-full");
+    assert_eq!(FULL_FILTERED_META_DIR, "v12/metadata-full-filtered");
+    assert_eq!(ABBREVIATED_META_DIR, "v12/metadata");
 }
 
 /// Build a minimal `Package` fixture for the round-trip tests.
@@ -579,7 +569,7 @@ fn load_meta_past_the_hold_cap_buffers_fragments_instead_of_missing() {
 fn load_meta_rejects_oversized_declared_record_lengths() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
-    std::fs::write(&mirror, "pacquet-meta-v1 128 999999999999\n{}{}").expect("write");
+    std::fs::write(&mirror, "pnpm-meta-v1 128 999999999999\n{}{}").expect("write");
     assert!(load_meta(&mirror).is_none());
 }
 
@@ -613,7 +603,7 @@ fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
         fragment.len(),
     );
     let contents =
-        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+        format!("pnpm-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
     std::fs::write(&mirror, &contents).expect("write");
     let file = std::fs::OpenOptions::new()
         .write(true)
@@ -621,12 +611,27 @@ fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
         .expect("open");
     file.set_len(contents.len() as u64 + far_offset + 16)
         .expect("extend sparsely");
-    let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
-    let manifest = loaded.versions.get("1.0.0").expect("hydrate the near fragment");
-    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
-    // The far span reads zeroes out of the sparse hole — not JSON, so
-    // the version is absent; the gap itself must never be buffered.
-    assert!(loaded.versions.get("2.0.0").is_none());
+    // The far span reads zeroes out of the sparse hole, which are not JSON,
+    // so the mirror is a miss. The gap itself must never be buffered.
+    assert!(load_meta_with_hold_cap(&mirror, 0).is_none());
+}
+
+#[test]
+fn load_meta_past_the_hold_cap_reports_an_undecodable_fragment_as_mirror_damage() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let headers = "{}";
+    let fragment = r#"{"name":1}"#;
+    let index = format!(
+        r#"{{"name":"acme","distTags":{{}},"versions":[["1.0.0",0,{}]]}}"#,
+        fragment.len(),
+    );
+    let contents =
+        format!("pnpm-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+    std::fs::write(&mirror, &contents).expect("write");
+    let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read back without a handle");
+    assert!(loaded.versions.get("1.0.0").is_none());
+    assert!(loaded.versions.has_corrupt_mirror_fragment());
 }
 
 #[test]
@@ -642,7 +647,7 @@ fn load_meta_treats_an_oversized_fragment_span_as_absent() {
         32 * 1024 * 1024,
     );
     let contents =
-        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+        format!("pnpm-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
     std::fs::write(&mirror, &contents).expect("write");
     // A sparse tail makes the file size cover the declared span
     // without paying for the bytes, like a corrupt mirror would.

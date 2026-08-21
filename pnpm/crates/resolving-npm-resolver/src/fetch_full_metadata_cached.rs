@@ -1,8 +1,8 @@
 //! Cache-aware metadata fetcher.
 //!
 //! When a cache directory is configured, the fetcher consults a
-//! shared mirror under `<cache_dir>/v11/metadata-full/` (full) or
-//! `<cache_dir>/v11/metadata/` (abbreviated), keyed by
+//! shared mirror under `<cache_dir>/v12/metadata-full/` (full) or
+//! `<cache_dir>/v12/metadata/` (abbreviated), keyed by
 //! `full_metadata`. It issues a conditional GET against the upstream
 //! registry, and either reads the cached body (304) or writes the
 //! new body back (2xx). Without a cache directory it falls through
@@ -33,7 +33,7 @@ use crate::{
     },
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, clear_meta,
-        get_legacy_pkg_mirror_path, get_pkg_mirror_path, load_meta, load_meta_async,
+        find_legacy_pkg_mirror, get_pkg_mirror_path, load_meta, load_meta_async,
         load_meta_headers_async, save_meta_indexed_with_headers, save_meta_ndjson_with_headers,
         scoped_meta_dir,
     },
@@ -47,7 +47,7 @@ use crate::{
 pub struct FetchFullMetadataCachedOptions<'a> {
     pub registry: &'a str,
     /// When `Some`, the fetcher consults the on-disk mirror under
-    /// the matching `<cache_dir>/v11/metadata...` subdirectory.
+    /// the matching `<cache_dir>/v12/metadata...` subdirectory.
     /// When `None`, the fetcher short-circuits to an unconditional
     /// GET.
     pub cache_dir: Option<&'a Path>,
@@ -71,9 +71,56 @@ pub struct FetchFullMetadataCachedOptions<'a> {
 
 /// Fetch the full registry metadata document for `pkg_name`, reusing
 /// the shared on-disk mirror when `cache_dir` is supplied.
+///
+/// Every version is hydrated before the document is returned, because
+/// its callers read across all versions and have no fallback of their
+/// own. A damaged mirror fragment therefore reads as a missing mirror:
+/// offline it fails with `ERR_PNPM_NO_OFFLINE_META`, online the document
+/// is refetched without the conditional cache, which rewrites the mirror.
 pub async fn fetch_full_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
+) -> Result<Package, FetchMetadataError> {
+    let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
+    if !has_damaged_fragment(&meta) {
+        return Ok(meta);
+    }
+    if opts.offline {
+        let url = to_registry_url(opts.registry, pkg_name);
+        return Err(FetchMetadataError::NoOfflineMeta {
+            pkg_name: pkg_name.to_string(),
+            pkg_mirror: mirror_path_for(pkg_name, opts, &url).unwrap_or_default(),
+            hint: None,
+        });
+    }
+    fetch_metadata_cached(pkg_name, opts, true).await
+}
+
+fn has_damaged_fragment(meta: &Package) -> bool {
+    meta.versions.iter().for_each(drop);
+    meta.versions.has_corrupt_mirror_fragment()
+}
+
+/// [`fetch_full_metadata_cached`] without the up-front hydration, for the
+/// resolver, which checks the versions it reads itself.
+pub(crate) async fn fetch_full_metadata_cached_lazily(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+) -> Result<Package, FetchMetadataError> {
+    fetch_metadata_cached(pkg_name, opts, false).await
+}
+
+pub(crate) async fn fetch_full_metadata_bypassing_cache(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+) -> Result<Package, FetchMetadataError> {
+    fetch_metadata_cached(pkg_name, opts, true).await
+}
+
+async fn fetch_metadata_cached(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+    bypass_cache: bool,
 ) -> Result<Package, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
     let mirror_path = mirror_path_for(pkg_name, opts, &url);
@@ -82,12 +129,7 @@ pub async fn fetch_full_metadata_cached(
         if let Some(meta) = load_meta_async(mirror_path.as_deref()).await {
             return Ok(meta);
         }
-        let hint = match legacy_mirror_path_for(pkg_name, opts) {
-            Some(path) if tokio::fs::try_exists(&path).await.unwrap_or(false) => {
-                Some(legacy_mirror_hint(&path))
-            }
-            _ => None,
-        };
+        let hint = legacy_mirror_for(pkg_name, opts).await.map(|path| legacy_mirror_hint(&path));
         return Err(FetchMetadataError::NoOfflineMeta {
             pkg_name: pkg_name.to_string(),
             pkg_mirror: mirror_path.unwrap_or_default(),
@@ -95,17 +137,15 @@ pub async fn fetch_full_metadata_cached(
         });
     }
 
+    let cache_headers =
+        if bypass_cache { None } else { load_meta_headers_async(mirror_path.as_deref()).await };
     let attempt = FetchAttempt {
         pkg_name,
         url: &url,
         opts,
         mirror_path: mirror_path.as_deref(),
-        cache_headers: load_meta_headers_async(mirror_path.as_deref()).await,
-        // A body retry re-enters the attempt from the top, so the bypass has
-        // to outlive the attempt that discovered the loss: re-validating
-        // against a mirror already known to be gone would 304 into the same
-        // dead end.
-        cache_bypass: AtomicBool::new(false),
+        cache_headers,
+        cache_bypass: AtomicBool::new(bypass_cache),
     };
     retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || attempt.run())
         .await
@@ -272,9 +312,9 @@ fn mirror_path_for(
     }
 }
 
-/// Locate the legacy mirror path for `pkg_name` in `opts.cache_dir`.
+/// Locate a legacy mirror of `pkg_name` in `opts.cache_dir`.
 /// Unlike [`mirror_path_for`], this checks only the unscoped directory.
-fn legacy_mirror_path_for(
+async fn legacy_mirror_for(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Option<PathBuf> {
@@ -283,7 +323,7 @@ fn legacy_mirror_path_for(
     } else {
         ABBREVIATED_META_DIR
     };
-    get_legacy_pkg_mirror_path(opts.cache_dir?, base_meta_dir, opts.registry, pkg_name)
+    find_legacy_pkg_mirror(opts.cache_dir?, base_meta_dir, opts.registry, pkg_name).await
 }
 
 /// The off-reactor half of one fetch: parse the body, normalize it, and

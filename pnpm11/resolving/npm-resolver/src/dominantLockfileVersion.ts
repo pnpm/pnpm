@@ -19,7 +19,8 @@ export function cachedMetaMissesPreferredVersion (
   if (preferredVersionSelectors == null) return false
   for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
     if (!isExactVersionSelectorInRange(selector, value, versionRange)) continue
-    if (meta.versions[selector] == null) return true
+    // `hasOwn`, not a value read, which would parse a lazily-loaded manifest.
+    if (!Object.hasOwn(meta.versions, selector)) return true
   }
   return false
 }

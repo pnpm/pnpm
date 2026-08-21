@@ -34,7 +34,7 @@ fn an_override_to_a_local_directory_is_not_written_to_the_metadata_cache() {
     let registry_name =
         pnpm_resolving_npm_resolver::mirror::get_registry_name(mock_instance.url()).unwrap();
     let mirror_path = cache_dir
-        .join("v11")
+        .join("v12")
         .join("metadata")
         .join(registry_name)
         .join("@pnpm.e2e/pkg-with-1-dep.jsonl");

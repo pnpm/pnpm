@@ -1,6 +1,6 @@
 use super::{
     Arc, DerivedPackuments, File, MAX_FRAGMENT_LEN, MAX_HEADERS_LEN, MAX_INDEX_LEN, MetaHeaders,
-    MirrorFile, MirrorIndex, Package, PackageVersions, Path, Read, fs, parse_mirror_magic,
+    MirrorFile, MirrorIndex, Package, PackageVersions, Path, Read, fs, parse_format_line,
     raise_open_file_limit_once,
 };
 
@@ -51,7 +51,7 @@ pub(super) fn mirror_layout(prefix: &[u8]) -> Option<Option<MirrorLayout>> {
         .iter()
         .position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&prefix[..newline]).ok()?;
-    let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
+    let Some((headers_len, index_len)) = parse_format_line(line) else {
         return Some(None);
     };
     if headers_len > MAX_HEADERS_LEN || index_len > MAX_INDEX_LEN {
@@ -124,6 +124,9 @@ pub(super) fn absolute_spans(
 /// fragments and close the file, so a full cache can never make `File::open`
 /// fail elsewhere and turn present mirrors into cache misses.
 ///
+/// A span that cannot be read or is not JSON makes the whole mirror a cache
+/// miss, as it would through the held handle once the version hydrates.
+///
 /// Each validated span is read with its own positioned read: reading the
 /// contiguous fragment region would let a corrupt index's sparse gaps
 /// inflate the buffer far past the real fragment bytes. The budget bounds
@@ -138,16 +141,12 @@ pub(super) fn buffer_fragments(
     for (version, absolute, len) in spans {
         budget = budget.checked_sub(u64::from(len))?;
         let mut bytes = vec![0u8; len as usize];
-        if pnpm_registry::read_exact_at(file, &mut bytes, absolute).is_err() {
-            continue;
-        }
-        let Ok(json) = String::from_utf8(bytes) else { continue };
-        let Ok(raw) = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json) else {
-            continue;
-        };
+        pnpm_registry::read_exact_at(file, &mut bytes, absolute).ok()?;
+        let json = String::from_utf8(bytes).ok()?;
+        let raw = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json).ok()?;
         raw_fragments.push((version, raw));
     }
-    Some(PackageVersions::from_raw_fragments(raw_fragments))
+    Some(PackageVersions::from_buffered_mirror_fragments(raw_fragments))
 }
 
 /// A legacy NDJSON mirror: the whole body after the header line is the

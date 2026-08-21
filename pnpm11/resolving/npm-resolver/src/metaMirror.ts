@@ -2,16 +2,31 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { createHexHash } from '@pnpm/crypto.hash'
-import gfs from '@pnpm/fs.graceful-fs'
 import { logger } from '@pnpm/logger'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import pLimit, { type LimitFunction } from 'p-limit'
-import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwrite } from 'rename-overwrite'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import { encodeRegistry } from './encodeRegistry.js'
-import { dropIncompletePublishTimes } from './publishTimes.js'
+import type { FetchMetadataResult } from './fetch.js'
+import {
+  type MetaHeaders,
+  type MirrorHeadersBody,
+  prepareIndexedForDisk,
+  prepareJsonForDisk,
+  saveMeta,
+} from './mirrorLayout.js'
+
+export {
+  isMalformedMirrorFragmentError,
+  loadMeta,
+  loadMetaHeaders,
+  type LoadMetaOptions,
+  type MetaHeaders,
+  prepareIndexedForDisk,
+  prepareJsonForDisk,
+  saveMeta,
+} from './mirrorLayout.js'
 
 interface RefCountedLimiter {
   count: number
@@ -63,10 +78,10 @@ export function condenseMetaForCache (
  * The mirror is an optimization, so a write failure only gets a debug log
  * with the mirror path and the install continues.
  */
-export function saveMetaBestEffort (pkgMirror: string, json: string, uncacheable = false): void {
+export function saveMetaBestEffort (pkgMirror: string, content: string | Buffer, uncacheable = false): void {
   void runLimited(pkgMirror, (limit) => limit(async () => {
     try {
-      await saveMeta(pkgMirror, json)
+      await saveMeta(pkgMirror, content)
     } catch (err: unknown) {
       logger.debug({ message: `Failed to write the package metadata mirror at ${pkgMirror}`, err })
       await discardMirrorAfterFailedUncacheableWrite(pkgMirror, uncacheable)
@@ -81,6 +96,43 @@ export function saveMetaBestEffort (pkgMirror: string, json: string, uncacheable
 export async function discardMirrorAfterFailedUncacheableWrite (pkgMirror: string, uncacheable: boolean): Promise<void> {
   if (!uncacheable) return
   await fs.rm(pkgMirror, { force: true }).catch(() => undefined)
+}
+
+/**
+ * Every project of a workspace that joins one in-flight fetch mirrors its
+ * result, so the encoded form is memoized on the result object. Encoding it
+ * per project would hold as many copies of a body reaching tens of MB as
+ * there are projects. Keyed on the result rather than its `meta`, so the copy
+ * is released with the shared body: `memoizeFetchMetadata` drops the result
+ * once the request settles.
+ */
+const encodedMirrors = new WeakMap<FetchMetadataResult, Map<string, string | Buffer>>()
+
+/**
+ * The mirror form of `meta`, a document fetched as `result`. A
+ * `filterMetadata` resolver mirrors the stripped NDJSON form, because that
+ * mirror only serves equally stripped resolutions. Everything else uses the
+ * indexed layout, whose per-version spans later loads hydrate lazily.
+ */
+export function encodeMirror (
+  ctx: { filterMetadata?: boolean },
+  result: FetchMetadataResult,
+  { meta, etag, body }: { meta: PackageMeta, etag: string | undefined, body: MirrorHeadersBody }
+): string | Buffer {
+  let encoded = encodedMirrors.get(result)
+  if (encoded == null) {
+    encoded = new Map()
+    encodedMirrors.set(result, encoded)
+  }
+  const key = JSON.stringify([ctx.filterMetadata === true, meta === result.meta, etag, body.fullEtag, body.uncacheable === true])
+  let content = encoded.get(key)
+  if (content == null) {
+    content = ctx.filterMetadata === true
+      ? prepareJsonForDisk(meta, etag, body)
+      : prepareIndexedForDisk(meta, etag, body)
+    encoded.set(key, content)
+  }
+  return content
 }
 
 export function encodePkgName (pkgName: string): string {
@@ -137,74 +189,51 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
 
 /**
  * Hint for `NO_OFFLINE_META`: whether the package's metadata sits on disk
- * under the legacy mirror path, which this pnpm version no longer reads.
+ * under a legacy mirror path, which this pnpm version no longer reads.
  * `undefined` when no such mirror exists, so the base error message stands
  * on its own.
  */
 export async function legacyMirrorHint (cacheDir: string, metaDir: string, registry: string, pkgName: string): Promise<string | undefined> {
-  const legacyMirror = getLegacyPkgMirrorPath(cacheDir, metaDir, registry, pkgName)
-  if (legacyMirror == null) return undefined
-  try {
-    await fs.access(legacyMirror)
-  } catch {
-    return undefined
+  for (const legacyMirror of getLegacyPkgMirrorPaths(cacheDir, metaDir, registry, pkgName)) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- the candidates are probed in order and the first hit wins
+      await fs.access(legacyMirror)
+    } catch {
+      continue
+    }
+    return `The cache layout for registry metadata has changed. ${legacyMirror} holds a mirror ` +
+      'from an older pnpm version, which this offline install cannot read. Run one online install to repopulate ' +
+      'the cache under the new layout, then retry offline.'
   }
-  return `The cache layout for registry metadata changed in pnpm 11.27 and 12.4. ${legacyMirror} holds a mirror ` +
-    'from an older pnpm version, which this offline install cannot read. Run one online install to repopulate ' +
-    'the cache under the new layout, then retry offline.'
+  return undefined
 }
 
 /**
- * The legacy mirror path for a registry: `<host>[:<port>]` with `:`
- * replaced by `+`, and no scheme, path segments, or hash suffix.
- * `null` for a registry URL {@link getPkgMirrorPath} would itself reject.
+ * The version directory of the NDJSON-era cache layout. The indexed layout
+ * moved every mirror to a new version directory, so nothing reads it.
  */
-function getLegacyPkgMirrorPath (cacheDir: string, metaDir: string, registry: string, pkgName: string): string | null {
+const LEGACY_META_VERSION_DIR = 'v11'
+
+/**
+ * Where an older pnpm may have mirrored the package for `metaDir`: the
+ * legacy version directory, under the current registry key and under the
+ * legacy one (`<host>[:<port>]` with `:` replaced by `+`, and no scheme, path
+ * segments, or hash suffix).
+ */
+function getLegacyPkgMirrorPaths (cacheDir: string, metaDir: string, registry: string, pkgName: string): string[] {
+  const legacyMetaDir = path.join(LEGACY_META_VERSION_DIR, path.basename(metaDir))
+  const fileName = `${encodePkgName(pkgName)}.jsonl`
+  const paths = [path.join(cacheDir, legacyMetaDir, encodeRegistry(registry), fileName)]
   let url: URL
   try {
     url = new URL(registry)
   } catch {
-    return null
+    return paths
   }
-  if (url.host === '') return null
-  return path.join(cacheDir, metaDir, url.host.replace(':', '+'), `${encodePkgName(pkgName)}.jsonl`)
-}
-
-/**
- * Formats metadata for disk storage as two-line NDJSON:
- *   Line 1: cache headers (etag, fullEtag, modified) — small, fast to read
- *   Line 2: the registry metadata JSON
- *
- * The ETags live only in the headers line (`loadMeta` re-attaches them from
- * there), so a `meta` that carries one is serialized without it.
- *
- * An ETag identifies one representation. `etag` tags the representation the
- * mirror's directory holds. `body.fullEtag` tags a full document that the
- * release-age upgrade stored in the abbreviated mirror (see
- * {@link mirrorEtags}). `modified` is always written: it comes from the
- * packument's own `time.modified`, which both representations report
- * identically.
- *
- * `body.jsonText` is the raw registry body, written as is when given.
- * `body.uncacheable` records that the response forbade caching, so the next
- * online lookup refetches instead of revalidating.
- */
-export function prepareJsonForDisk (
-  meta: PackageMeta,
-  etag: string | undefined,
-  body: { jsonText?: string, uncacheable?: boolean, fullEtag?: string } = {}
-): string {
-  const modified = meta.modified ?? meta.time?.modified
-  const headers = JSON.stringify({
-    etag,
-    fullEtag: body.fullEtag,
-    modified,
-    uncacheable: body.uncacheable === true ? true : undefined,
-  })
-  const bodyMeta = meta.etag == null && meta.fullEtag == null && meta.uncacheable == null
-    ? meta
-    : { ...meta, etag: undefined, fullEtag: undefined, uncacheable: undefined }
-  return `${headers}\n${body.jsonText ?? JSON.stringify(bodyMeta)}`
+  if (url.host !== '') {
+    paths.push(path.join(cacheDir, legacyMetaDir, url.host.replace(':', '+'), fileName))
+  }
+  return paths
 }
 
 /**
@@ -252,13 +281,6 @@ export async function getFileMtime (filePath: string): Promise<Date | null> {
   }
 }
 
-export interface MetaHeaders {
-  etag?: string
-  fullEtag?: string
-  modified?: string
-  uncacheable?: boolean
-}
-
 export function metaHeadersOf (meta: PackageMeta): MetaHeaders {
   return {
     etag: meta.etag,
@@ -266,62 +288,4 @@ export function metaHeadersOf (meta: PackageMeta): MetaHeaders {
     modified: meta.modified ?? meta.time?.modified,
     uncacheable: meta.uncacheable,
   }
-}
-
-/**
- * Reads only the first line of the cached NDJSON metadata file to extract
- * the cache headers (etag, modified). This avoids reading and
- * parsing the full metadata (which can be megabytes for popular packages)
- * when we only need conditional-request headers.
- */
-export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
-  let fh: fs.FileHandle | undefined
-  try {
-    fh = await fs.open(pkgMirror, 'r')
-    // The first line (headers JSON) is typically ~100 bytes; 1 KB is plenty.
-    const buf = Buffer.alloc(1024)
-    const { bytesRead } = await fh.read(buf, 0, 1024, 0)
-    if (bytesRead === 0) return null
-    const chunk = buf.toString('utf8', 0, bytesRead)
-    const newlineIdx = chunk.indexOf('\n')
-    if (newlineIdx === -1) return null
-    return JSON.parse(chunk.slice(0, newlineIdx)) as MetaHeaders
-  } catch {
-    return null
-  } finally {
-    await fh?.close()
-  }
-}
-
-/**
- * Reads the full metadata from the cached NDJSON file.
- */
-export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
-  try {
-    const data = await gfs.readFile(pkgMirror, 'utf8')
-    const newlineIdx = data.indexOf('\n')
-    if (newlineIdx === -1) return null
-    const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
-    const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
-    dropIncompletePublishTimes(meta)
-    meta.etag = headers.etag
-    meta.fullEtag = headers.fullEtag
-    meta.uncacheable = headers.uncacheable === true ? true : undefined
-    return meta
-  } catch {
-    return null
-  }
-}
-
-const createdDirs = new Set<string>()
-
-export async function saveMeta (pkgMirror: string, json: string): Promise<void> {
-  const dir = path.dirname(pkgMirror)
-  if (!createdDirs.has(dir)) {
-    await fs.mkdir(dir, { recursive: true })
-    createdDirs.add(dir)
-  }
-  const temp = pathTemp(pkgMirror)
-  await gfs.writeFile(temp, json, 'utf8')
-  await renameOverwrite(temp, pkgMirror)
 }
