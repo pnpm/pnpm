@@ -10,6 +10,7 @@ import { esmNodePathLoaderImportFlag } from '@pnpm/exec.esm-node-path-loader'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { isCI } from 'ci-info'
+import isWindows from 'is-windows'
 import PATH from 'path-name'
 import { symlinkDir } from 'symlink-dir'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -41,6 +42,7 @@ const env = {
   [PATH]: path.join(import.meta.dirname, 'bin'),
 }
 const f = fixtures(import.meta.dirname)
+const testOnPosix = isWindows() ? test.skip : test
 
 test('getConfig()', async () => {
   const { config } = await getConfig({
@@ -3759,6 +3761,28 @@ test('preferSymlinkedExecutables should be true when nodeLinker is hoisted', asy
     },
   })
   expect(config.preferSymlinkedExecutables).toBeTruthy()
+})
+
+testOnPosix('NODE_PATH points to the virtual store of the workspace root when pnpm runs from a workspace package', async () => {
+  prepareEmpty()
+
+  const workspaceDir = process.cwd()
+  const pkgDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(pkgDir, { recursive: true })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      dir: pkgDir,
+      'prefer-symlinked-executables': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir,
+  })
+
+  expect(config.extraEnv['NODE_PATH']).toBe(path.join(workspaceDir, 'node_modules/.pnpm/node_modules'))
 })
 
 test('return a warning when the .npmrc has an env variable that does not exist', async () => {
