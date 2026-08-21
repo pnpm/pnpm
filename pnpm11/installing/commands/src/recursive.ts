@@ -250,6 +250,14 @@ export async function recursive (
   } else {
     updateMatch = null
   }
+  const updateMatching = opts.updateMatching ?? (
+    cmdFullName === 'update' && params.length > 0 && (opts.depth ?? Infinity) > 0 && !opts.latest
+      ? createUpdateMatching(params.flatMap(expandUpdateSelectorsForMatching))
+      : undefined
+  )
+  const preferredVersions = cmdFullName === 'update'
+    ? createPreferredVersionsFromPinnedUpdateSpecs(params, opts.preferredVersions)
+    : opts.preferredVersions
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = getImporters(opts)
@@ -317,7 +325,7 @@ export async function recursive (
             rootDir,
             targetDependenciesField,
             update: opts.update,
-            updateMatching: opts.updateMatching,
+            updateMatching,
             updatePackageManifest: opts.updatePackageManifest,
             updateToLatest: opts.latest,
           } as MutatedProject)
@@ -329,7 +337,7 @@ export async function recursive (
             pruneDirectDependencies: opts.pruneDirectDependencies,
             rootDir,
             update: opts.update,
-            updateMatching: opts.updateMatching,
+            updateMatching,
             updatePackageManifest: opts.updatePackageManifest,
             updateToLatest: opts.latest,
           } as MutatedProject)
@@ -354,6 +362,7 @@ export async function recursive (
       dryRunResult,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
+      preferredVersions,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
@@ -605,21 +614,23 @@ export function matchDependencies (
 
 export function createUpdateMatching (params: string[]): UpdateMatchingFunction {
   const parsed = params.map(parseUpdateParam)
-  const matcher = createMatcherWithIndex(parsed.map(({ pattern }) => pattern))
+  const matcherByParam = parsed.map(({ pattern }) => createMatcherWithIndex([pattern]))
   return (pkgName: string, version?: string) => {
-    const index = matcher(pkgName)
-    if (index === -1) return false
+    for (let index = 0; index < matcherByParam.length; index++) {
+      if (matcherByParam[index](pkgName) === -1) continue
 
-    const versionSpec = parsed[index].versionSpec
-    if (versionSpec == null || version == null) return true
-    if (getVersionSelectorType(versionSpec)?.type !== 'version') return true
-    if (versionSpec === version) return true
+      const versionSpec = parsed[index].versionSpec
+      if (versionSpec == null || version == null) return true
+      if (getVersionSelectorType(versionSpec)?.type !== 'version') return true
+      if (versionSpec === version) return true
 
-    const requested = parseNumericVersion(versionSpec)
-    const current = parseNumericVersion(version)
-    if (requested == null || current == null) return false
-    if (requested.major > 0) return current.major === requested.major
-    return current.major === 0 && current.minor === requested.minor
+      const requested = parseNumericVersion(versionSpec)
+      const current = parseNumericVersion(version)
+      if (requested == null || current == null) continue
+      if (requested.major > 0 && current.major === requested.major) return true
+      if (requested.major === 0 && current.major === 0 && current.minor === requested.minor) return true
+    }
+    return false
   }
 }
 
@@ -689,6 +700,15 @@ export function parseUpdateParam (param: string): { pattern: string, versionSpec
     pattern: param.slice(0, atIndex),
     versionSpec: param.slice(atIndex + 1),
   }
+}
+
+function expandUpdateSelectorsForMatching (selector: string): string[] {
+  const { pattern, versionSpec } = parseUpdateParam(selector)
+  if (versionSpec?.startsWith('npm:') !== true) return [selector]
+  const aliasSelector = parseUpdateParam(versionSpec.slice('npm:'.length))
+  const aliasPattern = pattern.startsWith('!') ? `!${aliasSelector.pattern}` : aliasSelector.pattern
+  const aliasSpec = aliasSelector.versionSpec != null ? `${aliasPattern}@${aliasSelector.versionSpec}` : aliasPattern
+  return [selector, aliasSpec]
 }
 
 export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
