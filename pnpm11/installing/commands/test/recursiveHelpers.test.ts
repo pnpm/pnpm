@@ -47,9 +47,16 @@ test('createUpdateMatching() scopes exact alias selectors by version line', () =
   // Simulates expandUpdateSelectorsForMatching('alias@npm:pkg@100.1.0') → ['alias@npm:pkg@100.1.0', 'pkg@100.1.0']
   const updateMatching = createUpdateMatching(['alias@npm:pkg@100.1.0', 'pkg@100.1.0'])
 
+  // 100.x versions within the requested major line are allowed
   expect(updateMatching('pkg', '100.0.0')).toBeTruthy()
   expect(updateMatching('pkg', '100.1.0')).toBeTruthy()
+  expect(updateMatching('pkg', '100.2.0')).toBeTruthy()
+  // 101.x is a different major line — must not leak
   expect(updateMatching('pkg', '101.0.0')).toBeFalsy()
+  expect(updateMatching('pkg', '101.3.0')).toBeFalsy()
+  // Unrelated packages are not matched at all
+  expect(updateMatching('other-pkg', '100.0.0')).toBeFalsy()
+  expect(updateMatching('other-pkg', '1.0.0')).toBeFalsy()
 })
 
 test('createPreferredVersionsFromPinnedUpdateSpecs() seeds exact and cap selectors', () => {

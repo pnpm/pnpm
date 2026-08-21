@@ -250,13 +250,14 @@ export async function recursive (
   } else {
     updateMatch = null
   }
+  const expandedParams = params.flatMap(expandUpdateSelectorsForMatching)
   const updateMatching = opts.updateMatching ?? (
     cmdFullName === 'update' && params.length > 0 && (opts.depth ?? Infinity) > 0 && !opts.latest
-      ? createUpdateMatching(params.flatMap(expandUpdateSelectorsForMatching))
+      ? createUpdateMatching(expandedParams)
       : undefined
   )
   const preferredVersions = cmdFullName === 'update'
-    ? createPreferredVersionsFromPinnedUpdateSpecs(params, opts.preferredVersions)
+    ? createPreferredVersionsFromPinnedUpdateSpecs(expandedParams, opts.preferredVersions)
     : opts.preferredVersions
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
