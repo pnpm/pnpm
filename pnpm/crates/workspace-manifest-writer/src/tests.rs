@@ -1609,3 +1609,10 @@ fn prune_allow_builds_keeps_keys_with_no_provable_package_name() {
     let out = run_prune_allow_builds(Some(original), &[]);
     assert_eq!(out.as_deref(), Some(original));
 }
+
+#[test]
+fn prune_allow_builds_prunes_an_escaped_quoted_key() {
+    let original = "allowBuilds:\n  \"\\u0066oo\": set this to true or false\n  bar: true\n";
+    let out = run_prune_allow_builds(Some(original), &[]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  bar: true\n"));
+}

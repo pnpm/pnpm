@@ -1442,24 +1442,44 @@ pub(crate) fn prune_allow_builds(
         return true;
     }
 
-    let line_based =
-        locate(manifest.text(), &[BLOCK]).is_some_and(|mapping| !mapping.entries.is_empty());
-    // A flow-style block can hold entries the decoded view dropped
-    // (values that are neither booleans nor strings); rerendering from
-    // that view would lose them, so leave such a block untouched.
-    if !line_based && allow_builds.len() != all_keys.len() {
-        return false;
-    }
+    let entries = locate(manifest.text(), &[BLOCK]).map(|mapping| mapping.entries);
+    let new_text = match entries.as_deref() {
+        Some(entries) if !entries.is_empty() => {
+            // Entries are removed by pairing each text line with its decoded
+            // key — the raw key text can differ from the decoded form
+            // (quoting, escapes). A count mismatch means the two views
+            // disagree (e.g. duplicate keys), so leave the block untouched.
+            if entries.len() != all_keys.len() {
+                return false;
+            }
+            let mut out = manifest.text().to_string();
+            for (entry, key) in entries.iter().zip(&all_keys).rev() {
+                if prunable.contains(key) {
+                    out.replace_range(entry.line_start..entry.block_end, "");
+                }
+            }
+            Some(out)
+        }
+        _ => {
+            // A flow-style block can hold entries the decoded view dropped
+            // (values that are neither booleans nor strings); rerendering
+            // from that view would lose them, so leave such a block
+            // untouched.
+            if allow_builds.len() != all_keys.len() {
+                return false;
+            }
+            None
+        }
+    };
 
     if let Some(builds) = manifest.allow_builds.as_mut() {
         for key in &prunable {
             builds.shift_remove(key);
         }
     }
-    if line_based {
-        manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &prunable));
-    } else {
-        rerender_allow_builds_block(manifest, BLOCK);
+    match new_text {
+        Some(new_text) => manifest.set_text(new_text),
+        None => rerender_allow_builds_block(manifest, BLOCK),
     }
     true
 }

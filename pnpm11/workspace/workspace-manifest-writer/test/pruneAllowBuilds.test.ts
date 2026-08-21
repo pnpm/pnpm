@@ -116,3 +116,15 @@ test('keys with no provable package name are kept', async () => {
     },
   })
 })
+
+test('an escaped quoted key is pruned by its decoded name', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  await fs.promises.writeFile(filePath, 'allowBuilds:\n  "\\u0066oo": set this to true or false\n  bar: true\n')
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    allowBuilds: { bar: true },
+  })
+})
