@@ -558,6 +558,18 @@ fn write_shim<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
+    // pnpm's warm-install short-circuit: an existing symlink that
+    // already resolves to the target is correct as-is — regardless of
+    // `preferSymlinkedExecutables` — so a relink pass that doesn't
+    // carry the setting (the injected-deps syncer's workspace-wide
+    // relink, for one) leaves symlinked bins alone instead of
+    // rewriting them into shims. Context-aware global shims are
+    // exempt: replacing a plain symlink with the dispatch shim is
+    // that style's whole job.
+    if style == ShimStyle::Direct && symlink_already_points_at(shim_path, target_path) {
+        return ensure_target_executable::<Sys>(target_path);
+    }
+
     // The node runtime binary is special: never wrap it in a shell
     // shim. The binary is symlinked on Unix and `node.exe` is
     // hardlinked on Windows.
@@ -830,19 +842,25 @@ fn link_symlinked_executable<Sys>(
     shim_path: &Path,
 ) -> Result<bool, LinkBinsError>
 where
-    Sys: FsEnsureExecutableBits,
+    Sys: FsReadToString + FsEnsureExecutableBits,
 {
     use std::os::unix::fs::symlink;
+    // pnpm's warm-install short-circuit also accepts an existing shim
+    // that points at the target, so enabling the setting rewrites no
+    // valid shims — only bins that are missing or wrong get the
+    // symlink form. (Symlinks already pointing at the target were
+    // accepted before this branch was reached.)
+    if matches!(
+        Sys::read_to_string(shim_path),
+        Ok(existing) if is_shim_pointing_at(&existing, target_path),
+    ) {
+        ensure_target_executable::<Sys>(target_path)?;
+        return Ok(true);
+    }
     let link_target = shim_path.parent().map_or_else(
         || target_path.to_path_buf(),
         |bins_dir| pnpm_fs::relative_path(bins_dir, target_path),
     );
-    // Warm-install idempotency: a symlink already pointing at the
-    // target needs no relink.
-    if std::fs::read_link(shim_path).is_ok_and(|existing| existing == link_target) {
-        ensure_target_executable::<Sys>(target_path)?;
-        return Ok(true);
-    }
     remove_stale_bin(shim_path)?;
     symlink(&link_target, shim_path).map_err(|error| LinkBinsError::SymlinkBin {
         src: target_path.to_path_buf(),
@@ -875,9 +893,25 @@ fn link_symlinked_executable<Sys>(
     _shim_path: &Path,
 ) -> Result<bool, LinkBinsError>
 where
-    Sys: FsEnsureExecutableBits,
+    Sys: FsReadToString + FsEnsureExecutableBits,
 {
     Ok(false)
+}
+
+/// Whether the dirent at `shim_path` is a symlink that already resolves
+/// to `target_path` — raw, or resolved against the bin dir — pnpm's
+/// warm-install short-circuit arm for symlinked bins.
+fn symlink_already_points_at(shim_path: &Path, target_path: &Path) -> bool {
+    let Ok(existing) = std::fs::read_link(shim_path) else {
+        return false;
+    };
+    if existing == target_path {
+        return true;
+    }
+    let Some(bins_dir) = shim_path.parent() else {
+        return false;
+    };
+    pnpm_fs::lexical_normalize(&bins_dir.join(&existing)) == pnpm_fs::lexical_normalize(target_path)
 }
 
 /// Whether `a` and `b` are the same file. [`same_file::Handle`] proves a hard

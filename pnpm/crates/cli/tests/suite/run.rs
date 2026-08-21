@@ -917,8 +917,8 @@ fn run_rejects_regexp_flags_in_a_selector() {
 /// carry a `NODE_PATH` block, so the config exports one pointing at
 /// the virtual store's hidden `node_modules` — pnpm's
 /// `pnpm run with preferSymlinkedExecutables true` test.
-#[cfg(unix)]
 #[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 fn run_exports_node_path_when_prefer_symlinked_executables() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let marker_path = workspace.join("node-path.txt");
@@ -947,8 +947,8 @@ fn run_exports_node_path_when_prefer_symlinked_executables() {
 /// An explicit `virtualStoreDir` redirects the exported `NODE_PATH` —
 /// pnpm's `pnpm run with preferSymlinkedExecutables and custom
 /// virtualStoreDir` test.
-#[cfg(unix)]
 #[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 fn run_exports_node_path_from_a_custom_virtual_store_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let marker_path = workspace.join("node-path.txt");

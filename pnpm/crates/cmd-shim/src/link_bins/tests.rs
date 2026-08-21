@@ -1394,9 +1394,16 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     }
 }
 
+/// pnpm's warm-install short-circuit accepts an existing symlink or
+/// shim that already points at the target regardless of
+/// `preferSymlinkedExecutables`, so flipping the setting rewrites no
+/// valid bins — only missing or wrong entries take the new form. The
+/// flag-off relink here is the injected-deps syncer's workspace-wide
+/// pass, which carries no options and must not rewrite symlinked bins
+/// into shims.
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
-fn prefer_symlinked_executables_replaces_shims_and_vice_versa() {
+fn existing_bins_pointing_at_the_target_survive_flag_changes() {
     let tmp = tempdir().unwrap();
     let pkg_dir = tmp.path().join("node_modules/foo");
     create_dir_all(&pkg_dir).unwrap();
@@ -1415,15 +1422,21 @@ fn prefer_symlinked_executables_replaces_shims_and_vice_versa() {
         LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
     let bin = bins_dir.join("foo");
 
-    // shim → symlink → symlink (warm) → shim again.
+    // A valid shim survives a flag-on relink.
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
     assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_file());
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
+    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_file());
+
+    // A fresh bin under the flag is a symlink, and it survives both a
+    // warm flag-on relink and a flag-off relink.
+    std::fs::remove_file(&bin).unwrap();
     link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
     assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
     link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
     assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_file());
+    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
 }
 
 #[test]
