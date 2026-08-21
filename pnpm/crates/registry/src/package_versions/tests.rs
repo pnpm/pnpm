@@ -253,3 +253,95 @@ fn is_deprecated_ignores_unrelated_key_text() {
     );
     assert!(!package.versions.is_deprecated("1.0.0"));
 }
+
+#[test]
+fn trust_metadata_reads_npm_user_and_attestations_from_a_raw_fragment() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {
+                    "name": "foo",
+                    "version": "1.0.0",
+                    "dist": {
+                        "integrity": "sha512-a",
+                        "tarball": "https://r/foo-1.0.0.tgz",
+                        "attestations": {"provenance": {"predicateType": "https://slsa.dev/provenance/v1"}}
+                    },
+                    "_npmUser": {"trustedPublisher": {"id": "github", "oidcConfigId": "release"}}
+                }
+            }
+        }"#,
+    );
+    let trust = package.versions.trust_metadata("1.0.0").expect("decode trust metadata");
+    assert!(
+        trust.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some(),
+        "trusted_publisher missing",
+    );
+    assert!(
+        trust
+            .dist
+            .as_ref()
+            .and_then(|dist| dist.attestations.as_ref())
+            .and_then(|a| a.provenance.as_ref())
+            .is_some(),
+        "provenance missing",
+    );
+}
+
+#[test]
+fn trust_metadata_decodes_a_manifest_missing_fields_full_package_version_requires() {
+    // A `PackageVersion` needs `name` / `version` / `dist.tarball`; the
+    // compact shape doesn't, so a fragment carrying only trust fields
+    // still decodes even though `get()` on the same fragment would not.
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {"_npmUser": {"approver": {"name": "a", "email": "a@example.com"}}}
+            }
+        }"#,
+    );
+    assert!(package.versions.get("1.0.0").is_none(), "full decode should fail on this fixture");
+    let trust = package.versions.trust_metadata("1.0.0").expect("compact decode should succeed");
+    assert!(trust.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some());
+}
+
+#[test]
+fn trust_metadata_reads_an_already_hydrated_slot_without_a_raw_fragment() {
+    // Constructed from typed manifests (`From<HashMap<..>>`), so the slot
+    // carries `FragmentSource::None` — no raw JSON to parse. `trust_metadata`
+    // has to read the already-hydrated `Arc<PackageVersion>` instead of
+    // treating the missing fragment as a decode failure.
+    let mut manifest: PackageVersion = serde_json::from_str(
+        r#"{"name": "foo", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}}"#,
+    )
+    .unwrap();
+    manifest.npm_user = Some(crate::NpmUser {
+        name: None,
+        email: None,
+        approver: Some(crate::Approver { name: None, email: None }),
+        trusted_publisher: None,
+    });
+    let versions: crate::PackageVersions = HashMap::from([("1.0.0".to_string(), manifest)]).into();
+
+    let trust = versions.trust_metadata("1.0.0").expect("read the hydrated slot");
+    assert!(trust.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some());
+}
+
+#[test]
+fn trust_metadata_returns_none_for_an_absent_version() {
+    let package = parse_package(r#"{"name": "foo", "dist-tags": {}, "versions": {}}"#);
+    assert!(package.versions.trust_metadata("9.9.9").is_none());
+}
+
+#[test]
+fn trust_metadata_reports_a_damaged_mirror_fragment() {
+    let versions = mirror_versions();
+
+    assert!(!versions.has_corrupt_mirror_fragment());
+    assert!(versions.trust_metadata("2.0.0").is_none());
+    assert!(versions.has_corrupt_mirror_fragment());
+}

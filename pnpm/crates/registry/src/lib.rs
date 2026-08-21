@@ -8,7 +8,9 @@ mod range_spec_style;
 pub use package::{DerivedPackuments, Package};
 pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
 pub use package_tag::PackageTag;
-pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};
+pub use package_version::{
+    Approver, NpmUser, PackageVersion, TrustedPublisher, VersionTrustDist, VersionTrustMetadata,
+};
 pub use package_versions::{MirrorFile, PackageVersions, read_exact_at};
 pub use range_spec_style::{RangeSpecGranularity, RangeSpecStyle};
 

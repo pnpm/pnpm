@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     NetworkError, PackageTag, RangeSpecStyle, RegistryError,
-    package_distribution::PackageDistribution,
+    package_distribution::{AttestationsDist, PackageDistribution},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,6 +231,47 @@ pub struct Approver {
 pub struct TrustedPublisher {
     pub id: String,
     pub oidc_config_id: String,
+}
+
+/// Compact view of a version manifest carrying only the fields the
+/// trust-downgrade walk reads: `_npmUser` and `dist.attestations`.
+/// The walk visits every version published before the one under
+/// inspection, and deserializing the full [`PackageVersion`] for each
+/// one materializes the dependency maps, `dist.tarball`/`integrity`/
+/// `shasum`, and every other field the walk never looks at — for an
+/// optional platform package with a long-lived packument (hundreds of
+/// thousands of version records is not unusual), that dominated the
+/// walk's cost. Unknown JSON fields are ignored by serde's default
+/// behavior, so this deserializes against the exact same wire shape
+/// as [`PackageVersion`] without listing every field it skips.
+#[derive(Debug, Clone, Deserialize)]
+pub struct VersionTrustMetadata {
+    #[serde(default, rename = "_npmUser", alias = "_npm_user")]
+    pub npm_user: Option<NpmUser>,
+    #[serde(default)]
+    pub dist: Option<VersionTrustDist>,
+}
+
+/// `dist` shape for [`VersionTrustMetadata`] — only `attestations`,
+/// the one `dist` field the trust walk reads.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionTrustDist {
+    #[serde(default)]
+    pub attestations: Option<AttestationsDist>,
+}
+
+impl From<&PackageVersion> for VersionTrustMetadata {
+    /// Used when a version's slot has already hydrated the full
+    /// manifest for some other reason (the picked version's own
+    /// slot): reads the two fields straight off the `Arc` instead of
+    /// re-parsing the raw fragment.
+    fn from(version: &PackageVersion) -> Self {
+        VersionTrustMetadata {
+            npm_user: version.npm_user.clone(),
+            dist: Some(VersionTrustDist { attestations: version.dist.attestations.clone() }),
+        }
+    }
 }
 
 impl PartialEq for PackageVersion {

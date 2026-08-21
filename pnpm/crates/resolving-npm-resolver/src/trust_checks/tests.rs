@@ -370,7 +370,14 @@ fn undecodable_prior_version_fails_closed() {
             "1.1.0": "2025-02-01T00:00:00.000Z",
         },
         "versions": {
-            "1.0.0": { "corrupt": "fragment" },
+            // A string where `_npmUser` must be an object: this is what
+            // "undecodable for the trust check's purposes" means now that
+            // the walk parses the compact `VersionTrustMetadata` shape
+            // instead of the full `PackageVersion` — a manifest missing
+            // unrelated required fields (`dist.tarball`, `version`, ...)
+            // no longer counts, since those were never read for evidence
+            // and failing on them hid nothing a real downgrade needed.
+            "1.0.0": { "_npmUser": "not-an-object" },
             "1.1.0": version_json("acme", "1.1.0", Evidence::None),
         },
     });
@@ -439,5 +446,93 @@ mod get_trust_evidence {
         let mut version = version_json("acme", "1.0.0", Evidence::None);
         version["_npmUser"] = serde_json::json!({ "name": "alice", "email": "alice@example.com" });
         assert!(get_trust_evidence(&parse(version)).is_none());
+    }
+}
+
+/// [`get_trust_evidence`]'s twin ported one-for-one against the compact
+/// [`VersionTrustMetadata`] shape, proving the two ranking implementations
+/// agree on every fixture the full-manifest suite already covers.
+mod get_trust_evidence_compact {
+    use pnpm_registry::VersionTrustMetadata;
+
+    use super::{Evidence, version_json};
+    use crate::trust_checks::{TrustEvidence, get_trust_evidence_compact};
+
+    fn parse(version: serde_json::Value) -> VersionTrustMetadata {
+        serde_json::from_value(version).expect("deserialize fixture VersionTrustMetadata")
+    }
+
+    #[test]
+    fn trusted_publisher_without_provenance_is_none() {
+        let mut version = version_json("acme", "1.0.0", Evidence::None);
+        version["_npmUser"] = serde_json::json!({
+            "trustedPublisher": { "id": "github", "oidcConfigId": "release" }
+        });
+        assert!(get_trust_evidence_compact(&parse(version)).is_none());
+    }
+
+    #[test]
+    fn trusted_publisher_with_provenance_ranks_strongest() {
+        let version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
+        assert!(matches!(
+            get_trust_evidence_compact(&parse(version)),
+            Some(TrustEvidence::TrustedPublisher)
+        ));
+    }
+
+    #[test]
+    fn approver_ranks_as_staged_publish() {
+        let version = version_json("acme", "1.0.0", Evidence::StagedPublish);
+        assert!(matches!(
+            get_trust_evidence_compact(&parse(version)),
+            Some(TrustEvidence::StagedPublish)
+        ));
+    }
+
+    #[test]
+    fn approver_outranks_trusted_publisher() {
+        let mut version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
+        version["_npmUser"]["approver"] =
+            serde_json::json!({ "name": "approver", "email": "approver@example.com" });
+        assert!(matches!(
+            get_trust_evidence_compact(&parse(version)),
+            Some(TrustEvidence::StagedPublish)
+        ));
+    }
+
+    #[test]
+    fn provenance_alone_ranks_as_provenance() {
+        let version = version_json("acme", "1.0.0", Evidence::Provenance);
+        assert!(matches!(
+            get_trust_evidence_compact(&parse(version)),
+            Some(TrustEvidence::Provenance)
+        ));
+    }
+
+    #[test]
+    fn no_evidence_returns_none() {
+        let version = version_json("acme", "1.0.0", Evidence::None);
+        assert!(get_trust_evidence_compact(&parse(version)).is_none());
+    }
+
+    #[test]
+    fn npm_user_without_trusted_publisher_is_none() {
+        let mut version = version_json("acme", "1.0.0", Evidence::None);
+        version["_npmUser"] = serde_json::json!({ "name": "alice", "email": "alice@example.com" });
+        assert!(get_trust_evidence_compact(&parse(version)).is_none());
+    }
+
+    #[test]
+    fn ignores_fields_a_full_package_version_would_require() {
+        // The whole point of the compact shape: a manifest missing `name`,
+        // `version`, and `dist.tarball` — every field `PackageVersion`
+        // requires — still decodes and reports its trust evidence.
+        let version = serde_json::json!({
+            "_npmUser": { "approver": { "name": "a", "email": "a@example.com" } },
+        });
+        assert!(matches!(
+            get_trust_evidence_compact(&parse(version)),
+            Some(TrustEvidence::StagedPublish)
+        ));
     }
 }

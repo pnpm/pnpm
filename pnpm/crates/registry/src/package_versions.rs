@@ -37,7 +37,7 @@ use std::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
-use crate::package_version::{PackageVersion, deserialize_deprecated_field};
+use crate::package_version::{PackageVersion, VersionTrustMetadata, deserialize_deprecated_field};
 
 /// Single-field view of a version manifest for
 /// [`PackageVersions::is_deprecated`] — same normalization as
@@ -274,6 +274,40 @@ impl PackageVersions {
     #[must_use]
     pub fn has_corrupt_mirror_fragment(&self) -> bool {
         self.corrupt_mirror_fragment.load(Ordering::Relaxed)
+    }
+
+    /// Compact trust-only view of `version`'s manifest — see
+    /// [`VersionTrustMetadata`]. `None` when the version is absent or
+    /// its fragment fails to decode; a decode failure on a mirror-span
+    /// fragment reports corruption the same way [`Self::get`] does.
+    ///
+    /// When the slot has already hydrated the full [`PackageVersion`]
+    /// for some other reason, reads the two fields straight off that
+    /// `Arc` instead of re-parsing the raw fragment — required, not
+    /// just an optimization, for a slot built from an already-typed
+    /// manifest ([`Self::from_raw_fragments`]'s `None`-source
+    /// counterpart used in tests and the publish-date filter's slot
+    /// moves), which has no raw JSON to parse at all.
+    #[must_use]
+    pub fn trust_metadata(&self, version: &str) -> Option<VersionTrustMetadata> {
+        let slot = self.slot(version)?;
+        if let Some(Some(parsed)) = slot.parsed.get() {
+            return Some(VersionTrustMetadata::from(parsed.as_ref()));
+        }
+        let json = slot.source.json()?;
+        match serde_json::from_str::<VersionTrustMetadata>(&json) {
+            Ok(trust) => Some(trust),
+            Err(error) => {
+                tracing::warn!(
+                    target: "pnpm_registry",
+                    %error,
+                    version,
+                    "skipping registry version with an undecodable manifest",
+                );
+                slot.report_undecodable(version, &self.corrupt_mirror_fragment);
+                None
+            }
+        }
     }
 
     /// Whether the packument lists `version`. Never hydrates.

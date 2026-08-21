@@ -14,7 +14,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pnpm_registry::{Package, PackageVersion};
+use pnpm_registry::{Package, PackageVersion, VersionTrustMetadata};
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
 
 /// Rank of supply-chain evidence on a single version. Variants are
@@ -219,7 +219,13 @@ fn detect_strongest_trust_evidence_before(
         if parsed >= before_date {
             continue;
         }
-        let Some(manifest) = meta.versions.get(version) else {
+        // Compact, not `meta.versions.get(version)`: this walk reads
+        // only `_npmUser`/`dist.attestations` from every PRIOR
+        // version, and hydrating the full manifest for each one —
+        // dependency maps, dist metadata, everything else — to check
+        // two flags dominates the walk's cost on a long-lived
+        // packument.
+        let Some(trust) = meta.versions.trust_metadata(version) else {
             return Err(TrustViolation::TrustCheckFailed {
                 reason: format!(
                     "undecodable version object for version {version} of {name} in metadata",
@@ -227,7 +233,7 @@ fn detect_strongest_trust_evidence_before(
                 ),
             });
         };
-        let Some(evidence) = get_trust_evidence(&manifest) else {
+        let Some(evidence) = get_trust_evidence_compact(&trust) else {
             continue;
         };
         // Keep the highest-ranked evidence seen so far. Don't short-
@@ -255,6 +261,33 @@ pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
     }
     let has_provenance =
         version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some();
+    let has_trusted_publisher =
+        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some();
+    if has_trusted_publisher && has_provenance {
+        return Some(TrustEvidence::TrustedPublisher);
+    }
+    if has_provenance {
+        return Some(TrustEvidence::Provenance);
+    }
+    None
+}
+
+/// [`get_trust_evidence`]'s twin for the compact
+/// [`VersionTrustMetadata`] shape the trust-history walk reads for
+/// every PRIOR version instead of the full [`PackageVersion`]. Same
+/// ranking, read through the compact `dist` wrapper.
+#[must_use]
+pub fn get_trust_evidence_compact(version: &VersionTrustMetadata) -> Option<TrustEvidence> {
+    let has_approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some();
+    if has_approver {
+        return Some(TrustEvidence::StagedPublish);
+    }
+    let has_provenance = version
+        .dist
+        .as_ref()
+        .and_then(|dist| dist.attestations.as_ref())
+        .and_then(|att| att.provenance.as_ref())
+        .is_some();
     let has_trusted_publisher =
         version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some();
     if has_trusted_publisher && has_provenance {
