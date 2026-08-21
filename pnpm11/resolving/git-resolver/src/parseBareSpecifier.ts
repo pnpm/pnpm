@@ -104,11 +104,8 @@ async function fromHostedGit (hosted: any, dispatcherOptions: DispatcherOptions)
           _fill: hosted._fill,
           tarball: undefined,
         },
-        // `httpsUrl` is an `ls-remote` target, so it deliberately carries no
-        // committish. The specifier recorded in the manifest has to keep it:
-        // without it, the next re-resolve silently moves the dependency to the
-        // default branch.
-        normalizedBareSpecifier: `git+${hosted.https({ noGitPlus: true })}`,
+        // `httpsUrl` is the `ls-remote` target, so it carries no committish.
+        normalizedBareSpecifier: hosted.https(),
         ...parseGitParams(hosted.committish),
       }
     }
