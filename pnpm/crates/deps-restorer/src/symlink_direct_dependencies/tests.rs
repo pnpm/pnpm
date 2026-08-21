@@ -1,5 +1,6 @@
 use super::{SymlinkDirectDependencies, SymlinkDirectDependenciesError, validate_importer_id};
 use crate::SkippedSnapshots;
+use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
 use pnpm_package_manifest::DependencyGroup;
@@ -111,7 +112,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -242,7 +243,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -327,7 +328,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -391,7 +392,7 @@ fn empty_importers_is_a_no_op() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<SilentReporter>();
 
@@ -457,7 +458,7 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
             link_only: false,
             public_hoist_targets: None,
             trusted_importer_ids: None,
-            extra_node_paths: &[],
+            link_options: &LinkBinsOptions::default(),
         }
         .run::<RecordingReporter>()
         .expect("symlink should succeed");
@@ -558,7 +559,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<RecordingReporter>()
     .unwrap();
@@ -630,7 +631,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
             link_only: false,
             public_hoist_targets: None,
             trusted_importer_ids: None,
-            extra_node_paths: &[],
+            link_options: &LinkBinsOptions::default(),
         }
         .run::<SilentReporter>();
 
@@ -711,7 +712,7 @@ fn custom_modules_dir_propagates_to_each_importer() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<SilentReporter>()
     .expect("symlink should succeed");
@@ -764,7 +765,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: Some(&trusted),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<SilentReporter>()
     .expect("a declared project at `..` must be allowed");
@@ -784,7 +785,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: Some(&std::collections::HashSet::new()),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<SilentReporter>();
     assert!(

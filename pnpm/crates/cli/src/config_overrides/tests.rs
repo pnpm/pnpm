@@ -223,6 +223,39 @@ fn repeated_minimum_release_age_exclude_overrides_collect_into_a_list() {
 }
 
 #[test]
+fn node_linker_override_rederives_prefer_symlinked_executables() {
+    // Overriding away from hoisted drops the derived `true`.
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=isolated", "install"]));
+    let mut config = Config { node_linker: NodeLinker::Hoisted, ..Config::default() };
+    config.apply_prefer_symlinked_executables_derivation();
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    overrides.apply(&mut config);
+    assert_eq!(config.node_linker, NodeLinker::Isolated);
+    assert_eq!(config.prefer_symlinked_executables, None);
+
+    // Overriding to hoisted derives `true`, like pnpm's config reader
+    // seeing the CLI-selected linker.
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=hoisted", "install"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+
+    // An explicit `false` — recorded in `explicit_settings` by the
+    // config layer that set it — outranks the hoisted default.
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=hoisted", "install"]));
+    let mut config = Config { prefer_symlinked_executables: Some(false), ..Config::default() };
+    config
+        .explicit_settings
+        .insert("preferSymlinkedExecutables".to_string(), serde_json::Value::Bool(false));
+    overrides.apply(&mut config);
+    assert_eq!(config.node_linker, NodeLinker::Hoisted);
+    assert_eq!(config.prefer_symlinked_executables, Some(false));
+}
+
+#[test]
 fn config_tokens_after_external_command_stay_in_argv() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",

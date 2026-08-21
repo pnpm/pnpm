@@ -3,8 +3,8 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
     BinOrigin, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
-    FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, PackageBinSource,
-    collect_packages_in_modules_dir, link_bins_of_packages,
+    FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions,
+    PackageBinSource, collect_packages_in_modules_dir, link_bins_of_packages,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
@@ -17,19 +17,29 @@ use std::{
     sync::Arc,
 };
 
-/// pnpm's `getExtraNodePaths`: under the isolated linker with a hoist
-/// pattern, every shim written by the install carries the hidden
-/// hoisted modules dir (`<virtual-store-dir>/node_modules`) on
-/// `NODE_PATH`, unless `extendNodePath: false`. Everything else — the
-/// hoisted linker, a disabled hoist pass — gets no `NODE_PATH` at all.
+/// The config-derived options for every bin an install links.
+///
+/// `extra_node_paths` is pnpm's `getExtraNodePaths`: under the isolated
+/// linker with a hoist pattern, every shim written by the install
+/// carries the hidden hoisted modules dir
+/// (`<virtual-store-dir>/node_modules`) on `NODE_PATH`, unless
+/// `extendNodePath: false`. Everything else — the hoisted linker, a
+/// disabled hoist pass — gets no `NODE_PATH` at all.
 #[must_use]
-pub fn shim_extra_node_paths(config: &Config, node_linker: NodeLinker) -> Vec<String> {
+pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOptions {
     let has_hoist_pattern =
         config.hoist_pattern.as_ref().is_some_and(|patterns| !patterns.is_empty());
-    if config.extend_node_path && matches!(node_linker, NodeLinker::Isolated) && has_hoist_pattern {
+    let extra_node_paths = if config.extend_node_path
+        && matches!(node_linker, NodeLinker::Isolated)
+        && has_hoist_pattern
+    {
         vec![config.virtual_store_dir.join("node_modules").to_string_lossy().into_owned()]
     } else {
         Vec::new()
+    };
+    LinkBinsOptions {
+        extra_node_paths,
+        prefer_symlinked_executables: config.prefer_symlinked_executables.unwrap_or(false),
     }
 }
 
@@ -46,11 +56,11 @@ pub fn shim_extra_node_paths(config: &Config, node_linker: NodeLinker) -> Vec<St
 pub fn link_direct_dep_bins(
     modules_dir: &Path,
     dep_names: &[String],
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
     let deps: Vec<(&str, Option<&Path>)> =
         dep_names.iter().map(|name| (name.as_str(), None)).collect();
-    link_named_dep_bins(modules_dir, &deps, extra_node_paths)
+    link_named_dep_bins(modules_dir, &deps, link_options)
 }
 
 /// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
@@ -77,17 +87,17 @@ pub fn resolve_hoisted_bin_deps(
 pub fn link_direct_dep_bins_resolved(
     modules_dir: &Path,
     deps: &[(String, PathBuf)],
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
     let deps: Vec<(&str, Option<&Path>)> =
         deps.iter().map(|(name, target)| (name.as_str(), Some(target.as_path()))).collect();
-    link_named_dep_bins(modules_dir, &deps, extra_node_paths)
+    link_named_dep_bins(modules_dir, &deps, link_options)
 }
 
 fn link_named_dep_bins(
     modules_dir: &Path,
     deps: &[(&str, Option<&Path>)],
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
     // Swallow only `NotFound`: a direct-dep symlink target can
     // legitimately be missing right after a partial pacquet run, or
@@ -125,7 +135,7 @@ fn link_named_dep_bins(
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), extra_node_paths)
+    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
 }
 
 /// Link bins from resolved direct-dependency locations without requiring
@@ -135,7 +145,7 @@ fn link_named_dep_bins(
 pub fn link_direct_dep_bins_from_locations(
     modules_dir: &Path,
     locations: &[PathBuf],
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
     let bin_sources = locations
         .par_iter()
@@ -150,7 +160,7 @@ pub fn link_direct_dep_bins_from_locations(
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), extra_node_paths)
+    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
 }
 
 /// Top-level bin link that mixes direct-dep candidates and hoisted
@@ -177,7 +187,7 @@ pub fn link_top_level_bins(
     modules_dir: &Path,
     direct_dep_names: &[String],
     hoisted_dep_names: &[String],
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
     let mut bin_sources: Vec<PackageBinSource> = Vec::new();
     // Tag direct deps as `Direct` and hoisted as `Hoisted` so the
@@ -204,7 +214,7 @@ pub fn link_top_level_bins(
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), extra_node_paths)
+    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
 }
 
 /// Link a project's top-level bins while preserving direct-dependency
@@ -212,7 +222,7 @@ pub fn link_top_level_bins(
 pub fn link_project_bins(
     modules_dir: &Path,
     direct_dep_names: &[String],
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
     let direct_locations =
         direct_dep_names.iter().map(|name| modules_dir.join(name)).collect::<HashSet<_>>();
@@ -230,7 +240,7 @@ pub fn link_project_bins(
     if sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Host>(&sources, &modules_dir.join(".bin"), extra_node_paths)
+    link_bins_of_packages::<Host>(&sources, &modules_dir.join(".bin"), link_options)
 }
 
 /// Read each `<modules_dir>/<name>/package.json` and assemble the
@@ -345,10 +355,10 @@ pub struct LinkVirtualStoreBins<'a> {
     /// `<slot>/node_modules/<alias>` would fail. Excluding them up
     /// front matches the rest of the install pipeline's filtering.
     pub skipped: &'a SkippedSnapshots,
-    /// [`shim_extra_node_paths`] output — pnpm threads the same
+    /// [`shim_link_options`] output — pnpm threads the same
     /// `extraNodePaths` into slot-internal bin shims as into importer
     /// bins.
-    pub extra_node_paths: &'a [String],
+    pub link_options: &'a LinkBinsOptions,
 }
 
 impl LinkVirtualStoreBins<'_> {
@@ -380,7 +390,7 @@ impl LinkVirtualStoreBins<'_> {
             packages,
             package_manifests,
             skipped,
-            extra_node_paths,
+            link_options,
         } = self;
         if let Some(snapshots) = snapshots {
             let has_bin_set = build_has_bin_set(packages);
@@ -392,7 +402,7 @@ impl LinkVirtualStoreBins<'_> {
                 BinSlotSets { has_bin: has_bin_set.as_ref(), bundling: &bundling_set },
                 package_manifests,
                 skipped,
-                extra_node_paths,
+                link_options,
             )
         } else {
             // No snapshots (lockfile absent or empty): fall back to a
@@ -400,7 +410,7 @@ impl LinkVirtualStoreBins<'_> {
             // frozen installs, which <https://github.com/pnpm/pacquet/issues/432> doesn't activate GVS for, so
             // reading from `layout.package_store_dir()` reproduces
             // today's behaviour exactly when GVS is off.
-            run_with_readdir::<Sys>(layout.package_store_dir(), extra_node_paths)
+            run_with_readdir::<Sys>(layout.package_store_dir(), link_options)
         }
     }
 }
@@ -489,7 +499,7 @@ fn run_lockfile_driven<Sys>(
     sets: BinSlotSets<'_>,
     package_manifests: &PackageManifests,
     skipped: &SkippedSnapshots,
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkVirtualStoreBinsError>
 where
     Sys: FsReadDir
@@ -668,7 +678,7 @@ where
         if bin_sources.is_empty() {
             return Ok(());
         }
-        link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, extra_node_paths)
+        link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, link_options)
             .map_err(LinkVirtualStoreBinsError::LinkBins)
     })
 }
@@ -701,7 +711,7 @@ fn pkg_dir_under(modules_dir: &Path, name: &PkgName) -> PathBuf {
 /// path bypasses every directory enumeration in here.
 fn run_with_readdir<Sys>(
     virtual_store_dir: &Path,
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkVirtualStoreBinsError>
 where
     Sys: FsReadDir
@@ -745,7 +755,7 @@ where
             return Ok(());
         }
         let bins_dir = self_pkg_dir.join("node_modules/.bin");
-        link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &self_pkg_dir, extra_node_paths)
+        link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &self_pkg_dir, link_options)
             .map_err(LinkVirtualStoreBinsError::LinkBins)
     })
 }
@@ -802,7 +812,7 @@ fn link_bins_excluding<Sys>(
     modules_dir: &Path,
     bins_dir: &Path,
     exclude: &Path,
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadDir
@@ -871,7 +881,7 @@ where
         return Ok(());
     }
 
-    link_bins_of_packages::<Sys>(&packages, bins_dir, extra_node_paths)
+    link_bins_of_packages::<Sys>(&packages, bins_dir, link_options)
 }
 
 fn read_package<Sys: FsReadFile>(

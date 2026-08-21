@@ -37,6 +37,7 @@ fn create_config(
         hoist_pattern: None,
         public_hoist_pattern: None,
         extend_node_path: true,
+        prefer_symlinked_executables: None,
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
         modules_dir: modules_dir.to_path_buf(),

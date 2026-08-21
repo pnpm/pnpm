@@ -797,3 +797,34 @@ fn install_does_not_scaffold_a_root_manifest_in_a_workspace() {
 
     drop((root, mock_instance));
 }
+
+/// With `preferSymlinkedExecutables`, the isolated linker also
+/// materializes `.bin` entries as symlinks to the bin file instead of
+/// shell shims — pnpm's `deps-installer` "prefer-symlinked-executables"
+/// install coverage.
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+fn prefer_symlinked_executables_symlinks_workspace_bins() {
+    use _utils::{ManifestDeps, WorkspaceFixture, read_manifest, write_manifest_value};
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("preferSymlinkedExecutables: true\n");
+    let consumer = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("project-2", "workspace:*")], ..Default::default() },
+    );
+    let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
+    let mut provider_manifest = read_manifest(&provider);
+    provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
+    write_manifest_value(&provider, &provider_manifest);
+    fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
+        .expect("write project bin");
+
+    fixture.run(["install"]);
+
+    let bin = consumer.join("node_modules/.bin/project-2");
+    assert!(
+        fs::symlink_metadata(&bin).expect("bin must exist").file_type().is_symlink(),
+        "the bin must be a symlink, not a shim",
+    );
+}

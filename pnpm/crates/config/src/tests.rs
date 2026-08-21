@@ -2230,6 +2230,112 @@ pub fn gvs_disabled_or_extend_node_path_off_injects_no_resolution_env() {
 }
 
 #[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+pub fn prefer_symlinked_executables_exports_the_virtual_store_node_path() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "preferSymlinkedExecutables: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(
+        config.extra_env.get("NODE_PATH"),
+        Some(&tmp.path().join("node_modules/.pnpm/node_modules").display().to_string()),
+    );
+}
+
+/// Run from a workspace package, `NODE_PATH` must point at the
+/// workspace root's virtual store — the one that exists — not at the
+/// package directory's (pnpm/pnpm#13912).
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+pub fn prefer_symlinked_executables_node_path_anchors_at_the_workspace_root() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\npreferSymlinkedExecutables: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let pkg_dir = tmp.path().join("packages/app");
+    fs::create_dir_all(&pkg_dir).expect("create workspace package dir");
+    let config = Config::new().current::<HostNoHome>(&pkg_dir).expect("yaml is valid");
+    assert_eq!(
+        config.extra_env.get("NODE_PATH"),
+        Some(&tmp.path().join("node_modules/.pnpm/node_modules").display().to_string()),
+    );
+}
+
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+pub fn prefer_symlinked_executables_respects_an_explicit_virtual_store_dir() {
+    let tmp = tempdir().unwrap();
+    let virtual_store_dir = tmp.path().join("foo/bar");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        format!(
+            "virtualStoreDir: {}\npreferSymlinkedExecutables: true\n",
+            virtual_store_dir.display(),
+        ),
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(
+        config.extra_env.get("NODE_PATH"),
+        Some(&virtual_store_dir.join("node_modules").display().to_string()),
+    );
+}
+
+/// The hoisted `nodeLinker` turns the setting on unless the user
+/// configured it — but, like pnpm, the derived `true` exports no
+/// `NODE_PATH`: pnpm computes `extraEnv` before its `nodeLinker`
+/// switch, and the hoisted layout has no hidden store to expose.
+#[test]
+pub fn hoisted_node_linker_defaults_prefer_symlinked_executables_on() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    assert_eq!(config.extra_env.get("NODE_PATH"), None);
+
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "nodeLinker: hoisted\npreferSymlinkedExecutables: false\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.prefer_symlinked_executables, Some(false));
+    assert_eq!(config.extra_env.get("NODE_PATH"), None);
+}
+
+/// The CLI's `--config.node-linker` override re-runs the derivation
+/// after [`Config::current`], and it must track the *final* linker: a
+/// `true` derived for the yaml-selected hoisted linker is dropped when
+/// the override selects another linker (pnpm merges CLI options before
+/// its `nodeLinker` switch), while a user-configured value survives.
+#[test]
+pub fn rederiving_prefer_symlinked_executables_follows_a_node_linker_override() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    config.node_linker = crate::NodeLinker::Isolated;
+    config.apply_prefer_symlinked_executables_derivation();
+    assert_eq!(config.prefer_symlinked_executables, None);
+
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "nodeLinker: hoisted\npreferSymlinkedExecutables: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    config.node_linker = crate::NodeLinker::Isolated;
+    config.apply_prefer_symlinked_executables_derivation();
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+}
+
+#[test]
 pub fn yaml_global_virtual_store_dir_wins_over_derivation() {
     let tmp = tempdir().unwrap();
     let yaml_gvs = tmp.path().join("my-shared-store");

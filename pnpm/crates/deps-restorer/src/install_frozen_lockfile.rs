@@ -24,7 +24,7 @@ pub use hoisted::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::LinkBinsError;
+use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_config::{Config, NodeLinker, matcher::create_matcher};
 use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_lockfile::{
@@ -378,7 +378,7 @@ where
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
-        let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
+        let link_options = crate::shim_link_options(config, node_linker);
         // Cloned so the iterator can be reused below for hoist's
         // direct-deps map. `Vec<DependencyGroup>` is tiny (≤4 enum
         // variants) so the clone is essentially free.
@@ -737,7 +737,7 @@ where
                 dependency_groups: &dependency_groups,
                 package_manifests: &package_manifests,
                 cas_paths_by_pkg_id,
-                extra_node_paths: &extra_node_paths,
+                link_options: &link_options,
                 workspace_root,
                 requester,
                 node_linker,
@@ -816,7 +816,7 @@ where
                 publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
                 logged_methods,
                 rebuild,
-                extra_node_paths: &extra_node_paths,
+                link_options: &link_options,
             })
             .map_err(InstallFrozenLockfileError::BuildPhase)?;
 

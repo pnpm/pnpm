@@ -893,6 +893,40 @@ fn linking_bins_of_local_projects() {
     assert!(consumer.join("node_modules/.bin/project-2").exists());
 }
 
+/// The hoisted linker turns `preferSymlinkedExecutables` on by
+/// default, so on Unix `.bin` entries are symlinks to the bin file
+/// instead of shell shims — pnpm's `nodeLinker: hoisted` behavior. An
+/// explicit `preferSymlinkedExecutables: false` restores the shims.
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+fn hoisted_linker_symlinks_bins_by_default() {
+    for (yaml, expect_symlink) in [
+        ("nodeLinker: hoisted\n", true),
+        ("nodeLinker: hoisted\npreferSymlinkedExecutables: false\n", false),
+    ] {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml(yaml);
+        let consumer = fixture.project(
+            "project-1",
+            "project-1",
+            ManifestDeps { prod: &[("project-2", "workspace:*")], ..Default::default() },
+        );
+        let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
+        let mut provider_manifest = read_manifest(&provider);
+        provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
+        write_manifest_value(&provider, &provider_manifest);
+        fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
+            .expect("write project bin");
+
+        fixture.run(["install"]);
+
+        let bin = consumer.join("node_modules/.bin/project-2");
+        let is_symlink =
+            fs::symlink_metadata(&bin).expect("bin must exist").file_type().is_symlink();
+        assert_eq!(is_symlink, expect_symlink, "yaml: {yaml}");
+    }
+}
+
 /// TS: `run pre/postinstall scripts in a project that uses
 /// node-linker=hoisted. Should not fail on repeat install`
 /// (`lifecycleScripts.ts:825`).

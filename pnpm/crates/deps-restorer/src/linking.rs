@@ -19,6 +19,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -104,7 +105,7 @@ pub struct LinkPhaseInputs<'a> {
     pub dependency_groups: &'a [DependencyGroup],
     pub package_manifests: &'a PackageManifests,
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
-    pub extra_node_paths: &'a [String],
+    pub link_options: &'a LinkBinsOptions,
     /// Anchor for each importer's `node_modules`. The frozen path uses
     /// `workspace_root`; the fresh path uses `modules_dir.parent()`,
     /// because its tests relocate `modules_dir` away from the manifest.
@@ -177,7 +178,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         dependency_groups,
         package_manifests,
         cas_paths_by_pkg_id,
-        extra_node_paths,
+        link_options,
         workspace_root,
         requester,
         node_linker,
@@ -273,7 +274,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             link_only: false,
             public_hoist_targets: public_hoist_targets.as_ref(),
             trusted_importer_ids: Some(trusted_importer_ids),
-            extra_node_paths,
+            link_options,
         }
         .run::<Reporter>()
         .map_err(LinkPhaseError::SymlinkDirectDependencies)?;
@@ -318,7 +319,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             packages,
             package_manifests,
             skipped,
-            extra_node_paths,
+            link_options,
         }
         .run()
         .map_err(LinkPhaseError::LinkVirtualStoreBins)?;
@@ -442,7 +443,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         link_direct_dep_bins_resolved(
             &private_dir,
             &crate::resolve_hoisted_bin_deps(layout, &result.hoisted_aliases_with_bins),
-            extra_node_paths,
+            link_options,
         )
         .map_err(LinkPhaseError::HoistLinkBins)?;
         // Stash the public-hoist alias list for the
@@ -488,12 +489,8 @@ pub fn run_link_phase<Reporter: self::Reporter>(
                 crate::symlink_direct_dependencies::importer_root_dir(symlink_root, importer_id)
                     .join(&modules_basename);
             let bins_dir = modules_dir.join(".bin");
-            pnpm_cmd_shim::link_bins::<pnpm_cmd_shim::Host>(
-                &modules_dir,
-                &bins_dir,
-                extra_node_paths,
-            )
-            .map_err(LinkPhaseError::LinkBins)?;
+            pnpm_cmd_shim::link_bins::<pnpm_cmd_shim::Host>(&modules_dir, &bins_dir, link_options)
+                .map_err(LinkPhaseError::LinkBins)?;
         }
     }
 

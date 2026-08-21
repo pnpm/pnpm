@@ -257,6 +257,11 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.node_linker {
             config.node_linker = value;
+            // A CLI-selected hoisted linker turns the default on just
+            // like a yaml-selected one — pnpm merges CLI options before
+            // its `nodeLinker` switch, so the derivation must see this
+            // override too.
+            config.apply_prefer_symlinked_executables_derivation();
         }
         if let Some(value) = self.pm_on_fail {
             config.pm_on_fail = Some(value);

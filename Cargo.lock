@@ -4401,6 +4401,7 @@ dependencies = [
  "same-file",
  "serde_json",
  "tempfile",
+ "tracing",
  "walkdir",
 ]
 

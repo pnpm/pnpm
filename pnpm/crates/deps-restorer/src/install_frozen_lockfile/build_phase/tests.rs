@@ -2,6 +2,7 @@ use super::{
     AllowBuildPolicy, AtomicU8, BuildPhaseInputs, Config, DependencyGroup, HashMap, PackageKey,
     ProjectSnapshot, SkippedSnapshots, StoreIndexWriter, VirtualStoreLayout, run_build_phase,
 };
+use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_reporter::SilentReporter;
 use tempfile::tempdir;
 
@@ -51,7 +52,7 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
         publicly_hoisted_for_post_build: &[],
         logged_methods: &logged_methods,
         rebuild: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     })
     .expect("build phase succeeds");
 

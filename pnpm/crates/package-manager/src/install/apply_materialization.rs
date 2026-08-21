@@ -227,7 +227,7 @@ async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
             // Honor a `modulesDir` override the same way the
             // lockfile-driven symlink pass does.
             config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
-            &crate::shim_extra_node_paths(config, node_linker),
+            &crate::shim_link_options(config, node_linker),
         )
         .map_err(InstallError::LinkManifestLinkDeps)?;
     }

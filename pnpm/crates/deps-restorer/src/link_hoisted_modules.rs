@@ -23,7 +23,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::{Host, LinkBinsError, link_bins};
+use pnpm_cmd_shim::{Host, LinkBinsError, LinkBinsOptions, link_bins};
 use pnpm_config::PackageImportMethod;
 use pnpm_lockfile::PkgIdWithPatchHash;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
@@ -80,6 +80,11 @@ pub struct LinkHoistedModulesOpts<'a> {
     /// this keeps the deletion site from depending on the
     /// constructor's discipline.
     pub confine_root: &'a Path,
+    /// Options for every bin this pass links — the
+    /// [`crate::shim_link_options`] output for the hoisted linker
+    /// (no `extraNodePaths`; hoisted-tree shims never carry
+    /// `NODE_PATH`, which pnpm gates on the isolated linker).
+    pub link_options: &'a LinkBinsOptions,
 }
 
 /// Failure modes of [`link_hoisted_modules`]. Marked
@@ -246,9 +251,7 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
         .filter_map(|node| node.alias.clone())
         .collect();
     if !dep_names.is_empty() {
-        // pnpm gates `extraNodePaths` on the isolated linker, so
-        // hoisted-tree shims never carry `NODE_PATH`.
-        link_direct_dep_bins(&modules_dir, &dep_names, &[])
+        link_direct_dep_bins(&modules_dir, &dep_names, opts.link_options)
             .map_err(LinkHoistedModulesError::LinkBins)?;
     }
 
@@ -262,7 +265,7 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
         }
         let bundled_modules_dir = child_dir.join("node_modules");
         let bins_dir = bundled_modules_dir.join(".bin");
-        link_bins::<Host>(&bundled_modules_dir, &bins_dir, &[])
+        link_bins::<Host>(&bundled_modules_dir, &bins_dir, opts.link_options)
             .map_err(LinkHoistedModulesError::LinkBins)?;
     }
 
