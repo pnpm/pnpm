@@ -72,10 +72,11 @@ fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
 ///
 /// Unknown keys are accepted silently: pnpm exposes a long tail of config
 /// keys, and erroring on an unrecognized one would break the moment pnpm
-/// adds a new key that pacquet hasn't ported yet. The token has already
-/// been honored by pnpm itself before delegation, so dropping it on
-/// pacquet's side just means the pacquet leg falls back to the yaml/npmrc
-/// value — never an incorrect override.
+/// adds a new key that pacquet hasn't ported yet. Dropping one is only
+/// harmless when pnpm parsed the token first and delegated, leaving the
+/// pacquet leg to fall back to the yaml value. When the binary runs
+/// standalone there is no other leg, so a setting that changes what gets
+/// installed has to be ported here.
 #[derive(Debug, Default)]
 pub struct ConfigOverrides {
     registry: Option<String>,
@@ -84,6 +85,10 @@ pub struct ConfigOverrides {
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
     inject_workspace_packages: Option<bool>,
+    minimum_release_age: Option<u64>,
+    minimum_release_age_exclude: Option<Vec<String>>,
+    minimum_release_age_ignore_missing_time: Option<bool>,
+    minimum_release_age_strict: Option<bool>,
     node_linker: Option<NodeLinker>,
     pm_on_fail: Option<PmOnFail>,
     runtime_on_fail: Option<RuntimeOnFail>,
@@ -156,6 +161,24 @@ impl ConfigOverrides {
             self.inject_workspace_packages = parse_bool(value);
             return;
         }
+        if key == "minimum-release-age" {
+            self.minimum_release_age = value.parse().ok();
+            return;
+        }
+        if key == "minimum-release-age-exclude" {
+            // nopt collects a repeated key it has no type for into a list,
+            // and pnpm re-parses the `--config.` tokens without any types.
+            self.minimum_release_age_exclude.get_or_insert_default().push(value.to_string());
+            return;
+        }
+        if key == "minimum-release-age-ignore-missing-time" {
+            self.minimum_release_age_ignore_missing_time = parse_bool(value);
+            return;
+        }
+        if key == "minimum-release-age-strict" {
+            self.minimum_release_age_strict = parse_bool(value);
+            return;
+        }
         if key == "node-linker" {
             self.node_linker = parse_enum(value);
             return;
@@ -208,6 +231,29 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.inject_workspace_packages {
             config.inject_workspace_packages = value;
+        }
+        // pnpm seeds `explicitlySetKeys` from the command line as well as
+        // from the config files, and the workspace state reads it back to
+        // decide whether `minimumReleaseAgeStrict` defaults to true.
+        if let Some(value) = self.minimum_release_age {
+            config.minimum_release_age = Some(value);
+            config.explicit_settings.insert("minimumReleaseAge".to_string(), value.into());
+        }
+        if let Some(value) = &self.minimum_release_age_exclude {
+            config.minimum_release_age_exclude = Some(value.clone());
+            config
+                .explicit_settings
+                .insert("minimumReleaseAgeExclude".to_string(), value.as_slice().into());
+        }
+        if let Some(value) = self.minimum_release_age_ignore_missing_time {
+            config.minimum_release_age_ignore_missing_time = value;
+            config
+                .explicit_settings
+                .insert("minimumReleaseAgeIgnoreMissingTime".to_string(), value.into());
+        }
+        if let Some(value) = self.minimum_release_age_strict {
+            config.minimum_release_age_strict = Some(value);
+            config.explicit_settings.insert("minimumReleaseAgeStrict".to_string(), value.into());
         }
         if let Some(value) = self.node_linker {
             config.node_linker = value;
