@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import util from 'node:util'
 
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
+import { loadMeta } from '@pnpm/resolving.npm-resolver'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { PackageManifest } from '@pnpm/types'
 
@@ -31,7 +32,12 @@ export async function readMetadataMirror (cacheDir: string, pkgName: string): Pr
       await delay(100)
       continue
     }
-    return { raw, meta: JSON.parse(raw.slice(raw.indexOf('\n') + 1)) }
+    const meta = await loadMeta(mirrorPath)
+    if (meta == null) {
+      await delay(100)
+      continue
+    }
+    return { raw, meta: meta as unknown as { versions: Record<string, PackageManifest> } }
   }
   /* eslint-enable no-await-in-loop */
   throw lastError

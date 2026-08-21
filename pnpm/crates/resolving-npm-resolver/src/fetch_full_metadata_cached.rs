@@ -1,8 +1,8 @@
 //! Cache-aware metadata fetcher.
 //!
 //! When a cache directory is configured, the fetcher consults a
-//! shared mirror under `<cache_dir>/v11/metadata-full/` (full) or
-//! `<cache_dir>/v11/metadata/` (abbreviated), keyed by
+//! shared mirror under `<cache_dir>/v12/metadata-full/` (full) or
+//! `<cache_dir>/v12/metadata/` (abbreviated), keyed by
 //! `full_metadata`. It issues a conditional GET against the upstream
 //! registry, and either reads the cached body (304) or writes the
 //! new body back (2xx). Without a cache directory it falls through
@@ -46,7 +46,7 @@ use crate::{
 pub struct FetchFullMetadataCachedOptions<'a> {
     pub registry: &'a str,
     /// When `Some`, the fetcher consults the on-disk mirror under
-    /// the matching `<cache_dir>/v11/metadata...` subdirectory.
+    /// the matching `<cache_dir>/v12/metadata...` subdirectory.
     /// When `None`, the fetcher short-circuits to an unconditional
     /// GET.
     pub cache_dir: Option<&'a Path>,
@@ -74,6 +74,21 @@ pub async fn fetch_full_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
+    fetch_metadata_cached(pkg_name, opts, false).await
+}
+
+pub(crate) async fn fetch_full_metadata_bypassing_cache(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+) -> Result<Package, FetchMetadataError> {
+    fetch_metadata_cached(pkg_name, opts, true).await
+}
+
+async fn fetch_metadata_cached(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+    bypass_cache: bool,
+) -> Result<Package, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
     let mirror_path = mirror_path_for(pkg_name, opts, &url);
 
@@ -87,17 +102,15 @@ pub async fn fetch_full_metadata_cached(
         });
     }
 
+    let cache_headers =
+        if bypass_cache { None } else { load_meta_headers_async(mirror_path.as_deref()).await };
     let attempt = FetchAttempt {
         pkg_name,
         url: &url,
         opts,
         mirror_path: mirror_path.as_deref(),
-        cache_headers: load_meta_headers_async(mirror_path.as_deref()).await,
-        // A body retry re-enters the attempt from the top, so the bypass has
-        // to outlive the attempt that discovered the loss: re-validating
-        // against a mirror already known to be gone would 304 into the same
-        // dead end.
-        cache_bypass: AtomicBool::new(false),
+        cache_headers,
+        cache_bypass: AtomicBool::new(bypass_cache),
     };
     retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || attempt.run())
         .await

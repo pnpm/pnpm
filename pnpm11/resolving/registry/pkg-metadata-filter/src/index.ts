@@ -82,7 +82,15 @@ export function filterPkgMetadataVersions<PkgDoc extends PackageMeta> (
   for (const version in pkgDoc.versions) {
     if (!Object.hasOwn(pkgDoc.versions, version)) continue
     if (keep(version)) {
-      keptVersions[version] = pkgDoc.versions[version]
+      // Copy the property descriptor, not the value: a lazily-loaded packument
+      // (see npm-resolver's mirror module) backs each version with a getter
+      // that parses its manifest on first access, and reading the value here
+      // would parse every kept version of every packument up front.
+      Object.defineProperty(
+        keptVersions,
+        version,
+        Object.getOwnPropertyDescriptor(pkgDoc.versions, version)!
+      )
     }
   }
 
@@ -104,7 +112,9 @@ export function filterPkgMetadataVersions<PkgDoc extends PackageMeta> (
   for (const tag in allDistTags) {
     if (!Object.hasOwn(allDistTags, tag)) continue
     const distTagVersion = allDistTags[tag]
-    if (keptVersions[distTagVersion]) {
+    // `in`, not a value read: presence is all that matters, and reading the
+    // value would hydrate a lazily-loaded manifest for nothing.
+    if (distTagVersion in keptVersions) {
       keptDistTags[tag] = distTagVersion
       continue
     }

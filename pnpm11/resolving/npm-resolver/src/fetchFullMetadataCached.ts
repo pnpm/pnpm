@@ -7,7 +7,8 @@ import {
   type FetchMetadataFromFromRegistryOptions,
   type FetchMetadataResult,
 } from './fetch.js'
-import { getPkgMirrorPath, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
+import { loadMeta, loadMetaHeaders, prepareIndexedForDisk, saveMeta } from './mirror.js'
+import { getPkgMirrorPath } from './pickPackage.js'
 
 export interface FetchMetadataCachedOptions {
   registry: string
@@ -91,7 +92,12 @@ async function fetchMetadataCached (
   // requires cache headers loaded from a mirror — so a null mirror here is an
   // unreachable invariant breach.
   if (pkgMirror == null) throw new Error(`Unexpected 304 for ${pkgName} without a metadata cache`)
-  const cached = await loadMeta(pkgMirror)
+  // Unlike the resolver, callers of this function get the document itself and
+  // have nowhere to fall back to when a lazily-hydrated fragment turns out
+  // corrupt — and the etag lives in the intact headers record, so the mirror
+  // would keep 304-validating and never self-heal. Surfacing that corruption
+  // here makes it a cache miss the refetch below rewrites.
+  const cached = await loadMeta(pkgMirror, { hydrateEagerly: true })
   if (cached != null) return cached
 
   // The mirror vanished between the headers read and this read (concurrent
@@ -115,7 +121,7 @@ async function fetchMetadataCached (
   // the speedup.
   function persistAndReturn (fetched: FetchMetadataResult): PackageMeta {
     if (pkgMirror != null) {
-      saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched.jsonText)).catch(() => {})
+      saveMeta(pkgMirror, prepareIndexedForDisk(fetched.meta, fetched.etag)).catch(() => {})
     }
     return fetched.meta
   }

@@ -1004,6 +1004,7 @@ test('the release-age upgrade of a validated mirror writes no etag', async () =>
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
+
   expect(persistedMeta.etag).toBeUndefined()
   // `modified` is the packument's own `time.modified`, identical in both
   // representations, so it stays and keeps the next request conditional.

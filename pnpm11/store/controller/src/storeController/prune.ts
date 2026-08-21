@@ -25,7 +25,7 @@ export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, r
   await pruneGlobalVirtualStore(storeDir)
 
   // 2. Clean up metadata cache
-  // Metadata dirs may be at top level (legacy metadata-*) or under a version prefix (v11/metadata*)
+  // Metadata dirs may be at top level (legacy metadata-*) or under a version prefix (vN/metadata*)
   const metadataDirs = await getSubdirsSafely(cacheDir)
   await Promise.all(metadataDirs.map(async (metadataDir) => {
     if (!metadataDir.startsWith('metadata') && !/^v\d+$/.test(metadataDir)) return
