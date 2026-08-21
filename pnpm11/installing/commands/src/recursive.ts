@@ -34,8 +34,8 @@ import {
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
@@ -55,6 +55,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
+import getVersionSelectorType from 'version-selector-type'
 
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
@@ -598,6 +599,61 @@ export function matchDependencies (
   return matchedDeps
 }
 
+export function createUpdateMatching (params: string[]): UpdateMatchingFunction {
+  const parsed = params.map(parseUpdateParam)
+  const matcher = createMatcherWithIndex(parsed.map(({ pattern }) => pattern))
+  return (pkgName: string, version?: string) => {
+    const index = matcher(pkgName)
+    if (index === -1) return false
+
+    const versionSpec = parsed[index].versionSpec
+    if (versionSpec == null || version == null) return true
+    if (getVersionSelectorType(versionSpec)?.type !== 'version') return true
+    if (versionSpec === version) return true
+
+    const requested = parseNumericVersion(versionSpec)
+    const current = parseNumericVersion(version)
+    if (requested == null || current == null) return false
+    if (requested.major > 0) return current.major === requested.major
+    return current.major === 0 && current.minor === requested.minor
+  }
+}
+
+function parseNumericVersion (version: string): { major: number, minor: number } | null {
+  const match = /^(\d+)\.(\d+)\.\d+(?:[-+].*)?$/.exec(version)
+  if (match == null) return null
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+  }
+}
+
+export function createPreferredVersionsFromPinnedUpdateSpecs (
+  params: string[],
+  preferredVersions?: PreferredVersions
+): PreferredVersions | undefined {
+  let mergedPreferredVersions = preferredVersions
+  for (const param of params) {
+    const { pattern, versionSpec } = parseUpdateParam(param)
+    if (
+      versionSpec == null ||
+      pattern[0] === '!' ||
+      pattern.includes('*') ||
+      getVersionSelectorType(versionSpec)?.type !== 'version'
+    ) continue
+
+    if (mergedPreferredVersions == null) {
+      mergedPreferredVersions = Object.create(null) as PreferredVersions
+    } else if (mergedPreferredVersions === preferredVersions) {
+      mergedPreferredVersions = Object.assign(Object.create(null), mergedPreferredVersions)
+    }
+    const nextPreferredVersions = mergedPreferredVersions as PreferredVersions
+    nextPreferredVersions[pattern] = Object.assign(Object.create(null), nextPreferredVersions[pattern], {
+      [versionSpec]: { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1 },
+    })
+  }
+  return mergedPreferredVersions
+}
 export type UpdateDepsMatcher = (input: string) => string | null
 
 export function createMatcher (params: string[]): UpdateDepsMatcher {
