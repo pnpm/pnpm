@@ -235,11 +235,15 @@ test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scope
   const lockfile = readYamlFileSync<any>('pnpm-lock.yaml')
   const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
 
+  expect(lockfile.importers['project-1'].dependencies['alias'].version).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   // project-2's 101.x dependency must remain unchanged
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe(project2VersionBefore)
   expect(depKeys.filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@101.'))).toStrictEqual([`@pnpm.e2e/dep-of-pkg-with-1-dep@${project2VersionBefore}`])
   // The alias expansion must have resolved 100.1.0 within the 100.x line
   expect(depKeys).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+
+  const project1Manifest = await readPackageJsonFromDir(path.resolve('project-1'))
+  expect(project1Manifest.dependencies?.['alias']).toBe('npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0')
 })
 
 test('recursive update', async () => {
