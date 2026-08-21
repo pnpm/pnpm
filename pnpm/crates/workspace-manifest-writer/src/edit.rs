@@ -6,6 +6,7 @@
 //! format-preserving edits are expressed as targeted text splices for inserts
 //! and a [`yamlpatch`] `Op::Replace` for value updates.
 
+use std::collections::HashSet;
 use std::fmt::Write as _;
 
 use indexmap::IndexMap;
@@ -1409,7 +1410,7 @@ pub(crate) fn prune_allow_builds(
         return false;
     };
 
-    let prunable: Vec<String> = allow_builds
+    let prunable: HashSet<String> = allow_builds
         .iter()
         .filter_map(|(key, value)| {
             let AllowBuildValue::String(val) = value else {
@@ -1513,7 +1514,7 @@ fn remove_flow_entries(
     text: &str,
     block_name: &str,
     decoded_keys: &[String],
-    prunable: &[String],
+    prunable: &HashSet<String>,
 ) -> Option<String> {
     let span = top_level_span(text, block_name)?;
     let block = &text[span.key_line_start..span.block_end];
@@ -1531,7 +1532,7 @@ fn remove_flow_entries(
     let surviving: Vec<&str> = segments
         .iter()
         .zip(decoded_keys)
-        .filter(|(_, key)| !prunable.contains(key))
+        .filter(|&(_, key)| !prunable.contains(key))
         .map(|(segment, _)| segment.trim())
         .collect();
     let rendered = format!("{{ {} }}", surviving.join(", "));

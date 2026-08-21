@@ -8,10 +8,6 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-function resolvedPackageVersions (entries: Record<string, string[]>): Map<string, Set<string>> {
-  return new Map(Object.entries(entries).map(([name, versions]) => [name, new Set(versions)]))
-}
-
 test('remove an undecided allowBuilds entry whose package is not resolved', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
@@ -134,3 +130,7 @@ test('an escaped quoted key is pruned by its decoded name', async () => {
     allowBuilds: { bar: true },
   })
 })
+
+function resolvedPackageVersions (entries: Record<string, string[]>): Map<string, Set<string>> {
+  return new Map(Object.entries(entries).map(([name, versions]) => [name, new Set(versions)]))
+}
