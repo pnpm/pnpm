@@ -62,7 +62,8 @@ use tokio::sync::Semaphore;
 
 use crate::{
     FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
-    FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
+    FetchMetadataError, fetch_full_metadata,
+    fetch_full_metadata_cached::{fetch_full_metadata_bypassing_cache, fetch_full_metadata_cached},
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
         get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed, save_meta_ndjson,
@@ -548,6 +549,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // keeps the behavior intact.
             if let Ok((picked_meta, Some(picked))) =
                 pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), opts.blocked_versions)
+                && !meta.versions.has_corrupt_mirror_fragment()
             {
                 // Promote the disk-loaded packument into the
                 // install-scoped in-memory cache so later resolves
@@ -585,6 +587,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         if let Some(ref meta) = meta_cached_in_store
             && let Ok((picked_meta, Some(picked))) =
                 pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), opts.blocked_versions)
+            && !meta.versions.has_corrupt_mirror_fragment()
         {
             // Same rationale as the version-spec fast path above —
             // promote the disk-loaded packument into the
@@ -641,15 +644,23 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
         if ctx.offline {
             if let Some(meta) = meta_cached_in_store {
-                // maybe_upgrade_abbreviated_meta_for_release_age
-                // short-circuits when offline, so a later cache hit
-                // returns this same meta without any network access.
-                if !opts.dry_run {
-                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
-                }
+                let disk_meta = Arc::clone(&meta);
                 let (meta, picked) =
                     pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
-                return Ok(PickPackageResult { meta, picked_package: picked });
+                // A damaged fragment makes the mirror as unusable
+                // offline as a missing one, and there is no network to
+                // heal it from — fall through to the same error a
+                // missing mirror raises. Checked after the pick because
+                // hydration, and so the damage, is lazy.
+                if !meta.versions.has_corrupt_mirror_fragment() {
+                    // maybe_upgrade_abbreviated_meta_for_release_age
+                    // short-circuits when offline, so a later cache hit
+                    // returns this same meta without any network access.
+                    if !opts.dry_run {
+                        ctx.meta_cache.set_unverified(cache_key.clone(), disk_meta);
+                    }
+                    return Ok(PickPackageResult { meta, picked_package: picked });
+                }
             }
             return Err(PickPackageError::NoOfflineMeta {
                 spec_name: spec.name.clone(),
@@ -679,7 +690,8 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             }
             let (picked_meta, picked) =
                 pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
-            if picked.is_some() {
+            let corrupt_mirror = picked_meta.versions.has_corrupt_mirror_fragment();
+            if picked.is_some() && !corrupt_mirror {
                 // A cache hit re-runs the release-age upgrade check, so
                 // serving this meta from memory can't bypass the upgrade.
                 // The upgrade branch above already cached the registry-
@@ -693,8 +705,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // Fall through to fetch when disk had the meta but no
             // version satisfied the spec — the disk copy may be
             // stale. Restore the (possibly upgraded) meta for later
-            // paths that reuse the in-store load.
-            meta_cached_in_store = Some(meta);
+            // paths that reuse the in-store load, unless a damaged
+            // fragment made it unusable: the fetch below has to replace
+            // it, so it must not resurface as a fallback.
+            if !corrupt_mirror {
+                meta_cached_in_store = Some(meta);
+            }
         }
     }
 
@@ -715,69 +731,100 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         retry_opts: ctx.retry_opts,
     };
 
-    let fetch_result = fetch_full_metadata_cached(&spec.name, &fetch_opts).await;
-    let meta = match fetch_result {
-        Ok(meta) => Arc::new(meta),
-        Err(error) => {
-            // The fetcher already saved a 200 to disk before it
-            // returned (when it returned Ok). If it returned Err,
-            // try the disk fallback: an existing mirror is good
-            // enough to pick from, even if the latest sync failed.
-            //
-            // A private route must fail closed on a `401`/`403`/
-            // private-`404`: a revoked credential or a hidden private
-            // package must not keep serving the last cached packument,
-            // even from its own (same-namespace) mirror. Only a transport
-            // failure (`5xx`/timeout/network) falls back, and only within
-            // the scoped mirror `pkg_mirror` already points at. A public
-            // route (the CLI / public registries) keeps the original
-            // fall-back-on-any-error behavior.
-            let allow_fallback =
-                matches!(scope, MetadataCacheScope::Public) || !error.is_access_denied();
-            let disk_fallback = if allow_fallback {
-                match meta_cached_in_store {
-                    Some(meta) => Some(meta),
-                    None => load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new),
+    // A `304` answers from the on-disk mirror, whose fragments hydrate
+    // lazily, so a damaged one only surfaces once a version is picked.
+    // The etag lives in the mirror's intact headers record, so
+    // re-validating would keep answering `304` and the damage would
+    // outlive every install; one retry with the cache bypassed makes the
+    // registry send a body, which rewrites the file. A bypassing request
+    // sends no validator and so cannot be answered with another `304` —
+    // the loop runs at most twice.
+    let mut bypass_cache = false;
+    let (meta, picked_meta, picked) = loop {
+        let fetch_result = if bypass_cache {
+            fetch_full_metadata_bypassing_cache(&spec.name, &fetch_opts).await
+        } else {
+            fetch_full_metadata_cached(&spec.name, &fetch_opts).await
+        };
+        let meta = match fetch_result {
+            Ok(meta) => Arc::new(meta),
+            Err(error) => {
+                // The fetcher already saved a 200 to disk before it
+                // returned (when it returned Ok). If it returned Err,
+                // try the disk fallback: an existing mirror is good
+                // enough to pick from, even if the latest sync failed.
+                //
+                // A private route must fail closed on a `401`/`403`/
+                // private-`404`: a revoked credential or a hidden private
+                // package must not keep serving the last cached packument,
+                // even from its own (same-namespace) mirror. Only a transport
+                // failure (`5xx`/timeout/network) falls back, and only within
+                // the scoped mirror `pkg_mirror` already points at. A public
+                // route (the CLI / public registries) keeps the original
+                // fall-back-on-any-error behavior.
+                let allow_fallback =
+                    matches!(scope, MetadataCacheScope::Public) || !error.is_access_denied();
+                let disk_fallback = if allow_fallback {
+                    match meta_cached_in_store.take() {
+                        Some(meta) => Some(meta),
+                        None => load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new),
+                    }
+                } else {
+                    None
+                };
+                if let Some(disk) = disk_fallback {
+                    tracing::debug!(
+                        target: "pnpm_resolving_npm_resolver::pick_package",
+                        ?error,
+                        pkg_name = %spec.name,
+                        "metadata fetch failed; falling back to on-disk mirror",
+                    );
+                    let (meta, picked) =
+                        pick_from_meta(&picker_opts, spec, disk, opts.blocked_versions)?;
+                    // A damaged fragment makes this fallback mirror as
+                    // useless as a missing one; surface the fetch
+                    // failure that sent us here rather than a pick made
+                    // off it.
+                    if !meta.versions.has_corrupt_mirror_fragment() {
+                        return Ok(PickPackageResult { meta, picked_package: picked });
+                    }
                 }
-            } else {
-                None
-            };
-            if let Some(disk) = disk_fallback {
-                tracing::debug!(
-                    target: "pnpm_resolving_npm_resolver::pick_package",
-                    ?error,
-                    pkg_name = %spec.name,
-                    "metadata fetch failed; falling back to on-disk mirror",
-                );
-                let (meta, picked) =
-                    pick_from_meta(&picker_opts, spec, disk, opts.blocked_versions)?;
-                return Ok(PickPackageResult { meta, picked_package: picked });
+                return Err(error.into());
             }
-            return Err(error.into());
-        }
-    };
+        };
 
-    let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
-        ctx,
-        spec,
-        opts,
-        full_metadata,
-        &cache_key,
-        meta,
-    )
-    .await?;
-    let mut meta = upgrade.meta;
-    if upgrade.upgraded
-        && !opts.dry_run
-        && let Some(reloaded) = pkg_mirror
-            .as_deref()
-            .and_then(|path| persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata))
-    {
-        meta = Arc::new(reloaded);
-    }
-    if upgrade.upgraded {
-        ctx.fetch_locker.mark_release_age_upgrade_checked(&cache_key, &meta);
-    }
+        let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
+            ctx,
+            spec,
+            opts,
+            full_metadata,
+            &cache_key,
+            meta,
+        )
+        .await?;
+        let mut meta = upgrade.meta;
+        if upgrade.upgraded
+            && !opts.dry_run
+            && let Some(reloaded) = pkg_mirror.as_deref().and_then(|path| {
+                persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata)
+            })
+        {
+            meta = Arc::new(reloaded);
+        }
+        if upgrade.upgraded {
+            ctx.fetch_locker.mark_release_age_upgrade_checked(&cache_key, &meta);
+        }
+
+        // Picking before the in-memory cache write keeps a document
+        // whose mirror turns out to be damaged from being cached at all.
+        let (picked_meta, picked) =
+            pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
+        if picked_meta.versions.has_corrupt_mirror_fragment() && !bypass_cache {
+            bypass_cache = true;
+            continue;
+        }
+        break (meta, picked_meta, picked);
+    };
 
     // Worth flagging: a dry-run is meant to gate the on-disk save, but
     // `fetch_full_metadata_cached` already wrote the response body to
@@ -789,8 +836,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     if !opts.dry_run {
         ctx.meta_cache.set(cache_key, Arc::clone(&meta));
     }
-    let (meta, picked) = pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
-    Ok(PickPackageResult { meta, picked_package: picked })
+    Ok(PickPackageResult { meta: picked_meta, picked_package: picked })
 }
 
 /// Shared cache-hit path. Invoked once on the optimistic pre-permit
@@ -799,11 +845,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 /// re-fetching). Extracting it keeps the two call sites identical so
 /// the upgrade-and-persist side-effects can't drift.
 ///
-/// Returns `Ok(None)` when the hit must not be terminal: the entry is
-/// a registry-unverified disk promotion (see
-/// [`PackageMetaCache::set_unverified`]) whose pick failed, and the
-/// resolver isn't offline. The caller then falls through to the disk +
-/// network flow, whose fetch replaces the entry with a verified one.
+/// Returns `Ok(None)` when the hit must not be terminal, and the caller
+/// falls through to the disk + network flow that replaces the entry:
+/// either the entry is a registry-unverified disk promotion (see
+/// [`PackageMetaCache::set_unverified`]) whose pick failed and the
+/// resolver isn't offline, or the pick hydrated a damaged fragment of
+/// the mirror the entry came from.
 ///
 /// The argument list is wide because the helper consumes everything
 /// the per-call frame already computed (cache key, derived
@@ -850,6 +897,14 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         ctx.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
     }
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
+    // A cached disk promotion whose fragments turn out to be damaged
+    // must not be served: offline resolution falls through to the same
+    // error a missing mirror raises, and online resolution to the fetch
+    // that replaces the file. Hydration is lazy, so an entry cached
+    // after a clean pick can still surface damage on a later one.
+    if meta.versions.has_corrupt_mirror_fragment() {
+        return Ok(None);
+    }
     if picked.is_none() && !ctx.offline && !registry_verified {
         return Ok(None);
     }

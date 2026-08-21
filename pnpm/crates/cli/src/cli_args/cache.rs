@@ -212,11 +212,17 @@ impl CacheCommand {
 
                     let mut cached_versions = Vec::new();
                     let mut non_cached_versions = Vec::new();
+                    // A fragment the index vouched for that no longer parses
+                    // means a damaged file, which the resolver refuses to
+                    // read at all — listing the versions around it would
+                    // report a cache that no install will use.
+                    let mut damaged = false;
 
                     for (version, json_frag) in meta_object.versions.fragments() {
                         let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&json_frag)
                         else {
-                            continue;
+                            damaged = true;
+                            break;
                         };
                         let Some(integrity) = manifest
                             .get("dist")
@@ -238,6 +244,9 @@ impl CacheCommand {
                         } else {
                             non_cached_versions.push(version.clone());
                         }
+                    }
+                    if damaged {
+                        continue;
                     }
 
                     // The output groups versions per registry. The registry
