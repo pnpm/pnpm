@@ -43,6 +43,15 @@ test('createUpdateMatching() does not apply version-line scoping for negated sel
   expect(updateMatching('foo', '1.2.3')).toBeFalsy()
 })
 
+test('createUpdateMatching() scopes exact alias selectors by version line', () => {
+  // Simulates expandUpdateSelectorsForMatching('alias@npm:pkg@100.1.0') → ['alias@npm:pkg@100.1.0', 'pkg@100.1.0']
+  const updateMatching = createUpdateMatching(['alias@npm:pkg@100.1.0', 'pkg@100.1.0'])
+
+  expect(updateMatching('pkg', '100.0.0')).toBeTruthy()
+  expect(updateMatching('pkg', '100.1.0')).toBeTruthy()
+  expect(updateMatching('pkg', '101.0.0')).toBeFalsy()
+})
+
 test('createPreferredVersionsFromPinnedUpdateSpecs() seeds exact and cap selectors', () => {
   const preferredVersions = createPreferredVersionsFromPinnedUpdateSpecs(['js-yaml@3.15.1'])
 

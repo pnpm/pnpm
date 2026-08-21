@@ -165,12 +165,14 @@ test('recursive update --no-save', async () => {
 })
 
 test('recursive update <pkg>@<version> --lockfile-only --no-save does not leak across major lines for transitive targets', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
       dependencies: {
-        '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
       },
     },
     {
@@ -197,6 +199,7 @@ test('recursive update <pkg>@<version> --lockfile-only --no-save does not leak a
 
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe(project2VersionBefore)
   expect(depKeys.filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@101.'))).toStrictEqual([`@pnpm.e2e/dep-of-pkg-with-1-dep@${project2VersionBefore}`])
+  expect(depKeys).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
 })
 
 test('recursive update', async () => {

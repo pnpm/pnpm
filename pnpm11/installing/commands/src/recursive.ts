@@ -441,6 +441,7 @@ export async function recursive (
           & Project
           & Pick<Config, 'bin'>
           & { rangeSpecStyle: RangeSpecStyle }
+          & { preferredVersions?: PreferredVersions, updateMatching?: UpdateMatchingFunction }
 
         interface ActionResult {
           updatedCatalogs?: Catalogs
@@ -498,7 +499,9 @@ export async function recursive (
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
             configByUri: installOpts.configByUri,
+            preferredVersions,
             storeController: store.ctrl,
+            updateMatching,
             resolutionVerifiers: store.resolutionVerifiers,
           }
         )
