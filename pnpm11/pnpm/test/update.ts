@@ -244,6 +244,9 @@ test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scope
 
   const project1Manifest = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(project1Manifest.dependencies?.['alias']).toBe('npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0')
+
+  const project2Manifest = await readPackageJsonFromDir(path.resolve('project-2'))
+  expect(project2Manifest.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('101.0.0')
 })
 
 test('recursive update', async () => {
