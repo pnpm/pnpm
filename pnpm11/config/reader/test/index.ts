@@ -880,7 +880,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
 
     writeYamlFileSync('pnpm-workspace.yaml', { zzzNotASettingZzz: null, configDir: null, 'store-dir': null })
 
-    const { warnings } = await getConfig({
+    const { config, warnings } = await getConfig({
       cliOptions: {},
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: process.cwd(),
@@ -889,6 +889,10 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(warnings).not.toContainEqual(expect.stringContaining('zzzNotASettingZzz'))
     expect(warnings).not.toContainEqual(expect.stringContaining('configDir'))
     expect(warnings).not.toContainEqual(expect.stringContaining('store-dir'))
+    // Reporting decides nothing about what reaches the config: the null is
+    // retained here exactly as a non-null unknown key is.
+    expect(Object.hasOwn(config, 'zzzNotASettingZzz')).toBe(true)
+    expect((config as unknown as Record<string, unknown>)['zzzNotASettingZzz']).toBeNull()
   })
 
   // `pnprServer` is typed `[null, String]`, so a null is a value the setting
