@@ -56,16 +56,17 @@ pub(crate) struct RunCtx<'a> {
 impl CliArgs {
     /// Seed the process-global default-reporter state from the parsed
     /// arguments. The entry point calls this before the pre-command
-    /// checks, which are the first thing that can emit — the state is set
-    /// once, so whoever emits first must already see the real values.
-    /// [`Self::run`] and the install fast path call it again so a direct
-    /// in-process caller is configured too; the repeat calls are no-ops.
+    /// checks, which are the first thing that can emit. Structural settings
+    /// retain their first value, while progress may be updated after lazy
+    /// config loading. [`Self::run`] and the install fast path call this again
+    /// so a direct in-process caller is configured too.
     ///
     /// A `--dir` that cannot be canonicalized is left as given: the same
     /// path fails with a proper diagnostic in [`Self::run`], and the
     /// reporter only uses it to shorten the paths it prints.
     pub fn configure_reporter(&self) {
         let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
+        pnpm_default_reporter::set_progress(self.progress_override().unwrap_or(true));
         configure_default_reporter(
             self.reporter,
             &dir,
@@ -75,6 +76,16 @@ impl CliArgs {
             self.recursive,
             self.command.uses_stderr_reporter(),
         );
+    }
+
+    fn progress_override(&self) -> Option<bool> {
+        if self.no_progress {
+            Some(false)
+        } else if self.progress {
+            Some(true)
+        } else {
+            None
+        }
     }
 
     pub fn run_completion_if_requested(&self) -> miette::Result<bool> {
@@ -110,6 +121,7 @@ impl CliArgs {
         if self.recursive || !self.filter.is_empty() || !self.filter_prod.is_empty() {
             return false;
         }
+        self.configure_reporter();
         let Ok(dir) = dunce::canonicalize(&self.dir) else {
             return false;
         };
@@ -132,7 +144,10 @@ impl CliArgs {
         {
             return false;
         }
-        self.configure_reporter();
+        if let Some(progress) = self.progress_override() {
+            config.progress = progress;
+        }
+        pnpm_default_reporter::set_progress(config.progress);
         let emit = reporter_emit(self.reporter);
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
@@ -171,6 +186,8 @@ impl CliArgs {
             no_proxy,
             recursive,
             reporter,
+            progress,
+            no_progress,
             filter,
             filter_prod,
             workspace_root,
@@ -254,6 +271,12 @@ impl CliArgs {
                 if let Some(store_dir) = store_dir.as_deref() {
                     apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
                 }
+                if no_progress {
+                    cfg.progress = false;
+                } else if progress {
+                    cfg.progress = true;
+                }
+                pnpm_default_reporter::set_progress(cfg.progress);
                 // `--recursive` / `--filter` / `--filter-prod` /
                 // `--workspace-root` are CLI-only upstream (not `.npmrc` /
                 // yaml keys), so the global flags are threaded in here.

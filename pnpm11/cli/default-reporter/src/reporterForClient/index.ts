@@ -74,6 +74,7 @@ export function reporterForClient (
     throttleProgress?: number
     width?: number
     hideAddedPkgsProgress?: boolean
+    hideProgress?: boolean
     hideProgressPrefix?: boolean
     hideLifecycleOutput?: boolean
     hideLifecyclePrefix?: boolean
@@ -139,13 +140,17 @@ export function reporterForClient (
       reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
       reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
       reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
-      reportUpdateCheck(log$.updateCheck, opts),
-      reportProgress(log$, {
+      reportUpdateCheck(log$.updateCheck, opts)
+    )
+    if (!opts.hideProgress) {
+      outputs.push(reportProgress(log$, {
         cwd,
         throttle,
         hideAddedPkgsProgress: opts.hideAddedPkgsProgress,
         hideProgressPrefix: opts.hideProgressPrefix,
-      }),
+      }))
+    }
+    outputs.push(
       ...reportStats(log$, {
         cmd: opts.cmd,
         cwd,
@@ -154,7 +159,7 @@ export function reporterForClient (
         hideProgressPrefix: opts.hideProgressPrefix,
       })
     )
-    if (!opts.appendOnly) {
+    if (!opts.appendOnly && !opts.hideProgress) {
       outputs.push(reportBigTarballProgress(log$))
     }
     if (!opts.isRecursive) {
