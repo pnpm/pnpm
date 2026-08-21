@@ -1,6 +1,6 @@
 use super::{
-    PackageManagerToSync, PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState,
-    SwitchSource, pre_command_plan_from_input, switch_target,
+    KeyIssueReporting, PackageManagerToSync, PreCommandInput, PreCommandPlan, SwitchInput,
+    SwitchProcessState, SwitchSource, pre_command_plan_from_input, switch_target,
 };
 use crate::config_overrides::ConfigOverrides;
 use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
@@ -354,6 +354,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
         check_runtimes: true,
         syncs_env_lockfile_in_pipeline: false,
         emit: SilentReporter::emit,
+        key_issues: KeyIssueReporting::Enforce,
     }
 }
 

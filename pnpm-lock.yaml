@@ -2539,6 +2539,9 @@ importers:
       ci-info:
         specifier: 'catalog:'
         version: 4.4.0
+      didyoumean2:
+        specifier: 'catalog:'
+        version: 7.0.4
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0

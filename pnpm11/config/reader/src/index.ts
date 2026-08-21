@@ -53,6 +53,7 @@ import {
 import { quoteAndJoin } from './quoteAndJoin.js'
 import { transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
+import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
 export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
@@ -81,6 +82,12 @@ export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDeps
 
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
+
+/**
+ * A YAML-language-server schema association, not a setting; tools put it in
+ * config files pnpm reads, so it must not trip the unknown-setting warnings.
+ */
+const SCHEMA_DIRECTIVE_KEY = '$schema'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Lowercase<T> ? '' : '-'}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -326,7 +333,9 @@ export async function getConfig (opts: {
     // The gate below is kebab-based, but only camelCase keys are picked up later.
     const kebabKeys: string[] = []
     for (const key in globalYamlConfig) {
-      if (!isConfigFileKey(kebabCase(key))) {
+      if (key === SCHEMA_DIRECTIVE_KEY) {
+        delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+      } else if (!isConfigFileKey(kebabCase(key))) {
         ignoredKeys.push(key)
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       } else if (!isCamelCase(key)) {
@@ -336,10 +345,14 @@ export async function getConfig (opts: {
     }
     if (ignoredKeys.length > 0 || kebabKeys.length > 0) {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
-      const movable = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key))
+      const movable = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key) && isKnownSettingKey(key))
+      const unrecognized = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key) && !isKnownSettingKey(key))
       const nowhere = ignoredKeys.filter(isRefusedByAProjectManifest)
       if (movable.length > 0) {
         warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(movable)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      }
+      if (unrecognized.length > 0) {
+        warnings.push(`The following settings in the global config file ("${globalYamlConfigPath}") are not recognized by this version of pnpm and were ignored: ${quoteAndAnnotateUnknown(unrecognized)}.`)
       }
       if (nowhere.length > 0) {
         warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndExplain(nowhere)}.`)
@@ -494,9 +507,28 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
-        const ignoredKeys = Object.keys(workspaceManifest).filter(isRefusedByAProjectManifest)
-        if (ignoredKeys.length > 0) {
-          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndExplain(ignoredKeys)}.`)
+        const refusedKeys: string[] = []
+        const unrecognizedKeys: string[] = []
+        const kebabKeys: string[] = []
+        for (const key of Object.keys(workspaceManifest)) {
+          if (key === SCHEMA_DIRECTIVE_KEY) continue
+          if (isRefusedByAProjectManifest(key)) {
+            refusedKeys.push(key)
+          } else if (!isKnownSettingKey(key)) {
+            unrecognizedKeys.push(key)
+            delete workspaceManifest[key as keyof typeof workspaceManifest]
+          } else if (!isCamelCase(key)) {
+            kebabKeys.push(key)
+          }
+        }
+        if (refusedKeys.length > 0) {
+          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndExplain(refusedKeys)}.`)
+        }
+        if (unrecognizedKeys.length > 0) {
+          warnings.push(`The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: ${quoteAndAnnotateUnknown(unrecognizedKeys)}.`)
+        }
+        if (kebabKeys.length > 0) {
+          warnings.push(`The following settings in pnpm-workspace.yaml were ignored because they are not written in camelCase: ${kebabKeys.map(k => `"${k}" (use "${camelcase(k)}")`).join(', ')}.`)
         }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,

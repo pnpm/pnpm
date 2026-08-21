@@ -32,6 +32,7 @@ fn create_config(
 ) -> Config {
     Config {
         ci: false,
+        workspace_key_issues: Default::default(),
         versioning: Default::default(),
         hoist: false,
         hoist_pattern: None,

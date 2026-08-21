@@ -131,6 +131,48 @@ packages:
 }
 
 #[test]
+fn load_at_buckets_the_problem_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        concat!(
+            "$schema: https://json.schemastore.org/pnpm-workspace.json\n",
+            "configDir: /elsewhere\n",
+            "minimumReleaseAg: 100\n",
+            "store-dir: /some-store\n",
+            "nodeLinker: hoisted\n",
+            "globalShims:\n  node: true\n",
+            "packages:\n  - apps/*\n",
+        ),
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.refused, ["configDir"]);
+    assert_eq!(settings.key_issues.unrecognized, ["minimumReleaseAg"]);
+    assert_eq!(settings.key_issues.non_camel_case, ["store-dir"]);
+}
+
+#[test]
+fn load_at_collects_no_issues_from_a_clean_file() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "nodeLinker: hoisted\npackages:\n  - apps/*\ncatalog:\n  react: ^18\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
+}
+
+#[test]
 fn apply_overrides_npmrc_defaults() {
     let yaml = r"
 storeDir: /absolute/store

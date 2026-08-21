@@ -843,6 +843,50 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(warnings).toContainEqual(expect.stringContaining('This is not a pnpm setting'))
   })
 
+  test('a setting unknown to this version of pnpm in pnpm-workspace.yaml is reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      $schema: 'https://json.schemastore.org/pnpm-workspace.json',
+      globalShims: { node: true },
+      minimumReleaseAg: 100,
+      zzzNotASettingZzz: true,
+      nodeLinker: 'hoisted',
+      packages: ['packages/*'],
+      overrides: { foo: '1.0.0' },
+    })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    const unrecognized = warnings.find((warning) => warning.includes('in pnpm-workspace.yaml are not recognized by this version of pnpm'))
+    expect(unrecognized).toContain('"globalShims" (a pnpm v12 setting)')
+    expect(unrecognized).toContain('"minimumReleaseAg" (did you mean "minimumReleaseAge"?)')
+    expect(unrecognized).toContain('"zzzNotASettingZzz"')
+    expect(unrecognized).not.toContain('"nodeLinker"')
+    expect(unrecognized).not.toContain('"packages"')
+    expect(unrecognized).not.toContain('"overrides"')
+    expect(unrecognized).not.toContain('$schema')
+    expect((config as unknown as Record<string, unknown>)['zzzNotASettingZzz']).toBeUndefined()
+  })
+
+  test('a kebab-case spelling of a known setting in pnpm-workspace.yaml is reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { 'store-dir': '/tmp/some-store' })
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toContainEqual(expect.stringContaining('in pnpm-workspace.yaml were ignored because they are not written in camelCase: "store-dir" (use "storeDir")'))
+  })
+
   test('auth and the bootstrap download routes stay out of the manifest', async () => {
     prepareEmpty()
 
@@ -942,6 +986,44 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     for (const warning of aboutConfigDir) {
       expect(warning).not.toContain('Move them to a project-level pnpm-workspace.yaml')
     }
+  })
+
+  test('the global config file distinguishes settings unknown to this version from workspace-only ones', async () => {
+    prepareEmpty()
+
+    const xdgConfigHome = process.cwd()
+    const configDir = path.join(xdgConfigHome, 'pnpm')
+    fs.mkdirSync(configDir, { recursive: true })
+    writeYamlFileSync(path.join(configDir, 'config.yaml'), {
+      globalShims: { node: true },
+      minimumReleaseAg: 100,
+      nodeLinker: 'hoisted',
+      bail: false,
+    })
+
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = xdgConfigHome
+    let warnings: string[]
+    try {
+      ;({ warnings } = await getConfig({
+        cliOptions: {},
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      if (previousXdgConfigHome == null) {
+        delete process.env.XDG_CONFIG_HOME
+      } else {
+        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      }
+    }
+
+    const unrecognized = warnings.find((warning) => warning.includes('in the global config file') && warning.includes('are not recognized by this version of pnpm'))
+    expect(unrecognized).toContain('"globalShims" (a pnpm v12 setting)')
+    expect(unrecognized).toContain('"minimumReleaseAg" (did you mean "minimumReleaseAge"?)')
+    const movable = warnings.find((warning) => warning.includes('Move them to a project-level pnpm-workspace.yaml'))
+    expect(movable).toContain('"nodeLinker"')
+    expect(movable).not.toContain('"globalShims"')
   })
 
   // The global config file's own contents are filtered before the merge, but

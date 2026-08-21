@@ -4,6 +4,7 @@ mod defaults;
 mod env_overlay;
 pub mod esm_node_path_loader;
 mod global_bin_check;
+pub mod known_settings;
 pub mod matcher;
 pub mod naming_cases;
 mod npmrc_auth;
@@ -57,7 +58,7 @@ use crate::defaults::{
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
     PackageExtension, PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
@@ -832,6 +833,11 @@ pub struct Config {
     /// configuration.
     #[default(_code = "default_ci::<Host>(is_ci::cached)")]
     pub ci: bool,
+
+    /// The problem keys of the project's own `pnpm-workspace.yaml` (see
+    /// [`WorkspaceKeyIssues`]), for the CLI to report. Empty when there is no
+    /// workspace manifest or it is clean.
+    pub workspace_key_issues: WorkspaceKeyIssues,
 
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
     /// This makes unlisted dependencies accessible to all packages inside `node_modules`.
@@ -2716,10 +2722,11 @@ impl Config {
             let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
             match fs::read_to_string(&yaml_path) {
                 Ok(text) => {
-                    let settings: WorkspaceSettings =
+                    let mut settings: WorkspaceSettings =
                         serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
                             LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
                         })?;
+                    settings.collect_key_issues(&text);
                     Some((env_dir, Some(settings)))
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
@@ -2987,6 +2994,7 @@ impl Config {
                 if for_self_update {
                     settings.clear_self_update_policy();
                 }
+                self.workspace_key_issues = settings.key_issues.clone();
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
                 // `overrides` reaches `Config` only from the workspace
