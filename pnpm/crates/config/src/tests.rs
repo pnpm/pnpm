@@ -2307,6 +2307,34 @@ pub fn hoisted_node_linker_defaults_prefer_symlinked_executables_on() {
     assert_eq!(config.extra_env.get("NODE_PATH"), None);
 }
 
+/// The CLI's `--config.node-linker` override re-runs the derivation
+/// after [`Config::current`], and it must track the *final* linker: a
+/// `true` derived for the yaml-selected hoisted linker is dropped when
+/// the override selects another linker (pnpm merges CLI options before
+/// its `nodeLinker` switch), while a user-configured value survives.
+#[test]
+pub fn rederiving_prefer_symlinked_executables_follows_a_node_linker_override() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    config.node_linker = crate::NodeLinker::Isolated;
+    config.apply_prefer_symlinked_executables_derivation();
+    assert_eq!(config.prefer_symlinked_executables, None);
+
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "nodeLinker: hoisted\npreferSymlinkedExecutables: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    config.node_linker = crate::NodeLinker::Isolated;
+    config.apply_prefer_symlinked_executables_derivation();
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+}
+
 #[test]
 pub fn yaml_global_virtual_store_dir_wins_over_derivation() {
     let tmp = tempdir().unwrap();

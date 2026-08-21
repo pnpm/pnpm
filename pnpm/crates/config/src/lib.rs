@@ -2539,11 +2539,20 @@ impl Config {
     /// reader. Also re-applied by the CLI's `--config.node-linker`
     /// override, which lands after [`Config::current`] has run.
     ///
+    /// A user-configured value — recorded in `explicit_settings` by
+    /// every config layer — is never touched. Otherwise the derived
+    /// value tracks the *current* linker, so re-running after a linker
+    /// override also clears a `true` derived for a linker that is no
+    /// longer selected (pnpm merges CLI options before its `nodeLinker`
+    /// switch, so its derivation only ever sees the final linker).
+    ///
     /// [`prefer_symlinked_executables`]: Self::prefer_symlinked_executables
     pub fn apply_prefer_symlinked_executables_derivation(&mut self) {
-        if self.prefer_symlinked_executables.is_none() && self.node_linker == NodeLinker::Hoisted {
-            self.prefer_symlinked_executables = Some(true);
+        if self.explicit_settings.contains_key("preferSymlinkedExecutables") {
+            return;
         }
+        self.prefer_symlinked_executables =
+            (self.node_linker == NodeLinker::Hoisted).then_some(true);
     }
 
     /// Restore the smart default store after a higher-precedence config
