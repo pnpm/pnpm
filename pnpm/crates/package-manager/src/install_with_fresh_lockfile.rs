@@ -775,7 +775,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .and_then(|observer| observer.minimum_release_age_exclude_override());
         let can_fast_update_overrides = resolution_observer.is_none();
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
-        let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
+        let link_options = crate::shim_link_options(config, node_linker);
         let filtered_isolated =
             is_partial_workspace_selection(real_importer_ids, selected_importer_ids) && !is_hoisted;
         // Materialise the caller's iterator into a `Vec` so the same
@@ -1538,7 +1538,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 dependency_groups: &dependency_groups,
                 package_manifests: &package_manifests,
                 cas_paths_by_pkg_id,
-                extra_node_paths: &extra_node_paths,
+                link_options: &link_options,
                 workspace_root: lockfile_dir,
                 requester,
                 node_linker,
@@ -1622,7 +1622,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     // The fresh-resolve path never serves an explicit
                     // `pacquet rebuild`; rebuilds always take the frozen path.
                     rebuild: None,
-                    extra_node_paths: &extra_node_paths,
+                    link_options: &link_options,
                 },
             )
             .map_err(InstallWithFreshLockfileError::BuildPhase)?;

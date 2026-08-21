@@ -3,8 +3,8 @@
 use super::{
     AllowBuildPolicy, Arc, AtomicU8, BuildModules, BuildModulesError, Config, DependencyGroup,
     Diagnostic, Display, Error, ExecScriptsPrependNodePath, ExtendedPatchInfo, HashMap,
-    IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, OsStr, PackageKey,
-    PackageMetadata, PatchKeyConflictError, Path, PathBuf, ProjectSnapshot, Reporter,
+    IgnoredScriptsLog, LinkBinsError, LinkBinsOptions, Lockfile, LogEvent, LogLevel, OsStr,
+    PackageKey, PackageMetadata, PatchKeyConflictError, Path, PathBuf, ProjectSnapshot, Reporter,
     ResolvePatchedDependenciesError, SkippedSnapshots, SnapshotEntry, StoreIndexWriter,
     VirtualStoreLayout, direct_dep_names_for_importer, get_patch_info, importer_root_dir,
     link_top_level_bins,
@@ -143,9 +143,9 @@ pub struct BuildPhaseInputs<'a> {
     /// `approve-builds`; `None` for a normal install. See
     /// [`crate::RebuildOptions`].
     pub rebuild: Option<&'a crate::RebuildOptions>,
-    /// [`crate::shim_extra_node_paths`] output, for the post-build
+    /// [`crate::shim_link_options`] output, for the post-build
     /// top-level bin pass.
-    pub extra_node_paths: &'a [String],
+    pub link_options: &'a LinkBinsOptions,
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -184,7 +184,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         publicly_hoisted_for_post_build,
         logged_methods,
         rebuild,
-        extra_node_paths,
+        link_options,
     } = inputs;
 
     let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
@@ -300,7 +300,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         } else {
             &[]
         };
-        link_top_level_bins(&modules_dir, &direct_names, hoisted_names, extra_node_paths)
+        link_top_level_bins(&modules_dir, &direct_names, hoisted_names, link_options)
             .map_err(BuildPhaseError::TopLevelBinLink)?;
     }
 

@@ -260,6 +260,9 @@ pub struct WorkspaceSettings {
     /// `extendNodePath` from `pnpm-workspace.yaml`. See
     /// [`Config::extend_node_path`].
     pub extend_node_path: Option<bool>,
+    /// `preferSymlinkedExecutables` from `pnpm-workspace.yaml`. Unset by
+    /// default: see [`Config::prefer_symlinked_executables`].
+    pub prefer_symlinked_executables: Option<bool>,
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
@@ -1366,6 +1369,9 @@ impl WorkspaceSettings {
 
         if let Some(frozen_lockfile) = self.frozen_lockfile {
             config.frozen_lockfile = Some(frozen_lockfile);
+        }
+        if let Some(prefer_symlinked_executables) = self.prefer_symlinked_executables {
+            config.prefer_symlinked_executables = Some(prefer_symlinked_executables);
         }
         if let Some(save_catalog_name) = self.save_catalog_name {
             config.save_catalog_name = Some(save_catalog_name);

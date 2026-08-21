@@ -24,7 +24,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, PackageBinSource, link_bins_of_packages_context_aware,
+    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages_context_aware,
     link_bins_of_packages_with_excludes, remove_bin,
 };
 use pnpm_config::{
@@ -141,7 +141,7 @@ fn link_global_bins(
             &direct,
             global_bin_dir,
             bins_to_skip,
-            &[],
+            &LinkBinsOptions::default(),
         )
         .map_err(miette::Report::new)
         .wrap_err("link direct global package bins")?;

@@ -878,6 +878,20 @@ pub struct Config {
     #[default(true)]
     pub extend_node_path: bool,
 
+    /// `preferSymlinkedExecutables`: on Unix, link `node_modules/.bin`
+    /// entries as plain symlinks to the target bin file instead of
+    /// writing shell shims. Symlinked bins have no shim to carry a
+    /// `NODE_PATH` block, so [`Config::current`] compensates by
+    /// exporting `NODE_PATH=<virtual-store-dir>/node_modules` to every
+    /// spawned child process. Inert on Windows, where bins always get
+    /// shims.
+    ///
+    /// `None` — the default — means "not configured": the hoisted
+    /// `nodeLinker` then turns it on (see
+    /// [`Self::apply_prefer_symlinked_executables_derivation`]), which
+    /// an explicit `false` prevents.
+    pub prefer_symlinked_executables: Option<bool>,
+
     /// By default, pnpm creates a semistrict `node_modules`, meaning dependencies have access to
     /// undeclared dependencies but modules outside of `node_modules` do not. With this layout,
     /// most of the packages in the ecosystem work with no issues. However, if some tooling only
@@ -2516,6 +2530,22 @@ impl Config {
         }
     }
 
+    /// Turn [`prefer_symlinked_executables`] on when the hoisted
+    /// `nodeLinker` is selected and the user has not configured the
+    /// setting — pnpm's `nodeLinker: hoisted` default. Runs *after* the
+    /// `NODE_PATH` export in [`Config::current`], so the derived `true`
+    /// symlinks bins without exporting `NODE_PATH` (the hoisted layout
+    /// has no hidden store to expose), exactly like pnpm's config
+    /// reader. Also re-applied by the CLI's `--config.node-linker`
+    /// override, which lands after [`Config::current`] has run.
+    ///
+    /// [`prefer_symlinked_executables`]: Self::prefer_symlinked_executables
+    pub fn apply_prefer_symlinked_executables_derivation(&mut self) {
+        if self.prefer_symlinked_executables.is_none() && self.node_linker == NodeLinker::Hoisted {
+            self.prefer_symlinked_executables = Some(true);
+        }
+    }
+
     /// Restore the smart default store after a higher-precedence config
     /// source explicitly clears `storeDir`.
     pub fn reset_store_dir_to_default<Sys>(&mut self, start_dir: &Path)
@@ -3109,6 +3139,24 @@ impl Config {
             .as_deref()
             .map(|dir| vec![dir.join("node_modules").join(".bin")])
             .unwrap_or_default();
+
+        // With `preferSymlinkedExecutables`, `.bin` entries are plain
+        // symlinks with no shim to carry a `NODE_PATH` block, so the
+        // resolution help moves to the environment: expose the virtual
+        // store's hidden `node_modules` to every spawned child process.
+        // `virtual_store_dir` is already anchored at the workspace root
+        // by the re-anchor above — pnpm builds this from
+        // `lockfileDir ?? dir` to the same effect
+        // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
+        // `true` fires — the hoisted-linker derivation below runs after
+        // this block, mirroring pnpm's config-reader ordering.
+        if cfg!(unix) && self.prefer_symlinked_executables == Some(true) {
+            let hidden_modules_dir =
+                pnpm_fs::lexical_normalize(&self.virtual_store_dir.join("node_modules"));
+            self.extra_env
+                .insert("NODE_PATH".to_string(), hidden_modules_dir.display().to_string());
+        }
+        self.apply_prefer_symlinked_executables_derivation();
 
         // With a global virtual store, package directories live outside the
         // project, so Node's upward node_modules walk from their real paths

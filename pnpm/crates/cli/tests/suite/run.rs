@@ -912,3 +912,72 @@ fn run_rejects_regexp_flags_in_a_selector() {
 
     drop(root);
 }
+
+/// With `preferSymlinkedExecutables`, symlinked bins have no shim to
+/// carry a `NODE_PATH` block, so the config exports one pointing at
+/// the virtual store's hidden `node_modules` — pnpm's
+/// `pnpm run with preferSymlinkedExecutables true` test.
+#[cfg(unix)]
+#[test]
+fn run_exports_node_path_when_prefer_symlinked_executables() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker_path = workspace.join("node-path.txt");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {
+            "build": format!(r#"sh -c 'printf %s "$NODE_PATH" > "{}"'"#, marker_path.display()),
+        },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "preferSymlinkedExecutables: true\n")
+        .expect("write pnpm-workspace.yaml");
+
+    pacquet.with_args(["run", "build"]).assert().success();
+    let node_path = fs::read_to_string(&marker_path).expect("read marker");
+    assert!(
+        node_path.contains("node_modules/.pnpm/node_modules"),
+        "NODE_PATH must point at the virtual store's hidden node_modules: {node_path:?}",
+    );
+
+    drop(root);
+}
+
+/// An explicit `virtualStoreDir` redirects the exported `NODE_PATH` —
+/// pnpm's `pnpm run with preferSymlinkedExecutables and custom
+/// virtualStoreDir` test.
+#[cfg(unix)]
+#[test]
+fn run_exports_node_path_from_a_custom_virtual_store_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker_path = workspace.join("node-path.txt");
+    let virtual_store_dir = workspace.join("foo/bar");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {
+            "build": format!(r#"sh -c 'printf %s "$NODE_PATH" > "{}"'"#, marker_path.display()),
+        },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "virtualStoreDir: {}\npreferSymlinkedExecutables: true\n",
+            virtual_store_dir.display(),
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    pacquet.with_args(["run", "build"]).assert().success();
+    let node_path = fs::read_to_string(&marker_path).expect("read marker");
+    let expected = virtual_store_dir.join("node_modules");
+    assert!(
+        node_path.contains(&expected.display().to_string()),
+        "NODE_PATH must point inside the custom virtual store: {node_path:?}",
+    );
+
+    drop(root);
+}

@@ -15,7 +15,7 @@ pub(crate) mod verify_engine;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes};
+use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
 use pnpm_config::{Config, PNPM_VERSION};
 use pnpm_env_installer::pnpm_engine_packages;
 use pnpm_fs::force_symlink_dir;
@@ -524,9 +524,14 @@ fn link_into_global_bin(
     refresh_global_shim_dispatcher(&global_bin, installed, version)?;
 
     let pkgs = read_installed_packages(&installed.install_dir);
-    link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin, &HashSet::new(), &[])
-        .map_err(miette::Report::new)
-        .wrap_err("link the updated pnpm bins")?;
+    link_bins_of_packages_with_excludes::<CmdShimHost>(
+        &pkgs,
+        &global_bin,
+        &HashSet::new(),
+        &LinkBinsOptions::default(),
+    )
+    .map_err(miette::Report::new)
+    .wrap_err("link the updated pnpm bins")?;
 
     let aliases = vec![installed.package_name.to_string()];
     let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));

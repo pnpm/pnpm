@@ -993,8 +993,13 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    link_bins_of_packages_with_excludes::<Sys>(packages, global_bin_dir, bins_to_skip, &[])
-        .map_err(miette::Report::new)
+    link_bins_of_packages_with_excludes::<Sys>(
+        packages,
+        global_bin_dir,
+        bins_to_skip,
+        &pnpm_cmd_shim::LinkBinsOptions::default(),
+    )
+    .map_err(miette::Report::new)
 }
 
 struct ActivationFixture {

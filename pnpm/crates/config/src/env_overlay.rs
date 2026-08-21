@@ -158,6 +158,7 @@ impl WorkspaceSettings {
         json_field!(peers_suffix_max_length, "PEERS_SUFFIX_MAX_LENGTH");
         json_field!(lockfile, "LOCKFILE");
         json_field!(prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
+        json_field!(prefer_symlinked_executables, "PREFER_SYMLINKED_EXECUTABLES");
         json_field!(frozen_lockfile, "FROZEN_LOCKFILE");
         json_field!(deploy_all_files, "DEPLOY_ALL_FILES");
         json_field!(force_legacy_deploy, "FORCE_LEGACY_DEPLOY");
