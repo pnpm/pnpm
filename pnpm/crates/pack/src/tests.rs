@@ -79,16 +79,16 @@ fn tarball_entry_names(tarball: &Path) -> Vec<String> {
         .collect()
 }
 
-// Read the raw ustar typeflag for one entry. The `tar` crate accepts both
-// NUL and `0` as regular-file markers, so checking the decoded entry type
-// would not catch an archive-format regression here.
-fn tarball_entry_typeflag(tarball: &Path, entry_name: &str) -> u8 {
+// Read the raw 512-byte tar header for one entry. The `tar` crate accepts
+// every header form (NUL or `0` typeflags, GNU or POSIX magic), so checking
+// decoded values would not catch an archive-format regression here.
+fn tarball_entry_header(tarball: &Path, entry_name: &str) -> [u8; 512] {
     let file = std::fs::File::open(tarball).unwrap();
     let mut archive = tar::Archive::new(GzDecoder::new(file));
     for entry in archive.entries().unwrap() {
         let entry = entry.unwrap();
         if entry.path().unwrap().to_str() == Some(entry_name) {
-            return entry.header().as_bytes()[156];
+            return *entry.header().as_bytes();
         }
     }
     panic!("entry {entry_name:?} not found in {}", tarball.display());
@@ -169,7 +169,7 @@ fn packs_a_basic_package_to_a_tarball() {
 }
 
 #[test]
-fn packs_regular_files_with_the_posix_regular_typeflag() {
+fn packs_regular_files_with_posix_ustar_headers() {
     let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.2.3" }));
     touch(dir.path(), "index.js", "module.exports = 1\n");
 
@@ -177,11 +177,14 @@ fn packs_regular_files_with_the_posix_regular_typeflag() {
 
     let tarball = dir.path().join("foo-1.2.3.tgz");
     for entry_name in ["package/index.js", "package/package.json"] {
+        let header = tarball_entry_header(&tarball, entry_name);
+        assert_eq!(header[156], b'0', "{entry_name} should use the POSIX regular-file typeflag");
         assert_eq!(
-            tarball_entry_typeflag(&tarball, entry_name),
-            b'0',
-            "{entry_name} should use the POSIX regular-file typeflag",
+            &header[257..263],
+            b"ustar\0",
+            "{entry_name} should carry the POSIX ustar magic",
         );
+        assert_eq!(&header[263..265], b"00", "{entry_name} should carry the POSIX ustar version");
     }
 }
 
