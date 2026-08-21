@@ -515,6 +515,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "base64"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
+
+[[package]]
 name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4034,7 +4040,7 @@ dependencies = [
  "aes-gcm",
  "aes-kw",
  "argon2",
- "base64 0.22.1",
+ "base64 0.21.7",
  "bitfields",
  "block-padding",
  "blowfish 0.9.1",
@@ -4284,7 +4290,7 @@ name = "pnpm-cli"
 version = "0.0.1"
 dependencies = [
  "assert_cmd",
- "base64 0.22.1",
+ "base64 0.23.1",
  "chrono",
  "clap",
  "command-extra",
@@ -4462,7 +4468,7 @@ dependencies = [
 name = "pnpm-crypto-hash"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "sha2",
  "tempfile",
 ]
@@ -4471,7 +4477,7 @@ dependencies = [
 name = "pnpm-crypto-shasums-file"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "derive_more",
  "libc",
  "miette 7.6.0",
@@ -4652,7 +4658,7 @@ dependencies = [
 name = "pnpm-engine-runtime-deno-resolver"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "derive_more",
  "miette 7.6.0",
  "pnpm-lockfile",
@@ -4829,7 +4835,7 @@ dependencies = [
 name = "pnpm-graph-hasher"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "indexmap 2.14.0",
  "pnpm-detect-libc",
  "pretty_assertions",
@@ -5284,7 +5290,7 @@ dependencies = [
 name = "pnpm-publish"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "bytes",
  "derive_more",
  "dialoguer",
@@ -5744,7 +5750,7 @@ version = "0.1.0-alpha.7"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
- "base64 0.22.1",
+ "base64 0.23.1",
  "bcrypt",
  "chrono",
  "clap",
@@ -5799,7 +5805,7 @@ dependencies = [
 name = "pnpr-fixtures"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "clap",
  "flate2",
  "node-semver",
@@ -6640,7 +6646,7 @@ checksum = "7bd22781911de0ca6debda95f073c8f18bec65d1a94f1fa9573f3102e514cea4"
 dependencies = [
  "ahash",
  "annotate-snippets",
- "base64 0.22.1",
+ "base64 0.21.7",
  "encoding_rs_io",
  "getrandom 0.3.4",
  "granit-parser",
