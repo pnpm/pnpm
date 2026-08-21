@@ -1598,7 +1598,7 @@ fn prune_allow_builds_prunes_a_dep_path_key_by_its_package_name() {
         out.as_deref(),
         Some(
             "allowBuilds:\n  foo@git+https://github.com/org/foo.git#0000000000000000000000000000000000000000: set this to true or false\n"
-        )
+        ),
     );
 }
 
