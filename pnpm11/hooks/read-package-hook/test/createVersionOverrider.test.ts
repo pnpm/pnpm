@@ -915,10 +915,19 @@ test('createVersionsOverrider() does not mutate the original manifest', () => {
       },
       newBareSpecifier: '2.12.0',
     },
+    {
+      targetPkg: {
+        name: 'bar',
+      },
+      newBareSpecifier: '2.0.0',
+    },
   ], process.cwd())
   const originalManifest = {
     dependencies: {
       foo: '^1.0.0',
+    },
+    peerDependencies: {
+      bar: '^1.0.0',
     },
   }
   const result = overrider(originalManifest)
@@ -926,8 +935,12 @@ test('createVersionsOverrider() does not mutate the original manifest', () => {
     dependencies: {
       foo: '2.12.0',
     },
+    peerDependencies: {
+      bar: '2.0.0',
+    },
   })
   expect(originalManifest.dependencies.foo).toBe('^1.0.0')
+  expect(originalManifest.peerDependencies.bar).toBe('^1.0.0')
 })
 
 describe('createDependencyOverrider()', () => {
