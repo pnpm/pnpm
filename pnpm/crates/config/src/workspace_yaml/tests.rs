@@ -2535,3 +2535,53 @@ fn load_at_collects_no_issues_from_a_clean_file_carrying_a_schema_line() {
 
     assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
 }
+
+/// A root mapping may itself be indented, and the whole file is then more
+/// indented than column zero without a single key being nested.
+#[test]
+fn load_at_collects_issues_from_an_indented_root_mapping() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "  zzzNotASettingZzz: 1\n  nodeLinker: hoisted\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// Indentation is not measurable where a tab stands in for it, so such a file
+/// is read rather than judged by its shape.
+#[test]
+fn load_at_collects_issues_from_a_tab_indented_file() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "\tzzzNotASettingZzz: 1\n").unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// A nested key is not a setting of this file, so a catalog naming a package
+/// after nothing pnpm knows is not something to report.
+#[test]
+fn load_at_ignores_keys_nested_under_a_setting() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "catalog:\n  zzzNotASettingZzz: ^1\noverrides:\n  alsoNotASetting: 2\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
+}

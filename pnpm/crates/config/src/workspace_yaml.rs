@@ -1248,25 +1248,44 @@ impl WorkspaceSettings {
     /// would report, answered without parsing the file a second time.
     ///
     /// Serde keeps no record of the keys it dropped, so collecting them means
-    /// re-reading the document — which costs as much as the parse that produced
-    /// the settings, on every command, to find nothing in the overwhelmingly
-    /// common case of a file that is simply correct. Every top-level key begins a
-    /// line, so a line walk answers "is there anything to look at" first.
+    /// re-reading the document — which costs as much as the parse that
+    /// produced the settings, on every command, to find nothing in the
+    /// overwhelmingly common case of a file that is simply correct.
     ///
-    /// A line this cannot classify counts as one to look at, so the answer errs
-    /// only towards doing the work, never towards missing a key.
+    /// The top-level keys are the least indented lines of the document, since
+    /// everything a key nests under it is indented further; the root mapping
+    /// may itself be indented, so what marks a top-level key is the smallest
+    /// indentation the file uses rather than column zero. A line this cannot
+    /// measure or classify counts as one to look at, so the answer errs only
+    /// towards re-reading, never towards missing a key.
     fn may_have_key_issues(text: &str) -> bool {
-        text.lines().any(|line| {
-            if line.is_empty() || line.starts_with([' ', '\t', '#']) {
-                return false;
+        let content_lines = text.lines().filter(|line| {
+            let trimmed = line.trim_start();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        });
+        let mut root_indent = usize::MAX;
+        for line in content_lines.clone() {
+            let indent = line.len() - line.trim_start().len();
+            // YAML forbids a tab as indentation, so a file that uses one is
+            // not worth measuring against.
+            if line[..indent].bytes().any(|byte| byte != b' ') {
+                return true;
             }
-            let Some((key, _)) = line.split_once(':') else { return true };
-            let key = key.trim_end();
-            key != SCHEMA_DIRECTIVE_KEY
-                && (!is_camel_case(key)
-                    || !is_known_setting_key(key)
-                    || is_refused_by_a_project_manifest(key))
-        })
+            root_indent = root_indent.min(indent);
+        }
+        if root_indent == usize::MAX {
+            return false;
+        }
+        content_lines.filter(|line| line.len() - line.trim_start().len() == root_indent).any(
+            |line| {
+                let Some((key, _)) = line.trim_start().split_once(':') else { return true };
+                let key = key.trim_end();
+                key != SCHEMA_DIRECTIVE_KEY
+                    && (!is_camel_case(key)
+                        || !is_known_setting_key(key)
+                        || is_refused_by_a_project_manifest(key))
+            },
+        )
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
