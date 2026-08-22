@@ -101,6 +101,13 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// `true` and the registry strips per-version `time`, the verifier
     /// passes the entry instead of failing closed. Default `false`.
     pub ignore_missing_time_field: bool,
+    /// Backs `registrySupportsTimeField`: the registry serves the
+    /// per-version `time` map in abbreviated metadata (Verdaccio
+    /// 5.15.1+, pnpr), so the verifier can take a version's publish
+    /// timestamp from the document it already fetched instead of
+    /// paying an attestation round-trip and a full-packument download
+    /// per cold-cache package. Default `false`.
+    pub registry_supports_time_field: bool,
     /// `'no-downgrade'` enables the trust check;
     /// [`TrustPolicy::Off`] disables it. Stored as an [`Option`] so
     /// `None` and `Some(Off)` both disable the check while still
@@ -171,6 +178,7 @@ pub struct NpmResolutionVerifier {
     cutoff: Option<DateTime<Utc>>,
     minimum_release_age_exclude: Option<PackageVersionPolicy>,
     ignore_missing_time_field: bool,
+    registry_supports_time_field: bool,
     trust_policy: Option<TrustPolicy>,
     trust_policy_exclude: Option<PackageVersionPolicy>,
     trust_policy_ignore_after: Option<u64>,
@@ -204,6 +212,7 @@ impl std::fmt::Debug for NpmResolutionVerifier {
             .field("minimum_release_age_minutes", &self.minimum_release_age_minutes)
             .field("cutoff", &self.cutoff)
             .field("ignore_missing_time_field", &self.ignore_missing_time_field)
+            .field("registry_supports_time_field", &self.registry_supports_time_field)
             .field("trust_policy", &self.trust_policy)
             .field("trust_policy_ignore_after", &self.trust_policy_ignore_after)
             .field("offline", &self.offline)
@@ -262,6 +271,7 @@ pub fn create_npm_resolution_verifier(
         cutoff,
         minimum_release_age_exclude: opts.minimum_release_age_exclude,
         ignore_missing_time_field: opts.ignore_missing_time_field,
+        registry_supports_time_field: opts.registry_supports_time_field,
         trust_policy: opts.trust_policy,
         trust_policy_exclude: opts.trust_policy_exclude,
         trust_policy_ignore_after: opts.trust_policy_ignore_after,
@@ -736,13 +746,19 @@ impl NpmResolutionVerifier {
     ///    timestamps. Costs at most one abbreviated GET per name on
     ///    cold cache; the full-meta fallback below is hundreds of KB
     ///    bigger per package.
-    /// 2. **On-disk full-meta mirror.** If a previous verification
+    /// 2. **Abbreviated per-version `time`** — only with
+    ///    `registrySupportsTimeField`. Registries that serve the `time`
+    ///    map in abbreviated metadata (Verdaccio 5.15.1+, pnpr) already
+    ///    gave us the exact per-version timestamp in the document step 1
+    ///    fetched, so a recent `modified` does not have to escalate to
+    ///    the per-version fallbacks below.
+    /// 3. **On-disk full-meta mirror.** If a previous verification
     ///    populated `<cache_dir>/v11/metadata-full/.../<name>.jsonl`,
     ///    take the per-version timestamp from there with no network.
-    /// 3. **Npm attestation endpoint.** Small payload, just this
+    /// 4. **Npm attestation endpoint.** Small payload, just this
     ///    version's Sigstore-anchored timestamp. Wins on cold cache
     ///    when the package was published with provenance.
-    /// 4. **Full metadata fetch.** Last resort.
+    /// 5. **Full metadata fetch.** Last resort.
     async fn resolve_published_at(
         &self,
         registry: &str,
@@ -750,6 +766,11 @@ impl NpmResolutionVerifier {
         version: &str,
     ) -> Result<Option<String>, String> {
         if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await {
+            return Ok(Some(value));
+        }
+        if self.registry_supports_time_field
+            && let Some(value) = self.abbreviated_version_time(registry, name, version).await
+        {
             return Ok(Some(value));
         }
         if let Some(map) = self.read_local_meta_time(registry, name).await
@@ -796,6 +817,22 @@ impl NpmResolutionVerifier {
         Some(modified)
     }
 
+    /// The pinned version's publish timestamp from the abbreviated
+    /// document's `time` map. Reuses the same cached projection as the
+    /// `modified` shortcut, so with `registrySupportsTimeField` the
+    /// whole lookup stays within the one document the verifier already
+    /// holds. A fetch failure or an absent entry falls through to the
+    /// per-version fallbacks, exactly like the shortcut above.
+    async fn abbreviated_version_time(
+        &self,
+        registry: &str,
+        name: &PkgName,
+        version: &str,
+    ) -> Option<String> {
+        let meta = self.fetch_abbreviated_meta(registry, name).await.ok()?;
+        meta.version_time.as_ref()?.get(version).cloned()
+    }
+
     /// Per-`(registry, name)` abbreviated-meta lookup. The result is
     /// projected down to `(modified, versionNames)` and cached so
     /// repeat verifications of the same package within an install
@@ -828,7 +865,10 @@ impl NpmResolutionVerifier {
         let value = cell
             .get_or_init(|| async {
                 if let Some(shared) = self.read_shared_meta(registry, name) {
-                    return Ok(project_abbreviated_meta(&shared));
+                    return Ok(project_abbreviated_meta(
+                        &shared,
+                        self.registry_supports_time_field,
+                    ));
                 }
                 let opts = FetchFullMetadataCachedOptions {
                     registry,
@@ -847,7 +887,9 @@ impl NpmResolutionVerifier {
                 // from a version genuinely absent from the metadata, otherwise
                 // it reports a 403 as a tampering-style mismatch.
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
-                    Ok(meta) => Ok(project_abbreviated_meta(&meta)),
+                    Ok(meta) => {
+                        Ok(project_abbreviated_meta(&meta, self.registry_supports_time_field))
+                    }
                     Err(error) => Err(render_fetch_metadata_error(&error)),
                 }
             })
@@ -1251,7 +1293,10 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
 /// needs out of a packument document. Works against either the
 /// abbreviated or the full form — both carry `modified` and a
 /// `versions` map with per-version `dist.tarball`.
-fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::AbbreviatedMetaProjection {
+fn project_abbreviated_meta(
+    meta: &Package,
+    include_time: bool,
+) -> crate::lookup_context::AbbreviatedMetaProjection {
     let version_tarballs = meta
         .versions
         .iter()
@@ -1269,10 +1314,21 @@ fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::Abbreviate
                 .then(|| (version.clone(), stats))
         })
         .collect();
+    // `time` also carries package-level `created`/`modified` keys; keeping
+    // them is harmless (lookups are by exact version) and cheaper than
+    // filtering against the versions map.
+    let version_time = include_time.then(|| {
+        meta.time
+            .iter()
+            .flatten()
+            .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_owned())))
+            .collect()
+    });
     crate::lookup_context::AbbreviatedMetaProjection {
         modified: meta.modified.clone(),
         version_tarballs: Some(version_tarballs),
         version_dist_stats: Some(version_dist_stats),
+        version_time,
     }
 }
 

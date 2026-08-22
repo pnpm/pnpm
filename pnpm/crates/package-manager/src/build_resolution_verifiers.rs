@@ -111,6 +111,7 @@ pub fn build_resolution_verifiers(
 
     let opts = CreateNpmResolutionVerifierOptions {
         minimum_release_age: config.resolved_minimum_release_age(),
+        registry_supports_time_field: config.registry_supports_time_field,
         minimum_release_age_exclude: min_age_exclude,
         minimum_release_age_exclude_patterns: config
             .minimum_release_age_exclude
