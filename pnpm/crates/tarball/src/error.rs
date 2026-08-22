@@ -278,6 +278,9 @@ impl TarballError {
 
         let mut source = network.error.source();
         while let Some(error) = source {
+            // Only matches while this crate and `reqwest` resolve the same
+            // major `rustls`; a version split makes the downcast fail
+            // silently rather than break the build.
             if error.is::<rustls::Error>() {
                 details.code = Some("ERR_TLS_HANDSHAKE".to_string());
                 return details;

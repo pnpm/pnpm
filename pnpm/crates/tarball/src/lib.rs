@@ -382,6 +382,12 @@ impl<'a> DownloadTarballToStore<'a> {
         // from disk all fall through to the download path below.
         let cache_key = store_index_cache_key(package_integrity, package_id);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
+        // Deep-clones the inner map, unlike the `Arc`-preserving path
+        // in `run_with_mem_cache`: this signature returns an owned
+        // `HashMap`, and widening it would reach into
+        // `DownloadTarballToStore`'s return type. Affordable because
+        // only cache-miss snapshots reach here, where the clone is
+        // dwarfed by the download it avoids.
         if let Some(prefetched) = prefetched_cas_paths
             && let Some(cache_key) = cache_key.as_deref()
             && let Some(cas_paths) = prefetched.get(cache_key)
@@ -444,8 +450,20 @@ impl<'a> DownloadTarballToStore<'a> {
         let cache_key = store_index_cache_key(package_integrity, package_id);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
         let store_index_writer = self.store_index_writer.clone();
+        // `Option<Arc<IgnoreEntryFilter>>` isn't `Copy`, so it can't
+        // ride along in the deref-destructure above. `.clone()`
+        // here bumps the Arc refcount — cheap, and the trait
+        // object is shared with the install dispatcher that
+        // owns the original.
         let ignore_file_pattern = self.ignore_file_pattern.clone();
 
+        // Offline-mode gate: nothing past this point is served from a
+        // cache. pnpm gates only its metadata path on `--offline`;
+        // pacquet has no metadata path on the frozen-install flow, so
+        // the gate lands here. Error rather than fall through to the
+        // network — same shape as pnpm's `ERR_PNPM_NO_OFFLINE_META`,
+        // scoped to tarballs because that's what pacquet's frozen
+        // install needs network for.
         if self.offline && local_file_tarball_path(package_url).is_none() {
             tracing::warn!(
                 target: "pacquet::download",

@@ -34,6 +34,12 @@ use tokio::{
 
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Floor for a `fetch` that was handed native tarball callbacks. Such a
+/// call is not waiting on the pnpmfile's own code — it is waiting on the
+/// downloads and extractions the installer runs on its behalf, which a
+/// hook-sized budget would abort mid-archive.
+const CALLBACK_FETCH_TIMEOUT: Duration = Duration::from_mins(5);
+
 /// How many requests may be in flight to one worker at a time.
 ///
 /// Callers fan out far wider: the resolver runs `readPackage` once per
@@ -333,7 +339,7 @@ impl NodeWorker {
         }
 
         let request_timeout = if callback_timeout {
-            self.request_timeout.max(Duration::from_mins(5))
+            self.request_timeout.max(CALLBACK_FETCH_TIMEOUT)
         } else {
             self.request_timeout
         };
