@@ -12,7 +12,7 @@ use super::{
     stream_extract_gzipped_tarball, streaming_extract_semaphore,
 };
 use pnpm_network::{
-    AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_and_sanitize,
+    AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_url_for_display,
 };
 use pnpm_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
@@ -446,7 +446,7 @@ pub(crate) fn slow_download_warning(
     let size_ki_b = downloaded / 1_024;
     Some(format!(
         "Tarball download average speed {avg_ki_bps} KiB/s (size {size_ki_b} KiB) is below {fetch_min_speed_ki_bps} KiB/s: {} (GET)",
-        redact_and_sanitize(package_url),
+        redact_url_for_display(package_url),
     ))
 }
 

@@ -48,7 +48,7 @@ fn formats_warning_for_slow_tarball_download() {
             40 * 1024,
             Duration::from_millis(2_001),
             50,
-            "https://user:pass@registry.example.test/pkg.tgz\u{1b}",
+            "https://user:pass@registry.example.test/pkg.tgz?token=secret#fragment\u{1b}",
         ),
         Some(
             "Tarball download average speed 19 KiB/s (size 40 KiB) is below 50 KiB/s: https://registry.example.test/pkg.tgz (GET)"

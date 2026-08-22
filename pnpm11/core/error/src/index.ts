@@ -123,6 +123,20 @@ export function redactAndSanitize (text: string): string {
 }
 
 /**
+ * Make a URL safe for user-visible output without exposing credentials,
+ * query parameters, fragments, or terminal control characters.
+ */
+export function redactUrlForDisplay (url: string): string {
+  const display = redactAndSanitize(url)
+  const queryStart = display.indexOf('?')
+  const fragmentStart = display.indexOf('#')
+  const end = [queryStart, fragmentStart]
+    .filter(index => index !== -1)
+    .reduce((first, index) => Math.min(first, index), display.length)
+  return display.slice(0, end)
+}
+
+/**
  * {@link redactAndSanitize} for text whose line breaks are worth keeping, such
  * as a subprocess's multi-line stderr.
  *

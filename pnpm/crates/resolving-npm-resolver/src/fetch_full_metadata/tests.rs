@@ -20,7 +20,7 @@ fn warns_when_metadata_request_exceeds_configured_timeout() {
     warn_if_request_is_slow(
         &http_client,
         Duration::from_millis(10_001),
-        "https://user:pass@registry.example.test/pkg\u{1b}",
+        "https://user:pass@registry.example.test/pkg?token=secret#fragment\u{1b}",
     );
     warn_if_request_is_slow(
         &http_client,

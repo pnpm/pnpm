@@ -822,6 +822,17 @@ pub fn redact_and_sanitize(text: &str) -> String {
     redact_url_credentials(&sanitized)
 }
 
+/// Make a URL safe for user-visible output without exposing credentials,
+/// query parameters, fragments, or terminal control characters.
+#[must_use]
+pub fn redact_url_for_display(url: &str) -> String {
+    let mut display = redact_and_sanitize(url);
+    if let Some(end) = display.find(['?', '#']) {
+        display.truncate(end);
+    }
+    display
+}
+
 /// [`redact_and_sanitize`] for text whose line breaks are worth keeping, such
 /// as a subprocess's multi-line stderr.
 ///
