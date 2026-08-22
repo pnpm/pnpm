@@ -2544,6 +2544,19 @@ impl Config {
         })
     }
 
+    /// Whether one `pnpm-lock.yaml` covers every project the command
+    /// touches. The `sharedWorkspaceLockfile` setting, which an explicit
+    /// [`lockfile_dir`] overrides: pinning the lockfile to one directory
+    /// *is* the shared layout, and pnpm's recursive dispatch routes such
+    /// a run through its shared-lockfile branch whatever the setting
+    /// says.
+    ///
+    /// [`lockfile_dir`]: Self::lockfile_dir
+    #[must_use]
+    pub fn shares_one_lockfile(&self) -> bool {
+        self.lockfile_dir.is_some() || self.shared_workspace_lockfile
+    }
+
     /// pnpm's `rootProjectManifestDir`: where the root `package.json`,
     /// the config dependencies (`node_modules/.pnpm-config`), and the
     /// pnpmfile a command reads live — `lockfileDir ?? workspaceDir ??

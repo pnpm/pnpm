@@ -169,7 +169,7 @@ impl DeployArgs {
         }
 
         let force_legacy = self.legacy || config.force_legacy_deploy;
-        if config.shared_workspace_lockfile && !force_legacy && !config.inject_workspace_packages {
+        if config.shares_one_lockfile() && !force_legacy && !config.inject_workspace_packages {
             return Err(DeployError::NonInjectedWorkspace.into());
         }
 
@@ -191,7 +191,7 @@ impl DeployArgs {
             !config.deploy_all_files,
         )?;
 
-        if config.shared_workspace_lockfile && !force_legacy {
+        if config.shares_one_lockfile() && !force_legacy {
             match Box::pin(self.deploy_from_shared_lockfile::<ReporterT>(
                 config,
                 workspace_dir,
@@ -203,7 +203,7 @@ impl DeployArgs {
                 SharedDeployOutcome::Deployed => return Ok(()),
                 SharedDeployOutcome::Fallback(warning) => warn::<ReporterT>(&deploy_dir, warning),
             }
-        } else if config.shared_workspace_lockfile && force_legacy {
+        } else if config.shares_one_lockfile() && force_legacy {
             warn::<ReporterT>(
                 &deploy_dir,
                 "Shared workspace lockfile detected but configuration forces legacy deploy implementation.",

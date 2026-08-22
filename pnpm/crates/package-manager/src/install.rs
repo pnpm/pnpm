@@ -89,7 +89,7 @@ use prepare_modules_state::{
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
     build_selected_project_manifests_list, configured_or_discovered_workspace_dir,
-    projects_running_own_scripts, selected_manifest_freshness_inputs,
+    lockfile_root_for, projects_running_own_scripts, selected_manifest_freshness_inputs,
 };
 pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,

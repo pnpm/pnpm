@@ -611,7 +611,7 @@ impl OutdatedArgs {
             include_deprecated: true,
         };
 
-        let shared_lockfile = if config.shared_workspace_lockfile {
+        let shared_lockfile = if config.shares_one_lockfile() {
             state
                 .lockfile
                 .get()
@@ -634,7 +634,7 @@ impl OutdatedArgs {
             if !has_any_dependency {
                 continue;
             }
-            let project_lockfile = if config.shared_workspace_lockfile {
+            let project_lockfile = if config.shares_one_lockfile() {
                 None
             } else {
                 Lockfile::load_wanted_from_dir(project_dir).into_diagnostic()?
@@ -644,7 +644,7 @@ impl OutdatedArgs {
         let run = OutdatedRun::new(config)?;
         let project_queries =
             project_inputs.iter().map(|(project_dir, project, project_lockfile)| async {
-                let (lockfile, importer_id) = if config.shared_workspace_lockfile {
+                let (lockfile, importer_id) = if config.shares_one_lockfile() {
                     (
                         shared_lockfile,
                         pnpm_workspace::importer_id_from_root_dir(&lockfile_root, project_dir),
@@ -653,7 +653,7 @@ impl OutdatedArgs {
                     (project_lockfile.as_ref(), Lockfile::ROOT_IMPORTER_KEY.to_string())
                 };
                 let Some(lockfile) = lockfile else {
-                    let lockfile_dir = if config.shared_workspace_lockfile {
+                    let lockfile_dir = if config.shares_one_lockfile() {
                         lockfile_root.as_path()
                     } else {
                         project_dir.as_path()

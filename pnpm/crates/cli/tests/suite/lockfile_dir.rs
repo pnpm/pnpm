@@ -5,21 +5,33 @@
 //! and the importer ids, which become the paths from the pin down to each
 //! project. Every project keeps its own `node_modules` of symlinks.
 
-use crate::_utils::append_workspace_yaml_key;
+use crate::_utils::{append_workspace_yaml_key, pacquet_in};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use serde_json::json;
 use std::{fs, path::Path, process::Command};
 
-/// The `importers:` keys of the lockfile at `lockfile_dir`.
+/// Whether an install reported the project as already up to date. Read
+/// off the NDJSON stream (which the reporter writes to stderr) because
+/// the default reporter only prints a message whose prefix is the current
+/// directory, and a pinned `lockfileDir` is by definition somewhere else.
+fn reported_up_to_date(ndjson: &str) -> bool {
+    ndjson.lines().any(|line| line.contains(r#""message":"Already up to date""#))
+}
+
+/// The `importers:` keys of the lockfile at `lockfile_dir`, sorted —
+/// the parsed map is a `HashMap`, so only the serialized file is ordered.
 fn importer_ids(lockfile_dir: &Path) -> Vec<String> {
-    pnpm_lockfile::Lockfile::load_wanted_from_dir(lockfile_dir)
+    let mut ids: Vec<String> = pnpm_lockfile::Lockfile::load_wanted_from_dir(lockfile_dir)
         .expect("load pnpm-lock.yaml")
         .expect("pnpm-lock.yaml exists at the pinned lockfile dir")
         .importers
         .into_keys()
-        .collect()
+        .collect();
+    ids.sort_unstable();
+    ids
 }
 
 /// `--lockfile-dir` puts `pnpm-lock.yaml` and the virtual store in a
@@ -117,4 +129,145 @@ fn lockfile_dir_conflicts_with_global() {
     );
 
     drop((root, mock_instance));
+}
+
+/// Adopting `lockfileDir` after an install without it must not let the
+/// repeat-install short-circuit answer for the old layout: the state and
+/// lockfile the previous install left at the workspace root say "up to
+/// date", but nothing has been written at the pin yet.
+#[test]
+fn adopting_lockfile_dir_re_installs_at_the_pin() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    assert!(workspace.join("pnpm-lock.yaml").is_file(), "the first install writes in place");
+
+    append_workspace_yaml_key(&workspace, "lockfileDir", "..");
+    let output = pacquet_in(&workspace)
+        .with_args(["install", "--reporter=ndjson"])
+        .output()
+        .expect("spawn pacquet install");
+    let ndjson = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the re-anchored install must succeed:\n{ndjson}");
+    assert!(
+        !reported_up_to_date(&ndjson),
+        "the pin has no lockfile yet, so the install cannot report up to date:\n{ndjson}",
+    );
+
+    let lockfile_dir = root.path();
+    assert_eq!(importer_ids(lockfile_dir), ["workspace"]);
+    assert!(
+        lockfile_dir.join("node_modules/.pnpm/is-positive@1.0.0").is_dir(),
+        "the virtual store must be materialized under the pin",
+    );
+
+    drop(mock_instance);
+}
+
+/// A repeat install against a pinned lockfile reads the state the
+/// previous one wrote at the pin, so it short-circuits — and the
+/// `verifyDepsBeforeRun` gate reads the same state, so `pnpm run` finds
+/// the dependencies current instead of reinstalling before every script.
+#[cfg(unix)]
+#[test]
+fn a_pinned_install_is_current_for_repeat_installs_and_for_run() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let marker = workspace.join("marker.txt");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+            "scripts": { "hello": format!(r#"touch "{}""#, marker.display()) },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    append_workspace_yaml_key(&workspace, "lockfileDir", "..");
+
+    pacquet.with_arg("install").assert().success();
+
+    let output = pacquet_in(&workspace)
+        .with_args(["install", "--reporter=ndjson"])
+        .output()
+        .expect("spawn pacquet install");
+    let ndjson = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the repeat install must succeed:\n{ndjson}");
+    assert!(
+        reported_up_to_date(&ndjson),
+        "the repeat install must short-circuit on the state written at the pin:\n{ndjson}",
+    );
+
+    let output =
+        pacquet_in(&workspace).with_args(["run", "hello"]).output().expect("spawn pacquet run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "the script must run:\n{stdout}");
+    assert!(marker.is_file(), "the script must have run:\n{stdout}");
+    assert!(
+        !stdout.contains("Cannot check whether dependencies are outdated"),
+        "the gate must find the state the pinned install wrote:\n{stdout}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `sharedWorkspaceLockfile: false` asks for a lockfile per project, but
+/// an explicit `lockfileDir` names the one directory they all share, so
+/// the pin wins — as it does in pnpm, whose recursive dispatch routes any
+/// run with a `lockfileDir` through its shared-lockfile branch.
+#[test]
+fn a_pin_overrides_dedicated_per_project_lockfiles() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_dir = workspace.join("packages/a");
+    fs::create_dir_all(&package_dir).expect("create the workspace package dir");
+    fs::write(
+        package_dir.join("package.json"),
+        json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the package manifest");
+    fs::write(workspace.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
+        .expect("write the root manifest");
+    append_workspace_yaml_key(&workspace, "packages", "\n  - packages/*");
+    append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", false);
+    append_workspace_yaml_key(&workspace, "lockfileDir", "..");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_dir = root.path();
+    assert_eq!(importer_ids(lockfile_dir), ["workspace", "workspace/packages/a"]);
+    assert!(
+        !package_dir.join("pnpm-lock.yaml").exists(),
+        "the pin replaces the per-project lockfiles",
+    );
+    assert!(
+        package_dir.join("node_modules/is-positive/package.json").is_file(),
+        "the workspace package still links its dependency",
+    );
+
+    drop(mock_instance);
 }

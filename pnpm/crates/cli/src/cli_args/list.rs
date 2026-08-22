@@ -207,7 +207,7 @@ impl ListArgs {
 
         let always_print_root_package = self.depth == RecursionLimit::ProjectsOnly;
 
-        if config.shared_workspace_lockfile {
+        if config.shares_one_lockfile() {
             return self
                 .render_projects(
                     config,

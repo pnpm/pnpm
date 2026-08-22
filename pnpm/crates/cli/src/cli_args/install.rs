@@ -340,7 +340,7 @@ impl InstallArgs {
         // project; a single-dir up-to-date probe can't speak for the
         // sibling projects, so the loop (whose per-project engine runs
         // each have their own optimistic short-circuit) must always run.
-        if !config.shared_workspace_lockfile && config.workspace_dir.is_some() {
+        if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
             return false;
         }
         if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
@@ -805,7 +805,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let projects = resolve_projects_for_pnpr(state, selection, link.use_state_lockfile)?;
     let full_workspace_importer_ids = (selection.is_none()
         && link.use_state_lockfile
-        && state.config.shared_workspace_lockfile
+        && state.config.shares_one_lockfile()
         && state.config.workspace_dir.is_some())
     .then(|| {
         let importer_ids: std::collections::HashSet<_> =
@@ -1285,7 +1285,7 @@ fn resolve_projects_for_pnpr(
         return Ok(resolve_workspace_projects(&selection.workspace_root, &selection.projects));
     }
     if use_state_lockfile
-        && state.config.shared_workspace_lockfile
+        && state.config.shares_one_lockfile()
         && let Some(workspace_root) = state.config.workspace_dir.as_deref()
     {
         let (projects, _) = discover_workspace_projects(workspace_root)?;

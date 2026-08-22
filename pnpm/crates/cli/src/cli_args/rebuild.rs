@@ -56,7 +56,7 @@ impl RebuildArgs {
         {
             return Ok(());
         }
-        if !cfg.shared_workspace_lockfile
+        if !cfg.shares_one_lockfile()
             && let Some(workspace_selection) = workspace_selection
         {
             let base_config = cfg.clone();

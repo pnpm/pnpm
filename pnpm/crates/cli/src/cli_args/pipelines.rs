@@ -87,7 +87,7 @@ fn select_install_family_plan<Reporter: self::Reporter>(
         total: Some(selection.projects.len()),
         workspace_prefix: Some(selection.workspace_root.to_string_lossy().into_owned()),
     }));
-    if !cfg.shared_workspace_lockfile {
+    if !cfg.shares_one_lockfile() {
         let mut project_dirs: Vec<PathBuf> = selection.selected_dirs.iter().cloned().collect();
         project_dirs.sort();
         return Ok(InstallFamilyPlan::PerProject(project_dirs));
@@ -248,7 +248,7 @@ impl InstallPipeline {
                 Box::pin(args.run_selected::<Reporter>(state, *selection)).await
             }
             InstallFamilyPlan::Single => {
-                if !cfg.shared_workspace_lockfile
+                if !cfg.shares_one_lockfile()
                     && let Some(workspace_dir) = cfg.workspace_dir.clone()
                 {
                     let cfg: &'static Config = cfg;
@@ -347,7 +347,7 @@ impl AddPipeline {
                 // `--config` targets the workspace's configuration
                 // dependencies, which stay workspace-anchored.
                 if config_dependencies.is_none()
-                    && !cfg.shared_workspace_lockfile
+                    && !cfg.shares_one_lockfile()
                     && cfg.workspace_dir.is_some()
                 {
                     let manifest_dir = manifest_path
@@ -421,7 +421,7 @@ impl UpdatePipeline {
         // mutates only the active project, whose outputs anchor at the
         // project dir.
         if matches!(plan, InstallFamilyPlan::Single)
-            && !cfg.shared_workspace_lockfile
+            && !cfg.shares_one_lockfile()
             && cfg.workspace_dir.is_some()
         {
             let manifest_dir = manifest_path
@@ -533,7 +533,7 @@ impl RemovePipeline {
                 // Dedicated per-project lockfiles: the non-recursive command
                 // mutates only the active project, whose outputs anchor at the
                 // project dir.
-                if !cfg.shared_workspace_lockfile && cfg.workspace_dir.is_some() {
+                if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() {
                     let manifest_dir = manifest_path
                         .parent()
                         .expect("manifest path always has a parent dir")
