@@ -1,12 +1,13 @@
 use super::{
     BinOrigin, LinkBinsError, LinkBinsOptions, PackageBinSource, link_bins, link_bins_of_packages,
+    link_virtual_shims,
 };
 use crate::{
     capabilities::{
         FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsSetExecutable, FsWalkFiles, FsWrite, Host,
+        FsRemoveFile, FsSetExecutable, FsWalkFiles, FsWrite, FsWriteNewAtomic, Host,
     },
-    shim::is_shim_pointing_at,
+    shim::{generate_virtual_sh_shim, is_shim_pointing_at},
 };
 use serde_json::{Value, json};
 use std::{
@@ -24,6 +25,68 @@ use std::fs::metadata;
 #[cfg(windows)]
 use std::fs::remove_file;
 use tempfile::tempdir;
+
+#[test]
+fn virtual_shims_do_not_replace_an_occupied_slot() {
+    let dir = tempdir().unwrap();
+    let shim = dir.path().join("node");
+    write_file(&shim, "another command").unwrap();
+
+    let error = link_virtual_shims::<Host>("node", &["node"], dir.path()).unwrap_err();
+
+    assert!(matches!(error, LinkBinsError::VirtualShimConflict { .. }));
+    assert_eq!(read_to_string(shim).unwrap(), "another command");
+}
+
+#[test]
+fn virtual_shims_roll_back_when_a_later_slot_is_claimed() {
+    use std::io;
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    static WRITES: AtomicUsize = AtomicUsize::new(0);
+    static REMOVED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+    struct FailsSecondWrite;
+    impl FsCreateDirAll for FailsSecondWrite {
+        fn create_dir_all(_: &Path) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl FsReadFile for FailsSecondWrite {
+        fn read_file(path: &Path) -> io::Result<Vec<u8>> {
+            if WRITES.load(Ordering::SeqCst) >= 2 && path.ends_with("node") {
+                return Ok(generate_virtual_sh_shim("runtime", path).into_bytes());
+            }
+            Err(io::Error::from(io::ErrorKind::NotFound))
+        }
+    }
+    impl FsWriteNewAtomic for FailsSecondWrite {
+        fn write_new_atomic(_: &Path, _: &[u8], _: bool) -> io::Result<()> {
+            if WRITES.fetch_add(1, Ordering::SeqCst) == 1 {
+                return Err(io::Error::from(io::ErrorKind::AlreadyExists));
+            }
+            Ok(())
+        }
+    }
+    impl FsRemoveFile for FailsSecondWrite {
+        fn remove_file(path: &Path) -> io::Result<()> {
+            REMOVED.lock().unwrap().push(path.to_path_buf());
+            Ok(())
+        }
+    }
+
+    WRITES.store(0, Ordering::SeqCst);
+    REMOVED.lock().unwrap().clear();
+    let dir = tempdir().unwrap();
+    let error = link_virtual_shims::<FailsSecondWrite>("runtime", &["node", "bun"], dir.path())
+        .unwrap_err();
+
+    assert!(matches!(error, LinkBinsError::VirtualShimConflict { .. }));
+    assert_eq!(*REMOVED.lock().unwrap(), vec![dir.path().join("node")]);
+}
 
 #[test]
 fn writes_shim_flavors_matching_host_platform() {
