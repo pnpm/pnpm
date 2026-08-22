@@ -8,6 +8,8 @@ use pnpm_lockfile::{LockfileResolution, TarballResolution};
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
+/// The full flag matrix, mirroring the TypeScript CLI's prod/dev/optional
+/// resolution in `config/reader/src/index.ts`.
 #[test]
 fn dependency_options_to_dependency_groups() {
     use DependencyGroup::{Dev, Optional, Prod};
@@ -25,7 +27,7 @@ fn dependency_options_to_dependency_groups() {
 
     assert_eq!(
         create_list(InstallDependencyOptions { prod: false, dev: true, no_optional: false }),
-        [Dev, Optional],
+        [Dev],
     );
 
     assert_eq!(
@@ -45,12 +47,12 @@ fn dependency_options_to_dependency_groups() {
 
     assert_eq!(
         create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: false }),
-        [Prod, Dev, Optional],
+        [Prod, Optional],
     );
 
     assert_eq!(
         create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: true }),
-        [Prod, Dev],
+        [Prod],
     );
 }
 

@@ -600,9 +600,9 @@ fn headless_install_without_optional_deps() {
 
 /// TS: `installing only optional deps` (`deps-restorer/test/index.ts:300`).
 /// Upstream drives the programmatic API with `include = { dependencies:
-/// false, devDependencies: false, optionalDependencies: true }`; the
-/// CLI-reachable equivalent is `--dev` (keep dev + optional, drop
-/// production), which exercises the same headless include filtering.
+/// false, devDependencies: false, optionalDependencies: true }`, which no
+/// flag combination reaches. `--dev` is the closest CLI-reachable headless
+/// include filter: it drops the optional group along with the production one.
 #[test]
 fn headless_install_include_filtering_excludes_production_group() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -628,8 +628,8 @@ fn headless_install_include_filtering_excludes_production_group() {
         "the dev dependency must be installed",
     );
     assert!(
-        workspace.join("node_modules/@pnpm.e2e/qar/package.json").exists(),
-        "the optional dependency must be installed",
+        !workspace.join("node_modules/@pnpm.e2e/qar").exists(),
+        "a dev-only install must not install the optional dependency",
     );
 
     drop((root, npmrc_info)); // cleanup

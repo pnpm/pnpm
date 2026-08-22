@@ -75,10 +75,15 @@ impl InstallDependencyOptions {
     /// which filters the types of dependencies to install.
     pub(crate) fn dependency_groups(&self) -> impl Iterator<Item = DependencyGroup> {
         let &InstallDependencyOptions { prod, dev, no_optional } = self;
-        let has_both = prod == dev;
-        let has_prod = has_both || prod;
-        let has_dev = has_both || dev;
-        let has_optional = !no_optional;
+        // `--prod` wins over `--dev`, and a dev-only install drops optional
+        // dependencies along with the production ones.
+        let (has_prod, has_dev, has_optional) = if prod {
+            (true, false, !no_optional)
+        } else if dev {
+            (false, true, false)
+        } else {
+            (true, true, !no_optional)
+        };
         std::iter::empty()
             .chain(has_prod.then_some(DependencyGroup::Prod))
             .chain(has_dev.then_some(DependencyGroup::Dev))
