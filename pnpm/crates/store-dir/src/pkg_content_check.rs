@@ -53,8 +53,8 @@ pub fn pkg_content_mismatch(
     manifest: Option<&serde_json::Value>,
     index_key: &str,
 ) -> Option<PkgContentMismatch> {
-    let (expected_name, expected_version) = key_identity(index_key)?;
     let manifest = manifest?;
+    let (expected_name, expected_version) = split_pkg_id(index_key)?;
     let actual_name = manifest.get("name").and_then(serde_json::Value::as_str);
     let actual_version = manifest.get("version").and_then(serde_json::Value::as_str);
 
@@ -62,6 +62,13 @@ pub fn pkg_content_mismatch(
     let version_differs =
         actual_version.is_some_and(|actual| !same_version(actual, expected_version));
     if !name_differs && !version_differs {
+        return None;
+    }
+    // Every agreeing row has returned by here, so confirming that the
+    // key names a package at all — rather than splitting a `pkg_id`
+    // that merely contains an `@`, such as a tarball URL carrying
+    // credentials — costs nothing on the path every install takes.
+    if node_semver::Version::parse(expected_version).is_err() {
         return None;
     }
     Some(PkgContentMismatch {
@@ -74,19 +81,14 @@ pub fn pkg_content_mismatch(
     })
 }
 
-/// Split a `package_index` key's `pkg_id` half into `name` and
-/// `version`.
-///
-/// Only registry packages have such an id; the version is required to
-/// parse as a semver version so that a `pkg_id` which merely contains an
-/// `@` — a tarball URL with credentials, say — is not mistaken for one.
-fn key_identity(index_key: &str) -> Option<(&str, &str)> {
+/// Split a `package_index` key's `pkg_id` half at the separator between
+/// a registry package's name and version. A `pkg_id` that is a URL or a
+/// git resolution id has no such separator; one that happens to have an
+/// `@` anyway is caught by the semver check in the caller.
+fn split_pkg_id(index_key: &str) -> Option<(&str, &str)> {
     let pkg_id = index_key.rsplit_once('\t').map_or(index_key, |(_, pkg_id)| pkg_id);
     let (name, version) = pkg_id.rsplit_once('@')?;
-    if name.is_empty() || node_semver::Version::parse(version).is_err() {
-        return None;
-    }
-    Some((name, version))
+    (!name.is_empty()).then_some((name, version))
 }
 
 /// Package names are compared case-insensitively, as pnpm compares
