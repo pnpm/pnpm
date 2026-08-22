@@ -512,9 +512,8 @@ where
     pub disable_optimistic_repeat_install: bool,
     /// In-process `readPackage` / `afterAllResolved` hooks supplied by an
     /// embedder (the Node API binding) instead of a `.pnpmfile.cjs` on disk.
-    /// `Some` replaces the disk lookup on the fresh-resolve path entirely;
-    /// `None` (every CLI install) falls back to `finder::load_pnpmfile`.
-    /// Ignored on the frozen path, which performs no resolution.
+    /// `Some` replaces the disk lookup for the install, including custom
+    /// fetchers on the frozen path. `None` loads the configured pnpmfiles.
     pub pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     /// Workspace importers supplied in memory by an embedder (the Node API
     /// binding) instead of discovering them from a `pnpm-workspace.yaml` on

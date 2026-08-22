@@ -294,7 +294,7 @@ impl Update<'_> {
         let workspace_root = crate::install::lockfile_root_dir(config, &manifest_dir)
             .map_err(UpdateError::FindWorkspaceDir)?;
         let read_package_hook = (!save && !config.ignore_pnpmfile)
-            .then(|| update_read_package_hook::<Reporter>(&workspace_root))
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
             .flatten();
         let mut read_package_hooked_manifest_paths = HashSet::new();
         if let Some((hook, log)) = read_package_hook.as_ref() {
@@ -483,7 +483,7 @@ impl Update<'_> {
         )
         .map_err(UpdateError::FindWorkspaceDir)?;
         let read_package_hook = (!save && !config.ignore_pnpmfile)
-            .then(|| update_read_package_hook::<Reporter>(&workspace_root))
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
             .flatten();
         let mut read_package_hooked_manifest_paths = HashSet::new();
         if let Some((hook, log)) = read_package_hook.as_ref() {
@@ -672,8 +672,9 @@ struct SelectedUpdatePreparation {
 
 fn update_read_package_hook<Reporter: self::Reporter>(
     workspace_root: &Path,
+    config: &Config,
 ) -> Option<(Arc<dyn pnpm_hooks::PnpmfileHooks>, pnpm_hooks::LogFn)> {
-    let hook = pnpm_hooks::finder::load_pnpmfile(workspace_root)?;
+    let hook = pnpm_hooks::finder::load_pnpmfiles(workspace_root, config.pnpmfile.as_deref())?;
     let log = hook.source_path().map_or_else(
         || Arc::new(|_| {}) as pnpm_hooks::LogFn,
         |from| {

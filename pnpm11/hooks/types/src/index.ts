@@ -98,11 +98,12 @@ export interface CustomResolver {
  * complete fetchable shape (e.g. `{ tarball, integrity }`) — a custom-typed
  * `delegate` is rejected to keep delegation single-step.
  *
- * This is the only fetch strategy that works in both pnpm and pacquet: the
- * Rust CLI invokes pnpmfile fetchers over IPC where `cafs` and `fetchers`
- * cannot exist (both arrive as `null` there), so a fetcher that supports
- * both stacks should return this envelope rather than calling `fetchers.*`
- * directly.
+ * Both pnpm implementations support this envelope. The Rust CLI also exposes
+ * native `fetchers.localTarball` and `fetchers.remoteTarball` callbacks, but
+ * does not provide the synchronous CAFS writers or the tarball callbacks'
+ * `appendManifest` and `ignoreFilePattern` options. Delegating a locked
+ * archive preserves its original integrity, including when `delegate` omits
+ * or replaces that field.
  */
 export interface CustomFetcherDelegation {
   delegate: Resolution
@@ -128,7 +129,7 @@ export interface CustomFetcher extends ResolutionFetchContract {
    * to delegate to them (e.g., transform a custom resolution to a tarball URL and use
    * fetchers.remoteTarball). Alternatively, return a
    * {@link CustomFetcherDelegation} envelope and pnpm performs the delegation
-   * itself — the portable form that also works in pacquet.
+   * itself. Both forms preserve the original integrity of a locked archive.
    *
    * @param cafs - The content-addressable file system to add package files to
    * @param resolution - The resolution object containing fetch information

@@ -51,41 +51,40 @@ fn empty_dependencies_yields_none() {
     assert_eq!(find_own_runtime_node_major(&snapshot), None);
 }
 
-// --- load_custom_fetcher_picker ---
+// --- load_custom_fetcher_session ---
 
 #[tokio::test]
-async fn load_custom_fetcher_picker_is_none_without_a_pnpmfile() {
-    let tmp = tempfile::tempdir().expect("tempdir");
-    let picker = super::load_custom_fetcher_picker(tmp.path())
-        .await
-        .expect("a missing pnpmfile is not an error");
-    assert!(picker.is_none());
+async fn load_custom_fetcher_session_is_none_without_a_pnpmfile() {
+    let session =
+        super::load_custom_fetcher_session(None).await.expect("a missing pnpmfile is not an error");
+    assert!(session.is_none());
 }
 
 #[tokio::test]
-async fn load_custom_fetcher_picker_is_none_when_pnpmfile_exports_no_fetchers() {
+async fn load_custom_fetcher_session_is_none_when_pnpmfile_exports_no_fetchers() {
     let tmp = tempfile::tempdir().expect("tempdir");
     std::fs::write(tmp.path().join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
         .expect("write pnpmfile");
-    let picker = super::load_custom_fetcher_picker(tmp.path())
+    let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
+    let session = super::load_custom_fetcher_session(hooks.as_ref())
         .await
         .expect("a fetchers-less pnpmfile is not an error");
-    assert!(picker.is_none());
+    assert!(session.is_none());
 }
 
 #[tokio::test]
-async fn load_custom_fetcher_picker_returns_a_picker_for_exported_fetchers() {
+async fn load_custom_fetcher_session_loads_exported_fetchers() {
     let tmp = tempfile::tempdir().expect("tempdir");
     std::fs::write(
         tmp.path().join(".pnpmfile.cjs"),
         "module.exports = { fetchers: [{ canFetch () { return false }, fetch () { return null } }] }\n",
     )
     .expect("write pnpmfile");
-    let picker = super::load_custom_fetcher_picker(tmp.path())
+    let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
+    let session = super::load_custom_fetcher_session(hooks.as_ref())
         .await
-        .expect("a well-formed fetchers export must load")
-        .expect("one exported fetcher must yield a picker");
-    assert!(!picker.is_empty());
+        .expect("a well-formed fetchers export must load");
+    assert!(session.is_some());
 }
 
 /// A pnpmfile that fails to evaluate aborts the install rather than
@@ -93,11 +92,12 @@ async fn load_custom_fetcher_picker_returns_a_picker_for_exported_fetchers() {
 /// the pnpmfile was meant to intercept must not fall through to the
 /// built-in dispatch.
 #[tokio::test]
-async fn load_custom_fetcher_picker_propagates_a_broken_pnpmfile() {
+async fn load_custom_fetcher_session_propagates_a_broken_pnpmfile() {
     let tmp = tempfile::tempdir().expect("tempdir");
     std::fs::write(tmp.path().join(".pnpmfile.cjs"), "throw new Error('pnpmfile exploded')\n")
         .expect("write pnpmfile");
-    let Err(err) = super::load_custom_fetcher_picker(tmp.path()).await else {
+    let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
+    let Err(err) = super::load_custom_fetcher_session(hooks.as_ref()).await else {
         panic!("a throwing pnpmfile must fail the load");
     };
     assert!(

@@ -5619,6 +5619,7 @@ dependencies = [
  "pretty_assertions",
  "rayon",
  "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "ssri",

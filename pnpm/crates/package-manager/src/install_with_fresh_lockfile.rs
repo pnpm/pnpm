@@ -848,7 +848,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             fetch_locker,
             picked_manifest_cache,
             custom_resolvers: custom_resolvers_raw,
-            custom_fetcher_picker,
+            custom_fetcher_session,
             pnpmfile_hook,
         } = resolver_setup::build_resolver_chain::<Reporter>(resolver_setup::ResolverChainInputs {
             config,
@@ -1454,7 +1454,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // routing the cold batch through the mem cache fixes by
             // reusing the in-flight download instead.
             tarball_mem_cache: Some(&tarball_mem_cache),
-            custom_fetcher_picker: custom_fetcher_picker.as_ref(),
+            custom_fetcher_session: custom_fetcher_session.as_ref(),
             // The fresh path's concurrent gate verifies the *previous*
             // lockfile while this run fetches the new graph; the two
             // entry sets differ, so no fetch plan is published and the

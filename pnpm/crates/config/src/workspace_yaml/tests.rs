@@ -266,7 +266,7 @@ fn apply_scope_overrides_an_earlier_layer() {
 
 #[test]
 fn apply_resolves_relative_paths_against_base_dir() {
-    let yaml = "storeDir: ../shared-store\n";
+    let yaml = "storeDir: ../shared-store\npnpmfile: hooks/../custom.cjs\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
     let base = Path::new("/workspace/root");
@@ -277,6 +277,12 @@ fn apply_resolves_relative_paths_against_base_dir() {
     // under test uses so the component separator matches on every
     // platform (Windows uses `\` between joined components).
     assert_eq!(config.store_dir, StoreDir::from(base.join("../shared-store")));
+    assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs")]));
+
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("pnpmfile: [hooks/../custom.cjs, custom.cjs]\n").unwrap();
+    settings.apply_to(&mut config, base);
+    assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs"), base.join("custom.cjs")]));
 }
 
 /// pnpm reads `fetchRetries` / `fetchRetryFactor` /

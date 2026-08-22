@@ -608,9 +608,9 @@ pub(crate) fn current_pnpmfiles(workspace_root: &Path, config: &Config) -> Vec<S
     if config.ignore_pnpmfile {
         return Vec::new();
     }
-    pnpm_hooks::finder::find_pnpmfile(workspace_root)
-        .map(|path| path.to_string_lossy().into_owned())
+    pnpm_hooks::finder::find_pnpmfiles(workspace_root, config.pnpmfile.as_deref())
         .into_iter()
+        .map(|path| path.to_string_lossy().into_owned())
         .collect()
 }
 

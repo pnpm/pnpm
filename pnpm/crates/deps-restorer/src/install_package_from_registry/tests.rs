@@ -127,6 +127,7 @@ fn create_config(
         workspace_dir: None,
         patched_dependencies: None,
         patches_dir: None,
+        pnpmfile: None,
         allow_unused_patches: false,
         config_dependencies: None,
         allow_builds: Default::default(),

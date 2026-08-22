@@ -173,7 +173,7 @@ pub(super) struct ResolverChain {
     pub fetch_locker: pnpm_resolving_npm_resolver::PackumentFetchLocker,
     pub picked_manifest_cache: pnpm_resolving_npm_resolver::PickedManifestCache,
     pub custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>>,
-    pub custom_fetcher_picker: Option<Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
+    pub custom_fetcher_session: Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>,
     pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 }
 
@@ -328,7 +328,9 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
     };
 
     let pnpmfile_hook = pnpmfile_hook_override.or_else(|| {
-        (!config.ignore_pnpmfile).then(|| pnpm_hooks::finder::load_pnpmfile(lockfile_dir)).flatten()
+        (!config.ignore_pnpmfile)
+            .then(|| pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, config.pnpmfile.as_deref()))
+            .flatten()
     });
     let custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>> =
         if let Some(ref hook) = pnpmfile_hook {
@@ -346,7 +348,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
     // rule) and consumed by `CreateVirtualStore` — a custom resolver
     // typically writes the custom-typed resolutions its sibling fetcher
     // materializes.
-    let custom_fetcher_picker = if let Some(ref hook) = pnpmfile_hook {
+    let custom_fetcher_session = if let Some(ref hook) = pnpmfile_hook {
         let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
             tracing::error!(
                 target: "pacquet::install",
@@ -354,9 +356,8 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
             );
             InstallWithFreshLockfileError::CustomFetcherHook(err)
         })?;
-        (!fetchers.is_empty()).then(|| {
-            Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))
-        })
+        (!fetchers.is_empty())
+            .then(|| Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(fetchers)))
     } else {
         None
     };
@@ -401,7 +402,8 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
             requester,
             supported_architectures,
             progress_reported,
-            prefetch_downloads,
+            prefetch_downloads: prefetch_downloads && custom_fetcher_session.is_none(),
+            custom_fetcher_session: custom_fetcher_session.as_ref(),
         },
     ));
 
@@ -419,7 +421,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         fetch_locker,
         picked_manifest_cache,
         custom_resolvers,
-        custom_fetcher_picker,
+        custom_fetcher_session,
         pnpmfile_hook,
     })
 }

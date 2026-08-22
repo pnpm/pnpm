@@ -27,8 +27,7 @@ pub(crate) struct FinderHandle {
 }
 
 /// Resolve every `--find-by` name against the finders exported by the
-/// project's pnpmfiles (the later pnpmfile wins on a name collision,
-/// matching the TypeScript hook merger).
+/// project's pnpmfiles.
 pub(crate) async fn resolve_finders(
     config: &Config,
     lockfile_dir: &Path,
@@ -45,6 +44,16 @@ pub(crate) async fn resolve_finders(
             .await
             .map_err(|err| miette::miette!("loading finders from a pnpmfile: {err}"))?;
         for name in names {
+            if let Some(first) = finders_by_name.get(&name) {
+                let first =
+                    first.source_path().expect("loaded pnpmfile has a source path").display();
+                let second =
+                    hooks.source_path().expect("loaded pnpmfile has a source path").display();
+                return Err(miette::miette!(
+                    code = "ERR_PNPM_DUPLICATE_FINDER",
+                    r#"Finder "{name}" defined in both {first} and {second}"#,
+                ));
+            }
             finders_by_name.insert(name, Arc::clone(&hooks));
         }
     }

@@ -115,6 +115,13 @@ pub enum AllowBuild {
     Undecided(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PnpmfileSetting {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
 impl AllowBuild {
     /// The policy this entry resolves to, or `None` while it is still an
     /// unedited placeholder.
@@ -358,6 +365,8 @@ pub struct WorkspaceSettings {
     pub patched_dependencies: Option<IndexMap<String, String>>,
 
     pub patches_dir: Option<String>,
+
+    pub pnpmfile: Option<PnpmfileSetting>,
 
     /// `allowUnusedPatches` from `pnpm-workspace.yaml`. Default `false`.
     pub allow_unused_patches: Option<bool>,
@@ -1202,6 +1211,7 @@ impl WorkspaceSettings {
         self.hoisting_limits = None;
         self.external_dependencies = None;
         self.patched_dependencies = None;
+        self.pnpmfile = None;
         self.config_dependencies = None;
         self.allow_builds = None;
         self.supported_architectures = None;
@@ -1606,6 +1616,18 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.patches_dir {
             config.patches_dir = Some(v);
+        }
+        if let Some(pnpmfile) = self.pnpmfile {
+            let paths = match pnpmfile {
+                PnpmfileSetting::Single(path) => vec![path],
+                PnpmfileSetting::Multiple(paths) => paths,
+            };
+            config.pnpmfile = Some(
+                paths
+                    .into_iter()
+                    .map(|path| pnpm_fs::lexical_normalize(&base_dir.join(path)))
+                    .collect(),
+            );
         }
         if let Some(v) = self.config_dependencies {
             config.config_dependencies = Some(v);

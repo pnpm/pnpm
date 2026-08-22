@@ -813,6 +813,25 @@ function hasPeerA (context) {
         !output.contains(&format!("{HELLO}@1.0.0")),
         "packages the finder rejected must be pruned: {output}",
     );
+
+    fs::write(
+        workspace.join("duplicate.cjs"),
+        "module.exports = { finders: { hasPeerA: () => false } }",
+    )
+    .expect("write duplicate finder");
+    let mut yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    yaml.push_str("pnpmfile:\n  - .pnpmfile.cjs\n  - duplicate.cjs\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("configure pnpmfiles");
+
+    let output =
+        pacquet_in(&workspace, ["list", "--find-by=hasPeerA"]).output().expect("run pacquet list");
+    assert!(!output.status.success(), "duplicate finder should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_DUPLICATE_FINDER"), "stderr: {stderr}");
+    assert!(stderr.contains(r#"Finder "hasPeerA" defined in both"#), "stderr: {stderr}");
+    assert!(stderr.contains(".pnpmfile.cjs"), "stderr: {stderr}");
+    assert!(stderr.contains("duplicate.cjs"), "stderr: {stderr}");
 }
 
 /// An unknown `--find-by` name fails with the same error code as the

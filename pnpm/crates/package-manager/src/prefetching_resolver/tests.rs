@@ -138,6 +138,7 @@ fn resolver_with_prefetch(
             supported_architectures: None,
             progress_reported: &SharedReportedProgressKeys::default(),
             prefetch_downloads,
+            custom_fetcher_session: None,
         },
     )
 }

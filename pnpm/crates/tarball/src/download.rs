@@ -91,11 +91,13 @@ pub struct DownloadTarballToStore<'a> {
     /// archives before it pinned their hash; pnpm fetches those
     /// unverified, so pacquet does too.
     ///
-    /// An unverified fetch neither reads nor writes an `index.db` row.
-    /// The key such a package is addressed by belongs to the *prepared*
-    /// file set that `GitHostedTarballFetcher` writes after running
-    /// `prepare` + packlist over this download; claiming it here would
-    /// leave the raw archive in the row whenever that pass failed.
+    /// [`Self::run_without_mem_cache`] neither reads nor writes an
+    /// `index.db` row for an unpinned archive. Its fallback key belongs
+    /// to the *prepared* file set that `GitHostedTarballFetcher` writes
+    /// after running `prepare` + packlist; claiming it here would leave
+    /// the raw archive in the row whenever that pass failed.
+    /// [`Self::fetch_and_extract`] can instead index a plain archive by
+    /// its computed integrity.
     pub package_integrity: Option<&'a Integrity>,
     pub package_unpacked_size: Option<usize>,
     /// `dist.fileCount` when the registry published one. Combined with
