@@ -261,8 +261,8 @@ fn a_pin_overrides_dedicated_per_project_lockfiles() {
     let lockfile_dir = root.path();
     assert_eq!(importer_ids(lockfile_dir), ["workspace", "workspace/packages/a"]);
     assert!(
-        !package_dir.join("pnpm-lock.yaml").exists(),
-        "the pin replaces the per-project lockfiles",
+        !package_dir.join("pnpm-lock.yaml").exists() && !workspace.join("pnpm-lock.yaml").exists(),
+        "the pin replaces the per-project lockfiles and leaves none at the workspace root",
     );
     assert!(
         package_dir.join("node_modules/is-positive/package.json").is_file(),
