@@ -17,6 +17,23 @@ fn bool_env_var_only_accepts_lowercase_true_false() {
     assert_eq!(settings.enable_global_virtual_store, None);
 }
 
+#[test]
+fn materialization_settings_read_from_the_environment() {
+    struct EnvMaterialization;
+    impl EnvVar for EnvMaterialization {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
+                "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvMaterialization>();
+    assert_eq!(settings.virtual_store_only, Some(true));
+    assert_eq!(settings.enable_modules_dir, Some(false));
+}
+
 /// An exported-but-empty `PNPM_CONFIG_STORE_DIR=` shouldn't clobber
 /// the configured store path.
 #[test]

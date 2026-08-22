@@ -2923,6 +2923,45 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
 }
 
 #[test]
+pub fn materialization_env_vars_override_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "virtualStoreOnly: false\nenableModulesDir: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithMaterializationEnv;
+    impl EnvVar for HostWithMaterializationEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
+                "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithMaterializationEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithMaterializationEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithMaterializationEnv);
+    host_current_dir!(HostWithMaterializationEnv);
+
+    let config = Config::new().current::<HostWithMaterializationEnv>(tmp.path()).expect("loads");
+    assert!(config.virtual_store_only);
+    assert!(!config.enable_modules_dir);
+    assert_eq!(config.hoist_pattern, Some(vec![]));
+    assert_eq!(config.public_hoist_pattern, Some(vec![]));
+}
+
+#[test]
 pub fn self_update_config_ignores_a_workspace_manifest_that_raises_the_cutoff() {
     let tmp = tempdir().unwrap();
     fs::write(

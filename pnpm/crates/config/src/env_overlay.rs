@@ -151,6 +151,8 @@ impl WorkspaceSettings {
         string_field!(virtual_store_dir, "VIRTUAL_STORE_DIR");
         enum_field!(virtual_store_type, "VIRTUAL_STORE_TYPE", VirtualStoreType);
         json_field!(enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");
+        json_field!(virtual_store_only, "VIRTUAL_STORE_ONLY");
+        json_field!(enable_modules_dir, "ENABLE_MODULES_DIR");
         json_field!(global_shims, "GLOBAL_SHIMS");
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
         enum_field!(package_import_method, "PACKAGE_IMPORT_METHOD", PackageImportMethod);
