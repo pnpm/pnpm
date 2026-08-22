@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import getRegistryName from 'encode-registry'
+import { encodeRegistry } from '@pnpm/config.normalize-registries'
 import { glob } from 'tinyglobby'
 
 export async function cacheListRegistries (opts: { cacheDir: string, registry?: string, registries?: boolean }): Promise<string> {
@@ -13,7 +13,7 @@ export async function cacheList (opts: { cacheDir: string, registry?: string, re
 }
 
 export async function findMetadataFiles (opts: { cacheDir: string, registry?: string }, filter: string[]): Promise<string[]> {
-  const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
+  const prefix = opts.registry ? `${encodeRegistry(opts.registry)}` : '*'
   const patterns = filter.length ? filter.map((filter) => `${prefix}/${filter}.jsonl`) : [`${prefix}/**`]
   const metaFiles = await glob(patterns, {
     cwd: opts.cacheDir,

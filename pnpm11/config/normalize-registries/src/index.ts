@@ -174,3 +174,6 @@ export function registrySupportsTimeField (
     ?? registryContext.registrySupportsTimeField
     ?? false
 }
+
+export { encodeRegistry } from './encodeRegistry.js'
+

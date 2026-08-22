@@ -71,6 +71,36 @@ fn get_registry_name_default_port_omitted() {
     assert_eq!(got, "npm.example");
 }
 
+#[test]
+fn get_registry_name_with_path() {
+    let got =
+        get_registry_name("https://releases.jfrog.io/artifactory/api/npm/coding-agents-npm-a/")
+            .expect("encode");
+    assert_eq!(got, "releases.jfrog.io-artifactory+api+npm+coding-agents-npm-a");
+}
+
+#[test]
+fn get_registry_name_with_port_and_path() {
+    let got = get_registry_name("https://npm.example:8443/registry/A/").expect("encode");
+    assert_eq!(got, "npm.example+8443-registry+A");
+}
+
+#[test]
+fn get_registry_name_with_special_characters_in_path() {
+    assert_eq!(
+        get_registry_name("https://npm.example/path/a+b/").expect("encode"),
+        "npm.example-path+a%2Bb"
+    );
+    assert_eq!(
+        get_registry_name("https://npm.example/path/a:b/").expect("encode"),
+        "npm.example-path+a%3Ab"
+    );
+    assert_eq!(
+        get_registry_name("https://npm.example/path/a%2Bb/").expect("encode"),
+        "npm.example-path+a%252Bb"
+    );
+}
+
 /// Callers (notably the cached fetcher) downgrade to a cache-less
 /// fetch on this error instead of failing the install.
 #[test]
