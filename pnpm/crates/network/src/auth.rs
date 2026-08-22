@@ -818,19 +818,30 @@ pub fn redact_url_credentials(text: &str) -> String {
 /// output.
 #[must_use]
 pub fn redact_and_sanitize(text: &str) -> String {
-    let sanitized: String = text.chars().filter(|character| !character.is_control()).collect();
+    let sanitized = sanitize_control_characters(text);
     redact_url_credentials(&sanitized)
 }
 
 /// Make a URL safe for user-visible output without exposing credentials,
 /// query parameters, fragments, or terminal control characters.
+/// Malformed URLs are replaced entirely because their authority cannot be
+/// redacted reliably.
 #[must_use]
 pub fn redact_url_for_display(url: &str) -> String {
-    let mut display = redact_and_sanitize(url);
-    if let Some(end) = display.find(['?', '#']) {
-        display.truncate(end);
+    let sanitized = sanitize_control_characters(url);
+    let Ok(mut display) = reqwest::Url::parse(&sanitized) else {
+        return "[hidden]".to_string();
+    };
+    if display.set_username("").is_err() || display.set_password(None).is_err() {
+        return "[hidden]".to_string();
     }
-    display
+    display.set_query(None);
+    display.set_fragment(None);
+    display.to_string()
+}
+
+fn sanitize_control_characters(text: &str) -> String {
+    text.chars().filter(|character| !character.is_control()).collect()
 }
 
 /// [`redact_and_sanitize`] for text whose line breaks are worth keeping, such

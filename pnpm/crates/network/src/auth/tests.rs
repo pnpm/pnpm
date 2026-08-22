@@ -242,6 +242,8 @@ fn redact_url_for_display_strips_secrets_and_control_chars() {
     );
     assert_eq!(redact_url_for_display("https://host/pkg#secret"), "https://host/pkg");
     assert_eq!(redact_url_for_display("https://host/pkg"), "https://host/pkg");
+    assert_eq!(redact_url_for_display("https://user:pa?ss@host/pkg"), "[hidden]");
+    assert_eq!(redact_url_for_display("https://user:pa#ss@host/pkg"), "[hidden]");
 }
 
 #[test]
