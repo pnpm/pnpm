@@ -284,7 +284,7 @@ pub(super) fn try_reuse_node(
 
 /// `true` when a node named `name`, locked at `version`, is a `pacquet
 /// update` target at `depth`, and so excluded from reuse. A `None` version
-/// is judged by name alone -- see [`UpdateTargets::covers`]. Past the
+/// is judged by name alone -- see [`crate::UpdateTargets::covers`]. Past the
 /// `--depth` ceiling the update no longer reaches, so every node keeps its
 /// locked resolution.
 fn update_excludes(
