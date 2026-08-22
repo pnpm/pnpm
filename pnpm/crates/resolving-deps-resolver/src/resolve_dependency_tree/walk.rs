@@ -244,9 +244,10 @@ where
     // re-picking. Only plain semver ranges pin; aliased (`npm:`),
     // named-registry, and exotic specifiers keep today's behavior.
     let mut wanted = wanted;
+    let locked_version = prior_key.as_ref().and_then(|key| key.suffix.version_semver());
     if depth > 0
-        && !update_unpins_edge(ctx.update_scope(), &wanted, depth)
-        && let Some(version) = prior_key.as_ref().and_then(|key| key.suffix.version_semver())
+        && !update_unpins_edge(ctx.update_scope(), &wanted, locked_version, depth)
+        && let Some(version) = locked_version
         && wanted
             .bare_specifier
             .as_deref()
@@ -326,7 +327,12 @@ where
             view
         })
         .unwrap_or_default();
-    let update_target = is_update_target(ctx.update_scope(), &wanted, depth);
+    let update_target = is_update_target(
+        ctx.update_scope(),
+        &wanted,
+        prior_key.as_ref().and_then(|key| key.suffix.version_semver()),
+        depth,
+    );
     let cache_key: WantedKey = (
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
@@ -1265,7 +1271,7 @@ pub(super) async fn warm_children_resolutions<Chain>(
                     None,
                     Vec::new(),
                     ctx.update_cache_scope(),
-                    is_update_target(ctx.update_scope(), &wanted, pending.depth + 1),
+                    is_update_target(ctx.update_scope(), &wanted, None, pending.depth + 1),
                 );
                 let _ = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await;
             }

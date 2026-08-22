@@ -26,7 +26,7 @@ use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pnpm_resolving_deps_resolver::{UpdateDepth, is_valid_dependency_alias};
+use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, is_valid_dependency_alias};
 use pnpm_resolving_git_resolver::{
     GitFetchContext, GitResolver, HostedGit, HostedOpts, RealGitProbe, RealGitRunner,
 };
@@ -254,7 +254,7 @@ where
                     config.lockfile_dir_for(manifest_dir),
                     manifest_dir,
                 ),
-                ImporterUpdateSeedPolicy::DropOnly(dropped_pins),
+                ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(dropped_pins)),
             )])
         };
         let catalogs_override = (!updated_catalogs.is_empty()).then(|| {
@@ -411,7 +411,10 @@ where
             }
             let importer_id =
                 pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir);
-            seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
+            seed_policies.insert(
+                importer_id,
+                ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
+            );
             for (name, selectors) in preferred {
                 preferred_versions_override.entry(name).or_default().extend(selectors);
             }
@@ -498,6 +501,12 @@ where
 /// dependency that isn't cataloged, a catalog entry that already resolves to
 /// the wanted version, one the wanted version falls outside of — is left
 /// alone, so an add that needs no resolution still skips it.
+/// Update targets that no selector scoped to a version line: a `catalog:`
+/// re-resolution moves whatever version the catalog entry now names.
+fn unversioned_targets(names: HashSet<String>) -> UpdateTargets {
+    names.into_iter().map(|name| (name, None)).collect()
+}
+
 fn catalog_version_requests(
     package_selectors: &[String],
     manifest: &PackageManifest,
