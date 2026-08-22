@@ -10,7 +10,7 @@ import type {
 } from '@pnpm/deps.graph-builder'
 import * as dp from '@pnpm/deps.path'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
-import { hoist, type HoisterResult, type HoistingLimits } from '@pnpm/installing.linking.real-hoist'
+import { getHoisterPkgId, hoist, type HoisterResult, type HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type {
   LockfileObject,
@@ -177,11 +177,11 @@ async function fetchDeps (
     lockfile: LockfileObject
     /**
      * Every directory a package landed in, in visit order; the first
-     * entry wins for parent → child wiring. Keyed by package id
-     * (`name@version`), not depPath: `toTree` collapses every peer
-     * variant of one version onto the first depPath seen for that id
-     * (its `depPathByPkgId`), so only that depPath reaches this walk.
-     * Keying by the variant-free id is what lets an edge declared
+     * entry wins for parent → child wiring. Keyed by
+     * {@link getHoisterPkgId}, not depPath: the hoister collapses
+     * every peer variant of one version onto one node, so only the
+     * first variant's depPath reaches this walk. Sharing the
+     * hoister's own identity function is what lets an edge declared
      * against another variant still find the copy that survived.
      */
     pkgLocationsByPkgId: Record<string, string[]>
@@ -297,7 +297,7 @@ async function fetchDeps (
       patch: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),
       resolution: pkgSnapshot.resolution,
     }
-    const pkgId = `${pkgName}@${pkgVersion}`
+    const pkgId = getHoisterPkgId(depPath, pkgSnapshot)
     if (!opts.pkgLocationsByPkgId[pkgId]) {
       opts.pkgLocationsByPkgId[pkgId] = []
     }
@@ -349,8 +349,7 @@ function getChildren (
     if (!childDepPath) continue
     const childSnapshot = opts.lockfile.packages?.[childDepPath]
     if (!childSnapshot) continue
-    const { name, version } = nameVerFromPkgSnapshot(childDepPath, childSnapshot)
-    const locations = pkgLocationsByPkgId[`${name}@${version}`]
+    const locations = pkgLocationsByPkgId[getHoisterPkgId(childDepPath, childSnapshot)]
     if (locations) {
       children[childName] = locations[0]
     }

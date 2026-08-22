@@ -1,5 +1,6 @@
 import * as dp from '@pnpm/deps.path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
+import type { PackageSnapshot } from '@pnpm/lockfile.types'
 import {
   type LockfileObject,
   nameVerFromPkgSnapshot,
@@ -22,6 +23,24 @@ import { hoist as _hoist, HoisterDependencyKind, type HoisterResult, type Hoiste
 export type HoistingLimits = 'none' | 'workspaces' | 'dependencies'
 
 export type { HoisterResult }
+
+/**
+ * The identity every peer variant of one package version collapses
+ * onto.
+ *
+ * The hoister emits a single node, and so a single directory, per id:
+ * `toTree` maps the id to the first depPath it sees for it and stamps
+ * that depPath on every variant as the node's `reference`, so only
+ * that one depPath survives into the result. Anything indexing the
+ * hoist result by package has to key *and* look up by this id rather
+ * than by the depPath an edge declares — otherwise every edge on a
+ * collapsed variant finds nothing and drops out of the layout.
+ * `lockfileToHoistedDepGraph` indexes the result this way.
+ */
+export function getHoisterPkgId (depPath: string, pkgSnapshot: PackageSnapshot): string {
+  const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+  return `${name}@${version}`
+}
 
 /**
  * Translate the user-facing {@link HoistingLimits} mode into the
@@ -165,8 +184,8 @@ function toTree (
       if (!pkgSnapshot) {
         throw new LockfileMissingDependencyError(depPath)
       }
-      const { name: pkgName, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const id = `${pkgName}@${version}`
+      const { name: pkgName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const id = getHoisterPkgId(depPath, pkgSnapshot)
       if (!depPathByPkgId.has(id)) {
         depPathByPkgId.set(id, depPath)
       }

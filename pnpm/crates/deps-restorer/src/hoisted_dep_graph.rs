@@ -443,7 +443,7 @@ fn build_dep_graph(
                 // don't live in the virtual store.
                 let Some(dep_key) = spec.version.resolved_key(alias) else { continue };
                 if let Some(locations) =
-                    pkg_locations_by_pkg_id.get(&dep_key.without_peer().to_string())
+                    pkg_locations_by_pkg_id.get(&pnpm_real_hoist::pkg_id(&dep_key))
                     && let Some(first) = locations.first()
                 {
                     direct_deps.insert(alias.to_string(), first.clone());
@@ -513,13 +513,12 @@ struct WalkState<'a> {
     /// Records every directory each package landed in, in visit
     /// order. The first entry wins for parent → child wiring.
     ///
-    /// Keyed by the peer-suffix-free package id, not the snapshot
-    /// key: the hoister collapses every peer variant of one package
-    /// version onto a single node (see `real-hoist`'s
-    /// `TreeCache::dep_key_by_pkg_id`), so only the first-seen
-    /// variant's key reaches the walk. Keying — and looking up — by
-    /// the variant-free id is what lets an edge declared against
-    /// any other variant still find that node's directory.
+    /// Keyed by [`pnpm_real_hoist::pkg_id`], not the snapshot key:
+    /// the hoister collapses every peer variant of one package
+    /// version onto a single node, so only the first-seen variant's
+    /// key reaches this walk. Sharing the hoister's own identity
+    /// function is what lets an edge declared against any other
+    /// variant still find that node's directory.
     pkg_locations_by_pkg_id: BTreeMap<String, Vec<PathBuf>>,
     hoisted_locations: BTreeMap<String, Vec<String>>,
     injection_targets_by_dep_path: BTreeMap<String, Vec<PathBuf>>,
@@ -670,7 +669,7 @@ fn walk_deps(
         state.graph.insert(dir.clone(), node);
         state
             .pkg_locations_by_pkg_id
-            .entry(pkg_key.without_peer().to_string())
+            .entry(pnpm_real_hoist::pkg_id(&pkg_key))
             .or_default()
             .push(dir.clone());
 
@@ -784,7 +783,7 @@ fn compute_children(
         let Some(child_key) = dep_ref.resolve(alias_name) else {
             continue;
         };
-        if let Some(locations) = pkg_locations.get(&child_key.without_peer().to_string())
+        if let Some(locations) = pkg_locations.get(&pnpm_real_hoist::pkg_id(&child_key))
             && let Some(first) = locations.first()
         {
             children.insert(alias_name.to_string(), first.clone());

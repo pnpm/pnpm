@@ -89,6 +89,20 @@ test('lockfileToHoistedDepGraph does not create a file outside node_modules for 
 // against that variant — here `c`'s dependency on `b` — still has to
 // resolve to the copy the surviving node produced, or `b` drops out of
 // `c`'s children and off `c`'s `node_modules/.bin`.
+test('lockfileToHoistedDepGraph wires an edge declared against a collapsed peer variant', async () => {
+  const dir = tempDir(false)
+  const opts = hoistedOpts(dir)
+  opts.storeController = {
+    fetchPackage: () => ({ filesIndexFile: '' }),
+    getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
+  } as unknown as typeof opts.storeController
+
+  const { graph } = await lockfileToHoistedDepGraph(peerVariantLockfile(), null, opts)
+
+  const modulesDir = path.join(dir, 'node_modules')
+  expect(graph[path.join(modulesDir, 'c')].children.b).toBe(path.join(modulesDir, 'b'))
+})
+
 function peerVariantLockfile (): LockfileObject {
   return {
     lockfileVersion: '9.0',
@@ -120,17 +134,3 @@ function peerVariantLockfile (): LockfileObject {
     },
   } as unknown as LockfileObject
 }
-
-test('lockfileToHoistedDepGraph wires an edge declared against a collapsed peer variant', async () => {
-  const dir = tempDir(false)
-  const opts = hoistedOpts(dir)
-  opts.storeController = {
-    fetchPackage: () => ({ filesIndexFile: '' }),
-    getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
-  } as unknown as typeof opts.storeController
-
-  const { graph } = await lockfileToHoistedDepGraph(peerVariantLockfile(), null, opts)
-
-  const modulesDir = path.join(dir, 'node_modules')
-  expect(graph[path.join(modulesDir, 'c')].children.b).toBe(path.join(modulesDir, 'b'))
-})
