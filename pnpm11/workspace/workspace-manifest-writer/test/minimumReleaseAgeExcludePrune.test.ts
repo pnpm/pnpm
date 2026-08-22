@@ -158,6 +158,21 @@ test('keep entries that fail to parse', async () => {
   })
 })
 
+test('keep an empty list untouched', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    minimumReleaseAgeExclude: [],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+    minimumReleaseAgeExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    minimumReleaseAgeExclude: [],
+  })
+})
+
 test('entries added in the same write survive the cleanup', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
