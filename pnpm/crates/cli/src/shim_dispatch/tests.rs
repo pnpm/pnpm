@@ -30,12 +30,13 @@ fn non_shim_argv_is_not_intercepted() {
 fn configured_state_dir_resolves_relative_to_the_machine_state_root() {
     let root = tempfile::tempdir().unwrap();
     let default_state_dir = root.path().join("state/pnpm");
+    let expected_state_dir = dunce::canonicalize(root.path()).unwrap().join("state/custom-state");
     let mut state_dir = default_state_dir.clone();
     apply_state_dir_setting(&mut state_dir, Some("custom-state"), &default_state_dir);
-    assert_eq!(state_dir, root.path().join("state/custom-state"));
+    assert_eq!(state_dir, expected_state_dir);
 
     apply_state_dir_setting(&mut state_dir, Some(""), &default_state_dir);
-    assert_eq!(state_dir, root.path().join("state/custom-state"));
+    assert_eq!(state_dir, expected_state_dir);
 
     let absolute_state_dir = root.path().join("absolute-state");
     apply_state_dir_setting(&mut state_dir, absolute_state_dir.to_str(), &default_state_dir);
