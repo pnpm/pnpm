@@ -147,6 +147,47 @@ test('deploy with a shared lockfile honors --no-optional in the graph and virtua
   expect(retainedOptionalEdges).toStrictEqual([])
 })
 
+// A deployed lockfile must never reference a package the graph filter drops:
+// a later install in the deploy directory would link the missing package and
+// leave the dangling symlinks of https://github.com/pnpm/pnpm/issues/13623.
+test('deploy with a shared lockfile drops excluded direct dependency groups', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+        devDependencies: { '@pnpm.e2e/bar': '100.0.0' },
+        optionalDependencies: { '@pnpm.e2e/qar': '100.0.0' },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    injectWorkspacePackages: true,
+  })
+
+  await execPnpm(['install'])
+
+  const deployDir = path.resolve('deploy')
+  await execPnpm(['--filter=app', 'deploy', '--prod', '--no-optional', deployDir])
+
+  const deployManifest = loadJsonFileSync<Record<string, unknown>>(path.join(deployDir, 'package.json'))
+  expect(deployManifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '100.0.0' })
+  expect(deployManifest.devDependencies).toStrictEqual({})
+  expect(deployManifest.optionalDependencies).toStrictEqual({})
+
+  const deployLockfile = readYamlFileSync<LockfileFile>(path.join(deployDir, 'pnpm-lock.yaml'))
+  const importer = deployLockfile.importers!['.']
+  expect(importer.devDependencies ?? {}).toStrictEqual({})
+  expect(importer.optionalDependencies ?? {}).toStrictEqual({})
+  const graphKeys = Object.keys(deployLockfile.packages ?? {})
+  expect(graphKeys.filter(key => key.startsWith('@pnpm.e2e/bar@') || key.startsWith('@pnpm.e2e/qar@'))).toStrictEqual([])
+})
+
 // `pacquet` is fetched from the real npm registry — registry-mock doesn't
 // carry it (or its platform-specific binary sub-packages), so this test
 // requires the public registry to be reachable. Matches the pattern in

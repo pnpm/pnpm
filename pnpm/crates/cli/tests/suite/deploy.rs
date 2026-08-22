@@ -214,6 +214,80 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
     drop((root, mock_instance));
 }
 
+/// A deployed lockfile must never reference a package the graph prune drops:
+/// a later install in the deploy directory would link the missing package and
+/// leave the dangling symlinks of <https://github.com/pnpm/pnpm/issues/13623>.
+#[test]
+fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
+            "devDependencies": { "@pnpm.e2e/bar": "100.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/qar": "100.0.0" },
+        }),
+    );
+
+    pacquet.with_arg("install").assert().success();
+    // Deploying outside the workspace keeps the follow-up install standalone.
+    let deploy_dir = root.path().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "--no-optional"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
+    let deploy_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(deploy_dir.join("package.json")).unwrap())
+            .unwrap();
+    assert!(
+        deploy_manifest["dependencies"]["@pnpm.e2e/foo"].is_string(),
+        "the production dependency should survive: {deploy_manifest:#}",
+    );
+    for excluded in ["devDependencies", "optionalDependencies"] {
+        assert_eq!(
+            deploy_manifest[excluded],
+            serde_json::json!({}),
+            "the deployed manifest should drop {excluded}: {deploy_manifest:#}",
+        );
+    }
+
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    let importer = deploy_lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY).unwrap();
+    assert!(importer.dev_dependencies.is_none(), "{:#?}", importer.dev_dependencies);
+    assert!(importer.optional_dependencies.is_none(), "{:#?}", importer.optional_dependencies);
+    let graph_keys = deploy_graph_keys(&deploy_dir);
+    for excluded in ["@pnpm.e2e/bar@", "@pnpm.e2e/qar@"] {
+        assert!(
+            !graph_keys.iter().any(|key| key.contains(excluded)),
+            "the deploy lock graph should exclude {excluded}: {graph_keys:#?}",
+        );
+    }
+
+    fs::copy(&npmrc_path, deploy_dir.join(".npmrc")).unwrap();
+    fs::remove_dir_all(deploy_dir.join("node_modules")).unwrap();
+    pacquet_cmd(&deploy_dir).with_args(["install", "--frozen-lockfile"]).assert().success();
+    let dangling = fs::read_dir(deploy_dir.join("node_modules"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| is_symlink_or_junction(path).unwrap() && !path.exists())
+        .collect::<Vec<_>>();
+    assert!(
+        dangling.is_empty(),
+        "installing the deployed lockfile must not create dangling symlinks: {dangling:#?}",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn deploy_from_shared_lockfile_supports_catalog_dependencies() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

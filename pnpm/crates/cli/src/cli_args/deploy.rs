@@ -744,24 +744,36 @@ fn create_deploy_files(
 
     let selected_root = lexical_normalize(&selected.project.root_dir);
     let selected_bases = ResolveBases { file_base: lockfile_dir, link_base: &selected_root };
-    fill_target_dependency_map(
-        &mut target_snapshot.dependencies,
-        input_snapshot.dependencies.as_ref(),
-        &ctx,
-        &selected_bases,
-    )?;
-    fill_target_dependency_map(
-        &mut target_snapshot.dev_dependencies,
-        input_snapshot.dev_dependencies.as_ref(),
-        &ctx,
-        &selected_bases,
-    )?;
-    fill_target_dependency_map(
-        &mut target_snapshot.optional_dependencies,
-        input_snapshot.optional_dependencies.as_ref(),
-        &ctx,
-        &selected_bases,
-    )?;
+    // An excluded group's direct dependencies are left out of both the
+    // deployed manifest and the deployed importer, because the graph prune
+    // below drops the packages they would point at.
+    if dependency_groups.contains(&DependencyGroup::Prod) {
+        fill_target_dependency_map(
+            &mut target_snapshot.dependencies,
+            input_snapshot.dependencies.as_ref(),
+            &ctx,
+            &selected_bases,
+        )?;
+    }
+    if dependency_groups.contains(&DependencyGroup::Dev) {
+        fill_target_dependency_map(
+            &mut target_snapshot.dev_dependencies,
+            input_snapshot.dev_dependencies.as_ref(),
+            &ctx,
+            &selected_bases,
+        )?;
+    }
+    if dependency_groups.contains(&DependencyGroup::Optional) {
+        fill_target_dependency_map(
+            &mut target_snapshot.optional_dependencies,
+            input_snapshot.optional_dependencies.as_ref(),
+            &ctx,
+            &selected_bases,
+        )?;
+    }
+    drop_empty_dependency_map(&mut target_snapshot.dependencies);
+    drop_empty_dependency_map(&mut target_snapshot.dev_dependencies);
+    drop_empty_dependency_map(&mut target_snapshot.optional_dependencies);
 
     let mut packages = HashMap::new();
     if let Some(input_packages) = lockfile.packages.as_ref() {
@@ -892,17 +904,13 @@ fn create_deploy_files(
 
 /// Keep only the dependency graph that the deploy install will materialize.
 ///
-/// The deploy importer and package manifest intentionally retain every direct
-/// dependency group so the generated frozen lockfile still satisfies the
-/// generated manifest. Only the package graph is mode-specific: for example,
-/// `deploy --prod` excludes dev-only and unrelated workspace snapshots from
-/// both the lockfile and the localized virtual store.
+/// The deploy importer already carries just the included dependency groups, so
+/// this walks it in full: `deploy --prod` excludes dev-only and unrelated
+/// workspace snapshots from both the lockfile and the localized virtual store.
 fn prune_deploy_lockfile_graph(lockfile: &mut Lockfile, dependency_groups: &[DependencyGroup]) {
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
     let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else { return };
 
-    let include_prod = dependency_groups.contains(&DependencyGroup::Prod);
-    let include_dev = dependency_groups.contains(&DependencyGroup::Dev);
     let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
     let mut queue = VecDeque::new();
 
@@ -915,15 +923,9 @@ fn prune_deploy_lockfile_graph(lockfile: &mut Lockfile, dependency_groups: &[Dep
                 }
             }
         };
-        if include_prod {
-            enqueue_importer_map(importer.dependencies.as_ref());
-        }
-        if include_dev {
-            enqueue_importer_map(importer.dev_dependencies.as_ref());
-        }
-        if include_optional {
-            enqueue_importer_map(importer.optional_dependencies.as_ref());
-        }
+        enqueue_importer_map(importer.dependencies.as_ref());
+        enqueue_importer_map(importer.dev_dependencies.as_ref());
+        enqueue_importer_map(importer.optional_dependencies.as_ref());
     }
 
     let mut reachable = HashSet::new();
@@ -964,6 +966,13 @@ fn prune_deploy_lockfile_graph(lockfile: &mut Lockfile, dependency_groups: &[Dep
         if packages.is_empty() {
             lockfile.packages = None;
         }
+    }
+}
+
+/// A lockfile importer records a dependency group only when it has entries.
+fn drop_empty_dependency_map(dependencies: &mut Option<ResolvedDependencyMap>) {
+    if dependencies.as_ref().is_some_and(HashMap::is_empty) {
+        *dependencies = None;
     }
 }
 
