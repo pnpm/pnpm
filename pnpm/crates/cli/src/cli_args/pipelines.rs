@@ -39,9 +39,9 @@ pub(crate) struct InstallFamilySelection {
     pub(crate) ordered_dirs: Vec<PathBuf>,
     pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) active_manifest_is_standin: bool,
-    /// The cycles [`recursive::workspace_cycles`] found among the selected
-    /// projects, or `None` when they can be ordered. Computed here, where
-    /// the selection graph lives, and reported by
+    /// The cycles [`pnpm_package_manager::workspace_cycles`] found among
+    /// the selected projects, or `None` when they can be ordered.
+    /// Computed here, where the selection graph lives, and reported by
     /// [`select_install_family_plan`], which has the reporter.
     pub(crate) workspace_cycles: Option<Vec<Vec<PathBuf>>>,
 }
