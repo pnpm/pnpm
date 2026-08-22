@@ -1,10 +1,9 @@
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path};
 
-#[cfg(unix)]
-use command_extra::CommandExtra;
 #[cfg(unix)]
 use std::process::Command;
 
