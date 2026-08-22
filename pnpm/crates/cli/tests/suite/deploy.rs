@@ -140,6 +140,43 @@ fn deploy_from_shared_lockfile_follows_a_pinned_lockfile_dir() {
     drop((root, mock_instance));
 }
 
+/// A pin that does not contain the workspace gives every project an
+/// importer id that climbs out of the lockfile dir, and deploy resolves
+/// each of them by joining onto that dir — paths it refuses on principle.
+/// The shared path cannot describe the layout, so it hands over to the
+/// legacy installer rather than failing the command.
+#[test]
+fn deploy_falls_back_when_the_pinned_lockfile_dir_is_outside_the_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    fs::create_dir_all(root.path().join("side")).unwrap();
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("lockfileDir: ../side\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+
+    pacquet.with_arg("install").assert().success();
+
+    let output = pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .output()
+        .expect("spawn pacquet deploy");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "deploy must fall back, not fail:\n{stdout}\n{stderr}");
+    assert!(
+        stdout.contains("is outside the workspace, so its importer paths cannot be deployed"),
+        "the fallback must say why the shared lockfile was unusable:\n{stdout}",
+    );
+    assert!(
+        is_symlink_or_junction(&workspace.join("deploy/node_modules/lib")).unwrap(),
+        "the legacy deploy still links the prod workspace dependency",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn production_deploy_does_not_require_dev_only_workspace_sources() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

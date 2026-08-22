@@ -236,6 +236,19 @@ impl DeployArgs {
         // it, belong to the lockfile dir — which `lockfileDir` can move
         // away from the workspace this deploy selected its project from.
         let lockfile_dir = config.lockfile_dir_for(workspace_dir);
+        // Every path this deploy resolves is a lockfile-relative importer
+        // id joined onto that dir, and none of them may escape it. A pin
+        // that does not contain the workspace makes each project's id
+        // climb out (`../packages/app`), so the shared path cannot
+        // describe this layout at all: hand it to the legacy installer,
+        // which resolves the deployed manifest on its own.
+        if !same_path(workspace_dir, lockfile_dir) && !is_ancestor_path(lockfile_dir, workspace_dir)
+        {
+            return Ok(SharedDeployOutcome::Fallback(format!(
+                "The lockfile at {} is outside the workspace, so its importer paths cannot be deployed. Falling back to installing without it.",
+                lockfile_dir.display(),
+            )));
+        }
         let Some(lockfile) = Lockfile::load_wanted_from_dir(lockfile_dir)
             .map_err(miette::Report::new)
             .wrap_err("read shared lockfile")?
