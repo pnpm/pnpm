@@ -3,6 +3,7 @@ use super::{
     default_child_concurrency_with_parallelism, default_config_dir, default_fetch_timeout,
     default_store_dir, default_unsafe_perm, default_user_agent, default_workspace_concurrency,
     is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
+    resolve_configured_state_dir,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pnpm_store_dir::{STORE_VERSION, StoreDir};
@@ -16,6 +17,22 @@ use std::path::Path;
 
 fn display_store_dir(store_dir: &StoreDir) -> String {
     store_dir.display().to_string().replace('\\', "/")
+}
+
+#[test]
+fn configured_relative_state_dir_stays_inside_machine_state_root() {
+    let state_root = std::env::temp_dir().join("pnpm-state-root");
+    let default_state_dir = state_root.join("pnpm");
+
+    assert_eq!(
+        resolve_configured_state_dir(&default_state_dir, "nested/../configured"),
+        state_root.join("configured"),
+    );
+    assert_eq!(
+        resolve_configured_state_dir(&default_state_dir, "nested/../../outside"),
+        PathBuf::new(),
+    );
+    assert!(resolve_configured_state_dir(&default_state_dir, "../outside").as_os_str().is_empty());
 }
 
 /// The `home_dir` and `current_dir` capability impls call

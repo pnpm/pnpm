@@ -43,6 +43,9 @@ fn configured_state_dir_resolves_relative_to_the_machine_state_root() {
 
     apply_state_dir_setting(&mut state_dir, Some("relative"), Path::new(""));
     assert!(state_dir.as_os_str().is_empty());
+
+    apply_state_dir_setting(&mut state_dir, Some("../outside"), &default_state_dir);
+    assert!(state_dir.as_os_str().is_empty());
 }
 
 #[test]

@@ -324,6 +324,14 @@ pub fn state_dir_uses_only_trusted_config_sources() {
         config.explicit_settings.get("stateDir"),
         Some(&serde_json::Value::String("from-env".to_string())),
     );
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("XDG_STATE_HOME", state_root.to_str().unwrap()),
+        ("PNPM_CONFIG_STATE_DIR", "../outside"),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert!(config.state_dir.as_os_str().is_empty());
 }
 
 #[test]

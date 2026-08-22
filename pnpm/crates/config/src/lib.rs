@@ -3229,21 +3229,21 @@ impl Config {
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        if let Some(global_settings) = global_settings {
+        if let Some(mut global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
             collect_explicit_settings(&mut self.explicit_settings, &global_settings);
-            let configured_state_dir = global_settings.state_dir.as_deref();
+            let configured_state_dir = global_settings.state_dir.take();
+            let saved_workspace_dir = self.workspace_dir.take();
+            global_settings.apply_to(&mut self, start_dir);
+            self.workspace_dir = saved_workspace_dir;
             if let Some(configured_state_dir) =
-                configured_state_dir.filter(|value| !value.is_empty())
+                configured_state_dir.as_deref().filter(|value| !value.is_empty())
             {
                 self.state_dir =
                     resolve_configured_state_dir(&default_state_dir, configured_state_dir);
             }
-            let saved_workspace_dir = self.workspace_dir.take();
-            global_settings.apply_to(&mut self, start_dir);
-            self.workspace_dir = saved_workspace_dir;
         }
 
         // Layer pnpm-workspace.yaml overrides on top. A missing file is
@@ -3353,15 +3353,17 @@ impl Config {
         // repository, so it overrides the bootstrap default registry too.
         let env_registry_override = env_settings.registry.clone();
         collect_explicit_settings(&mut self.explicit_settings, &env_settings);
-        let configured_state_dir = env_settings.state_dir.as_deref();
-        if let Some(configured_state_dir) = configured_state_dir.filter(|value| !value.is_empty()) {
-            self.state_dir = resolve_configured_state_dir(&default_state_dir, configured_state_dir);
-        }
+        let configured_state_dir = env_settings.state_dir.take();
         let bootstrap = &mut self.package_manager_bootstrap;
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
+        if let Some(configured_state_dir) =
+            configured_state_dir.as_deref().filter(|value| !value.is_empty())
+        {
+            self.state_dir = resolve_configured_state_dir(&default_state_dir, configured_state_dir);
+        }
         if let Some(registry) = env_registry_override {
             let normalized =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };

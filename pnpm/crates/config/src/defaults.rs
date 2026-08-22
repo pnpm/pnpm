@@ -186,17 +186,22 @@ where
 
 /// Resolve a configured `stateDir` without making its meaning depend on the
 /// current project. Relative values replace the default directory's `pnpm`
-/// leaf under the machine state root; without a stable absolute root they
-/// resolve to an empty path so trust and runtime consumers fail closed.
+/// leaf under the machine state root. Values that escape that root, or lack a
+/// stable absolute root, resolve to an empty path so trust and runtime
+/// consumers fail closed.
+#[must_use]
 pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) -> PathBuf {
     let configured = Path::new(configured);
     if configured.is_absolute() {
         return configured.to_path_buf();
     }
-    default_state_dir
-        .parent()
-        .filter(|state_root| state_root.is_absolute())
-        .map_or_else(PathBuf::new, |state_root| state_root.join(configured))
+    let Some(state_root) = default_state_dir.parent().filter(|state_root| state_root.is_absolute())
+    else {
+        return PathBuf::new();
+    };
+    let state_root = pnpm_fs::lexical_normalize(state_root);
+    let resolved = pnpm_fs::lexical_normalize(&state_root.join(configured));
+    if resolved.starts_with(&state_root) { resolved } else { PathBuf::new() }
 }
 
 /// Resolve the default packument-cache directory.
