@@ -369,6 +369,11 @@ pub struct WorkspaceSettings {
 
     pub pnpmfile: Option<PnpmfileSetting>,
 
+    /// `globalPnpmfile`. Unlike [`Self::pnpmfile`] this survives
+    /// [`Self::clear_workspace_only_fields`]: pnpm lists `global-pnpmfile`
+    /// among the keys its global `config.yaml` accepts.
+    pub global_pnpmfile: Option<String>,
+
     /// `allowUnusedPatches` from `pnpm-workspace.yaml`. Default `false`.
     pub allow_unused_patches: Option<bool>,
 
@@ -1618,6 +1623,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.patches_dir {
             config.patches_dir = Some(v);
+        }
+        if let Some(path) = self.global_pnpmfile {
+            config.global_pnpmfile = Some(pnpm_fs::lexical_normalize(&base_dir.join(path)));
         }
         if let Some(pnpmfile) = self.pnpmfile {
             let paths = match pnpmfile {

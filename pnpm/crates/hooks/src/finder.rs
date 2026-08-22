@@ -31,16 +31,28 @@ pub fn load_pnpmfile(root: &Path) -> Option<Arc<dyn PnpmfileHooks>> {
     Some(Arc::new(super::node_runtime::NodeJsHooks::new(file)))
 }
 
-#[must_use]
-pub fn find_pnpmfiles(root: &Path, configured: Option<&[PathBuf]>) -> Vec<PathBuf> {
-    let Some(configured) = configured else {
-        return find_pnpmfile(root).into_iter().collect();
-    };
+/// Which pnpmfiles an install runs, before any of them is read.
+///
+/// `global` is the user-level `globalPnpmfile`. It loads ahead of the project's
+/// own and stays out of `pnpmfileChecksum`, so nothing that trusts the checksum
+/// may treat it as accounted for — the same split pnpm's `requireHooks` makes
+/// with `includeInChecksum: false`.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PnpmfileSelection<'a> {
+    pub configured: Option<&'a [PathBuf]>,
+    pub global: Option<&'a Path>,
+}
 
-    let mut paths = Vec::with_capacity(configured.len());
-    for path in configured {
-        if !paths.contains(path) {
-            paths.push(path.clone());
+#[must_use]
+pub fn find_pnpmfiles(root: &Path, selection: PnpmfileSelection<'_>) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = selection.global.map(Path::to_path_buf).into_iter().collect();
+    let project = match selection.configured {
+        Some(configured) => configured.to_vec(),
+        None => find_pnpmfile(root).into_iter().collect(),
+    };
+    for path in project {
+        if !paths.contains(&path) {
+            paths.push(path);
         }
     }
     paths
@@ -60,11 +72,16 @@ pub struct MissingPnpmfileError {
 /// Every loader validates before it hands a path to Node, so a misconfigured
 /// setting is reported the same way whichever hook the command reaches first.
 pub fn validate_configured_pnpmfiles(
-    configured: Option<&[PathBuf]>,
+    selection: PnpmfileSelection<'_>,
 ) -> Result<(), MissingPnpmfileError> {
-    let Some(configured) = configured else { return Ok(()) };
-    match configured.iter().find(|path| !pnpmfile_exists(path)) {
-        Some(missing) => Err(MissingPnpmfileError { path: missing.clone() }),
+    // Discovery is the only source that may come back empty without complaint,
+    // so both explicitly named sources are checked and the default is not.
+    let mut named = selection
+        .global
+        .into_iter()
+        .chain(selection.configured.unwrap_or(&[]).iter().map(PathBuf::as_path));
+    match named.find(|path| !pnpmfile_exists(path)) {
+        Some(missing) => Err(MissingPnpmfileError { path: missing.to_path_buf() }),
         None => Ok(()),
     }
 }
@@ -93,20 +110,26 @@ fn pnpmfile_exists(path: &Path) -> bool {
 /// lists them. `Ok(None)` means the project has no pnpmfile at all.
 pub fn load_pnpmfiles(
     root: &Path,
-    configured: Option<&[PathBuf]>,
+    selection: PnpmfileSelection<'_>,
 ) -> Result<Option<Arc<dyn PnpmfileHooks>>, MissingPnpmfileError> {
-    let paths = find_pnpmfiles(root, configured);
-    validate_configured_pnpmfiles(configured)?;
-    let mut hooks: Vec<_> = paths.into_iter().map(load_pnpmfile_at).collect();
-    Ok(match hooks.len() {
-        0 => None,
-        1 => hooks.pop(),
-        _ => Some(Arc::new(CombinedPnpmfileHooks { hooks })),
+    let paths = find_pnpmfiles(root, selection);
+    validate_configured_pnpmfiles(selection)?;
+    let checksum_skips = usize::from(selection.global.is_some());
+    let hooks: Vec<_> = paths.into_iter().map(load_pnpmfile_at).collect();
+    Ok(match (hooks.len(), checksum_skips) {
+        (0, _) => None,
+        // A lone project pnpmfile answers for its own checksum. Anything else
+        // has to go through the wrapper, including a lone global one: its hash
+        // must not become the project's.
+        (1, 0) => hooks.into_iter().next(),
+        _ => Some(Arc::new(CombinedPnpmfileHooks { hooks, checksum_skips })),
     })
 }
 
 struct CombinedPnpmfileHooks {
     hooks: Vec<Arc<dyn PnpmfileHooks>>,
+    /// How many leading entries of [`Self::hooks`] the checksum leaves out.
+    checksum_skips: usize,
 }
 
 #[async_trait]
@@ -162,8 +185,10 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
             return None;
         }
 
-        let mut paths: Vec<&Path> =
-            self.hooks.iter().filter_map(|hook| hook.source_path()).collect();
+        let mut paths: Vec<&Path> = self.hooks[self.checksum_skips..]
+            .iter()
+            .filter_map(|hook| hook.source_path())
+            .collect();
         paths.sort_unstable();
         let hashes: Option<Vec<String>> = paths
             .into_iter()

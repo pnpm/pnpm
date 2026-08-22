@@ -685,8 +685,9 @@ fn update_read_package_hook<Reporter: self::Reporter>(
     workspace_root: &Path,
     config: &Config,
 ) -> Result<Option<ReadPackageHook>, UpdateError> {
-    let Some(hook) = pnpm_hooks::finder::load_pnpmfiles(workspace_root, config.pnpmfile.as_deref())
-        .map_err(UpdateError::MissingPnpmfile)?
+    let Some(hook) =
+        pnpm_hooks::finder::load_pnpmfiles(workspace_root, crate::pnpmfile_selection(config))
+            .map_err(UpdateError::MissingPnpmfile)?
     else {
         return Ok(None);
     };

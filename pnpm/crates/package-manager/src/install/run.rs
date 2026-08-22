@@ -540,8 +540,11 @@ where
         let pnpmfile_hook = match pnpmfile_hook_override {
             Some(hook) => Some(hook),
             None if config.ignore_pnpmfile => None,
-            None => pnpm_hooks::finder::load_pnpmfiles(&workspace_root, config.pnpmfile.as_deref())
-                .map_err(InstallError::MissingPnpmfile)?,
+            None => pnpm_hooks::finder::load_pnpmfiles(
+                &workspace_root,
+                crate::pnpmfile_selection(config),
+            )
+            .map_err(InstallError::MissingPnpmfile)?,
         };
 
         // pnpm's `getContext` runs `readPackage` over every project
