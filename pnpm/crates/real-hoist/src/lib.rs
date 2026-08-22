@@ -588,6 +588,28 @@ fn collect_snapshot_deps(
     Ok(())
 }
 
+/// The identity every peer variant of one package version collapses
+/// onto: the snapshot key with its peer suffix — and the patch hash
+/// that sits alongside it — removed.
+///
+/// The hoister maps the id to the first snapshot key it sees for it
+/// and stamps that key on every variant, so only that first key
+/// survives as their shared `reference`. Anything indexing the hoist
+/// result by package therefore has to key *and* look up by this id
+/// rather than by the snapshot key an edge declares — otherwise every
+/// edge on a collapsed variant finds nothing and drops out of the
+/// layout.
+///
+/// One id can still cover several directories: [`HoisterTree`] nodes
+/// are interned per `(alias, snapshot key)`, so an alias exposing a
+/// package under a second name gets a node, and a directory, of its
+/// own. An index over the result holds the list and resolves an edge
+/// to its first entry.
+#[must_use]
+pub fn pkg_id(dep_key: &PkgNameVerPeer) -> String {
+    dep_key.without_peer().to_string()
+}
+
 /// Encode an importer id for use as a child node's `name` (and in
 /// the hoisting-limits locator keys built by
 /// `pnpm_package_manager::get_hoisting_limits`). Matches
@@ -595,24 +617,6 @@ fn collect_snapshot_deps(
 /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`. Pacquet workspace importers are
 /// filesystem-relative paths, so the common case is alphanumeric +
 /// `/` + `-` + `_`. Encode `/` (since it would confuse
-/// The identity every peer variant of one package version collapses
-/// onto: the snapshot key with its peer suffix — and the patch hash
-/// that sits alongside it — removed.
-///
-/// The hoister emits a single [`HoisterTree`] node, and so a single
-/// directory, per id: it maps the id to the first snapshot key it sees
-/// for it and stamps that key on every variant. Only that first
-/// variant's key survives as the node's `reference`, so anything
-/// indexing the hoist result by package has to key *and* look up by
-/// this id rather than by the snapshot key an edge declares —
-/// otherwise every edge on a collapsed variant finds nothing and drops
-/// out of the layout. The hoisted dep-graph walker's location map and
-/// the package map both index the result this way.
-#[must_use]
-pub fn pkg_id(dep_key: &PkgNameVerPeer) -> String {
-    dep_key.without_peer().to_string()
-}
-
 /// `node_modules` directory parsing) and pass the rest through; if a
 /// richer set ever shows up the function can switch to a full
 /// encoder without touching call sites.

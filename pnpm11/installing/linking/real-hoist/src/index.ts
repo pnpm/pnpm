@@ -28,14 +28,18 @@ export type { HoisterResult }
  * The identity every peer variant of one package version collapses
  * onto.
  *
- * The hoister emits a single node, and so a single directory, per id:
  * `toTree` maps the id to the first depPath it sees for it and stamps
- * that depPath on every variant as the node's `reference`, so only
+ * that depPath on every variant as their shared `reference`, so only
  * that one depPath survives into the result. Anything indexing the
- * hoist result by package has to key *and* look up by this id rather
- * than by the depPath an edge declares — otherwise every edge on a
- * collapsed variant finds nothing and drops out of the layout.
- * `lockfileToHoistedDepGraph` indexes the result this way.
+ * hoist result by package therefore has to key *and* look up by this
+ * id rather than by the depPath an edge declares — otherwise every
+ * edge on a collapsed variant finds nothing and drops out of the
+ * layout.
+ *
+ * One id can still cover several directories: nodes are interned per
+ * `(alias, depPath)`, so an alias exposing a package under a second
+ * name gets a node, and a directory, of its own. An index over the
+ * result holds the list and resolves an edge to its first entry.
  */
 export function getHoisterPkgId (depPath: string, pkgSnapshot: PackageSnapshot): string {
   const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
