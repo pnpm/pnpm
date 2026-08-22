@@ -34,7 +34,7 @@ use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
-use std::{collections::HashSet, path::Path};
+use std::{collections::HashSet, path::Path, sync::Arc};
 
 struct InteractiveUpdateProject<'a> {
     manifest: &'a PackageManifest,
@@ -165,7 +165,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
     lockfile: Option<&Lockfile>,
     importer_id: &str,
     config: &Config,
-    http_client: &ThrottledClient,
+    http_client: &Arc<ThrottledClient>,
     options: InteractiveUpdateOptions<'_>,
 ) -> miette::Result<Option<Vec<String>>> {
     let projects = [InteractiveUpdateProject { manifest, importer_id: importer_id.to_string() }];
@@ -195,7 +195,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
     selection: &InstallFamilySelection,
     lockfile: Option<&Lockfile>,
     config: &Config,
-    http_client: &ThrottledClient,
+    http_client: &Arc<ThrottledClient>,
     options: InteractiveUpdateOptions<'_>,
 ) -> miette::Result<Option<Vec<String>>> {
     let projects = selection
@@ -250,7 +250,7 @@ async fn collect_choices(
     projects: &[InteractiveUpdateProject<'_>],
     lockfile: Option<&Lockfile>,
     config: &Config,
-    http_client: &ThrottledClient,
+    http_client: &Arc<ThrottledClient>,
     latest: bool,
     include_direct: &[DependencyGroup],
 ) -> miette::Result<Vec<OutdatedPackage>> {
@@ -261,14 +261,12 @@ async fn collect_choices(
         match_names: None,
         include_deprecated: false,
     };
-    let run = OutdatedRun::new(config)?;
+    let run = OutdatedRun::new(config, Arc::clone(http_client))?;
     let choices = futures_util::future::join_all(projects.iter().map(|project| {
         collect_outdated_for_importer_in_run(
             project.manifest,
             lockfile,
             &project.importer_id,
-            config,
-            http_client,
             &query,
             &run,
         )

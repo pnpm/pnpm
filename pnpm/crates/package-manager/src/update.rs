@@ -9,7 +9,7 @@ use crate::{
     decide_catalog, emit_initial_package_manifest,
     manifest_spec_bumps::ManifestSpecBumps,
     package_manifest_prefix,
-    resolution_policy::PickPolicy,
+    resolution_policy::{PickPolicy, create_configured_npm_resolver},
     selected_project_indices,
 };
 use chrono::{DateTime, Utc};
@@ -38,10 +38,7 @@ use pnpm_reporter::{
 };
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, VersionLine, real_package_name_of};
-use pnpm_resolving_npm_resolver::{
-    DeclaredSpecifiers, InMemoryPackageMetaCache, NpmResolver, calc_specifier_for_workspace_dep,
-    merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
-};
+use pnpm_resolving_npm_resolver::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
 use pnpm_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType,
     WantedDependency, WorkspacePackages, WorkspacePackagesByVersion,
@@ -1677,26 +1674,10 @@ fn ensure_latest_resolver_chain<'chain>(
         let policy =
             PickPolicy::from_config_with_extra_excludes(ctx.config, extra_excludes.as_deref())
                 .map_err(UpdateError::MinimumReleaseAgeExclude)?;
-        let registries_by_prefix =
-            merge_named_registries(&ctx.config.registries_by_prefix.clone().into_iter().collect())
-                .map_err(UpdateError::InvalidNamedRegistry)?;
-        let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
-            registries: ctx.config.resolved_registries().into_iter().collect(),
-            registries_by_prefix,
-            http_client: Arc::clone(ctx.http_client_arc),
-            auth_headers: Arc::clone(&ctx.config.auth_headers),
-            meta_cache: Arc::<InMemoryPackageMetaCache>::default(),
-            fetch_locker: shared_packument_fetch_locker(),
-            picked_manifest_cache: shared_picked_manifest_cache(),
-            cache_dir: Some(ctx.config.cache_dir.clone()),
-            offline: ctx.config.offline,
-            prefer_offline: ctx.config.prefer_offline,
-            ignore_missing_time_field: ctx.config.minimum_release_age_ignore_missing_time,
-            full_metadata: policy.full_metadata,
-            needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
-            filter_metadata: ctx.config.requires_filtered_full_metadata(),
-            retry_opts: crate::retry_config::retry_opts_from_config(ctx.config),
-        });
+        let npm_resolver: Arc<dyn Resolver> = Arc::new(
+            create_configured_npm_resolver(ctx.config, Arc::clone(ctx.http_client_arc), &policy)
+                .map_err(UpdateError::InvalidNamedRegistry)?,
+        );
         let mut node_resolver = NodeResolver::new(Arc::clone(ctx.http_client_arc));
         node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
         node_resolver.offline = ctx.config.offline;

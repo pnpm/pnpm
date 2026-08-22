@@ -4,8 +4,12 @@ use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use serde_json::json;
+use std::sync::Arc;
 
 const TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
+/// The default release-age policy fetches abbreviated metadata, then upgrades
+/// it to full metadata when this test fixture omits publish times.
+const RELEASE_AGE_METADATA_REQUESTS: usize = 2;
 
 #[tokio::test]
 async fn collects_choices_from_each_selected_workspace_importer() {
@@ -36,7 +40,7 @@ importers:
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(package_body("foo", &registry))
-        .expect(1)
+        .expect(RELEASE_AGE_METADATA_REQUESTS)
         .create_async()
         .await;
     let bar_mock = server
@@ -44,7 +48,7 @@ importers:
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(package_body("bar", &registry))
-        .expect(1)
+        .expect(RELEASE_AGE_METADATA_REQUESTS)
         .create_async()
         .await;
     let mut config = Config::new();
@@ -58,7 +62,7 @@ importers:
         &projects,
         Some(&lockfile),
         &config,
-        &ThrottledClient::default(),
+        &Arc::new(ThrottledClient::default()),
         false,
         &[DependencyGroup::Prod],
     )
@@ -109,7 +113,7 @@ importers:
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(package_body("foo", &registry))
-        .expect(1)
+        .expect(RELEASE_AGE_METADATA_REQUESTS)
         .create_async()
         .await;
     let mut config = Config::new();
@@ -123,7 +127,7 @@ importers:
         &projects,
         Some(&lockfile),
         &config,
-        &ThrottledClient::default(),
+        &Arc::new(ThrottledClient::default()),
         false,
         &[DependencyGroup::Prod],
     )
@@ -169,7 +173,7 @@ importers:
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(package_body("foo", &registry))
-        .expect(1)
+        .expect(RELEASE_AGE_METADATA_REQUESTS)
         .create_async()
         .await;
     let mut config = Config::new();
@@ -183,7 +187,7 @@ importers:
         &projects,
         Some(&lockfile),
         &config,
-        &ThrottledClient::default(),
+        &Arc::new(ThrottledClient::default()),
         false,
         &[DependencyGroup::Prod],
     )
@@ -232,7 +236,7 @@ importers:
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(package_body("foo", &registry))
-            .expect(1)
+            .expect(RELEASE_AGE_METADATA_REQUESTS)
             .create_async()
             .await;
         let mut config = Config::new();
@@ -246,7 +250,7 @@ importers:
             &projects,
             Some(&lockfile),
             &config,
-            &ThrottledClient::default(),
+            &Arc::new(ThrottledClient::default()),
             false,
             &[DependencyGroup::Prod],
         )

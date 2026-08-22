@@ -1,4 +1,7 @@
-use crate::_utils::append_workspace_yaml_key;
+use crate::_utils::{
+    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    set_minimum_release_age,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -8,6 +11,7 @@ use tempfile::TempDir;
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
 const DEPRECATED: &str = "@pnpm.e2e/deprecated";
+const BRAVO_DEP: &str = "@pnpm.e2e/bravo-dep";
 
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -144,6 +148,24 @@ fn outdated_up_to_date_exits_zero() {
     assert_eq!(output.status.code(), Some(0), "up-to-date deps should exit 0");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.contains(DEP), "no outdated dep should be reported: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/14004>: versions blocked by
+/// `minimumReleaseAge` must not be offered by `outdated` or interactive update.
+#[test]
+fn outdated_respects_minimum_release_age() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.1" }}"#));
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(0), "immature releases should not be offered");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains(BRAVO_DEP), "report should omit immature releases: {stdout}");
 
     drop((root, anchor));
 }
