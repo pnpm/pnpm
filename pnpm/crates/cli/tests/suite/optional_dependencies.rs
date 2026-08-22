@@ -11,6 +11,13 @@ use pnpm_lockfile::{Lockfile, PkgName};
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path};
 
+/// Nothing at `path` at all. `Path::exists` follows links, so it also reports
+/// `false` for a link whose target is missing — an excluded dependency that was
+/// wrongly linked would pass a plain `!exists()` check.
+fn is_absent(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_err()
+}
+
 fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
     let text =
         fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
@@ -620,7 +627,7 @@ fn headless_install_include_filtering_excludes_production_group() {
     pacquet_in(&workspace).with_args(["install", "--frozen-lockfile", "--dev"]).assert().success();
 
     assert!(
-        !workspace.join("node_modules/@pnpm.e2e/foo").exists(),
+        is_absent(&workspace.join("node_modules/@pnpm.e2e/foo")),
         "the excluded production dependency must not be linked",
     );
     assert!(
@@ -628,7 +635,7 @@ fn headless_install_include_filtering_excludes_production_group() {
         "the dev dependency must be installed",
     );
     assert!(
-        !workspace.join("node_modules/@pnpm.e2e/qar").exists(),
+        is_absent(&workspace.join("node_modules/@pnpm.e2e/qar")),
         "a dev-only install must not install the optional dependency",
     );
 
