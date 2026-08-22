@@ -423,6 +423,93 @@ The fixed vulnerabilities are:
     }
   })
 
+  test('fix update prefers the minimum patched version for unbounded direct dependencies', async () => {
+    const tmp = f.prepare('update-single-unbounded')
+
+    const originalPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0' as DepPath
+    const minPatchedPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
+    const higherSafePkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0' as DepPath
+
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
+    expect(mockResponse).toBeTruthy()
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, mockResponse)
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(output).toContain(`${chalk.green(1)} vulnerability was fixed`)
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(minPatchedPkgId)
+    expect(packagesArray).not.toContain(higherSafePkgId)
+  })
+
+  test('fix update merges caller preferredVersions with patched-version preferences', async () => {
+    const tmp = f.prepare('update-single-unbounded')
+
+    const minPatchedPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
+
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
+    expect(mockResponse).toBeTruthy()
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, mockResponse)
+
+    const auditOptions = {
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+      preferredVersions: {
+        '@pnpm.e2e/bar': {
+          '100.0.0': {
+            selectorType: 'version',
+            weight: 1,
+          },
+        },
+      },
+    } as Parameters<typeof audit.handler>[0] & {
+      preferredVersions: {
+        '@pnpm.e2e/bar': {
+          '100.0.0': {
+            selectorType: 'version'
+            weight: number
+          }
+        }
+      }
+    }
+
+    const { exitCode, output } = await audit.handler(auditOptions)
+
+    expect(exitCode).toBe(0)
+    expect(output).toContain(`${chalk.green(1)} vulnerability was fixed`)
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    expect(packagesArray).toContain(minPatchedPkgId)
+  })
+
   test('top-level workspace subpackage vulnerability is fixed by recursive update from root', async () => {
     const tmp = f.prepare('update-workspace-depth-2')
 

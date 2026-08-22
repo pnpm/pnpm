@@ -149,6 +149,7 @@ export type InstallDepsOptions = Pick<Config,
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
   latest?: boolean
+  preferredVersions?: PreferredVersions
   /**
    * If specified, the installation will only be performed for comparison of the
    * wanted lockfile. The wanted lockfile will not be updated on disk and no
@@ -300,7 +301,9 @@ export async function installDeps (
         params,
         {
           ...opts,
-          preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
+          preferredVersions: opts.packageVulnerabilityAudit
+            ? mergePreferredVersions(opts.preferredVersions, preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit))
+            : opts.preferredVersions,
           allProjectsGraph,
           selectedProjectsGraph,
           storeControllerAndDir: store,
@@ -352,7 +355,9 @@ export async function installDeps (
     storeDir: store.dir,
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
-    preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
+    preferredVersions: opts.packageVulnerabilityAudit
+      ? mergePreferredVersions(opts.preferredVersions, preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit))
+      : opts.preferredVersions,
     handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
     runPacquet,
   }
@@ -663,6 +668,22 @@ function preferNonvulnerablePackageVersions (packageVulnerabilityAudit: PackageV
     preferredVersions[packageName] = preferredVersionSelectors
   }
   return preferredVersions
+}
+
+function mergePreferredVersions (
+  preferredVersions: PreferredVersions | undefined,
+  nextPreferredVersions: PreferredVersions
+): PreferredVersions {
+  if (preferredVersions == null) return nextPreferredVersions
+  const mergedPreferredVersions = Object.assign(Object.create(null), preferredVersions) as PreferredVersions
+  for (const [packageName, selectors] of Object.entries(nextPreferredVersions)) {
+    mergedPreferredVersions[packageName] = Object.assign(
+      Object.create(null),
+      mergedPreferredVersions[packageName],
+      selectors as VersionSelectors
+    )
+  }
+  return mergedPreferredVersions
 }
 
 /**

@@ -23,6 +23,11 @@ interface ExtendedPackageVulnerability {
   semverRange?: semver.Range
 }
 
+type PreferredVersions = Record<string, Record<string, { selectorType: 'version' | 'range', weight: number }>>
+
+const DIRECT_DEP_SELECTOR_WEIGHT = 1000
+const EXISTING_VERSION_SELECTOR_WEIGHT = 1_000_000
+
 export interface FixWithUpdateResult {
   // IDs of packages that were fixed
   fixed: number[]
@@ -38,6 +43,7 @@ export type FixWithUpdateOptions = AuditOptions & {
 
 export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpdateOptions): Promise<FixWithUpdateResult> {
   const vulnerabilitiesByPackage = new Map<string, ExtendedPackageVulnerability[]>()
+  const minPatchedVersionsByPackage = new Map<string, semver.SemVer>()
   const unfixableVulnerabilities = new Map<string, Set<number>>()
   for (const advisory of Object.values(auditReport.advisories)) {
     let packageVulnerabilities = vulnerabilitiesByPackage.get(advisory.module_name)
@@ -64,6 +70,15 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
       },
       id: advisory.id,
     })
+    if (advisory.patched_versions != null) {
+      const minimumPatchedVersion = semver.minVersion(advisory.patched_versions)
+      if (minimumPatchedVersion != null) {
+        const currentMinimum = minPatchedVersionsByPackage.get(advisory.module_name)
+        if (currentMinimum == null || semver.gt(minimumPatchedVersion, currentMinimum)) {
+          minPatchedVersionsByPackage.set(advisory.module_name, minimumPatchedVersion)
+        }
+      }
+    }
   }
 
   const packageVulnerabilityAudit: PackageVulnerabilityAudit = {
@@ -100,6 +115,13 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
     })
     : []
   const updateOpts = { ...opts } as Record<string, unknown>
+  const minPatchedPreferredVersions = createPreferredVersionsFromMinimumPatchedVersions(minPatchedVersionsByPackage)
+  if (minPatchedPreferredVersions != null) {
+    updateOpts.preferredVersions = mergePreferredVersions(
+      updateOpts.preferredVersions as PreferredVersions | undefined,
+      minPatchedPreferredVersions
+    )
+  }
   if (addedAgeExcludes.length > 0) {
     const existing = (updateOpts.minimumReleaseAgeExclude as string[] | undefined) ?? []
     updateOpts.minimumReleaseAgeExclude = [...existing, ...addedAgeExcludes]
@@ -162,4 +184,41 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
   }
 
   return { fixed, remaining, addedAgeExcludes }
+}
+
+function createPreferredVersionsFromMinimumPatchedVersions (
+  minPatchedVersionsByPackage: Map<string, semver.SemVer>
+): PreferredVersions | undefined {
+  if (minPatchedVersionsByPackage.size === 0) return undefined
+  const preferredVersions = Object.create(null) as PreferredVersions
+  for (const [packageName, minPatchedVersion] of minPatchedVersionsByPackage) {
+    const minPatchedVersionRaw = minPatchedVersion.format()
+    preferredVersions[packageName] = {
+      [minPatchedVersionRaw]: {
+        selectorType: 'version',
+        weight: EXISTING_VERSION_SELECTOR_WEIGHT + DIRECT_DEP_SELECTOR_WEIGHT + 1,
+      },
+      [`<=${minPatchedVersionRaw}`]: {
+        selectorType: 'range',
+        weight: DIRECT_DEP_SELECTOR_WEIGHT + 1,
+      },
+    }
+  }
+  return preferredVersions
+}
+
+function mergePreferredVersions (
+  basePreferredVersions: PreferredVersions | undefined,
+  nextPreferredVersions: PreferredVersions
+): PreferredVersions {
+  if (basePreferredVersions == null) return nextPreferredVersions
+  const mergedPreferredVersions = Object.assign(Object.create(null), basePreferredVersions) as PreferredVersions
+  for (const [packageName, selectors] of Object.entries(nextPreferredVersions)) {
+    mergedPreferredVersions[packageName] = Object.assign(
+      Object.create(null),
+      mergedPreferredVersions[packageName],
+      selectors
+    )
+  }
+  return mergedPreferredVersions
 }

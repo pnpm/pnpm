@@ -1,0 +1,8 @@
+{
+  "name": "update-single-unbounded",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/bar": "^100.0.0",
+    "@pnpm.e2e/dep-of-pkg-with-1-dep": "*"
+  }
+}
