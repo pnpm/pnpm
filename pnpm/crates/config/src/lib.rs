@@ -1725,14 +1725,13 @@ pub struct Config {
     /// when set, leaving `ignoredBuilds` empty. Default `false`.
     pub ignore_scripts: bool,
 
-    /// `--ignore-pnpmfile`. When `true`, no pnpmfile hooks run: neither
-    /// the workspace-root `.pnpmfile.{cjs,mjs}` nor the pnpmfiles of
-    /// config-dependency plugins are loaded, so `readPackage`,
-    /// `updateConfig`, `afterAllResolved`, custom resolvers and custom
-    /// fetchers are all skipped. A CLI-only boolean: pnpm excludes
-    /// `ignore-pnpmfile` from its config-file keys, so the yaml / env
-    /// overlay never populates it — the CLI layer sets it from the flag.
-    /// Default `false`.
+    /// `ignorePnpmfile` (`--ignore-pnpmfile`). When `true`, no pnpmfile hooks
+    /// run: neither the pnpmfiles the project configures or ships nor those of
+    /// config-dependency plugins are loaded, so `readPackage`, `updateConfig`,
+    /// `afterAllResolved`, custom resolvers and custom fetchers are all
+    /// skipped. Settable from configuration and the environment as well as the
+    /// flag, which ORs on top — pnpm carries `ignore-pnpmfile` in both its
+    /// config-file keys and its schema. Default `false`.
     pub ignore_pnpmfile: bool,
 
     /// `gitChecks` (`--no-git-checks`). When `true` (the default),
