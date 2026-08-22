@@ -121,11 +121,17 @@ pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
 }
 
-/// Atomically replace `path` with `bytes` without following an existing
-/// symlink. Used for global virtual shims, whose bin directory may be shared
-/// with commands written by other tools.
-pub trait FsWriteAtomic {
-    fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()>;
+/// Atomically publish a complete file without replacing an occupied path.
+/// Used for global virtual shims, whose bin directory may be shared with
+/// commands written by other tools.
+pub trait FsWriteNewAtomic {
+    fn write_new_atomic(path: &Path, bytes: &[u8], executable: bool) -> io::Result<()>;
+}
+
+/// Remove a file. Used to roll back the files published by an incomplete
+/// virtual-shim set.
+pub trait FsRemoveFile {
+    fn remove_file(path: &Path) -> io::Result<()>;
 }
 
 /// Replace the permission bits at `path` with `0o755`. Used to chmod
@@ -215,9 +221,15 @@ impl FsWrite for Host {
     }
 }
 
-impl FsWriteAtomic for Host {
-    fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
-        pnpm_fs::write_atomic(path, bytes)
+impl FsWriteNewAtomic for Host {
+    fn write_new_atomic(path: &Path, bytes: &[u8], executable: bool) -> io::Result<()> {
+        pnpm_fs::write_new_atomic(path, bytes, executable.then_some(0o755))
+    }
+}
+
+impl FsRemoveFile for Host {
+    fn remove_file(path: &Path) -> io::Result<()> {
+        std::fs::remove_file(path)
     }
 }
 
