@@ -101,7 +101,13 @@ pub fn mtime_ms(path: &Path) -> i64 {
 /// than assume the exact value survives.
 pub fn set_mtime_ms(path: &Path, ms: i64) {
     let ms = u64::try_from(ms).expect("an mtime at or after the Unix epoch");
-    let modified = SystemTime::UNIX_EPOCH + Duration::from_millis(ms);
+    set_mtime(path, SystemTime::UNIX_EPOCH + Duration::from_millis(ms));
+}
+
+/// Set `path`'s mtime to `modified`, keeping whatever sub-millisecond
+/// precision the filesystem stores — the granularity [`set_mtime_ms`]
+/// cannot express, and the one a same-millisecond mtime collision needs.
+pub fn set_mtime(path: &Path, modified: SystemTime) {
     fs::OpenOptions::new()
         .write(true)
         .open(path)

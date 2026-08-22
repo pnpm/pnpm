@@ -3,11 +3,11 @@
 use super::{
     Config, Host, Lockfile, LockfileConflictCheckFailure, ManifestStat, NodeLinker,
     OptimisticRepeatInstallCheck, WorkspaceState, catalogs_cache_matches,
-    current_filesystem_time_ms, current_lockfile_file_has_content,
-    current_lockfile_unusable_with_non_empty_wanted, file_mtime,
-    first_lockfile_requiring_conflict_safe_install, first_project_missing_modules_dir,
-    first_setting_drift, modified_at_or_after, modified_manifests_match_lockfile,
-    patches_modified_since, pnpmfiles_drift, project_structure_matches, stat_manifests,
+    current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
+    filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
+    first_project_missing_modules_dir, first_setting_drift, modified_at_or_after,
+    modified_manifests_match_lockfile, patches_modified_since, pnpmfiles_drift,
+    project_structure_matches, refreshed_validation_baseline_ms, stat_manifests,
     update_workspace_state, wanted_lockfile_modified,
 };
 
@@ -152,6 +152,8 @@ pub fn check_deps_status_before_run(
 
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    let filesystem_now =
+        if is_workspace_install { filesystem_now_ms(workspace_root) } else { None };
     // The TypeScript run/exec handler does not forward `dedupePeers`
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.
@@ -171,23 +173,10 @@ pub fn check_deps_status_before_run(
                     project_manifests,
                     state.filtered_install,
                 );
-                // On a second-granularity filesystem (e.g. ext4 with 128-byte inodes,
-                // HFS+, or some CI runner disks), a file changed within the same
-                // second of the install is indistinguishable from the baseline by
-                // whole-second mtimes alone. In that case, we must post-date by a
-                // full second to ensure subsequent checks converge. On sub-second
-                // filesystems, post-dating by 1ms is sufficient. We take the max of
-                // the current filesystem time and this calculated baseline to ensure
-                // it post-dates both the validated mtimes and the time the check ran.
-                let fs_time = current_filesystem_time_ms(workspace_root)
-                    .unwrap_or(new_state.last_validated_timestamp);
-                let manifest_mtimes_are_coarse = project_manifests
-                    .iter()
-                    .filter_map(|(_, manifest)| file_mtime(manifest.path()))
-                    .any(|mtime| mtime.whole_second);
-                let delta = if manifest_mtimes_are_coarse { 1000 } else { 1 };
-                let baseline = new_state.last_validated_timestamp.saturating_add(delta);
-                new_state.last_validated_timestamp = std::cmp::max(fs_time, baseline);
+                new_state.last_validated_timestamp = refreshed_validation_baseline_ms(
+                    new_state.last_validated_timestamp,
+                    filesystem_now,
+                );
                 // The gate ignored `dev`/`optional`/`production` drift
                 // above; writing today's (default-group) values here
                 // would clobber what the last real install recorded and

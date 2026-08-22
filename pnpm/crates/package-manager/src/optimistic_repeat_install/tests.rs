@@ -14,7 +14,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::backdate_existing_files;
+use pnpm_testing_utils::fs::{backdate_existing_files, set_mtime};
 use pnpm_workspace_state::{
     ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state,
     update_workspace_state,
@@ -2373,125 +2373,170 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
     assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
 }
 
-/// Workspace branch: a same-millisecond mtime collision between the manifest
-/// and the baseline causes a content check on the next run, but that check
-/// passes and refreshes `lastValidatedTimestamp` forward by 1ms. The run after
-/// that must then take the pure-mtime path without needing a content check.
-#[test]
-fn workspace_content_check_resolves_same_millisecond_mtime_collision_and_converges() {
-    let (dir, config) = setup_content_check_project();
-    let manifest_path = dir.path().join("package.json");
+/// The instant every mtime-collision test stamps on the files the
+/// freshness check stats and on the recorded `lastValidatedTimestamp`.
+const COLLIDING_MTIME_SECS: u64 = 1_700_000_000;
+/// [`COLLIDING_MTIME_SECS`] in the milliseconds the state records.
+const COLLIDING_MTIME_MS: i64 = 1_700_000_000_000;
 
-    // Set the manifest's and lockfiles' mtimes to exactly 1,700,000,000s + 0.5ms.
-    let seconds = 1_700_000_000;
-    let nanos = 500_000; // 0.5 ms
-    let system_time = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::new(seconds, nanos);
-
-    let file = std::fs::OpenOptions::new().write(true).open(&manifest_path).unwrap();
-    file.set_times(std::fs::FileTimes::new().set_modified(system_time)).unwrap();
-
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
-    let lockfile_file = std::fs::OpenOptions::new().write(true).open(&lockfile_path).unwrap();
-    lockfile_file.set_times(std::fs::FileTimes::new().set_modified(system_time)).unwrap();
-
-    let current_lockfile_path = config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
-    let current_lockfile_file =
-        std::fs::OpenOptions::new().write(true).open(&current_lockfile_path).unwrap();
-    current_lockfile_file.set_times(std::fs::FileTimes::new().set_modified(system_time)).unwrap();
-
-    let manifest_mtime_ms = 1_700_000_000_000_i64;
-
-    // Stamp the workspace state's last_validated_timestamp to the EXACT SAME
-    // millisecond as the manifest's mtime (simulating a collision).
-    let settings =
-        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+/// Reproduce the mtime-tick collision of
+/// [#13907](https://github.com/pnpm/pnpm/issues/13907): every file the
+/// freshness check stats is stamped `subsec_nanos` into the millisecond
+/// the workspace state records as validated, so the manifest reads as
+/// possibly-modified and the content check runs. A `subsec_nanos` of
+/// zero is the whole-second-mtime filesystem's version of the same
+/// collision.
+fn collide_mtimes_with_recorded_state(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    subsec_nanos: u32,
+) {
+    let modified = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::new(COLLIDING_MTIME_SECS, subsec_nanos);
+    for path in [
+        workspace_root.join("package.json"),
+        workspace_root.join(Lockfile::FILE_NAME),
+        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+    ] {
+        set_mtime(&path, modified);
+    }
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), manifest_mtime_ms, settings, projects);
+    write_state(
+        workspace_root,
+        COLLIDING_MTIME_MS,
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None),
+        projects,
+    );
+}
 
-    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+/// Rewrite the wanted lockfile so a content check would report the
+/// project outdated while leaving its mtime untouched, so an up-to-date
+/// verdict after this can only have come from the pure-mtime fast path.
+fn poison_lockfile_content(workspace_root: &std::path::Path) {
+    let path = workspace_root.join(Lockfile::FILE_NAME);
+    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    fs::write(&path, FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
+    set_mtime(&path, modified);
+}
 
-    // First check: because of the collision (ns > ms), it does not take the
-    // pure-mtime fast path. It runs the content check, which passes and
-    // updates the workspace state.
-    let decision =
-        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
-    assert_eq!(decision, Decision::UpToDate);
+fn recorded_timestamp(workspace_root: &std::path::Path) -> i64 {
+    load_workspace_state(workspace_root)
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written")
+        .last_validated_timestamp
+}
 
-    // Verify the state was written.
-    let after_state = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
-    assert!(after_state.last_validated_timestamp > manifest_mtime_ms);
+fn assert_content_check_converges_after_collision(subsec_nanos: u32) {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, subsec_nanos);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
 
-    // Second check: because the reference now post-dates the manifest's mtime,
-    // the check should exit on the pure-mtime fast path without updating the state again.
-    let decision2 =
-        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
-    assert_eq!(decision2, Decision::UpToDate);
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(
+        refreshed > COLLIDING_MTIME_MS,
+        "expected the passing content check to advance the baseline past {COLLIDING_MTIME_MS}, got {refreshed}",
+    );
 
-    let after_state2 = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
-    assert_eq!(after_state2.last_validated_timestamp, after_state.last_validated_timestamp);
+    poison_lockfile_content(dir.path());
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    assert_eq!(recorded_timestamp(dir.path()), refreshed);
 }
 
 #[test]
-fn workspace_content_check_resolves_same_second_mtime_collision_and_converges() {
+fn workspace_content_check_converges_after_a_same_millisecond_mtime_collision() {
+    assert_content_check_converges_after_collision(500_000);
+}
+
+#[test]
+fn workspace_content_check_converges_after_a_whole_second_mtime_collision() {
+    assert_content_check_converges_after_collision(0);
+}
+
+/// The refreshed baseline must not post-date the filesystem clock: an
+/// edit made after the content check passed still has to defeat the
+/// mtime fast path on the next run.
+#[test]
+fn workspace_content_check_does_not_bless_a_manifest_edited_after_it_passed() {
     let (dir, config) = setup_content_check_project();
-    let manifest_path = dir.path().join("package.json");
-
-    // Set the manifest's and lockfiles' mtimes to exactly 1,700,000,000s + 0ns (whole second).
-    let seconds = 1_700_000_000;
-    let nanos = 0;
-    let system_time = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::new(seconds, nanos);
-
-    let file = std::fs::OpenOptions::new().write(true).open(&manifest_path).unwrap();
-    file.set_times(std::fs::FileTimes::new().set_modified(system_time)).unwrap();
-
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
-    let lockfile_file = std::fs::OpenOptions::new().write(true).open(&lockfile_path).unwrap();
-    lockfile_file.set_times(std::fs::FileTimes::new().set_modified(system_time)).unwrap();
-
-    let current_lockfile_path = config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
-    let current_lockfile_file =
-        std::fs::OpenOptions::new().write(true).open(&current_lockfile_path).unwrap();
-    current_lockfile_file.set_times(std::fs::FileTimes::new().set_modified(system_time)).unwrap();
-
-    let manifest_mtime_ms = 1_700_000_000_000_i64;
-
-    // Stamp the workspace state's last_validated_timestamp to the EXACT SAME
-    // millisecond as the manifest's mtime (simulating a collision).
-    let settings =
-        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
-    let mut projects = BTreeMap::new();
-    projects.insert(
-        dir.path().to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    collide_mtimes_with_recorded_state(dir.path(), config, 500_000);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    assert_eq!(
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]),
+        Decision::UpToDate,
     );
-    write_state(dir.path(), manifest_mtime_ms, settings, projects);
 
-    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0","bar":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let edited = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    // First check: because of the collision, it does not take the fast path.
-    // It runs the content check, which passes and updates the workspace state.
-    // Since mtimes are coarse (whole_second), the new baseline should be at
-    // least `manifest_mtime_ms + 1000`.
     let decision =
-        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
-    assert_eq!(decision, Decision::UpToDate);
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &edited)]);
+    assert!(
+        matches!(decision, Decision::Skipped { .. }),
+        "expected the edit to defeat the fast path, got {decision:?}",
+    );
+}
 
-    // Verify the state was written.
-    let after_state = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
-    assert!(after_state.last_validated_timestamp >= manifest_mtime_ms + 1000);
+fn workspace_deps_status(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> RunDepsStatus {
+    let state = load_workspace_state(dir.path())
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written");
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path()).expect("parse pnpm-lock.yaml");
+    check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: dir.path(),
+            config,
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+            project_manifests,
+            is_workspace_install: true,
+            lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
+            catalogs: &BTreeMap::default(),
+        },
+        &state,
+    )
+}
 
-    // Second check: because the reference now post-dates the manifest's mtime + 1s,
-    // the check should exit on the pure-mtime fast path without updating the state again.
-    let decision2 =
-        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
-    assert_eq!(decision2, Decision::UpToDate);
+fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, subsec_nanos);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
 
-    let after_state2 = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
-    assert_eq!(after_state2.last_validated_timestamp, after_state.last_validated_timestamp);
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(
+        refreshed > COLLIDING_MTIME_MS,
+        "expected the passing content check to advance the baseline past {COLLIDING_MTIME_MS}, got {refreshed}",
+    );
+
+    poison_lockfile_content(dir.path());
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+}
+
+#[test]
+fn run_gate_converges_after_a_same_millisecond_mtime_collision() {
+    assert_deps_status_converges_after_collision(500_000);
+}
+
+#[test]
+fn run_gate_converges_after_a_whole_second_mtime_collision() {
+    assert_deps_status_converges_after_collision(0);
 }
 
 /// Workspace lockfile whose root importer links a sibling: the link
