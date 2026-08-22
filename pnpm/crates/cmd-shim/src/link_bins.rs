@@ -1013,8 +1013,8 @@ pub fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
 ///
 /// Unlike [`link_bins_of_packages_context_aware`], nothing is installed
 /// behind these: the package is not in the global bin dir, and only the
-/// project a shim runs in can say what to execute. Returns the shim paths
-/// that now exist, in the order they were written.
+/// project a shim runs in can say what to execute. Returns only the shim paths
+/// created by this call, in the order they were written.
 pub fn link_virtual_shims<Sys>(
     package: &str,
     bins: &[&str],
@@ -1047,6 +1047,7 @@ where
             }
         }
     }
+    let mut written = Vec::new();
     for ((path, body, executable), missing) in flavors.iter().zip(missing) {
         if !missing {
             continue;
@@ -1058,8 +1059,9 @@ where
                 LinkBinsError::WriteShim { path: path.clone(), error }
             }
         })?;
+        written.push(path.clone());
     }
-    Ok(flavors.into_iter().map(|(path, _, _)| path).collect())
+    Ok(written)
 }
 
 /// Remove a bin shim previously written by [`link_bins_of_packages`].

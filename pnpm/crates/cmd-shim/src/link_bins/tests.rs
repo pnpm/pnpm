@@ -93,9 +93,12 @@ fn virtual_shims_reuse_completed_writes_after_a_later_slot_is_claimed() {
     assert_eq!(NODE_WRITES.load(Ordering::SeqCst), 1);
 
     remove_file(dir.path().join("bun")).unwrap();
-    link_virtual_shims::<FailsSecondWrite>("runtime", &["node", "bun"], dir.path()).unwrap();
+    let written =
+        link_virtual_shims::<FailsSecondWrite>("runtime", &["node", "bun"], dir.path()).unwrap();
 
     assert_eq!(NODE_WRITES.load(Ordering::SeqCst), 1);
+    assert!(!written.contains(&dir.path().join("node")));
+    assert!(written.contains(&dir.path().join("bun")));
 }
 
 #[test]
