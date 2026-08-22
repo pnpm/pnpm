@@ -432,7 +432,7 @@ pub fn resolve_pnpmfile_paths(
     if config.ignore_pnpmfile {
         return Ok(Vec::new());
     }
-    finder::validate_configured_pnpmfiles(config.pnpmfile.as_deref())?;
+    finder::validate_configured_pnpmfiles(pnpm_package_manager::pnpmfile_selection(config))?;
     let config_modules_dir = root_dir.join("node_modules").join(".pnpm-config");
     let mut pnpmfiles: Vec<PathBuf> = match config.config_dependencies.as_ref() {
         Some(deps) => finder::calc_pnpmfile_paths_of_plugin_deps(
@@ -441,7 +441,9 @@ pub fn resolve_pnpmfile_paths(
         ),
         None => Vec::new(),
     };
-    for pnpmfile in finder::find_pnpmfiles(root_dir, config.pnpmfile.as_deref()) {
+    for pnpmfile in
+        finder::find_pnpmfiles(root_dir, pnpm_package_manager::pnpmfile_selection(config))
+    {
         if !pnpmfiles.contains(&pnpmfile) {
             pnpmfiles.push(pnpmfile);
         }

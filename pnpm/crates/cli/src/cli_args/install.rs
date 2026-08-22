@@ -379,7 +379,11 @@ impl InstallArgs {
             return false;
         }
         let config_root = config.root_project_manifest_dir(dir).to_path_buf();
-        if !pnpm_hooks::finder::find_pnpmfiles(&config_root, config.pnpmfile.as_deref()).is_empty()
+        if !pnpm_hooks::finder::find_pnpmfiles(
+            &config_root,
+            pnpm_package_manager::pnpmfile_selection(config),
+        )
+        .is_empty()
         {
             return false;
         }
@@ -903,8 +907,11 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let pnpmfile_hook = if state.config.ignore_pnpmfile {
         None
     } else {
-        pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, state.config.pnpmfile.as_deref())
-            .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))?
+        pnpm_hooks::finder::load_pnpmfiles(
+            lockfile_dir,
+            pnpm_package_manager::pnpmfile_selection(state.config),
+        )
+        .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))?
     };
     let prefetch_allowed = match pnpmfile_hook.as_ref() {
         Some(hook) => !hook

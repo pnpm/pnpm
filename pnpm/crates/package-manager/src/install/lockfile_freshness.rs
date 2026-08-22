@@ -63,7 +63,7 @@ pub async fn wanted_lockfile_satisfies_workspace(
     let lockfile_root =
         super::lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
     if !config.ignore_pnpmfile
-        && !pnpm_hooks::finder::find_pnpmfiles(&workspace_root, config.pnpmfile.as_deref())
+        && !pnpm_hooks::finder::find_pnpmfiles(&workspace_root, crate::pnpmfile_selection(config))
             .is_empty()
     {
         return false;

@@ -224,6 +224,8 @@ impl WorkspaceSettings {
         string_field!(user_agent, "USER_AGENT");
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
         string_field!(patches_dir, "PATCHES_DIR");
+        string_field!(global_pnpmfile, "GLOBAL_PNPMFILE");
+        enum_field!(pnpmfile, "PNPMFILE", crate::PnpmfileSetting);
         json_field!(allow_builds, "ALLOW_BUILDS");
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
         json_field!(strict_dep_builds, "STRICT_DEP_BUILDS");

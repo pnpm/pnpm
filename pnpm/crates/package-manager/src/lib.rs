@@ -101,3 +101,15 @@ pub(crate) fn emit_initial_package_manifest<Reporter: pnpm_reporter::Reporter>(
 
 #[cfg(test)]
 mod tests;
+
+/// The pnpmfiles an install runs, as configured. Every entry point that loads
+/// hooks or asks whether any exist reads the same pair of settings.
+#[must_use]
+pub fn pnpmfile_selection(
+    config: &pnpm_config::Config,
+) -> pnpm_hooks::finder::PnpmfileSelection<'_> {
+    pnpm_hooks::finder::PnpmfileSelection {
+        configured: config.pnpmfile.as_deref(),
+        global: config.global_pnpmfile.as_deref(),
+    }
+}

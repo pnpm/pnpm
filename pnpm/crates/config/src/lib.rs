@@ -1673,6 +1673,12 @@ pub struct Config {
     /// discovers the default `.pnpmfile.mjs` or `.pnpmfile.cjs`.
     pub pnpmfile: Option<Vec<PathBuf>>,
 
+    /// `globalPnpmfile`. Loaded ahead of every project pnpmfile and left out
+    /// of `pnpmfileChecksum`, matching the entry pnpm's `requireHooks` pushes
+    /// first with `includeInChecksum: false`. A user-level file the lockfile
+    /// therefore cannot vouch for.
+    pub global_pnpmfile: Option<PathBuf>,
+
     /// `allowUnusedPatches` from `pnpm-workspace.yaml`. When `true`,
     /// configured patches that don't match any installed dependency
     /// produce a warning instead of failing the install with

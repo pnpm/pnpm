@@ -330,7 +330,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
     let pnpmfile_hook = match pnpmfile_hook_override {
         Some(hook) => Some(hook),
         None if config.ignore_pnpmfile => None,
-        None => pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, config.pnpmfile.as_deref())
+        None => pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, crate::pnpmfile_selection(config))
             .map_err(InstallWithFreshLockfileError::MissingPnpmfile)?,
     };
     let custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>> =
