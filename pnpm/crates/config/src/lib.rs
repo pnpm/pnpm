@@ -47,7 +47,7 @@ pub use crate::defaults::{
     available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
     default_peers_suffix_max_length, default_pnpm_home_dir, default_registry, default_state_dir,
     default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency,
+    is_unsafe_perm_posix, resolve_child_concurrency, resolve_configured_state_dir,
 };
 use crate::defaults::{
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
@@ -912,6 +912,11 @@ pub struct Config {
     /// processes.
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
+
+    /// The machine-local directory in which pnpm persists state across
+    /// invocations. A project's manifest cannot set this path.
+    #[default(_code = "default_state_dir::<Host>().unwrap_or_default()")]
+    pub state_dir: PathBuf,
 
     /// The directory in which dependencies will be installed (instead of `node_modules`).
     #[default(_code = "default_modules_dir()")]
@@ -2967,6 +2972,9 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        let default_state_dir = default_state_dir::<Sys>().unwrap_or_default();
+        self.state_dir.clone_from(&default_state_dir);
+
         // Re-anchor the path-valued defaults (`modules_dir`,
         // `virtual_store_dir`) onto the caller-supplied starting directory.
         // SmartDefault populates them via [`defaults::default_modules_dir`] /
@@ -3197,12 +3205,15 @@ impl Config {
         // so a user can't set `nodeLinker` or `hoist` globally — pnpm
         // rejects those in `config.yaml` and pacquet must too.
         //
-        // Path-valued fields use `start_dir` as the base for relative
-        // resolution — pnpm passes `workspaceDir: undefined` for the
-        // global manifest, which leaves paths un-anchored. Using
-        // `start_dir` here is a small pacquet-specific extension that
-        // keeps relative paths well-defined; users putting absolute
-        // paths (the recommended pattern) see no difference.
+        // Path-valued fields other than `stateDir` use `start_dir` as the
+        // base for relative resolution — pnpm passes `workspaceDir:
+        // undefined` for the global manifest, which leaves paths
+        // un-anchored. Using `start_dir` here is a small pacquet-specific
+        // extension that keeps relative paths well-defined; users putting
+        // absolute paths (the recommended pattern) see no difference.
+        // `stateDir` goes through [`resolve_configured_state_dir`] because
+        // it carries global-shim trust records and must not resolve under
+        // the project being considered for execution.
         //
         // `workspace_dir` is intentionally NOT set from the global
         // config — it must reflect the location of `pnpm-workspace.yaml`
@@ -3218,14 +3229,21 @@ impl Config {
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        if let Some(global_settings) = global_settings {
+        if let Some(mut global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
             collect_explicit_settings(&mut self.explicit_settings, &global_settings);
+            let configured_state_dir = global_settings.state_dir.take();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
+            if let Some(configured_state_dir) =
+                configured_state_dir.as_deref().filter(|value| !value.is_empty())
+            {
+                self.state_dir =
+                    resolve_configured_state_dir(&default_state_dir, configured_state_dir);
+            }
         }
 
         // Layer pnpm-workspace.yaml overrides on top. A missing file is
@@ -3279,6 +3297,7 @@ impl Config {
                 // manifest must not be able to turn it off; trusted global
                 // config and PNPM_CONFIG_CI are applied in their own layers.
                 settings.ci = None;
+                settings.state_dir = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
@@ -3334,11 +3353,17 @@ impl Config {
         // repository, so it overrides the bootstrap default registry too.
         let env_registry_override = env_settings.registry.clone();
         collect_explicit_settings(&mut self.explicit_settings, &env_settings);
+        let configured_state_dir = env_settings.state_dir.take();
         let bootstrap = &mut self.package_manager_bootstrap;
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
+        if let Some(configured_state_dir) =
+            configured_state_dir.as_deref().filter(|value| !value.is_empty())
+        {
+            self.state_dir = resolve_configured_state_dir(&default_state_dir, configured_state_dir);
+        }
         if let Some(registry) = env_registry_override {
             let normalized =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };

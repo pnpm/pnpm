@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 derive_more = { workspace = true }
+dunce       = { workspace = true }
 miette      = { workspace = true }
 pathdiff    = { workspace = true }
 tempfile    = { workspace = true }
@@ -20,7 +21,6 @@ tempfile    = { workspace = true }
 sha2 = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-dunce    = { workspace = true }
 junction = { workspace = true }
 
 [lints]

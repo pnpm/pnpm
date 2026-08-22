@@ -33,6 +33,7 @@ use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pnpm_config::{
     Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy,
     WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
+    resolve_configured_state_dir,
 };
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
@@ -134,8 +135,15 @@ fn dispatch(rest: &[OsString]) -> i32 {
         );
         return 1;
     };
-    let shims = global_shims_setting();
-    dispatch_target(name, Some(shim_path), global_target, args, &shims)
+    let settings = trusted_shim_settings();
+    dispatch_target(
+        name,
+        Some(shim_path),
+        global_target,
+        args,
+        &settings.shims,
+        &settings.state_dir,
+    )
 }
 
 fn dispatch_target(
@@ -144,6 +152,7 @@ fn dispatch_target(
     global_target: &Path,
     args: &[OsString],
     shims: &GlobalShims,
+    state_dir: &Path,
 ) -> i32 {
     if bypass_requested() || shims.dispatches_nothing() {
         return run_global_fallback(shim_path, global_target, args);
@@ -171,14 +180,16 @@ fn dispatch_target(
         Some(Candidate::RuntimePin { version_spec, .. })
             if runtime_runs_promptless(policy, name, &version_spec) =>
         {
-            run_runtime_from_store(name, &version_spec, args)
+            run_runtime_from_store(state_dir, name, &version_spec, args)
         }
         Some(Candidate::PackageManagerPin { pm, version_spec, .. })
             if package_manager_runs_promptless(policy, pm, &version_spec) =>
         {
-            run_package_manager_from_pin(pm, &version_spec, name, args)
+            run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
         }
-        Some(candidate) if policy == ShimPolicy::Always || is_trusted(&candidate, name) => {
+        Some(candidate)
+            if policy == ShimPolicy::Always || is_trusted(&candidate, name, state_dir) =>
+        {
             match candidate {
                 Candidate::LocalBin { bin, identity, .. } => {
                     // The trust prompt leaves a human-scale window between
@@ -193,10 +204,10 @@ fn dispatch_target(
                     exec_program(&bin, args)
                 }
                 Candidate::RuntimePin { version_spec, .. } => {
-                    run_runtime_from_store(name, &version_spec, args)
+                    run_runtime_from_store(state_dir, name, &version_spec, args)
                 }
                 Candidate::PackageManagerPin { pm, version_spec, .. } => {
-                    run_package_manager_from_pin(pm, &version_spec, name, args)
+                    run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
                 }
             }
         }
@@ -260,17 +271,27 @@ fn bypass_requested() -> bool {
 /// `pnpm-workspace.yaml`, then the env override — never a project file
 /// and never a discovered ancestor of the pnpm home. (The env override
 /// is only as trustworthy as the environment itself; tools like direnv
-/// can scope it per directory.)
-fn global_shims_setting() -> GlobalShims {
-    match load_global_shims_setting() {
-        Ok(shims) => shims,
+/// can scope it per directory.) The state directory comes from its default,
+/// the global config, and the environment; the pnpm-home manifest cannot
+/// redirect machine state.
+struct TrustedShimSettings {
+    shims: GlobalShims,
+    state_dir: PathBuf,
+}
+
+fn trusted_shim_settings() -> TrustedShimSettings {
+    match load_trusted_shim_settings() {
+        Ok(settings) => settings,
         Err(error) => {
             eprintln!(
                 "pnpm: project-aware global shims are disabled because trusted configuration could not be loaded: {error}",
             );
             let mut shims = GlobalShims::default();
             shims.apply(&GlobalShimsSetting::Toggle(false));
-            shims
+            TrustedShimSettings {
+                shims,
+                state_dir: default_state_dir::<Host>().unwrap_or_default(),
+            }
         }
     }
 }
@@ -283,17 +304,39 @@ pub(crate) enum LoadGlobalShimsSettingError {
     Environment { env_name: &'static str, value: String, source: serde_json::Error },
 }
 
-fn load_global_shims_setting() -> Result<GlobalShims, LoadGlobalShimsSettingError> {
+fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSettingError> {
     let mut shims = GlobalShims::default();
+    let default_state_dir = default_state_dir::<Host>().unwrap_or_default();
+    let mut state_dir = default_state_dir.clone();
     if let Some(config_dir) = default_config_dir::<Host>() {
-        let settings = WorkspaceSettings::load_global(&config_dir)
+        let mut settings = WorkspaceSettings::load_global(&config_dir)
             .map_err(LoadGlobalShimsSettingError::Workspace)?;
-        if let Some(layer) = settings.and_then(|settings| settings.global_shims) {
-            shims.apply(&layer);
+        if let Some(settings) = settings.as_mut() {
+            settings.substitute_env_trusted::<Host>();
+            apply_state_dir_setting(
+                &mut state_dir,
+                settings.state_dir.as_deref(),
+                &default_state_dir,
+            );
+            if let Some(layer) = settings.global_shims.as_ref() {
+                shims.apply(layer);
+            }
         }
     }
     apply_settings_above_global_config(&mut shims)?;
-    Ok(shims)
+    let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Host>();
+    env_settings.substitute_env_trusted::<Host>();
+    apply_state_dir_setting(&mut state_dir, env_settings.state_dir.as_deref(), &default_state_dir);
+    Ok(TrustedShimSettings { shims, state_dir })
+}
+
+fn apply_state_dir_setting(
+    state_dir: &mut PathBuf,
+    setting: Option<&str>,
+    default_state_dir: &Path,
+) {
+    let Some(setting) = setting.filter(|setting| !setting.is_empty()) else { return };
+    *state_dir = resolve_configured_state_dir(default_state_dir, setting);
 }
 
 /// Apply the `globalShims` layers that outrank the global `config.yaml`:
@@ -551,10 +594,15 @@ fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
     None
 }
 
-fn run_runtime_from_store(name: &str, version_spec: &str, args: &[OsString]) -> i32 {
+fn run_runtime_from_store(
+    state_dir: &Path,
+    name: &str,
+    version_spec: &str,
+    args: &[OsString],
+) -> i32 {
     let result = crate::block_on_runtime(
         "pacquet-global-shim-runtime",
-        materialize_runtime(name.to_string(), version_spec.to_string()),
+        materialize_runtime(state_dir, name.to_string(), version_spec.to_string()),
     );
     match result {
         Ok(bin) => exec_program(&bin, args),
@@ -571,14 +619,16 @@ fn run_runtime_from_store(name: &str, version_spec: &str, args: &[OsString]) -> 
 /// directory: the project decides *which* package manager runs, never
 /// where its bytes come from.
 fn run_package_manager_from_pin(
+    state_dir: &Path,
     pm: PackageManager,
     version_spec: &str,
     name: &str,
     args: &[OsString],
 ) -> i32 {
     let spec = version_spec.to_string();
+    let state_dir = state_dir.to_path_buf();
     let result = crate::block_on_runtime("pacquet-global-shim-pm", async move {
-        let config = Config::leak(trusted_package_manager_config()?);
+        let config = Config::leak(trusted_package_manager_config(&state_dir)?);
         provision::<SilentReporter>(config, pm, &spec).await
     });
     match result {
@@ -596,9 +646,10 @@ fn run_package_manager_from_pin(
 /// The configuration package-manager provisioning runs under: pnpm's own
 /// trusted layers, anchored inside its state directory so no project's
 /// `pnpm-workspace.yaml` can redirect the store the executable comes from.
-fn trusted_package_manager_config() -> miette::Result<Config> {
-    let state_dir = default_state_dir::<Host>()
-        .ok_or_else(|| miette::miette!("the pnpm state directory could not be resolved"))?;
+fn trusted_package_manager_config(state_dir: &Path) -> miette::Result<Config> {
+    if state_dir.as_os_str().is_empty() {
+        return Err(miette::miette!("the pnpm state directory could not be resolved"));
+    }
     trusted_runtime_config(&state_dir.join(PACKAGE_MANAGER_ENVS_DIR_NAME))
 }
 

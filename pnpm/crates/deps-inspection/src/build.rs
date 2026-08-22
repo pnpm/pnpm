@@ -48,7 +48,8 @@ impl LoadedState {
             Some(dir) => lockfile_dir.join(dir),
             None => lockfile_dir.join("node_modules"),
         };
-        let modules_dir = realpath_missing(&modules_dir_raw);
+        let modules_dir = pnpm_fs::realpath_missing(&modules_dir_raw)
+            .unwrap_or_else(|_| lexical_normalize(&modules_dir_raw));
         let modules = read_modules_manifest::<Host>(&modules_dir)
             .into_diagnostic()
             .wrap_err("read the modules manifest")?;
@@ -308,32 +309,6 @@ pub fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String {
 pub fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
     pnpm_deps_restorer::validate_importer_id(importer_id).ok()?;
     Some(pnpm_deps_restorer::importer_root_dir(lockfile_dir, importer_id))
-}
-
-/// Resolve symlinks in the deepest existing ancestor of `path`,
-/// re-appending the missing tail (counterpart of the `realpath-missing`
-/// package).
-#[must_use]
-pub fn realpath_missing(path: &Path) -> PathBuf {
-    let mut current = path.to_path_buf();
-    let mut tail: Vec<std::ffi::OsString> = Vec::new();
-    loop {
-        match dunce::canonicalize(&current) {
-            Ok(mut real) => {
-                for component in tail.iter().rev() {
-                    real.push(component);
-                }
-                return real;
-            }
-            Err(_) => match (current.parent(), current.file_name()) {
-                (Some(parent), Some(name)) => {
-                    tail.push(name.to_os_string());
-                    current = parent.to_path_buf();
-                }
-                _ => return lexical_normalize(path),
-            },
-        }
-    }
 }
 
 /// Scan the project's modules dir for packages absent from its

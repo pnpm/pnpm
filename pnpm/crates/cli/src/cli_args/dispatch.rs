@@ -6,7 +6,10 @@ use super::{
 };
 use crate::{
     State,
-    config_overrides::{ConfigOverrides, apply_registry_override, apply_store_dir_override},
+    config_overrides::{
+        ConfigOverrides, apply_registry_override, apply_state_dir_override,
+        apply_store_dir_override,
+    },
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{Config, Host, default_pnpm_home_dir};
@@ -134,6 +137,9 @@ impl CliArgs {
         {
             return false;
         }
+        if let Some(state_dir) = self.state_dir.as_deref() {
+            apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
+        }
         install_args.lockfile_dir.apply_to(&mut config, &dir);
         self.configure_reporter();
         let emit = reporter_emit(self.effective_reporter());
@@ -168,6 +174,7 @@ impl CliArgs {
             command,
             dir,
             store_dir,
+            state_dir,
             npmrc_auth_file,
             registry,
             https_proxy,
@@ -262,6 +269,9 @@ impl CliArgs {
                 }
                 if let Some(store_dir) = store_dir.as_deref() {
                     apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
+                }
+                if let Some(state_dir) = state_dir.as_deref() {
+                    apply_state_dir_override::<Host>(&mut cfg, state_dir, anchor);
                 }
                 // `--recursive` / `--filter` / `--filter-prod` /
                 // `--workspace-root` / `--fail-if-no-match` are CLI-only

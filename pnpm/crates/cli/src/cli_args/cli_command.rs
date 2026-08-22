@@ -129,6 +129,10 @@ pub struct CliArgs {
     )]
     pub store_dir: Option<PathBuf>,
 
+    /// Directory in which pnpm persists machine-local state.
+    #[clap(long = "state-dir", value_name = "DIR", global = true, overrides_with = "state_dir")]
+    pub state_dir: Option<PathBuf>,
+
     /// Path to an `.npmrc` to read auth settings from, overriding the
     /// default `~/.npmrc`.
     #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]

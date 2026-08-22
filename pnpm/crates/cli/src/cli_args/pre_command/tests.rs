@@ -103,6 +103,14 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         );
         assert_eq!(input.command.as_deref(), case.command, "case: {}", case.name);
     }
+
+    let input = SwitchInput::from_version_argv(&[
+        OsString::from("pnpm"),
+        OsString::from("--state-dir"),
+        OsString::from("/tmp/state"),
+        OsString::from("--version"),
+    ]);
+    assert_eq!(input.state_dir.as_deref(), Some(Path::new("/tmp/state")));
 }
 
 #[test]
@@ -349,6 +357,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
     PreCommandInput {
         switch: SwitchInput {
             dir: dir.to_path_buf(),
+            state_dir: None,
             npmrc_auth_file: None,
             command: Some("run".to_string()),
             frozen_lockfile: None,

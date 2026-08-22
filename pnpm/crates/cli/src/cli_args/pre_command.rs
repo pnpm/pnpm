@@ -25,7 +25,7 @@ use super::{
 use crate::{
     cli_args::config_warnings::report_workspace_key_issues,
     config_deps,
-    config_overrides::ConfigOverrides,
+    config_overrides::{ConfigOverrides, apply_state_dir_override},
     engine_pm::{
         channel::PackageManager,
         install::{install_engine_from_env, install_engine_to_store},
@@ -210,6 +210,9 @@ fn pre_command_plan_from_input(
             .map_err(miette::Report::new)
             .wrap_err("load configuration")?;
     config_overrides.apply(&mut config);
+    if let Some(state_dir) = switch.state_dir.as_deref() {
+        apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
+    }
 
     let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
     let manifest = read_manifest_json(&root_dir.join("package.json"))?;
@@ -983,6 +986,7 @@ enum SwitchSource {
 
 struct SwitchInput {
     dir: PathBuf,
+    state_dir: Option<PathBuf>,
     npmrc_auth_file: Option<PathBuf>,
     command: Option<String>,
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
@@ -994,6 +998,7 @@ impl SwitchInput {
     fn from_cli_args(args: &CliArgs) -> Self {
         Self {
             dir: args.dir.clone(),
+            state_dir: args.state_dir.clone(),
             npmrc_auth_file: args.npmrc_auth_file.clone(),
             command: Some(command_name(&args.command).to_string()),
             frozen_lockfile: frozen_lockfile_flag(&args.command),
@@ -1004,6 +1009,7 @@ impl SwitchInput {
         let global_options = ArgTable::top_level(super::grammar());
         let mut input = Self {
             dir: PathBuf::from("."),
+            state_dir: None,
             npmrc_auth_file: None,
             command: None,
             frozen_lockfile: None,
@@ -1034,6 +1040,13 @@ impl SwitchInput {
                 )
             {
                 input.dir = PathBuf::from(value);
+                index += width;
+                continue;
+            }
+            if let Some((value, width)) =
+                long_value(token, "state-dir", argv.get(index + 1).map(OsString::as_os_str))
+            {
+                input.state_dir = Some(PathBuf::from(value));
                 index += width;
                 continue;
             }

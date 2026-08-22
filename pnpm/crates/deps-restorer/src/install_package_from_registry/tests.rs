@@ -41,6 +41,7 @@ fn create_config(
         prefer_symlinked_executables: None,
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
+        state_dir: store_dir.join("state"),
         modules_dir: modules_dir.to_path_buf(),
         node_linker: Default::default(),
         node_experimental_package_map: false,

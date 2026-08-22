@@ -65,6 +65,7 @@ chrono          = { workspace = true }
 dashmap         = { workspace = true }
 derive_more     = { workspace = true }
 dialoguer       = { workspace = true }
+dunce           = { workspace = true }
 futures-util    = { workspace = true }
 httpdate        = { workspace = true }
 indexmap        = { workspace = true }
@@ -86,7 +87,6 @@ miette          = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 
 async-trait       = { workspace = true }
-dunce             = { workspace = true }
 flate2            = { workspace = true }
 insta             = { workspace = true }
 mockito           = { workspace = true }
