@@ -152,16 +152,25 @@ fn outdated_up_to_date_exits_zero() {
     drop((root, anchor));
 }
 
-/// Covers <https://github.com/pnpm/pnpm/issues/14004>: versions blocked by
-/// `minimumReleaseAge` must not be offered by `outdated` or interactive update.
+/// Covers <https://github.com/pnpm/pnpm/issues/14004>: `outdated` must offer
+/// mature releases without offering newer versions blocked by `minimumReleaseAge`.
 #[test]
 fn outdated_respects_minimum_release_age() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.1" }}"#));
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.0" }}"#));
     set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
     pacquet(&workspace, ["install"]).assert().success();
 
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1), "the mature release should be offered");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(BRAVO_DEP), "report should include the package: {stdout}");
+    assert!(stdout.contains("1.0.1"), "report should offer the mature release: {stdout}");
+    assert!(!stdout.contains("1.1.0"), "report should omit the immature release: {stdout}");
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
     assert_eq!(output.status.code(), Some(0), "immature releases should not be offered");
     let stdout = String::from_utf8_lossy(&output.stdout);

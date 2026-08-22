@@ -12,6 +12,53 @@ const TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 const RELEASE_AGE_METADATA_REQUESTS: usize = 2;
 
 #[tokio::test]
+async fn interactive_choices_respect_minimum_release_age() {
+    let temp = tempfile::tempdir().expect("create temporary workspace");
+    let manifest = manifest_with_dependency(temp.path(), "packages/a", "foo");
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+",
+    )
+    .expect("parse workspace lockfile");
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let foo_mock = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(package_body_with_publish_times("foo", &registry))
+        .create_async()
+        .await;
+    let mut config = Config::new();
+    config.registry = registry;
+    config.minimum_release_age = Some(60);
+    let projects =
+        [InteractiveUpdateProject { manifest: &manifest, importer_id: "packages/a".to_string() }];
+
+    let choices = collect_choices(
+        &projects,
+        Some(&lockfile),
+        &config,
+        &Arc::new(ThrottledClient::default()),
+        true,
+        &[DependencyGroup::Prod],
+    )
+    .await
+    .expect("collect interactive choices");
+
+    assert_eq!(choices.len(), 1);
+    assert_eq!(choices[0].target.to_string(), "1.0.1");
+    foo_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn collects_choices_from_each_selected_workspace_importer() {
     let temp = tempfile::tempdir().expect("create temporary workspace");
     let foo = manifest_with_dependency(temp.path(), "packages/a", "foo");
@@ -333,6 +380,25 @@ fn package_body(name: &str, registry: &str) -> String {
         },
     })
     .to_string()
+}
+
+fn package_body_with_publish_times(name: &str, registry: &str) -> String {
+    let mut body: serde_json::Value =
+        serde_json::from_str(&package_body(name, registry)).expect("parse package body");
+    body["versions"]["1.0.1"] = json!({
+        "name": name,
+        "version": "1.0.1",
+        "dist": {
+            "integrity": TEST_INTEGRITY,
+            "tarball": format!("{registry}{name}/-/{name}-1.0.1.tgz"),
+        },
+    });
+    body["time"] = json!({
+        "1.0.0": "2020-01-01T00:00:00.000Z",
+        "1.0.1": "2020-02-01T00:00:00.000Z",
+        "1.1.0": "2999-01-01T00:00:00.000Z",
+    });
+    body.to_string()
 }
 
 mod selection {
