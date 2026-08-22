@@ -5,8 +5,8 @@ import util from 'node:util'
 import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { PnpmError } from '@pnpm/error'
-import { getHashLink, getInstalledBinNames, type GlobalPackageInfo } from '@pnpm/global.packages'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
@@ -21,7 +21,7 @@ export interface ActivateGlobalInstallOptions {
 }
 
 export interface CleanupReplacedGlobalInstallsOptions {
-  groups: GlobalPackageInfo[]
+  groups: GlobalPackageBinSnapshot[]
   globalDir: string
   globalBinDir: string
   activeHash: string
@@ -96,23 +96,33 @@ export async function cleanupReplacedGlobalInstalls (
   }
 }
 
+export async function cleanupFailedGlobalInstall (
+  installDir: string,
+  originalError: unknown
+): Promise<never> {
+  try {
+    await fs.promises.rm(installDir, { recursive: true, force: true })
+  } catch (cleanupError) {
+    throw new AggregateError(
+      [originalError, cleanupError],
+      'Failed to clean up after global install failed before activation. ' +
+        `Original error: ${getSingleLineErrorMessage(originalError)}. ` +
+        `Cleanup error: ${getSingleLineErrorMessage(cleanupError)}.`,
+      { cause: originalError } // eslint-disable-line preserve-caught-error -- The failure before activation is primary; both errors remain in AggregateError.errors.
+    )
+  }
+  throw originalError
+}
+
 // Activation already succeeded when this runs, so every removal is
 // attempted even after one fails; the failures are aggregated instead of
 // aborting the remaining cleanup.
 async function cleanupReplacedGlobalInstall (
   opts: CleanupReplacedGlobalInstallsOptions,
-  group: GlobalPackageInfo
+  groupSnapshot: GlobalPackageBinSnapshot
 ): Promise<unknown[]> {
   const errors: unknown[] = []
-  let binNames: string[]
-  try {
-    binNames = await getInstalledBinNames(group)
-  } catch (err) {
-    // The install directory is the only record of which bins the group
-    // owns, so removing it now would strand them on PATH forever. Leave
-    // the group intact for a later run to clean up.
-    return [err]
-  }
+  const { info: group, binNames } = groupSnapshot
   let binRemovalFailed = false
   for (const binName of binNames) {
     if (opts.activatedBins.has(binName) || opts.protectedBins.has(binName)) continue
@@ -388,4 +398,10 @@ function getErrorMessage (err: unknown): string {
   } catch {
     return 'Unknown error'
   }
+}
+
+function getSingleLineErrorMessage (err: unknown): string {
+  return redactAndSanitize(getErrorMessage(err))
+    .replaceAll('\u2028', '')
+    .replaceAll('\u2029', '')
 }

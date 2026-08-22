@@ -47,7 +47,7 @@ use pnpm_resolving_parse_wanted_dependency::{
 use std::{
     collections::HashSet,
     fs,
-    io::IsTerminal,
+    io::{self, IsTerminal},
     path::{Path, PathBuf},
 };
 
@@ -253,15 +253,24 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         ) {
             Ok(skip) => skip,
             Err(error) => {
-                let _ = fs::remove_dir_all(&install_dir);
-                return Err(error.into());
+                return Err(cleanup_failed_global_install::<CmdShimHost>(
+                    &install_dir,
+                    miette::Report::new(error),
+                ));
             }
         };
 
-        let existing =
-            collect_existing_global_installs(&global_pkg_dir, &aliases, &aliases_to_replace)
-                .into_diagnostic()
-                .wrap_err("scan existing global installs")?;
+        let existing = match collect_existing_global_installs(
+            &global_pkg_dir,
+            &aliases,
+            &aliases_to_replace,
+        ) {
+            Ok(existing) => existing,
+            Err(error) => {
+                return Err(cleanup_failed_global_install::<CmdShimHost>(&install_dir, error))
+                    .wrap_err("scan existing global installs");
+            }
+        };
 
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
@@ -287,7 +296,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             warn_global::<Reporter>(&leftover.to_string());
         }
         let activated_bins = activation.activated_bins;
-        cleanup_replaced_global_installs(
+        cleanup_replaced_global_install_snapshots(
             &global_pkg_dir,
             &global_bin_dir,
             &existing.groups_to_replace,
@@ -360,15 +369,26 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         ) {
             Ok(skip) => skip,
             Err(error) => {
-                let _ = fs::remove_dir_all(&install_dir);
-                return Err(error.into());
+                return Err(cleanup_failed_global_install::<CmdShimHost>(
+                    &install_dir,
+                    miette::Report::new(error),
+                ));
             }
         };
 
-        let protected =
-            bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]))
-                .into_diagnostic()
-                .wrap_err("scan global packages")?;
+        let ownership = (|| -> miette::Result<_> {
+            let group_to_replace = snapshot_global_package(pkg.clone())?;
+            let protected =
+                bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]))?;
+            Ok((group_to_replace, protected))
+        })();
+        let (group_to_replace, protected) = match ownership {
+            Ok(ownership) => ownership,
+            Err(error) => {
+                return Err(cleanup_failed_global_install::<CmdShimHost>(&install_dir, error))
+                    .wrap_err("scan global package bin ownership");
+            }
+        };
 
         let hash_link = get_hash_link(&global_pkg_dir, &pkg.hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
@@ -393,10 +413,10 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             warn_global::<Reporter>(&leftover.to_string());
         }
         let activated_bins = activation.activated_bins;
-        cleanup_replaced_global_installs(
+        cleanup_replaced_global_install_snapshots(
             &global_pkg_dir,
             &global_bin_dir,
-            std::slice::from_ref(pkg),
+            std::slice::from_ref(&group_to_replace),
             &pkg.hash,
             &activated_bins,
             &protected,
@@ -453,10 +473,14 @@ pub fn handle_global_remove(base_config: &'static Config, params: &[String]) -> 
 
     // Bins shared with (and owned by) groups that survive this removal must
     // not be unlinked, or we'd delete another global package's bin.
-    let exclude: HashSet<String> = groups.iter().map(|pkg| pkg.hash.clone()).collect();
+    let groups = groups
+        .into_iter()
+        .map(snapshot_global_package)
+        .collect::<miette::Result<Vec<_>>>()
+        .wrap_err("read global package bin ownership")?;
+    let exclude: HashSet<String> = groups.iter().map(|pkg| pkg.info.hash.clone()).collect();
     let protected = bin_names_of_other_groups(&global_pkg_dir, &exclude)
-        .into_diagnostic()
-        .wrap_err("scan global packages")?;
+        .wrap_err("scan global package bin ownership")?;
 
     for pkg in &groups {
         remove_group(&global_pkg_dir, &global_bin_dir, pkg, &protected);
@@ -626,26 +650,85 @@ async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
 }
 
 struct ExistingGlobalInstalls {
-    groups_to_replace: Vec<GlobalPackageInfo>,
+    groups_to_replace: Vec<GlobalPackageBinSnapshot>,
     protected_bins: HashSet<String>,
+}
+
+struct GlobalPackageBinSnapshot {
+    info: GlobalPackageInfo,
+    bin_names: Vec<String>,
+}
+
+trait FsRemoveDirAll {
+    fn remove_dir_all(path: &Path) -> io::Result<()>;
+}
+
+impl FsRemoveDirAll for CmdShimHost {
+    fn remove_dir_all(path: &Path) -> io::Result<()> {
+        fs::remove_dir_all(path)
+    }
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Failed to clean up after global install preparation failed")]
+struct GlobalInstallPreparationCleanupError {
+    #[error(not(source))]
+    #[related]
+    cleanup_reports: Vec<ArtifactCleanupError>,
+    #[error(source)]
+    #[diagnostic_source]
+    install_error: Box<dyn Diagnostic + Send + Sync>,
+}
+
+fn cleanup_failed_global_install<Sys>(
+    install_dir: &Path,
+    install_error: miette::Report,
+) -> miette::Report
+where
+    Sys: FsRemoveDirAll,
+{
+    match Sys::remove_dir_all(install_dir) {
+        Ok(()) => install_error,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => install_error,
+        Err(source) => GlobalInstallPreparationCleanupError {
+            cleanup_reports: vec![ArtifactCleanupError {
+                context: format!(
+                    "remove fresh global install directory at {}",
+                    install_dir.display(),
+                ),
+                source,
+            }],
+            install_error: install_error.into(),
+        }
+        .into(),
+    }
+}
+
+fn snapshot_global_package(info: GlobalPackageInfo) -> miette::Result<GlobalPackageBinSnapshot> {
+    let bin_names = get_installed_bin_names(&info).map_err(miette::Report::new)?;
+    Ok(GlobalPackageBinSnapshot { info, bin_names })
 }
 
 fn collect_existing_global_installs(
     global_pkg_dir: &Path,
     aliases: &[String],
     aliases_to_replace: &[String],
-) -> std::io::Result<ExistingGlobalInstalls> {
+) -> miette::Result<ExistingGlobalInstalls> {
     let mut groups_to_replace = Vec::new();
     let mut seen = HashSet::new();
     for alias in aliases_to_replace {
-        if let Some(pkg) = find_global_package(global_pkg_dir, alias)?
+        if let Some(pkg) = find_global_package(global_pkg_dir, alias).into_diagnostic()?
             && should_replace_existing_package(&pkg, aliases, aliases_to_replace)
             && seen.insert(pkg.hash.clone())
         {
             groups_to_replace.push(pkg);
         }
     }
-    let exclude = groups_to_replace.iter().map(|pkg| pkg.hash.clone()).collect();
+    let groups_to_replace = groups_to_replace
+        .into_iter()
+        .map(snapshot_global_package)
+        .collect::<miette::Result<Vec<_>>>()?;
+    let exclude = groups_to_replace.iter().map(|pkg| pkg.info.hash.clone()).collect();
     let protected_bins = bin_names_of_other_groups(global_pkg_dir, &exclude)?;
     Ok(ExistingGlobalInstalls { groups_to_replace, protected_bins })
 }
@@ -661,22 +744,23 @@ struct ReplacedGlobalInstallCleanupError {
 // Activation already succeeded when this runs, so every removal is
 // attempted even after one fails; the failures are aggregated instead of
 // aborting the remaining cleanup.
-fn cleanup_replaced_global_installs(
+fn cleanup_replaced_global_install_snapshots(
     global_pkg_dir: &Path,
     global_bin_dir: &Path,
-    groups: &[GlobalPackageInfo],
+    groups: &[GlobalPackageBinSnapshot],
     active_hash: &str,
     activated_bins: &HashSet<String>,
     protected_bins: &HashSet<String>,
 ) -> miette::Result<()> {
     let mut cleanup_reports = Vec::new();
-    for group in groups {
+    for snapshot in groups {
+        let group = &snapshot.info;
         let mut bin_removal_failed = false;
-        for bin_name in get_installed_bin_names(group) {
-            if activated_bins.contains(&bin_name) || protected_bins.contains(&bin_name) {
+        for bin_name in &snapshot.bin_names {
+            if activated_bins.contains(bin_name) || protected_bins.contains(bin_name) {
                 continue;
             }
-            let bin_path = global_bin_dir.join(&bin_name);
+            let bin_path = global_bin_dir.join(bin_name);
             if let Err(error) = remove_bin(&bin_path) {
                 cleanup_reports.push(ArtifactCleanupError {
                     context: format!("remove replaced global bin at {}", bin_path.display()),
@@ -772,18 +856,18 @@ fn is_pnpm_cli_package_alias(alias: &str) -> bool {
 fn remove_group(
     global_pkg_dir: &Path,
     global_bin_dir: &Path,
-    pkg: &GlobalPackageInfo,
+    pkg: &GlobalPackageBinSnapshot,
     protected: &HashSet<String>,
 ) {
-    for bin in get_installed_bin_names(pkg) {
-        if protected.contains(&bin) {
+    for bin in &pkg.bin_names {
+        if protected.contains(bin) {
             continue;
         }
-        let _ = remove_bin(&global_bin_dir.join(&bin));
+        let _ = remove_bin(&global_bin_dir.join(bin));
     }
-    let _ = fs::remove_file(get_hash_link(global_pkg_dir, &pkg.hash));
-    if is_subdir(global_pkg_dir, &pkg.install_dir) {
-        let _ = fs::remove_dir_all(&pkg.install_dir);
+    let _ = fs::remove_file(get_hash_link(global_pkg_dir, &pkg.info.hash));
+    if is_subdir(global_pkg_dir, &pkg.info.install_dir) {
+        let _ = fs::remove_dir_all(&pkg.info.install_dir);
     }
 }
 
@@ -792,13 +876,13 @@ fn remove_group(
 fn bin_names_of_other_groups(
     global_pkg_dir: &Path,
     exclude_hashes: &HashSet<String>,
-) -> std::io::Result<HashSet<String>> {
+) -> miette::Result<HashSet<String>> {
     let mut names = HashSet::new();
-    for pkg in scan_global_packages(global_pkg_dir)? {
+    for pkg in scan_global_packages(global_pkg_dir).into_diagnostic()? {
         if exclude_hashes.contains(&pkg.hash) {
             continue;
         }
-        for bin in get_installed_bin_names(&pkg) {
+        for bin in get_installed_bin_names(&pkg).map_err(miette::Report::new)? {
             names.insert(bin);
         }
     }

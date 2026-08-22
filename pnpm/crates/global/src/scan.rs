@@ -2,7 +2,10 @@
 //! directory and the details needed to list, update, and remove them.
 
 use crate::read_package_json;
-use pnpm_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest};
+use pnpm_cmd_shim::{
+    FsReadFile, FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest,
+};
+use pnpm_package_manifest::{PackageManifestError, parse_manifest_bytes};
 use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
@@ -107,18 +110,35 @@ pub fn get_global_package_details(info: &GlobalPackageInfo) -> Vec<InstalledGlob
 }
 
 /// The bin names installed by a group (deduplicated).
-#[must_use]
-pub fn get_installed_bin_names(info: &GlobalPackageInfo) -> Vec<String> {
+///
+/// Every declared dependency manifest must be readable and valid. Returning
+/// a partial set would make destructive callers mistake unknown ownership for
+/// an unowned bin.
+pub fn get_installed_bin_names(
+    info: &GlobalPackageInfo,
+) -> Result<Vec<String>, PackageManifestError> {
+    get_installed_bin_names_with_fs::<Host>(info)
+}
+
+fn get_installed_bin_names_with_fs<Sys>(
+    info: &GlobalPackageInfo,
+) -> Result<Vec<String>, PackageManifestError>
+where
+    Sys: FsReadFile + FsWalkFiles,
+{
     let modules_dir = info.install_dir.join("node_modules");
     let mut bins = BTreeSet::new();
     for (alias, _) in &info.dependencies {
         let dep_dir = modules_dir.join(alias);
-        let Some(manifest) = read_package_json(&dep_dir) else { continue };
-        for command in get_bins_from_package_manifest::<Host>(&manifest, &dep_dir) {
+        let manifest_path = dep_dir.join("package.json");
+        let bytes = Sys::read_file(&manifest_path).map_err(PackageManifestError::Io)?;
+        let manifest = parse_manifest_bytes(&bytes)
+            .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
+        for command in get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir) {
             bins.insert(command.name);
         }
     }
-    bins.into_iter().collect()
+    Ok(bins.into_iter().collect())
 }
 
 /// Read the directly-installed packages of an install directory as
