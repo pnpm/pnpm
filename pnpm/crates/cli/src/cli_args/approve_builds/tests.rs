@@ -16,24 +16,18 @@ fn splits_approved_and_denied() {
     assert_eq!(denied, vec!["bar".to_string()]);
 }
 
-// Ports pnpm's `positional arguments with unknown package throws error`.
 #[test]
-fn rejects_unknown_approved_package() {
-    let err = partition_params(&params(&["nope"]), &pending(&["foo"])).unwrap_err();
-    let ApproveBuildsError::UnknownPackages(names) = err else {
-        panic!("expected UnknownPackages, got {err:?}");
-    };
-    assert_eq!(names, vec!["nope".to_string()]);
+fn accepts_unknown_approved_package() {
+    let (approved, denied) = partition_params(&params(&["nope"]), &pending(&["foo"])).unwrap();
+    assert_eq!(approved, vec!["nope".to_string()]);
+    assert!(denied.is_empty());
 }
 
-// Ports pnpm's `!pkg with unknown package throws error`.
 #[test]
-fn rejects_unknown_denied_package() {
-    let err = partition_params(&params(&["!nope"]), &pending(&["foo"])).unwrap_err();
-    let ApproveBuildsError::UnknownPackages(names) = err else {
-        panic!("expected UnknownPackages, got {err:?}");
-    };
-    assert_eq!(names, vec!["nope".to_string()]);
+fn accepts_unknown_denied_package() {
+    let (approved, denied) = partition_params(&params(&["!nope"]), &pending(&["foo"])).unwrap();
+    assert!(approved.is_empty());
+    assert_eq!(denied, vec!["nope".to_string()]);
 }
 
 // Ports pnpm's `contradictory arguments throw error`.
