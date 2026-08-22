@@ -73,6 +73,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'catalogMode'
 | 'catalogPrune'
 | 'minimumReleaseAgeExcludePrune'
+| 'trustPolicyExcludePrune'
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'depth'
@@ -441,6 +442,7 @@ export async function installDeps (
           catalogPrune: opts.catalogPrune,
           resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
           minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+          trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
           allProjects: opts.allProjects,
           ...policyUpdates,
         }),
@@ -479,6 +481,7 @@ export async function installDeps (
           catalogPrune: opts.catalogPrune,
           resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
           minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+          trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
           allProjects,
           ...policyUpdates,
         }),
